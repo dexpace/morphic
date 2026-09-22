@@ -124,7 +124,7 @@ func TestDetect_Formats(t *testing.T) {
 			t.Parallel()
 			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
 			assert.Equal(t, tc.wantOK, ok)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags),
 				"a decline says something only when the source is recognizably this compiler's")
 		})
@@ -152,7 +152,7 @@ func TestDetect_KeyOrderDoesNotDecideTheFormat(t *testing.T) {
 			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
 			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
 			assert.True(t, ok, "a valid document must not be declined over where it declares its version")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "a document this compiler recognizes carries no complaint")
 		})
 	}
@@ -230,7 +230,7 @@ func TestSniff_BeyondTheCap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			probe, _ := sniff([]byte(tc.src))
+			probe, _, _ := sniff([]byte(tc.src))
 			assert.Equal(t, tc.want, probe,
 				"the error is not asserted: a prefix of another format is unreadable here by design")
 		})
@@ -336,7 +336,7 @@ func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
 			t.Parallel()
 			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
 			assert.True(t, ok, "a document this compiler can lower must not be declined over a repeated key")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "the repeats are the parser's to report, sited, not detection's")
 		})
 	}
@@ -362,7 +362,7 @@ func TestDetect_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
 			src := "openapi: " + tc.first + "\nopenapi: " + tc.second + "\ninfo: {}\n"
 			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)})
 			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got,
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format,
 				"the last spelling is the one the parser reads and records")
 		})
 	}
@@ -394,7 +394,7 @@ func TestDetect_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
 				return
 			}
 			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
 		})
 	}
 }
@@ -417,12 +417,12 @@ func TestSniff_BoundsAMergeChain(t *testing.T) {
 	}
 	deep := b.String() + fmt.Sprintf("<<: *a%d\n", maxMergeDepth+1)
 
-	probe, err := sniff([]byte(deep))
+	probe, _, err := sniff([]byte(deep))
 	require.NoError(t, err, "a chain past the bound is declined, not failed")
 	assert.Empty(t, probe.OpenAPI, "past the bound the key is not followed to")
 
 	shallow := "l0: &a0\n  openapi: 3.1.0\n<<: *a0\n"
-	probe, err = sniff([]byte(shallow))
+	probe, _, err = sniff([]byte(shallow))
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.0", probe.OpenAPI, "the bound must not refuse the depth a document writes")
 }
@@ -441,7 +441,7 @@ func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, err := decodeYAML([]byte(tc.src))
+			probe, _, err := decodeYAML([]byte(tc.src))
 			assert.Empty(t, probe.OpenAPI)
 			if tc.wantErr == "" {
 				assert.NoError(t, err, "bytes that carry no document decline rather than fail")
@@ -469,8 +469,8 @@ func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
 	large := []byte(head + strings.Repeat("x: y\n", dupRepeats*2))
 
-	smallAllocs := testing.AllocsPerRun(2, func() { _, _ = sniff(small) })
-	largeAllocs := testing.AllocsPerRun(2, func() { _, _ = sniff(large) })
+	smallAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(small) })
+	largeAllocs := testing.AllocsPerRun(2, func() { _, _, _ = sniff(large) })
 
 	require.Positive(t, smallAllocs, "a measurement of nothing bounds nothing")
 	assert.Less(t, largeAllocs, smallAllocs*3,
@@ -497,7 +497,7 @@ func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, err := decodeYAML([]byte(tc.src))
+			probe, _, err := decodeYAML([]byte(tc.src))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr, "the complaint names the shape that was read")
 			assert.Empty(t, probe.OpenAPI)
@@ -550,7 +550,7 @@ func TestDecodeYAML_PassesOverWhatNamesNoVersion(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			probe, err := decodeYAML([]byte(tc.src))
+			probe, _, err := decodeYAML([]byte(tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, "3.1.0", probe.OpenAPI)
 		})

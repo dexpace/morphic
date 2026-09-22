@@ -50,7 +50,9 @@ type Result struct {
 //
 // An Engine is safe for concurrent use by multiple goroutines, and concurrent
 // runs over one spec yield identical documents rather than merely uncorrupted
-// ones. NewWith finishes writing the registry before the Engine exists and Run
+// ones. Run builds a fresh compilers.Source per call, so the working state a
+// compiler leaves on one (Source.Parsed) is never shared between runs — which
+// is what keeps that guarantee true now that detection hands its parse on. NewWith finishes writing the registry before the Engine exists and Run
 // only reads it; Run keeps nothing between calls. The rest of the guarantee is
 // compilers.Compiler's purity requirement — a compiler holding package-level
 // mutable state would break it, which is why that requirement is part of the
@@ -129,10 +131,16 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	}
 	source := compilers.Source{Path: specPath, Data: data}
 
-	front, format, declined, ok := e.registry.Detect(source)
+	front, rec, declined, ok := e.registry.Detect(source)
+	format := rec.Format
 	if !ok {
 		return &Result{Format: format, Diagnostics: e.undetected(format, declined)}, nil
 	}
+	// What detection parsed to recognize the source is what the compile lowers,
+	// so the source carries it forward rather than being read twice. The
+	// registry has already dropped it unless the compiler about to be asked is
+	// the one that made it.
+	source.Parsed = rec.Parsed
 	formatOpts, err := formatOptions(front, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: options for %q: %w", specPath, err)

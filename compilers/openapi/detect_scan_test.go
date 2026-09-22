@@ -33,7 +33,7 @@ func TestDetect_KeyOrderSurvivesTheCap(t *testing.T) {
 			t.Parallel()
 			got, _, ok := New().Detect(compilers.Source{Path: "spec.json", Data: []byte(src)})
 			assert.True(t, ok)
-			assert.Equal(t, want, got, "which key the cap fell after does not decide the format")
+			assert.Equal(t, want, got.Format, "which key the cap fell after does not decide the format")
 		})
 	}
 }
@@ -57,7 +57,7 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 			t.Parallel()
 			got, diags, ok := New().Detect(compilers.Source{Path: "README.md", Data: []byte(tc.src)})
 			assert.False(t, ok, "prose beside the word is not a declaration of this format")
-			assert.Equal(t, compilers.SourceFormat{}, got)
+			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Nil(t, codesOf(diags), "another format's file earns no complaint from this one")
 		})
 	}
@@ -85,7 +85,7 @@ func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 			t.Parallel()
 			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
 			assert.True(t, ok, "one word beside the key declares the format, whether or not it is served")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got)
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
 			assert.Nil(t, codesOf(diags), "which version is wrong is load's to say")
 		})
 	}
@@ -187,7 +187,7 @@ func TestDetect_TheCapBoundaryReadsTheSameBothWays(t *testing.T) {
 
 			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)})
 			assert.True(t, ok)
-			assert.Equal(t, want, got, "one byte of padding does not change what a document declares")
+			assert.Equal(t, want, got.Format, "one byte of padding does not change what a document declares")
 			assert.Nil(t, codesOf(diags))
 		})
 	}
@@ -222,7 +222,7 @@ func TestDetect_TheCapDecidesWhichReadingAnswers(t *testing.T) {
 			t.Parallel()
 			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: broken(tc.size)})
 			assert.False(t, ok, "neither reading finds a version in a document broken before one")
-			assert.Equal(t, compilers.SourceFormat{}, got)
+			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags))
 		})
 	}
@@ -252,7 +252,7 @@ func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 				}
 				got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)})
 				assert.True(t, ok, "the document behind the empty one is what the source declares")
-				assert.Equal(t, want, got)
+				assert.Equal(t, want, got.Format)
 				assert.Nil(t, codesOf(diags))
 			})
 		}
@@ -276,7 +276,7 @@ func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
 			require.Greater(t, len(src), maxSniffBytes, "the case must exceed the cap to test the scan")
 			got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)})
 			assert.True(t, ok, "a byte-order mark is not part of what a document declares")
-			assert.Equal(t, want, got)
+			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
 		})
 	}
@@ -488,7 +488,7 @@ func TestReadings_AgreeExceptWhereDeclared(t *testing.T) {
 		t.Run("agree/"+tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Empty(t, tc.declared, "an agreeing row carries no reason")
-			parsed, _ := decodeYAML([]byte(tc.src))
+			parsed, _, _ := decodeYAML([]byte(tc.src))
 			assert.Equal(t, tc.want, parsed, "the parse reads what the row says")
 			assert.Equal(t, tc.want, scanProbe([]byte(tc.src)), "the scan reads what the parse reads")
 		})
@@ -497,7 +497,7 @@ func TestReadings_AgreeExceptWhereDeclared(t *testing.T) {
 		t.Run("declared/"+tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.NotEmpty(t, tc.declared, "a declared loss carries its reason")
-			parsed, err := decodeYAML([]byte(tc.src))
+			parsed, _, err := decodeYAML([]byte(tc.src))
 			require.NoError(t, err, "the loss is the scan's alone: the parse reads the document")
 			assert.Equal(t, tc.want, parsed, "the parse reads what the row says")
 			assert.Equal(t, tc.scan, scanProbe([]byte(tc.src)), "the scan reads what the row declares it reads")
@@ -534,4 +534,31 @@ func BenchmarkDetect_ScanPastTheCap(b *testing.B) {
 			}
 		})
 	}
+}
+
+// TestDetect_CarriesItsParseOnlyWhenItMadeOne pins both ends of what a
+// recognition hands over. Below the cap the document is parsed to read its
+// keys, and that parse is what the compile lowers; past the cap the scan reads
+// bytes and builds nothing, so there is nothing to carry.
+//
+// The empty case is asserted as an interface comparison rather than with
+// assert.Nil, which reports a nil pointer stored in an interface as nil. That
+// is the value this must not hold: a consumer's type assertion succeeds on one
+// and reads through it, which is a nil dereference in the compile rather than
+// a parse of its own.
+func TestDetect_CarriesItsParseOnlyWhenItMadeOne(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
+
+	small := compilers.Source{Path: "spec.yaml", Data: []byte(spec)}
+	require.LessOrEqual(t, len(small.Data), maxSniffBytes, "the case must fit the cap to be parsed")
+	rec, _, ok := New().Detect(small)
+	require.True(t, ok)
+	assert.NotNil(t, rec.Parsed, "the parse that read the keys is the one the compile lowers")
+
+	large := compilers.Source{Path: "spec.yaml", Data: []byte(spec + "#" + flowPad() + "\n")}
+	require.Greater(t, len(large.Data), maxSniffBytes, "the case must exceed the cap to be scanned")
+	rec, _, ok = New().Detect(large)
+	require.True(t, ok)
+	assert.True(t, rec.Parsed == nil, "the scan parses nothing, and a typed nil is not nothing")
 }

@@ -22,18 +22,22 @@ type stubCompiler struct {
 	// declines is what this compiler says when it does not take a source, which
 	// the registry is meant to carry out for the caller to report.
 	declines []ir.Diagnostic
+	// parsed stands in for what this compiler made of a source while
+	// recognizing it, which the registry carries to its own Compile and to no
+	// other compiler's.
+	parsed any
 }
 
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
 
-func (s *stubCompiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+func (s *stubCompiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if s.marker == "" || !bytes.Contains(src.Data, []byte(s.marker)) {
-		return compilers.SourceFormat{}, s.declines, false
+		return compilers.Recognition{}, s.declines, false
 	}
 	if s.detects != (compilers.SourceFormat{}) {
-		return s.detects, nil, true
+		return compilers.Recognition{Format: s.detects, Parsed: s.parsed}, nil, true
 	}
-	return s.formats[0], nil, true
+	return compilers.Recognition{Format: s.formats[0], Parsed: s.parsed}, nil, true
 }
 
 func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
@@ -141,14 +145,14 @@ func TestRegistry_DetectAsksEachCompilerInRegistrationOrder(t *testing.T) {
 	require.NoError(t, reg.Register(first))
 	require.NoError(t, reg.Register(second))
 
-	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("shared bytes")})
+	got, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("shared bytes")})
 	require.True(t, ok)
 	assert.Same(t, compilers.Compiler(first), got, "the earlier registration wins")
-	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "1"}, format)
+	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "1"}, rec.Format)
 
-	_, format, _, ok = reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("nobody claims this")})
+	_, rec, _, ok = reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("nobody claims this")})
 	assert.False(t, ok)
-	assert.Equal(t, compilers.SourceFormat{}, format, "the zero format means unrecognized")
+	assert.Equal(t, compilers.SourceFormat{}, rec.Format, "the zero format means unrecognized")
 }
 
 // TestRegistry_DetectReportsRecognizedButUnregistered separates the two ways a
@@ -165,10 +169,10 @@ func TestRegistry_DetectReportsRecognizedButUnregistered(t *testing.T) {
 	reg := compilers.NewRegistry()
 	require.NoError(t, reg.Register(front))
 
-	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("alpha")})
+	got, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("alpha")})
 	assert.False(t, ok, "no compiler is registered for alpha@9")
 	assert.Nil(t, got)
-	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "9"}, format)
+	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "9"}, rec.Format)
 }
 
 func TestRegistry_DetectEmptySource(t *testing.T) {
@@ -199,10 +203,10 @@ func TestRegistry_DetectSkipsCompilersThatDecline(t *testing.T) {
 	require.NoError(t, reg.Register(declines))
 	require.NoError(t, reg.Register(claims))
 
-	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+	got, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
 	require.True(t, ok)
 	assert.Same(t, compilers.Compiler(claims), got)
-	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, rec.Format)
 }
 
 // TestRegistry_DetectCarriesWhatDecliningCompilersSaid pins the channel the
@@ -244,10 +248,10 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 		marker:  "beta",
 	}))
 
-	_, format, diags, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+	_, rec, diags, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
 
 	require.True(t, ok)
-	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, rec.Format)
 	assert.Empty(t, diags, "the source found a compiler, so nothing declined is worth saying")
 }
 
@@ -256,8 +260,8 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 // breaks it.
 type claimsNothing struct{ stubCompiler }
 
-func (claimsNothing) Detect(compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
-	return compilers.SourceFormat{}, nil, true
+func (claimsNothing) Detect(compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+	return compilers.Recognition{}, nil, true
 }
 
 // TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming pins that a compiler
@@ -277,11 +281,11 @@ func TestRegistry_DetectSkipsACompilerThatClaimsWithoutNaming(t *testing.T) {
 	require.NoError(t, reg.Register(broken))
 	require.NoError(t, reg.Register(claims))
 
-	got, format, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
+	got, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("beta")})
 
 	require.True(t, ok, "the compiler after the broken one must still be asked")
 	assert.Same(t, compilers.Compiler(claims), got)
-	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, format)
+	assert.Equal(t, compilers.SourceFormat{Name: "beta", Version: "2"}, rec.Format)
 }
 
 // TestRegistry_FormatsAreSortedNotRegistrationOrder pins both halves of what
@@ -313,4 +317,72 @@ func TestRegistry_FormatsOfAnEmptyRegistryIsEmpty(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, compilers.NewRegistry().Formats())
 	assert.Empty(t, new(compilers.Registry).Formats())
+}
+
+// TestRegistry_DetectCarriesTheParseToItsOwnCompiler pins what makes a parse
+// safe to hand on: it reaches the compiler that made it, and no other. A
+// compiler may recognize a format another serves — an OpenAPI compiler names
+// Swagger so the caller hears "unsupported" rather than "unreadable" — and the
+// value it parsed is of a type only it can read, so carrying it across would
+// hand one compiler another's internals.
+func TestRegistry_DetectCarriesTheParseToItsOwnCompiler(t *testing.T) {
+	t.Parallel()
+	parse := struct{ tree string }{"alpha's own"}
+	alpha := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+		parsed:  parse,
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(alpha))
+
+	_, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("alpha")})
+	require.True(t, ok)
+	assert.Equal(t, parse, rec.Parsed, "the compiler that parsed it is the one registered for the format")
+}
+
+// TestRegistry_DetectDropsAParseForAnotherCompiler is the other half. beta owns
+// the format alpha recognized, so alpha's parse must not reach it; the format
+// is still reported, because naming a format one does not serve is the whole
+// point of recognizing it.
+func TestRegistry_DetectDropsAParseForAnotherCompiler(t *testing.T) {
+	t.Parallel()
+	betaFormat := compilers.SourceFormat{Name: "beta", Version: "2"}
+	alpha := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "shared",
+		detects: betaFormat,
+		parsed:  struct{ tree string }{"alpha's own"},
+	}
+	beta := &stubCompiler{formats: []compilers.SourceFormat{betaFormat}, marker: "shared"}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(alpha))
+	require.NoError(t, reg.Register(beta))
+
+	got, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("shared")})
+	require.True(t, ok)
+	assert.Same(t, beta, got, "the format's owner is what compiles it")
+	assert.Equal(t, betaFormat, rec.Format)
+	assert.Nil(t, rec.Parsed, "one compiler's parse is not another's to read")
+}
+
+// TestRegistry_DetectDropsAParseForAnUnregisteredFormat pins the same rule
+// where there is no owner at all: a recognized format nobody serves reaches the
+// caller as unsupported, and the recognizer's parse goes nowhere, since nothing
+// will be asked to compile it.
+func TestRegistry_DetectDropsAParseForAnUnregisteredFormat(t *testing.T) {
+	t.Parallel()
+	alpha := &stubCompiler{
+		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
+		marker:  "alpha",
+		detects: compilers.SourceFormat{Name: "alpha", Version: "9"},
+		parsed:  struct{ tree string }{"alpha's own"},
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(alpha))
+
+	_, rec, _, ok := reg.Detect(compilers.Source{Path: "s.txt", Data: []byte("alpha")})
+	require.False(t, ok, "recognized, and no compiler serves it")
+	assert.Equal(t, compilers.SourceFormat{Name: "alpha", Version: "9"}, rec.Format)
+	assert.Nil(t, rec.Parsed)
 }

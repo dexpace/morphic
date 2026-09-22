@@ -28,7 +28,7 @@ func TestNodeCount_CountsEveryNodeAndAnswersForNothing(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			root, _, err := decode([]byte(tc.src))
+			root, _, err := decodeStream([]byte(tc.src))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, nodeCount(root))
 		})
@@ -82,7 +82,7 @@ func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 // public options can ask for a number, never learn one.
 func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
-	root, _, err := decode([]byte(minimal31))
+	root, _, err := decodeStream([]byte(minimal31))
 	require.NoError(t, err)
 	nodes := nodeCount(root)
 	require.Positive(t, nodes)
@@ -124,7 +124,7 @@ func TestLoad_SourceNodeBudgetBindsOnlyPastTheLimit(t *testing.T) {
 // is that tree the budget exists to bound.
 func TestLoad_SourceNodeBudgetCountsWhatAnOverlayGrafted(t *testing.T) {
 	t.Parallel()
-	root, _, err := decode([]byte(minimal31))
+	root, _, err := decodeStream([]byte(minimal31))
 	require.NoError(t, err)
 	unpatched := nodeCount(root)
 
