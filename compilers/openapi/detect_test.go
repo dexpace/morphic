@@ -67,55 +67,17 @@ func TestDetect_Formats(t *testing.T) {
 		// key, so the parse error describes a parser that was wrong to be asked.
 		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",
 			compilers.SourceFormat{}, false, nil},
-		// Past the cap, where detection scans rather than parses, and the key it
-		// writes has no version beside it. A scan cannot tell that from another
-		// format's file naming the word, and claiming the wrong one of those two
-		// is the costlier mistake, so it declines and the caller is told the
-		// format was not recognized.
-		{"unparseable past the cap", "api.yaml",
-			padTo("openapi: [unterminated\n", "filler: x\n"),
-			compilers.SourceFormat{}, false, nil},
-		// Declares the key only past the cap, on a prefix that does not parse. The
-		// scan reads every byte, so the version is found and the format named; that
-		// the bytes around it will not parse is the compile's finding to report,
-		// where the parse that discovers it is one the loader had agreed to pay
-		// for. See TestCompile_AnUnreadableSourceIsADiagnostic.
-		{"key past the cap on an unparseable prefix", "api.yaml",
-			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		// The same split on a stream: yaml.v3 refuses a document that follows an
-		// explicit end marker without a `---` of its own, so below the cap this
-		// is undecodable, and above it the scan steps past the empty document the
-		// marker closed and reads the key from the one written after it.
-		{"key after an end-marked empty document, at the cap", "api.yaml",
+		// A stream whose first document an end marker closes without a `---` after
+		// it is one yaml.v3 refuses, and it names the key at column 0, so it is
+		// this compiler's own and unreadable.
+		{"key after an end-marked empty document", "api.yaml",
 			"---\n...\nopenapi: 3.1.0\n",
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
-		{"key after an end-marked empty document, past the cap", "api.yaml",
-			"---\n...\n" + padTo("openapi: 3.1.0\n", "filler: x\n"),
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		// A quoted scalar left open is the same case: the scan reads through an
-		// open construct to its close, and one that never closes leaves every
-		// line after it a root line after all.
-		{"key past the cap in an unterminated quoted scalar", "api.yaml",
-			padTo("bad: \"unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		// The same case in flow style, which is what the motivating spec is written
-		// in. A JSON document has no line structure to cut at, and the scan needs
-		// none: it tracks nesting through bytes a parser stops at.
-		{"key past the cap on an unparseable flow prefix", "spec3.json",
-			`{"pad":"` + flowPad() + `","bad" 1,"openapi":"3.1.0"}`,
-			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
-		// Another format's document, past the cap, naming the word as a key and
-		// broken besides. It opens no mapping of its own, so the key is not its
-		// declaration of itself and this compiler has nothing to say: reporting a
-		// parse error here would claim bytes that were never its own.
-		{"a broken document of another format names the key", "asyncapi.json",
-			`[{"openapi":"3.1.0"},"` + flowPad() + `"`,
-			compilers.SourceFormat{}, false, nil},
-		// The same, one level down inside a mapping that does open the document.
-		// A nested key names a field, not the format of the file holding it.
+		// The key one level down inside a mapping that does open the document,
+		// in a file that will not parse. A nested key names a field, not the
+		// format of the file holding it, so this compiler says nothing.
 		{"a broken document of another format nests the key", "other.json",
-			`{"pad":"` + flowPad() + `","deep":{"openapi":"3.1.0"},"bad" 1}`,
+			`{"deep":{"openapi":"3.1.0"},"bad" 1}`,
 			compilers.SourceFormat{}, false, nil},
 		{"empty", "empty.yaml", "", compilers.SourceFormat{}, false, nil},
 	}
@@ -127,112 +89,6 @@ func TestDetect_Formats(t *testing.T) {
 			assert.Equal(t, tc.want, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags),
 				"a decline says something only when the source is recognizably this compiler's")
-		})
-	}
-}
-
-// TestDetect_KeyOrderDoesNotDecideTheFormat is the shape this bound was getting
-// wrong: a published spec whose `components` object runs to megabytes and whose
-// `openapi` key sits behind it. A JSON object's keys are unordered, so the same
-// document written with its version key first and with it last is one document,
-// and detection has to answer the same for both. Only the version-last spellings
-// go past the prefix — they are the cases a prefix-only sniff declines.
-func TestDetect_KeyOrderDoesNotDecideTheFormat(t *testing.T) {
-	t.Parallel()
-	flow, block := bigComponents()
-	cases := []struct{ name, path, src string }{
-		{"flow json, version first", "spec3.json", `{"openapi":"3.0.3",` + flow + `}`},
-		{"flow json, version last", "spec3.json", `{` + flow + `,"openapi":"3.0.3"}`},
-		{"block yaml, version first", "api.yaml", "openapi: 3.0.3\n" + block},
-		{"block yaml, version last", "api.yaml", block + "openapi: 3.0.3\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
-			assert.True(t, ok, "a valid document must not be declined over where it declares its version")
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
-			assert.Nil(t, codesOf(diags), "a document this compiler recognizes carries no complaint")
-		})
-	}
-}
-
-// bigComponents returns a `components` entry whose value alone runs past the
-// sniff cap, in flow and in block style. It stands in for the schema catalogue a
-// published spec leads with; what matters is only that it is one entry too large
-// to read past.
-func bigComponents() (flow, block string) {
-	var f, b strings.Builder
-	f.WriteString(`"components":{"schemas":{`)
-	b.WriteString("components:\n  schemas:\n")
-	for i := 0; f.Len() <= maxSniffBytes || b.Len() <= maxSniffBytes; i++ {
-		if i > 0 {
-			f.WriteByte(',')
-		}
-		fmt.Fprintf(&f, `"S%d":{"type":"object","description":"a schema"}`, i)
-		fmt.Fprintf(&b, "    S%d:\n      type: object\n      description: a schema\n", i)
-	}
-	f.WriteString(`}}`)
-	return f.String(), b.String()
-}
-
-// flowPad returns a run of bytes long enough that a flow entry holding it puts
-// everything after it past the sniff cap.
-func flowPad() string { return strings.Repeat("p", maxSniffBytes) }
-
-// padTo returns src grown past the sniff cap by appending filler, so sniff reads
-// a prefix first rather than decoding the source whole on sight.
-func padTo(src, filler string) string {
-	var b strings.Builder
-	b.WriteString(src)
-	for b.Len() <= maxSniffBytes {
-		b.WriteString(filler)
-	}
-	return b.String()
-}
-
-// TestSniff_BeyondTheCap pins the reading a document larger than the cap gets:
-// a scan that finds a key wherever it sits, in whichever style the document is
-// written, because where a writer put a key in a mapping says nothing about what
-// the document is. Bytes that name neither key are declined in silence — the
-// scan has read one key and cannot tell a broken spec from another format's file.
-func TestSniff_BeyondTheCap(t *testing.T) {
-	t.Parallel()
-	const filler = "# a line of padding that says nothing about the format\n"
-	pad := strings.Repeat("p", maxSniffBytes)
-	cases := []struct {
-		name, src string
-		want      sniffProbe
-	}{
-		{"block yaml declaring first",
-			padTo("openapi: 3.1.0\n", filler), sniffProbe{OpenAPI: "3.1.0"}},
-		{"block yaml declaring past the cap",
-			padTo("", filler) + "openapi: 3.1.0\n", sniffProbe{OpenAPI: "3.1.0"}},
-		{"flow json declaring first",
-			`{"openapi":"3.1.0","x":"` + pad + `"}`, sniffProbe{OpenAPI: "3.1.0"}},
-		{"flow json declaring past the cap",
-			`{"x":"` + pad + `","openapi":"3.1.0"}`, sniffProbe{OpenAPI: "3.1.0"}},
-		{"flow json swagger first",
-			`{"swagger":"2.0","x":"` + pad + `"}`, sniffProbe{Swagger: "2.0"}},
-		{"flow json swagger past the cap",
-			`{"x":"` + pad + `","swagger":"2.0"}`, sniffProbe{Swagger: "2.0"}},
-		// Neither YAML nor JSON, and larger than the cap: the prefix is parsed,
-		// fails, and the answer is silence rather than a parser's complaint.
-		{"protobuf past the cap",
-			padTo("syntax = \"proto3\";\n", "message M { string a = 1; }\n"), sniffProbe{}},
-		// The word is there past the cap and is not a key: a value is not a
-		// declaration, and the flow scan reads names only where a colon follows.
-		{"the word past the cap is not a key",
-			`{"x":"` + pad + `","note":"openapi"}`, sniffProbe{}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			probe, _, _ := sniff([]byte(tc.src))
-			assert.Equal(t, tc.want, probe,
-				"the error is not asserted: a prefix of another format is unreadable here by design")
 		})
 	}
 }
@@ -262,6 +118,18 @@ func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 		{"block style at column 0", "openapi: 3.1.0\n", true},
 		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: [unterminated\n", true},
 		{"flow style past a byte-order mark", "\xef\xbb\xbf{\"openapi\":\"3.1.0\",", true},
+		// The properties and comments YAML admits in front of the document's
+		// own node. A reader that stopped at one of these would read the flow
+		// mapping as no document at all and let a broken spec of this
+		// compiler's own be declined in silence.
+		{"a comment line before the document", "# a note\n{\"openapi\":\"3.1.0\",", true},
+		{"two comment lines before the document", "# one\n# two\n{\"openapi\":\"3.1.0\",", true},
+		{"a comment that ends the bytes", "# a note with no newline", false},
+		{"an anchor before the document", "&x {\"openapi\":\"3.1.0\",", true},
+		{"a tag before the document", "!!map {\"openapi\":\"3.1.0\",", true},
+		{"a tag and an anchor before the document", "!!map &x {\"openapi\":\"3.1.0\",", true},
+		{"a node property that ends the bytes", "&x", false},
+		{"a comment before an anchored document", "# a note\n&x {\"openapi\":\"3.1.0\",", true},
 
 		{"nested one level down", `{"a":{"openapi":"3.1.0"}}`, false},
 		{"nested inside a sequence", `{"a":[{"openapi":"3.1.0"}]}`, false},

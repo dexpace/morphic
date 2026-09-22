@@ -110,8 +110,12 @@ the error reaches the caller unwrapped.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
-the engine dispatches to the one that does. A compiler also decodes its own textual options, so
-registering one is the whole of adding a format — no layer above names any of them. Milestone 1
+the engine dispatches to the one that does. Recognizing a source means reading it, and the compile
+that follows reads the same bytes, so a compiler hands what it parsed to its own `Compile` — the
+registry carries it only to the compiler that produced it, and it is an optimization a compiler
+must work without, since a caller may compile a source that never went through detection. A
+compiler also decodes its own textual options, so registering one is the whole of adding a format —
+no layer above names any of them. Milestone 1
 ships the OpenAPI 3.x compiler only; the compiler registry, provenance model, and IR are built for
 all eight from day one.
 
