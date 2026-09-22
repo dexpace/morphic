@@ -129,10 +129,16 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	}
 	source := compilers.Source{Path: specPath, Data: data}
 
-	front, format, declined, ok := e.registry.Detect(source)
+	front, rec, declined, ok := e.registry.Detect(source)
+	format := rec.Format
 	if !ok {
 		return &Result{Format: format, Diagnostics: e.undetected(format, declined)}, nil
 	}
+	// What detection parsed to recognize the source is what the compile lowers,
+	// so the source carries it forward rather than being read twice. The
+	// registry has already dropped it unless the compiler about to be asked is
+	// the one that made it.
+	source.Parsed = rec.Parsed
 	formatOpts, err := formatOptions(front, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: options for %q: %w", specPath, err)

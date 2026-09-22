@@ -68,22 +68,41 @@ type sniffProbe struct {
 // that was wrong to be asked. So is a key with prose beside it rather than a
 // version (declaredVersions): Markdown writes `openapi:` at column 0 too, and
 // what tells its line from a declaration is the one word after the colon.
-func (*Compiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
-	probe, err := sniff(src.Data)
+// The parse a recognition carries is the one Compile lowers. Recognizing a
+// source means reading what it declares, which means parsing it, and the
+// compile that follows would otherwise parse the same bytes again; past the
+// sniff cap nothing was parsed and there is nothing to hand over.
+func (*Compiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+	probe, parsed, err := sniff(src.Data)
 	switch {
 	case probe.OpenAPI != "":
-		return compilers.SourceFormat{Name: "openapi", Version: majorMinor(probe.OpenAPI)}, nil, true
+		return recognized("openapi", probe.OpenAPI, parsed), nil, true
 	case probe.Swagger != "":
-		return compilers.SourceFormat{Name: "swagger", Version: majorMinor(probe.Swagger)}, nil, true
+		return recognized("swagger", probe.Swagger, parsed), nil, true
 	case err != nil && declaresProbeKey(src.Data):
 		// NoSource, not source 0: detection runs before any document exists, so
 		// there is no source table for a provenance to index into.
-		return compilers.SourceFormat{}, []ir.Diagnostic{diag.Newf(
+		return compilers.Recognition{}, []ir.Diagnostic{diag.Newf(
 			ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
 			"source declares an OpenAPI or Swagger key and cannot be read: %s", diag.OneLine(err))}, false
 	default:
-		return compilers.SourceFormat{}, nil, false
+		return compilers.Recognition{}, nil, false
 	}
+}
+
+// recognized builds the recognition for a source that declared version under
+// name, carrying the parse that read it.
+//
+// A nil parse is left out rather than stored: a nil *load.Parsed put into an
+// interface makes an interface that is not nil, which a consumer's type
+// assertion accepts and then reads through. Past the sniff cap nothing is
+// parsed, so this is the ordinary case and not an edge one.
+func recognized(name, version string, parsed *load.Parsed) compilers.Recognition {
+	rec := compilers.Recognition{Format: compilers.SourceFormat{Name: name, Version: majorMinor(version)}}
+	if parsed != nil {
+		rec.Parsed = parsed
+	}
+	return rec
 }
 
 // declaresProbeKey reports whether data names one of the discriminating keys as
@@ -274,17 +293,18 @@ func startsWithColon(data []byte, i int) bool {
 // declares, and a scan reads that in one linear pass, where a parse builds a
 // tree of everything between them before the compiler's size and node budgets
 // have agreed to pay for one.
-func sniff(data []byte) (sniffProbe, error) {
-	probe, err := readProbe(data)
-	return declaredVersions(probe), err
+func sniff(data []byte) (sniffProbe, *load.Parsed, error) {
+	probe, parsed, err := readProbe(data)
+	return declaredVersions(probe), parsed, err
 }
 
-// readProbe reads the probe keys by whichever means the document's size affords.
-func readProbe(data []byte) (sniffProbe, error) {
+// readProbe reads the probe keys by whichever means the document's size affords,
+// and returns the parse when it made one — the scan reads bytes and makes none.
+func readProbe(data []byte) (sniffProbe, *load.Parsed, error) {
 	if len(data) <= maxSniffBytes {
 		return decodeYAML(data)
 	}
-	return scanProbe(data), nil
+	return scanProbe(data), nil, nil
 }
 
 // declaredVersions drops any value that does not read as a version. A key alone
@@ -937,23 +957,24 @@ func setVersion(probe *sniffProbe, name, value []byte) {
 // parsed tree is linear, and answers for a document whose keys repeat exactly as
 // for one whose keys do not. The parser this compiler goes on to use reports
 // those repeats itself, once each and sited, which is where a reader wants them.
-func decodeYAML(data []byte) (sniffProbe, error) {
-	doc, err := load.FirstDocument(data)
+func decodeYAML(data []byte) (sniffProbe, *load.Parsed, error) {
+	parsed, err := load.Decode(data)
 	if err != nil {
-		return sniffProbe{}, err
+		return sniffProbe{}, nil, err
 	}
 
-	root := documentRoot(doc)
+	root := documentRoot(parsed.Root())
 	switch {
 	case root == nil:
 		// A stream that carried no document declares no key, which is a decline
 		// and not a failure: empty bytes are no more this compiler's than
 		// anybody else's.
-		return sniffProbe{}, nil
+		return sniffProbe{}, nil, nil
 	case root.Kind != yaml.MappingNode:
-		return sniffProbe{}, fmt.Errorf("document root is %s, not a mapping", root.ShortTag())
+		return sniffProbe{}, nil, fmt.Errorf("document root is %s, not a mapping", root.ShortTag())
 	default:
-		return probeFromMapping(root, maxMergeDepth)
+		probe, err := probeFromMapping(root, maxMergeDepth)
+		return probe, parsed, err
 	}
 }
 

@@ -26,6 +26,37 @@ func (f SourceFormat) String() string { return f.Name + "@" + f.Version }
 type Source struct {
 	Path string
 	Data []byte
+	// Parsed is what a compiler's own Detect already made of Data, for its
+	// Compile to use instead of reading the bytes a second time. Recognizing a
+	// source and lowering it both begin by parsing it, and the two calls are
+	// back to back over the same bytes, so without this every compile parses
+	// its input twice.
+	//
+	// It is never required. A nil Parsed — what a caller assembling a Source by
+	// hand leaves — means the compiler parses Data itself, and so does a value
+	// of a type it does not recognize, which is the only thing it may assume
+	// about one: the type is the producing compiler's own, and a compiler must
+	// type-assert with comma-ok rather than trust what it is handed.
+	//
+	// A Parsed value belongs to one Compile. What a compiler leaves here is
+	// live state — an overlay patches the parsed tree in place — so a Source
+	// carrying one may not be compiled twice or shared between concurrent
+	// Compile calls. Registry.Detect produces one per source, and drops it
+	// unless the compiler that produced it is the one that will consume it.
+	Parsed any
+}
+
+// Recognition is what one compiler made of a source it recognized: the format
+// it names, and whatever it parsed while deciding. The parse is carried so it
+// can be handed to the same compiler's Compile rather than repeated there; see
+// Source.Parsed for what a consumer may assume about it.
+type Recognition struct {
+	// Format is the dialect the source declares. An ok recognition names one.
+	Format SourceFormat
+	// Parsed is the value to put in Source.Parsed before compiling this source,
+	// or nil when the compiler parsed nothing worth keeping — it read the bytes
+	// some other way, or it declined.
+	Parsed any
 }
 
 // Options carries per-compile configuration. FormatOptions is the
@@ -87,6 +118,12 @@ type Compiler interface {
 	// is, so the zero format with ok true is no answer, and Registry.Detect
 	// passes over a compiler that gives one rather than let it end the search.
 	//
+	// A compiler that parsed src to recognize it may return that parse in
+	// Recognition.Parsed, and read it back from Source.Parsed in Compile. It is
+	// an optimization and never a protocol: a compiler must compile a source
+	// whose Parsed is nil or another compiler's, since a caller calling Compile
+	// directly never went through Detect at all.
+	//
 	// diags is what this compiler can say about a source it declines, and is read
 	// only when ok is false. Bytes of another format are ordinary input here, so
 	// declining them is silent: a compiler that reported every source it did not
@@ -95,7 +132,7 @@ type Compiler interface {
 	// compiler's own and cannot be read — a malformed document in its own
 	// serialization — which no other compiler is in a position to say, and which
 	// the caller would otherwise have to report as unrecognized.
-	Detect(src Source) (format SourceFormat, diags []ir.Diagnostic, ok bool)
+	Detect(src Source) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
@@ -153,10 +190,16 @@ func (r *Registry) Register(c Compiler) error {
 }
 
 // Detect asks each registered compiler in turn to recognize src, and returns
-// the first that does: the compiler registered for the format it named, that
-// format, and whether such a compiler exists. Nothing recognizing src is
-// reported as the zero format, which is what tells "no compiler takes these
-// bytes" from "this format is recognized but unsupported".
+// the first that does: the compiler registered for the format it named, what
+// that recognition found, and whether such a compiler exists. Nothing
+// recognizing src is reported as the zero format, which is what tells "no
+// compiler takes these bytes" from "this format is recognized but unsupported".
+//
+// The parse a recognition carries survives only when the compiler that produced
+// it is the one registered for the format it named. A compiler may recognize a
+// format another serves — an OpenAPI compiler names Swagger so the caller hears
+// "unsupported" rather than "unreadable" — and one compiler's parse is not
+// another's to read, whatever its type happens to be.
 //
 // diags collects what the declining compilers had to say, in the order they
 // were asked, and is meaningful only when no compiler took src. A compiler that
@@ -168,14 +211,14 @@ func (r *Registry) Register(c Compiler) error {
 // controls — the variadic that composes the registry fixes it — and a map's
 // would make two compilers that both claim a source resolve differently from
 // run to run.
-func (r *Registry) Detect(src Source) (Compiler, SourceFormat, []ir.Diagnostic, bool) {
+func (r *Registry) Detect(src Source) (Compiler, Recognition, []ir.Diagnostic, bool) {
 	if len(src.Data) == 0 {
-		return nil, SourceFormat{}, nil, false
+		return nil, Recognition{}, nil, false
 	}
 
 	var declined []ir.Diagnostic
 	for _, c := range r.ordered {
-		format, diags, ok := c.Detect(src)
+		rec, diags, ok := c.Detect(src)
 		if !ok {
 			declined = append(declined, diags...)
 			continue
@@ -187,13 +230,20 @@ func (r *Registry) Detect(src Source) (Compiler, SourceFormat, []ir.Diagnostic, 
 		// nothing to say which compiler swallowed it. Its diags are not collected:
 		// the contract reads them only when a compiler declines, and this one did
 		// not say it declined.
-		if format == (SourceFormat{}) {
+		if rec.Format == (SourceFormat{}) {
 			continue
 		}
-		owner, registered := r.Lookup(format)
-		return owner, format, nil, registered
+		owner, registered := r.Lookup(rec.Format)
+		if !slices.Contains(c.Formats(), rec.Format) {
+			// The recognizer is not the owner, so its parse is not the owner's to
+			// read. Asking which formats it registered answers that without
+			// comparing two Compiler values, which panics outright when a
+			// compiler's type is not comparable.
+			rec.Parsed = nil
+		}
+		return owner, rec, nil, registered
 	}
-	return nil, SourceFormat{}, declined, false
+	return nil, Recognition{}, declined, false
 }
 
 // isNilCompiler reports whether c is unsafe to call: an untyped nil interface or

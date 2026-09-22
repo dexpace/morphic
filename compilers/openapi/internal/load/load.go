@@ -137,10 +137,11 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			len(src.Data), opts.MaxSourceBytes)}, nil
 	}
 
-	root, rest, err := decode(src.Data)
+	parsed, err := parsedFor(src)
 	if err != nil {
-		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
+		return nil, nil, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse)
 	}
+	root, rest := parsed.root, parsed.rest
 
 	doc, diags, err := build(ctx, srcIndex, src, root, opts)
 	if err != nil {
@@ -564,21 +565,84 @@ func nodeCount(root *yaml.Node) int {
 // Decode; the third-party code that has been seen to fault is the layer above
 // the decode, which is where the barriers are.
 func decode(data []byte) (*yaml.Node, tail, error) {
+	root, rest, err := decodeStream(data)
+	if err != nil {
+		return nil, tail{}, fmt.Errorf("%w: %w", err, ErrParse)
+	}
+	return root, rest, nil
+}
+
+// decodeStream is decode without the ErrParse wrapping, so Decode can hand
+// detection the parser's own error while the compile keeps its sentinel.
+func decodeStream(data []byte) (*yaml.Node, tail, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	root, err := firstWithContent(dec)
 	if err != nil {
-		return nil, tail{}, fmt.Errorf("%w: %w", err, ErrParse)
+		return nil, tail{}, err
 	}
 	return root, readTail(dec), nil
 }
 
-// FirstDocument is the document the compile lowers, read the way decode reads
-// it, for detection to read the same one: a source routed to this compiler on
-// what one document declares must be the source whose that document is
-// lowered (GitHub #481). The error is the parser's own, unwrapped, since
-// detection quotes it.
-func FirstDocument(data []byte) (*yaml.Node, error) {
-	return firstWithContent(yaml.NewDecoder(bytes.NewReader(data)))
+// Parsed is a source's decoded form, produced once and used twice: detection
+// reads the document's own keys off it to name the format, and the compile it
+// routes to lowers that same tree rather than reading the bytes again. The two
+// happen back to back over one source, so parsing in both is parsing twice.
+//
+// It is the value this compiler puts in compilers.Source.Parsed, and the only
+// type it reads back out of one. Holding the bytes it came from is what lets a
+// reader check that: a Parsed reached its Compile beside the Data it describes,
+// or it is ignored and the bytes are read afresh.
+//
+// The tree is live, not a snapshot: an overlay patches it in place, so a Parsed
+// belongs to one compile (compilers.Source.Parsed says so).
+type Parsed struct {
+	data []byte
+	root *yaml.Node
+	rest tail
+}
+
+// Root is the document the compile lowers — the first in the stream that holds
+// content — for a reader that wants only what the source declares.
+func (p *Parsed) Root() *yaml.Node { return p.root }
+
+// Decode parses source bytes into the document the compile lowers and what
+// follows it. It is decode under an exported name, for detection to read the
+// same document the compile will (GitHub #481) and to leave the parse behind
+// for it (Parsed). The error is the parser's own, unwrapped, since detection
+// quotes it; the compile wraps it as ErrParse.
+func Decode(data []byte) (*Parsed, error) {
+	root, rest, err := decodeStream(data)
+	if err != nil {
+		return nil, err
+	}
+	return &Parsed{data: data, root: root, rest: rest}, nil
+}
+
+// parsedFor returns the decoded form of src: the one its caller already made,
+// when it is this compiler's own and describes these very bytes, and a fresh
+// parse otherwise.
+//
+// The bytes are compared by identity — same backing array, same length — not
+// by content. What this guards against is a Parsed that arrived beside Data it
+// does not describe, which is a caller's mistake rather than an attack, and an
+// O(1) check catches the mistake without making every compile hash its input
+// to catch nobody.
+func parsedFor(src compilers.Source) (*Parsed, error) {
+	// A nil *Parsed stored in the interface is not a nil interface, so the
+	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
+	// compilers' own nil-compiler screen exist for the same two spellings.
+	if p, ok := src.Parsed.(*Parsed); ok && p != nil && sameBytes(p.data, src.Data) {
+		return p, nil
+	}
+	return Decode(src.Data)
+}
+
+// sameBytes reports whether a and b are the same slice: one backing array, one
+// length. Two slices of equal content are not the same bytes here, which is
+// the safe direction — the answer is used to decide whether a parse describes
+// these bytes, and a wrong yes lowers a document the source does not hold.
+func sameBytes(a, b []byte) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
 
 // firstWithContent reads documents from dec until one holds content, and

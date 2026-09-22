@@ -258,20 +258,20 @@ func TestDecode_AnErrorBeforeContentIsAParseError(t *testing.T) {
 	assert.ErrorIs(t, err, ErrParse)
 }
 
-// TestFirstDocument_IsWhatDecodeTakes pins the reader detection shares with
-// the compile: the same document, so a source routed here is the source
-// lowered here, and the parser's own error text, which detection quotes.
-func TestFirstDocument_IsWhatDecodeTakes(t *testing.T) {
+// TestDecode_IsWhatTheCompileTakes pins the reader detection shares with the
+// compile: the same document, so a source routed here is the source lowered
+// here, and the parser's own error text, which detection quotes.
+func TestDecode_IsWhatTheCompileTakes(t *testing.T) {
 	t.Parallel()
 	src := []byte("--- null\n---\n" + minimal31)
 	fromDecode, _, err := decode(src)
 	require.NoError(t, err)
-	fromDetect, err := FirstDocument(src)
+	fromDetect, err := Decode(src)
 	require.NoError(t, err)
-	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Content[0].Line)
-	assert.Equal(t, yaml.MappingNode, fromDetect.Content[0].Kind)
+	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Root().Content[0].Line)
+	assert.Equal(t, yaml.MappingNode, fromDetect.Root().Content[0].Kind)
 
-	_, err = FirstDocument([]byte("\tnot: yaml\n"))
+	_, err = Decode([]byte("\tnot: yaml\n"))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrParse, "the parser's own error, unwrapped, for detection to quote")
 }
@@ -294,4 +294,113 @@ func TestLoad_LeadingEmptyDocumentsAreSkipped(t *testing.T) {
 	got := streamDiags(diags)
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0].Message, "the one after it holds", "the empties before are not counted")
+}
+
+// TestLoad_ReusesTheParseDetectionLeftBehind pins the point of carrying a parse
+// on the Source: the compile lowers the tree detection already built rather
+// than reading the bytes a second time.
+//
+// A second parse of the same bytes yields an equal tree, so no assertion over
+// the result could tell reuse from a repeat. The difference is planted
+// instead: the tree is edited to say a title the bytes never held, and only a
+// compile that read that tree can report it.
+func TestLoad_ReusesTheParseDetectionLeftBehind(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	parsed, err := Decode(data)
+	require.NoError(t, err)
+	titleOf(t, parsed).Value = "FromTheTree"
+	require.NotContains(t, string(data), "FromTheTree", "the planted title is nowhere in the bytes")
+
+	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+	assert.Equal(t, "FromTheTree", doc.Doc.Info.GetTitle(), "the loader lowered the tree it was given")
+
+	// The control: the same bytes with no parse beside them are read afresh,
+	// so the title is the one the source wrote. Without it the assertion above
+	// would also pass on a loader that ignored the tree and happened to agree.
+	fresh, _, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	assert.Equal(t, "T", fresh.Doc.Info.GetTitle())
+}
+
+// titleOf returns the scalar node holding info.title in a parsed document, for
+// a test that needs to plant a difference the bytes do not carry.
+func titleOf(t *testing.T, p *Parsed) *yaml.Node {
+	t.Helper()
+	root := p.Root().Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "info" {
+			continue
+		}
+		info := root.Content[i+1]
+		for j := 0; j+1 < len(info.Content); j += 2 {
+			if info.Content[j].Value == "title" {
+				return info.Content[j+1]
+			}
+		}
+	}
+	require.FailNow(t, "no info.title in the parsed document")
+	return nil
+}
+
+// TestLoad_IgnoresAParseItCannotUse pins the other half: the parse is an
+// optimization and never a protocol, so a Source carrying nothing, another
+// compiler's value, a nil of this compiler's own type, or a parse of different
+// bytes all compile exactly as a bare Source does.
+//
+// The nil case is the one a type assertion alone gets wrong: a nil *Parsed
+// stored in an interface is not a nil interface, so the assertion succeeds and
+// the loader would read through it.
+func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	other, err := Decode([]byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"))
+	require.NoError(t, err)
+
+	for name, parsed := range map[string]any{
+		"nothing at all":           nil,
+		"another compiler's value": struct{ smithy string }{"x"},
+		"a nil of this very type":  (*Parsed)(nil),
+		"a parse of other bytes":   other,
+		"a parse of equal bytes":   mustDecode(t, string(data)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := Load(t.Context(), 0,
+				compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+			require.NoError(t, err)
+			require.NotNil(t, doc, "the source compiles whatever it was handed: %+v", diags)
+			assert.Equal(t, "T", doc.Doc.Info.GetTitle())
+			assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+		})
+	}
+}
+
+// mustDecode parses src, for a case that needs a Parsed of bytes equal to the
+// source's but not the same bytes.
+func mustDecode(t *testing.T, src string) *Parsed {
+	t.Helper()
+	p, err := Decode([]byte(src))
+	require.NoError(t, err)
+	return p
+}
+
+// TestSameBytes_IsIdentityNotEquality pins what guards a parse against the
+// Source beside it: same backing array and same length. Equal content is not
+// the same bytes, because the answer decides whether a tree describes these
+// bytes, and a wrong yes lowers a document the source does not hold.
+func TestSameBytes_IsIdentityNotEquality(t *testing.T) {
+	t.Parallel()
+	data := []byte("openapi: 3.1.0\n")
+
+	assert.True(t, sameBytes(data, data))
+	assert.False(t, sameBytes(data, append([]byte(nil), data...)), "equal content, different bytes")
+	assert.False(t, sameBytes(data, data[:len(data)-1]), "a prefix is not the whole")
+	assert.True(t, sameBytes(nil, []byte{}), "two empty sources are the same nothing")
 }
