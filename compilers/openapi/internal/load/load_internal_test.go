@@ -2,7 +2,9 @@ package load
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -431,4 +433,46 @@ func TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot(t *testing.T) {
 	assert.Contains(t, err.Error(), "unmarshal document", "the failing step is named")
 	assert.Nil(t, doc)
 	assert.Nil(t, valErrs)
+}
+
+// aliasBomb writes a document whose schema L<depth> holds four properties that
+// all alias L<depth-1>, down to a scalar leaf: one declared line per level, and
+// an expansion of 4^depth beneath the top.
+func aliasBomb(depth int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n")
+	b.WriteString("    L0: &l0 {type: string}\n")
+	for k := 1; k <= depth; k++ {
+		fmt.Fprintf(&b, "    L%d: &l%d {type: object, properties: {a: *l%d, b: *l%d, c: *l%d, d: *l%d}}\n",
+			k, k, k-1, k-1, k-1, k-1)
+	}
+	return b.String()
+}
+
+// TestUnmarshal_ExpandsAliasesIntoTheModel pins why scan's alias weigher is the
+// defence against a billion-laughs document and not a backstop to one. The
+// decode expands nothing — a node tree holds an alias as a pointer — but the
+// model build follows every alias as though its target were written in place,
+// so a document one line longer per level yields a model four times larger per
+// level. Nothing between the decode and this build bounds that; the weigher
+// runs ahead of it because of exactly this (GitHub #27, #479).
+func TestUnmarshal_ExpandsAliasesIntoTheModel(t *testing.T) {
+	t.Parallel()
+	walked := func(depth int) int {
+		doc, _ := parseSpec(t, aliasBomb(depth))
+		n := 0
+		matchSchemas(soa.Walk(t.Context(), doc), func(*oas3.JSONSchema[oas3.Referenceable]) error {
+			n++
+			return nil
+		})
+		return n
+	}
+
+	prev := walked(1)
+	for depth := 2; depth <= 4; depth++ {
+		next := walked(depth)
+		assert.GreaterOrEqual(t, next, 4*prev,
+			"one more declared line at depth %d, at least four times the model", depth)
+		prev = next
+	}
 }
