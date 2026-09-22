@@ -231,8 +231,8 @@ func (stubFront) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (stubFront) Detect(compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
-	return compilers.SourceFormat{Name: "openapi", Version: "3.1"}, nil, true
+func (stubFront) Detect(compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+	return compilers.Recognition{Format: compilers.SourceFormat{Name: "openapi", Version: "3.1"}}, nil, true
 }
 
 func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
@@ -441,12 +441,20 @@ func (*smithyCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "smithy", Version: "2.0"}}
 }
 
-func (*smithyCompiler) Detect(src compilers.Source) (compilers.SourceFormat, []ir.Diagnostic, bool) {
+func (*smithyCompiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if !strings.HasPrefix(string(src.Data), "$version:") {
-		return compilers.SourceFormat{}, nil, false
+		return compilers.Recognition{}, nil, false
 	}
-	return compilers.SourceFormat{Name: "smithy", Version: "2.0"}, nil, true
+	return compilers.Recognition{
+		Format: compilers.SourceFormat{Name: "smithy", Version: "2.0"},
+		Parsed: smithyParse{},
+	}, nil, true
 }
+
+// smithyParse stands in for what a compiler parses while recognizing a source.
+// Its only job is to be a type of this compiler's own, so a test can assert
+// that it reaches this compiler's Compile and no other's.
+type smithyParse struct{}
 
 func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	if _, ok := set.Settings["boom"]; ok {
@@ -456,9 +464,34 @@ func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	return set.Settings["shape"], nil
 }
 
-func (*smithyCompiler) Compile(_ context.Context, _ []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	name, _ := opts.FormatOptions.(string)
-	return &ir.Document{Name: name, Types: ir.TypeRegistry{}}, nil, nil
+	doc := &ir.Document{Name: name, Types: ir.TypeRegistry{}}
+	if len(sources) == 1 {
+		if _, ok := sources[0].Parsed.(smithyParse); ok {
+			doc.Version = "parse-arrived"
+		}
+	}
+	return doc, nil, nil
+}
+
+// TestEngine_RunHandsDetectionsParseToCompile pins the engine's half of the
+// seam that stops a source being parsed twice: what a compiler made of a
+// source while recognizing it arrives on the Source its own Compile is given.
+// The compiler records that it arrived, since nothing else about the run can
+// show it.
+func TestEngine_RunHandsDetectionsParseToCompile(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.NewWith(&smithyCompiler{})
+	require.NoError(t, err)
+	path := writeNamed(t, "svc.smithy", "$version: \"2.0\"\n")
+
+	res, err := eng.Run(t.Context(), path, engine.RunOptions{SkipValidate: true})
+
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Equal(t, "parse-arrived", res.Document.Version,
+		"the compile was handed what detection parsed")
 }
 
 // TestEngine_RunNewFormatNeedsNoEngineEdit is the acceptance criterion for a

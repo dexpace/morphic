@@ -218,7 +218,7 @@ func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			root, rest, err := decode([]byte(lead + minimal31))
+			root, rest, err := decodeStream([]byte(lead + minimal31))
 			require.NoError(t, err)
 			require.True(t, holdsContent(root), "the document taken is the one with content")
 			assert.Equal(t, yaml.MappingNode, root.Content[0].Kind)
@@ -235,43 +235,55 @@ func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
 // all and reaches a different refusal.
 func TestDecode_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
 	t.Parallel()
-	root, rest, err := decode([]byte("---\n---\n"))
+	root, rest, err := decodeStream([]byte("---\n---\n"))
 	require.NoError(t, err)
 	require.Equal(t, yaml.DocumentNode, root.Kind)
 	assert.False(t, holdsContent(root))
 	assert.Equal(t, 2, root.Content[0].Line, "the first of them, where the old decode stopped")
 	assert.Equal(t, tail{}, rest, "the empties after it drop nothing")
 
-	empty, _, err := decode([]byte(" "))
+	empty, _, err := decodeStream([]byte(" "))
 	require.NoError(t, err)
 	assert.Equal(t, yaml.Kind(0), empty.Kind, "no document at all is still the node of no kind")
 }
 
-// TestDecode_AnErrorBeforeContentIsAParseError pins the one shape the search
-// for content can meet that a first-document read never did: yaml.v3 refuses a
+// TestLoad_AnErrorBeforeContentIsAParseError pins the one shape the search for
+// content can meet that a first-document read never did: yaml.v3 refuses a
 // document that follows an explicit end marker without its own `---`, and when
 // nothing readable came before it, the source is unreadable.
-func TestDecode_AnErrorBeforeContentIsAParseError(t *testing.T) {
+//
+// It is asserted through Load rather than the reader, because ErrParse is
+// Load's to attach: the reader hands back the parser's own error, which is what
+// detection quotes, and only the compile turns it into the sentinel the
+// compiler above converts into a diagnostic.
+func TestLoad_AnErrorBeforeContentIsAParseError(t *testing.T) {
 	t.Parallel()
-	_, _, err := decode([]byte("---\n...\n" + minimal31))
-	require.Error(t, err)
+	_, rest, err := decodeStream([]byte("---\n...\n" + minimal31))
+	require.Error(t, err, "the reader reports the parser's own error")
+	assert.NotErrorIs(t, err, ErrParse, "unwrapped, for detection to quote")
+	assert.Equal(t, tail{}, rest)
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf("---\n...\n"+minimal31), Options{})
+	require.Error(t, err, "and the compile makes it the sentinel it converts into a diagnostic")
 	assert.ErrorIs(t, err, ErrParse)
+	assert.Nil(t, doc)
+	assert.Nil(t, diags)
 }
 
-// TestFirstDocument_IsWhatDecodeTakes pins the reader detection shares with
-// the compile: the same document, so a source routed here is the source
-// lowered here, and the parser's own error text, which detection quotes.
-func TestFirstDocument_IsWhatDecodeTakes(t *testing.T) {
+// TestDecode_IsWhatTheCompileTakes pins the reader detection shares with the
+// compile: the same document, so a source routed here is the source lowered
+// here, and the parser's own error text, which detection quotes.
+func TestDecode_IsWhatTheCompileTakes(t *testing.T) {
 	t.Parallel()
 	src := []byte("--- null\n---\n" + minimal31)
-	fromDecode, _, err := decode(src)
+	fromDecode, _, err := decodeStream(src)
 	require.NoError(t, err)
-	fromDetect, err := FirstDocument(src)
+	fromDetect, err := Decode(src)
 	require.NoError(t, err)
-	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Content[0].Line)
-	assert.Equal(t, yaml.MappingNode, fromDetect.Content[0].Kind)
+	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Root().Content[0].Line)
+	assert.Equal(t, yaml.MappingNode, fromDetect.Root().Content[0].Kind)
 
-	_, err = FirstDocument([]byte("\tnot: yaml\n"))
+	_, err = Decode([]byte("\tnot: yaml\n"))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrParse, "the parser's own error, unwrapped, for detection to quote")
 }
@@ -294,4 +306,173 @@ func TestLoad_LeadingEmptyDocumentsAreSkipped(t *testing.T) {
 	got := streamDiags(diags)
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0].Message, "the one after it holds", "the empties before are not counted")
+}
+
+// TestLoad_ReusesTheParseDetectionLeftBehind pins the point of carrying a parse
+// on the Source: the compile lowers the tree detection already built rather
+// than reading the bytes a second time.
+//
+// A second parse of the same bytes yields an equal tree, so no assertion over
+// the result could tell reuse from a repeat. The difference is planted
+// instead: the tree is edited to say a title the bytes never held, and only a
+// compile that read that tree can report it.
+func TestLoad_ReusesTheParseDetectionLeftBehind(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	parsed, err := Decode(data)
+	require.NoError(t, err)
+	titleOf(t, parsed).Value = "FromTheTree"
+	require.NotContains(t, string(data), "FromTheTree", "the planted title is nowhere in the bytes")
+
+	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+	assert.Equal(t, "FromTheTree", doc.Doc.Info.GetTitle(), "the loader lowered the tree it was given")
+
+	// The control: the same bytes with no parse beside them are read afresh,
+	// so the title is the one the source wrote. Without it the assertion above
+	// would also pass on a loader that ignored the tree and happened to agree.
+	fresh, _, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	assert.Equal(t, "T", fresh.Doc.Info.GetTitle())
+}
+
+// titleOf returns the scalar node holding info.title in a parsed document, for
+// a test that needs to plant a difference the bytes do not carry.
+func titleOf(t *testing.T, p *Parsed) *yaml.Node {
+	t.Helper()
+	root := p.Root().Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "info" {
+			continue
+		}
+		info := root.Content[i+1]
+		for j := 0; j+1 < len(info.Content); j += 2 {
+			if info.Content[j].Value == "title" {
+				return info.Content[j+1]
+			}
+		}
+	}
+	require.FailNow(t, "no info.title in the parsed document")
+	return nil
+}
+
+// TestLoad_IgnoresAParseItCannotUse pins the other half: the parse is an
+// optimization and never a protocol, so a Source carrying nothing, another
+// compiler's value, a nil of this compiler's own type, or a parse of different
+// bytes all compile exactly as a bare Source does.
+//
+// The nil case is the one a type assertion alone gets wrong: a nil *Parsed
+// stored in an interface is not a nil interface, so the assertion succeeds and
+// the loader would read through it.
+func TestLoad_IgnoresAParseItCannotUse(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	other, err := Decode([]byte("openapi: 3.1.0\ninfo: {title: Other, version: \"1\"}\npaths: {}\n"))
+	require.NoError(t, err)
+
+	for name, parsed := range map[string]any{
+		"nothing at all":           nil,
+		"another compiler's value": struct{ smithy string }{"x"},
+		"a nil of this very type":  (*Parsed)(nil),
+		"a parse of other bytes":   other,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := Load(t.Context(), 0,
+				compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+			require.NoError(t, err)
+			require.NotNil(t, doc, "the source compiles whatever it was handed: %+v", diags)
+			assert.Equal(t, "T", doc.Doc.Info.GetTitle())
+			assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+		})
+	}
+}
+
+// TestLoad_AParseIsCheckedAgainstTheBytesBesideIt pins the guard that decides
+// whether a handed-over parse may be lowered, on the case identity gets wrong:
+// a caller reading into a pooled buffer hands back the same backing array with
+// different bytes in it.
+//
+// Identity would say yes and lower the stale tree while stamping the document's
+// hash from the new bytes — a document whose recorded content hash describes
+// content it was not built from, which is the identity golden snapshots, IR
+// diffing and caching key on. Content says no, and the bytes are read afresh.
+func TestLoad_AParseIsCheckedAgainstTheBytesBesideIt(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	parsed, err := Decode(data)
+	require.NoError(t, err)
+
+	// The same backing array, refilled — the pooled-buffer shape.
+	refilled := "openapi: 3.1.0\ninfo: {title: X, version: \"1\"}\npaths: {}\n"
+	require.Len(t, refilled, len(data), "the refill must not change the slice's length")
+	copy(data, refilled)
+
+	doc, diags, err := Load(t.Context(), 0,
+		compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
+	assert.Equal(t, "X", doc.Doc.Info.GetTitle(), "the bytes beside the parse are what was lowered")
+
+	fresh, _, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})
+	require.NoError(t, err)
+	require.Equal(t, doc.Source.Hash, fresh.Source.Hash,
+		"and the hash it records is the hash of those bytes")
+}
+
+// TestLoad_AParseOfEqualBytesIsTheSameParse pins the other side of a content
+// check: two buffers holding the same bytes parse to the same document, so a
+// parse of one describes the other and is reused rather than repeated. Under
+// slice identity this was a miss, and the bytes were read a second time to
+// reach the answer already in hand.
+func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31)
+	equal := append([]byte(nil), data...)
+	parsed, err := Decode(equal)
+	require.NoError(t, err)
+	titleOf(t, parsed).Value = "FromAnEqualButOtherBuffer"
+
+	doc, _, err := Load(t.Context(), 0,
+		compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, "FromAnEqualButOtherBuffer", doc.Doc.Info.GetTitle(),
+		"equal bytes describe one document, so the parse of either serves both")
+}
+
+// TestLoad_AReusedParseCarriesTheStreamTail pins what a reused parse must bring
+// with it besides the document: what followed that document in the stream.
+//
+// The tail is why a source holding two documents reports one of them dropped
+// (GitHub #387), and the reuse path is the one every compile through the engine
+// takes — so a parse handed over without its tail loses that error silently.
+// No other case reaches this: every stream test passes a bare Source, and every
+// reuse test a single-document one.
+func TestLoad_AReusedParseCarriesTheStreamTail(t *testing.T) {
+	t.Parallel()
+	data := []byte(minimal31 + "---\nopenapi: 3.1.0\ninfo: {title: N, version: \"1\"}\npaths: {}\n")
+	parsed, err := Decode(data)
+	require.NoError(t, err)
+
+	fresh, freshDiags, err := Load(t.Context(), 0, compilers.Source{Path: "s.yaml", Data: data}, Options{})
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	require.Len(t, streamDiags(freshDiags), 1, "the source alone reports the drop")
+
+	reused, diags, err := Load(t.Context(), 0,
+		compilers.Source{Path: "s.yaml", Data: data, Parsed: parsed}, Options{})
+
+	require.NoError(t, err)
+	require.NotNil(t, reused)
+	assert.Equal(t, streamDiags(freshDiags), streamDiags(diags),
+		"a reused parse reports the drop the bytes do, at the same position")
 }

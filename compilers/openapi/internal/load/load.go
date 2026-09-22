@@ -137,16 +137,15 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 			len(src.Data), opts.MaxSourceBytes)}, nil
 	}
 
-	root, rest, err := decode(src.Data)
+	parsed, err := parsedFor(src)
 	if err != nil {
-		return nil, nil, fmt.Errorf("openapi: decode source %d: %w", srcIndex, err)
+		return nil, nil, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse)
 	}
-
-	doc, diags, err := build(ctx, srcIndex, src, root, opts)
+	doc, diags, err := build(ctx, srcIndex, src, parsed, opts)
 	if err != nil {
 		return nil, nil, err
 	}
-	return doc, append(rest.diagnostics(srcIndex), diags...), nil
+	return doc, append(parsed.rest.diagnostics(srcIndex), diags...), nil
 }
 
 // build turns the decoded tree of a source's first document into a Document:
@@ -157,7 +156,8 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
 // included — without being read as a refusal itself.
-func build(ctx context.Context, srcIndex int, src compilers.Source, root *yaml.Node, opts Options) (*Document, []ir.Diagnostic, error) {
+func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
+	root := parsed.root
 	cyc := refusals(scan.InSource(srcIndex), root, opts)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
@@ -203,7 +203,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, root *yaml.N
 		Source: ir.SourceInfo{
 			Format: "openapi@" + minor,
 			Path:   src.Path,
-			Hash:   sourceHash(src.Data),
+			Hash:   parsed.Hash(),
 		},
 		Overlay: origin,
 	}, diags, nil
@@ -542,9 +542,11 @@ func nodeCount(root *yaml.Node) int {
 	return count
 }
 
-// decode parses source bytes into the node tree of the document the compile
-// lowers — the first in the stream that holds content — and reads what follows
-// it so a stream of several is reported rather than silently cut to one.
+// decodeStream parses source bytes into the node tree of the document the
+// compile lowers — the first in the stream that holds content — and reads what
+// follows it so a stream of several is reported rather than silently cut to
+// one. The error it returns is the parser's own: Decode hands it to detection,
+// which quotes it, and Load wraps it as ErrParse.
 //
 // It is split out from unmarshal so an overlay can be applied to the tree
 // between the two: the alternative — overlaying, re-serialising and re-parsing —
@@ -563,23 +565,85 @@ func nodeCount(root *yaml.Node) int {
 // below it. yaml.v3 converts its own faults into errors before they leave
 // Decode; the third-party code that has been seen to fault is the layer above
 // the decode, which is where the barriers are.
-func decode(data []byte) (*yaml.Node, tail, error) {
+func decodeStream(data []byte) (*yaml.Node, tail, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	root, err := firstWithContent(dec)
 	if err != nil {
-		return nil, tail{}, fmt.Errorf("%w: %w", err, ErrParse)
+		return nil, tail{}, err
 	}
 	return root, readTail(dec), nil
 }
 
-// FirstDocument is the document the compile lowers, read the way decode reads
-// it, for detection to read the same one: a source routed to this compiler on
-// what one document declares must be the source whose that document is
-// lowered (GitHub #481). The error is the parser's own, unwrapped, since
-// detection quotes it.
-func FirstDocument(data []byte) (*yaml.Node, error) {
-	return firstWithContent(yaml.NewDecoder(bytes.NewReader(data)))
+// Parsed is a source's decoded form, produced once and used twice: detection
+// reads the document's own keys off it to name the format, and the compile it
+// routes to lowers that same tree rather than reading the bytes again. The two
+// happen back to back over one source, so parsing in both is parsing twice.
+//
+// It is the value this compiler puts in compilers.Source.Parsed, and the only
+// type it reads back out of one. Holding the digest of the bytes it came from
+// is what lets a reader check that: a Parsed reached its Compile beside the
+// Data it describes, or it is ignored and the bytes are read afresh.
+//
+// The digest is what SourceInfo.Hash records, so the hash a document carries is
+// the hash of the bytes that document was lowered from — not of whatever bytes
+// sat beside the tree at the time. Nothing here pays for that: the hash was
+// already computed on every compile for exactly that field, and comparing it is
+// the same work done once instead of trusted.
+//
+// The tree is live, not a snapshot: an overlay patches it in place, so a Parsed
+// belongs to one compile (compilers.Source.Parsed says so).
+type Parsed struct {
+	hash [sha256.Size]byte
+	root *yaml.Node
+	rest tail
 }
+
+// Root is the document the compile lowers — the first in the stream that holds
+// content — for a reader that wants only what the source declares.
+func (p *Parsed) Root() *yaml.Node { return p.root }
+
+// Decode parses source bytes into the document the compile lowers and what
+// follows it. It is decode under an exported name, for detection to read the
+// same document the compile will (GitHub #481) and to leave the parse behind
+// for it (Parsed). The error is the parser's own, unwrapped, since detection
+// quotes it; the compile wraps it as ErrParse.
+func Decode(data []byte) (*Parsed, error) {
+	root, rest, err := decodeStream(data)
+	if err != nil {
+		return nil, err
+	}
+	return &Parsed{hash: sha256.Sum256(data), root: root, rest: rest}, nil
+}
+
+// parsedFor returns the decoded form of src: the one its caller already made,
+// when it is this compiler's own and describes these very bytes, and a fresh
+// parse otherwise.
+//
+// The bytes are compared by content, not by the identity of the slice holding
+// them. Identity is the cheaper question and the wrong one: a caller reading
+// into a pooled buffer hands back the same backing array with different bytes
+// in it, and every compile would then lower a tree the source no longer holds
+// while stamping SourceInfo.Hash from the bytes it does — a document whose
+// recorded hash describes content it was not built from, which is the identity
+// golden snapshots, IR diffing and caching all key on (ir-design §7).
+//
+// It costs nothing to ask. The digest is the one SourceInfo.Hash has always
+// recorded, so the hash taken here replaces the one build took rather than
+// adding to it; equal bytes then yield the tree they parse to, whichever buffer
+// they arrived in.
+func parsedFor(src compilers.Source) (*Parsed, error) {
+	// A nil *Parsed stored in the interface is not a nil interface, so the
+	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
+	// compilers' own nil-compiler screen exist for the same two spellings.
+	if p, ok := src.Parsed.(*Parsed); ok && p != nil && p.hash == sha256.Sum256(src.Data) {
+		return p, nil
+	}
+	return Decode(src.Data)
+}
+
+// Hash is the lowercase hex SHA-256 of the bytes this parse was built from, for
+// SourceInfo.Hash.
+func (p *Parsed) Hash() string { return hex.EncodeToString(p.hash[:]) }
 
 // firstWithContent reads documents from dec until one holds content, and
 // returns it. A leading document that decodes to null — a bare `---`, a
@@ -912,11 +976,4 @@ func SupportedMinor(version string) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-// sourceHash returns the lowercase hex SHA-256 of the raw source bytes, used as
-// the SourceInfo content hash for caching and golden-snapshot identity.
-func sourceHash(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
 }

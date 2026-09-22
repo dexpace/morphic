@@ -99,7 +99,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 // between them, for tests that want the parsed document and not the split.
 func parseSpec(t *testing.T, spec string) (*soa.OpenAPI, []error) {
 	t.Helper()
-	root, _, err := decode([]byte(spec))
+	root, _, err := decodeStream([]byte(spec))
 	require.NoError(t, err)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func parseSpec(t *testing.T, spec string) (*soa.OpenAPI, []error) {
 // still lands in unmarshal rather than being caught a step earlier.
 func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 	t.Parallel()
-	root, _, err := decode([]byte(" "))
+	root, _, err := decodeStream([]byte(" "))
 	require.NoError(t, err, "whitespace decodes; it is the model build that faults")
 
 	doc, valErrs, err := unmarshal(t.Context(), []byte(" "), root)
@@ -130,7 +130,7 @@ func TestUnmarshal_RecoversParserPanic(t *testing.T) {
 // that must not depend on the library still being the one holding the check.
 func TestUnmarshal_EmptySourceIsRejected(t *testing.T) {
 	t.Parallel()
-	root, _, err := decode(nil)
+	root, _, err := decodeStream(nil)
 	require.NoError(t, err, "no bytes is well-formed YAML; it is not a document")
 
 	doc, valErrs, err := unmarshal(t.Context(), nil, root)
