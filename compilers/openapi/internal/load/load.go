@@ -542,9 +542,9 @@ func nodeCount(root *yaml.Node) int {
 	return count
 }
 
-// decode parses source bytes into the node tree of their first YAML document,
-// and reads what follows it so a stream of several is reported rather than
-// silently cut to one.
+// decode parses source bytes into the node tree of the document the compile
+// lowers — the first in the stream that holds content — and reads what follows
+// it so a stream of several is reported rather than silently cut to one.
 //
 // It is split out from unmarshal so an overlay can be applied to the tree
 // between the two: the alternative — overlaying, re-serialising and re-parsing —
@@ -559,30 +559,76 @@ func nodeCount(root *yaml.Node) int {
 // expansions — never fires for a Node target. What refuses a billion-laughs
 // document is scan's weigher over this tree.
 //
-// A source with no document in it — empty, or whitespace — decodes to a node
-// of no kind, as yaml.Unmarshal used to leave it; the model build faults on
-// that and its barrier turns the fault into ErrParse. It carries no recover of
-// its own, unlike the model build and the resolve below it. yaml.v3 converts
-// its own faults into errors before they leave Decode; the third-party code
-// that has been seen to fault is the layer above the decode, which is where
-// the barriers are.
+// It carries no recover of its own, unlike the model build and the resolve
+// below it. yaml.v3 converts its own faults into errors before they leave
+// Decode; the third-party code that has been seen to fault is the layer above
+// the decode, which is where the barriers are.
 func decode(data []byte) (*yaml.Node, tail, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
-	var root yaml.Node
-	if err := dec.Decode(&root); err != nil && !errors.Is(err, io.EOF) {
+	root, err := firstWithContent(dec)
+	if err != nil {
 		return nil, tail{}, fmt.Errorf("%w: %w", err, ErrParse)
 	}
-	return &root, readTail(dec), nil
+	return root, readTail(dec), nil
 }
 
-// maxStreamDocuments bounds how many documents past the first decode reads to
-// count them. Each is parsed into a tree that is never lowered, so the bound
-// caps what a stream can cost beyond the byte budget it already fits; a stream
-// past it is reported as holding at least that many, never as fewer.
+// FirstDocument is the document the compile lowers, read the way decode reads
+// it, for detection to read the same one: a source routed to this compiler on
+// what one document declares must be the source whose that document is
+// lowered (GitHub #481). The error is the parser's own, unwrapped, since
+// detection quotes it.
+func FirstDocument(data []byte) (*yaml.Node, error) {
+	return firstWithContent(yaml.NewDecoder(bytes.NewReader(data)))
+}
+
+// firstWithContent reads documents from dec until one holds content, and
+// returns it. A leading document that decodes to null — a bare `---`, a
+// comment, any spelling of null — is what a file assembled from fragments or
+// a template with its header stripped begins with, and taking it as the
+// document refused every such source for a null root while a whole spec sat
+// behind it.
+//
+// A stream with no such document yields the first document it holds — a null,
+// which the model build refuses as it always has — or a node of no kind when
+// it holds none at all, as yaml.Unmarshal leaves one for an empty source; the
+// two reach different refusals and are kept apart. An error from the decoder
+// before content is found is the source's: nothing readable came before it.
+// The search reads at most maxStreamDocuments documents, the bound readTail
+// reads under; past it the first document read stands.
+func firstWithContent(dec *yaml.Decoder) (*yaml.Node, error) {
+	var first *yaml.Node
+	for range maxStreamDocuments {
+		var doc yaml.Node
+		err := dec.Decode(&doc)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if holdsContent(&doc) {
+			return &doc, nil
+		}
+		if first == nil {
+			first = &doc
+		}
+	}
+	if first == nil {
+		return &yaml.Node{}, nil
+	}
+	return first, nil
+}
+
+// maxStreamDocuments bounds how many documents decode reads past the one it
+// takes, to count them, and how many it reads to find one. Each is parsed into
+// a tree that is never lowered, so the bound caps what a stream can cost
+// beyond the byte budget it already fits; a stream past it is reported as
+// holding at least that many, never as fewer.
 const maxStreamDocuments = 1024
 
 // tail is what a source carries past the document the compiler lowers. Its
-// zero value is the answer for a single-document source: nothing dropped.
+// zero value is the answer for a source with one document holding content:
+// nothing dropped.
 type tail struct {
 	// line and column are where the first dropped document that holds content
 	// begins, for the diagnostic to name; zero when none parsed. yaml.v3 counts
@@ -603,10 +649,10 @@ type tail struct {
 	unparsed bool
 }
 
-// readTail reads the documents that follow the one dec has already decoded,
-// counting those that hold content. A document that holds nothing — a bare
-// separator, an explicit null — is what a trailing `---` produces, and
-// skipping it drops nothing.
+// readTail reads the documents that follow the one decode took, counting those
+// that hold content. A document that holds nothing — a bare separator, an
+// explicit null — is what a trailing `---` produces, and skipping it drops
+// nothing, on the same reading firstWithContent skips a leading one by.
 func readTail(dec *yaml.Decoder) tail {
 	var t tail
 	for range maxStreamDocuments {
@@ -652,7 +698,7 @@ func (t tail) diagnostics(srcIndex int) []ir.Diagnostic {
 		prov.Pointer = fmt.Sprintf("%d:%d", t.line, t.column)
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.StreamDocumentsDropped, prov,
-		"only the first document of the YAML stream was lowered; %s", t.describe())}
+		"only one document of the YAML stream was lowered; %s", t.describe())}
 }
 
 // describe spells what the stream held past its first document.

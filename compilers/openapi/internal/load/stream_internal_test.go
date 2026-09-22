@@ -197,3 +197,101 @@ func TestHoldsContent_ReadsOnlyAWellFormedDocument(t *testing.T) {
 	assert.False(t, holdsContent(&yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{mapping, mapping}}),
 		"a document node yaml.v3 never produces")
 }
+
+// TestDecode_TakesTheFirstDocumentHoldingContent pins the fix for GitHub #481:
+// the document the compile lowers is the first in the stream that holds
+// content, not the first the stream opens. A leading document that decodes to
+// null — a bare separator, a comment, any spelling of null, a tag that
+// resolves to one — is what a file assembled from fragments or a stripped
+// template begins with, and is skipped as a trailing one already was.
+func TestDecode_TakesTheFirstDocumentHoldingContent(t *testing.T) {
+	t.Parallel()
+	for name, lead := range map[string]string{
+		"two bare separators":      "---\n---\n",
+		"a comment-only document":  "---\n# nothing here\n---\n",
+		"a comment on the marker":  "--- # nothing here\n---\n",
+		"an explicit null":         "--- null\n---\n",
+		"a tilde":                  "--- ~\n---\n",
+		"an upper-case null":       "--- NULL\n---\n",
+		"a tagged null":            "--- !!null\n---\n",
+		"a directive then empties": "%YAML 1.1\n---\n---\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root, rest, err := decode([]byte(lead + minimal31))
+			require.NoError(t, err)
+			require.True(t, holdsContent(root), "the document taken is the one with content")
+			assert.Equal(t, yaml.MappingNode, root.Content[0].Kind)
+			assert.Equal(t, strings.Count(lead, "\n")+1, root.Content[0].Line, "taken from where it was written")
+			assert.Equal(t, tail{}, rest, "and nothing after it was dropped")
+		})
+	}
+}
+
+// TestDecode_AStreamOfEmptyDocumentsIsItsFirst pins what is taken when nothing
+// holds content: the first document the stream opens, a null, which the model
+// build then refuses exactly as it did before leading empties were skipped —
+// not a node of no kind, which is the answer for a source with no document at
+// all and reaches a different refusal.
+func TestDecode_AStreamOfEmptyDocumentsIsItsFirst(t *testing.T) {
+	t.Parallel()
+	root, rest, err := decode([]byte("---\n---\n"))
+	require.NoError(t, err)
+	require.Equal(t, yaml.DocumentNode, root.Kind)
+	assert.False(t, holdsContent(root))
+	assert.Equal(t, 2, root.Content[0].Line, "the first of them, where the old decode stopped")
+	assert.Equal(t, tail{}, rest, "the empties after it drop nothing")
+
+	empty, _, err := decode([]byte(" "))
+	require.NoError(t, err)
+	assert.Equal(t, yaml.Kind(0), empty.Kind, "no document at all is still the node of no kind")
+}
+
+// TestDecode_AnErrorBeforeContentIsAParseError pins the one shape the search
+// for content can meet that a first-document read never did: yaml.v3 refuses a
+// document that follows an explicit end marker without its own `---`, and when
+// nothing readable came before it, the source is unreadable.
+func TestDecode_AnErrorBeforeContentIsAParseError(t *testing.T) {
+	t.Parallel()
+	_, _, err := decode([]byte("---\n...\n" + minimal31))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrParse)
+}
+
+// TestFirstDocument_IsWhatDecodeTakes pins the reader detection shares with
+// the compile: the same document, so a source routed here is the source
+// lowered here, and the parser's own error text, which detection quotes.
+func TestFirstDocument_IsWhatDecodeTakes(t *testing.T) {
+	t.Parallel()
+	src := []byte("--- null\n---\n" + minimal31)
+	fromDecode, _, err := decode(src)
+	require.NoError(t, err)
+	fromDetect, err := FirstDocument(src)
+	require.NoError(t, err)
+	assert.Equal(t, fromDecode.Content[0].Line, fromDetect.Content[0].Line)
+	assert.Equal(t, yaml.MappingNode, fromDetect.Content[0].Kind)
+
+	_, err = FirstDocument([]byte("\tnot: yaml\n"))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrParse, "the parser's own error, unwrapped, for detection to quote")
+}
+
+// TestLoad_LeadingEmptyDocumentsAreSkipped is the end-to-end pin: the stream
+// #481 reports loads clean, the tail count starts after the document taken,
+// and the document is the one the author wrote.
+func TestLoad_LeadingEmptyDocumentsAreSkipped(t *testing.T) {
+	t.Parallel()
+	second := "---\nopenapi: 3.1.0\ninfo: {title: N, version: \"1\"}\npaths: {}\n"
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf("---\n---\n"+minimal31), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, "T", doc.Doc.Info.GetTitle())
+	assert.False(t, diag.HasError(diags), "nothing was dropped: %+v", diags)
+
+	_, diags, err = Load(t.Context(), 0, openapitest.SourceOf("---\n---\n"+minimal31+second), Options{})
+	require.NoError(t, err)
+	got := streamDiags(diags)
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0].Message, "the one after it holds", "the empties before are not counted")
+}

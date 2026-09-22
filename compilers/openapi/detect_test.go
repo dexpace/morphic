@@ -83,6 +83,16 @@ func TestDetect_Formats(t *testing.T) {
 		{"key past the cap on an unparseable prefix", "api.yaml",
 			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
 			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
+		// The same split on a stream: yaml.v3 refuses a document that follows an
+		// explicit end marker without a `---` of its own, so below the cap this
+		// is undecodable, and above it the scan steps past the empty document the
+		// marker closed and reads the key from the one written after it.
+		{"key after an end-marked empty document, at the cap", "api.yaml",
+			"---\n...\nopenapi: 3.1.0\n",
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		{"key after an end-marked empty document, past the cap", "api.yaml",
+			"---\n...\n" + padTo("openapi: 3.1.0\n", "filler: x\n"),
+			compilers.SourceFormat{Name: "openapi", Version: "3.1"}, true, nil},
 		// A quoted scalar left open is the same case: the scan reads through an
 		// open construct to its close, and one that never closes leaves every
 		// line after it a root line after all.
