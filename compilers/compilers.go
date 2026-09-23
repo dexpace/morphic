@@ -129,6 +129,14 @@ type Compiler interface {
 	// is, so the zero format with ok true is no answer, and Registry.Detect
 	// passes over a compiler that gives one rather than let it end the search.
 	//
+	// opts is what this compiler would compile src with, so that recognizing a
+	// source is held to the bounds the caller set for reading it rather than to
+	// a ceiling of the compiler's choosing: the read that recognition makes may
+	// be the most expensive read of the source there is. A FormatOptions value
+	// of a type this compiler does not take configures some other compiler, and
+	// here means this one's defaults; Compile is where such a value is an error,
+	// since only there is it certain the caller meant it for this compiler.
+	//
 	// A compiler that parsed src to recognize it may return that parse in
 	// Recognition.Parsed, and read it back from Source.Parsed in Compile. It is
 	// an optimization and never a protocol: a compiler must compile a source
@@ -139,11 +147,12 @@ type Compiler interface {
 	// only when ok is false. Bytes of another format are ordinary input here, so
 	// declining them is silent: a compiler that reported every source it did not
 	// take would bury the one report that matters under one per registered
-	// format. It is for the narrower case where the source is recognizably this
+	// format. It is for the narrower cases where the source is recognizably this
 	// compiler's own and cannot be read — a malformed document in its own
-	// serialization — which no other compiler is in a position to say, and which
-	// the caller would otherwise have to report as unrecognized.
-	Detect(src Source) (rec Recognition, diags []ir.Diagnostic, ok bool)
+	// serialization — or where opts forbid reading it at all, a source past the
+	// caller's size budget. No other compiler is in a position to say either,
+	// and the caller would otherwise have to report the source as unrecognized.
+	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
@@ -200,36 +209,80 @@ func (r *Registry) Register(c Compiler) error {
 	return nil
 }
 
-// Detect asks each registered compiler in turn to recognize src, and returns
-// the first that does: the compiler registered for the format it named, what
-// that recognition found, and whether such a compiler exists. Nothing
+// Configure resolves the options one compiler would compile a source with. It
+// is asked per compiler because what configures a run is, in general, one
+// compiler's vocabulary — textual settings only that compiler can decode — and
+// which compiler a source belongs to is what detection is still finding out.
+type Configure func(c Compiler) (Options, error)
+
+// Detection is what Registry.Detect found for one source.
+type Detection struct {
+	// Compiler is the compiler registered for the format the source was
+	// recognized as, or nil when none is.
+	Compiler Compiler
+	// Recognition is what recognizing the source found. Its Format is the zero
+	// format when nothing recognized it; see Registry.Detect.
+	Recognition Recognition
+	// Options is what Compiler compiles the source with: the answer Configure
+	// gave for it, which the caller hands on rather than resolving again.
+	Options Options
+	// Declined collects what the compilers that declined the source had to say,
+	// in the order they were asked, and is meaningful only when none took it.
+	Declined []ir.Diagnostic
+}
+
+// Detect asks each registered compiler in turn to recognize src, under the
+// options configure resolves for it, and returns the first that does: the
+// compiler registered for the format it named, what that recognition found, the
+// options it compiles with, and whether such a compiler exists. Nothing
 // recognizing src is reported as the zero format, which is what tells "no
 // compiler takes these bytes" from "this format is recognized but unsupported".
+// A nil configure gives every compiler the zero Options, its defaults.
+//
+// Options a compiler cannot be configured with are an error only when that
+// compiler is the one taking src. Until then they may well be another's: a
+// setting in one compiler's vocabulary fails to decode in every other, and a
+// compiler that the settings do not describe is configured by its defaults,
+// which is what it recognizes under. A compiler that takes src with options it
+// could not decode ends the search with the error, because those are the
+// options it would have been asked to compile with.
 //
 // The parse a recognition carries survives only when the compiler that produced
 // it is the one registered for the format it named. A compiler may recognize a
 // format another serves — an OpenAPI compiler names Swagger so the caller hears
 // "unsupported" rather than "unreadable" — and one compiler's parse is not
-// another's to read, whatever its type happens to be.
+// another's to read, whatever its type happens to be. The owner is configured
+// in its own right then, since the recognizer's options are not its.
 //
-// diags collects what the declining compilers had to say, in the order they
-// were asked, and is meaningful only when no compiler took src. A compiler that
-// recognizes src ends the search, so nothing after it is asked and nothing it
-// might have said is collected — the answer to "who takes this" makes any
-// account of why others did not moot.
+// A compiler that recognizes src ends the search, so nothing after it is asked
+// and nothing it might have said is collected — the answer to "who takes this"
+// makes any account of why others did not moot.
 //
 // The order is registration order, because it is the only order a caller
 // controls — the variadic that composes the registry fixes it — and a map's
 // would make two compilers that both claim a source resolve differently from
 // run to run.
-func (r *Registry) Detect(src Source) (Compiler, Recognition, []ir.Diagnostic, bool) {
+//
+// ctx is consulted before each compiler is asked, since recognizing a source may
+// mean parsing it, and a canceled ctx is returned as the error.
+func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
 	if len(src.Data) == 0 {
-		return nil, Recognition{}, nil, false
+		return Detection{}, false, nil
+	}
+	if configure == nil {
+		configure = func(Compiler) (Options, error) { return Options{}, nil }
 	}
 
 	var declined []ir.Diagnostic
 	for _, c := range r.ordered {
-		rec, diags, ok := c.Detect(src)
+		if err := ctx.Err(); err != nil {
+			return Detection{}, false, err
+		}
+		opts, optsErr := configure(c)
+		if optsErr != nil {
+			opts = Options{}
+		}
+		rec, diags, ok := c.Detect(src, opts)
 		if !ok {
 			declined = append(declined, diags...)
 			continue
@@ -244,17 +297,36 @@ func (r *Registry) Detect(src Source) (Compiler, Recognition, []ir.Diagnostic, b
 		if rec.Format == (SourceFormat{}) {
 			continue
 		}
-		owner, registered := r.Lookup(rec.Format)
-		if !slices.Contains(c.Formats(), rec.Format) {
-			// The recognizer is not the owner, so its parse is not the owner's to
-			// read. Asking which formats it registered answers that without
-			// comparing two Compiler values, which panics outright when a
-			// compiler's type is not comparable.
-			rec.Parsed = nil
-		}
-		return owner, rec, nil, registered
+		return r.claim(c, rec, opts, optsErr, configure)
 	}
-	return nil, Recognition{}, declined, false
+	return Detection{Declined: declined}, false, nil
+}
+
+// claim resolves a recognition into the compiler that will compile the source
+// and the options it compiles with. c is the compiler that recognized it, and
+// opts and optsErr are what configuring c gave.
+func (r *Registry) claim(c Compiler, rec Recognition, opts Options, optsErr error, configure Configure) (Detection, bool, error) {
+	owns := slices.Contains(c.Formats(), rec.Format)
+	if !owns {
+		// The recognizer is not the owner, so its parse is not the owner's.
+		// Asking which formats it registered answers that without comparing two
+		// Compiler values, which panics outright when a compiler's type is not
+		// comparable.
+		rec.Parsed = nil
+	}
+	owner, registered := r.Lookup(rec.Format)
+	if !registered {
+		// Nothing will compile the source, so no options are wanted for it.
+		return Detection{Recognition: rec}, false, nil
+	}
+	if !owns {
+		// Nor are its options the owner's.
+		opts, optsErr = configure(owner)
+	}
+	if optsErr != nil {
+		return Detection{}, false, fmt.Errorf("compilers: options for %s: %w", rec.Format, optsErr)
+	}
+	return Detection{Compiler: owner, Recognition: rec, Options: opts}, true, nil
 }
 
 // isNilCompiler reports whether c is unsafe to call: an untyped nil interface or

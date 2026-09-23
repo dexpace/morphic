@@ -19,8 +19,11 @@ import (
 // programmatic one: a value of the compiler's own options type, forwarded
 // verbatim as compilers.Options.FormatOptions by a caller that imports the
 // compiler. CompilerOptions is the textual one, for a caller — the CLI — that
-// does not: the detected compiler decodes the settings into its own options
-// type itself.
+// does not: each compiler decodes the settings into its own options type
+// itself. Every compiler asked to recognize the spec decodes them, since they
+// bound that read too, and only the one that takes the spec is held to them:
+// settings it cannot decode are an error, and settings another cannot are that
+// other's defaults. See compilers.Registry.Detect.
 type RunOptions struct {
 	FormatOptions   any               `json:"formatOptions,omitempty"`
 	CompilerOptions map[string]string `json:"compilerOptions,omitempty"`
@@ -125,28 +128,39 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return nil, errors.New("engine: uninitialized; build one with New or NewWith")
 	}
 
+	// Also ahead of the read: a run configured two ways is wrong whatever the
+	// source turns out to be, and every compiler would otherwise be asked to
+	// resolve options that no compiler could.
+	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
+		return nil, errOptionChannels
+	}
+
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return nil, fmt.Errorf("engine: read spec %q: %w", specPath, err)
 	}
 	source := compilers.Source{Path: specPath, Data: data}
 
-	front, rec, declined, ok := e.registry.Detect(source)
-	format := rec.Format
+	// Each compiler is asked under the options it would compile with, because
+	// recognizing a source is a read of it that the caller's budgets bound as
+	// much as the compile's reads.
+	det, ok, err := e.registry.Detect(ctx, source, func(c compilers.Compiler) (compilers.Options, error) {
+		formatOpts, err := formatOptions(c, opts)
+		return compilers.Options{FormatOptions: formatOpts}, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("engine: detect %q: %w", specPath, err)
+	}
+	format := det.Recognition.Format
 	if !ok {
-		return &Result{Format: format, Diagnostics: e.undetected(format, declined)}, nil
+		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined)}, nil
 	}
 	// What detection parsed to recognize the source is what the compile lowers,
 	// so the source carries it forward rather than being read twice. The
 	// registry has already dropped it unless the compiler about to be asked is
 	// the one that made it.
-	source.Parsed = rec.Parsed
-	formatOpts, err := formatOptions(front, opts)
-	if err != nil {
-		return nil, fmt.Errorf("engine: options for %q: %w", specPath, err)
-	}
-	doc, diags, err := front.Compile(ctx, []compilers.Source{source},
-		compilers.Options{FormatOptions: formatOpts})
+	source.Parsed = det.Recognition.Parsed
+	doc, diags, err := det.Compiler.Compile(ctx, []compilers.Source{source}, det.Options)
 	if err != nil {
 		return nil, fmt.Errorf("engine: parse %q: %w", specPath, err)
 	}
@@ -203,17 +217,14 @@ func (e *Engine) served() string {
 	return "this build compiles " + strings.Join(names, ", ")
 }
 
-// formatOptions resolves the compiler options for one run, decoding the textual
-// channel through the compiler that will read them. os.ReadFile is what makes a
+// formatOptions resolves the options front would compile with, decoding the
+// textual channel through front itself. os.ReadFile is what makes a
 // path-valued setting work: the engine already reads the spec, so loading a file
 // a setting names keeps the I/O on this side of the contract and the compiler
 // pure.
 func formatOptions(front compilers.Compiler, opts RunOptions) (any, error) {
 	if len(opts.CompilerOptions) == 0 {
 		return opts.FormatOptions, nil
-	}
-	if opts.FormatOptions != nil {
-		return nil, errOptionChannels
 	}
 	decoded, err := front.DecodeOptions(compilers.OptionSet{
 		Settings: opts.CompilerOptions,

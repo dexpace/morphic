@@ -31,7 +31,7 @@ func TestDetect_KeyOrderSurvivesTheCap(t *testing.T) {
 	for name, src := range map[string]string{"below the cap": small, "above the cap": big} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, _, ok := New().Detect(compilers.Source{Path: "spec.json", Data: []byte(src)})
+			got, _, ok := New().Detect(compilers.Source{Path: "spec.json", Data: []byte(src)}, compilers.Options{})
 			assert.True(t, ok)
 			assert.Equal(t, want, got.Format, "which key the cap fell after does not decide the format")
 		})
@@ -55,7 +55,7 @@ func TestDetect_AValueThatIsNoVersionIsNoDeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "README.md", Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "README.md", Data: []byte(tc.src)}, compilers.Options{})
 			assert.False(t, ok, "prose beside the word is not a declaration of this format")
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Nil(t, codesOf(diags), "another format's file earns no complaint from this one")
@@ -83,7 +83,7 @@ func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
 			assert.True(t, ok, "one word beside the key declares the format, whether or not it is served")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format)
 			assert.Nil(t, codesOf(diags), "which version is wrong is load's to say")
@@ -106,7 +106,7 @@ func TestDetect_DoesNotParseTheWholeDocument(t *testing.T) {
 	src := compilers.Source{Path: "big.yaml", Data: []byte(b.String())}
 
 	allocs := testing.AllocsPerRun(3, func() {
-		if _, _, ok := New().Detect(src); !ok {
+		if _, _, ok := New().Detect(src, compilers.Options{}); !ok {
 			t.Fatal("the document declares a version this compiler serves")
 		}
 	})
@@ -185,7 +185,7 @@ func TestDetect_TheCapBoundaryReadsTheSameBothWays(t *testing.T) {
 			src := head + "#" + strings.Repeat("p", maxSniffBytes+delta-len(head)-2) + "\n"
 			require.Len(t, src, maxSniffBytes+delta, "the case must sit exactly on the boundary")
 
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
 			assert.True(t, ok)
 			assert.Equal(t, want, got.Format, "one byte of padding does not change what a document declares")
 			assert.Nil(t, codesOf(diags))
@@ -220,7 +220,7 @@ func TestDetect_TheCapDecidesWhichReadingAnswers(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: broken(tc.size)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: broken(tc.size)}, compilers.Options{})
 			assert.False(t, ok, "neither reading finds a version in a document broken before one")
 			assert.Equal(t, compilers.SourceFormat{}, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags))
@@ -250,7 +250,7 @@ func TestDetect_AnEmptyFirstDocumentIsNotTheDocument(t *testing.T) {
 				} else {
 					require.LessOrEqual(t, len(src), maxSniffBytes, "the case must fit the cap to test the parse")
 				}
-				got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)})
+				got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)}, compilers.Options{})
 				assert.True(t, ok, "the document behind the empty one is what the source declares")
 				assert.Equal(t, want, got.Format)
 				assert.Nil(t, codesOf(diags))
@@ -274,7 +274,7 @@ func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
 			t.Parallel()
 			src := "\xef\xbb\xbf" + body
 			require.Greater(t, len(src), maxSniffBytes, "the case must exceed the cap to test the scan")
-			got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "spec.yaml", Data: []byte(src)}, compilers.Options{})
 			assert.True(t, ok, "a byte-order mark is not part of what a document declares")
 			assert.Equal(t, want, got.Format)
 			assert.Nil(t, codesOf(diags))
@@ -528,7 +528,7 @@ func BenchmarkDetect_ScanPastTheCap(b *testing.B) {
 			src := compilers.Source{Path: "big.yaml", Data: data}
 			b.SetBytes(int64(len(data)))
 			for b.Loop() {
-				if _, _, ok := New().Detect(src); !ok {
+				if _, _, ok := New().Detect(src, compilers.Options{}); !ok {
 					b.Fatal("the key at the end of the document must be found")
 				}
 			}
@@ -552,13 +552,13 @@ func TestDetect_CarriesItsParseOnlyWhenItMadeOne(t *testing.T) {
 
 	small := compilers.Source{Path: "spec.yaml", Data: []byte(spec)}
 	require.LessOrEqual(t, len(small.Data), maxSniffBytes, "the case must fit the cap to be parsed")
-	rec, _, ok := New().Detect(small)
+	rec, _, ok := New().Detect(small, compilers.Options{})
 	require.True(t, ok)
 	assert.NotNil(t, rec.Parsed, "the parse that read the keys is the one the compile lowers")
 
 	large := compilers.Source{Path: "spec.yaml", Data: []byte(spec + "#" + flowPad() + "\n")}
 	require.Greater(t, len(large.Data), maxSniffBytes, "the case must exceed the cap to be scanned")
-	rec, _, ok = New().Detect(large)
+	rec, _, ok = New().Detect(large, compilers.Options{})
 	require.True(t, ok)
 	assert.True(t, rec.Parsed == nil, "the scan parses nothing, and a typed nil is not nothing")
 }

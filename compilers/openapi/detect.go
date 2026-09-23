@@ -17,10 +17,11 @@ import (
 // Detection reads two top-level keys, and 64 KiB reaches them in any document a
 // person wrote, so the cost of asking stays flat while spec size does not: a
 // full parse of a 10 MB document costs hundreds of milliseconds before the
-// compiler's own size and node budgets have agreed to pay for one.
+// compiler's node budget has agreed to pay for one.
 //
-// Nothing is declined for being large. Past the cap the same two keys are read
-// by scanProbe, in one linear pass that builds no tree.
+// Nothing within the caller's byte budget is declined for being large. Past
+// the cap the same two keys are read by scanProbe, in one linear pass that
+// builds no tree.
 const maxSniffBytes = 64 << 10
 
 // maxMergeDepth bounds how far a root mapping's merge keys are followed. A `<<`
@@ -72,7 +73,23 @@ type sniffProbe struct {
 // source means reading what it declares, which means parsing it, and the
 // compile that follows would otherwise parse the same bytes again; past the
 // sniff cap nothing was parsed and there is nothing to hand over.
-func (*Compiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+//
+// A source past the byte budget in opts is declined before any of it is read,
+// with the refusal Compile would give it. The budget exists to bound reading
+// the source, and detection is a read of it, so the one a caller set holds here
+// as it does in the compile. It is reported rather than silent because it is
+// the reason nothing took the source, whatever its format: saying no compiler
+// recognized it would send the caller to look at the document rather than at
+// the budget. A registry reads it only when no compiler takes the source, so it
+// costs another format's compiler nothing.
+func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
+	// NoSource, not source 0: detection runs before any document exists, so
+	// there is no source table for a provenance to index into.
+	noSource := ir.Provenance{Source: ir.NoSource}
+	if d, over := load.OverByteBudget(noSource, src.Data, detectionBudget(opts)); over {
+		return compilers.Recognition{}, []ir.Diagnostic{d}, false
+	}
+
 	probe, parsed, err := sniff(src.Data)
 	switch {
 	case probe.OpenAPI != "":
@@ -80,14 +97,24 @@ func (*Compiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagn
 	case probe.Swagger != "":
 		return recognized("swagger", probe.Swagger, parsed), nil, true
 	case err != nil && declaresProbeKey(src.Data):
-		// NoSource, not source 0: detection runs before any document exists, so
-		// there is no source table for a provenance to index into.
 		return compilers.Recognition{}, []ir.Diagnostic{diag.Newf(
-			ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+			ir.SeverityError, diag.UndecodableSource, noSource,
 			"source declares an OpenAPI or Swagger key and cannot be read: %s", diag.OneLine(err))}, false
 	default:
 		return compilers.Recognition{}, nil, false
 	}
+}
+
+// detectionBudget is the byte budget detection is held to: the one opts would
+// compile with. Options of another compiler's type are not this one's to read,
+// so they mean the defaults here — Compile is what reports them, and only if
+// the source turns out to be this compiler's.
+func detectionBudget(opts compilers.Options) int {
+	o, err := optionsFrom(opts)
+	if err != nil {
+		o = Options{}.withDefaults()
+	}
+	return bounded(o.Limits.MaxSourceBytes)
 }
 
 // recognized builds the recognition for a source that declared version under
@@ -291,8 +318,8 @@ func startsWithColon(data []byte, i int) bool {
 // to tell one that declares nothing from one that will not parse. A larger one
 // is scanned instead: the answer detection owes is which of two keys a document
 // declares, and a scan reads that in one linear pass, where a parse builds a
-// tree of everything between them before the compiler's size and node budgets
-// have agreed to pay for one.
+// tree of everything between them before the compiler's node budget has
+// agreed to pay for one.
 func sniff(data []byte) (sniffProbe, *load.Parsed, error) {
 	probe, parsed, err := readProbe(data)
 	return declaredVersions(probe), parsed, err

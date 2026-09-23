@@ -90,6 +90,18 @@ func budgetRefusal(srcIndex int, format string, observed, limit int) ir.Diagnost
 		ir.Provenance{Source: srcIndex}, format, observed, limit)
 }
 
+// OverByteBudget reports whether a source of data is past the byte budget limit,
+// zero being none, and if so the refusal to report at prov. It is exported for
+// detection, which reads a source before Load does and is held to the same
+// budget with the same words, so a source refused at either reads alike.
+func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, bool) {
+	if !exceeds(len(data), limit) {
+		return ir.Diagnostic{}, false
+	}
+	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, prov,
+		"source document is %d bytes, past the %d-byte budget", len(data), limit), true
+}
+
 // ErrParse marks a hard failure to read a source document: bytes that are not
 // YAML, or that fault the parser. It is exported because the compiler above
 // converts it into a diagnostic — a document that will not parse is a problem
@@ -135,10 +147,8 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	// The byte budget is checked before anything reads the bytes, because it is
 	// the one bound that can be: every finer measure of the document costs a parse
 	// to take (GitHub #75).
-	if exceeds(len(src.Data), opts.MaxSourceBytes) {
-		return nil, []ir.Diagnostic{budgetRefusal(srcIndex,
-			"source document is %d bytes, past the %d-byte budget",
-			len(src.Data), opts.MaxSourceBytes)}, nil
+	if d, over := OverByteBudget(ir.Provenance{Source: srcIndex}, src.Data, opts.MaxSourceBytes); over {
+		return nil, []ir.Diagnostic{d}, nil
 	}
 
 	parsed, err := parsedFor(src)
