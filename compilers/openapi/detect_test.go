@@ -124,7 +124,7 @@ func TestDetect_Formats(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)}, compilers.Options{})
 			assert.Equal(t, tc.wantOK, ok)
 			assert.Equal(t, tc.want, got.Format)
 			assert.Equal(t, tc.wantCode, codesOf(diags),
@@ -152,7 +152,7 @@ func TestDetect_KeyOrderDoesNotDecideTheFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(tc.src), maxSniffBytes, "the case must exceed the cap to test it")
-			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: tc.path, Data: []byte(tc.src)}, compilers.Options{})
 			assert.True(t, ok, "a valid document must not be declined over where it declares its version")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "a document this compiler recognizes carries no complaint")
@@ -336,7 +336,7 @@ func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			got, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
 			assert.True(t, ok, "a document this compiler can lower must not be declined over a repeated key")
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.0"}, got.Format)
 			assert.Nil(t, codesOf(diags), "the repeats are the parser's to report, sited, not detection's")
@@ -362,7 +362,7 @@ func TestDetect_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
 		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
 			t.Parallel()
 			src := "openapi: " + tc.first + "\nopenapi: " + tc.second + "\ninfo: {}\n"
-			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)})
+			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
 			require.True(t, ok)
 			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format,
 				"the last spelling is the one the parser reads and records")
@@ -390,7 +390,7 @@ func TestDetect_ReadsAVersionKeyThroughAMergeKey(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
 			if tc.want == "" {
 				assert.False(t, ok, "a key spelled << as a plain string merges nothing")
 				return
@@ -531,7 +531,7 @@ func TestDetect_ReportsAnUnreadableVersionKeyOnlyWhereItIsDeclared(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)})
+			_, diags, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(tc.src)}, compilers.Options{})
 			assert.False(t, ok)
 			assert.Equal(t, tc.wantCode, codesOf(diags))
 		})

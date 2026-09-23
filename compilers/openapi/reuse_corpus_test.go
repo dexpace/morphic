@@ -51,7 +51,7 @@ func TestReuse_MatchesAFreshParseAcrossTheCorpus(t *testing.T) {
 			// given and the bytes must not be shared between the two runs.
 			reusedData := append([]byte(nil), data...)
 			src := compilers.Source{Path: path, Data: reusedData}
-			rec, _, ok := openapi.New().Detect(src)
+			rec, _, ok := openapi.New().Detect(src, compilers.Options{})
 			if !ok {
 				t.Skip("the corpus holds sources this compiler declines; they never reach Compile through an engine")
 			}

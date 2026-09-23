@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
@@ -231,7 +232,7 @@ func (stubFront) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "openapi", Version: "3.1"}}
 }
 
-func (stubFront) Detect(compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	return compilers.Recognition{Format: compilers.SourceFormat{Name: "openapi", Version: "3.1"}}, nil, true
 }
 
@@ -441,7 +442,7 @@ func (*smithyCompiler) Formats() []compilers.SourceFormat {
 	return []compilers.SourceFormat{{Name: "smithy", Version: "2.0"}}
 }
 
-func (*smithyCompiler) Detect(src compilers.Source) (compilers.Recognition, []ir.Diagnostic, bool) {
+func (*smithyCompiler) Detect(src compilers.Source, _ compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	if !strings.HasPrefix(string(src.Data), "$version:") {
 		return compilers.Recognition{}, nil, false
 	}
@@ -533,6 +534,44 @@ func TestEngine_RunCompilerOptionsAreLoadedByTheEngine(t *testing.T) {
 	assert.Contains(t, string(got), "$version")
 }
 
+// TestEngine_RunRefusesTwoOptionChannelsWhateverTheSource pins that the
+// refusal does not wait on detection: a source no compiler recognizes is still
+// a run configured two ways.
+func TestEngine_RunRefusesTwoOptionChannelsWhateverTheSource(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.NewWith(&smithyCompiler{})
+	require.NoError(t, err)
+
+	_, err = eng.Run(t.Context(), writeNamed(t, "notes.txt", "nobody's format\n"), engine.RunOptions{
+		FormatOptions:   "programmatic",
+		CompilerOptions: map[string]string{"shape": "Widget"},
+	})
+	require.EqualError(t, err, "engine: set FormatOptions or CompilerOptions, not both")
+}
+
+// TestEngine_RunHoldsDetectionToTheCallersByteBudget pins the budget reaching
+// detection through the engine: a spec past it is refused as past the budget,
+// not reported as a format nothing recognizes. The compile would refuse it in
+// the same words, so the format is what shows which one did: detection read
+// nothing and so named none.
+func TestEngine_RunHoldsDetectionToTheCallersByteBudget(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New()
+	require.NoError(t, err)
+	spec := writeSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n")
+
+	res, err := eng.Run(t.Context(), spec, engine.RunOptions{
+		FormatOptions: openapi.Options{Limits: openapi.Limits{MaxSourceBytes: 8}},
+	})
+
+	require.NoError(t, err, "a source past the budget is a spec problem, not a Go error")
+	assert.Nil(t, res.Document)
+	require.Len(t, res.Diagnostics, 1, "%+v", res.Diagnostics)
+	assert.Equal(t, "openapi/budget-exceeded", res.Diagnostics[0].Code)
+	assert.Contains(t, res.Diagnostics[0].Message, "past the 8-byte budget")
+	assert.Equal(t, compilers.SourceFormat{}, res.Format, "refused before anything read the spec")
+}
+
 func TestEngine_RunOptionRefusals(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -543,10 +582,10 @@ func TestEngine_RunOptionRefusals(t *testing.T) {
 		{"both channels", engine.RunOptions{
 			FormatOptions:   "programmatic",
 			CompilerOptions: map[string]string{"shape": "Widget"},
-		}, "set FormatOptions or CompilerOptions, not both"},
+		}, "engine: set FormatOptions or CompilerOptions, not both"},
 		{"undecodable setting", engine.RunOptions{
 			CompilerOptions: map[string]string{"boom": "yes"},
-		}, "boom is not an option"},
+		}, "options for smithy@2.0: decode: boom is not an option"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -555,7 +594,6 @@ func TestEngine_RunOptionRefusals(t *testing.T) {
 			require.NoError(t, err)
 			_, err = eng.Run(t.Context(), writeNamed(t, "model.smithy", "$version: \"2\"\n"), tc.opts)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "engine: options for")
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
