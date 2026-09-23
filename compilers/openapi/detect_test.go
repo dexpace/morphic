@@ -649,40 +649,49 @@ func treeNodes(n *yaml.Node) int {
 // It times the walk and not a compile. Parsing these documents costs fifteen to
 // thirty times what walking them does, and is itself linear, so a measurement
 // that included it would be reporting the parser with the walk's defect buried
-// inside the error bars — which is exactly what an earlier version of this test
-// did, passing on one machine and failing on another while measuring neither.
-// The tree is built outside the clock.
-//
-// The sizes are large enough that the walk takes milliseconds rather than
-// microseconds, so scheduling noise has no leverage on the ratio: the defect
-// puts three orders of magnitude between the two readings, not a few percent.
+// inside the error bars. The trees are built outside the clock.
 //
 // The assertion is a ratio, not a duration: a wall-clock threshold is a
 // machine's number and this is a shape's. Doubling the merge keys doubles a
-// linear walk and quadruples a quadratic one; the allowance sits between.
+// linear walk and quadruples a quadratic one, and the allowance of three sits
+// between them.
+//
+// Each size is read as the fastest of several walks, since interference only
+// ever adds time, and the walks alternate between the sizes so both minimums
+// come from the same stretch of time. An earlier version timed every walk of
+// the larger tree, then every walk of the smaller, and a burst of load landing
+// on one run of walks and not the other — which packages starting and stopping
+// under go test ./... produce — decided the ratio: it failed CI at 3.37.
+// Measured under that kind of load over 160 trials each, timing the sizes in
+// runs peaked at 3.38 and the median of paired ratios at 3.73, while
+// alternating minimums never crossed 3 and peaked at 2.51. On the quadratic
+// walk the same statistic reads 4.30.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
-	cost := func(k int) time.Duration {
+	tree := func(k int) *yaml.Node {
 		var root yaml.Node
 		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
-		content := documentRoot(&root)
+		return documentRoot(&root)
+	}
+	walk := func(content *yaml.Node) time.Duration {
+		start := time.Now()
+		probe, err := probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+		elapsed := time.Since(start)
+		require.NoError(t, err)
+		require.Equal(t, "3.1.0", probe.OpenAPI,
+			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
+		return elapsed
+	}
+	small, large := tree(8000), tree(16000)
 
-		best := time.Duration(math.MaxInt64)
-		for range 5 {
-			start := time.Now()
-			probe, err := probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
-			elapsed := time.Since(start)
-			require.NoError(t, err)
-			require.Equal(t, "3.1.0", probe.OpenAPI,
-				"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
-			best = min(best, elapsed)
-		}
-		return best
+	// One walk of each first, so neither minimum is the cold one.
+	walk(small)
+	walk(large)
+	bestSmall, bestLarge := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
+	for range 9 {
+		bestSmall = min(bestSmall, walk(small))
+		bestLarge = min(bestLarge, walk(large))
 	}
 
-	// The larger is timed first so a warm cache cannot flatter the smaller and
-	// shrink the ratio.
-	large, small := cost(16000), cost(8000)
-
-	assert.Less(t, large, 3*small,
-		"twice the merge keys must not cost four times the walk (small=%v large=%v)", small, large)
+	assert.Less(t, bestLarge, 3*bestSmall,
+		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
