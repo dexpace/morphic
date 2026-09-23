@@ -58,6 +58,12 @@ type Options struct {
 	// make. Under strict, such an action is reported and the compile refuses;
 	// under lax it is not reported at all.
 	Lax bool
+	// MaxNodes bounds the document the overlay may grow the source to, checked
+	// before each action builds anything; zero or negative applies without one.
+	// It is the compile's node budget: the loader checks the patched tree
+	// against the same number afterwards, and this is what stops an overlay
+	// spending memory to build a tree that check would refuse (GitHub #491).
+	MaxNodes int
 }
 
 // Origin answers which input document supplied a lowered position.
@@ -159,7 +165,7 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	}
 
 	before, complete := snapshot(root, budget)
-	diags, applied := applyRecovered(doc, root, at, opts.Lax)
+	diags, applied := applyRecovered(doc, root, at, opts.Lax, opts.MaxNodes)
 	if !applied {
 		return Origin{}, diags
 	}
@@ -201,7 +207,7 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 // process without passing through here. Those shapes are refused before the
 // overlay is applied, by the loader, which reaches the scans that recognize
 // them (GitHub #489); this barrier cannot stand in for that refusal.
-func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool) (diags []ir.Diagnostic, applied bool) {
+func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool, maxNodes int) (diags []ir.Diagnostic, applied bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			diags = []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
@@ -209,36 +215,7 @@ func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, 
 			applied = false
 		}
 	}()
-	return apply(doc, root, at, lax)
-}
-
-// apply runs doc over root under the caller's strictness, returning what it
-// reported and whether the result is usable.
-//
-// Strict mode reports on two levels, and they are not the same finding. The
-// per-action warnings say what each action did or failed to do; the error, when
-// there is one, says a selector matched nothing at all. An action that matched
-// and then changed nothing produces a warning and no error, so the compile
-// proceeds — the fix that action describes is already in the source, which is
-// worth saying and not worth refusing over. Lax mode reports neither level, and
-// still fails on an overlay the library could not apply at all.
-func apply(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool) ([]ir.Diagnostic, bool) {
-	if lax {
-		if err := doc.ApplyTo(root); err != nil {
-			return []ir.Diagnostic{failed(at, err)}, false
-		}
-		return nil, true
-	}
-
-	warnings, err := doc.ApplyToStrict(root)
-	out := make([]ir.Diagnostic, 0, len(warnings))
-	for _, w := range warnings {
-		out = append(out, diag.Newf(ir.SeverityWarning, diag.OverlayAction, at, "%s", w))
-	}
-	if err != nil {
-		return append(out, failed(at, err)), false
-	}
-	return out, true
+	return runSequence(doc, root, at, lax, maxNodes)
 }
 
 // failed builds the diagnostic for an overlay the library refused to apply.
