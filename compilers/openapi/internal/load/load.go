@@ -337,7 +337,11 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	if diag.HasError(pre) {
 		return overlay.Origin{}, pre
 	}
-	origin, diags := overlay.Apply(opts.OverlaySrcIndex, root, *opts.Overlay)
+	// The overlay builds within the same node budget the patched tree is checked
+	// against afterwards, so it can refuse an action before paying for it.
+	ov := *opts.Overlay
+	ov.MaxNodes = opts.MaxSourceNodes
+	origin, diags := overlay.Apply(opts.OverlaySrcIndex, root, ov)
 	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
@@ -366,6 +370,15 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 // Bytes that will not decode are left to the library, which refuses them with
 // its own reason; this answers only about documents that do.
 func overlayRefusals(opts Options) []ir.Diagnostic {
+	// The byte budget is checked before anything reads the bytes, as the
+	// source's is (GitHub #75): an overlay is an input document like the source,
+	// read in full by the decode below and again by the library, and it had no
+	// bound on its size at all (GitHub #491).
+	if exceeds(len(opts.Overlay.Data), opts.MaxSourceBytes) {
+		return []ir.Diagnostic{budgetRefusal(opts.OverlaySrcIndex,
+			"overlay document is %d bytes, past the %d-byte budget",
+			len(opts.Overlay.Data), opts.MaxSourceBytes)}
+	}
 	var tree yaml.Node
 	if err := yaml.Unmarshal(opts.Overlay.Data, &tree); err != nil {
 		return nil

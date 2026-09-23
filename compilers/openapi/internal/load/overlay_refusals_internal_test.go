@@ -188,3 +188,56 @@ func TestLoad_AnOverlayThatWillNotDecodeIsTheLibrarysToRefuse(t *testing.T) {
 	require.Len(t, diags, 1, "one finding about the overlay, not two: %+v", diags)
 	assert.Equal(t, diag.OverlayInvalid, diags[0].Code, "and it is the library's, which says what is wrong")
 }
+
+// TestLoad_AnOverlayBuildsWithinTheNodeBudget pins the loader's half of GitHub
+// #491: the node budget the patched tree is checked against afterwards is the
+// one the overlay builds within, so an action that would build past it is
+// refused before it builds anything rather than after a tree the check then
+// turns down. The package that applies overlays holds the mechanism; this holds
+// that the compile hands it the caller's budget.
+func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
+	t.Parallel()
+	keys := make([]string, 200)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("k%d: v", i)
+	}
+	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
+		"  - target: $.info\n    update: {x-bulk: {" + strings.Join(keys, ", ") + "}}\n"
+
+	opts := overlayOf(ov)
+	opts.MaxSourceNodes = 100
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	require.Equal(t, 1, countErrorsAt(diags, diag.BudgetExceeded), "diagnostics: %+v", diags)
+	assert.Contains(t, diags[len(diags)-1].Message, "overlay action 1 of 1",
+		"refused by the overlay's own check, before it built the tree")
+
+	opts.MaxSourceNodes = 10000
+	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+	require.NoError(t, err)
+	require.NotNil(t, doc, "the same overlay fits a budget with room for it: %+v", diags)
+}
+
+// TestLoad_AnOverlayIsHeldToTheByteBudget pins the budget the overlay document
+// never had. It is an input like the source, read in full twice — by the
+// pre-apply refusals and by the library — so it is held to the byte budget the
+// source is, checked before either reads it, and refused under its own index.
+func TestLoad_AnOverlayIsHeldToTheByteBudget(t *testing.T) {
+	t.Parallel()
+	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-pad: \"" + strings.Repeat("p", 400) + "\"}\n" +
+		"actions:\n  - target: $.info\n    update: {description: d}\n"
+	require.Greater(t, len(ov), len(minimal31)+200, "the overlay is what crosses the budget, not the source")
+
+	opts := overlayOf(ov)
+	opts.MaxSourceBytes = len(minimal31) + 100
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay is what crossed it")
+	assert.Contains(t, diags[0].Message, "overlay document is")
+}
