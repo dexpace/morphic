@@ -60,6 +60,10 @@ type Options struct {
 	// MaxSourceNodes bounds the YAML nodes the source parses to, counted after any
 	// overlay is applied. Zero is unbounded, as in MaxSourceBytes.
 	MaxSourceNodes int
+	// MaxAliasSurplus bounds the nodes YAML aliases may add to the source, and to
+	// the overlay, beyond their own. Zero is unbounded, as in MaxSourceBytes; the
+	// ratio refusal scan makes beside it holds either way.
+	MaxAliasSurplus int
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -291,7 +295,7 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := scan.Cycles(locate, idx)
+	diags := scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))
 	if n, ok := idx.TaggedMapping(); ok {
 		diags = append(diags, taggedMappingRefusal(locate, n))
 	}
@@ -358,8 +362,9 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 // an alias bomb gave it an exponential one and ended it out of memory — a
 // 393-byte overlay cost 355 MB at six levels. Neither is a panic, so the barrier
 // around the application cannot see them (GitHub #489). They are the two
-// refusals the source gets before its own parser, held to the same allowance,
-// and they run here because this is the one package that reaches them.
+// refusals the source gets before its own parser, held to the same ratio and
+// the same alias budget, and they run here because this is the one package
+// that reaches them.
 //
 // The overlay is decoded into a node tree of its own for this, which expands
 // nothing — a tree holds an alias as one node pointing at its anchor — and the
@@ -394,7 +399,7 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return scan.Aliases(locate, idx)
+	return scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are

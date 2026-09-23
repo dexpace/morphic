@@ -2,6 +2,7 @@ package scan
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -122,13 +123,26 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	const siblings = 500
 	src := wideBaseReuseSpec(props, siblings)
 
+	root := indexOf(t, []byte(src)).Root()
+	_, pastShape := newAliasWeigher(shapeAllowance(rawNodes(root))).weigh(root)
+	require.True(t, pastShape,
+		"sanity: this document expands past maxAliasAmplification times itself, so the ratio names it and no budget admits it")
+
 	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "44x beyond any real spec's surplus must be refused")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+
+	unbounded := Cycles(InSource(0), indexOf(t, []byte(src)), 0)
+	require.NotEmpty(t, unbounded, "turning the alias budget off leaves the ratio rule standing")
+	assert.Equal(t, diag.AliasAmplification, unbounded[0].Code)
 }
 
-func flatFanOutSpec(props, n int) string {
+// flatFanOutSpec writes a component listing n aliases to one four-property
+// leaf: a document whose ratio settles near the leaf's size however large n
+// grows, so only the surplus bound can refuse it.
+func flatFanOutSpec(n int) string {
+	const props = 4
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
 	b.WriteString("    Leaf: &leaf {type: object, properties: {")
@@ -159,14 +173,12 @@ func flatFanOutSpec(props, n int) string {
 
 func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	t.Parallel()
-	const props = 4
-
 	const under = 9_000
-	assert.Empty(t, scanBytes(t, []byte(flatFanOutSpec(props, under))),
+	assert.Empty(t, scanBytes(t, []byte(flatFanOutSpec(under))),
 		"a modest anchor reused this many times has not yet crossed the surplus budget")
 
 	const over = 11_000
-	src := flatFanOutSpec(props, over)
+	src := flatFanOutSpec(over)
 
 	docRoot := indexOf(t, []byte(src)).Root()
 	raw := rawNodes(docRoot)
@@ -179,26 +191,109 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 
 	diags := scanBytes(t, []byte(src))
 	require.NotEmpty(t, diags, "unbounded reuse of even a modest anchor must eventually be refused")
-	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code,
+		"inside the ratio, the document is large once expanded rather than a bomb, so it is past a budget")
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Contains(t, diags[0].Message, fmt.Sprintf("past the %d-node alias budget", defaultSurplus))
+
+	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 2*defaultSurplus),
+		"a caller who raised the budget has the document admitted")
+	assert.Empty(t, Cycles(InSource(0), indexOf(t, []byte(src)), 0),
+		"a caller who turned the budget off has the document admitted")
 }
 
-func TestComputeAllowance_TakesTheLesserBound(t *testing.T) {
+// TestAliasAmplification_SurplusBoundIsExact pins where the surplus budget
+// binds: a document whose aliases add exactly the budget is admitted, and one
+// node fewer of budget refuses it.
+func TestAliasAmplification_SurplusBoundIsExact(t *testing.T) {
 	t.Parallel()
+	root := indexOf(t, []byte(flatFanOutSpec(100))).Root()
+	raw := rawNodes(root)
+	probe := newAliasWeigher(shapeAllowance(raw))
+	_, pastShape := probe.weigh(root)
+	require.False(t, pastShape, "sanity: the fixture is inside the ratio, so only the surplus can refuse it")
+	added := probe.weight[root] - raw
+	require.Positive(t, added, "sanity: the fixture's aliases add nodes")
 
-	// A small raw count: the minExpandedNodes floor dominates the ratio side,
-	// and maxAliasSurplus is far larger still, so the floor wins outright.
-	assert.Equal(t, int64(minExpandedNodes), computeAllowance(10))
+	_, refused := aliasAmplification(InSource(0), root, raw, added)
+	assert.False(t, refused, "aliases adding exactly the budget are within it")
 
-	// A raw count large enough that the ratio allowance
-	// (maxAliasAmplification*raw) exceeds maxAliasSurplus: the surplus side
-	// must win.
-	const largeRaw = int64(maxAliasSurplus)
-	ratioAllowance := int64(maxAliasAmplification) * largeRaw
-	surplusAllowance := largeRaw + int64(maxAliasSurplus)
-	require.Less(t, surplusAllowance, ratioAllowance,
-		"sanity: this raw count must actually put the surplus side in the lead")
-	assert.Equal(t, surplusAllowance, computeAllowance(largeRaw))
+	d, refused := aliasAmplification(InSource(0), root, raw, added-1)
+	require.True(t, refused, "aliases adding one node past the budget are refused")
+	assert.Equal(t, diag.BudgetExceeded, d.Code)
+	assert.Equal(t, fmt.Sprintf("YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
+		added, raw, added-1), d.Message)
+	assert.NotEmpty(t, d.Provenance.Pointer, "the refusal points at the node that crossed")
+}
+
+// TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget pins the
+// precedence of the two bounds. A bomb crosses any budget small enough to bind
+// before the ratio as well as the ratio itself, and naming it for the budget
+// would tell its caller that raising the budget admits it, which none does.
+func TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(amplificationBombFixture)
+	require.NoError(t, err)
+
+	for _, surplus := range []int64{1, defaultSurplus, 0} {
+		diags := Cycles(InSource(0), indexOf(t, data), surplus)
+		require.Len(t, diags, 1, "surplus %d", surplus)
+		assert.Equal(t, diag.AliasAmplification, diags[0].Code, "surplus %d", surplus)
+	}
+}
+
+// TestAliasAmplification_ABudgetPastTheRatioRefusesNothing covers a surplus at
+// or past what the ratio already admits. It can never be the bound crossed,
+// and adding the largest one to the document's size would overflow into a
+// negative allowance that refuses everything.
+func TestAliasAmplification_ABudgetPastTheRatioRefusesNothing(t *testing.T) {
+	t.Parallel()
+	root := indexOf(t, []byte(flatFanOutSpec(11_000))).Root()
+	raw := rawNodes(root)
+
+	for _, surplus := range []int64{shapeAllowance(raw) - raw, math.MaxInt64} {
+		_, refused := aliasAmplification(InSource(0), root, raw, surplus)
+		assert.False(t, refused, "surplus %d", surplus)
+	}
+}
+
+// TestAliasAmplification_AnAdmittedDocumentIsWeighedOnce pins the cost of the
+// common case. Every compile of a document that aliases nothing out of the way
+// runs this, so two bounds must not mean two walks for it: a second walk is
+// paid only by a document already being refused. It compares allocations
+// rather than time, since each walk builds a weight map as large as the tree
+// and allocation counts do not depend on what else the machine is doing.
+func TestAliasAmplification_AnAdmittedDocumentIsWeighedOnce(t *testing.T) {
+	root := indexOf(t, []byte(flatFanOutSpec(2_000))).Root()
+	raw := rawNodes(root)
+	shape := shapeAllowance(raw)
+	surplus := (shape - raw) / 2
+	probe := newAliasWeigher(raw + surplus)
+	_, exceeded := probe.weigh(root)
+	require.False(t, exceeded, "sanity: the document is inside the budget, so it is admitted")
+	require.Less(t, surplus, shape-raw, "sanity: the budget binds before the ratio, so both bounds are live")
+
+	one := testing.AllocsPerRun(5, func() { newAliasWeigher(raw + surplus).weigh(root) })
+	both := testing.AllocsPerRun(5, func() { aliasAmplification(InSource(0), root, raw, surplus) })
+	assert.Less(t, both, 1.5*one, "an admitted document costs one walk (one=%v both=%v)", one, both)
+}
+
+// TestAliases_HoldsAnOverlayToTheBudgetItIsGiven pins that the overlay's scan
+// reads the budget it is handed rather than a fixed one.
+func TestAliases_HoldsAnOverlayToTheBudgetItIsGiven(t *testing.T) {
+	t.Parallel()
+	src := "a: &x {p: 1, q: 2}\nb: [*x, *x, *x, *x]\n"
+
+	diags := Aliases(InSource(0), indexOf(t, []byte(src)), 1)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Empty(t, Aliases(InSource(0), indexOf(t, []byte(src)), 0), "no budget, and well inside the ratio")
+}
+
+func TestShapeAllowance_FloorsTheRatio(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, int64(minExpandedNodes), shapeAllowance(10), "a small document gets the floor")
+	assert.Equal(t, int64(maxAliasAmplification*1000), shapeAllowance(1000), "a larger one gets the ratio")
 }
 
 func aliasFanOutNode(levels int) *yaml.Node {
@@ -214,12 +309,12 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 
 	under := aliasFanOutNode(12)
 	require.Equal(t, int64(5), rawNodes(under), "sanity: the raw count aliasFanOutNode promises")
-	_, refused := aliasAmplification(InSource(0), under, rawNodes(under))
+	_, refused := aliasAmplification(InSource(0), under, rawNodes(under), defaultSurplus)
 	assert.False(t, refused, "expandedWeight 24,573 stays under the 32,768 floor")
 
 	over := aliasFanOutNode(13)
 	require.Equal(t, int64(5), rawNodes(over), "sanity: the raw count aliasFanOutNode promises")
-	d, refused := aliasAmplification(InSource(0), over, rawNodes(over))
+	d, refused := aliasAmplification(InSource(0), over, rawNodes(over), defaultSurplus)
 	require.True(t, refused, "expandedWeight 49,149 crosses the 32,768 floor")
 	assert.Equal(t, diag.AliasAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)

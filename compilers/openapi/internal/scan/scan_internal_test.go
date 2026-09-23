@@ -250,15 +250,22 @@ func TestDetectCycles_RefShapedDataIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestDetectCycles_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Cycles(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes)))
+	assert.Empty(t, Cycles(InSource(0), sourceindex.Build(nil, sourceindex.MaxIndexedNodes), defaultSurplus))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
+// defaultSurplus is the alias budget a compile gets when its caller sets none,
+// openapi.DefaultMaxAliasSurplus, which this package cannot import. The fixtures
+// here that straddle it were sized against it; the compiler's own tests pin
+// that the default reaching the scan is this one.
+const defaultSurplus = 1 << 18
+
 // scanBytes decodes source bytes and runs the refusals over the index built from
-// them — what load does around Cycles, with the compile's one decode.
+// them — what load does around Cycles, with the compile's one decode — under the
+// default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Cycles(InSource(0), indexOf(t, data))
+	return Cycles(InSource(0), indexOf(t, data), defaultSurplus)
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -681,7 +688,7 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	idx := indexOf(t, []byte(src))
 	done := make(chan []ir.Diagnostic, 1)
 	go func() {
-		done <- Cycles(InSource(0), idx)
+		done <- Cycles(InSource(0), idx, defaultSurplus)
 	}()
 	select {
 	case diags := <-done:
@@ -832,7 +839,7 @@ func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
 				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
 			}
 
-			got := Cycles(locate, indexOf(t, readReproducer(t, fixture)))
+			got := Cycles(locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
 			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
@@ -848,7 +855,7 @@ func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
 // Aliases exists for, is a document nothing resolves.
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
-	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src))) }
+	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src)), defaultSurplus) }
 
 	anchor := aliases("a: &x [*x]\n")
 	require.Len(t, anchor, 1)
@@ -882,7 +889,7 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 		return ir.Provenance{Source: 0}
 	}
 
-	got := Aliases(panicking, indexOf(t, []byte("a: &x [*x]\n")))
+	got := Aliases(panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)

@@ -147,6 +147,20 @@ const (
 	// that budget does not cover this one. An enum at this budget compiles in
 	// under 200 MB.
 	DefaultMaxEnumMembers = 1 << 16
+	// DefaultMaxAliasSurplus is the alias budget: 262,144 nodes that YAML aliases
+	// may add to a document beyond its own. It is measured against a different
+	// corpus from the budgets above, because those three descriptions barely
+	// alias: 1,693 real OpenAPI and Swagger specs (1,491 from APIs.guru, 199
+	// hand-authored ones chosen for their anchors, and the three above), whose
+	// largest surplus is 15,727 nodes — a 16.7x margin.
+	//
+	// It is the bound that sets how much memory an alias-heavy document can cost,
+	// since the parser builds a fresh subtree for every path through an alias.
+	// Padding a document's own size lifts every relative bound out of the way,
+	// and this one is not relative: at 1<<20 a purpose-built 93 KiB document was
+	// measured peaking at 4.4 GiB; at this default the largest still accepted
+	// peaks at 1.65 GiB.
+	DefaultMaxAliasSurplus = 1 << 18
 )
 
 // Limits bounds the size and cardinality of one compile, so that an input which
@@ -156,15 +170,15 @@ const (
 // It is policy rather than semantics (architecture principle 6): what counts as
 // pathological depends on the machine doing the compiling, so every budget here
 // is the caller's to set. In each field zero takes the documented default and a
-// negative value means unbounded — the compile then behaves as it did before
-// these budgets existed, which is the escape hatch for a caller who has measured
-// their own input and their own machine.
+// negative value means unbounded — that budget refuses nothing, which is the
+// escape hatch for a caller who has measured their own input and their own
+// machine. A field says so where a constant beside its budget still applies.
 //
 // These are budgets on the size of the input. They are not the only bounds the
-// compiler enforces: schema nesting depth, YAML alias expansion, reference-chain
-// length and several walk node counts are each bounded by a constant beside the
-// code that walks them, because none of those describes something a caller could
-// legitimately want more of.
+// compiler enforces: schema nesting depth, how many times its own size a
+// document's aliases expand it to, reference-chain length and several walk node
+// counts are each bounded by a constant beside the code that walks them, because
+// none of those describes something a caller could legitimately want more of.
 type Limits struct {
 	// MaxSourceBytes bounds one source document's size in bytes, checked before
 	// it is parsed.
@@ -176,6 +190,21 @@ type Limits struct {
 	// as the top type with an error diagnostic naming the budget; the rest of the
 	// document still lowers.
 	MaxEnumMembers int `json:"maxEnumMembers,omitempty"`
+	// MaxAliasSurplus bounds the nodes YAML aliases may add to one source
+	// document, or to its overlay, beyond the document's own: what the document
+	// costs once every alias stands in for a copy of what it names, less what it
+	// costs as written. A document with no alias adds nothing, so this never
+	// refuses one for its size. A source past it is refused before the typed
+	// model is built from it, where that cost would be paid, and an overlay
+	// before it is applied.
+	//
+	// Turning it off does not turn off alias refusal. A document whose aliases
+	// expand it past both 128 times its own size and 32,768 nodes is refused
+	// whatever this says, as openapi/alias-amplification rather than
+	// openapi/budget-exceeded, because that is the shape of a bomb rather than of
+	// a large document. What is left unbounded is how far a document within that
+	// ratio may expand, so its cost is at most that multiple of its own size.
+	MaxAliasSurplus int `json:"maxAliasSurplus,omitempty"`
 }
 
 // withDefaults returns a copy of l with each unset budget filled from its
@@ -189,6 +218,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.MaxEnumMembers == 0 {
 		l.MaxEnumMembers = DefaultMaxEnumMembers
+	}
+	if l.MaxAliasSurplus == 0 {
+		l.MaxAliasSurplus = DefaultMaxAliasSurplus
 	}
 	return l
 }

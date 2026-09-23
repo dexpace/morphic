@@ -18,8 +18,9 @@ import (
 // the one above it expands multiplicatively.
 //
 // Neither is this compiler's real defence against either shape — scan's cycle
-// detector refuses both long before a node reaches here, on budgets calibrated
-// against a 1,693-spec corpus, and its allowances are far tighter than these.
+// detector refuses both long before a node reaches here, on bounds calibrated
+// against a 1,693-spec corpus, which at their defaults are far tighter than
+// these.
 // They are here so the walk is bounded by its own terms rather than by what
 // happens to run before it, which is the whole point of a backstop: nothing
 // about this file's correctness should depend on the caller.

@@ -98,11 +98,12 @@ Promoting something into the framework later is additive, while demoting it brea
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
 A compiler is also bounded in what one compile may cost. Most bounds are constants beside the
-walk they bound (schema nesting depth, alias expansion, reference-chain length), because nothing
-about them is a caller's to choose. The bounds on the *input* are, so they are options:
-`openapi.Options.Limits` carries a byte budget and a parsed-node budget for one source document
-and a member budget for one enum, each with a documented default and each settable — zero takes
-the default, negative turns the budget off. Crossing one is a spec problem like any other, so it
+walk they bound (schema nesting depth, how many times its own size a document's aliases expand
+it to, reference-chain length), because nothing about them is a caller's to choose. The bounds on
+the *input* are, so they are options: `openapi.Options.Limits` carries a byte budget, a
+parsed-node budget and an alias budget for one source document and a member budget for one enum,
+each with a documented default and each settable — zero takes the default, negative turns the
+budget off. Crossing one is a spec problem like any other, so it
 is an `openapi/budget-exceeded` diagnostic rather than a Go error. Time is bounded by the caller
 instead of by a constant: the two walks that do work proportional to the document honour the
 `context.Context` a compile is given, so a deadline or a cancellation stops one between items and
