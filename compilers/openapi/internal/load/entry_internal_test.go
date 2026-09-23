@@ -367,9 +367,11 @@ func TestLoad_IndexesTheSourceOnce(t *testing.T) {
 	assert.Equal(t, 1, *built, "a compile with no overlay indexes its source exactly once")
 }
 
-// TestLoad_IndexesAPatchedTreeAgain is the one second index that is correct: an
-// overlay leaves behind a tree the first one no longer describes, and what the
-// refusals answer for is the tree the parser is handed.
+// TestLoad_IndexesAPatchedTreeAgain pins the indexes a compile with an overlay
+// builds, which is one per tree and no more. There are three trees: the source,
+// the overlay document — refused before the library that applies it follows its
+// aliases (GitHub #489) — and the tree the overlay leaves behind, which the
+// first index no longer describes and which is what the parser is handed.
 func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
 	t.Parallel()
 	opts, built := countingIndexBuilder(
@@ -380,5 +382,5 @@ func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
-	assert.Equal(t, 2, *built, "the source, then the tree the overlay left behind")
+	assert.Equal(t, 3, *built, "the source, the overlay document, then the tree the overlay left behind")
 }

@@ -194,6 +194,13 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 // pointed at any tree, so what reaches the selector is not this package's to
 // bound. The named returns are reset in the recover so a half-applied tree is
 // never reported as applied.
+//
+// A recover reaches panics and nothing else. The library's clone follows an
+// alias into what it names, so a recursive anchor in the overlay exhausts the
+// stack and an alias bomb exhausts memory — both fatal errors, which end the
+// process without passing through here. Those shapes are refused before the
+// overlay is applied, by the loader, which reaches the scans that recognize
+// them (GitHub #489); this barrier cannot stand in for that refusal.
 func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool) (diags []ir.Diagnostic, applied bool) {
 	defer func() {
 		if r := recover(); r != nil {

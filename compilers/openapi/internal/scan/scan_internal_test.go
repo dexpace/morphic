@@ -839,3 +839,52 @@ func TestCycles_AnchorsThroughTheLocator(t *testing.T) {
 		})
 	}
 }
+
+// TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes pins what separates
+// Aliases from Cycles. Both refuse an anchor naming its own ancestor and an
+// alias expansion far past the document's size, because those are properties
+// of YAML and any document carries them. Only Cycles follows $ref chains,
+// because that is what an OpenAPI resolver does — and an overlay, which
+// Aliases exists for, is a document nothing resolves.
+func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
+	t.Parallel()
+	aliases := func(src string) []ir.Diagnostic { return Aliases(InSource(0), indexOf(t, []byte(src))) }
+
+	anchor := aliases("a: &x [*x]\n")
+	require.Len(t, anchor, 1)
+	assert.Equal(t, diag.CyclicRef, anchor[0].Code, "a recursive anchor expands without end")
+
+	bomb := aliases(string(readReproducer(t, "amplification_alias_bomb")))
+	require.Len(t, bomb, 1)
+	assert.Equal(t, diag.AliasAmplification, bomb[0].Code, "an alias bomb expands far past its size")
+
+	refCycle := string(readReproducer(t, "cycle_self_ref"))
+	require.NotEmpty(t, scanBytes(t, []byte(refCycle)), "Cycles refuses the $ref cycle")
+	assert.Empty(t, aliases(refCycle), "Aliases leaves it: nothing resolves an overlay's references")
+
+	assert.Empty(t, aliases("a: &x {p: 1}\nb: *x\nc: *x\n"), "ordinary anchor reuse is not a refusal")
+}
+
+// TestAliases_DegradesAScanFaultToAWarning pins that Aliases runs under the
+// same barrier as Cycles: a fault in the walk is reported as an incomplete
+// scan, never raised through a caller that has not yet refused anything.
+//
+// The locator faults only when asked about a node, which is what the walk asks
+// it; asked about no node, as the barrier's own report does, it answers. A
+// locator that faulted on both would fault inside the recovery too, and that
+// tests a locator this compiler does not have rather than the barrier it does.
+func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
+	t.Parallel()
+	panicking := func(n *yaml.Node) ir.Provenance {
+		if n != nil {
+			panic("locator fault")
+		}
+		return ir.Provenance{Source: 0}
+	}
+
+	got := Aliases(panicking, indexOf(t, []byte("a: &x [*x]\n")))
+
+	require.Len(t, got, 1)
+	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+}
