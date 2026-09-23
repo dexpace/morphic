@@ -973,7 +973,7 @@ func decodeYAML(data []byte) (sniffProbe, *load.Parsed, error) {
 	case root.Kind != yaml.MappingNode:
 		return sniffProbe{}, nil, fmt.Errorf("document root is %s, not a mapping", root.ShortTag())
 	default:
-		probe, err := probeFromMapping(root, maxMergeDepth)
+		probe, err := probeFromMapping(root, maxMergeDepth, map[*yaml.Node]bool{})
 		return probe, parsed, err
 	}
 }
@@ -1004,14 +1004,26 @@ func documentRoot(doc *yaml.Node) *yaml.Node {
 // depth is the merge chain still allowed. It is the bound on this recursion,
 // checked before every descent, and the recursion is otherwise over a parsed
 // tree of finite size.
-func probeFromMapping(root *yaml.Node, depth int) (sniffProbe, error) {
+//
+// seen is the bound depth is not. Depth limits how far a chain is followed and
+// says nothing about how wide it is: a mapping may merge one anchor k times,
+// and each of those merges walked that anchor's own k merges, so the cost was
+// the product rather than the sum — 115ms for a 4,000-key document against
+// 13ms for a 1,000-key one, four times the input for nine times the work, and
+// rising (GitHub #487). Entering each node once collapses that to the node
+// count the caller has already parsed and paid for.
+//
+// The answer does not move. fillFrom keeps the first contribution, and a node
+// entered twice yields the same probe both times, so the visit that is skipped
+// could only re-supply what the first one already gave.
+func probeFromMapping(root *yaml.Node, depth int, seen map[*yaml.Node]bool) (sniffProbe, error) {
 	probe, merges, err := probeFromEntries(root)
 	if err != nil || depth <= 0 {
 		return probe, err
 	}
 
 	for _, merge := range merges {
-		merged, err := probeFromMerge(merge, depth-1)
+		merged, err := probeFromMerge(merge, depth-1, seen)
 		if err != nil {
 			return sniffProbe{}, err
 		}
@@ -1050,25 +1062,26 @@ func probeFromEntries(root *yaml.Node) (sniffProbe, []*yaml.Node, error) {
 // as an alias to a mapping, a mapping written out, or a sequence of either.
 // Anything else merges nothing, which is the source's problem to be reported by
 // the parser that reads it and not a reason for detection to refuse.
-func probeFromMerge(merge *yaml.Node, depth int) (sniffProbe, error) {
-	if depth <= 0 {
+func probeFromMerge(merge *yaml.Node, depth int, seen map[*yaml.Node]bool) (sniffProbe, error) {
+	if depth <= 0 || seen[merge] {
 		return sniffProbe{}, nil
 	}
+	seen[merge] = true
 
 	switch merge.Kind {
 	case yaml.AliasNode:
 		if merge.Alias == nil {
 			return sniffProbe{}, nil
 		}
-		return probeFromMerge(merge.Alias, depth-1)
+		return probeFromMerge(merge.Alias, depth-1, seen)
 	case yaml.MappingNode:
-		return probeFromMapping(merge, depth-1)
+		return probeFromMapping(merge, depth-1, seen)
 	case yaml.SequenceNode:
 		// A sequence merges each of its entries, earlier ones winning over later,
 		// which is the precedence YAML gives them.
 		var probe sniffProbe
 		for _, item := range merge.Content {
-			merged, err := probeFromMerge(item, depth-1)
+			merged, err := probeFromMerge(item, depth-1, seen)
 			if err != nil {
 				return sniffProbe{}, err
 			}

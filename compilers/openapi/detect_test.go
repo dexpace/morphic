@@ -2,8 +2,10 @@ package openapi
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -566,11 +568,11 @@ func TestProbeFromMapping_StopsAtTheBound(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("base: &b\n  openapi: 3.1.0\n<<: *b\n"), &root))
 
-	spent, err := probeFromMapping(documentRoot(&root), 0)
+	spent, err := probeFromMapping(documentRoot(&root), 0, map[*yaml.Node]bool{})
 	require.NoError(t, err, "a walk that stops at the bound declines; it does not fail")
 	assert.Empty(t, spent.OpenAPI, "at the bound the merge is not followed")
 
-	within, err := probeFromMapping(documentRoot(&root), maxMergeDepth)
+	within, err := probeFromMapping(documentRoot(&root), maxMergeDepth, map[*yaml.Node]bool{})
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.0", within.OpenAPI, "the same mapping within the bound is read")
 }
@@ -582,7 +584,105 @@ func TestProbeFromMapping_StopsAtTheBound(t *testing.T) {
 // which runs before the compiler has decided the bytes are even its own.
 func TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing(t *testing.T) {
 	t.Parallel()
-	probe, err := probeFromMerge(&yaml.Node{Kind: yaml.AliasNode}, maxMergeDepth)
+	probe, err := probeFromMerge(&yaml.Node{Kind: yaml.AliasNode}, maxMergeDepth, map[*yaml.Node]bool{})
 	require.NoError(t, err)
 	assert.Empty(t, probe.OpenAPI)
+}
+
+// breadthMergeDoc writes a document whose root merges one anchor k times, where
+// that anchor's mapping merges another k times. It is the shape that made the
+// probe's walk quadratic: the inner mapping was entered once per merge key
+// naming it, so the work was the product of the two rather than their sum. The
+// version sits at the innermost anchor, so a walk that stops early is caught by
+// the assertion rather than by the clock.
+func breadthMergeDoc(k int) []byte {
+	var b strings.Builder
+	b.WriteString("l0: &a0\n  openapi: 3.1.0\n")
+	b.WriteString("l1: &a1\n")
+	for range k {
+		b.WriteString("  <<: *a0\n")
+	}
+	for range k {
+		b.WriteString("<<: *a1\n")
+	}
+	return []byte(b.String())
+}
+
+// TestProbeFromMapping_EntersEachNodeOnce pins the mechanism that bounds the
+// walk, deterministically and without a clock: the set it carries records what
+// it has entered, and holds no more entries than the tree has nodes.
+//
+// It is the half a timing test cannot state plainly, and the half that survives
+// if timing ever has to be distrusted. The test beside it measures the property
+// this produces.
+func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal(breadthMergeDoc(64), &root))
+	content := documentRoot(&root)
+
+	seen := map[*yaml.Node]bool{}
+	probe, err := probeFromMapping(content, maxMergeDepth, seen)
+	require.NoError(t, err)
+	assert.Equal(t, "3.1.0", probe.OpenAPI, "the version is still read")
+
+	assert.NotEmpty(t, seen, "the walk records what it entered")
+	assert.LessOrEqual(t, len(seen), treeNodes(content),
+		"and enters no more nodes than the tree holds, however many merge keys name them")
+}
+
+// treeNodes counts the nodes reachable from n, for a bound stated in the
+// document's own terms rather than in a number that would have to be maintained.
+func treeNodes(n *yaml.Node) int {
+	count := 1
+	for _, child := range n.Content {
+		count += treeNodes(child)
+	}
+	return count
+}
+
+// TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
+// was about. maxMergeDepth bounds how deep a merge chain is followed and says
+// nothing about how wide it is, and the walk used to enter one anchored mapping
+// once per merge key that named it, so its cost was the product of the two.
+//
+// It times the walk and not a compile. Parsing these documents costs fifteen to
+// thirty times what walking them does, and is itself linear, so a measurement
+// that included it would be reporting the parser with the walk's defect buried
+// inside the error bars — which is exactly what an earlier version of this test
+// did, passing on one machine and failing on another while measuring neither.
+// The tree is built outside the clock.
+//
+// The sizes are large enough that the walk takes milliseconds rather than
+// microseconds, so scheduling noise has no leverage on the ratio: the defect
+// puts three orders of magnitude between the two readings, not a few percent.
+//
+// The assertion is a ratio, not a duration: a wall-clock threshold is a
+// machine's number and this is a shape's. Doubling the merge keys doubles a
+// linear walk and quadruples a quadratic one; the allowance sits between.
+func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
+	cost := func(k int) time.Duration {
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal(breadthMergeDoc(k), &root))
+		content := documentRoot(&root)
+
+		best := time.Duration(math.MaxInt64)
+		for range 5 {
+			start := time.Now()
+			probe, err := probeFromMapping(content, maxMergeDepth, map[*yaml.Node]bool{})
+			elapsed := time.Since(start)
+			require.NoError(t, err)
+			require.Equal(t, "3.1.0", probe.OpenAPI,
+				"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
+			best = min(best, elapsed)
+		}
+		return best
+	}
+
+	// The larger is timed first so a warm cache cannot flatter the smaller and
+	// shrink the ratio.
+	large, small := cost(16000), cost(8000)
+
+	assert.Less(t, large, 3*small,
+		"twice the merge keys must not cost four times the walk (small=%v large=%v)", small, large)
 }
