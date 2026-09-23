@@ -102,6 +102,46 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 		"source document is %d bytes, past the %d-byte budget", len(data), limit), true
 }
 
+// releaseAnchors clears the anchor name from every node of the tree the model is
+// about to be built from, so the parser folds every entry the document writes.
+//
+// The parser skips a mapping entry whose value carries an anchor wherever a
+// model folds its entries into a map — the paths, a path item's operations, the
+// responses, a callback's expressions — taking the anchor for an alias
+// definition rather than a value (speakeasy-api/openapi v1.25.2,
+// marshaller/unmarshaller.go). In OpenAPI such an entry is an entry like any
+// other, and skipping it dropped a whole operation, response or callback from
+// the IR with no diagnostic, while the same document without the anchor
+// compiled it (GitHub #459).
+//
+// Clearing the name changes nothing else the parser reads. That skip is the
+// only place it reads an anchor's name at all; an alias reaches its target
+// through the pointer yaml.v3 resolves it to, which is kept, so every alias
+// still stands for what it named. It runs after every pre-parse refusal, which
+// do read names — the recursive-anchor refusal quotes the one it found — and
+// nothing after the parse reads one.
+//
+// It reaches the source document only. A document an external reference names
+// is read and parsed by the resolver itself, from bytes, and its tree never
+// passes through here, so an anchored entry in one is still skipped in silence
+// (GitHub #501). Clearing the anchors there would mean
+// rewriting its bytes before the resolver parses them, which no hook the
+// resolver offers allows short of lexing YAML by hand.
+//
+// The walk follows Content and never an alias, so it visits each node of the
+// tree once and cannot cycle through a recursive anchor, which the refusals
+// have rejected by now in any case. root is never nil — a source with no
+// document decodes to an empty node — and yaml.v3 leaves no nil in Content.
+func releaseAnchors(root *yaml.Node) {
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n.Anchor = ""
+		stack = append(stack, n.Content...)
+	}
+}
+
 // ErrParse marks a hard failure to read a source document: bytes that are not
 // YAML, or that fault the parser. It is exported because the compiler above
 // converts it into a diagnostic — a document that will not parse is a problem
@@ -195,6 +235,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			nodes, opts.MaxSourceNodes)), nil
 	}
 
+	releaseAnchors(root)
 	doc, valErrs, err := unmarshal(ctx, src.Data, root)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
