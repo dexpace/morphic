@@ -46,17 +46,17 @@ type sniffProbe struct {
 // path is not consulted — an OpenAPI document is what it declares itself to be,
 // under any extension.
 //
-// Bytes the probe cannot read are declined silently unless they declare one of
-// the discriminating keys, in which case the reader's complaint is reported: a
-// source that says `openapi:` and will not read is this compiler's own and
-// broken, which nothing else is in a position to say. That covers a document
-// that does not parse and one that parses with a version key of the wrong shape
-// alike — a mapping or a sequence where a version goes — since both are
-// unreadable here, and neither is another format's. Bytes that declare neither
-// key are, and a YAML parser's complaint about them describes only the parser
-// that was wrong to be asked. So is a key with prose beside it rather than a
-// version (declaredVersions): Markdown writes `openapi:` at column 0 too, and
-// what tells its line from a declaration is the one word after the colon.
+// Bytes the probe cannot read are declined silently unless they declare a
+// version under one of the discriminating keys, in which case the reader's
+// complaint is reported: a source that says `openapi: 3.1.0` and will not read
+// is this compiler's own and broken, which nothing else is in a position to
+// say. Bytes that declare no version are another format's, and a YAML parser's
+// complaint about them describes only the parser that was wrong to be asked.
+// That holds whether they parse or not: a key with prose beside it is what
+// Markdown writes at column 0 (declaredVersions for a document that parses,
+// declaresProbeKey for one that does not), and a mapping under it is another
+// tool's configuration section. What tells either from a declaration is the one
+// word after the colon.
 //
 // The parse a recognition carries is the one Compile lowers. Recognizing a
 // source means reading what it declares, which means parsing it, and the
@@ -90,7 +90,7 @@ func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers
 	case err != nil && declaresProbeKey(src.Data):
 		return compilers.Recognition{}, []ir.Diagnostic{diag.Newf(
 			ir.SeverityError, diag.UndecodableSource, noSource,
-			"source declares an OpenAPI or Swagger key and cannot be read: %s", diag.OneLine(err))}, false
+			"source declares an OpenAPI or Swagger version and cannot be read: %s", diag.OneLine(err))}, false
 	default:
 		return compilers.Recognition{}, nil, false
 	}
@@ -122,29 +122,40 @@ func recognized(name, version string, parsed *load.Parsed) compilers.Recognition
 	}
 }
 
-// declaresProbeKey reports whether data names one of the discriminating keys as
-// a top-level key. It is what separates a source of this compiler's own from one
-// of another format that was never its business, and it is asked once: after a
-// parse failed, where "not YAML" alone says only what a Protobuf or Smithy
-// source would also say. It reads the bytes once, linearly, and the bytes it
-// reads are within the caller's budget, since nothing past it is read at all.
+// declaresProbeKey reports whether data declares a version under one of the
+// discriminating keys, written where a document declares one. It is what
+// separates a source of this compiler's own from one of another format that was
+// never its business, and it is asked once: after the probe could not read the
+// source, where "not YAML" alone says only what a Protobuf or Smithy source
+// would also say. It reads the bytes once, linearly, and the bytes it reads are
+// within the caller's budget, since nothing past it is read at all.
 //
-// Top-level is the whole of the claim, and the two styles answer it by different
+// Where a document declares its version, the two styles answer by different
 // structure: column 0 in block style, the root mapping's own entries in flow
 // style. Neither reading may be widened to "the name occurs somewhere followed
 // by a colon", because other formats nest a key of that name, and reporting
 // their bytes under this compiler's parse error is the one thing detection must
 // never do.
+//
+// The version is what makes the claim, as it is for a source that parses
+// (declaredVersions): prose beside the key is a README or a changelog, and a
+// mapping under it is another tool's configuration section. Neither is an
+// OpenAPI document that failed to read, and saying so would send the caller to
+// fix a file that was never a spec (GitHub #497). The price is a spec broken on
+// its own version line, `openapi: [3.1.0`, which declares no version to read and
+// is reported as unrecognized rather than as unreadable. What cannot be told
+// apart at all is a README that quotes a spec in a code block: its lines are a
+// spec's, and it is claimed like one.
 func declaresProbeKey(data []byte) bool {
 	data = trimBOM(data)
 	return declaresBlockKey(data, "openapi") || declaresBlockKey(data, "swagger") ||
 		declaresFlowKey(data)
 }
 
-// declaresBlockKey reports whether data writes key bare at the start of a line,
-// which in block style is where a top-level key goes and nowhere else: a key
-// nested under another is indented past column 0, and a block scalar's content
-// is indented past its own key.
+// declaresBlockKey reports whether data writes key bare at the start of a line
+// with a version beside it. Column 0 is where a top-level key goes in block
+// style and nowhere else: a key nested under another is indented past it, and a
+// block scalar's content is indented past its own key.
 //
 // Only the bare spelling is read here, because the quoted one is how flow style
 // writes every key and flow structure is what scopes it — declaresFlowKey has
@@ -153,17 +164,47 @@ func declaresProbeKey(data []byte) bool {
 // in, and the spelling is rare enough that widening column 0 to admit the shape
 // JSON writes at every depth would cost far more than it buys.
 //
-// The colon that makes it a key is required. Without it, a document of another
-// format that merely mentions the word — in a comment, or as a value — would be
-// claimed as this compiler's and reported under its parse error. What follows
-// the colon is not: this guard is asked only after a reading has failed, so
-// there is no version left to read, and nothing else will claim a file this
-// compiler has already called broken. The looseness is deliberate, and so is
-// its cost: a prose file that fails to parse and writes the key at column 0 is
-// claimed as this compiler's own (GitHub #497).
+// The line is read by the YAML parser rather than by hand, alone: the document
+// around it did not parse, but the line that declares a version is usually
+// whole, and the parser is what knows how a value is quoted and where a comment
+// begins.
 func declaresBlockKey(data []byte, key string) bool {
-	name := []byte(key + ":")
-	return bytes.HasPrefix(data, name) || bytes.Contains(data, append([]byte("\n"), name...))
+	prefix := []byte(key + ":")
+	read := 0
+	for i := 0; i < len(data) && read < maxVersionLines; {
+		line, next := nextLine(data, i)
+		if bytes.HasPrefix(line, prefix) {
+			if lineDeclaresVersion(line, key) {
+				return true
+			}
+			read++
+		}
+		i = next
+	}
+	return false
+}
+
+// maxVersionLines bounds how many lines declaresBlockKey parses. A document
+// declares its version once and a stream a few times over, so the bound is room
+// to spare for anything written; without it, a crafted file of nothing but such
+// lines, broken at the end, cost nearly three times the parse that failed on
+// it, one small parse per line.
+const maxVersionLines = 8
+
+// lineDeclaresVersion reports whether line, parsed on its own, is a mapping of
+// key to a scalar that reads as a version. An alias there names a node on
+// another line, which the line alone cannot resolve, so it declares nothing.
+func lineDeclaresVersion(line []byte, key string) bool {
+	var doc yaml.Node
+	if yaml.Unmarshal(line, &doc) != nil {
+		return false
+	}
+	root := documentRoot(&doc)
+	if root == nil || root.Kind != yaml.MappingNode || len(root.Content) != 2 || root.Content[0].Value != key {
+		return false
+	}
+	version, err := probeVersion(root.Content[1])
+	return err == nil && isVersion(version)
 }
 
 // declaresFlowKey reports whether data opens a flow mapping — the shape JSON
@@ -175,10 +216,11 @@ func declaresBlockKey(data []byte, key string) bool {
 // mapping at all — a JSON array, say — declares nothing here for the same
 // reason: whatever it names, it does not name it as its own root key.
 //
-// It is a lexer, not a parser: it tracks quoted strings and nesting and reads
-// nothing else. It has to answer on bytes that will not parse, which is the case
-// it exists for — a document broken before the key that names it — so there is
-// no tree to ask instead. A nested string is stepped over by flowString alone.
+// It is a lexer, not a parser: it tracks quoted strings and nesting, and reads
+// one value — the one after a root key it names. It has to answer on bytes that
+// will not parse, which is the case it exists for — a document broken before
+// the key that names it — so there is no tree to ask instead. A nested string is
+// stepped over by flowString alone.
 func declaresFlowKey(data []byte) bool {
 	i := skipNodeProperties(data, skipSpaceAndComments(data, 0))
 	if i == len(data) || data[i] != '{' {
@@ -189,7 +231,7 @@ func declaresFlowKey(data []byte) bool {
 		switch data[i] {
 		case '"':
 			name, next := flowString(data, i)
-			if depth == 1 && isProbeName(name) && startsWithColon(data, next) {
+			if depth == 1 && isProbeName(name) && versionAfterColon(data, next) {
 				return true
 			}
 			i = next
@@ -261,7 +303,7 @@ func skipNodeProperties(data []byte, i int) int {
 		if i == len(data) || (data[i] != '&' && data[i] != '!') {
 			return i
 		}
-		for i < len(data) && !endsProperty(data[i]) {
+		for i < len(data) && !endsWord(data[i]) {
 			i++
 		}
 		i = skipSpace(data, i)
@@ -279,9 +321,9 @@ func nextLine(data []byte, i int) (line []byte, next int) {
 	return line, len(data)
 }
 
-// endsProperty reports whether b ends a node property's word: whitespace, or a
-// flow indicator, neither of which an anchor or tag may contain.
-func endsProperty(b byte) bool {
+// endsWord reports whether b ends a bare word in flow context: whitespace, or a
+// flow indicator, none of which an anchor, a tag or a bare version contains.
+func endsWord(b byte) bool {
 	switch b {
 	case ',', '}', ']', '{', '[', ' ', '\t', '\r', '\n':
 		return true
@@ -290,11 +332,25 @@ func endsProperty(b byte) bool {
 	}
 }
 
-// startsWithColon reports whether the first non-whitespace byte at or after i is
-// the colon that makes the name before it a key.
-func startsWithColon(data []byte, i int) bool {
+// versionAfterColon reports whether a colon follows i, making the name before it
+// a key, and a version follows the colon: a quoted string or a bare word that
+// reads as one. A collection there opens with a flow indicator, so it reads as
+// an empty word and declares nothing.
+func versionAfterColon(data []byte, i int) bool {
 	i = skipSpace(data, i)
-	return i < len(data) && data[i] == ':'
+	if i == len(data) || data[i] != ':' {
+		return false
+	}
+	i = skipSpace(data, i+1)
+	if i < len(data) && data[i] == '"' {
+		value, _ := flowString(data, i)
+		return isVersion(string(value))
+	}
+	end := i
+	for end < len(data) && !endsWord(data[end]) {
+		end++
+	}
+	return isVersion(string(data[i:end]))
 }
 
 // sniff reads the discriminating keys out of data, and returns the zero probe

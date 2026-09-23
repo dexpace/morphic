@@ -59,10 +59,23 @@ func TestDetect_Formats(t *testing.T) {
 			compilers.SourceFormat{}, false, nil},
 		{"yaml that is no spec", "junk.yaml", "hello: world\n",
 			compilers.SourceFormat{}, false, nil},
-		// Declares an openapi key and will not parse: this compiler's own source,
+		// Declares a version and will not parse: this compiler's own source,
 		// broken, which nothing else is in a position to say.
-		{"unparseable yaml", "api.yaml", "openapi: [unterminated\n",
+		{"unparseable yaml", "api.yaml", "openapi: 3.1.0\ninfo: [unterminated\n",
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		// Broken on its own version line, so it declares no version to read, and
+		// is declined like any file that does not say what it is. That is the
+		// price of not claiming prose (GitHub #497).
+		{"unparseable yaml, broken on the version line", "api.yaml", "openapi: [unterminated\n",
+			compilers.SourceFormat{}, false, nil},
+		// The two files #497 is about: the word written where a spec declares its
+		// version, with no version beside it. A README with prose after the key
+		// and a framework's configuration section under it are other formats'
+		// files, and neither is reported as a spec that failed to read.
+		{"a readme that does not parse", "README.md", "# Notes\n\nfiller text\nopenapi: is a format\n",
+			compilers.SourceFormat{}, false, nil},
+		{"a config section that does not parse", "app.yaml", "openapi:\n  enabled: true\nserver: [\n",
+			compilers.SourceFormat{}, false, nil},
 		{"unparseable json", "api.json", `{"openapi": "3.1.0", "info": {`,
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
 		// Broken, and never this compiler's: the key it names is a value, not a
@@ -75,12 +88,12 @@ func TestDetect_Formats(t *testing.T) {
 		// format's file naming the word, so the same broken spec drew a complaint
 		// or silence depending on its length (GitHub #486).
 		{"unparseable, large", "api.yaml",
-			padTo("openapi: [unterminated\n", "filler: x\n"),
+			padTo("openapi: 3.1.0\ninfo: [unterminated\n", "filler: x\n"),
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
 		// The key written behind a prefix that does not parse. The scan read past
 		// the prefix to the version and named the format, leaving the compile to
-		// find the document broken; the parse finds it broken here, and the key at
-		// column 0 makes it this compiler's to say so.
+		// find the document broken; the parse finds it broken here, and the
+		// version declared at column 0 makes it this compiler's to say so.
 		{"key behind an unparseable prefix, large", "api.yaml",
 			padTo("bad: [unterminated\n", "filler: x\n") + "openapi: 3.1.0\n",
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
@@ -242,9 +255,12 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 // TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that decides
 // whose bytes these are. A name followed by a colon is a key wherever it sits,
 // so the guard has to say *whose* key: block style answers with column 0, flow
-// style with the root mapping's own depth. The cases answering no are documents
-// naming the word somewhere it does not declare this format — a compiler that
-// says otherwise reports its own parse error over a file that was never its own.
+// style with the root mapping's own depth. And a key there declares the format
+// only with a version beside it (GitHub #497). The cases answering no are
+// documents naming the word somewhere a document does not declare its format,
+// or declaring it there with prose, a collection or nothing beside it — a
+// compiler that says otherwise reports its own parse error over a file that was
+// never its own.
 func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -256,7 +272,23 @@ func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 		{"space around the mapping and the colon", "  \n\t{\"openapi\" : \"3.1.0\"}", true},
 		{"an escape hides no key from the scan", `{"a\"b":1,"openapi":"3.1.0"}`, true},
 		{"block style at column 0", "openapi: 3.1.0\n", true},
-		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: [unterminated\n", true},
+		{"block style past a byte-order mark", "\xef\xbb\xbfopenapi: 3.1.0\ninfo: [\n", true},
+		// The version beside the key is read as YAML reads it, on its own line.
+		{"block style, a quoted version", "openapi: \"3.1.0\"\ninfo: [\n", true},
+		{"block style, a version and a comment", "openapi: 3.1.0 # v\ninfo: [\n", true},
+		{"block style, CRLF", "openapi: 3.1.0\r\ninfo: [\r\n", true},
+		{"block style, swagger", "swagger: \"2.0\"\ninfo: [\n", true},
+		{"flow style, a bare version", `{"openapi":3.1,`, true},
+		// And a key with no version beside it declares nothing, in either style.
+		{"block style, prose beside the key", "openapi: is a format\n[\n", false},
+		{"block style, a mapping under the key", "openapi:\n  enabled: true\n[\n", false},
+		{"block style, a collection that does not close", "openapi: [unterminated\n", false},
+		{"block style, no space after the colon", "openapi:3.1.0\n[\n", false},
+		{"block style, a longer key the name begins", "openapi:x: 3.1.0\n[\n", false},
+		{"block style, the version on the next line", "openapi:\n  3.1.0\n[\n", false},
+		{"flow style, a collection for the version", `{"openapi":{"a":"3.1.0"},`, false},
+		{"flow style, prose for the version", `{"openapi":"is a format",`, false},
+		{"flow style, nothing after the colon", `{"openapi":`, false},
 		{"flow style past a byte-order mark", "\xef\xbb\xbf{\"openapi\":\"3.1.0\",", true},
 		// What may stand in front of a root flow mapping: comment lines, and up
 		// to two node properties — an anchor and a tag, in either order.
@@ -485,12 +517,12 @@ func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 // TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar pins the complaint for a
 // version key whose value is a mapping or a sequence, written directly and
 // reached through a `<<`. Such bytes name a key this compiler serves and do not
-// say what dialect, which is unreadable here and nobody else's.
+// say what dialect, so the probe cannot read them.
 //
 // Whether Detect reports that or declines in silence is declaresProbeKey's
-// answer and not this one's, and it is asserted separately below: the guard
-// reads a key at column 0, and a merged key is indented under the mapping that
-// carries it.
+// answer and not this one's, and it is asserted separately below: a mapping
+// under the key is another tool's configuration as often as a broken spec, and
+// declares no version either way, so Detect declines all of them.
 func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, src, wantErr string }{
@@ -510,25 +542,21 @@ func TestDecodeYAML_RefusesAVersionKeyThatIsNoScalar(t *testing.T) {
 	}
 }
 
-// TestDetect_ReportsAnUnreadableVersionKeyOnlyWhereItIsDeclared pins the split
-// the guard makes. A version key written at column 0 makes the source
-// recognizably this compiler's, so a value that is no version is reported; the
-// same value reached through a `<<` is indented under the mapping that carries
-// it, which declaresProbeKey does not read, so the source is declined in silence
-// instead.
-//
-// The silent half is deliberate and is the direction to be wrong in: the guard
-// may not be widened to "the name occurs somewhere followed by a colon" without
-// claiming documents of formats that nest a key of that name, and reporting
-// those under this compiler's parse error is the one thing detection must not
-// do.
-func TestDetect_ReportsAnUnreadableVersionKeyOnlyWhereItIsDeclared(t *testing.T) {
+// TestDetect_AVersionKeyOfTheWrongShapeIsNoDeclaration pins that a mapping
+// where a version goes declares no version, wherever it sits. Such a document
+// parses, so it is the tree and not the guard that has the key — but a mapping
+// under `openapi` is what another tool's configuration writes, and a spec
+// written that way has no version to route it by either. Detection used to
+// report the column-0 spelling as this compiler's own and unreadable; it
+// declines all three alike now (GitHub #497).
+func TestDetect_AVersionKeyOfTheWrongShapeIsNoDeclaration(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, src string
 		wantCode  []string
 	}{
-		{"declared at column 0", "openapi: {a: b}\ninfo: {}\n", []string{diag.UndecodableSource}},
+		{"declared at column 0", "openapi: {a: b}\ninfo: {}\n", nil},
+		{"a framework's configuration section", "openapi:\n  path: /docs\n  enabled: true\n", nil},
 		{"reached through a merge", "base: &b\n  openapi: {a: b}\n<<: *b\n", nil},
 	}
 	for _, tc := range cases {
@@ -697,4 +725,18 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 
 	assert.Less(t, bestLarge, 3*bestSmall,
 		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
+}
+
+// TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The
+// guard parses each line that begins with the key, so a version behind as many
+// lines without one as the bound allows is still found, and one behind a line
+// more is not: the bound is what stops a file of nothing but such lines costing
+// a parse per line.
+func TestDeclaresBlockKey_ReadsABoundedNumberOfLines(t *testing.T) {
+	t.Parallel()
+	behind := func(n int) []byte {
+		return []byte(strings.Repeat("openapi: is prose\n", n) + "openapi: 3.1.0\n[\n")
+	}
+	assert.True(t, declaresBlockKey(behind(maxVersionLines-1), "openapi"), "the last line the bound reads")
+	assert.False(t, declaresBlockKey(behind(maxVersionLines), "openapi"), "one line past the bound")
 }

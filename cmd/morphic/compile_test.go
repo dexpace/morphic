@@ -57,7 +57,7 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 	}{
 		{"unrecognized format", "hello: world\n", "engine/unrecognized-format"},
 		{"swagger 2.0", "swagger: \"2.0\"\n", "engine/no-compiler-for-format"},
-		{"undecodable source", "openapi: [unterminated\n", "openapi/undecodable-source"},
+		{"undecodable source", "openapi: 3.1.0\ninfo: [unterminated\n", "openapi/undecodable-source"},
 		{"no compiler for version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
 			"engine/no-compiler-for-format"},
 	}

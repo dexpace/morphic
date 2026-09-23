@@ -20,13 +20,14 @@ type reading int
 const (
 	// parses is a document the parse reads, declaring a version or not.
 	parses reading = iota
-	// unreadable is a document that will not parse and that names neither key
-	// as its own, so Detect declines it in silence: its bytes may well be
-	// another format's.
+	// unreadable is a document the probe cannot read — it does not parse, or
+	// its version key is no scalar — and that declares no version where a
+	// document declares one, so Detect declines it in silence: its bytes may
+	// well be another format's.
 	unreadable
-	// reported is a document that will not parse and writes a discriminating
-	// key where a document declares one, so Detect reports it as this
-	// compiler's own and broken.
+	// reported is a document the probe cannot read that declares a version
+	// where a document declares one, so Detect reports it as this compiler's
+	// own and broken.
 	reported
 )
 
@@ -116,19 +117,18 @@ func declarations() []declarationRow {
 		{name: "the key after an anchor with only a comment beside it", src: "--- &a # c\n---\nopenapi: 3.1.0\n", want: v},
 		{name: "the key after an anchor on its own line", src: "---\n&a\n---\nopenapi: 3.1.0\n", want: v},
 		// A `&` naming nothing is no anchor, and yaml.v3 refuses the stream. The
-		// key written at column 0 behind it is what makes the broken stream this
-		// compiler's to report.
+		// version declared at column 0 behind it is what makes the broken stream
+		// this compiler's to report.
 		{name: "the key after a nameless anchor", src: "--- &\n---\nopenapi: 3.1.0\n", reads: reported},
 		// A quoted null is a string, and a string is content: the document with
 		// it is the document, and its root is no mapping. The row is here so the
-		// null tokens above are read as tokens; the key at column 0 after it is
-		// what gets the refusal reported.
+		// null tokens above are read as tokens; the version declared at column 0
+		// after it is what gets the refusal reported.
 		{name: "the key after a quoted null document", src: "--- \"null\"\n---\nopenapi: 3.1.0\n", reads: reported},
 		// `openapi:3.1.0` is a plain scalar, not a key: the parse refuses the
-		// document for having a string at its root. The key guard does not ask
-		// for the separating space, so the broken document is reported as this
-		// compiler's (see declaresBlockKey).
-		{name: "no space after the colon", src: "openapi:3.1.0\n", reads: reported},
+		// document for having a string at its root, and the key guard, reading
+		// the line as YAML, finds no key in it either.
+		{name: "no space after the colon", src: "openapi:3.1.0\n", reads: unreadable},
 		{name: "the name as a value", src: `{"note":"openapi"}`},
 		// Column 0 is a root key only outside a flow collection or a quoted
 		// scalar still open from a line above: yaml.v3 continues both there,
@@ -185,11 +185,11 @@ func declarations() []declarationRow {
 		{name: "flow style, the name without a colon", src: `{"openapi","3.1.0"}`},
 		{name: "flow style, nested one level down", src: `{"a":{"openapi":"3.1.0"}}`},
 		{name: "block style, indented under another key", src: "a:\n  openapi: 3.1.0\n"},
-		// A collection where the version goes is this compiler's document with
-		// the wrong shape in it, so it is reported rather than declined.
-		{name: "flow style, a collection for the version", src: `{"openapi":{"a":"3.1.0"}}`, reads: reported},
+		// A collection where the version goes declares no version, parsed or
+		// not, so nothing claims the bytes (GitHub #497).
+		{name: "flow style, a collection for the version", src: `{"openapi":{"a":"3.1.0"}}`, reads: unreadable},
 		{name: "flow style, broken before the key", src: `{"a":1,"b" 2,"openapi":"3.1.0"}`, reads: reported},
-		{name: "flow style, ending at the colon", src: `{"openapi":`, reads: reported},
+		{name: "flow style, ending at the colon", src: `{"openapi":`, reads: unreadable},
 		{name: "flow style, a root sequence", src: `[{"openapi":"3.1.0"}]`, reads: unreadable},
 		// Broken flow documents whose root mapping sits behind what YAML allows
 		// in front of it, a comment line or a node property: the key is still
@@ -313,16 +313,16 @@ func TestDetect_AVersionThatIsNotServedIsStillADeclaration(t *testing.T) {
 }
 
 // TestDetect_ABrokenDocumentIsReportedAtAnySize pins what reading one way
-// bought. A broken spec that declares the key at column 0 is this compiler's
-// own, and saying so needs the whole document read: the byte scan that stood
+// bought. A broken spec that declares a version at column 0 is this
+// compiler's own, and saying so needs the whole document read: the byte scan that stood
 // in for the parse past 64 KiB could not tell such a spec from another format's
 // file naming the word, so the same document drew a complaint when small and
 // silence when large.
 func TestDetect_ABrokenDocumentIsReportedAtAnySize(t *testing.T) {
 	t.Parallel()
 	for name, src := range map[string]string{
-		"small": "openapi: [unterminated\n",
-		"large": padTo("openapi: [unterminated\n", "filler: x\n"),
+		"small": "openapi: 3.1.0\ninfo: [unterminated\n",
+		"large": padTo("openapi: 3.1.0\ninfo: [unterminated\n", "filler: x\n"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -395,7 +395,7 @@ func TestDetect_AByteOrderMarkIsNotAFormat(t *testing.T) {
 		})
 	}
 	for name, body := range map[string]string{
-		"broken, block style": "openapi: [unterminated\n",
+		"broken, block style": "openapi: 3.1.0\ninfo: [unterminated\n",
 		"broken, flow style":  `{"openapi":"3.1.0",`,
 	} {
 		t.Run(name, func(t *testing.T) {
