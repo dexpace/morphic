@@ -64,12 +64,13 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	loadedDoc, diags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts))
 	if errors.Is(err, load.ErrParse) {
-		// Detection named this source's format by scanning for the key it
-		// declares, which is an answer a broken document gives as readily as a
-		// whole one. The parse that finds it broken is this one, so the complaint
-		// is this one's to carry — as a diagnostic, because a Go error here
-		// leaves engine.Run as a Go error and the CLI reads that as a misuse of
-		// itself rather than as a spec it could not read.
+		// ErrParse is a source Load could not read: bytes that will not parse,
+		// which reach here only from a caller compiling directly — detection
+		// declines them before any compile — or a fault the parser or the
+		// reference resolver raised on a document that did parse. Either is the
+		// document's problem, so it is a diagnostic: a Go error here leaves
+		// engine.Run as a Go error, and the CLI reads that as a misuse of itself
+		// rather than as a spec it could not read.
 		return nil, append(diags, undecodable(err)), nil
 	}
 	if err != nil || loadedDoc == nil {
