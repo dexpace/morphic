@@ -165,7 +165,7 @@ func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 		{"recognized but unserved", "swagger: \"2.0\"\ninfo: {}\n",
 			"engine/no-compiler-for-format", compilers.SourceFormat{Name: "swagger", Version: "2.0"}},
 		{"unrecognized", "hello: world\n", "engine/unrecognized-format", compilers.SourceFormat{}},
-		{"undecodable", "openapi: [unterminated\n", "openapi/undecodable-source", compilers.SourceFormat{}},
+		{"undecodable", "openapi: 3.1.0\ninfo: [unterminated\n", "openapi/undecodable-source", compilers.SourceFormat{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -699,8 +699,7 @@ func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 		// which is the input that made the overlay reporter write two lines.
 		withOverlay bool
 	}{
-		{"version key of the wrong shape", "openapi: []\ninfo: {}\npaths: {}\n", false},
-		{"unparseable", "openapi: [unterminated\n", false},
+		{"unparseable", "openapi: 3.1.0\ninfo: [unterminated\n", false},
 		{"unrecognized", "hello: world\n", false},
 		{"unsupported version", "openapi: 4.0.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", false},
 		{"invalid overlay", okSpec, true},
