@@ -307,7 +307,24 @@ func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 }
 
 // patch applies the caller's overlay to the decoded tree, or does nothing when
-// there is none.
+// there is none. The overlay document is refused first if the library would
+// follow its aliases without end (overlayRefusals); applyOverlay does the rest.
+func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
+	if opts.Overlay == nil {
+		return overlay.Origin{}, nil
+	}
+	return applyOverlay(srcIndex, root, opts, overlayRefusals(opts))
+}
+
+// applyOverlay applies the overlay given what its pre-apply refusals found,
+// which it takes as data so what it does with each outcome is a function of
+// that outcome and can be held to it directly.
+//
+// An error there refuses before the library is handed anything. Anything less
+// is carried into what the compile reports: the only such finding is the
+// scan's own report that it faulted, and that says the overlay's protection
+// from the library is incomplete — exactly what a caller must hear before
+// trusting a compile that went on regardless.
 //
 // It re-runs the pre-parse refusals over the result, because the tree that
 // reaches the parser is no longer the one they first saw: an overlay action can
@@ -316,15 +333,55 @@ func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 // through the attribution the application produced, so a refusal on a node the
 // overlay grafted names the overlay rather than the source at a position the
 // node does not have.
-func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic) {
-	if opts.Overlay == nil {
-		return overlay.Origin{}, nil
+func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic) (overlay.Origin, []ir.Diagnostic) {
+	if diag.HasError(pre) {
+		return overlay.Origin{}, pre
 	}
 	origin, diags := overlay.Apply(opts.OverlaySrcIndex, root, *opts.Overlay)
+	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
 	return origin, append(diags, refusals(locator(srcIndex, origin), root, opts)...)
+}
+
+// overlayRefusals refuses an overlay document whose aliases the library would
+// follow without end or far past its size, before the library is handed it.
+//
+// The overlay library copies each update by cloning it, and its clone follows
+// an alias into what the alias names. An anchor naming one of its own ancestors
+// gave that recursion no base case and ended the process with a stack overflow;
+// an alias bomb gave it an exponential one and ended it out of memory — a
+// 393-byte overlay cost 355 MB at six levels. Neither is a panic, so the barrier
+// around the application cannot see them (GitHub #489). They are the two
+// refusals the source gets before its own parser, held to the same allowance,
+// and they run here because this is the one package that reaches them.
+//
+// The overlay is decoded into a node tree of its own for this, which expands
+// nothing — a tree holds an alias as one node pointing at its anchor — and the
+// library then decodes it again. An overlay is a patch, so the second decode
+// costs little; the alternative was a scan over each update value alone, which
+// cannot see a cycle whose anchor sits outside the value naming it.
+//
+// Bytes that will not decode are left to the library, which refuses them with
+// its own reason; this answers only about documents that do.
+func overlayRefusals(opts Options) []ir.Diagnostic {
+	var tree yaml.Node
+	if err := yaml.Unmarshal(opts.Overlay.Data, &tree); err != nil {
+		return nil
+	}
+	build := opts.buildIndex
+	if build == nil {
+		build = defaultIndex
+	}
+	locate := scan.InSource(opts.OverlaySrcIndex)
+	idx := build(&tree)
+	if idx.Truncated() {
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
+			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
+			sourceindex.MaxIndexedNodes)}
+	}
+	return scan.Aliases(locate, idx)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are

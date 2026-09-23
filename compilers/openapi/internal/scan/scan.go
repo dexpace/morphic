@@ -134,19 +134,60 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 	return scan()
 }
 
+// Aliases refuses a YAML document whose aliases expand without end or far past
+// its own size — the two refusals Cycles makes that are about YAML rather than
+// OpenAPI, for a document that is not an OpenAPI one.
+//
+// An overlay is that document. The library applying one copies each update by
+// cloning it, and its clone follows an alias into what the alias names, so an
+// anchor naming one of its own ancestors recursed until the stack ran out — a
+// fatal error, which no recover converts — and an alias bomb expanded until
+// memory did (GitHub #489). Both are shapes the source has been refused for
+// since GitHub #12 and #27, on the same tree shape and the same calibrated
+// allowance, so the overlay is held to exactly those.
+//
+// It leaves out the $ref chains Cycles follows. Those are what an OpenAPI
+// resolver does with a document; nothing resolves an overlay's references, and
+// reading its update values as components would find cycles in text no parser
+// will ever follow.
+//
+// The index is the caller's, built over the whole document rather than any one
+// value in it: an anchor may sit outside the value that names it, and a cycle
+// through it is visible as an alias to an ancestor only from the root.
+func Aliases(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
+	return recoverCycleScan(locate, func() []ir.Diagnostic {
+		if d, ok := anchorCycle(locate, idx); ok {
+			return []ir.Diagnostic{d}
+		}
+		if d, ok := aliasAmplification(locate, idx.Root(), idx.Nodes()); ok {
+			return []ir.Diagnostic{d}
+		}
+		return nil
+	})
+}
+
+// anchorCycle reports the recursive anchor the index found, if any. It is read
+// before anything weighs the document's aliases: a recursive anchor makes the
+// expanded weight infinite, and having refused those is what makes the alias
+// graph a DAG and the weigh walk provably terminating.
+func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
+	alias, ok := idx.AnchorCycle()
+	if !ok {
+		return ir.Diagnostic{}, false
+	}
+	return cyclicDiag(locate, alias,
+		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
+}
+
 // scanIndex reports the first degenerate cycle the index's tree carries, or nil.
 // The index's root is nil for a source with no document in it; the ref walk and
 // the weigher both treat that as "nothing to scan", so no explicit nil guard is
 // needed here.
 func scanIndex(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
-	if alias, ok := idx.AnchorCycle(); ok {
-		return []ir.Diagnostic{cyclicDiag(locate, alias,
-			"recursive YAML anchor %q references an ancestor node", anchorName(alias))}
+	if d, ok := anchorCycle(locate, idx); ok {
+		return []ir.Diagnostic{d}
 	}
 
-	// The anchor-cycle answer is read first: a recursive anchor makes
-	// expandedWeight infinite, and having already refused those is what makes
-	// the alias graph a DAG and the weigh walk below provably terminating.
 	root := idx.Root()
 	diags := refCycles(locate, root)
 	if diag.HasError(diags) {
