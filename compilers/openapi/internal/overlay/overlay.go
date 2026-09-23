@@ -163,6 +163,12 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	if !applied {
 		return Origin{}, diags
 	}
+	normalized, safe := repairGrafts(root, budget)
+	if !safe {
+		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
+			"overlay applied, but the content it grafted expands past %d nodes when its aliases are resolved", budget))
+	}
+	complete = complete && normalized
 
 	var pointers map[string]bool
 	var nodes map[*yaml.Node]string
@@ -243,6 +249,139 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 		Path:   opts.Path,
 		Hash:   hex.EncodeToString(sum[:]),
 	}
+}
+
+// repairGrafts replaces every alias the application left pointing outside the
+// tree with the content it stands for, and reports whether it finished within
+// budget.
+//
+// The library clones the subtrees it grafts, and its clone copies an alias by
+// copying its target too — `newNode.Alias = clone(node.Alias)` — so the graft
+// arrives holding an alias that points at a node sitting in no Content list
+// anywhere. Every reader in this compiler walks Content and treats an alias as
+// a leaf, on the stated grounds that what it stands for lives at its anchor's
+// own position; that is true of every tree a parse produces and false of this
+// one. The parser is not so restrained: it follows the alias and reads the
+// content nobody else could see, so a tagged mapping hidden there faulted it on
+// a goroutine no recover reaches (GitHub #477), and the node budget, the cycle
+// scan and the overlay's own attribution all answered for a document missing
+// whatever the graft carried.
+//
+// Substituting the content puts it back in Content, where the readings that
+// exist to see it can. It is done here rather than to the overlay document
+// because an update is not the only graft: a copy action clones a subtree of
+// the source the same way, through the same clone.
+//
+// The two ways it can run out of budget mean different things, so they are
+// reported differently. Failing to walk the tree says only that the tree is
+// past what this package reads — the same thing the attribution walks say, and
+// the same answer: give up the attribution, keep the compile, and say so.
+// Failing to substitute says something else: a graft was found that cannot be
+// made safe, and passing on a tree repaired in part is worse than either
+// repairing it or refusing, so the caller refuses.
+//
+// normalized reports whether the tree was walked; safe reports whether nothing
+// was found that could not be substituted.
+func repairGrafts(root *yaml.Node, budget int) (normalized, safe bool) {
+	content := nodeview.DocumentRoot(root)
+	if content == nil {
+		return true, true
+	}
+	reachable, walked := reachableNodes(content, budget)
+	if !walked {
+		return false, true
+	}
+	if !substituteGrafts(content, reachable, &budget) {
+		return false, false
+	}
+	return true, true
+}
+
+// reachableNodes collects every node a Content walk from root reaches, which is
+// every node this compiler's other readings can see.
+func reachableNodes(root *yaml.Node, budget int) (map[*yaml.Node]bool, bool) {
+	reachable := make(map[*yaml.Node]bool)
+	stack := []*yaml.Node{root}
+	for ; len(stack) > 0; budget-- {
+		if budget == 0 {
+			return nil, false
+		}
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if n == nil || reachable[n] {
+			continue
+		}
+		reachable[n] = true
+		stack = append(stack, n.Content...)
+	}
+	return reachable, true
+}
+
+// substituteGrafts walks the tree and replaces each child that is an alias to a
+// node outside reachable with the content that alias stands for.
+//
+// A node is replaced in its parent's Content, which is why the walk reads
+// children rather than the node it is at: the tree's own root is a mapping the
+// application never replaces wholesale, so no alias can sit there.
+func substituteGrafts(n *yaml.Node, reachable map[*yaml.Node]bool, budget *int) bool {
+	for i, child := range n.Content {
+		if *budget <= 0 {
+			return false
+		}
+		*budget--
+		if child == nil {
+			continue
+		}
+		if child.Kind == yaml.AliasNode && child.Alias != nil && !reachable[child.Alias] {
+			expanded, ok := expandAlias(child.Alias, budget)
+			if !ok {
+				return false
+			}
+			n.Content[i] = expanded
+			continue
+		}
+		if !substituteGrafts(child, reachable, budget) {
+			return false
+		}
+	}
+	return true
+}
+
+// expandAlias returns the content an alias stands for, as a copy holding no
+// aliases of its own: one an alias inside it names is substituted too, since it
+// would be no more reachable than the one that led here.
+//
+// The copy drops the anchor it came from. An anchor is a name for a node, and
+// the node naming it is not the one being written; leaving the name on a copy
+// would spell an anchor twice in one document, which is not a document yaml.v3
+// would have produced.
+func expandAlias(target *yaml.Node, budget *int) (*yaml.Node, bool) {
+	if *budget <= 0 {
+		return nil, false
+	}
+	*budget--
+
+	if target.Kind == yaml.AliasNode {
+		if target.Alias == nil {
+			return nil, false // an alias naming nothing stands for nothing to graft
+		}
+		return expandAlias(target.Alias, budget)
+	}
+
+	out := *target
+	out.Anchor = ""
+	out.Content = nil
+	if len(target.Content) > 0 {
+		out.Content = make([]*yaml.Node, len(target.Content))
+		for i, child := range target.Content {
+			expanded, ok := expandAlias(child, budget)
+			if !ok {
+				return nil, false
+			}
+			out.Content[i] = expanded
+		}
+	}
+	return &out, true
 }
 
 // snapshot records every node reachable from root against its scalar value,

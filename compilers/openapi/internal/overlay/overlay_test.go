@@ -436,3 +436,162 @@ func TestAt_AnswersForARewrittenScalar(t *testing.T) {
 	_, found = origin.At(version)
 	assert.False(t, found, "the sibling it did not touch is unaffected")
 }
+
+// detachedAliases returns how many aliases in the tree under root point at a
+// node no Content walk from root reaches.
+//
+// It is the question every other reading in this compiler asks without knowing
+// it asks: each walks Content and treats an alias as a leaf, so content hanging
+// off an alias and nowhere else is content none of them can see.
+func detachedAliases(root *yaml.Node) (detached int) {
+	seen := map[*yaml.Node]bool{}
+	var mark func(*yaml.Node)
+	mark = func(n *yaml.Node) {
+		if n == nil || seen[n] {
+			return
+		}
+		seen[n] = true
+		for _, child := range n.Content {
+			mark(child)
+		}
+	}
+	mark(root)
+	for n := range seen {
+		if n.Kind == yaml.AliasNode && n.Alias != nil && !seen[n.Alias] {
+			detached++
+		}
+	}
+	return detached
+}
+
+// TestApply_GraftsNothingThatOnlyAnAliasCanReach pins the repair GitHub #477 is
+// about, at both doors the library grafts through.
+//
+// Its clone copies an alias by copying its target — `newNode.Alias =
+// clone(node.Alias)` — so a graft arrives holding an alias that points at a
+// node in no Content list anywhere. Every reading here walks Content and treats
+// an alias as a leaf, so whatever the graft carried is invisible to the node
+// budget, the cycle scan, the tagged-mapping refusal and this package's own
+// attribution alike, while the parser follows the alias and reads it.
+//
+// An update is not the only graft: a copy action clones a subtree of the source
+// through the same clone, which is why the repair works on the applied tree
+// rather than on the overlay document.
+func TestApply_GraftsNothingThatOnlyAnAliasCanReach(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ spec, ov string }{
+		"an update whose value is an alias": {
+			spec: "openapi: 3.1.0\npaths: {}\n",
+			ov: "overlay: 1.0.0\ninfo: {title: O, version: \"1\", x-t: &t {a: 1}}\n" +
+				"actions:\n  - target: $.paths\n    update: {p: *t}\n",
+		},
+		"a copy of a subtree holding an alias": {
+			spec: "openapi: 3.1.0\nx-t: &s {description: d}\nx-shared: {inner: *s}\npaths: {}\n",
+			ov:   header + "  - target: $.paths\n    copy: $[\"x-shared\"]\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.spec), &root))
+
+			_, diags := overlay.Apply(overlayIndex, &root,
+				overlay.Options{Path: "o.yaml", Data: []byte(tc.ov)})
+			require.False(t, diag.HasError(diags), "the overlay applies: %+v", diags)
+
+			detached := detachedAliases(&root)
+			assert.Zero(t, detached, "every node the overlay grafted is reachable the way this compiler reads")
+		})
+	}
+}
+
+// TestApply_LeavesTheSourcesOwnAliasesAlone is the control. An alias whose
+// target the tree holds is ordinary YAML and the readings here cope with it by
+// design — the content lives at the anchor's own position, which they reach
+// there. Substituting it would expand a document the author wrote compactly and
+// change what the node budget measures.
+func TestApply_LeavesTheSourcesOwnAliasesAlone(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\nx-t: &s {description: d}\nx-use: *s\npaths: {}\n"
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(spec), &root))
+	before := detachedAliases(&root)
+	require.Zero(t, before, "the source's own alias is reachable to begin with")
+	_, use := member(t, &root, "x-use")
+	require.Equal(t, yaml.AliasNode, use.Kind, "the fixture's alias lands where this test reads it")
+
+	_, diags := overlay.Apply(overlayIndex, &root,
+		overlay.Options{Path: "o.yaml", Data: []byte(header + "  - target: $.info\n    update: {description: d}\n")})
+	require.False(t, diag.HasError(diags), "%+v", diags)
+
+	detached := detachedAliases(&root)
+	assert.Zero(t, detached)
+
+	_, after := member(t, &root, "x-use")
+	assert.Equal(t, yaml.AliasNode, after.Kind,
+		"the alias is still an alias, not the subtree it names expanded in place")
+	assert.Empty(t, after.Content, "and still a leaf")
+}
+
+// TestApply_ResolvesAnAliasInsideWhatItGrafts pins that substituting a graft
+// finishes the job. The content an alias stands for may name another anchor,
+// and that one is no more reachable than the first was — so a substitution that
+// copied the target as it found it would put a fresh detached alias exactly
+// where it had just removed one.
+func TestApply_ResolvesAnAliasInsideWhatItGrafts(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\npaths: {}\n"), &root))
+	const ov = "overlay: 1.0.0\ninfo: {title: O, version: \"1\", x-in: &in {deep: 1}, x-out: &out {a: *in}}\n" +
+		"actions:\n  - target: $.paths\n    update: {p: *out}\n"
+
+	_, diags := overlay.Apply(overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
+	require.False(t, diag.HasError(diags), "the overlay applies: %+v", diags)
+
+	detached := detachedAliases(&root)
+	assert.Zero(t, detached, "the alias inside the grafted content is resolved too")
+	assert.Zero(t, aliasNodes(&root), "so the graft holds no alias at all")
+
+	_, deep := member(t, &root, "paths", "p", "a", "deep")
+	assert.Equal(t, "1", deep.Value, "and what it stood for is where it was grafted")
+}
+
+// TestApply_AGraftedCopyCarriesNoAnchor pins what the substitution drops. An
+// anchor names a node, and the node it named is not the one being written; a
+// copy keeping the name would spell one anchor at two positions, which is not a
+// document yaml.v3 would have produced and not one this compiler should invent.
+func TestApply_AGraftedCopyCarriesNoAnchor(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\npaths: {}\n"), &root))
+	const ov = "overlay: 1.0.0\ninfo: {title: O, version: \"1\", x-t: &t {a: 1}}\n" +
+		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
+
+	_, diags := overlay.Apply(overlayIndex, &root, overlay.Options{Path: "o.yaml", Data: []byte(ov)})
+	require.False(t, diag.HasError(diags), "%+v", diags)
+
+	_, grafted := member(t, &root, "paths", "p")
+	require.Equal(t, yaml.MappingNode, grafted.Kind, "the alias was replaced by what it stood for")
+	assert.Empty(t, grafted.Anchor, "and the copy does not answer to the name of the node it came from")
+}
+
+// aliasNodes counts the alias nodes a Content walk from root reaches.
+func aliasNodes(root *yaml.Node) int {
+	count := 0
+	seen := map[*yaml.Node]bool{}
+	var mark func(*yaml.Node)
+	mark = func(n *yaml.Node) {
+		if n == nil || seen[n] {
+			return
+		}
+		seen[n] = true
+		if n.Kind == yaml.AliasNode {
+			count++
+		}
+		for _, child := range n.Content {
+			mark(child)
+		}
+	}
+	mark(root)
+	return count
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -100,4 +101,67 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 			"the source declared this node, at this position")
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
+}
+
+// TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused pins GitHub #477: the
+// shape that reopened the tagged-mapping crash after #475 closed it.
+//
+// The overlay library clones an alias by cloning its target, so an update whose
+// value is an alias to a tagged anchor grafted a mapping that sat in no Content
+// list — invisible to the pre-parse refusal that exists to catch exactly that
+// tag, and visible to the parser, which followed the alias and faulted on a
+// goroutine no recover reaches. The document is now normalized before the
+// refusals read it, so the tag is found where it was grafted.
+//
+// The anchor is declared in three places because it is the overlay document's
+// own structure, not the update's, that decides where a caller may put one.
+func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
+	t.Parallel()
+	for name, ov := range map[string]string{
+		"anchored in the overlay's info": "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-a: &a !x {description: nf}}\n" +
+			"actions:\n  - target: $.paths['/b'].get.responses\n    update: {\"404\": *a}\n",
+		"anchored in a top-level extension": "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
+			"x-anchors: {a: &a !x {description: nf}}\n" +
+			"actions:\n  - target: $.paths['/b'].get.responses\n    update: {\"404\": *a}\n",
+		"anchored on the action": "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
+			"  - target: $.paths['/b'].get.responses\n    x-a: &a !x {description: nf}\n    update: {\"404\": *a}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			opts := Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(ov)}, OverlaySrcIndex: 1}
+
+			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(graftBase), opts)
+
+			require.NoError(t, err, "a tagged mapping is a spec problem, not a Go error")
+			assert.Nil(t, doc, "nothing is lowered")
+			require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
+			for _, d := range diags {
+				if d.Code == diag.TaggedMapping {
+					assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1b/get/responses/404"}, d.Provenance,
+						"and the overlay owns the position it was grafted at")
+				}
+			}
+		})
+	}
+}
+
+// TestLoad_AnAliasGraftedFromTheSourceIsCountedWhereItLands is the other half
+// of the same repair, on a graft that crashes nothing. A copy action clones a
+// subtree of the source through the same clone, so an alias inside it was
+// detached too — no tag, no fault, but a subtree the node budget did not count
+// and the overlay's attribution could not name. Counting it is what the repair
+// restores.
+func TestLoad_AnAliasGraftedFromTheSourceIsCountedWhereItLands(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"x-t: &s {description: d}\nx-shared: {inner: *s}\npaths: {}\n"
+	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
+		"actions:\n  - target: $.paths\n    copy: $[\"x-shared\"]\n"
+	opts := Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(ov)}, OverlaySrcIndex: 1}
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, doc, "the copy is legal; only its shape was unreadable: %+v", diags)
+	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
 }

@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -160,4 +162,109 @@ func nodeAt(t *testing.T, root *yaml.Node, keys ...string) string {
 		require.True(t, found, "no %q under the path %v", key, keys)
 	}
 	return n.Value
+}
+
+// TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget pins the one graft
+// failure that refuses rather than degrades.
+//
+// Running out of tree to walk says only that the document is past what this
+// package reads, which is what the attribution walks already say and already
+// degrade for. Running out of room to substitute says a graft was found and
+// could not be made safe, and a tree repaired in part is worse than either
+// outcome — so the compile refuses instead of passing it on.
+//
+// The budget is set between the two: large enough to walk this small source,
+// small enough that resolving the alias the overlay grafts runs past it.
+func TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\npaths: {}\n"), &root))
+	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-t: &t {a: 1, b: 2, c: 3, d: 4}}\n" +
+		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
+
+	origin, diags := applyWithin(1, &root, Options{Data: []byte(ov)}, 12)
+
+	assert.False(t, origin.Applied())
+	require.True(t, diag.HasError(diags), "the compile refuses: %+v", diags)
+	last := diags[len(diags)-1]
+	assert.Equal(t, diag.OverlayFailed, last.Code)
+	assert.Contains(t, last.Message, "expands past")
+}
+
+// TestRepairGrafts_ReportsWalkingAndSubstitutingApart pins that the two budget
+// failures are told apart at the source, since applyWithin can only show one of
+// them at a time.
+func TestRepairGrafts_ReportsWalkingAndSubstitutingApart(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: {b: 1, c: 2}\n"), &root))
+
+	normalized, safe := repairGrafts(&root, maxNodes)
+	assert.True(t, normalized, "a tree with no graft in it is already normal")
+	assert.True(t, safe)
+
+	normalized, safe = repairGrafts(&root, 1)
+	assert.False(t, normalized, "a tree it cannot walk is one it cannot say anything about")
+	assert.True(t, safe, "and nothing it could not substitute was found")
+
+	// A document node holding nothing has no content to walk, which is neither
+	// a failure nor a graft.
+	normalized, safe = repairGrafts(&yaml.Node{Kind: yaml.DocumentNode}, maxNodes)
+	assert.True(t, normalized)
+	assert.True(t, safe)
+}
+
+// TestExpandAlias_DeclinesAnAliasNamingNothing pins the shape a parse never
+// produces and a caller assembling nodes can: an alias with no target stands
+// for no content, so there is nothing to graft in its place and the caller
+// refuses rather than writing an empty node into the document.
+func TestExpandAlias_DeclinesAnAliasNamingNothing(t *testing.T) {
+	t.Parallel()
+	budget := maxNodes
+	got, ok := expandAlias(&yaml.Node{Kind: yaml.AliasNode}, &budget)
+	assert.False(t, ok)
+	assert.Nil(t, got)
+}
+
+// TestRepairGrafts_TakesShapesAParseNeverProduces pins the guards the graft
+// repair carries for trees it did not parse. Nodes are built here rather than
+// decoded because that is the whole point: yaml.v3 hands back neither a nil
+// child nor one node in two places, and the walks would loop or fault on either
+// — so the guards are what make this package's correctness independent of what
+// the library grafting into the tree happens to do.
+func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
+	t.Parallel()
+
+	shared := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+	twice := ynode.Map(ynode.Scalar("a"), shared, ynode.Scalar("b"), shared)
+	reachable, ok := reachableNodes(twice, maxNodes)
+	require.True(t, ok, "one node in two places is walked, not walked forever")
+	assert.True(t, reachable[shared], "and counted once")
+
+	withNil := ynode.Map(ynode.Scalar("a"), nil)
+	reachable, ok = reachableNodes(withNil, maxNodes)
+	require.True(t, ok, "a nil child is skipped, not dereferenced")
+	budget := maxNodes
+	assert.True(t, substituteGrafts(withNil, reachable, &budget), "and skipped again on the way back")
+}
+
+// TestSubstituteGrafts_StopsAtItsOwnBudget pins the bound on the walk that
+// finds grafts, as against the one on the expansion that replaces them. A tree
+// wide enough to exhaust the budget before any graft is met stops there rather
+// than walking on: the caller reads that as a graft it could not make safe,
+// which is the safe direction when it no longer knows whether one is left.
+func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
+	t.Parallel()
+	wide := ynode.Map()
+	for i := range 8 {
+		wide.Content = append(wide.Content, ynode.Scalar(strconv.Itoa(i)), ynode.Scalar("v"))
+	}
+
+	budget := 4
+	assert.False(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
+		"sixteen children do not fit a budget of four")
+
+	budget = maxNodes
+	assert.True(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
+		"and the same tree fits a real one — the budget is what differed")
 }
