@@ -3,6 +3,7 @@ package openapi
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -154,13 +155,77 @@ func TestCompile_NegativeBudgetIsUnbounded(t *testing.T) {
 	t.Parallel()
 	const members = 5
 	doc, diags := compileBounded(t, enumSpec(members),
-		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1})
+		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1, MaxAliasSurplus: -1})
 
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
 	enum, ok := typeByName(doc, "E").(*ir.Enum)
 	require.True(t, ok, "a caller who turned the budgets off gets the pre-budget lowering")
 	assert.Len(t, enum.Members, members)
+}
+
+// aliasFanOutSpec is a minimal document whose one component lists n aliases
+// to a four-property schema: a document that is large once expanded without
+// being many times its own size, which is the shape the alias budget bounds
+// and the ratio rule beside it does not.
+func aliasFanOutSpec(n int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\n" +
+		"info: {title: T, version: \"1\"}\n" +
+		"paths: {}\n" +
+		"components:\n  schemas:\n" +
+		"    Leaf: &leaf {type: object, properties: {a: {type: string}, b: {type: string}, c: {type: string}, d: {type: string}}}\n" +
+		"    Fan: {allOf: [")
+	for i := range n {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString("*leaf")
+	}
+	b.WriteString("]}\n")
+	return b.String()
+}
+
+// TestCompile_AliasBudgetBindsAtItsDefault pins the default reaching the scan:
+// a document whose aliases add more than DefaultMaxAliasSurplus nodes is
+// refused under the zero Limits, and as a budget rather than as a bomb.
+func TestCompile_AliasBudgetBindsAtItsDefault(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileBounded(t, aliasFanOutSpec(20_000), Limits{})
+
+	assert.Nil(t, doc, "an over-budget expansion is refused before the model is built")
+	assertHasErrorCode(t, diags, diag.BudgetExceeded)
+	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded),
+		fmt.Sprintf("past the %d-node alias budget", DefaultMaxAliasSurplus))
+}
+
+func TestCompile_AliasBudgetIsTheCallersToSet(t *testing.T) {
+	t.Parallel()
+	src := aliasFanOutSpec(3)
+
+	doc, diags := compileBounded(t, src, Limits{MaxAliasSurplus: 1})
+	assert.Nil(t, doc)
+	assertHasErrorCode(t, diags, diag.BudgetExceeded)
+	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "past the 1-node alias budget")
+
+	doc, diags = compileBounded(t, src, Limits{MaxAliasSurplus: -1})
+	require.NotNil(t, doc, "a caller who turned the budget off has the document lowered")
+	openapitest.RequireNoErrorDiags(t, diags)
+}
+
+// TestCompile_AnUnboundedAliasBudgetStillRefusesABomb pins what turning the
+// budget off leaves standing: a document expanding to many times its own size
+// is a bomb, which no budget admits.
+func TestCompile_AnUnboundedAliasBudgetStillRefusesABomb(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(amplificationBombFixture)
+	require.NoError(t, err)
+
+	doc, diags := compileBounded(t, string(data), Limits{MaxAliasSurplus: -1})
+	assert.Nil(t, doc)
+	assertHasErrorCode(t, diags, diag.AliasAmplification)
+	assert.NotContains(t, messageOf(t, diags, diag.AliasAmplification), "budget",
+		"the refusal must not name a budget, since raising one would not admit the document")
 }
 
 func TestLimitsWithDefaults_FillsEveryUnsetBudgetAndKeepsTheRest(t *testing.T) {
@@ -173,17 +238,17 @@ func TestLimitsWithDefaults_FillsEveryUnsetBudgetAndKeepsTheRest(t *testing.T) {
 		{
 			"the zero value takes every default",
 			Limits{},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, DefaultMaxEnumMembers},
+			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, DefaultMaxEnumMembers, DefaultMaxAliasSurplus},
 		},
 		{
 			"a set budget is left alone and the others still default",
 			Limits{MaxEnumMembers: 9},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, 9},
+			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, 9, DefaultMaxAliasSurplus},
 		},
 		{
 			"a negative budget is the caller asking for none",
-			Limits{MaxSourceBytes: -1, MaxSourceNodes: -2, MaxEnumMembers: -3},
-			Limits{-1, -2, -3},
+			Limits{MaxSourceBytes: -1, MaxSourceNodes: -2, MaxEnumMembers: -3, MaxAliasSurplus: -4},
+			Limits{-1, -2, -3, -4},
 		},
 	}
 	for _, tc := range tests {
@@ -215,6 +280,10 @@ func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 
 	assert.Equal(t, 11, got.MaxSourceBytes)
 	assert.Equal(t, 0, got.MaxSourceNodes, "an unbounded budget reaches the loader as no budget")
+	assert.Equal(t, DefaultMaxAliasSurplus, got.MaxAliasSurplus, "an unset budget reaches the loader as its default")
+
+	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1}}.withDefaults())
+	assert.Equal(t, 0, got.MaxAliasSurplus, "an unbounded alias budget reaches the loader as no budget")
 }
 
 func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {

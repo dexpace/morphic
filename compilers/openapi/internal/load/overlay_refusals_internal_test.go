@@ -241,3 +241,29 @@ func TestLoad_AnOverlayIsHeldToTheByteBudget(t *testing.T) {
 	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay is what crossed it")
 	assert.Contains(t, diags[0].Message, "overlay document is")
 }
+
+// TestLoad_AnOverlayIsHeldToTheAliasBudget pins that the overlay's alias scan
+// reads the caller's budget, as the source's does, and refuses under the
+// overlay's own index. The source carries no alias, so the overlay is what
+// crosses it.
+func TestLoad_AnOverlayIsHeldToTheAliasBudget(t *testing.T) {
+	t.Parallel()
+	const doc = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
+		"  - target: $.info\n    update: {x-a: &m {p: 1, q: 2}}\n" +
+		"  - target: $.paths\n    update: {x-b: *m}\n"
+
+	opts := overlayOf(doc)
+	opts.MaxAliasSurplus = 1
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Equal(t, 1, diags[0].Provenance.Source, "the overlay is what crossed it")
+
+	opts.MaxAliasSurplus = 0
+	got, diags, err = Load(t.Context(), 0, openapitest.SourceOf(minimal31), opts)
+	require.NoError(t, err)
+	require.NotNil(t, got, "with no budget the same overlay applies: %+v", diags)
+}

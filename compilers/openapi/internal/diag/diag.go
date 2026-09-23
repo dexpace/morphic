@@ -195,16 +195,24 @@ const (
 	// IR already has. It is reported nonetheless, because a field no request or
 	// response can carry is seldom what the document set out to say.
 	DisjointVisibility = "openapi/disjoint-visibility"
-	// AliasAmplification reports a document whose YAML aliases expand to far more
-	// nodes than it declares — a billion-laughs shape that would exhaust memory
-	// inside soa.Unmarshal before ResolveAllReferences ever runs (GitHub #27).
-	// Unlike CycleScanFailed's incomplete-scan warning, this is a positive,
-	// measured finding, so the document is refused outright rather than handed to
-	// the parser.
+	// AliasAmplification reports a document whose YAML aliases expand it past a
+	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
+	// for small documents) — a billion-laughs shape
+	// that would exhaust memory inside soa.Unmarshal before ResolveAllReferences
+	// ever runs (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
+	// this is a positive, measured finding, so the document is refused outright
+	// rather than handed to the parser.
+	//
+	// It is a ratio and no caller's budget, so no setting admits a document it
+	// names. A document inside the ratio whose aliases still add more nodes than
+	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
+	// is this.
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed one of the compiler's
-	// cardinality budgets: a source document past the byte or node budget, or a
-	// single enum past the member budget (GitHub #75).
+	// cardinality budgets: a source or overlay document past the byte budget, a
+	// source document past the node budget or an overlay action that would build
+	// it past that, a source or overlay document whose aliases add more nodes
+	// than the alias budget, or a single enum past the member budget (GitHub #75).
 	//
 	// It is the size axis of the same family AliasAmplification belongs to, and
 	// deliberately a separate code, because what it refuses is different in kind.
@@ -214,7 +222,7 @@ const (
 	// this compile was given", not "malicious": every one of them is raised
 	// through openapi.Limits by a caller who has the memory for it.
 	//
-	// Error rather than a degradation at every site. The two load-phase budgets
+	// Error rather than a degradation at every site. The load-phase budgets
 	// refuse the document outright — nothing is lowered, so there is no weaker
 	// shape to report. The enum budget does leave a node behind, the top type,
 	// but every member the source declared is gone from it, which is a

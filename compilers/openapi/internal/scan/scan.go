@@ -93,9 +93,10 @@ func InSource(srcIndex int) Locator {
 // soa.Unmarshal ever runs. It reports as error diagnostics: a recursive YAML
 // anchor, a pure-$ref cycle (a chain of schema $refs that never reaches a node
 // without one), a reference whose pointer resolves through a reference already
-// being resolved, and alias amplification (a billion-laughs expansion). The scan
-// runs under recoverCycleScan so a detector bug degrades to "no cycle found"
-// rather than aborting.
+// being resolved, alias amplification (a billion-laughs expansion), and aliases
+// adding more nodes than the surplus budget allows (see aliasAmplification).
+// The scan runs under recoverCycleScan so a detector bug degrades to "no cycle
+// found" rather than aborting.
 //
 // The index is the caller's, built over the tree that will reach the parser: an
 // overlay can graft a $ref cycle onto a document that had none, so a patched
@@ -112,9 +113,13 @@ func InSource(srcIndex int) Locator {
 // bomb fixture decodes into a node tree without error (GitHub #479). The
 // expansion happens in the parser this runs ahead of, which follows aliases as
 // it builds the model.
-func Cycles(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
+//
+// surplus is the caller's alias budget: how many nodes aliasing may add beyond
+// the document's own, or zero for no budget. See aliasAmplification for how it
+// sits beside the ratio rule, which holds whatever the budget.
+func Cycles(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
-		return scanIndex(locate, idx)
+		return scanIndex(locate, idx, surplus)
 	})
 }
 
@@ -143,8 +148,8 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 // anchor naming one of its own ancestors recursed until the stack ran out — a
 // fatal error, which no recover converts — and an alias bomb expanded until
 // memory did (GitHub #489). Both are shapes the source has been refused for
-// since GitHub #12 and #27, on the same tree shape and the same calibrated
-// allowance, so the overlay is held to exactly those.
+// since GitHub #12 and #27, on the same tree shape, the same ratio and the
+// same alias budget, so the overlay is held to exactly those.
 //
 // It leaves out the $ref chains Cycles follows. Those are what an OpenAPI
 // resolver does with a document; nothing resolves an overlay's references, and
@@ -153,13 +158,14 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 //
 // The index is the caller's, built over the whole document rather than any one
 // value in it: an anchor may sit outside the value that names it, and a cycle
-// through it is visible as an alias to an ancestor only from the root.
-func Aliases(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
+// through it is visible as an alias to an ancestor only from the root. surplus
+// is the alias budget, as in Cycles.
+func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(locate, idx); ok {
 			return []ir.Diagnostic{d}
 		}
-		if d, ok := aliasAmplification(locate, idx.Root(), idx.Nodes()); ok {
+		if d, ok := aliasAmplification(locate, idx.Root(), idx.Nodes(), surplus); ok {
 			return []ir.Diagnostic{d}
 		}
 		return nil
@@ -183,7 +189,7 @@ func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
 // The index's root is nil for a source with no document in it; the ref walk and
 // the weigher both treat that as "nothing to scan", so no explicit nil guard is
 // needed here.
-func scanIndex(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
+func scanIndex(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	if d, ok := anchorCycle(locate, idx); ok {
 		return []ir.Diagnostic{d}
 	}
@@ -200,7 +206,7 @@ func scanIndex(locate Locator, idx sourceindex.Index) []ir.Diagnostic {
 	// Appending (rather than replacing) preserves any diag.CycleScanFailed
 	// warning refCycles already produced, so a document that both truncates a
 	// merge chain and amplifies reports both findings.
-	if d, ok := aliasAmplification(locate, root, idx.Nodes()); ok {
+	if d, ok := aliasAmplification(locate, root, idx.Nodes(), surplus); ok {
 		return append(diags, d)
 	}
 	return diags
@@ -621,81 +627,81 @@ func cyclicDiag(locate Locator, n *yaml.Node, format string, args ...any) ir.Dia
 // Calibrated against 1,693 real OpenAPI and Swagger specs (1,491 from
 // APIs.guru, 199 hand-authored anchor-using ones, plus GitHub's, Stripe's and
 // Kubernetes' flagship specs), whose highest ratio is 3.728. 128 leaves a 34x
-// margin — wider than maxAliasSurplus's, deliberately: a `<<` merge chain
-// inflates this ratio far past its cost, since merged pairs are deduplicated
-// by key rather than turned into objects (a 200-level chain measures ratio 67
-// while compiling in 16 MiB). The extra room costs nothing, because past
-// roughly 2,000 raw nodes maxAliasSurplus is always the lesser bound (see
-// computeAllowance), so this constant only decides which small documents are
-// refused, never how large an expansion can get.
+// margin — wide on purpose: a `<<` merge chain inflates this ratio far past
+// its cost, since merged pairs are deduplicated by key rather than turned into
+// objects (a 200-level chain measures ratio 67 while compiling in 16 MiB).
+//
+// It is a constant and not a budget because it describes a shape rather than
+// an amount of memory: nothing an author writes on purpose expands to more
+// than a hundred times itself, so a caller has nothing to want more of. The
+// amount is the caller's, as the surplus budget aliasAmplification takes.
 const maxAliasAmplification = 128
 
-// minExpandedNodes is the expansion budget granted regardless of source size,
-// so a small document with ordinary anchor reuse is never refused on a noisy
-// ratio. It binds only under 256 raw nodes; at or above that,
+// minExpandedNodes is the expansion granted regardless of source size, so a
+// small document with ordinary anchor reuse is never refused on a noisy ratio.
+// It binds only under 256 raw nodes; at or above that,
 // maxAliasAmplification*rawNodeCount already exceeds it. Real specs that small
 // carry surpluses in the low hundreds, nowhere near this floor.
 const minExpandedNodes = 1 << 15 // 32768
 
-// maxAliasSurplus bounds the nodes aliasing may add beyond the document's own
-// size (expandedWeight minus rawNodeCount). It is a second, independent
-// refusal because the ratio alone cannot bound every shape: for one anchor
-// referenced N times in a flat list, expandedWeight grows as N*L and
-// rawNodeCount as N, so the ratio converges to the anchor's own weight L and
-// stops growing while real memory keeps climbing with N (see
-// TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused). The surplus
-// is N*(L-1) there, so it still grows.
-//
-// Being additive rather than relative, it is exactly zero for an alias-free
-// document, so it can never refuse one for its size alone. Against the corpus
-// maxAliasAmplification cites, the largest real surplus is 15,727 nodes; 1<<18
-// leaves a 16.7x margin. This is also the bound that sets the worst case an
-// attacker can force, since padding a document's raw size lifts the ratio
-// allowance out of the way: at 1<<20 a purpose-built 93 KiB document was
-// measured peaking at 4.4 GiB; at 1<<18 the largest still accepted peaks at
-// 1.65 GiB.
-const maxAliasSurplus = 1 << 18
-
 // aliasAmplification reports whether root's alias-substituted form would
-// contain far more nodes than the document declares, and if so returns an
-// error diagnostic anchored at the innermost node that crossed the allowance —
-// the one the post-order walk finishes first, and a useful place to point the
-// author.
+// contain more nodes than the document may expand to, and if so returns an
+// error diagnostic anchored at the innermost node that crossed — the one the
+// post-order walk finishes first, and a useful place to point the author.
+//
+// Two bounds apply, and a document must clear both, because each bounds a
+// shape the other cannot. The ratio (maxAliasAmplification, floored at
+// minExpandedNodes) catches nested, compounding aliasing. surplus — the nodes
+// aliasing may add beyond raw, zero for no bound — catches one anchor repeated
+// without limit in a flat list, whose ratio converges to the anchor's own size
+// and stops growing while memory keeps climbing with the repetitions.
+//
+// Which one a document crossed decides the code. Past the ratio it is
+// diag.AliasAmplification, a bomb whatever budget the caller set; inside the
+// ratio and past only the surplus it is diag.BudgetExceeded, a document that is
+// really that large once expanded, which a caller with the memory may admit.
 //
 // raw is the document's own node count, which the source index already
-// established; this walk weighs the expansion against it rather than re-deriving
-// it.
+// established; the expansion is weighed against it rather than re-deriving it.
 //
 // Callers must run this only after a recursive YAML anchor has been refused:
 // that is what makes the alias graph a DAG and this walk's termination provable
 // without a cap of its own. See scanIndex for the ordering, and
 // aliasWeigher.pushChildren for the defensive guard kept anyway.
-func aliasAmplification(locate Locator, root *yaml.Node, raw int64) (ir.Diagnostic, bool) {
-	allowance := computeAllowance(raw)
+func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
+	shape := shapeAllowance(raw)
+	// A surplus the ratio already bounds more tightly can never be the bound
+	// crossed, and leaving it out also keeps raw+surplus from overflowing.
+	budgeted := surplus > 0 && surplus < shape-raw
+	bound := shape
+	if budgeted {
+		bound = raw + surplus
+	}
 
-	culprit, exceeded := newAliasWeigher(allowance).weigh(root)
+	// One walk against whichever bound binds, so a document refused by neither —
+	// every document a compile goes on to lower — costs a single walk.
+	culprit, exceeded := newAliasWeigher(bound).weigh(root)
 	if !exceeded {
 		return ir.Diagnostic{}, false
 	}
-	return aliasAmplificationDiag(locate, culprit, allowance, raw), true
+	if !budgeted {
+		return aliasAmplificationDiag(locate, culprit, shape, raw), true
+	}
+
+	// Past the budget, the document is weighed again against the ratio, so one
+	// past both is named for the shape, which no budget admits. Only a refused
+	// document pays for this walk.
+	if bomb, pastShape := newAliasWeigher(shape).weigh(root); pastShape {
+		return aliasAmplificationDiag(locate, bomb, shape, raw), true
+	}
+	return aliasBudgetDiag(locate, culprit, surplus, raw), true
 }
 
-// computeAllowance returns the expandedWeight a document with this many raw
-// nodes may reach before it is refused: the lesser of a ratio-relative
-// allowance (maxAliasAmplification*raw, floored at minExpandedNodes) and an
-// absolute one (raw+maxAliasSurplus). A document must clear both, because
-// each bounds a shape the other cannot: the ratio catches nested, compounding
-// aliasing, while the surplus catches one anchor repeated without limit in a
-// flat list. Taking the minimum keeps this a single number the weigher can
-// enforce in one early-exiting walk.
-func computeAllowance(raw int64) int64 {
-	ratioAllowance := max(maxAliasAmplification*raw, minExpandedNodes)
-
-	surplusAllowance := raw + maxAliasSurplus
-	if surplusAllowance < ratioAllowance {
-		return surplusAllowance
-	}
-	return ratioAllowance
+// shapeAllowance returns the expanded weight the ratio rule admits for a
+// document of raw nodes: maxAliasAmplification times its size, floored at
+// minExpandedNodes.
+func shapeAllowance(raw int64) int64 {
+	return max(maxAliasAmplification*raw, minExpandedNodes)
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
@@ -704,11 +710,20 @@ func computeAllowance(raw int64) int64 {
 // expansion: aliasWeigher saturates its arithmetic at the allowance, so the
 // true expansion of a severe bomb (the 10-level x 10-way fixture expands past
 // 37 billion nodes) is never actually computed, only proven to exceed the
-// budget.
+// allowance.
 func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.AliasAmplification, locate(n),
-		"YAML alias expansion reaches at least %d nodes, past the %d-node budget for a %d-node document",
+		"YAML alias expansion reaches at least %d nodes, past the %d-node allowance for a %d-node document",
 		allowance+1, allowance, raw)
+}
+
+// aliasBudgetDiag builds the diag.BudgetExceeded error diagnostic for a
+// document whose aliases add more nodes than the surplus budget, anchored as
+// aliasAmplificationDiag anchors its own and a lower bound for the same reason.
+func aliasBudgetDiag(locate Locator, n *yaml.Node, surplus, raw int64) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, locate(n),
+		"YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
+		surplus+1, raw, surplus)
 }
 
 // weighFrame is one entry of aliasWeigher's iterative post-order stack: a
