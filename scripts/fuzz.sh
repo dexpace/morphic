@@ -43,6 +43,62 @@ readonly max_targets=16
 # out either way.
 readonly minimize_time=10s
 
+# The go command, which scripts/verify-fuzz-retry.sh replaces with one that plays
+# out each way a search can end.
+readonly go_cmd="${FUZZ_GO:-go}"
+
+# Each search's output, kept for the one question asked of it after a failure.
+search_log="$(mktemp)"
+readonly search_log
+trap 'rm -f "$search_log"' EXIT
+
+# corpus_files lists the reproducers <pkg>'s corpus holds for <target>, which is
+# where a search writes the input it failed on.
+corpus_files() {
+	local dir="$1/testdata/fuzz/$2"
+	if [ -d "$dir" ]; then
+		find "$dir" -type f | LC_ALL=C sort
+	fi
+}
+
+# search runs one bounded search of <target> in <pkg>, showing its output as it
+# runs and keeping it in $search_log.
+search() {
+	"$go_cmd" test "$1" -run '^$' -fuzz "^${2}\$" \
+		-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" 2>&1 | tee "$search_log"
+	return "${PIPESTATUS[0]}"
+}
+
+# fuzz_target searches <target> in <pkg>, and searches once more when the first
+# search failed on nothing but its own deadline (GitHub #466).
+#
+# The fuzz coordinator can hit -fuzztime while a worker is still executing an
+# input, and then reports "context deadline exceeded" as a failure instead of
+# stopping. Nothing was found: no reproducer is written, and the same code
+# passes on the next run. Under runner load it happens often enough to redden
+# unrelated changes, and a reader of the red step learns only by opening the
+# log that there is nothing in it.
+#
+# A finding writes its input under testdata/fuzz/<target>/ before the search
+# exits, so a failure that wrote one is a finding whatever else its output
+# says, and is never retried. Nor is any failure that does not name the
+# deadline. The retry is one search, not a loop: a coordinator that times out
+# twice running is a problem with the runner worth seeing, and the budget
+# targets x fuzztime stays the bound on a clean run.
+fuzz_target() {
+	local pkg="$1" target="$2" before
+	before="$(corpus_files "$pkg" "$target")"
+	if search "$pkg" "$target"; then
+		return 0
+	fi
+	if ! grep -q 'context deadline exceeded' "$search_log" ||
+		[ "$(corpus_files "$pkg" "$target")" != "$before" ]; then
+		return 1
+	fi
+	printf 'fuzz.sh: %s stopped on the fuzz coordinator'"'"'s own deadline and wrote no reproducer; searching once more (GitHub #466)\n' "$target"
+	search "$pkg" "$target"
+}
+
 found=0
 fuzzed=0
 seen=""
@@ -66,8 +122,7 @@ while IFS=: read -r file _ decl; do
 	esac
 
 	printf '=== fuzz %s (%s) for %s\n' "$target" "$pkg" "$fuzztime"
-	go test "$pkg" -run '^$' -fuzz "^${target}\$" \
-		-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time"
+	fuzz_target "$pkg" "$target"
 	fuzzed=$((fuzzed + 1))
 done < <(git grep -n '^func Fuzz' -- '*_test.go')
 
