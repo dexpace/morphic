@@ -63,9 +63,9 @@ FUZZTIME ?= 10s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
-	fuzz bench bench-smoke print-lint-version
+	fuzz-retry fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz bench-smoke
+gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz-retry fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -108,6 +108,9 @@ coverage-count:
 
 coverage:
 	./scripts/check-coverage.sh
+
+fuzz-retry:
+	./scripts/verify-fuzz-retry.sh
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
