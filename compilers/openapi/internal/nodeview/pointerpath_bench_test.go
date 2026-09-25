@@ -1,6 +1,7 @@
 package nodeview
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -51,9 +52,9 @@ func componentsDoc(n int) *yaml.Node {
 func BenchmarkPointerPath_IntoAWideMapping(b *testing.B) {
 	for _, n := range []int{2, 8, 64, 256, 1024} {
 		root := componentsDoc(n)
-		pointers := make([]string, n)
+		pointers := make([]jsontext.Pointer, n)
 		for i := range pointers {
-			pointers[i] = fmt.Sprintf("/components/schemas/S%d", i)
+			pointers[i] = jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i))
 		}
 
 		b.Run(fmt.Sprintf("components%d", n), func(b *testing.B) {

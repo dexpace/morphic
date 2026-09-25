@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -399,6 +400,28 @@ func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	verdict, _ := s.followRefChain(root, a)
 	assert.Equal(t, chainTerminates, verdict, "a dangling $ref is not a cycle")
 	assert.True(t, s.safe[a], "the dangling node is recorded terminating")
+}
+
+// TestComponentsRef_IsStrictlyBeneathTheSection pins the boundary a chain is
+// judged against when deciding whether it left components: a pointer strictly
+// beneath /components is inside, while the section itself and a sibling sharing
+// its text are not.
+func TestComponentsRef_IsStrictlyBeneathTheSection(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		pointer jsontext.Pointer
+		want    bool
+	}{
+		{pointer: "/components/schemas/A", want: true},
+		{pointer: "/components/", want: true}, // the member keyed "" is beneath it
+		{pointer: "/components", want: false},
+		{pointer: "/componentsX/a", want: false},
+		{pointer: "/paths/~1a", want: false},
+		{pointer: "", want: false},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, componentsRef(tc.pointer), "pointer %q", tc.pointer)
+	}
 }
 
 func TestMappingPairs_Cases(t *testing.T) {

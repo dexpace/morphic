@@ -233,7 +233,7 @@ morphic/
 │   │   │                   #           calls the four lowerings below in order.
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
-│   │       ├── ids/        #             pointer arithmetic; pointer → TypeID
+│   │       ├── ids/        #             pointer construction; pointer → TypeID
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── nodeview/   #             the raw source as the resolver reads it
 │   │       ├── scan/       #             pre-lowering refusals (ref cycles, alias fan-out)

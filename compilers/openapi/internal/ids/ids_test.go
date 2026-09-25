@@ -1,6 +1,8 @@
 package ids_test
 
 import (
+	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +19,7 @@ func TestPtr_EscapesPerRFC6901(t *testing.T) {
 	tests := []struct {
 		name     string
 		segments []string
-		want     string
+		want     jsontext.Pointer
 	}{
 		{name: "plain", segments: []string{"components", "schemas", "User"}, want: "/components/schemas/User"},
 		{name: "slash in segment", segments: []string{"paths", "/users/{id}", "get"}, want: "/paths/~1users~1{id}/get"},
@@ -78,15 +80,35 @@ func TestScope_DistinguishesNamesThatDifferOnlyBySeparator(t *testing.T) {
 		"a part named q/x-a must not land on the key a part named q writes")
 }
 
-// TestUnescapeSegment_ReversesPtr pins the other direction, which recovers a
-// component's on-wire name from a pointer segment. The two must round-trip or a
-// name containing a slash or a tilde comes back as a different name.
-func TestUnescapeSegment_ReversesPtr(t *testing.T) {
+// TestPtr_TokensRoundTripAndValidate pins that a pointer Ptr builds reads back
+// token for token through jsontext.Pointer, which is how every component name is
+// recovered, and is a valid RFC 6901 pointer. A name holding a slash or a tilde
+// that did not come back would be read as a different name.
+func TestPtr_TokensRoundTripAndValidate(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"User", "a~b", "a/b", "~1", "~0", "~01", "", "a~b/c"} {
-		escaped := ids.Ptr(name)[1:] // Ptr writes the leading separator
-		assert.Equal(t, name, ids.UnescapeSegment(escaped),
-			"escaping %q produced %q, which does not come back", name, escaped)
+	tests := []struct {
+		name   string
+		tokens []string
+	}{
+		{name: "plain", tokens: []string{"User"}},
+		{name: "tilde", tokens: []string{"a~b"}},
+		{name: "slash", tokens: []string{"a/b"}},
+		{name: "a name spelled like the escape of a slash", tokens: []string{"~1"}},
+		{name: "a name spelled like the escape of a tilde", tokens: []string{"~0"}},
+		{name: "tilde zero one", tokens: []string{"~01"}},
+		{name: "empty token", tokens: []string{""}},
+		{name: "tilde then slash", tokens: []string{"a~b/c"}},
+		{name: "non-ASCII", tokens: []string{"é"}},
+		{name: "multiple tokens including an empty one", tokens: []string{"a", "", "b~c"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := ids.Ptr(tc.tokens...)
+			assert.Equal(t, tc.tokens, slices.Collect(p.Tokens()),
+				"escaping %q produced %q, which does not come back", tc.tokens, p)
+			assert.True(t, p.IsValid(), "%q is not a valid RFC 6901 pointer", p)
+		})
 	}
 }
 
@@ -98,7 +120,7 @@ func TestComponentEntry_ParsesOnlyATopLevelEntry(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
-		pointer    string
+		pointer    jsontext.Pointer
 		wantKind   string
 		wantEntry  string
 		wantIsAnOK bool
@@ -115,12 +137,17 @@ func TestComponentEntry_ParsesOnlyATopLevelEntry(t *testing.T) {
 			name: "an escaped name comes back unescaped", pointer: "/components/schemas/a~1b",
 			wantKind: "schemas", wantEntry: "a/b", wantIsAnOK: true,
 		},
+		{
+			name: "an escaped kind comes back unescaped too", pointer: "/components/a~1b/User",
+			wantKind: "a/b", wantEntry: "User", wantIsAnOK: true,
+		},
 
 		{name: "a path inside an entry is not the entry", pointer: "/components/schemas/User/properties/id"},
 		{name: "the kind alone", pointer: "/components/schemas"},
 		{name: "no name after the kind", pointer: "/components/schemas/"},
 		{name: "not under components", pointer: "/paths/~1x/get"},
 		{name: "the empty pointer", pointer: ""},
+		{name: "no leading separator is not a pointer at all", pointer: "components/schemas/User"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -143,7 +170,7 @@ func TestComponentSchemaName_NarrowsToSchemas(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "User", name)
 
-	for _, pointer := range []string{
+	for _, pointer := range []jsontext.Pointer{
 		"/components/headers/X-Rate", "/components/parameters/Sort",
 		"/components/responses/NotFound", "/components/schemas/User/properties/id",
 	} {
@@ -163,7 +190,7 @@ func TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry(t *testing.T)
 	assert.True(t, ids.ComponentSchemaNamedEmpty("/components/schemas/"),
 		`/components/schemas/ addresses the component schema keyed ""`)
 
-	for _, pointer := range []string{
+	for _, pointer := range []jsontext.Pointer{
 		"/components/schemas/User",           // a named entry
 		"/components/headers/",               // an empty name of another kind
 		"/components/schemas",                // the kind alone, no trailing token
@@ -184,7 +211,7 @@ func TestForPointer_ChoosesTheNamespace(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		pointer string
+		pointer jsontext.Pointer
 		want    ir.TypeID
 	}{
 		{name: "a component schema is named", pointer: "/components/schemas/User", want: "t/openapi/components/schemas/User"},
@@ -244,7 +271,7 @@ func TestDeclarationHint_PrefersTheComponentName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		pointer  string
+		pointer  jsontext.Pointer
 		fallback string
 		want     string
 	}{

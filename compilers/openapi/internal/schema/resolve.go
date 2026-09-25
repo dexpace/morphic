@@ -1,15 +1,14 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"slices"
-	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -23,7 +22,7 @@ import (
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through CarriedRef.
-func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeOwnNode)
 }
 
@@ -31,13 +30,13 @@ func Ref(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js 
 // already carries — a model property, a header, a parameter. Those callers
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
-func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func CarriedRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, anchors, depth, js, pointer, hint, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
@@ -52,7 +51,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 		// node's name even when a $ref interned the node there first (GitHub #372).
 		// It sits here rather than only at intern because a position whose node
 		// already exists resolves to it and returns before interning anything.
-		ts.NameFromDeclaration(pointer, hint)
+		ts.NameFromDeclaration(string(pointer), hint)
 	}
 	if js == nil {
 		return ts.PrimRef(ir.PrimAny), nil
@@ -91,7 +90,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // At an annotation.HomeCarrier position no alias is hoisted — a description or a
 // bound beside a property's $ref belongs on the property (GitHub #114) — so the
 // carrier keeps them there too, through PreserveRefSiteKeywords.
-func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
@@ -118,7 +117,7 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // there, so the carrier adds nothing — one home per declaration, exactly as
 // fillPropertyAnnotations draws the line.
 func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
-	js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer string,
+	js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
@@ -142,7 +141,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, hint, home, unhomed)
 	if s != nil {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, anchors, s, pointer)...)
@@ -155,7 +154,7 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s 
 // its stable named ID (lowered where it is defined); an internal sub-schema
 // target is hoisted at its pointer-derived ID so the reference never dangles. A
 // genuinely external or unresolvable target is diagnosed and dropped to any.
-func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeRef, []ir.Diagnostic) {
+func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
@@ -202,7 +201,7 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 // already draws that distinction — peeling a $ref off to a TypeRef and
 // lowering a concrete body in place — leaving this to intern whichever node
 // the pointer ends up owning.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer string) (ir.TypeID, bool, []ir.Diagnostic) {
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
 	s := annotation.At(decl)
 	if s.Node == nil {
 		return "", false, nil
@@ -216,7 +215,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 
 	hint := subSchemaHint(decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)
-	if owned, ok := ts.Lookup(pointer); ok {
+	if owned, ok := ts.Lookup(string(pointer)); ok {
 		return owned, true, diags
 	}
 	var kept ir.Unmodeled
@@ -231,7 +230,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
 // aliases when the sub-schema is itself a $ref carrying siblings, the branch
 // hint when the pointer addresses a composition branch, the structural hint when
-// it addresses an inline structural position, the pointer's last segment
+// it addresses an inline structural position, the pointer's last token
 // otherwise.
 //
 // Every case but the last exists because another lowering can own the same
@@ -250,9 +249,13 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 // segment named the node after the keyword that holds it — "items" — or after
 // the pattern text or the slot ordinal, none of which distinguish it from the
 // same position on any other schema.
-func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) string {
+//
+// One order dependence is left: a position that is itself a pure $ref interns no
+// node of its own, so its declaration never renames what an outside $ref names
+// there (GitHub #519).
+func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
 	if decl != nil && decl.IsReference() {
-		if name := refLastSegment(decl.GetRef().String()); name != "" {
+		if name := refHint(decl.GetRef().String()); name != "" {
 			return name
 		}
 	}
@@ -262,13 +265,14 @@ func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer string) st
 	if hint, ok := structuralPointerHint(pointer); ok {
 		return hint
 	}
-	return refLastSegment(pointer)
+	return pointer.LastToken()
 }
 
-// componentSchemasPrefix is the pointer root under which a structural position's
-// enclosing hint is the enclosing pointer's own last segment. See
-// structuralPointerHint for why the derivation is confined to it.
-const componentSchemasPrefix = "/components/schemas/"
+// componentSchemas is the pointer of the components/schemas map. A structural
+// position's enclosing hint is the enclosing pointer's own last token only
+// strictly beneath it; see structuralPointerHint for why the derivation is
+// confined there.
+const componentSchemas jsontext.Pointer = "/components/schemas"
 
 // structuralPointerHint returns the hint the inline structural position at
 // pointer takes, for a caller holding only the pointer, and whether the pointer
@@ -278,7 +282,7 @@ const componentSchemasPrefix = "/components/schemas/"
 // composed rather than positional: the structural lowering builds them as
 // compile.SubHint(enclosing, role), so answering requires the enclosing node's
 // hint, which a bare pointer walk does not carry. Under /components/schemas it
-// does: the enclosing hint there is the enclosing pointer's own last segment —
+// does: the enclosing hint there is the enclosing pointer's own last token —
 // the component's name, or a property's key — so the composition can be replayed
 // by peeling roles off the tail and rebuilding from what is left.
 //
@@ -288,36 +292,28 @@ const componentSchemasPrefix = "/components/schemas/"
 // media-type key, and the pointer records none of them: the same items position
 // is "response_item" to the structural lowering and has no pointer spelling that
 // reproduces it. Answering those with a pointer-derived name would replace one
-// disagreement with a different one, so they keep the last-segment fallback.
+// disagreement with a different one, so they keep the last-token fallback.
 // That leaves no order dependence there — components lower before paths, so a
 // reference from one always interns first — but it does leave a name that
 // depends on whether an unrelated schema points at the position. GitHub #372
 // holds that remainder.
 //
-// The walk is bounded by construction: each step consumes at least one segment
-// and the loop runs only while segments remain.
-func structuralPointerHint(pointer string) (string, bool) {
-	segments := strings.Split(pointer, "/")
-
+// The walk is bounded by construction: each step moves to an ancestor, which is
+// strictly shorter, so the loop ends at the root at the latest.
+func structuralPointerHint(pointer jsontext.Pointer) (string, bool) {
 	var roles []string // innermost first
-	for len(segments) > 1 {
-		role, consumed, ok := structuralRole(segments)
+	for pointer != "" {
+		role, parent, ok := structuralRole(pointer)
 		if !ok {
 			break
 		}
 		roles = append(roles, role)
-		segments = segments[:len(segments)-consumed]
+		pointer = parent
 	}
-	if len(roles) == 0 {
+	if len(roles) == 0 || pointer == componentSchemas || !componentSchemas.Contains(pointer) {
 		return "", false
 	}
-
-	enclosing := strings.Join(segments, "/")
-	if !strings.HasPrefix(enclosing, componentSchemasPrefix) {
-		return "", false
-	}
-
-	hint := ids.UnescapeSegment(segments[len(segments)-1])
+	hint := pointer.LastToken()
 	for _, role := range slices.Backward(roles) {
 		hint = compile.SubHint(hint, role)
 	}
@@ -325,36 +321,38 @@ func structuralPointerHint(pointer string) (string, bool) {
 }
 
 // structuralRole reports the role the structural lowering names the position at
-// the tail of segments by, and how many segments that position spells. The roles
-// are the suffixes the compile.SubHint call sites pass, and a change to one of
-// them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders is
-// what fails when they drift, provided its row aims the outside $ref above the
+// pointer by, and the pointer of the schema holding that position: one token up
+// for items, additionalProperties and contentSchema, two for a
+// patternProperties entry and a prefixItems slot.
+//
+// The roles are the suffixes the compile.SubHint call sites pass, and a change to
+// one of them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders
+// is what fails when they drift, provided its row aims the outside $ref above the
 // node it asserts (see the refAt column there): a reference aimed at the node
 // itself is renamed by the declaration in either order and cannot see a role
 // missing here.
 //
-// segments holds at least two entries: its only caller reads the tail of a
-// pointer, which always starts with the empty segment before the first token, and
-// stops looping once one segment is left.
-func structuralRole(segments []string) (role string, consumed int, ok bool) {
-	last := segments[len(segments)-1]
+// A role is recognized by its token's spelling alone, so a key spelled like a
+// keyword — a property named items — is read as the keyword (GitHub #518).
+func structuralRole(pointer jsontext.Pointer) (role string, parent jsontext.Pointer, ok bool) {
+	last, up := pointer.LastToken(), pointer.Parent()
 	switch last {
 	case "items":
-		return "item", 1, true
+		return "item", up, true
 	case "additionalProperties":
-		return "value", 1, true
+		return "value", up, true
 	case "contentSchema":
-		return "content", 1, true
+		return "content", up, true
 	}
-	switch segments[len(segments)-2] {
+	switch up.LastToken() {
 	case "patternProperties":
-		return "pattern", 2, true
+		return "pattern", up.Parent(), true
 	case "prefixItems":
 		if isDecimalIndex(last) {
-			return last, 2, true
+			return last, up.Parent(), true
 		}
 	}
-	return "", 0, false
+	return "", "", false
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or

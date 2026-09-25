@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -46,7 +47,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding. Path parameters are always required regardless of the declared
 // flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, p *soa.Parameter, pptr string) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		Name:       compile.NamingFor(name),
@@ -77,7 +78,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // compiler reports the gap itself; resolveStyleExplode already lowers each
 // value as declared regardless; see diag.InvalidLocationKeyword for why this
 // is a warning rather than the error style gets from the parser.
-func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr string) []ir.Diagnostic {
+func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	if in != soa.ParameterInQueryString {
 		return nil
 	}
@@ -104,7 +105,7 @@ func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Paramete
 // This is the parameter half of the rule, and reservedHeaderEntryDiag is the
 // headers-map half. The parameter still lowers: see diag.ReservedHeaderName for
 // why keeping it and reporting it is the choice, rather than dropping it here.
-func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr string) []ir.Diagnostic {
+func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pptr jsontext.Pointer) []ir.Diagnostic {
 	if in != soa.ParameterInHeader {
 		return nil
 	}
@@ -124,7 +125,7 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (§14).
-func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr, name string) []ir.Diagnostic {
+func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) []ir.Diagnostic {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr)
 	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
 	diags = append(diags, typeDiags...)
@@ -146,7 +147,7 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // declared — bounds conjoin rather than override, so copying one down under
 // use-site precedence would publish the wider bound as the whole truth
 // (ir-design §12.2).
-func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer string) []ir.Diagnostic {
+func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
 	}
@@ -180,7 +181,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 // over the $ref target's; an unconvertible node yields a diagnostic. It mirrors
 // fillPropertyDefault — the same keyword, read the same way, at the other
 // carrier.
-func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	node := s.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
@@ -207,7 +208,7 @@ func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, 
 // docs and deprecation fall back to when the use-site is silent about them
 // (ir-design §14); examples, xml and the visibility keywords stay site-only,
 // since they describe the position rather than the type.
-func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
 	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
@@ -245,7 +246,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
-func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
 	kept, diags := schema.PreserveSchemaKeyword(c, &param.Unmodeled, s, "xml", ir.ReasonNoIRHome, at)
 	if kept {
@@ -265,7 +266,7 @@ func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, point
 // The list is asked of the schema package rather than restated here, so a
 // keyword added there is preserved here too instead of being dropped at this one
 // carrier.
-func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range schema.ResidueKeywords() {
 		if paramHoldsResidue(keyword) {
@@ -300,7 +301,7 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: PromoteDeprecation reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
+func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
@@ -336,7 +337,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 // deliberately presence, not truth — allowEmptyValue: false is a declared fact
 // too, and a compiler that kept only the true spelling would decide for the
 // reader which declarations count.
-func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr string) []ir.Diagnostic {
+func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	at := pptr + ids.Ptr("allowEmptyValue")
 	kept, diags := schema.PreserveNode(c, &param.Unmodeled, "openapi:allowEmptyValue",
 		annotation.RawChildNode(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, at)

@@ -3,6 +3,7 @@ package operation
 import (
 	"cmp"
 	"context"
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strconv"
@@ -65,10 +66,10 @@ var httpMethods = []struct {
 }
 
 // pathOperation is one operation a path item declares: the method as sent on the
-// wire, the pointer segment the operation is written under, and its source node.
+// wire, the operation's pointer relative to its path item, and its source node.
 type pathOperation struct {
 	method string
-	seg    string
+	seg    jsontext.Pointer
 	src    *soa.Operation
 }
 
@@ -123,7 +124,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -178,7 +179,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -203,7 +204,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
@@ -236,7 +237,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // each webhook operation carries IsWebhook on its HTTP binding. It stops
 // between webhooks when ctx is done, as lowerPaths does, and svc holds what a
 // webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -317,8 +318,8 @@ func tagDocs(c lowering.Ctx, name string) ir.Docs {
 // item or callback (issue #107). Passing them as one value is what keeps two
 // same-typed pointer arguments from being transposed at a call site.
 type opPointers struct {
-	mount string
-	decl  string
+	mount jsontext.Pointer
+	decl  jsontext.Pointer
 }
 
 // opContext carries the per-operation lowering inputs that do not come from the
@@ -342,7 +343,7 @@ type opContext struct {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -418,7 +419,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // its parameters or callbacks wrote by the time this runs, and an assignment
 // here would drop them — which is why the servers preservation used to have to
 // run after it.
-func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl string) []ir.Diagnostic {
+func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
 	ext, diags := annotation.ExtensionsAt(c.SrcIndex,
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
@@ -454,7 +455,7 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 // each route: the operation is lowered in one place, so no route can be added
 // later that forgets it — which is exactly how the path-item half came to be
 // missing on two of its three routes.
-func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation, declPtr string) []ir.Diagnostic {
+func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation, declPtr jsontext.Pointer) []ir.Diagnostic {
 	if len(src.GetServers()) == 0 {
 		return nil
 	}
@@ -479,7 +480,7 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 // operationIDs is the caller's, allocated where the lowering starts, so this
 // only ever writes into it — the lazy make it used to carry was unreachable
 // from newLowerer, which has always allocated the map up front.
-func checkOperationIDUnique(c lowering.Ctx, operationIDs map[string]string, op ir.Operation, mount string) []ir.Diagnostic {
+func checkOperationIDUnique(c lowering.Ctx, operationIDs map[string]jsontext.Pointer, op ir.Operation, mount jsontext.Pointer) []ir.Diagnostic {
 	if op.Name.Source == "" {
 		return nil // no operationId: emitters synthesize from the method and path
 	}
@@ -531,7 +532,7 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // left of that map once the HTTP methods are taken out, plus what the raw
 // mapping writes that neither the map nor the model holds, is the set the
 // census would have reported, which is what undeclaredPathItemKeys reads.
-func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	diags := applyPathServers(c, into, pi, declPtr)
 	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr)...)
 	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, into.scope)
@@ -595,12 +596,12 @@ func onOperation(op *ir.Operation) carrier {
 // item, so a diagnostic carrying the node's own pointer would name none of them —
 // and since diagnostic identity is the whole value, two items would produce one
 // indistinguishable finding rather than two.
-func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr string) carrier {
+func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr jsontext.Pointer) carrier {
 	return carrier{
 		unmodeled:  u,
-		provenance: ir.Provenance{Source: srcIndex, Pointer: mountPtr},
-		scope:      "pathItem" + mountPtr,
-		serversKey: "openapi:pathItem" + mountPtr + "/servers",
+		provenance: ir.Provenance{Source: srcIndex, Pointer: string(mountPtr)},
+		scope:      "pathItem" + string(mountPtr),
+		serversKey: "openapi:pathItem" + string(mountPtr) + "/servers",
 	}
 }
 
@@ -625,7 +626,7 @@ func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr string) carrier {
 // preservation that did not happen (GitHub #384). Reading the map also keeps this
 // from restating applyPathItem's list of constructs, which is the restatement
 // that would go stale the next time one is added there.
-func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr string) []ir.Diagnostic {
+func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer) []ir.Diagnostic {
 	before := len(*into.unmodeled)
 	diags := applyPathItem(c, into, pi, declPtr)
 	if len(*into.unmodeled) == before {
@@ -767,7 +768,7 @@ var pathItemDocFields = []struct{ keyword, key string }{
 //     but not by RawChildNode, whose lookup is a plain mapping scan. GetSummary
 //     is non-empty, the raw node is nil, and nothing is kept or reported —
 //     GitHub #384.
-func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	if !into.keepsDocs || (pi.GetSummary() == "" && pi.GetDescription() == "") {
 		return nil
 	}
@@ -801,7 +802,7 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr s
 //
 // This is the path-item half of the pair; applyOperationServers keeps the
 // operation's own list, which overrides this one, under its own key.
-func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr string) []ir.Diagnostic {
+func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	if len(pi.GetServers()) == 0 {
 		return nil
 	}
@@ -819,7 +820,7 @@ func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr st
 // with the default last (ir-design §7.2). opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107).
-func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, src *soa.Operation, opDeclPtr string) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
+func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, src *soa.Operation, opDeclPtr jsontext.Pointer) ([]ir.Response, []ir.ErrorCase, []ir.Diagnostic) {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -876,7 +877,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // duplicateStatusKeyDiags reports each status range more than one responses-map
 // key resolved to, at the map itself. Ranges are visited in order and the keys
 // of each sorted, so the same map reads the same however it was written.
-func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string, mapPtr string) []ir.Diagnostic {
+func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string, mapPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ranges := slices.SortedFunc(maps.Keys(byRange), func(a, b ir.StatusRange) int {
 		return cmp.Or(cmp.Compare(a.From, b.From), cmp.Compare(a.To, b.To))
@@ -897,7 +898,7 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 // later promotion. code is the responses-map key the response is declared under
 // and conds is what that key resolved to, which is nothing at all when it named
 // no status (see statusConditions).
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr string) (ir.Response, []ir.Diagnostic) {
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer) (ir.Response, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
 	resp := ir.Response{
 		Name:       parts.name,
@@ -933,7 +934,7 @@ type responseParts struct {
 // whatever fallback the first mount passed — so two fallbacks, "response" here
 // and "error" there, renamed the type on a reordering of two paths. One
 // fallback, passed from one place, cannot.
-func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code, rptr string) (responseParts, []ir.Diagnostic) {
+func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
 	diags = append(diags, payloadDiags...)
@@ -967,7 +968,7 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 // entry at one of the two positions would be the only trace of a construct the
 // IR does not model — while duplicating, for the response position alone, a
 // value the node above already carries.
-func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr string) []ir.Diagnostic {
+func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
@@ -1016,7 +1017,7 @@ func responseName(code string) ir.Naming {
 // code is the responses-map key it was declared under, which is the only record
 // of how the source spelled a status its range cannot state — "4XX" and
 // "default" both, though only the second reaches the IR unchanged.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr string) (ir.ErrorCase, []ir.Diagnostic) {
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer) (ir.ErrorCase, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
@@ -1036,7 +1037,7 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil, nil
@@ -1087,7 +1088,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // applyPathItem runs once per operation, so an item producing none reaches it
 // through nothing. The map goes where the Callback Object's own extensions
 // already go — the parent's HTTP binding, which is where the callbacks live.
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]string, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	declared := pathOperations(pi)
 	opIDs := make([]ir.OpID, 0, len(declared))
 	ops := make([]ir.Operation, 0, len(declared))
@@ -1122,7 +1123,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 // declaration lies one hop further on, resolved in lowerParameters.
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
-	pointer string
+	pointer jsontext.Pointer
 }
 
 // mergeParameters merges path-item parameters with operation parameters using
@@ -1132,7 +1133,7 @@ type sourcedParam struct {
 // position recomputed from the merged slice (issue #36). Both bases are
 // declaration pointers — a $ref'd path item's own component pointer, not the
 // path it is mounted at (issue #107).
-func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathDeclPtr, opDeclPtr string) []sourcedParam {
+func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathDeclPtr, opDeclPtr jsontext.Pointer) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
 	merged = appendSourced(merged, opParams, opDeclPtr, nil)
 	if len(pathParams) == 0 {
@@ -1145,7 +1146,7 @@ func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathDeclPt
 // declaration position under base and skipping any whose (name, in) key is in
 // shadowed. A nil shadowed map reads as all-false, which is what the operation
 // side passes: operation parameters are never shadowed.
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base string, shadowed map[string]bool) []sourcedParam {
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer, shadowed map[string]bool) []sourcedParam {
 	for i, p := range params {
 		if key, ok := paramKey(p); ok && shadowed[key] {
 			continue
@@ -1253,7 +1254,7 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 // one reachable, since harness.Check returns at the first error diagnostic and
 // FuzzCompile skips an input that produces one, which would put every oracle
 // past this point out of reach of the case that provokes it.
-func invalidStatusKeyDiag(c lowering.Ctx, code, entry string) ir.Diagnostic {
+func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+
 			"the response is kept with no status condition", code, defaultResponseKey)
@@ -1270,7 +1271,7 @@ func invalidStatusKeyDiag(c lowering.Ctx, code, entry string) ir.Diagnostic {
 // naming all the keys rather than sited at whichever key came second, so the
 // report reads the same from either spelling of the map — a responses map has
 // no order to mean anything by.
-func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr string) ir.Diagnostic {
+func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
 	quoted := make([]string, len(keys))
 	for i, k := range keys {
 		quoted[i] = strconv.Quote(k)

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/json/jsontext"
 	"io"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -23,7 +23,11 @@ import (
 // the annotation readers to be separable units, which they are not; claiming it
 // here would describe a compiler this is not.
 func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, pointer string) {
-	emitf(w, "coordinate %s\n", pointer)
+	shown := pointer
+	if pointer == "" {
+		shown = `"" (the whole document)` // printed bare, the root reads as a missing argument
+	}
+	emitf(w, "coordinate %s\n", shown)
 
 	if id, td, ok := nodeAtPointer(doc, pointer); ok {
 		emitf(w, "  node %s (%s)\n", id, td.Kind())
@@ -75,8 +79,13 @@ type coordinate struct {
 // order. It is what makes a miss actionable: a schema that lowered to a shared
 // primitive owns no node at its own coordinate, and seeing what did intern below
 // it is the difference between "nothing happened here" and "the node moved".
+//
+// Beneath is RFC 6901 containment, so a coordinate sharing the query's text but
+// not its token boundary is not below it, and a trailing '/' is a token of its
+// own: /components/schemas/ is the schema keyed "", and only its subtree is
+// beneath it.
 func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
-	prefix := strings.TrimSuffix(pointer, "/") + "/"
+	query := jsontext.Pointer(pointer)
 	var out []coordinate
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
@@ -84,7 +93,7 @@ func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
 			continue
 		}
 		p := td.Common().Provenance.Pointer
-		if strings.HasPrefix(p, prefix) {
+		if p != pointer && query.Contains(jsontext.Pointer(p)) {
 			out = append(out, coordinate{pointer: p, id: id, kind: td.Kind()})
 		}
 	}

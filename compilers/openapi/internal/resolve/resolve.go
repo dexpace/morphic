@@ -16,6 +16,7 @@
 package resolve
 
 import (
+	"encoding/json/jsontext"
 	"path"
 	"strings"
 
@@ -67,6 +68,23 @@ func (s Scope) sameFile(doc string) bool {
 	return !strings.Contains(doc, "/") && doc == path.Base(self)
 }
 
+// FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
+// document the reference names: the text after '#', trimmed and percent-decoded
+// as the resolver reads it (references.Reference). A name hint asks what a
+// reference spells, where InternalPointer asks what this document can resolve.
+//
+// It reports ok=false for a reference with no fragment, for a fragment that is
+// not a pointer (`#name` names a $anchor), and for a bare `#`, which names the
+// whole document rather than a position in it. A fragment that decodes to bytes
+// that are not UTF-8 comes back as it decodes (GitHub #520).
+func FragmentPointer(ref string) (jsontext.Pointer, bool) {
+	pointer := jsontext.Pointer(references.Reference(ref).GetJSONPointer())
+	if !strings.HasPrefix(string(pointer), "/") {
+		return "", false
+	}
+	return pointer, true
+}
+
 // InternalPointer returns the same-document JSON pointer a $ref (or discriminator
 // mapping) target addresses, and ok=false for a genuine cross-document reference,
 // a bare schema name, or a malformed ref. A document part naming this same source
@@ -93,16 +111,12 @@ func (s Scope) sameFile(doc string) bool {
 // (GitHub #141). The resolver library happens to reject it too, but relying on
 // that puts the refusal outside this compiler, where a library that started
 // resolving anchors would silently reinstate the malformed derivation.
-func (s Scope) InternalPointer(ref string) (string, bool) {
-	r := references.Reference(ref)
-	if !r.HasJSONPointer() {
+func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
+	pointer, ok := FragmentPointer(ref)
+	if !ok {
 		return "", false
 	}
-	pointer := string(r.GetJSONPointer())
-	if !strings.HasPrefix(pointer, "/") {
-		return "", false
-	}
-	if doc := r.GetURI(); doc != "" && !s.sameFile(doc) {
+	if doc := references.Reference(ref).GetURI(); doc != "" && !s.sameFile(doc) {
 		return "", false
 	}
 	return pointer, true
@@ -118,7 +132,7 @@ func (s Scope) InternalPointer(ref string) (string, bool) {
 // non-canonically escaped reference (e.g. `A~B` for a component named "A~B",
 // interned under `A~0B`) still resolves to the interned node instead of an
 // unbacked ID.
-func (s Scope) ComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
+func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled bool) {
 	name, isComponent := ids.ComponentSchemaName(pointer)
 	if !isComponent {
 		return "", false, false
@@ -132,8 +146,8 @@ func (s Scope) ComponentRef(pointer string) (id ir.TypeID, ok, handled bool) {
 // InternedID returns the TypeID a node was interned under at pointer, when one
 // already exists there — either a previously hoisted sub-schema (via byPointer)
 // or a node registered directly under its pointer-derived ID.
-func InternedID(ts *compile.Types, pointer string) (ir.TypeID, bool) {
-	if id, ok := ts.Lookup(pointer); ok {
+func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
+	if id, ok := ts.Lookup(string(pointer)); ok {
 		return id, true
 	}
 	id := ids.ForPointer(pointer)

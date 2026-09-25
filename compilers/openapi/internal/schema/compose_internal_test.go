@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"strconv"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -28,10 +30,32 @@ func TestPropIDByName_NotFound(t *testing.T) {
 	assert.Equal(t, ir.PropID("p1"), id)
 }
 
-func TestRefLastSegment(t *testing.T) {
+// TestRefHint_Shapes pins refHint's two paths: the decoded last token of a
+// $ref's fragment when it spells a pointer (GitHub #505), and the raw text after
+// the last '/' when the reference spells no pointer at all.
+func TestRefHint_Shapes(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "Pet", refLastSegment("#/components/schemas/Pet"))
-	assert.Equal(t, "bare", refLastSegment("bare"))
+	tests := []struct {
+		name string
+		ref  string
+		want string
+	}{
+		{name: "plain component", ref: "#/components/schemas/Pet", want: "Pet"},
+		{name: "no fragment at all", ref: "bare", want: "bare"},
+		{name: "RFC 6901 escape decodes", ref: "#/components/schemas/Cat~1Dog", want: "Cat/Dog"},
+		{name: "percent escape decodes", ref: "#/components/schemas/Fish%2DTank", want: "Fish-Tank"},
+		{name: "another document, still a pointer", ref: "other.yaml#/components/schemas/Foo", want: "Foo"},
+		{name: "another document, no fragment", ref: "other.yaml", want: "other.yaml"},
+		{name: "a document in a directory, no fragment", ref: "./schemas/Pet.yaml", want: "Pet.yaml"},
+		{name: "a $anchor is not a pointer", ref: "#anchor", want: "#anchor"},
+		{name: `a lone slash names the member keyed ""`, ref: "#/", want: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, refHint(tc.ref))
+		})
+	}
 }
 
 func TestMappingTargetID(t *testing.T) {
@@ -198,7 +222,7 @@ func TestBranchPointerHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		pointer string
+		pointer jsontext.Pointer
 		want    string
 	}{
 		{name: "a oneOf branch", pointer: "/components/schemas/S/oneOf/0", want: "variant_0"},
@@ -237,7 +261,7 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 	t.Parallel()
 	for i := range 3 {
 		inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-		pointer := "/components/schemas/Host/oneOf/" + strconv.Itoa(i)
+		pointer := jsontext.Pointer("/components/schemas/Host/oneOf/" + strconv.Itoa(i))
 
 		fromComposition := branchHint(inline, i)
 		fromPointer, ok := branchPointerHint(pointer)
@@ -246,6 +270,71 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 			"branch %d must be named the same whichever lowering interns it first", i)
 		assert.Equal(t, fromComposition, subSchemaHint(inline, pointer),
 			"and subSchemaHint is the path that actually asks")
+	}
+}
+
+// TestStructuralPointerHint_Shapes pins which positions compose a hint from the
+// pointer alone: items, additionalProperties, contentSchema, a
+// patternProperties entry and a prefixItems slot, and only strictly beneath
+// /components/schemas, the one root whose enclosing hint the pointer records.
+func TestStructuralPointerHint_Shapes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		pointer jsontext.Pointer
+		want    string
+		wantOK  bool
+	}{
+		{
+			name: "items under a component", pointer: "/components/schemas/Foo/items",
+			want: compile.SubHint("Foo", "item"), wantOK: true,
+		},
+		{
+			name:    "nested roles",
+			pointer: "/components/schemas/Foo/items/additionalProperties",
+			want:    compile.SubHint(compile.SubHint("Foo", "item"), "value"), wantOK: true,
+		},
+		{
+			name:    "a patternProperties entry whose pattern holds ~1",
+			pointer: "/components/schemas/Foo/patternProperties/a~1b",
+			want:    compile.SubHint("Foo", "pattern"), wantOK: true,
+		},
+		{
+			name:    "a contentSchema",
+			pointer: "/components/schemas/Foo/contentSchema",
+			want:    compile.SubHint("Foo", "content"), wantOK: true,
+		},
+		{
+			name:    "a prefixItems slot",
+			pointer: "/components/schemas/Foo/prefixItems/2",
+			want:    compile.SubHint("Foo", "2"), wantOK: true,
+		},
+		{
+			name:    "a prefixItems member that is no slot",
+			pointer: "/components/schemas/Foo/prefixItems/x",
+		},
+		{
+			name:    "a component literally named items is not a structural position",
+			pointer: "/components/schemas/items",
+		},
+		{
+			name:    "a position under /paths has no enclosing hint to recover",
+			pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/items",
+		},
+		{
+			name:    `the component keyed ""`,
+			pointer: "/components/schemas//items",
+			want:    compile.SubHint("", "item"), wantOK: true,
+		},
+		{name: "the empty pointer", pointer: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := structuralPointerHint(tc.pointer)
+			assert.Equal(t, tc.wantOK, ok, "pointer %q", tc.pointer)
+			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
+		})
 	}
 }
 

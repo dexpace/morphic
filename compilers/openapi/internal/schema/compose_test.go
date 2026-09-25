@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -1026,6 +1027,88 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 	assert.Equal(t, componentID("Pet"), dog.Base.Target)
 	assert.Equal(t, "Dog", dog.DiscriminatorValue,
 		"a subtype absent from the mapping falls back to its schema name")
+}
+
+// TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub #505:
+// a name holding a character a pointer escapes reaches the IR decoded wherever
+// it is read off a pointer's last token. That is the implicit discriminatorValue,
+// read off the subtype's own pointer and sent on the wire, and the hints read
+// off a $ref: a union variant's, a branch alias's, and a node's that a $ref
+// names inside another schema, by its key or by the $ref it holds. Read raw,
+// those carried the escapes: Cat~1Dog on the wire, cat_1_dog, fish_2_d_tank and
+// a_1_b as names.
+func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+    Cat/Dog:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+      type: object
+      properties:
+        meow: {type: string}
+    Fish-Tank:
+      type: object
+      properties:
+        blub: {type: string}
+    Choice:
+      oneOf:
+        - $ref: '#/components/schemas/Cat~1Dog'
+        - $ref: '#/components/schemas/Fish%2DTank'
+    Mixed:
+      allOf:
+        - $ref: '#/components/schemas/Cat~1Dog'
+          description: a sibling hoists an alias the branch hint names
+        - type: object
+          properties:
+            z: {type: string}
+    Host:
+      type: object
+      $defs:
+        a/b: {type: object, properties: {c: {type: string}}}
+        inner:
+          $ref: '#/components/schemas/Cat~1Dog'
+          description: a sibling gives this position a node of its own
+    UsesDef:
+      $ref: '#/components/schemas/Host/$defs/a~1b'
+    UsesInner:
+      $ref: '#/components/schemas/Host/$defs/inner'
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	catDog, ok := doc.Types[componentID("Cat~1Dog")].(*ir.Model)
+	require.True(t, ok, "Cat/Dog should be a model")
+	assert.Equal(t, "Cat/Dog", catDog.DiscriminatorValue,
+		"the implicit discriminator value is the component's decoded name, not its escaped pointer segment")
+
+	choice, ok := typeByName(doc, "Choice").(*ir.Union)
+	require.True(t, ok, "Choice should be a union")
+	require.Len(t, choice.Variants, 2)
+	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, choice.Variants[0].Name.Hint,
+		"the variant naming a $ref with an RFC 6901 escape takes the decoded name")
+	assert.Equal(t, compile.NamingHint("Fish-Tank").Hint, choice.Variants[1].Name.Hint,
+		"and one naming a $ref with a percent escape takes its decoded name")
+
+	alias, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Mixed/allOf/0")].(*ir.Scalar)
+	require.True(t, ok, "a $ref branch with a sibling hoists an alias")
+	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, alias.Name.Hint,
+		"the alias a sibling-carrying branch hoists takes the same decoded hint")
+
+	def, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/a~1b")]
+	require.True(t, ok, "a $ref into $defs hoists the definition it names")
+	assert.Equal(t, compile.NamingHint("a/b").Hint, def.Common().Name.Hint,
+		"a node a $ref names inside another schema takes its decoded key")
+
+	inner, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/inner")]
+	require.True(t, ok, "a $ref to a $ref carrying a sibling hoists a node of its own")
+	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, inner.Common().Name.Hint,
+		"and one that is itself a $ref takes the decoded name of what it references")
 }
 
 func TestOneOf_WithDiscriminator(t *testing.T) {

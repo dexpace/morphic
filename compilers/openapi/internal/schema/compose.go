@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/base64"
+	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,7 +35,7 @@ import (
 // `type: object` constrains it, so it belongs on the same field rather than
 // falling to Unmodeled for want of a fill this lowering forgot to do (GitHub
 // #407).
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
@@ -69,7 +70,7 @@ var branchCensusHandled = []string{"required"}
 // author at the right site.
 type requiredEntry struct {
 	name    string
-	pointer string
+	pointer jsontext.Pointer
 }
 
 // compositionRequired collects every required-property name declared across an
@@ -77,7 +78,7 @@ type requiredEntry struct {
 // composed schema's own. A branch is read from its local schema, never its
 // resolved $ref target — that required list belongs to the target's own
 // model (issue #29).
-func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
+func compositionRequired(s *oas3.Schema, pointer jsontext.Pointer) []requiredEntry {
 	var out []requiredEntry
 	for i, b := range s.GetAllOf() {
 		bs := b.GetSchema() // the branch's own local schema; nil for a bare `false`
@@ -99,7 +100,7 @@ func compositionRequired(s *oas3.Schema, pointer string) []requiredEntry {
 // own properties, matching by wire name; it never clears a Required already
 // set. An entry matching no own property has no IR home (ir-design §4.3) and
 // is diagnosed via diagUnattachableRequired instead of dropped silently.
-func applyCompositionRequired(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func applyCompositionRequired(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	entries := compositionRequired(s, pointer)
 	if len(entries) == 0 {
 		return nil
@@ -159,7 +160,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // and some of it has no home to merge into at all — Model.Constraints bounds the
 // property set's cardinality, so a scalar branch's maxLength cannot go there.
 // Verbatim beside the model needs neither, and keeps the branch recoverable.
-func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	branches := s.GetAllOf()
 	baseIdx := selectAllOfBase(branches)
@@ -215,7 +216,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 //
 // A `true` branch admits everything, so contributing nothing from it is exact
 // and there is nothing to report.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
 		if b == nil || !b.IsBool() {
@@ -248,7 +249,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer str
 // A $ref branch is not an inline branch at all and takes neither path: it owns a
 // node, so fillAllOf homes its `$ref`-adjacent siblings on an alias over the
 // target rather than preserving them here.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branchIdx int, bptr string) []ir.Diagnostic {
+func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branchIdx int, bptr jsontext.Pointer) []ir.Diagnostic {
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
@@ -274,7 +275,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branch
 // maxLength: 3}]` lowers to an empty model. Any other residue leaves a model the
 // IR describes correctly and only narrows it further, which is §4.8's
 // under-constrained case.
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, bptr string) ir.Diagnostic {
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, bptr jsontext.Pointer) ir.Diagnostic {
 	kept := strings.Join(residue, ", ")
 	if branchExcludesObject(bs) {
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, bptr,
@@ -442,7 +443,10 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // carries within its discriminator hierarchy, or "" when no ancestor of it
 // anchors one. Per ir-design §4.3 the value is the mapping key that points at
 // this subtype, falling back to the subtype's own schema name (OpenAPI's
-// implicit mapping) when the mapping omits it.
+// implicit mapping) when the mapping omits it — the name as declared, not the
+// pointer token spelling it, which escapes a '/' as ~1 (GitHub #505). An inline
+// subtype has no schema name and takes its pointer's last token instead
+// (GitHub #517).
 //
 // Every discriminated ancestor is asked, not only the immediate base: a
 // hierarchy deeper than two levels composes an intermediate schema that declares
@@ -455,7 +459,7 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // unordered and the first key written is not a property of the document
 // (GitHub #410); the base's Discriminator keeps every key, so the election
 // narrows what this field shows and loses nothing, and it is reported as such.
-func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer string) (string, []ir.Diagnostic) {
+func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
 	ds := ancestorDiscriminators(s)
 	if len(ds) == 0 {
 		return "", nil
@@ -473,7 +477,7 @@ func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
 			len(tags), strings.Join(tags, ", "))}
 	}
-	return refLastSegment(pointer), nil
+	return pointer.LastToken(), nil
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted
@@ -572,7 +576,7 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 // so it lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
 // everything else becomes a Union with one Variant per branch (oneOf
 // exclusive, anyOf not), never collapsing a union into optional fields.
-func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
 		ref.Nullable = true
@@ -584,7 +588,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
-			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, refDiags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 				diags = append(diags, refDiags...)
 				return ref
@@ -603,7 +607,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // it, and the other one too when both are declared, carries no shape a Union
 // or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
 // instead of dropped (GitHub #416; ir-design §4.8).
-func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
+func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	// inner is the shared `any` primitive: no schema pointer ever interns at
 	// its ID, so this position never already owns it. Hoist an alias
 	// unconditionally, rather than testing for a case that cannot occur, so
@@ -620,7 +624,7 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 // Unmodeled: lowerNullOnlyUnion's node is the shared `any` primitive or an
 // alias over it, neither of which carries a branch set of its own to hold
 // them in.
-func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return diags
@@ -733,7 +737,7 @@ const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywor
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
-func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 		if why != "" {
 			why = coDeclaredUnionWhyPrefix + why
@@ -769,7 +773,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
-func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
@@ -856,12 +860,12 @@ func oneOfAnyOfHasNull(s *oas3.Schema) bool {
 // is a parameter so the distributed lowering can conjoin the sibling composition
 // into each branch while sharing every other rule about union shape — null-branch
 // stripping, variant hints, exclusivity, pointer derivation.
-type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef
+type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef
 
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
 // discriminator when one is declared. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
-func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer string, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
+func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
 	variants := make([]ir.Variant, 0, len(branches))
@@ -908,7 +912,7 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // unionBothCombinators first and neither set is elected — there the sibling body
 // is the most the IR can express, and distributing either union across it would
 // drop the other (lowerBesideUnmodeledUnion).
-func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won, pointer string) []ir.Diagnostic {
+func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(s.GetOneOf()) == 0 || len(s.GetAnyOf()) == 0 {
 		return nil
 	}
@@ -928,12 +932,12 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
 // own properties (ir-design §4.3) alongside its branch, so the composition is
 // carried on every variant rather than merged into one or dropped.
-func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
-			func(b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string) ir.TypeRef {
+			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, anchors, depth, body, b, vptr, vhint)
 				diags = append(diags, variantDiags...)
 				return ref
@@ -951,7 +955,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 // declares one schema, not one per branch.
 type composedBody struct {
 	schema  *oas3.Schema
-	pointer string
+	pointer jsontext.Pointer
 	hint    string
 	id      ir.TypeID
 }
@@ -969,7 +973,7 @@ type composedBody struct {
 // leave that variant as a bare alias of the branch while its siblings carried
 // the body — order-dependent, and exactly the disagreement §4.3 forbids.
 func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody,
-	b *oas3.JSONSchema[oas3.Referenceable], vptr, vhint string,
+	b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	// The branch lowers through the ordinary schema path, at its own pointer, so
 	// it keeps whatever it declares beside the $ref and a reference to that
@@ -1056,9 +1060,9 @@ func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// Only a true reference carries a target name: IsReference() is precisely
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
-	// set but empty (IsReference() false) has no usable last segment.
+	// set but empty (IsReference() false) suggests no name.
 	if b != nil && b.IsReference() {
-		if name := refLastSegment(b.GetRef().String()); name != "" {
+		if name := refHint(b.GetRef().String()); name != "" {
 			return name
 		}
 	}
@@ -1084,12 +1088,8 @@ func positionalBranchHint(index string) string { return "variant_" + index }
 // agrees; this is the inline half, where the composition knows the branch's
 // ordinal and a bare pointer walk knew only the last segment, which is the
 // ordinal with nothing to say it is one.
-func branchPointerHint(pointer string) (string, bool) {
-	segments := strings.Split(pointer, "/")
-	if len(segments) < 2 {
-		return "", false
-	}
-	keyword, index := segments[len(segments)-2], segments[len(segments)-1]
+func branchPointerHint(pointer jsontext.Pointer) (string, bool) {
+	keyword, index := pointer.Parent().LastToken(), pointer.LastToken()
 	if !compositionKeywords[keyword] || !isDecimalIndex(index) {
 		return "", false
 	}
@@ -1110,10 +1110,22 @@ func isDecimalIndex(s string) bool {
 	return true
 }
 
-// refLastSegment returns the final path segment of a $ref string.
-func refLastSegment(ref string) string {
-	if i := strings.LastIndex(ref, "/"); i >= 0 {
-		return ref[i+1:]
+// refHint returns the name a $ref suggests for its target: the last token of the
+// pointer its fragment spells, decoded at both layers a $ref encodes it in —
+// percent-decoding for the URI, RFC 6901 unescaping for the pointer — so
+// `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
+// declared under (GitHub #505). A reference whose fragment is no pointer — a
+// whole-document URI, a $anchor — suggests what follows its last '/', as written.
+//
+// For a component the last token is its name. For a position deeper in a schema
+// it is a keyword or an ordinal, unlike the hint the target itself carries
+// (GitHub #521).
+func refHint(ref string) string {
+	if pointer, ok := resolve.FragmentPointer(ref); ok {
+		return pointer.LastToken()
+	}
+	if _, name, ok := strings.CutLast(ref, "/"); ok {
+		return name
 	}
 	return ref
 }
@@ -1127,7 +1139,7 @@ func refLastSegment(ref string) string {
 // single model and so is named only by PropertyName; otherwise the tag
 // resolves to the declaring property's PropID, falling back to PropertyName
 // if undeclared.
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, pointer string) (*ir.Discriminator, []ir.Diagnostic) {
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil, nil
@@ -1149,7 +1161,7 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir
 // schema yields one error diagnostic and is dropped — never a synthesized ID
 // that nothing backs (issue #14). An all-dropped mapping collapses to nil,
 // preserving infer-by-name semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer string) (map[string]ir.TypeID, []ir.Diagnostic) {
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil, nil
@@ -1174,7 +1186,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
 // dropping it with one diagnostic when it does not resolve to an interned schema.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer string) (ir.TypeID, []ir.Diagnostic) {
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
 		return "", nil
@@ -1260,7 +1272,7 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 // reference that also says the position admits null — one fact stated twice,
 // which is what the type-array spelling of such a set already produced and what
 // the bare spelling now matches.
-func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
@@ -1321,7 +1333,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer, hint 
 // `{type: [T, "null"], enum: []}` still reads as nullable at its uses — a
 // nullable type array beside an enum listing no null member, which is GitHub
 // #288's shape exactly and is settled there rather than here.
-func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer string) (ir.TypeDef, []ir.Diagnostic) {
+func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
@@ -1379,7 +1391,7 @@ func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimK
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
 // hoisted Literals, emitting one info diagnostic.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer, hint string) (ir.TypeDef, []ir.Diagnostic) {
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, hint string) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	nodes := s.GetEnum()
@@ -1411,7 +1423,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer, hint string,
+func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer jsontext.Pointer, hint string,
 ) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly

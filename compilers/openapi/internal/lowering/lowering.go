@@ -12,6 +12,8 @@
 package lowering
 
 import (
+	"encoding/json/jsontext"
+
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -234,7 +236,7 @@ func (c Ctx) NamesByReference() bool { return c.namesByReference }
 // component entry, which is named the same from every use site. This covers the
 // rest: a $ref may spell any pointer, and one naming a construct declared inline
 // elsewhere is just as shared while matching no component shape.
-func (c Ctx) NamingByReferenceAt(usePtr, declPtr string) Ctx {
+func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	if declPtr == usePtr {
 		return c
 	}
@@ -307,7 +309,7 @@ func (c Ctx) RefScope() resolve.Scope {
 // conversion exists to remove. A constructor that stamps and hands back satisfies
 // both, and a lowering that has no accumulator yet can still be sure of its
 // provenance.
-func (c Ctx) DiagAt(sev ir.Severity, code, pointer, format string, args ...any) ir.Diagnostic {
+func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) ir.Diagnostic {
 	return diag.Newf(sev, code, c.ProvenanceAt(pointer), format, args...)
 }
 
@@ -323,6 +325,6 @@ func (c Ctx) DiagAt(sev ir.Severity, code, pointer, format string, args ...any) 
 // without touching a single lowering: a position the overlay introduced or
 // rewrote names the overlay as its source, because the question is asked here
 // rather than answered from a field each caller reads.
-func (c Ctx) ProvenanceAt(pointer string) ir.Provenance {
-	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: pointer}
+func (c Ctx) ProvenanceAt(pointer jsontext.Pointer) ir.Provenance {
+	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: string(pointer)}
 }

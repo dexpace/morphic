@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -281,7 +282,7 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, tc := range map[string]struct {
-		pointer string
+		pointer jsontext.Pointer
 		want    bool
 		why     string
 	}{
@@ -325,38 +326,38 @@ func TestDynamicAnchors_WalksEveryNodeShape(t *testing.T) {
 	cases := []struct {
 		name string
 		node *yaml.Node
-		want map[string][]string
+		want map[string][]jsontext.Pointer
 	}{
-		{"a nil node yields nothing", nil, map[string][]string{}},
+		{"a nil node yields nothing", nil, map[string][]jsontext.Pointer{}},
 		{
 			"a bare scalar declares no anchor",
 			openapitest.YAMLNode(t, `just-a-string`),
-			map[string][]string{},
+			map[string][]jsontext.Pointer{},
 		},
 		{
 			"a sequence indexes its elements by ordinal",
 			openapitest.YAMLNode(t, "- {$dynamicAnchor: first}\n- {other: 1}\n- {$dynamicAnchor: third}\n"),
-			map[string][]string{"first": {"/0"}, "third": {"/2"}},
+			map[string][]jsontext.Pointer{"first": {"/0"}, "third": {"/2"}},
 		},
 		{
 			"a sequence element standing in for a mapping is followed",
 			openapitest.YAMLNode(t, "- &a {$dynamicAnchor: first}\n- *a\n"),
-			map[string][]string{"first": {"/0", "/1"}},
+			map[string][]jsontext.Pointer{"first": {"/0", "/1"}},
 		},
 		{
 			"a non-string key cannot name a keyword and is skipped",
 			openapitest.YAMLNode(t, "? [a, b]\n: {$dynamicAnchor: buried}\n$dynamicAnchor: reached\n"),
-			map[string][]string{"reached": {""}},
+			map[string][]jsontext.Pointer{"reached": {""}},
 		},
 		{
 			"an empty anchor name is not indexed",
 			openapitest.YAMLNode(t, `{$dynamicAnchor: ""}`),
-			map[string][]string{},
+			map[string][]jsontext.Pointer{},
 		},
 		{
 			"a non-scalar anchor value is not indexed",
 			openapitest.YAMLNode(t, `{$dynamicAnchor: [a]}`),
-			map[string][]string{},
+			map[string][]jsontext.Pointer{},
 		},
 	}
 	for _, tc := range cases {
@@ -379,22 +380,22 @@ func TestDynamicAnchors_CountsWhatAnAliasBringsIn(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, source string
-		want         []string
+		want         []jsontext.Pointer
 	}{
 		{
 			name:   "an alias re-declares the anchor at its own position",
 			source: "A: &base {$dynamicAnchor: tail}\nB: *base\n",
-			want:   []string{"/A", "/B"},
+			want:   []jsontext.Pointer{"/A", "/B"},
 		},
 		{
 			name:   "a merge key does too",
 			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, description: merged}\n",
-			want:   []string{"/A", "/B"},
+			want:   []jsontext.Pointer{"/A", "/B"},
 		},
 		{
 			name:   "an explicit key still beats the merged one",
 			source: "A: &base {$dynamicAnchor: tail}\nB: {<<: *base, $dynamicAnchor: own}\n",
-			want:   []string{"/A"},
+			want:   []jsontext.Pointer{"/A"},
 		},
 	}
 	for _, tc := range cases {
@@ -417,7 +418,7 @@ func TestDynamicAnchors_DocumentNodeUnwraps(t *testing.T) {
 	require.Equal(t, yaml.DocumentNode, doc.Kind)
 
 	got, complete := dynamicAnchors(&doc)
-	assert.Equal(t, map[string][]string{"top": {""}}, got)
+	assert.Equal(t, map[string][]jsontext.Pointer{"top": {""}}, got)
 	assert.True(t, complete)
 }
 
@@ -605,7 +606,8 @@ func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	tests := []struct {
-		name, pointer, wantTitle string
+		name, wantTitle string
+		pointer         jsontext.Pointer
 	}{
 		{name: "the component itself", pointer: "/components/schemas/Outer", wantTitle: "outer"},
 		// The empty name is a name the document may declare, but it is not one this
@@ -644,9 +646,10 @@ func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, schemas, at, anchor string
-		wantSites                 int
-		wantNext                  string
+		name, schemas, anchor string
+		at                    jsontext.Pointer
+		wantSites             int
+		wantNext              jsontext.Pointer
 	}{
 		{
 			name: "the anchor is declared twice, so it names no single target",

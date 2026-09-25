@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -77,7 +78,7 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 // it, the object's own source pointer, and the parsed object itself.
 type unknownSite struct {
 	scope string
-	owner string
+	owner jsontext.Pointer
 	model any
 }
 
@@ -238,7 +239,7 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 
 // lowerServer lowers one server, named by serverName, keeping its x-* on the
 // ir.Server itself; sptr is the server's own pointer in the servers list.
-func lowerServer(c lowering.Ctx, s *soa.Server, sptr string) (ir.Server, []ir.Diagnostic) {
+func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
 	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.SrcIndex, sptr)
 	diags = append(diags, extDiags...)
@@ -280,7 +281,7 @@ func serverName(s *soa.Server) ir.Naming {
 
 // serverVariables lowers a server's URL template variables in source order, or
 // nil when it declares none.
-func serverVariables(c lowering.Ctx, s *soa.Server, sptr string) ([]ir.ServerVariable, []ir.Diagnostic) {
+func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.ServerVariable, []ir.Diagnostic) {
 	vars := s.GetVariables()
 	if vars == nil || vars.Len() == 0 {
 		return nil, nil

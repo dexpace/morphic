@@ -9,13 +9,13 @@
 package nodeview
 
 import (
+	"encoding/json/jsontext"
 	"net/url"
 	"strconv"
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -361,7 +361,7 @@ func dedupeFirstWins(pairs []Pair) []Pair {
 // speakeasy follows a node's top-level $ref before any concrete sibling, so a
 // $ref node with a type or properties sibling still drives the crash. The chain
 // terminates only at a node with no top-level $ref at all.
-func (v *View) PureRefTarget(n *yaml.Node) (string, bool) {
+func (v *View) PureRefTarget(n *yaml.Node) (jsontext.Pointer, bool) {
 	// Through the index where the walk already built one. This runs on every node
 	// a pointer descended, immediately after the walk that descended it, so a
 	// scan here re-reads exactly the mappings ChildByToken just stopped scanning
@@ -376,7 +376,7 @@ func (v *View) PureRefTarget(n *yaml.Node) (string, bool) {
 // caller that needs both the pairs and the target expands the mapping once. The
 // target is normalized by InternalPointer, so it is a bare pointer ('/a/b'),
 // not the '#/a/b' the source spells.
-func PureRefTargetOf(pairs []Pair) (string, bool) {
+func PureRefTargetOf(pairs []Pair) (jsontext.Pointer, bool) {
 	for _, p := range pairs {
 		if p.Key != "$ref" {
 			continue
@@ -389,7 +389,7 @@ func PureRefTargetOf(pairs []Pair) (string, bool) {
 // pureRefFrom is the decision both readings share, once the value written at
 // `$ref` is in hand: a key that is absent and one whose value is not a scalar
 // are the same answer, so reading the index cannot part company with the scan.
-func pureRefFrom(val *yaml.Node) (string, bool) {
+func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 	if val == nil || val.Kind != yaml.ScalarNode {
 		return "", false
 	}
@@ -409,7 +409,10 @@ func pureRefFrom(val *yaml.Node) (string, bool) {
 // resolves is a reference the scan cannot see, and '#/paths/~1a ' — one trailing
 // space — is enough to be one. A dependency bump should re-check those two
 // methods, as MergeDepthLimit's comment does for the behavior it tracks.
-func InternalPointer(ref string) (string, bool) {
+//
+// A fragment that is no pointer, such as `#name`, comes back as written, and the
+// scan walks it although the resolver does not follow it (GitHub #523).
+func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	parts := strings.Split(ref, "#")
 	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
 		return "", false // no fragment, or a fragment in another document
@@ -418,7 +421,7 @@ func InternalPointer(ref string) (string, bool) {
 	if decoded, err := url.QueryUnescape(pointer); err == nil {
 		pointer = decoded
 	}
-	return pointer, true
+	return jsontext.Pointer(pointer), true
 }
 
 // PointerPath walks a normalized internal JSON pointer ('/a/b', as
@@ -445,7 +448,7 @@ func InternalPointer(ref string) (string, bool) {
 // its destination makes unsafe: it turns a node the walk descends *through* into
 // the node it stops at, and the caller's re-entrancy check exempts exactly that
 // node (GitHub #238).
-func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+func (v *View) PointerPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, tokenless(pointer))
 }
 
@@ -462,13 +465,13 @@ func (v *View) PointerPath(root *yaml.Node, pointer string) (path []*yaml.Node, 
 // The distinction is load-bearing for a caller reading $id down a path: taking
 // '/' for the root hides an $id written on that member, which is the same
 // dropped-empty-token loss the rest of this walk exists to avoid.
-func (v *View) DocumentPath(root *yaml.Node, pointer string) (path []*yaml.Node, complete bool) {
+func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, pointer == "")
 }
 
 // walkPointer is the shared walk; atRoot says whether pointer carries no tokens
 // at all, which is the one question the two readings answer differently.
-func (v *View) walkPointer(root *yaml.Node, pointer string, atRoot bool) (path []*yaml.Node, complete bool) {
+func (v *View) walkPointer(root *yaml.Node, pointer jsontext.Pointer, atRoot bool) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {
 		return nil, false
@@ -479,12 +482,12 @@ func (v *View) walkPointer(root *yaml.Node, pointer string, atRoot bool) (path [
 	}
 
 	segments := 0
-	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
+	for token := range pointer.Tokens() {
 		segments++
 		if segments > maxPointerSegments {
 			return path, false
 		}
-		cur = Deref(v.ChildByToken(cur, ids.UnescapeSegment(raw)))
+		cur = Deref(v.ChildByToken(cur, token))
 		if cur == nil {
 			return path, false
 		}
@@ -501,7 +504,7 @@ func (v *View) walkPointer(root *yaml.Node, pointer string, atRoot bool) (path [
 // which reads '/' as one empty token — getNavigationStack special-cases it to an
 // empty navigation stack, and this walk models what the resolver walks rather
 // than what the grammar admits.
-func tokenless(pointer string) bool {
+func tokenless(pointer jsontext.Pointer) bool {
 	return pointer == "" || pointer == "/"
 }
 

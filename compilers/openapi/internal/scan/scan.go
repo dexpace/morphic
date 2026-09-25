@@ -15,6 +15,7 @@
 package scan
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -290,12 +291,16 @@ func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, 
 	return ir.Diagnostic{}, false
 }
 
+// componentsSection is the pointer of the components object itself. It repeats
+// ids.componentsRoot because scan may not import ids.
+const componentsSection jsontext.Pointer = "/components"
+
 // componentsRef reports whether a same-document $ref names a node in the
 // components section, the only shape speakeasy's resolver refuses on its own.
 // The pointer is the normalized one nodeview.InternalPointer returns, so it
 // carries no leading '#'.
-func componentsRef(pointer string) bool {
-	return strings.HasPrefix(pointer, "/components/")
+func componentsRef(pointer jsontext.Pointer) bool {
+	return pointer != componentsSection && componentsSection.Contains(pointer)
 }
 
 // chainVerdict is how following a pure-$ref chain ends. The two failing cases
@@ -569,7 +574,7 @@ func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
 // node is chainCycles, which speakeasy reports itself. A pointer that does not
 // resolve has no destination, so every node it reached counts — that is the case
 // the old dangling-ref branch called harmless, and the one that hangs.
-func (s *refScan) traverse(root *yaml.Node, ref string, onPath map[*yaml.Node]bool) (dest *yaml.Node, reenters, viaRef bool) {
+func (s *refScan) traverse(root *yaml.Node, ref jsontext.Pointer, onPath map[*yaml.Node]bool) (dest *yaml.Node, reenters, viaRef bool) {
 	hop, complete := s.view.PointerPath(root, ref)
 	through := hop
 	if complete {

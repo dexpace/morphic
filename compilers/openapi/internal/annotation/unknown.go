@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"reflect"
 	"slices"
 
@@ -27,9 +28,9 @@ import (
 // rendered: a document merging keys is legal input and still lowers, and an
 // error would both refuse it under the default --fail-on and stop harness.Check
 // before the invariant checks run.
-func unreachableKeyDiag(entry, at string, srcIndex int) ir.Diagnostic {
+func unreachableKeyDiag(entry string, at jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable,
-		ir.Provenance{Source: srcIndex, Pointer: at},
+		ir.Provenance{Source: srcIndex, Pointer: string(at)},
 		"%s is written at a key the source mapping does not present directly, most likely "+
 			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
 }
@@ -45,9 +46,9 @@ func unreachableKeyDiag(entry, at string, srcIndex int) ir.Diagnostic {
 // GitHub #396, which is the namespace this census cannot settle on its own,
 // since the entries it would collide with are three other mechanisms' and moving
 // either side moves keys they already publish.
-func occupiedEntryDiag(entry, at, held string, srcIndex int) ir.Diagnostic {
+func occupiedEntryDiag(entry string, at, held jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken,
-		ir.Provenance{Source: srcIndex, Pointer: at},
+		ir.Provenance{Source: srcIndex, Pointer: string(at)},
 		"%s is already held by the construct at %q, so this key is represented in the IR in "+
 			"no form at all", entry, held)
 }
@@ -104,7 +105,7 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 // and are read straight off the raw node by readers with more to say about them,
 // so the census finds those already recorded and leaves them alone. A keyword no
 // reader leaves a trace of needs naming in DecidedKeywords instead.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer string, srcIndex int) []ir.Diagnostic {
+func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) []ir.Diagnostic {
 	keys, root := undeclaredKeys(s)
 	return census(p, keys, root, srcIndex, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
@@ -126,7 +127,7 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer string, srcIndex
 // practice a misspelling of the field beside it. It is kept all the same,
 // because invariant 2 does not bend for invalid input, and a misspelt key is the
 // one a reader most needs to find.
-func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner string) []ir.Diagnostic {
+func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner jsontext.Pointer) []ir.Diagnostic {
 	return UnknownKeysUnder(p, model, srcIndex, owner, "")
 }
 
@@ -138,7 +139,7 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner string) []ir.
 // the object. Several objects reach one map, where "openapi:status" from two of
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last.
-func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner, scope string) []ir.Diagnostic {
+func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner jsontext.Pointer, scope string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
 	return UnknownKeysNamed(p, keys, root, srcIndex, owner, scope)
 }
@@ -158,7 +159,7 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner, scope str
 // It delegates rather than duplicating the grading, so the two can only be
 // announced alike.
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	srcIndex int, owner, scope string,
+	srcIndex int, owner jsontext.Pointer, scope string,
 ) []ir.Diagnostic {
 	return census(p, keys, root, srcIndex, owner, scope, keyClass{
 		code:     diag.UnknownObjectKey,
@@ -202,7 +203,7 @@ type keyClass struct {
 // MaxUnknownKeys. An entry held for a construct written elsewhere is a collision
 // rather than a keyword already handled, and keep reports it.
 func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	srcIndex int, owner, scope string, cl keyClass,
+	srcIndex int, owner jsontext.Pointer, scope string, cl keyClass,
 ) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil // the common case: most objects write no key their model misses
@@ -224,10 +225,10 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 
 // keep writes one key's value under its entry and announces it, or says why it
 // could not.
-func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner, scope string, cl keyClass) []ir.Diagnostic {
+func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
 	entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
 	if taken, occupied := (*p)[entry]; occupied {
-		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer, srcIndex)}
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, jsontext.Pointer(taken.Provenance.Pointer), srcIndex)}
 	}
 	node := RawChildNode(root, key)
 	if node == nil {
@@ -238,7 +239,7 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner, sco
 		return diags
 	}
 	return append(diags, diag.Newf(cl.severity, cl.code,
-		ir.Provenance{Source: srcIndex, Pointer: at}, cl.message, key))
+		ir.Provenance{Source: srcIndex, Pointer: string(at)}, cl.message, key))
 }
 
 // unrecorded returns the keys this census has to answer for: the ones cl has not
@@ -251,14 +252,14 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner, sco
 // census has nothing to add. An entry pointing somewhere else is a different
 // construct that happens to spell the same key, which is a collision rather than
 // a keyword already handled, and keep reports it.
-func unrecorded(p *ir.Unmodeled, keys []string, owner, scope string, skip []string) []string {
+func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope string, skip []string) []string {
 	out := make([]string, 0, len(keys))
 	for _, key := range keys {
 		if slices.Contains(skip, key) {
 			continue
 		}
 		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
-			e.Provenance.Pointer == owner+ids.Ptr(key) {
+			e.Provenance.Pointer == string(owner+ids.Ptr(key)) {
 			continue
 		}
 		out = append(out, key)
@@ -283,9 +284,9 @@ func scoped(scope, key string) string {
 }
 
 // budgetDiag reports the keys past MaxUnknownKeys, which reach the IR in no form.
-func budgetDiag(total int, owner string, srcIndex int) ir.Diagnostic {
+func budgetDiag(total int, owner jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyBudget,
-		ir.Provenance{Source: srcIndex, Pointer: owner},
+		ir.Provenance{Source: srcIndex, Pointer: string(owner)},
 		"object writes %d keys its model names no field for and no other reader kept, past the "+
 			"%d this compiler keeps; the rest are represented in the IR in no form at all",
 		total, MaxUnknownKeys)

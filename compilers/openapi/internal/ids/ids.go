@@ -1,6 +1,6 @@
-// Package ids derives IR identifiers from OpenAPI source coordinates: the RFC
-// 6901 pointer arithmetic that names a position, and the namespace each kind of
-// node is addressed in.
+// Package ids builds the RFC 6901 pointer that names a position — a
+// jsontext.Pointer from construction on, read back through its methods, never
+// split on '/' — and derives IR identifiers and namespaces from it.
 //
 // The path is OpenAPI's and stays here — a JSON Pointer is not a GraphQL
 // structural path or a protobuf fully-qualified name, and nothing above this
@@ -9,6 +9,7 @@
 package ids
 
 import (
+	"encoding/json/jsontext"
 	"strconv"
 	"strings"
 
@@ -16,24 +17,27 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ptr joins segments into an RFC 6901 JSON pointer. IDs are derived from these
-// pointers (ir-design §3.1) and no other code in this package constructs one;
-// the grammar wrapped around a pointer to make an ID belongs to the framework.
-func Ptr(segments ...string) string {
-	if len(segments) == 0 {
-		return ""
+// Ptr joins tokens into an RFC 6901 JSON pointer, escaping each one. IDs are
+// derived from the pointers it builds (ir-design §3.1); the grammar wrapped
+// around a pointer to make an ID belongs to the framework.
+//
+// A position beneath another is base + Ptr(tokens...): joining two valid
+// pointers yields a valid pointer, so extending one never takes it apart.
+//
+// AppendToken rewrites a byte that is not UTF-8 to U+FFFD, which would give two
+// keys differing only there one pointer. No token read from a document can carry
+// one: a source that is not UTF-8 is refused before anything lowers.
+func Ptr(tokens ...string) jsontext.Pointer {
+	var p jsontext.Pointer
+	for _, tok := range tokens {
+		p = p.AppendToken(tok)
 	}
-	var b strings.Builder
-	for _, seg := range segments {
-		b.WriteByte('/')
-		b.WriteString(escapeSegment(seg))
-	}
-	return b.String()
+	return p
 }
 
-// Scope joins segments into an Unmodeled key scope: the same escaping Ptr
-// applies, without the leading separator, since a scope is a relative path
-// rather than a pointer (ir-design §12).
+// Scope joins segments into an Unmodeled key scope: Ptr's escaping without the
+// leading separator, since a scope is a relative path rather than a pointer
+// (ir-design §12).
 //
 // It exists for the scopes holding a segment the document chooses — a form
 // part's name, a callback's — where an unescaped "/" makes one segment read as
@@ -41,31 +45,13 @@ func Ptr(segments ...string) string {
 // surviving entry followed declaration order, silently, which is what §4.3
 // forbids a minted node and §12 promises a scoped key.
 func Scope(segments ...string) string {
-	escaped := make([]string, 0, len(segments))
-	for _, seg := range segments {
-		escaped = append(escaped, escapeSegment(seg))
-	}
-	return strings.Join(escaped, "/")
-}
-
-// escapeSegment applies RFC 6901 escaping: ~ first, then /.
-func escapeSegment(s string) string {
-	s = strings.ReplaceAll(s, "~", "~0")
-	return strings.ReplaceAll(s, "/", "~1")
-}
-
-// UnescapeSegment reverses RFC 6901 escaping: ~1 to /, then ~0 to ~. It recovers
-// a component's on-wire name from a pointer segment (e.g. a schema named "A/B"
-// is escaped to "A~1B" in the pointer).
-func UnescapeSegment(s string) string {
-	s = strings.ReplaceAll(s, "~1", "/")
-	return strings.ReplaceAll(s, "~0", "~")
+	return strings.TrimPrefix(string(Ptr(segments...)), "/")
 }
 
 // The namespaces this compiler addresses. The framework spells the grammar
 // around them — the kind prefix and the separators (compile.TypeID and friends);
-// what is chosen here is which namespace a node belongs in, and the pointer
-// arithmetic that produces its path.
+// what is chosen here is which namespace a node belongs in, and the pointer that
+// is its path.
 const (
 	// OpenAPISpace and AnonSpace both address source coordinates: a component
 	// schema is named at its own pointer, an inline schema is anonymous at its
@@ -83,26 +69,34 @@ const (
 )
 
 // NamedType returns the stable ID of a components-named schema at pointer.
-func NamedType(pointer string) ir.TypeID { return compile.TypeID(OpenAPISpace, pointer) }
+func NamedType(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(OpenAPISpace, string(pointer))
+}
 
 // AnonType returns the stable ID of a hoisted inline type at pointer.
-func AnonType(pointer string) ir.TypeID { return compile.TypeID(AnonSpace, pointer) }
+func AnonType(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(AnonSpace, string(pointer))
+}
 
 // ComposedType returns the stable ID of the Model synthesized for the
 // distributed union variant at a branch pointer (§4.3).
-func ComposedType(branchPointer string) ir.TypeID {
-	return compile.TypeID(ComposedSpace, branchPointer)
+func ComposedType(branchPointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(ComposedSpace, string(branchPointer))
 }
 
 // Op returns the stable ID of the operation at pointer.
-func Op(pointer string) ir.OpID { return compile.OpID(OpenAPISpace, pointer) }
+func Op(pointer jsontext.Pointer) ir.OpID {
+	return compile.OpID(OpenAPISpace, string(pointer))
+}
 
 // Prop returns the stable ID of the property at pointer.
-func Prop(pointer string) ir.PropID { return compile.PropID(OpenAPISpace, pointer) }
+func Prop(pointer jsontext.Pointer) ir.PropID {
+	return compile.PropID(OpenAPISpace, string(pointer))
+}
 
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
-	return compile.AuthID(OpenAPISpace, Ptr("components", "securitySchemes", name))
+	return compile.AuthID(OpenAPISpace, string(Ptr("components", "securitySchemes", name)))
 }
 
 // Service returns the stable ID of the service for the given source index.
@@ -116,7 +110,7 @@ func Service(sourceIndex int) ir.ServiceID {
 // a use-site-derived hint (the referencing operation's ID, a response header's
 // map key) would name the one shared node after whichever reference happened to
 // lower first — arbitrary, and emitter-visible via Naming.Hint (issue #107).
-func DeclarationHint(pointer, fallback string) string {
+func DeclarationHint(pointer jsontext.Pointer, fallback string) string {
 	name, ok := componentEntryName(pointer)
 	if !ok {
 		return fallback
@@ -124,34 +118,41 @@ func DeclarationHint(pointer, fallback string) string {
 	return name
 }
 
-// ComponentEntry splits a pointer that addresses a top-level component entry
-// (/components/<kind>/<name>, no deeper path) into its kind and unescaped name.
-// It is the one place that shape is parsed: componentEntryName drops the kind,
-// and ComponentSchemaName narrows it to the schemas kind, which is the only one
-// that earns a named TypeID.
-func ComponentEntry(pointer string) (kind, name string, ok bool) {
+// ComponentEntry returns the kind and name of the top-level component entry
+// pointer addresses (/components/<kind>/<name>, no deeper path), both decoded,
+// and ok=false for any other pointer or for an entry keyed "".
+// componentEntryName drops the kind, and ComponentSchemaName narrows it to the
+// schemas kind, which is the only one that earns a named TypeID.
+func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
 	kind, name, ok = componentEntrySplit(pointer)
 	if !ok || name == "" {
 		return "", "", false
 	}
-	return kind, UnescapeSegment(name), true
+	return kind, name, true
 }
 
-// componentEntrySplit splits the /components/<kind>/<name> shape without judging
-// the name, so a caller that must tell "not that shape at all" from "that shape
-// with an empty name" can. ComponentEntry folds the two together on purpose — an
-// entry keyed "" earns no named TypeID either way — but the two are different
-// facts about a document, and a diagnostic naming the wrong one is simply false.
-func componentEntrySplit(pointer string) (kind, name string, ok bool) {
-	const prefix = "/components/"
-	if !strings.HasPrefix(pointer, prefix) {
+// componentsRoot is the pointer every component entry sits two tokens beneath.
+const componentsRoot jsontext.Pointer = "/components"
+
+// componentEntrySplit is the one place the /components/<kind>/<name> shape is
+// parsed: it reads the kind and name off pointer's last two tokens, decoded, when
+// the pointer sits two tokens beneath /components.
+//
+// It does not judge the name, so a caller that must tell "not that shape at all"
+// from "that shape with an empty name" can. ComponentEntry folds the two together
+// on purpose — an entry keyed "" earns no named TypeID either way — but the two
+// are different facts about a document, and a diagnostic naming the wrong one is
+// simply false.
+func componentEntrySplit(pointer jsontext.Pointer) (kind, name string, ok bool) {
+	section := pointer.Parent()
+	if section.Parent() != componentsRoot {
 		return "", "", false
 	}
-	kind, name, found := strings.Cut(pointer[len(prefix):], "/")
-	if !found || kind == "" || strings.Contains(name, "/") {
+	kind = section.LastToken()
+	if kind == "" {
 		return "", "", false
 	}
-	return kind, name, true
+	return kind, pointer.LastToken(), true
 }
 
 // ComponentSchemaNamedEmpty reports whether pointer addresses the top-level
@@ -163,14 +164,14 @@ func componentEntrySplit(pointer string) (kind, name string, ok bool) {
 // policy). A caller that reports the refusal needs the distinction to word it
 // truthfully, since a reader who follows the pointer finds a component schema
 // sitting exactly where a "not a component schema" message denies one is.
-func ComponentSchemaNamedEmpty(pointer string) bool {
+func ComponentSchemaNamedEmpty(pointer jsontext.Pointer) bool {
 	kind, name, ok := componentEntrySplit(pointer)
 	return ok && kind == "schemas" && name == ""
 }
 
 // componentEntryName returns the unescaped name of a top-level component entry
 // of any kind.
-func componentEntryName(pointer string) (string, bool) {
+func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 	_, name, ok := ComponentEntry(pointer)
 	return name, ok
 }
@@ -178,7 +179,7 @@ func componentEntryName(pointer string) (string, bool) {
 // ForPointer returns the stable TypeID for a schema hoisted at pointer:
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
-func ForPointer(pointer string) ir.TypeID {
+func ForPointer(pointer jsontext.Pointer) ir.TypeID {
 	if _, ok := ComponentSchemaName(pointer); ok {
 		return NamedType(pointer)
 	}
@@ -194,7 +195,7 @@ func ForPointer(pointer string) ir.TypeID {
 // and one that declares it keyed "". Reporting the refusal as "not a component
 // schema" is false for the second, since the pointer addresses exactly that —
 // ComponentSchemaNamedEmpty separates them for a caller that has to say why.
-func ComponentSchemaName(pointer string) (string, bool) {
+func ComponentSchemaName(pointer jsontext.Pointer) (string, bool) {
 	kind, name, ok := ComponentEntry(pointer)
 	return name, ok && kind == "schemas"
 }

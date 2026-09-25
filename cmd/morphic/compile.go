@@ -73,7 +73,8 @@ func newCompileCommand() command {
 			"written with -o is compact unless --pretty asks for the indented form.\n\n" +
 			"--explain reports what compiling produced at one source coordinate — the\n" +
 			"type node interned there, the coordinates interned beneath it, and the\n" +
-			"diagnostics stamped at it — instead of writing the document.\n\n" +
+			"diagnostics stamped at it — instead of writing the document. The coordinate\n" +
+			"is a JSON Pointer, so '' is the whole document.\n\n" +
 			"--opt passes a setting to the compiler the spec selects, which names and\n" +
 			"validates its own options; morphic itself knows none of them. The OpenAPI\n" +
 			"compiler's are listed in the README.\n\n" +
@@ -103,7 +104,7 @@ type specOptions struct {
 type compileOptions struct {
 	specOptions
 	outPath string
-	explain string
+	explain pointerFlag
 	pretty  bool
 }
 
@@ -133,8 +134,8 @@ func newCompileFlags() (*flag.FlagSet, *compileOptions) {
 	var opts compileOptions
 	bindSpecFlags(fs, &opts.specOptions)
 	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
-	fs.StringVar(&opts.explain, "explain", "",
-		"report what compiling produced at this source pointer instead of writing IR JSON")
+	fs.Var(&opts.explain, "explain",
+		"report what compiling produced at this source `pointer` instead of writing IR JSON; '' is the whole document")
 	fs.BoolVar(&opts.pretty, "pretty", false,
 		"indent the IR JSON -o writes; stdout is indented either way")
 
@@ -216,8 +217,8 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 		return code
 	}
 
-	if opts.explain != "" {
-		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain)
+	if opts.explain.set {
+		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain.pointer)
 		return code
 	}
 	if err := writeCompiled(opts, stdout, res.Document); err != nil {

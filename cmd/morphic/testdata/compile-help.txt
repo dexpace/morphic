@@ -7,7 +7,8 @@ written with -o is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the
 type node interned there, the coordinates interned beneath it, and the
-diagnostics stamped at it — instead of writing the document.
+diagnostics stamped at it — instead of writing the document. The coordinate
+is a JSON Pointer, so '' is the whole document.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -18,8 +19,8 @@ even one that begins with a dash, which is how a spec file named like a
 flag is passed.
 
 flags:
-  -explain string
-    	report what compiling produced at this source pointer instead of writing IR JSON
+  -explain pointer
+    	report what compiling produced at this source pointer instead of writing IR JSON; '' is the whole document
   -fail-on string
     	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
   -o string

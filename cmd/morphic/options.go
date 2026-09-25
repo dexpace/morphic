@@ -49,3 +49,21 @@ func (s settingFlag) Set(raw string) error {
 	s[key] = value
 	return nil
 }
+
+// pointerFlag is --explain's value: a JSON Pointer, and whether the flag was
+// given at all. The empty pointer names the whole document, so an empty value is
+// a coordinate like any other and cannot double as the flag being absent.
+type pointerFlag struct {
+	pointer string
+	set     bool
+}
+
+// String renders the pointer as given. The flag package calls it on a zero value
+// to decide whether to print a default, and the empty string prints none.
+func (f *pointerFlag) String() string { return f.pointer }
+
+// Set records the pointer and that the flag was given.
+func (f *pointerFlag) Set(raw string) error {
+	f.pointer, f.set = raw, true
+	return nil
+}

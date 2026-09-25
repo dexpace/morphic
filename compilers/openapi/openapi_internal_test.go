@@ -41,6 +41,19 @@ func TestParse_UnmarshalError(t *testing.T) {
 		"no document comes back, so there is no source table for a Source of 0 to index into")
 }
 
+// TestParse_KeyThatIsNotUTF8IsRefused pins what ids.Ptr relies on: a source with
+// a mapping key that is not UTF-8 is refused before anything lowers, so no such
+// key becomes a pointer token.
+func TestParse_KeyThatIsNotUTF8IsRefused(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n\xff: x\n"
+	doc, diags, err := New().Compile(context.Background(),
+		[]compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
+	require.NoError(t, err)
+	assert.Nil(t, doc, "an undecodable source refuses to lower; no types are interned")
+	assert.True(t, openapitest.HasDiag(diags, diag.UndecodableSource))
+}
+
 // TestRun_RegistryRefusalsAreSurfaced covers the reporting of an entry
 // compile.Types declined to hold.
 //

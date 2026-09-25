@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func TestInternalPointer(t *testing.T) {
 	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	cases := []struct {
 		ref    string
-		want   string
+		want   jsontext.Pointer
 		wantOK bool
 	}{
 		{"#/components/schemas/User", "/components/schemas/User", true},
@@ -52,8 +53,9 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 	t.Parallel()
 	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	tests := []struct {
-		name, ref, want string
-		internal        bool
+		name, ref string
+		want      jsontext.Pointer
+		internal  bool
 	}{
 		{name: "hyphen", ref: "#/components/schemas/Foo%2DBar", want: "/components/schemas/Foo-Bar", internal: true},
 		{name: "underscore", ref: "#/components/schemas/Foo%5FBar", want: "/components/schemas/Foo_Bar", internal: true},
@@ -79,6 +81,37 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 			got, internal := sc.InternalPointer(tc.ref)
 			assert.Equal(t, tc.internal, internal)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestFragmentPointer_ReadsTheFragmentOfAnyDocument pins what a name hint reads
+// off a $ref: the pointer its fragment spells, decoded as InternalPointer
+// decodes it, whichever document the reference names. Whether this compile can
+// resolve that document is InternalPointer's question, not this one's.
+func TestFragmentPointer_ReadsTheFragmentOfAnyDocument(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		ref    string
+		want   jsontext.Pointer
+		wantOK bool
+	}{
+		{name: "same document", ref: "#/components/schemas/A", want: "/components/schemas/A", wantOK: true},
+		{name: "another document is still a pointer", ref: "other.yaml#/components/schemas/A", want: "/components/schemas/A", wantOK: true},
+		{name: "percent-decoded", ref: "#/components/schemas/Foo%2DBar", want: "/components/schemas/Foo-Bar", wantOK: true},
+		{name: `a lone slash, the member keyed ""`, ref: "#/", want: "/", wantOK: true},
+		{name: "a $anchor is not a pointer", ref: "#anchor"},
+		{name: "a bare # names the whole document, which is refused", ref: "#"},
+		{name: "no fragment at all", ref: "other.yaml"},
+		{name: "the empty ref", ref: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := FragmentPointer(tc.ref)
+			assert.Equal(t, tc.wantOK, ok, tc.ref)
+			assert.Equal(t, tc.want, got, tc.ref)
 		})
 	}
 }
