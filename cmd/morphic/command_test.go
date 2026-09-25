@@ -147,7 +147,7 @@ func TestCommand_PrintFlagsDocumentsTheCommandsOwnFlags(t *testing.T) {
 // line, so a line carrying the "  -" prefix names a flag and nothing else does.
 func flagNamesIn(rendered string) []string {
 	var names []string
-	for _, line := range strings.Split(rendered, "\n") {
+	for line := range strings.SplitSeq(rendered, "\n") {
 		rest, ok := strings.CutPrefix(line, "  -")
 		if !ok {
 			continue

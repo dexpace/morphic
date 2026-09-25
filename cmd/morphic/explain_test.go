@@ -50,17 +50,17 @@ func TestExplainDocument_MissAtACoordinateNamesWhatInternedBelow(t *testing.T) {
 	// fixture whose two orders agree, dropping the sort changes nothing and the
 	// assertion below passes for the wrong reason.
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/aaa": &ir.Model{TypeCommon: ir.TypeCommon{
+		"t/aaa": &ir.Model{
 			ID: "t/aaa", Provenance: ir.Provenance{Pointer: "/components/schemas/Zed"},
-		}},
-		"t/zzz": &ir.Model{TypeCommon: ir.TypeCommon{
+		},
+		"t/zzz": &ir.Model{
 			ID: "t/zzz", Provenance: ir.Provenance{Pointer: "/components/schemas/Alpha"},
-		}},
+		},
 		// A sibling whose pointer shares the query's text but not its path
 		// boundary. "below" means beneath a segment, not sharing a prefix.
-		"t/other": &ir.Model{TypeCommon: ir.TypeCommon{
+		"t/other": &ir.Model{
 			ID: "t/other", Provenance: ir.Provenance{Pointer: "/components/schemasOther/X"},
-		}},
+		},
 	}}
 	var w bytes.Buffer
 	explainDocument(&w, doc, nil, "/components/schemas")
@@ -93,7 +93,7 @@ func TestExplainDocument_NilEntriesAreSkipped(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"t/nil":  nil,
-		"t/real": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/real", Provenance: ir.Provenance{Pointer: "/p"}}},
+		"t/real": &ir.Model{ID: "t/real", Provenance: ir.Provenance{Pointer: "/p"}},
 	}}
 	var w bytes.Buffer
 	require.NotPanics(t, func() { explainDocument(&w, doc, nil, "/p") })

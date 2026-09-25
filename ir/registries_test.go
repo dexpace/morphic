@@ -40,7 +40,7 @@ func TestDocumentRegistries_DerivedFromDocumentShape(t *testing.T) {
 func TestRegistry_HasResolvesOnlyDeclaredIDs(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/x/M": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/M"}},
+		"t/x/M": &ir.Any{ID: "t/x/M"},
 	}}
 
 	types := ir.DocumentRegistries(doc)[reflect.TypeFor[ir.TypeID]()]
@@ -65,7 +65,7 @@ func TestRegistry_ZeroValueDeclaresNothing(t *testing.T) {
 func declaringDoc() *ir.Document {
 	return &ir.Document{
 		Types: ir.TypeRegistry{
-			"t/x/M": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M"}, Properties: []ir.Property{
+			"t/x/M": &ir.Model{ID: "t/x/M", Properties: []ir.Property{
 				{ID: "p/x/M/f", Type: ir.TypeRef{Target: "t/x/M"}},
 			}},
 		},

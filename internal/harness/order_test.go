@@ -220,7 +220,8 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	t.Parallel()
 	model := func(id ir.TypeID, wire string) *ir.Model {
 		return &ir.Model{
-			TypeCommon: ir.TypeCommon{ID: id, Name: ir.Naming{Source: "M", Canonical: "m"}},
+			ID:         id,
+			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Properties: []ir.Property{{ID: ir.PropID("p/x/" + wire), WireName: wire}},
 		}
 	}
@@ -267,7 +268,8 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 			ex = []ir.Example{examples[1], examples[0]}
 		}
 		return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{
-			TypeCommon:      ir.TypeCommon{ID: "t/x/A", Examples: ex},
+			ID:              "t/x/A",
+			Examples:        ex,
 			Properties:      p,
 			AdditionalProps: &ir.AdditionalProps{Patterns: pp},
 		}}}
@@ -445,11 +447,11 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			id = "t/x/Reversed"
 		}
 		path, _ := ir.IDPath(ir.IDKindType, string(id))
-		m := &ir.Model{TypeCommon: ir.TypeCommon{
+		m := &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: "/" + path},
-		}}
+		}
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}, nil, nil
 	}
 

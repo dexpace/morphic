@@ -31,7 +31,7 @@ func hintOnly(hint string) *ir.Document {
 // itself: a document missing either has a violation of its own, and a fixture
 // about naming must contribute none.
 func modelNamed(n ir.Naming) *ir.Document {
-	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: n}}
+	m := &ir.Model{ID: "t/x/M", Name: n}
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 }
 
@@ -303,8 +303,8 @@ func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 func primitiveDoc() *ir.Document {
 	doc := validDoc()
 	doc.Types[ir.PrimTypeID(ir.PrimString)] = &ir.Primitive{
-		TypeCommon: ir.TypeCommon{ID: ir.PrimTypeID(ir.PrimString)},
-		Prim:       ir.PrimString,
+		ID:   ir.PrimTypeID(ir.PrimString),
+		Prim: ir.PrimString,
 	}
 	return doc
 }
@@ -369,7 +369,7 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
-	doc.Types["t/x/M"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/M"}}
+	doc.Types["t/x/M"] = &ir.Model{ID: "t/x/M"}
 	got := irverify.Verify(doc)
 	require.Len(t, got, 1, "the model, and not the exempt primitive beside it")
 	assert.Equal(t, "ir/naming-absent", got[0].Code)

@@ -44,10 +44,10 @@ func TestWalkValues_PathsSpellFieldsIndicesAndKeys(t *testing.T) {
 	value := ir.Value{Kind: ir.ValueNull}
 	doc := &ir.Document{
 		Name: "api",
-		Types: ir.TypeRegistry{"t/x/M": &ir.Model{TypeCommon: ir.TypeCommon{
+		Types: ir.TypeRegistry{"t/x/M": &ir.Model{
 			ID:       "t/x/M",
 			Examples: []ir.Example{{Value: &value}},
-		}}},
+		}},
 	}
 
 	paths, truncated := walkPaths(doc)
@@ -69,7 +69,7 @@ func TestWalkValues_MapEntriesAreVisitedInRenderedKeyOrder(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{}}
 	for _, id := range []ir.TypeID{"t/c", "t/a", "t/d", "t/b"} {
-		doc.Types[id] = &ir.Any{TypeCommon: ir.TypeCommon{ID: id}}
+		doc.Types[id] = &ir.Any{ID: id}
 	}
 
 	paths, _ := walkPaths(doc)
@@ -89,10 +89,10 @@ func TestWalkValues_MapEntriesAreVisitedInRenderedKeyOrder(t *testing.T) {
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	docWith := func(v ir.Value) *ir.Document {
-		return &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{TypeCommon: ir.TypeCommon{
+		return &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
 			ID:       "t/m",
 			Examples: []ir.Example{{Value: &v}},
-		}}}}
+		}}}
 	}
 
 	_, truncated := walkPaths(docWith(nestedListValue(ir.MaxWalkDepth)))
@@ -111,9 +111,9 @@ func TestWalkValues_SharedPointerIsDescendedIntoOnce(t *testing.T) {
 	t.Parallel()
 	shared := &ir.TypeRef{Target: "t/x/Shared"}
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/m", Instantiation: &ir.TemplateInstantiation{
+		ID: "t/m", Instantiation: &ir.TemplateInstantiation{
 			Args: []ir.TemplateArg{{Type: shared}, {Type: shared}},
-		}},
+		},
 	}}}
 
 	paths, truncated := walkPaths(doc)
@@ -176,7 +176,7 @@ func TestWalkValues_ByteSequencesAreNotDescendedInto(t *testing.T) {
 func TestWalkValues_VisitorPrunesChildren(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Name: "api", Types: ir.TypeRegistry{
-		"t/m": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/m"}},
+		"t/m": &ir.Model{ID: "t/m"},
 	}}
 
 	var pruned []string

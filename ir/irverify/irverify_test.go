@@ -13,7 +13,7 @@ import (
 // validDoc is a minimal structurally-sound document: one model whose registry
 // key matches its own Common().ID.
 func validDoc() *ir.Document {
-	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}}
+	m := &ir.Model{ID: "t/x/Model", Name: ir.Naming{Source: "Model", Canonical: "model"}}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
 		Types:     ir.TypeRegistry{m.ID: m},
@@ -57,7 +57,7 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 	// share the ir/dangling-type-ref code. Verify must order them by Path, which
 	// exercises the sort's equal-code tiebreaker.
 	holder := &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/Holder"},
+		ID: "t/x/Holder",
 		Properties: []ir.Property{
 			{ID: "p/x/Holder/a", Type: ir.TypeRef{Target: "t/x/MissingA"}},
 			{ID: "p/x/Holder/b", Type: ir.TypeRef{Target: "t/x/MissingB"}},

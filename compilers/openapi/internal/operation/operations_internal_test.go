@@ -437,8 +437,8 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 	t.Parallel()
 	var declared []string
 	typ := reflect.TypeFor[core.PathItem]()
-	for i := range typ.NumField() {
-		key := typ.Field(i).Tag.Get("key")
+	for field := range typ.Fields() {
+		key := field.Tag.Get("key")
 		if key == "" || key == "extensions" {
 			continue
 		}

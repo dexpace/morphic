@@ -143,7 +143,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 	// A node lives at the pointer-derived ID without a byPointer entry: internedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
-	ts.Register(id, &ir.Primitive{TypeCommon: ir.TypeCommon{ID: id}, Prim: ir.PrimString})
+	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
 
 	got, ok := InternedID(ts, deepPointer)
 	require.True(t, ok, "a node registered under its pointer-derived ID resolves")

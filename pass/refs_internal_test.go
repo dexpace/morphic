@@ -20,7 +20,7 @@ func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/m", Examples: []ir.Example{{Value: &v}}}}
+	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 
 	_, truncated := collectTypeIDs(doc, "doc")

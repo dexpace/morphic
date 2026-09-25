@@ -41,23 +41,23 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/scalar"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/scalar"},
-		Base:       &ir.TypeRef{Target: "t/ghost-base"},
-		Encoding:   &ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/ghost-wire"}},
+		ID:       "t/scalar",
+		Base:     &ir.TypeRef{Target: "t/ghost-base"},
+		Encoding: &ir.Encoding{Name: "x", WireType: &ir.TypeRef{Target: "t/ghost-wire"}},
 	}
 	doc.Types["t/list"] = &ir.List{
-		TypeCommon: ir.TypeCommon{ID: "t/list"},
-		Elem:       ir.TypeRef{Target: "t/ghost-elem"},
-		Encoding:   &ir.Encoding{Name: "packed", WireType: &ir.TypeRef{Target: "t/ghost-lwire"}},
+		ID:       "t/list",
+		Elem:     ir.TypeRef{Target: "t/ghost-elem"},
+		Encoding: &ir.Encoding{Name: "packed", WireType: &ir.TypeRef{Target: "t/ghost-lwire"}},
 	}
 	doc.Types["t/map"] = &ir.MapT{
-		TypeCommon: ir.TypeCommon{ID: "t/map"},
-		Key:        ir.TypeRef{Target: "t/ghost-key"},
-		Value:      ir.TypeRef{Target: "t/ghost-val"},
+		ID:    "t/map",
+		Key:   ir.TypeRef{Target: "t/ghost-key"},
+		Value: ir.TypeRef{Target: "t/ghost-val"},
 	}
 	doc.Types["t/tuple"] = &ir.Tuple{
-		TypeCommon: ir.TypeCommon{ID: "t/tuple"},
-		Elems:      []ir.TypeRef{{Target: "t/ghost-e0"}},
+		ID:    "t/tuple",
+		Elems: []ir.TypeRef{{Target: "t/ghost-e0"}},
 	}
 	diags := pass.Validate(doc)
 	// Each dangling target above yields exactly one dangling-type-ref diagnostic.
@@ -123,18 +123,18 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 func TestValidate_ModelDiscriminator(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	base := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true}
+	base := &ir.Model{ID: "t/base", Abstract: true}
 	doc.Types["t/base"] = base
 	// Legal subtype via Base.
 	doc.Types["t/viaBase"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/viaBase"}, Base: &ir.TypeRef{Target: "t/base"},
+		ID: "t/viaBase", Base: &ir.TypeRef{Target: "t/base"},
 	}
 	// Legal subtype via Implements.
 	doc.Types["t/viaImpl"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/viaImpl"}, Implements: []ir.TypeRef{{Target: "t/base"}},
+		ID: "t/viaImpl", Implements: []ir.TypeRef{{Target: "t/base"}},
 	}
 	// Model that is neither a subtype nor implementer of base.
-	doc.Types["t/unrelated"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/unrelated"}}
+	doc.Types["t/unrelated"] = &ir.Model{ID: "t/unrelated"}
 
 	base.Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
@@ -161,25 +161,25 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true}
+	doc.Types["t/base"] = &ir.Model{ID: "t/base", Abstract: true}
 	doc.Types["t/alias"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/alias"}, Base: &ir.TypeRef{Target: "t/aliasOfAlias"},
+		ID: "t/alias", Base: &ir.TypeRef{Target: "t/aliasOfAlias"},
 	}
 	doc.Types["t/aliasOfAlias"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/aliasOfAlias"}, Base: &ir.TypeRef{Target: "t/base"},
+		ID: "t/aliasOfAlias", Base: &ir.TypeRef{Target: "t/base"},
 	}
 	doc.Types["t/sub"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/sub"}, Base: &ir.TypeRef{Target: "t/alias"},
+		ID: "t/sub", Base: &ir.TypeRef{Target: "t/alias"},
 	}
 	// A two-node alias cycle: following it must stop, not recurse forever.
 	doc.Types["t/loopA"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/loopA"}, Base: &ir.TypeRef{Target: "t/loopB"},
+		ID: "t/loopA", Base: &ir.TypeRef{Target: "t/loopB"},
 	}
 	doc.Types["t/loopB"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/loopB"}, Base: &ir.TypeRef{Target: "t/loopA"},
+		ID: "t/loopB", Base: &ir.TypeRef{Target: "t/loopA"},
 	}
 	doc.Types["t/looped"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/looped"}, Base: &ir.TypeRef{Target: "t/loopA"},
+		ID: "t/looped", Base: &ir.TypeRef{Target: "t/loopA"},
 	}
 	doc.Types["t/base"].(*ir.Model).Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
@@ -203,17 +203,17 @@ func TestValidate_SubtypeThroughAliasChain(t *testing.T) {
 func TestValidate_TransitiveSubtypeIsAVariant(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	doc.Types["t/base"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true}
+	doc.Types["t/base"] = &ir.Model{ID: "t/base", Abstract: true}
 	doc.Types["t/child"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/child"}, Base: &ir.TypeRef{Target: "t/base"},
+		ID: "t/child", Base: &ir.TypeRef{Target: "t/base"},
 	}
 	doc.Types["t/grandchild"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/grandchild"}, Base: &ir.TypeRef{Target: "t/child"},
+		ID: "t/grandchild", Base: &ir.TypeRef{Target: "t/child"},
 	}
 	// Conformance reached through an inherited interface: the same distance, on
 	// the other composition relation.
 	doc.Types["t/viaIface"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/viaIface"}, Implements: []ir.TypeRef{{Target: "t/child"}},
+		ID: "t/viaIface", Implements: []ir.TypeRef{{Target: "t/child"}},
 	}
 	doc.Types["t/base"].(*ir.Model).Discriminator = &ir.Discriminator{
 		PropertyName: "kind",
@@ -237,17 +237,18 @@ func TestValidate_SubtypeWalkTerminatesOnACompositionCycle(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/base"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true,
+		ID:       "t/base",
+		Abstract: true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			Mapping:      map[string]ir.TypeID{"a": "t/loopA"},
 		},
 	}
 	doc.Types["t/loopA"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/loopA"}, Base: &ir.TypeRef{Target: "t/loopB"},
+		ID: "t/loopA", Base: &ir.TypeRef{Target: "t/loopB"},
 	}
 	doc.Types["t/loopB"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/loopB"}, Base: &ir.TypeRef{Target: "t/loopA"},
+		ID: "t/loopB", Base: &ir.TypeRef{Target: "t/loopA"},
 	}
 
 	assert.Contains(t, messageForCode(t, pass.Validate(doc), "pass/discriminator-missing-variant"),
@@ -259,8 +260,8 @@ func TestValidate_SubtypeWalkTerminatesOnACompositionCycle(t *testing.T) {
 func discriminatedUnion(target ir.TypeID) *ir.Document {
 	doc := validDoc()
 	doc.Types["t/u"] = &ir.Union{
-		TypeCommon: ir.TypeCommon{ID: "t/u"},
-		Variants:   []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+		ID:       "t/u",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			Mapping:      map[string]ir.TypeID{"a": target},
@@ -315,14 +316,15 @@ func TestValidate_DeclaredNonVariantIsReportedOnce(t *testing.T) {
 func discriminatedModel(target ir.TypeID) *ir.Document {
 	doc := validDoc()
 	doc.Types["t/base"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/base"}, Abstract: true,
+		ID:       "t/base",
+		Abstract: true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			Mapping:      map[string]ir.TypeID{"a": target},
 		},
 	}
 	doc.Types["t/sub"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/sub"}, Base: &ir.TypeRef{Target: "t/base"},
+		ID: "t/sub", Base: &ir.TypeRef{Target: "t/base"},
 	}
 	return doc
 }
@@ -416,7 +418,7 @@ func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/blank"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/blank"},
+		ID: "t/blank",
 		Properties: []ir.Property{
 			// No WireName, no Source name -> effective name "" -> skipped.
 			{ID: "p/a", Type: ir.TypeRef{Target: "t/prim/string"}},
@@ -457,7 +459,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/gql"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/gql"},
+		ID: "t/gql",
 		Properties: []ir.Property{
 			// Self-reference: forces the traversal to re-enqueue an already-seen id.
 			{ID: "p/self", Name: ir.Naming{Source: "child"}, WireName: "child",
@@ -484,7 +486,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 // is legal only where a GraphQL binding reaches it.
 func argModel(id ir.TypeID) *ir.Model {
 	return &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: id},
+		ID: id,
 		Properties: []ir.Property{{
 			ID: ir.PropID("p/" + id), Name: ir.Naming{Source: "field"}, WireName: "field",
 			Type: ir.TypeRef{Target: "t/prim/string"},
@@ -516,7 +518,7 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 		{"nested field-argument type", func(doc *ir.Document, op *ir.Operation) {
 			doc.Types["t/inner"] = argModel("t/inner")
 			doc.Types["t/outer"] = &ir.Model{
-				TypeCommon: ir.TypeCommon{ID: "t/outer"},
+				ID: "t/outer",
 				Properties: []ir.Property{{
 					ID: "p/outer", Name: ir.Naming{Source: "list"}, WireName: "list",
 					Type: ir.TypeRef{Target: "t/prim/string"},
@@ -527,13 +529,13 @@ func TestValidate_GraphQLReachabilityFollowsEveryReference(t *testing.T) {
 		}},
 		{"template instantiation argument", func(doc *ir.Document, op *ir.Operation) {
 			doc.Types["t/arg"] = argModel("t/arg")
-			doc.Types["t/page"] = &ir.Model{TypeCommon: ir.TypeCommon{
+			doc.Types["t/page"] = &ir.Model{
 				ID: "t/page",
 				Instantiation: &ir.TemplateInstantiation{
 					Template: "Page",
 					Args:     []ir.TemplateArg{{Type: &ir.TypeRef{Target: "t/arg"}}},
 				},
-			}}
+			}
 			op.Params = []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/page"}}}
 		}},
 	}

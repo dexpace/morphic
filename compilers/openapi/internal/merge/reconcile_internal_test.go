@@ -363,10 +363,10 @@ func TestBigValConflictDetail_ComparesByMagnitude(t *testing.T) {
 func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/enum": &ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/enum"}, ValueType: ir.PrimString},
+		"t/enum": &ir.Enum{ID: "t/enum", ValueType: ir.PrimString},
 		"t/alias": &ir.Scalar{
-			TypeCommon: ir.TypeCommon{ID: "t/alias"},
-			Base:       &ir.TypeRef{Target: "t/enum"},
+			ID:   "t/alias",
+			Base: &ir.TypeRef{Target: "t/enum"},
 		},
 	})
 
@@ -386,10 +386,10 @@ func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":  &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}},
-		"t/other":  &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/other"}},
-		"t/union":  &ir.Union{TypeCommon: ir.TypeCommon{ID: "t/union"}},
-		"t/opaque": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}},
+		"t/model":  &ir.Model{ID: "t/model"},
+		"t/other":  &ir.Model{ID: "t/other"},
+		"t/union":  &ir.Union{ID: "t/union"},
+		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
 
 	assert.False(t, g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/other"}),
@@ -411,8 +411,8 @@ func TestDifferentTypeKind_ComparesResolvedKinds(t *testing.T) {
 func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
-		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{
 		WireName:   "id",
@@ -447,9 +447,9 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str":  &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
-		"t/int":  &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
-		"t/bool": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/bool"}, Prim: ir.PrimBool},
+		"t/str":  &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int":  &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
+		"t/bool": &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool},
 	})
 	m := &ir.Model{}
 	byWire := WireNameIndex(m.Properties)
@@ -483,7 +483,7 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	})
 	ten, twenty := int64(10), int64(20)
 	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
@@ -525,8 +525,8 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
-		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
 	maxLen := int64(10)
@@ -557,7 +557,7 @@ func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 func TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	}
 	cases := []struct {
 		name                   string
@@ -594,10 +594,10 @@ func TestReconcileProperty_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/A":   &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/A"}},
-		"t/B":   &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/B"}},
-		"t/any": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/any"}},
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/A":   &ir.Model{ID: "t/A"},
+		"t/B":   &ir.Model{ID: "t/B"},
+		"t/any": &ir.Any{ID: "t/any"},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	}
 	cases := []struct {
 		name                 string
@@ -638,8 +638,8 @@ func TestReconcileProperty_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testin
 func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/A": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/A"}},
-		"t/B": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/B"}},
+		"t/A": &ir.Model{ID: "t/A"},
+		"t/B": &ir.Model{ID: "t/B"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
 	one := int64(1)
@@ -686,7 +686,7 @@ func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-				"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+				"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 			})
 			dst, src := tc.dst, tc.src
 			dst.WireName, src.WireName = "id", "id"
@@ -724,7 +724,7 @@ func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
 func TestReconcileProperty_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	detail := func() ir.Property {
 		return ir.Property{
@@ -752,8 +752,8 @@ func TestReconcileProperty_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 func TestReconcileProperty_AnUnrenderableLoserIsAnError(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
-		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}

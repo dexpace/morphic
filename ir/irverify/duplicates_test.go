@@ -61,8 +61,8 @@ func TestCheckDuplicateIDs_TwoServicesOnOneID(t *testing.T) {
 // then a reference to it resolves to whichever the reader reaches first.
 func TestCheckDuplicateIDs_TwoRegistryEntriesOnOneNodeID(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{
-		"t/x/A": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/Clash"}},
-		"t/x/B": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/Clash"}},
+		"t/x/A": &ir.Any{ID: "t/x/Clash"},
+		"t/x/B": &ir.Any{ID: "t/x/Clash"},
 	}}
 
 	got := duplicateViolations(doc)
@@ -100,7 +100,7 @@ func TestCheckDuplicateIDs_RepeatedPropIDIsClean(t *testing.T) {
 // modelWithProp wraps one property in a model of its own, so two of them collide
 // on the PropID and on nothing else.
 func modelWithProp(id ir.TypeID, prop ir.Property) *ir.Model {
-	return &ir.Model{TypeCommon: ir.TypeCommon{ID: id}, Properties: []ir.Property{prop}}
+	return &ir.Model{ID: id, Properties: []ir.Property{prop}}
 }
 
 // TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID is what the class-wide

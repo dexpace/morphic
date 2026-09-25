@@ -51,8 +51,8 @@ func badExtDoc() *ir.Document {
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
-		ir.TypeID("t/x/\xff"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xff", Name: named}},
-		ir.TypeID("t/x/\xfe"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/\xfe", Name: named}},
+		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
+		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
 	}}
 }
 
@@ -61,10 +61,10 @@ func dupKeyDoc() *ir.Document {
 // build writes. It has no violations and round-trips through JSON cleanly, so the
 // oracles reach the step under test.
 func soundDoc() *ir.Document {
-	m := &ir.Model{TypeCommon: ir.TypeCommon{
+	m := &ir.Model{
 		ID:   "t/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
-	}}
+	}
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 }
 
@@ -180,7 +180,7 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
 		// A registry key that disagrees with the node ID is a structural violation.
 		return &ir.Document{Types: ir.TypeRegistry{
-			ir.TypeID("t/x/Key"): &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/Other"}},
+			ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"},
 		}}, nil, nil
 	}
 

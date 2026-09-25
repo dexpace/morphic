@@ -16,7 +16,8 @@ import (
 func primDoc(kind ir.PrimKind) *ir.Document {
 	id := ir.PrimTypeID(kind)
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: &ir.Primitive{
-		TypeCommon: ir.TypeCommon{ID: id, Provenance: ir.Provenance{Source: ir.NoSource}},
+		ID:         id,
+		Provenance: ir.Provenance{Source: ir.NoSource},
 		Prim:       kind,
 	}}}
 }

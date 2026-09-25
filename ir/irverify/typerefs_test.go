@@ -14,10 +14,10 @@ import (
 // reference that does name a target — the tuple's first element, the clean
 // model's property — resolves rather than dangling.
 func leaf() *ir.Scalar {
-	return &ir.Scalar{TypeCommon: ir.TypeCommon{
+	return &ir.Scalar{
 		ID:   "t/x/Leaf",
 		Name: ir.Naming{Source: "Leaf", Canonical: "leaf"},
-	}}
+	}
 }
 
 // closedDoc returns a document holding tds beside the leaf.
@@ -69,8 +69,9 @@ func typeRefViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 	t.Parallel()
 	doc := closedDoc(&ir.Union{
-		TypeCommon: ir.TypeCommon{ID: "t/x/U", Name: ir.Naming{Source: "U", Canonical: "u"}},
-		Variants:   []ir.Variant{{Type: ir.TypeRef{Target: ""}}},
+		ID:       "t/x/U",
+		Name:     ir.Naming{Source: "U", Canonical: "u"},
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: ""}}},
 	})
 
 	all := irverify.Verify(doc)
@@ -99,7 +100,8 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 		{
 			name: "a property's type",
 			doc: closedDoc(&ir.Model{
-				TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}},
+				ID:   "t/x/M",
+				Name: ir.Naming{Source: "M", Canonical: "m"},
 				Properties: []ir.Property{{
 					ID:   "p/x/M/f",
 					Name: ir.Naming{Source: "f", Canonical: "f"},
@@ -111,24 +113,27 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 		{
 			name: "a list's element",
 			doc: closedDoc(&ir.List{
-				TypeCommon: ir.TypeCommon{ID: "t/x/L", Name: ir.Naming{Source: "L", Canonical: "l"}},
-				Elem:       ir.TypeRef{},
+				ID:   "t/x/L",
+				Name: ir.Naming{Source: "L", Canonical: "l"},
+				Elem: ir.TypeRef{},
 			}),
 			path: "doc.Types[t/x/L].Elem.Target",
 		},
 		{
 			name: "a tuple's element",
 			doc: closedDoc(&ir.Tuple{
-				TypeCommon: ir.TypeCommon{ID: "t/x/T", Name: ir.Naming{Source: "T", Canonical: "t"}},
-				Elems:      []ir.TypeRef{{Target: "t/x/Leaf"}, {}},
+				ID:    "t/x/T",
+				Name:  ir.Naming{Source: "T", Canonical: "t"},
+				Elems: []ir.TypeRef{{Target: "t/x/Leaf"}, {}},
 			}),
 			path: "doc.Types[t/x/T].Elems[1].Target",
 		},
 		{
 			name: "a model's base, allocated but naming nothing",
 			doc: closedDoc(&ir.Model{
-				TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}},
-				Base:       &ir.TypeRef{},
+				ID:   "t/x/M",
+				Name: ir.Naming{Source: "M", Canonical: "m"},
+				Base: &ir.TypeRef{},
 			}),
 			path: "doc.Types[t/x/M].Base.Target",
 		},
@@ -154,8 +159,9 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 func TestVerify_AbsentOptionalTypeRefIsClean(t *testing.T) {
 	t.Parallel()
 	doc := closedDoc(&ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}},
-		Base:       nil,
+		ID:   "t/x/M",
+		Name: ir.Naming{Source: "M", Canonical: "m"},
+		Base: nil,
 		Properties: []ir.Property{{
 			ID:   "p/x/M/f",
 			Name: ir.Naming{Source: "f", Canonical: "f"},

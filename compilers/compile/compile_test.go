@@ -20,7 +20,7 @@ func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 	var seenDuringBuild bool
 	id := types.Intern("/p", "t/x", func() ir.TypeDef {
 		_, seenDuringBuild = types.Lookup("/p")
-		return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}}
+		return &ir.Model{ID: "t/x"}
 	})
 	assert.Equal(t, ir.TypeID("t/x"), id)
 	assert.True(t, seenDuringBuild, "the coordinate resolves while build is still running")
@@ -47,7 +47,7 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}} })
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 
 	td, ok := types.NodeAt("/p")
 	require.True(t, ok, "an interned coordinate resolves to its node in one step")
@@ -63,7 +63,7 @@ func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)
-	types.Register("t/composed", &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/composed"}})
+	types.Register("t/composed", &ir.Model{ID: "t/composed"})
 
 	td, ok := types.Node("t/composed")
 	require.True(t, ok)
@@ -197,7 +197,7 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)
-	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}} })
+	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 	types.Register("t/composed", &ir.Any{})
 
 	assert.Equal(t, 2, types.Len())
@@ -216,7 +216,7 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)
 	node := func(id ir.TypeID) func() ir.TypeDef {
-		return func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: id}} }
+		return func() ir.TypeDef { return &ir.Model{ID: id} }
 	}
 	types.Intern("/components/schemas/A~1B", "t/openapi/collapsed", node("t/openapi/collapsed"))
 	types.Intern("/components/schemas/A/B", "t/openapi/collapsed", node("t/openapi/collapsed"))
@@ -234,7 +234,7 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes(0)
-	build := func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A"}} }
+	build := func() ir.TypeDef { return &ir.Model{ID: "t/x/A"} }
 	types.Intern("/p", "t/x/A", build)
 	types.Intern("/p", "t/x/A", build)
 
@@ -253,7 +253,7 @@ func TestTypes_RefusedInternReleasesItsID(t *testing.T) {
 	require.Len(t, types.Violations(), 1, "the nil build is refused")
 
 	types.Intern("/second", "t/x/A", func() ir.TypeDef {
-		return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A"}}
+		return &ir.Model{ID: "t/x/A"}
 	})
 	assert.Len(t, types.Violations(), 1, "no second violation: the refused intern left no claim behind")
 	assert.Equal(t, 1, types.Len())
@@ -269,12 +269,12 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 		use  func(*compile.Types)
 	}{
 		{"minted after source-addressed", func(x *compile.Types) {
-			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/shared/p"}} })
-			x.Register("t/shared/minted", &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/shared/minted"}})
+			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{ID: "t/shared/p"} })
+			x.Register("t/shared/minted", &ir.Any{ID: "t/shared/minted"})
 		}},
 		{"source-addressed after minted", func(x *compile.Types) {
-			x.Register("t/shared/minted", &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/shared/minted"}})
-			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/shared/p"}} })
+			x.Register("t/shared/minted", &ir.Any{ID: "t/shared/minted"})
+			x.Intern("/p", "t/shared/p", func() ir.TypeDef { return &ir.Model{ID: "t/shared/p"} })
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -290,7 +290,7 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 // named returns a model at id carrying hint as its only name, for the
 // provisional-naming tests below.
 func named(hint string) ir.TypeDef {
-	return &ir.Model{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: ir.Naming{Hint: hint}}}
+	return &ir.Model{ID: provisionalID, Name: ir.Naming{Hint: hint}}
 }
 
 // provisionalPointer is the coordinate the provisional-naming tests below use:
@@ -348,7 +348,7 @@ func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
 
 	declaredFirst := compile.NewTypes(0)
 	declaredFirst.Intern(provisionalPointer, provisionalID, func() ir.TypeDef {
-		return &ir.Scalar{TypeCommon: ir.TypeCommon{ID: provisionalID, Name: compile.NamingHint(raw)}}
+		return &ir.Scalar{ID: provisionalID, Name: compile.NamingHint(raw)}
 	})
 	interned := hintAt(t, declaredFirst)
 

@@ -164,8 +164,7 @@ func appendIDClasses(dst []reflect.Type, classes map[reflect.Type]bool, t reflec
 	case reflect.Map:
 		return append(dst, t.Key(), t.Elem())
 	case reflect.Struct:
-		for i := range t.NumField() {
-			f := t.Field(i)
+		for f := range t.Fields() {
 			if f.Name == idFieldName && namedString(f.Type) {
 				classes[f.Type] = true
 			}

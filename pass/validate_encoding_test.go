@@ -162,7 +162,7 @@ func TestValidate_EncodingKeyThroughComposition(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			doc.Types["t/parent"] = &ir.Model{
-				TypeCommon: ir.TypeCommon{ID: "t/parent"},
+				ID:         "t/parent",
 				Properties: []ir.Property{{ID: "p/parent/x", WireName: "x", Type: ir.TypeRef{Target: "t/prim/string"}}},
 			}
 			tc.compose(model(doc))
@@ -182,7 +182,7 @@ func TestValidate_EncodingKeyThroughCyclicComposition(t *testing.T) {
 	doc := validDoc()
 	model(doc).Base = &ir.TypeRef{Target: "t/cycle"}
 	doc.Types["t/cycle"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle"},
+		ID:         "t/cycle",
 		Properties: []ir.Property{{ID: "p/cycle/x", WireName: "x", Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Base:       &ir.TypeRef{Target: "t/m"},
 	}
@@ -209,12 +209,12 @@ func TestValidate_EncodingKeyThroughAlias(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			doc.Types["t/alias/inner"] = &ir.Scalar{
-				TypeCommon: ir.TypeCommon{ID: "t/alias/inner"},
-				Base:       &ir.TypeRef{Target: "t/m"},
+				ID:   "t/alias/inner",
+				Base: &ir.TypeRef{Target: "t/m"},
 			}
 			doc.Types["t/alias/outer"] = &ir.Scalar{
-				TypeCommon: ir.TypeCommon{ID: "t/alias/outer"},
-				Base:       &ir.TypeRef{Target: tc.base},
+				ID:   "t/alias/outer",
+				Base: &ir.TypeRef{Target: tc.base},
 			}
 			c := requestContent(doc)
 			c.Type = ir.TypeRef{Target: "t/alias/outer"}
@@ -234,15 +234,15 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/alias/a"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/alias/a"},
-		Base:       &ir.TypeRef{Target: "t/alias/b"},
+		ID:   "t/alias/a",
+		Base: &ir.TypeRef{Target: "t/alias/b"},
 	}
 	doc.Types["t/alias/b"] = &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/alias/b"},
-		Base:       &ir.TypeRef{Target: "t/cycle"},
+		ID:   "t/alias/b",
+		Base: &ir.TypeRef{Target: "t/cycle"},
 	}
 	doc.Types["t/cycle"] = &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle"},
+		ID:         "t/cycle",
 		Properties: []ir.Property{{ID: "p/cycle/x", WireName: "x", Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Base:       &ir.TypeRef{Target: "t/alias/a"}, // closes the cycle back through the aliases.
 	}
@@ -274,7 +274,7 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			doc.Types["t/nil"] = (*ir.Model)(nil) // seeded for every case; only one reaches it.
-			doc.Types["t/opaque"] = &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}}
+			doc.Types["t/opaque"] = &ir.Scalar{ID: "t/opaque"}
 			c := requestContent(doc)
 			c.Type = ir.TypeRef{Target: tc.target}
 			c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}

@@ -52,11 +52,11 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/a":   &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/a"}, Prim: ir.PrimString},
-		"t/b":   &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/b"}, Prim: ir.PrimString},
-		"t/i":   &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/i"}, Prim: ir.PrimInt32},
-		"t/any": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/any"}},
-		"t/m":   &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/m"}},
+		"t/a":   &ir.Primitive{ID: "t/a", Prim: ir.PrimString},
+		"t/b":   &ir.Primitive{ID: "t/b", Prim: ir.PrimString},
+		"t/i":   &ir.Primitive{ID: "t/i", Prim: ir.PrimInt32},
+		"t/any": &ir.Any{ID: "t/any"},
+		"t/m":   &ir.Model{ID: "t/m"},
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
@@ -76,8 +76,8 @@ func TestMerger_TypesConflictComparesReferentsNotReferences(t *testing.T) {
 func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
-		"t/int": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/int"}, Prim: ir.PrimInt32},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
@@ -111,7 +111,7 @@ func TestMerger_MergeConstraintsKeepsBothSidesBounds(t *testing.T) {
 func TestMerger_ResolvePrimKindReportsUnresolvableTargets(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/str": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/str"}, Prim: ir.PrimString},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	})
 
 	kind, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/str"})
