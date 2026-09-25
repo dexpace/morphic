@@ -6,7 +6,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -169,12 +169,18 @@ const determinismTries = 20
 // assertDeterministicMarshal marshals v determinismTries times and asserts
 // every encoding is byte-identical to the first (Class C / invariant #7: maps
 // emitted in sorted-key order so golden snapshots and caching are stable).
+// json.Deterministic(true) is passed explicitly: unlike v1, v2 sorts map keys
+// only on request, and most of v's fields are plain structs with no
+// MarshalJSONTo of their own to pin it for them. A *Document argument ignores
+// this option — MarshalJSONTo pins canonicalOptions() regardless of what the
+// caller passes — so passing it here is harmless for that case and required
+// for every other.
 func assertDeterministicMarshal(t *testing.T, v any) string {
 	t.Helper()
-	first, err := json.Marshal(v)
+	first, err := json.Marshal(v, json.Deterministic(true))
 	require.NoError(t, err)
 	for i := 1; i < determinismTries; i++ {
-		next, err := json.Marshal(v)
+		next, err := json.Marshal(v, json.Deterministic(true))
 		require.NoError(t, err)
 		require.Equal(t, string(first), string(next), "marshal run %d diverged from the first", i)
 	}
@@ -440,13 +446,10 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 	}
 }
 
-// assertTypeDefRoundTrip marshals a concrete TypeDef pointer (exercising its
-// MarshalJSON "kind" tag) and unmarshals into a fresh zero value of the same
-// concrete type, then compares with cmp.Diff. Concrete TypeDef kinds have no
-// custom UnmarshalJSON — the "kind" tag has no matching struct field, so the
-// standard decoder simply ignores it, which is exactly the behavior
-// TypeRegistry.UnmarshalJSON relies on after reading the tag separately
-// (json.go).
+// assertTypeDefRoundTrip marshals a concrete TypeDef pointer through its
+// MarshalJSONTo — which writes the adjacent "kind" tag — and unmarshals
+// through the matching UnmarshalJSONFrom, which refuses a tag naming a
+// different kind (json.go), then compares the result with cmp.Diff.
 func assertTypeDefRoundTrip[T any](t *testing.T, want *T) {
 	t.Helper()
 	raw, err := json.Marshal(want)

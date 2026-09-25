@@ -6,7 +6,8 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -149,14 +150,14 @@ func recompileStable(ctx context.Context, path string, input []byte, doc *ir.Doc
 // embedSchema wraps a JSON Schema fragment as the sole component schema of a
 // minimal OpenAPI 3.1 document, returning the marshaled bytes. It reports false
 // when fragment is not valid JSON: json.Marshal validates the embedded
-// json.RawMessage and fails, and there is nothing meaningful to compile.
+// jsontext.Value and fails, and there is nothing meaningful to compile.
 func embedSchema(fragment []byte) ([]byte, bool) {
 	doc := map[string]any{
 		"openapi": "3.1.0",
 		"info":    map[string]any{"title": "FuzzSchema", "version": "1.0.0"},
 		"paths":   map[string]any{},
 		"components": map[string]any{
-			"schemas": map[string]any{"Fuzzed": json.RawMessage(fragment)},
+			"schemas": map[string]any{"Fuzzed": jsontext.Value(fragment)},
 		},
 	}
 	b, err := json.Marshal(doc)

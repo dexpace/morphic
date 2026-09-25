@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "ExtensionPromotion",
   "version": "1.0.0",
   "docs": {},
@@ -134,7 +134,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -215,7 +214,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -245,7 +243,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -275,10 +272,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "one",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "one"
           },
           "docs": {}
         },
@@ -289,10 +283,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "two",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "two"
           },
           "docs": {}
         }
@@ -446,10 +437,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "light",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "light"
           },
           "docs": {}
         },
@@ -460,10 +448,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "dark",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "dark"
           },
           "docs": {}
         }
@@ -508,10 +493,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "small",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "small"
           },
           "docs": {}
         },
@@ -522,10 +504,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "large",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "large"
           },
           "docs": {}
         }
@@ -583,8 +562,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

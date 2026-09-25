@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,16 +11,16 @@ import (
 )
 
 // TestService_JSONContract pins Service's omitempty contract: Name, Docs,
-// Auth, and Provenance carry no omitempty. Auth is the load-bearing one — an
-// empty non-nil slice ("explicitly public") must differ from nil ("no
-// service-level default"), so the field cannot be dropped from the wire just
-// because it happens to be empty. It also pins that a fully populated
-// Service — inheritance, groups, auth, common errors, protocols, renames, and
-// server indices — round-trips.
+// and Provenance carry no omitempty. Auth is the load-bearing field even
+// though it carries omitzero rather than omitempty — an empty non-nil slice
+// ("explicitly public") must differ from nil ("no service-level default"),
+// so nil Auth omits the key entirely while an empty one is still written as
+// []. It also pins that a fully populated Service — inheritance, groups,
+// auth, common errors, protocols, renames, and server indices — round-trips.
 func TestService_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Service{},
-		`{"name":{},"docs":{},"auth":null,"provenance":{"source":0}}`,
+		`{"name":{},"docs":{},"provenance":{"source":0}}`,
 		ir.Service{
 			ID:        "s/openapi/petstore",
 			Name:      populatedNaming(),
@@ -55,7 +55,8 @@ func TestService_JSONContract(t *testing.T) {
 
 // TestService_AuthEmptyNonNilRoundTrips mirrors the Operation and Server
 // versions of this test: Service.Auth must serialize an empty non-nil slice
-// as [] and must not collapse it to nil on decode.
+// as [] and must not collapse it to nil on decode, while nil omits the key and
+// decodes back to nil.
 func TestService_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	t.Parallel()
 	svc := ir.Service{Auth: []ir.AuthRequirement{}}
@@ -65,8 +66,17 @@ func TestService_AuthEmptyNonNilRoundTrips(t *testing.T) {
 
 	var back ir.Service
 	require.NoError(t, json.Unmarshal(raw, &back))
-	require.NotNil(t, back.Auth)
+	require.NotNil(t, back.Auth, "empty Auth must not deserialize to nil")
 	assert.Empty(t, back.Auth)
+
+	var nilSvc ir.Service
+	rawNil, err := json.Marshal(nilSvc)
+	require.NoError(t, err)
+	assert.NotContains(t, string(rawNil), `"auth"`, "nil Auth omits the key rather than writing null")
+
+	var backNil ir.Service
+	require.NoError(t, json.Unmarshal(rawNil, &backNil))
+	assert.Nil(t, backNil.Auth, "an absent auth key must decode back to nil")
 }
 
 // TestService_RenamesDeterministic pins Class C for Service's TypeID-keyed

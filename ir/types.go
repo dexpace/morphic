@@ -115,11 +115,11 @@ type Scalar struct {
 	// hoisted over a shared target (ir-design §14) — a node of any kind, which a
 	// consumer following the chain must expect and stop at. nil = opaque scalar
 	// with implementation-defined representation (GraphQL custom scalars).
-	Base *TypeRef `json:"base,omitempty"`
+	Base *TypeRef `json:"base,omitzero"`
 	// Constraints restricts the scalar's admissible values.
-	Constraints *Constraints `json:"constraints,omitempty"`
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding overrides the scalar's wire encoding.
-	Encoding *Encoding `json:"encoding,omitempty"`
+	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
 // Model is a struct, object, or message shape (ir-design §4.3). Properties holds
@@ -131,7 +131,7 @@ type Model struct {
 	Properties []Property `json:"properties,omitempty"`
 	// Base is the declared single inheritance parent (TypeSpec extends,
 	// allOf-as-inheritance).
-	Base *TypeRef `json:"base,omitempty"`
+	Base *TypeRef `json:"base,omitzero"`
 	// Implements is N-ary interface conformance (GraphQL implements A & B);
 	// targets are Abstract models.
 	Implements []TypeRef `json:"implements,omitempty"`
@@ -139,13 +139,13 @@ type Model struct {
 	// extra allOf entries).
 	Mixins []TypeRef `json:"mixins,omitempty"`
 	// AdditionalProps is a map-like catch-all alongside declared properties.
-	AdditionalProps *AdditionalProps `json:"additionalProps,omitempty"`
+	AdditionalProps *AdditionalProps `json:"additionalProps,omitzero"`
 	// Additional is the openness of the property set.
 	Additional AdditionalMode `json:"additional,omitempty"`
 	// Constraints bounds the property set's cardinality (JSON Schema
 	// minProperties/maxProperties on an object). Openness is Additional's
 	// concern; this is how many properties an instance may carry.
-	Constraints *Constraints `json:"constraints,omitempty"`
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// Abstract marks a model that cannot be instantiated directly (GraphQL
 	// interface types).
 	Abstract bool `json:"abstract"`
@@ -156,7 +156,7 @@ type Model struct {
 	// (protobuf extensions 100 to 199).
 	ExtensionRanges []WireIDRange `json:"extensionRanges,omitempty"`
 	// Discriminator is set on the polymorphic base.
-	Discriminator *Discriminator `json:"discriminator,omitempty"`
+	Discriminator *Discriminator `json:"discriminator,omitzero"`
 	// DiscriminatorValue is set on each subtype: its wire tag value.
 	DiscriminatorValue string `json:"discriminatorValue,omitempty"`
 	// InputOnly marks GraphQL input types, which have distinct identity from
@@ -178,7 +178,7 @@ type AdditionalProps struct {
 	// Value is the value schema for catch-all properties.
 	Value TypeRef `json:"value"`
 	// Key is the key schema; nil = string keys.
-	Key *TypeRef `json:"key,omitempty"`
+	Key *TypeRef `json:"key,omitzero"`
 	// Patterns are key-pattern-scoped value schemas (JSON Schema patternProperties).
 	Patterns []PatternProps `json:"patterns,omitempty"`
 }
@@ -204,7 +204,7 @@ type Discriminator struct {
 	PropertyName string `json:"propertyName,omitempty"`
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
-	Index *int `json:"index,omitempty"`
+	Index *int `json:"index,omitzero"`
 	// Mapping maps wire value to subtype; nil = infer by type name.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
@@ -233,7 +233,7 @@ type Union struct {
 	// oneof, Smithy union, GraphQL __typename) rather than untagged JSON oneOf.
 	WireTagged bool `json:"wireTagged"`
 	// Discriminator is the internal tag property, when one exists.
-	Discriminator *Discriminator `json:"discriminator,omitempty"`
+	Discriminator *Discriminator `json:"discriminator,omitzero"`
 }
 
 // Variant is one member of a Union (ir-design §4.4).
@@ -247,17 +247,17 @@ type Variant struct {
 	WireName string `json:"wireName,omitempty"`
 	// WireID is the protobuf oneof field number or Cap'n Proto/Avro ordinal; nil =
 	// none (pointer because 0 is a legal ordinal).
-	WireID *int `json:"wireID,omitempty"`
+	WireID *int `json:"wireID,omitzero"`
 	// XML is @xmlName/@xmlNamespace on union members.
-	XML *XMLHints `json:"xml,omitempty"`
+	XML *XMLHints `json:"xml,omitzero"`
 	// Event is event-stream metadata when the union is a stream's event set.
-	Event *EventInfo `json:"event,omitempty"`
+	Event *EventInfo `json:"event,omitzero"`
 	// Docs is the variant's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the variant as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the variant's versioning timeline.
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Examples are typed example values for the variant.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -302,10 +302,10 @@ type EnumMember struct {
 	// Docs is the member's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the member as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the member's versioning timeline (TypeSpec @added on
 	// EnumMember).
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Examples are typed example values for the member.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -318,10 +318,10 @@ type List struct {
 	// Elem is the element type.
 	Elem TypeRef `json:"elem"`
 	// Constraints restricts minItems/maxItems/uniqueItems.
-	Constraints *Constraints `json:"constraints,omitempty"`
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding is the container-level wire encoding (protobuf packed vs expanded
 	// repeated fields); it stacks with the element's own encoding.
-	Encoding *Encoding `json:"encoding,omitempty"`
+	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
 // MapT is a keyed collection (Record/additionalProperties-only/proto map)

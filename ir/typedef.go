@@ -73,7 +73,7 @@ const (
 
 // TypeCommon carries the identity, documentation, and cross-cutting metadata
 // shared by every type-graph node (ir-design §4). It is embedded in each
-// concrete kind and inlined by encoding/json.
+// concrete kind, and its fields sit beside the kind's own in JSON.
 type TypeCommon struct {
 	// ID is the type's stable synthetic identity in Document.Types.
 	ID TypeID `json:"id"`
@@ -96,11 +96,11 @@ type TypeCommon struct {
 	// surface (protobuf editions export/local, TCGC @access(internal)).
 	Access string `json:"access,omitempty"`
 	// Deprecation marks the type as deprecated with optional migration guidance.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the type's versioning timeline.
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Usage is the computed input/output/error/multipart usage bitset.
-	Usage UsageFlags `json:"usage,omitempty"`
+	Usage UsageFlags `json:"usage,omitzero"`
 	// WireNameByFormat carries type-level serialized-name overrides per media type
 	// (TypeSpec @encodedName on models/enums/scalars).
 	WireNameByFormat map[string]string `json:"wireNameByFormat,omitempty"`
@@ -108,12 +108,12 @@ type TypeCommon struct {
 	// (TypeSpec @mediaTypeHint, Smithy @mediaType on string/blob shapes).
 	MediaTypeHint string `json:"mediaTypeHint,omitempty"`
 	// XML is the type-level XML wire shape: root element name/namespace.
-	XML *XMLHints `json:"xml,omitempty"`
+	XML *XMLHints `json:"xml,omitzero"`
 	// Examples are typed example values attached to the type.
 	Examples []Example `json:"examples,omitempty"`
 	// Instantiation records provenance for monomorphized generics (TypeSpec
 	// templates).
-	Instantiation *TemplateInstantiation `json:"instantiation,omitempty"`
+	Instantiation *TemplateInstantiation `json:"instantiation,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the type came from.
@@ -133,9 +133,9 @@ type TemplateInstantiation struct {
 // Value is set (TypeSpec valueof template parameters).
 type TemplateArg struct {
 	// Type is the type argument, set when this is a type parameter.
-	Type *TypeRef `json:"type,omitempty"`
+	Type *TypeRef `json:"type,omitzero"`
 	// Value is the value argument, set when this is a valueof parameter.
-	Value *Value `json:"value,omitempty"`
+	Value *Value `json:"value,omitzero"`
 }
 
 // newTypeDefByKind maps every TypeKind to a constructor of its concrete type.

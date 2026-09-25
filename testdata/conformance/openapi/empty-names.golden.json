@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "Empty Names",
   "version": "1.0.0",
   "docs": {},
@@ -44,7 +44,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "tags": [
                 ""
               ],
@@ -67,7 +66,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -306,10 +304,7 @@
       },
       "value": {
         "kind": "number",
-        "num": "1",
-        "bytes": null,
-        "list": null,
-        "object": null
+        "num": "1"
       }
     },
     "t/anon/components/schemas/Mixed/properties//enum/1": {
@@ -327,10 +322,7 @@
       },
       "value": {
         "kind": "string",
-        "str": "a",
-        "bytes": null,
-        "list": null,
-        "object": null
+        "str": "a"
       }
     },
     "t/anon/components/schemas/Patterns/properties/": {
@@ -890,10 +882,7 @@
             "hint": "empty"
           },
           "value": {
-            "kind": "string",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "kind": "string"
           },
           "docs": {}
         },
@@ -904,10 +893,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "empty",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "empty"
           },
           "docs": {}
         },
@@ -918,10 +904,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "done",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "done"
           },
           "docs": {}
         }
@@ -1064,8 +1047,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

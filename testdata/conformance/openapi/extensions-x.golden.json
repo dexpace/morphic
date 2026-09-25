@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "ExtensionsX",
   "version": "1.0.0",
   "docs": {
@@ -200,7 +200,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "tags": [
                 "t1"
               ],
@@ -309,7 +308,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -391,10 +389,7 @@
                         "name": "e1",
                         "value": {
                           "kind": "string",
-                          "str": "v",
-                          "bytes": null,
-                          "list": null,
-                          "object": null
+                          "str": "v"
                         },
                         "unmodeled": {
                           "openapi:x-mark": {
@@ -468,7 +463,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -511,7 +505,6 @@
           ]
         }
       ],
-      "auth": null,
       "unmodeled": {
         "openapi:paths/x-mark": {
           "reason": "vendor_extension",
@@ -877,7 +870,6 @@
           }
         }
       ],
-      "auth": null,
       "unmodeled": {
         "openapi:x-mark": {
           "reason": "vendor_extension",

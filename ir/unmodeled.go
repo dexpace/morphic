@@ -1,9 +1,9 @@
 package ir
 
-import "encoding/json"
+import "encoding/json/jsontext"
 
 // RawValue is source JSON preserved verbatim.
-type RawValue = json.RawMessage
+type RawValue = jsontext.Value
 
 // UnmodeledReason says why a construct was kept verbatim instead of modeled. It
 // is a property of the construct itself, never of the diagnostic a compiler
@@ -59,9 +59,10 @@ type UnmodeledEntry struct {
 	Reason UnmodeledReason `json:"reason"`
 	// Value is the source construct, preserved whole rather than byte-for-byte:
 	// nothing here discards or reshapes it, but re-encodings sit between the
-	// source bytes and this field. json.Marshal compacts a RawValue and escapes
-	// <, >, & as \uXXXX, and a compiler that rebuilds the value from its parsed
-	// tree (the OpenAPI path does) also sorts object keys.
+	// source bytes and this field. Encoding a document reformats a RawValue with
+	// the rest of it, whitespace and string escapes alike, and a compiler that
+	// rebuilds the value from its parsed tree (the OpenAPI path does) also sorts
+	// object keys.
 	//
 	// A number's value survives exactly. Its spelling is canonicalized only
 	// where JSON and YAML disagree about how to write one — .5 becomes 0.5,

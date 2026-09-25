@@ -272,7 +272,7 @@ func integerFieldsOf(t *testing.T, decls map[string]ast.Expr, ts *ast.TypeSpec) 
 // unclassified.
 //
 // A declaration whose underlying type comes from another package (a selector
-// such as json.RawMessage) is not followed: resolving that needs go/types rather
+// such as jsontext.Value) is not followed: resolving that needs go/types rather
 // than a parse. The ir package imports only the standard library, and declares
 // no integer type through any of it.
 //

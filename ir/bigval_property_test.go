@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/dexpace/morphic/ir"
@@ -81,8 +81,8 @@ func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 		if err != nil {
 			return // NewBigVal rejected s; it makes no promise about a rejection.
 		}
-		if !json.Valid([]byte(v.String())) {
-			t.Fatalf("NewBigVal(%q) = %q, which json.Valid rejects", s, v.String())
+		if !jsontext.Value(v.String()).IsValid() {
+			t.Fatalf("NewBigVal(%q) = %q, which jsontext.Value.IsValid rejects", s, v.String())
 		}
 	})
 }

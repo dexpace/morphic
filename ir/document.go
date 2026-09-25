@@ -41,7 +41,19 @@ package ir
 //     string carrying the bound itself, so the two dialects' exclusive bounds no
 //     longer lose one keyword to the other. The JSON type of both keys changed;
 //     a consumer decoding them as booleans fails rather than degrades.
-const IRVersion = "0.4.0"
+//
+// 0.5.0 moves the IR onto encoding/json/v2 and gives absence one spelling:
+//
+//   - Operation.Auth, Service.Auth and Server.Auth write nil (inherit) as an
+//     absent key rather than null. An empty list, explicitly public, is still [].
+//   - A Value's bytes, list and object payloads, and a CtorValue's args, are
+//     omitted when empty rather than written as null.
+//   - Strings use RFC 8785's minimal escaping, so <, > and & are written as
+//     themselves rather than as \u003c, \u003e and \u0026.
+//   - Decoding refuses what it used to take in silence: a member the schema
+//     does not define, a duplicate name, a string that is not UTF-8, and a
+//     missing or foreign irVersion, which is read before any other member.
+const IRVersion = "0.5.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build. It is the predicate behind the compatibility policy in
@@ -80,9 +92,9 @@ type Document struct {
 	// Docs is the document-level documentation.
 	Docs Docs `json:"docs"`
 	// Contact is the API contact (OpenAPI/AsyncAPI info.contact).
-	Contact *Contact `json:"contact,omitempty"`
+	Contact *Contact `json:"contact,omitzero"`
 	// License is the API license (OpenAPI/AsyncAPI info.license).
-	License *License `json:"license,omitempty"`
+	License *License `json:"license,omitzero"`
 	// TermsOfService is the terms-of-service URL or text.
 	TermsOfService string `json:"termsOfService,omitempty"`
 	// Services holds one or more services; multi-service documents are normal

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "Examples",
   "version": "1.0.0",
   "docs": {},
@@ -42,10 +42,7 @@
                       "name": "one",
                       "value": {
                         "kind": "string",
-                        "str": "first",
-                        "bytes": null,
-                        "list": null,
-                        "object": null
+                        "str": "first"
                       }
                     }
                   ],
@@ -81,20 +78,14 @@
                             "name": "inline",
                             "value": {
                               "kind": "string",
-                              "str": "hello",
-                              "bytes": null,
-                              "list": null,
-                              "object": null
+                              "str": "hello"
                             }
                           },
                           {
                             "name": "shared",
                             "value": {
                               "kind": "string",
-                              "str": "world",
-                              "bytes": null,
-                              "list": null,
-                              "object": null
+                              "str": "world"
                             }
                           },
                           {
@@ -103,10 +94,7 @@
                             "description": "a description",
                             "value": {
                               "kind": "string",
-                              "str": "annotated-value",
-                              "bytes": null,
-                              "list": null,
-                              "object": null
+                              "str": "annotated-value"
                             }
                           },
                           {
@@ -144,10 +132,7 @@
                         {
                           "value": {
                             "kind": "number",
-                            "num": "5",
-                            "bytes": null,
-                            "list": null,
-                            "object": null
+                            "num": "5"
                           }
                         }
                       ],
@@ -165,7 +150,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -195,7 +179,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -215,17 +198,12 @@
         {
           "value": {
             "kind": "object",
-            "bytes": null,
-            "list": null,
             "object": [
               {
                 "name": "k",
                 "value": {
                   "kind": "string",
-                  "str": "v",
-                  "bytes": null,
-                  "list": null,
-                  "object": null
+                  "str": "v"
                 }
               }
             ]
@@ -283,10 +261,7 @@
         {
           "value": {
             "kind": "string",
-            "str": "component-level",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "component-level"
           }
         }
       ],
@@ -339,19 +314,13 @@
             {
               "value": {
                 "kind": "number",
-                "num": "1",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "1"
               }
             },
             {
               "value": {
                 "kind": "number",
-                "num": "2",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "2"
               }
             }
           ],
@@ -424,8 +393,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

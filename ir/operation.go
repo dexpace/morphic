@@ -11,13 +11,13 @@ type Operation struct {
 	// Docs is the operation's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the operation as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the operation's versioning timeline.
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Params are all logical inputs, protocol-unbound.
 	Params []Parameter `json:"params,omitempty"`
 	// Request is the body/message content; nil = none.
-	Request *Payload `json:"request,omitempty"`
+	Request *Payload `json:"request,omitzero"`
 	// Responses are the ordered success and alternative-success responses.
 	Responses []Response `json:"responses,omitempty"`
 	// Errors are the declared failure shapes.
@@ -30,21 +30,21 @@ type Operation struct {
 	// Streaming is the derived streaming summary: none | client | server | bidi.
 	Streaming StreamingMode `json:"streaming,omitempty"`
 	// RequestStream carries client-to-server streaming semantics, when present.
-	RequestStream *StreamDetail `json:"requestStream,omitempty"`
+	RequestStream *StreamDetail `json:"requestStream,omitzero"`
 	// ResponseStream carries server-to-client streaming semantics, when present.
-	ResponseStream *StreamDetail `json:"responseStream,omitempty"`
+	ResponseStream *StreamDetail `json:"responseStream,omitzero"`
 	// Pagination describes the operation's pagination, when present.
-	Pagination *Pagination `json:"pagination,omitempty"`
+	Pagination *Pagination `json:"pagination,omitzero"`
 	// LongRunning describes long-running-operation semantics, when present.
-	LongRunning *LongRunning `json:"longRunning,omitempty"`
+	LongRunning *LongRunning `json:"longRunning,omitzero"`
 	// Idempotency is the operation's idempotency classification: unknown | safe |
 	// idempotent | idempotency_token(param). safe = no side effects
 	// (Smithy @readonly, HTTP GET semantics).
 	Idempotency Idempotency `json:"idempotency"`
 	// Auth overrides the service default; an empty slice differs from nil (empty
-	// = explicitly public). The four-state distinction requires the field to
-	// serialize even when empty, so it carries no omitempty.
-	Auth []AuthRequirement `json:"auth"`
+	// = explicitly public). omitzero keeps the two apart on the wire: nil is an
+	// absent key and inherits, an empty slice is written as [].
+	Auth []AuthRequirement `json:"auth,omitzero"`
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`
 	// ParameterVisibility overrides the visibility filter for the request view
@@ -54,7 +54,7 @@ type Operation struct {
 	// nil = protocol default.
 	ReturnTypeVisibility []Lifecycle `json:"returnTypeVisibility,omitempty"`
 	// OverloadOf points at the operation this one overloads (TypeSpec @overload).
-	OverloadOf *OpID `json:"overloadOf,omitempty"`
+	OverloadOf *OpID `json:"overloadOf,omitzero"`
 	// Bindings describes how the neutral core maps onto concrete protocols (§8).
 	Bindings OpBindings `json:"bindings"`
 	// Examples are operation-scenario examples.
@@ -76,24 +76,24 @@ type Parameter struct {
 	// Required reports whether the caller must supply the parameter.
 	Required bool `json:"required"`
 	// Default is the parameter's default value.
-	Default *Value `json:"default,omitempty"`
+	Default *Value `json:"default,omitzero"`
 	// Constraints restricts the parameter's admissible values, and holds only
 	// what the parameter's own position declared. A bound on a $ref'd schema
 	// stays on the node Type points at and is never copied here, unlike Docs,
 	// Deprecation and Default, which merge from that target with use-site
 	// precedence: bounds conjoin rather than override, so nil means this
 	// position declared none, not that the value is unbounded (ir-design §12.2).
-	Constraints *Constraints `json:"constraints,omitempty"`
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
 	// expressions); SDKs may auto-fill it. nil = caller-supplied.
-	ValueFrom *PropPath `json:"valueFrom,omitempty"`
+	ValueFrom *PropPath `json:"valueFrom,omitzero"`
 	// Docs is the parameter's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the parameter as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the parameter's versioning timeline.
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Examples are parameter-level example values.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -121,7 +121,7 @@ type Payload struct {
 	// document says no". A response or message payload leaves it nil: only a
 	// request body can be omitted, and pass/validate reports one that is set
 	// anywhere else (ir/payload-required-outside-request).
-	Required *bool `json:"required,omitempty"`
+	Required *bool `json:"required,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
@@ -138,18 +138,18 @@ type Content struct {
 	Type TypeRef `json:"type"`
 	// Item is the element shape of a sequential stream declared per media type
 	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential.
-	Item *TypeRef `json:"item,omitempty"`
+	Item *TypeRef `json:"item,omitzero"`
 	// ItemEncoding is the wire encoding of a sequential stream's item
 	// (3.2 itemEncoding); nil = none declared. It is singular like Item because
 	// it governs every item alike; positional per-item encoding has no form here
 	// and stays in Unmodeled.
-	ItemEncoding *PartEncoding `json:"itemEncoding,omitempty"`
+	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
 	// part property's PropID.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads).
-	File *FileInfo `json:"file,omitempty"`
+	File *FileInfo `json:"file,omitzero"`
 	// Examples are content-level example values.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -171,7 +171,7 @@ type PartEncoding struct {
 	// Style is the form-style serialization for non-file parts.
 	Style string `json:"style,omitempty"`
 	// Explode overrides the default explode behavior; nil = default.
-	Explode *bool `json:"explode,omitempty"`
+	Explode *bool `json:"explode,omitzero"`
 }
 
 // FileInfo describes a file-upload/download body (ir-design §7.2).
@@ -180,7 +180,7 @@ type FileInfo struct {
 	IsText bool `json:"isText"`
 	// Contents is the declared contents scalar chain (string/bytes extensions);
 	// nil = bytes.
-	Contents *TypeRef `json:"contents,omitempty"`
+	Contents *TypeRef `json:"contents,omitzero"`
 	// ContentTypes is the declared allowed content-type set (TypeSpec
 	// File<"image/png" | "image/jpeg">); runtime Content-Type comes from the file
 	// value.
@@ -201,13 +201,13 @@ type Response struct {
 	// Conditions are the HTTP status codes/ranges; empty for RPC single-response.
 	Conditions ResponseConditions `json:"conditions"`
 	// Payload is the response body; nil = no body.
-	Payload *Payload `json:"payload,omitempty"`
+	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the response metadata fields.
 	Headers []Property `json:"headers,omitempty"`
 	// StatusCodeProp is the output member populated from the runtime HTTP status
 	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
 	// member is suppressed from the body.
-	StatusCodeProp *PropPath `json:"statusCodeProp,omitempty"`
+	StatusCodeProp *PropPath `json:"statusCodeProp,omitzero"`
 	// Docs is the response's documentation.
 	Docs Docs `json:"docs"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -250,7 +250,7 @@ type ErrorCase struct {
 	Conditions ResponseConditions `json:"conditions"`
 	// Payload is the error body, one Content per media type; nil = no body. The
 	// error-flagged models an error case references are its contents' types.
-	Payload *Payload `json:"payload,omitempty"`
+	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the error response's metadata fields — Retry-After and the
 	// rate-limit family live here.
 	Headers []Property `json:"headers,omitempty"`
@@ -260,11 +260,11 @@ type ErrorCase struct {
 	Fault string `json:"fault,omitempty"`
 	// Retryable reports whether the error is retryable (Smithy @retryable);
 	// nil = unknown.
-	Retryable *bool `json:"retryable,omitempty"`
+	Retryable *bool `json:"retryable,omitzero"`
 	// Throttling reports that the error is retryable specifically due to
 	// throttling — a distinct backoff class (Smithy @retryable(throttling: true));
 	// nil = unknown.
-	Throttling *bool `json:"throttling,omitempty"`
+	Throttling *bool `json:"throttling,omitzero"`
 	// Docs is the error case's documentation.
 	Docs Docs `json:"docs"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -295,10 +295,10 @@ type StreamDetail struct {
 	// Property.EventPayload marks a raw-payload member (Smithy @eventHeader/
 	// @eventPayload). Per-event content types and terminal events live on
 	// Variant.Event.
-	Events *TypeRef `json:"events,omitempty"`
+	Events *TypeRef `json:"events,omitzero"`
 	// Initial is the initial-request/initial-response message preceding the
 	// stream (Smithy event stream initial messages); nil = none.
-	Initial *TypeRef `json:"initial,omitempty"`
+	Initial *TypeRef `json:"initial,omitzero"`
 	// RequiresLength reports that the streamed content must have a known finite
 	// length up front (Smithy @requiresLength) — changes the generated parameter
 	// type.
@@ -362,23 +362,23 @@ type Pagination struct {
 	// declared (Smithy/TypeSpec).
 	Inferred bool `json:"inferred"`
 	// InputCursor is the input that continues iteration.
-	InputCursor *ParamPath `json:"inputCursor,omitempty"`
+	InputCursor *ParamPath `json:"inputCursor,omitzero"`
 	// InputLimit is the page-size input.
-	InputLimit *ParamPath `json:"inputLimit,omitempty"`
+	InputLimit *ParamPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
-	Items *PropPath `json:"items,omitempty"`
+	Items *PropPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
-	NextCursor *PropPath `json:"nextCursor,omitempty"`
+	NextCursor *PropPath `json:"nextCursor,omitzero"`
 	// NextLink is the next-page link in the response.
-	NextLink *PropPath `json:"nextLink,omitempty"`
+	NextLink *PropPath `json:"nextLink,omitzero"`
 	// PrevLink is the previous-page navigation link.
-	PrevLink *PropPath `json:"prevLink,omitempty"`
+	PrevLink *PropPath `json:"prevLink,omitzero"`
 	// FirstLink is the first-page navigation link.
-	FirstLink *PropPath `json:"firstLink,omitempty"`
+	FirstLink *PropPath `json:"firstLink,omitzero"`
 	// LastLink is the last-page navigation link.
-	LastLink *PropPath `json:"lastLink,omitempty"`
+	LastLink *PropPath `json:"lastLink,omitzero"`
 	// TotalCount is the total-count source in the response.
-	TotalCount *PropPath `json:"totalCount,omitempty"`
+	TotalCount *PropPath `json:"totalCount,omitzero"`
 }
 
 // PropPath addresses a member within a type by identity, not by name
@@ -386,7 +386,7 @@ type Pagination struct {
 type PropPath struct {
 	// Root is the type the path roots in; nil = determined by context (the
 	// enclosing response body, message payload, …).
-	Root *TypeRef `json:"root,omitempty"`
+	Root *TypeRef `json:"root,omitzero"`
 	// In is "" = body/payload | "header"; continuation tokens and reply addresses
 	// can live in response/message headers, not just bodies.
 	In string `json:"in,omitempty"`
@@ -409,13 +409,13 @@ type LongRunning struct {
 	FinalStateVia string `json:"finalStateVia,omitempty"`
 	// PollingOperation is the declared poll op (Azure.Core @pollingOperation — a
 	// library convention, not core TypeSpec).
-	PollingOperation *OpID `json:"pollingOperation,omitempty"`
+	PollingOperation *OpID `json:"pollingOperation,omitzero"`
 	// FinalOperation is the declared final-result op (Azure.Core @finalOperation).
-	FinalOperation *OpID `json:"finalOperation,omitempty"`
+	FinalOperation *OpID `json:"finalOperation,omitzero"`
 	// PollingType is the status-monitor type.
-	PollingType *TypeRef `json:"pollingType,omitempty"`
+	PollingType *TypeRef `json:"pollingType,omitzero"`
 	// FinalType is the final-result type.
-	FinalType *TypeRef `json:"finalType,omitempty"`
+	FinalType *TypeRef `json:"finalType,omitzero"`
 	// ResultPath locates the final result within the polling response.
-	ResultPath *PropPath `json:"resultPath,omitempty"`
+	ResultPath *PropPath `json:"resultPath,omitzero"`
 }

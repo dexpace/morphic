@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "NullableEnum31",
   "version": "1.0.0",
   "docs": {},
@@ -63,7 +63,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -93,7 +92,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -141,10 +139,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "red",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "red"
           },
           "docs": {}
         },
@@ -155,10 +150,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "green",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "green"
           },
           "docs": {}
         }
@@ -189,10 +181,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "red",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "red"
           },
           "docs": {}
         },
@@ -203,10 +192,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "green",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "green"
           },
           "docs": {}
         }
@@ -365,10 +351,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "red",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "red"
           },
           "docs": {}
         },
@@ -379,10 +362,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "green",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "green"
           },
           "docs": {}
         }
@@ -397,8 +377,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

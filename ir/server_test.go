@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,13 +11,15 @@ import (
 )
 
 // TestServer_JSONContract pins that Name and Description carry no omitempty
-// (every server has both), and Auth carries no omitempty because an empty
-// non-nil slice ("explicitly public") must stay distinguishable from nil ("no
-// server-scoped override") — the same reasoning as Operation.Auth and
-// Service.Auth. It also pins that a fully populated Server round-trips.
+// (every server has both), and Auth carries omitzero rather than omitempty
+// because an empty non-nil slice ("explicitly public") must stay
+// distinguishable from nil ("no server-scoped override") — the same
+// reasoning as Operation.Auth and Service.Auth — so a nil Auth omits the key
+// entirely rather than writing null. It also pins that a fully populated
+// Server round-trips.
 func TestServer_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.Server{}, `{"name":{},"description":{},"auth":null}`, ir.Server{
+	assertJSONContract(t, ir.Server{}, `{"name":{},"description":{}}`, ir.Server{
 		Name:        ir.Naming{Source: "production", Canonical: "production"},
 		URLTemplate: "https://{region}.example.com/v1",
 		Description: populatedDocs(),
@@ -40,9 +42,10 @@ func TestServer_JSONContract(t *testing.T) {
 }
 
 // TestServer_AuthEmptyNonNilRoundTrips mirrors TestOperation_AuthEmptyNonNilRoundTrips
-// (document_test.go) for Server.Auth: an empty non-nil slice must serialize as
-// [] and must not collapse to nil on decode, since Server is the other place
-// besides Operation and Service where the source comment makes this promise.
+// (json_test.go) for Server.Auth: an empty non-nil slice must serialize as []
+// and must not collapse to nil on decode, while a nil slice must omit the key
+// entirely and decode back to nil, since Server is the other place besides
+// Operation and Service where the source comment makes this promise.
 func TestServer_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	t.Parallel()
 	srv := ir.Server{Auth: []ir.AuthRequirement{}}
@@ -58,7 +61,11 @@ func TestServer_AuthEmptyNonNilRoundTrips(t *testing.T) {
 	var nilSrv ir.Server
 	rawNil, err := json.Marshal(nilSrv)
 	require.NoError(t, err)
-	assert.Contains(t, string(rawNil), `"auth":null`, "nil Auth serializes as null")
+	assert.NotContains(t, string(rawNil), `"auth"`, "nil Auth omits the key rather than writing null")
+
+	var backNil ir.Server
+	require.NoError(t, json.Unmarshal(rawNil, &backNil))
+	assert.Nil(t, backNil.Auth, "an absent auth key must decode back to nil")
 }
 
 // TestServer_BindingsDeterministic pins Class C for Server's map field:

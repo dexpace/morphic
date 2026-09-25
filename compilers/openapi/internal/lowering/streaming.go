@@ -23,7 +23,7 @@ type StreamingMedia struct {
 	// Disabled turns the inference off. Off means off: an operation then carries
 	// the streaming fields a 3.2 itemSchema declares and nothing else, which is
 	// what a caller who does not want guesses in their IR asked for.
-	Disabled bool `json:"disabled,omitempty"`
+	Disabled bool `json:"disabled,omitzero"`
 	// MediaTypes replaces the default list rather than extending it, so a caller
 	// who states a list gets exactly that list. Empty means the default.
 	//

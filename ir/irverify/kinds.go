@@ -16,8 +16,8 @@ import (
 // where the kind came from.
 //
 // Nothing rejects it earlier either. PrimKind is a plain string type with no
-// UnmarshalJSON, so a document decoded from JSON or produced by a compiler
-// outside this tree carries an invented kind in unchallenged.
+// UnmarshalJSONFrom, so a document decoded from JSON or produced by a
+// compiler outside this tree carries an invented kind in unchallenged.
 //
 // Document.Types is the only place a Primitive lives, so iterating it is the
 // whole population. A primitive whose kind is empty is also reported by

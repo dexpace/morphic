@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "Neutral.Naming API",
   "version": "1.0.0",
   "docs": {},
@@ -169,7 +169,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -198,10 +197,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "in.progress",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "in.progress"
           },
           "docs": {}
         },
@@ -212,10 +208,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "done",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "done"
           },
           "docs": {}
         }
@@ -370,8 +363,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

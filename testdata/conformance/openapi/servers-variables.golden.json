@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "ServersVariables",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "servers_variables"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -39,8 +38,7 @@
             "description": "Deployment environment"
           }
         }
-      ],
-      "auth": null
+      ]
     }
   ],
   "sources": [

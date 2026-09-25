@@ -58,7 +58,7 @@ const DocumentPath = "doc"
 // later sort can repair (invariant 7).
 //
 // Byte sequences are skipped. Unmodeled and RawConfig payloads are
-// json.RawMessage and are the largest values a document holds, while a uint8
+// jsontext.Value and are the largest values a document holds, while a uint8
 // element is none of the things a visitor looks for — no typed ID, no Unmodeled
 // map, no Provenance, no index carrier. Descending one costs a reflect.Value and
 // a formatted path per byte for nothing: verifying a document holding one 256 KB

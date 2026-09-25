@@ -1,7 +1,7 @@
 package openapi
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"regexp"
 	"strings"
 	"testing"

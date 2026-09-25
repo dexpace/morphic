@@ -116,14 +116,17 @@ neighbouring version would mean claiming to know what changed between them, whic
 a version exists because nobody has. Morphic ships **no migration path** between generations — a
 document written by another generation is re-compiled from its source spec, not converted.
 
-**Where it is enforced.** In `irverify`, which is the gate every consumer of a document runs before
-trusting it, whether the document was just compiled in memory or decoded from JSON. Two codes,
-because the two failures name different writers: `ir/ir-version-absent` for a document carrying no
-stamp — a producer that forgot, and the failure `omitempty` hides best, since a document without
-the key is byte-identical to one that never had it — and `ir/ir-version-incompatible` for a stamp
-this build does not read. Nothing in the repository decodes a persisted `Document` today, so there
-is no separate loader to attach the check to; when one is written, `ir.CompatibleVersion` is what
-it calls, and it should refuse before interpreting any other field.
+**Where it is enforced.** In two places, one for each way a document reaches a consumer. Decoding
+one from JSON refuses it outright: `ir.Document`'s decoder reads `irVersion` before any other member
+and fails with `ir.ErrVersionAbsent` or `ir.ErrVersionIncompatible`, so another generation's
+document is reported as one rather than as whichever renamed key it trips over first. The same
+decoder refuses a member the schema does not define, a duplicate name and invalid UTF-8, whatever
+options the caller passed, since each is a way for a document to be read differently from how it
+was written. A document built in memory never meets that decoder, so `irverify`, the gate every
+consumer runs before trusting a document, checks the stamp too. Two codes, because the two failures
+name different writers: `ir/ir-version-absent` for a document carrying no stamp — a producer that
+forgot, and the failure `omitempty` hides best, since a document without the key is byte-identical
+to one that never had it — and `ir/ir-version-incompatible` for a stamp this build does not read.
 
 **Consequence for goldens.** Every committed IR golden embeds `irVersion`, so a bump rewrites the
 whole snapshot corpus in the same change that makes it. Confirm rather than trust:

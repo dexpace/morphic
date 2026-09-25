@@ -1,11 +1,10 @@
 package annotation
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	yaml "gopkg.in/yaml.v3"
@@ -61,16 +60,17 @@ func resolveAlias(n *yaml.Node) (*yaml.Node, error) {
 // shared across the whole walk; depth is a parameter because it is a property
 // of the path rather than of the conversion.
 //
-// JSON is assembled here rather than by marshalling a Go tree, for the same
-// reason jsonObject does it: the members are already encoded, so handing them
-// back to encoding/json only reopens the question of how a number is spelled —
-// which is the bug this file exists to close (GitHub #32).
+// A scalar renders to JSON text directly, never through a Go value: decoding a
+// number into `any` rounds it through float64, the bug this file exists to close
+// (GitHub #32). sequence and mapping only arrange children already rendered;
+// mapping sorts them through json.Marshal, which writes each jsontext.Value as
+// the JSON it holds rather than reinterpreting it.
 type rawConv struct {
 	nodes int
 }
 
 // node renders any YAML node as canonical JSON.
-func (c *rawConv) node(n *yaml.Node, depth int) (json.RawMessage, error) {
+func (c *rawConv) node(n *yaml.Node, depth int) (jsontext.Value, error) {
 	if n == nil {
 		return nil, fmt.Errorf("nil yaml node")
 	}
@@ -115,19 +115,19 @@ func (c *rawConv) node(n *yaml.Node, depth int) (json.RawMessage, error) {
 //
 // A tag yaml.v3 assigns no type to keeps its text rather than being refused,
 // which is also what that Decode did.
-func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
+func (c *rawConv) scalar(n *yaml.Node) (jsontext.Value, error) {
 	switch n.ShortTag() {
 	case "!!null":
-		return json.RawMessage("null"), nil
+		return jsontext.Value("null"), nil
 	case "!!bool":
 		var b bool
 		if err := n.Decode(&b); err != nil {
 			return nil, fmt.Errorf("bool literal %q: %w", n.Value, err)
 		}
 		if b {
-			return json.RawMessage("true"), nil
+			return jsontext.Value("true"), nil
 		}
-		return json.RawMessage("false"), nil
+		return jsontext.Value("false"), nil
 	case "!!int", "!!float":
 		// The whole point of this file: the literal's exact decimal, never a
 		// float64 rounding of it (GitHub #32). NumericLiteral resolves YAML's
@@ -138,7 +138,7 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		}
 		return spliceNumber(n.Value, string(num))
 	case "!!str":
-		return jsonString(n.Value), nil
+		return jsonString(n.Value)
 	case "!!timestamp", "!!binary":
 		// The two tags YAML gives a type and JSON does not. Both keep the text
 		// the source wrote, because the resolved form is derivable from the
@@ -148,8 +148,8 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		// Rendering the resolved form instead lost data both ways: a timestamp
 		// came back RFC 3339, so `2021-1-1` acquired a padding, a time and a
 		// zone the source never wrote, and a !!binary came back as its decoded
-		// bytes, so `/w==` — the byte 0xFF — reached the IR as the U+FFFD
-		// encoding/json substitutes for it, indistinguishable from a source
+		// bytes, so `/w==` — the byte 0xFF — reached the IR as the U+FFFD v1's
+		// encoding/json substituted for it, indistinguishable from a source
 		// that wrote U+FFFD itself.
 		//
 		// The decode stays, and stays the tag check it has always been: a
@@ -165,7 +165,7 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 		// its scalar comes back as the text it was written with — the behaviour
 		// this walk replaced, and the lossless one: refusing would drop an
 		// `!acme/thing` extension value the source did write.
-		return jsonString(n.Value), nil
+		return jsonString(n.Value)
 	}
 }
 
@@ -186,11 +186,11 @@ func (c *rawConv) scalar(n *yaml.Node) (json.RawMessage, error) {
 // now that it is unreachable, because dropping it turns a future regression in
 // BigVal's own promise into a document silently carrying a construct JSON
 // cannot name, rather than a refusal.
-func spliceNumber(source, num string) (json.RawMessage, error) {
-	if !json.Valid([]byte(num)) {
+func spliceNumber(source, num string) (jsontext.Value, error) {
+	if !jsontext.Value(num).IsValid() {
 		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, num)
 	}
-	return json.RawMessage(num), nil
+	return jsontext.Value(num), nil
 }
 
 // verbatimTagged renders a scalar whose tag YAML resolves and JSON cannot name.
@@ -198,7 +198,7 @@ func spliceNumber(source, num string) (json.RawMessage, error) {
 // and the one return states the rule they share: what is kept is the source
 // text. The two decode to different Go types and report differently — a
 // timestamp names the offending text, a binary payload deliberately does not.
-func (c *rawConv) verbatimTagged(n *yaml.Node) (json.RawMessage, error) {
+func (c *rawConv) verbatimTagged(n *yaml.Node) (jsontext.Value, error) {
 	switch tag := n.ShortTag(); tag {
 	case "!!timestamp":
 		var when time.Time
@@ -218,63 +218,48 @@ func (c *rawConv) verbatimTagged(n *yaml.Node) (json.RawMessage, error) {
 		// than silently read as base64.
 		return nil, fmt.Errorf("scalar tag %q is not kept verbatim", tag)
 	}
-	return jsonString(n.Value), nil
+	return jsonString(n.Value)
 }
 
 // sequence renders a YAML sequence as a JSON array, in source order.
-func (c *rawConv) sequence(n *yaml.Node, depth int) (json.RawMessage, error) {
-	var b strings.Builder
-	b.WriteByte('[')
+func (c *rawConv) sequence(n *yaml.Node, depth int) (jsontext.Value, error) {
+	out := jsontext.Value{'['}
 	for i, child := range n.Content {
 		if i > 0 {
-			b.WriteByte(',')
+			out = append(out, ',')
 		}
 		item, err := c.node(child, depth+1)
 		if err != nil {
 			return nil, err
 		}
-		b.Write(item)
+		out = append(out, item...)
 	}
-	b.WriteByte(']')
-	return json.RawMessage(b.String()), nil
+	return append(out, ']'), nil
 }
 
 // mapping renders a YAML mapping as a JSON object, members in sorted key order.
 //
-// Sorted rather than source order on purpose: it is what the decode this
-// replaced produced, since encoding/json sorts a Go map, and it is what the
-// IR's determinism invariant asks of every map it serializes.
-func (c *rawConv) mapping(n *yaml.Node, depth int) (json.RawMessage, error) {
-	members := map[string]json.RawMessage{}
+// Sorted rather than source order on purpose: the decode this replaced produced
+// sorted keys, and sorted keys are what the IR's determinism invariant asks of
+// every map it serializes.
+func (c *rawConv) mapping(n *yaml.Node, depth int) (jsontext.Value, error) {
+	members := map[string]jsontext.Value{}
 	if err := c.mappingInto(members, n, depth); err != nil {
 		return nil, err
 	}
 
-	keys := make([]string, 0, len(members))
-	for k := range members {
-		keys = append(keys, k)
+	out, err := json.Marshal(members, json.Deterministic(true))
+	if err != nil {
+		return nil, fmt.Errorf("mapping: %w", err)
 	}
-	slices.Sort(keys)
-
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, k := range keys {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.Write(jsonString(k))
-		b.WriteByte(':')
-		b.Write(members[k])
-	}
-	b.WriteByte('}')
-	return json.RawMessage(b.String()), nil
+	return out, nil
 }
 
 // mappingInto fills dst from n, leaving keys dst already holds untouched. That
 // one rule is the whole of YAML's merge precedence: a mapping's own keys are
 // written before its `<<` is read, and a sequence of merge sources is read in
 // order, so the nearer declaration always wins.
-func (c *rawConv) mappingInto(dst map[string]json.RawMessage, n *yaml.Node, depth int) error {
+func (c *rawConv) mappingInto(dst map[string]jsontext.Value, n *yaml.Node, depth int) error {
 	if n.Kind != yaml.MappingNode {
 		return fmt.Errorf("expected a mapping, got yaml node kind %d", n.Kind)
 	}
@@ -311,7 +296,7 @@ func (c *rawConv) mappingInto(dst map[string]json.RawMessage, n *yaml.Node, dept
 
 // merge folds a `<<` value into dst: a mapping, an alias to one, or a sequence
 // of either.
-func (c *rawConv) merge(dst map[string]json.RawMessage, merge *yaml.Node, depth int) error {
+func (c *rawConv) merge(dst map[string]jsontext.Value, merge *yaml.Node, depth int) error {
 	if depth > maxRawDepth {
 		return fmt.Errorf("nesting exceeds %d", maxRawDepth)
 	}
@@ -383,10 +368,14 @@ func isMergeKey(n *yaml.Node) bool {
 		(n.Tag == "" || n.Tag == "!" || n.ShortTag() == "!!merge")
 }
 
-// jsonString encodes s as a JSON string. encoding/json cannot fail on a string
-// — ill-formed UTF-8 is rewritten to U+FFFD rather than refused — so the error
-// it declares is discarded here exactly as jsonObject discards it for a key.
-func jsonString(s string) json.RawMessage {
-	encoded, _ := json.Marshal(s)
-	return encoded
+// jsonString encodes s as a JSON string with RFC 8785's minimal escaping,
+// matching the IR's canonical form. Text that is not valid UTF-8 fails the
+// conversion rather than reaching the IR as U+FFFD, which a source could also
+// have written itself.
+func jsonString(s string) (jsontext.Value, error) {
+	b, err := jsontext.AppendQuote(nil, s)
+	if err != nil {
+		return nil, fmt.Errorf("string %q: %w", s, err)
+	}
+	return b, nil
 }

@@ -4,7 +4,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"testing"

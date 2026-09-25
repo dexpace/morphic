@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "YamlTimestampScalars",
   "version": "1.0.0",
   "docs": {},
@@ -50,10 +50,7 @@
                           {
                             "value": {
                               "kind": "string",
-                              "str": "2021-01-01",
-                              "bytes": null,
-                              "list": null,
-                              "object": null
+                              "str": "2021-01-01"
                             }
                           }
                         ]
@@ -67,7 +64,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -87,7 +83,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -127,10 +122,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "2021-01-01",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "2021-01-01"
           },
           "docs": {}
         },
@@ -141,10 +133,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "2022-02-02",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "2022-02-02"
           },
           "docs": {}
         }
@@ -168,10 +157,7 @@
       },
       "value": {
         "kind": "string",
-        "str": "2021-01-01",
-        "bytes": null,
-        "list": null,
-        "object": null
+        "str": "2021-01-01"
       }
     },
     "t/openapi/components/schemas/R": {
@@ -257,10 +243,7 @@
           },
           "default": {
             "kind": "string",
-            "str": "2021-01-01",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "2021-01-01"
           },
           "flatten": false,
           "eventHeader": false,
@@ -270,10 +253,7 @@
             {
               "value": {
                 "kind": "string",
-                "str": "2021-01-01",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "str": "2021-01-01"
               }
             }
           ],
@@ -307,8 +287,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

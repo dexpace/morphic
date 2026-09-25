@@ -1,7 +1,7 @@
 package irverify_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"reflect"
 	"testing"
 
@@ -110,12 +110,16 @@ func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 }
 
 // badPayloads is every shape of ir.RawValue that is not a JSON value. Empty is
-// the one a nil guard lets through, and nil is the one that marshals but does
-// not come back equal.
+// the one a nil guard lets through, nil is the one that marshals but does not
+// come back equal, and the duplicate-name and invalid-UTF-8 entries are the
+// two classes jsontext.Value.IsValid() catches that the byte-level json.Valid
+// it replaced did not.
 var badPayloads = map[string]ir.RawValue{
-	"malformed": ir.RawValue(`{not json}`),
-	"empty":     {}, // non-nil and zero length: the state a nil guard admits
-	"nil":       nil,
+	"malformed":      ir.RawValue(`{not json}`),
+	"empty":          {}, // non-nil and zero length: the state a nil guard admits
+	"nil":            nil,
+	"duplicate name": ir.RawValue(`{"a":1,"a":2}`),
+	"invalid UTF-8":  ir.RawValue([]byte("\"bad\xffutf8\"")),
 }
 
 // TestVerify_InvalidUnmodeledValueIsAViolation covers the field the unmodeled
@@ -132,6 +136,12 @@ func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 			assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
 			assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
 			assert.Contains(t, got[0].Message, "unmodeled entry")
+			// A nil payload encodes, as null; only the others stop the document.
+			consequence := "cannot be marshaled"
+			if payload == nil {
+				consequence = "decodes back as the bytes null"
+			}
+			assert.Contains(t, got[0].Message, consequence)
 		})
 	}
 }
@@ -224,11 +234,11 @@ func TestVerify_ValidRawConfigIsClean(t *testing.T) {
 }
 
 // TestVerify_InvalidRawValueIsWhatBreaksTheDocument ties the check to the
-// invariant it protects rather than to its own definition of valid. Malformed
-// and empty payloads fail json.Marshal for the whole document — one entry
-// anywhere costs the entire artifact — and a nil payload marshals but decodes
-// back as the four bytes "null", so the document no longer round-trips to an
-// equal one (invariant #7).
+// invariant it protects rather than to its own definition of valid. Every
+// payload but nil — malformed, empty, a duplicate name, invalid UTF-8 — fails
+// json.Marshal for the whole document — one entry anywhere costs the entire
+// artifact — and a nil payload marshals but decodes back as the four bytes
+// "null", so the document no longer round-trips to an equal one (invariant #7).
 func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 	for name, payload := range badPayloads {
 		t.Run(name, func(t *testing.T) {

@@ -101,10 +101,10 @@ func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares.
-// The bytes here are a lone continuation byte: json.Marshal writes it as the
-// replacement rune, so a document carrying one decodes to a different document
-// and stops round-tripping. No other rule here would notice — the replacement
-// rune is visible, so an ill-formed entry is not blank.
+// The bytes end in a multibyte sequence that never completes, and a Document
+// refuses to encode a string that is not UTF-8, so a document carrying one
+// cannot be marshaled. No other rule here would notice: read as runes, the
+// stray byte is the visible replacement rune, so the entry is not blank.
 func TestVerify_IllFormedAliasIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})

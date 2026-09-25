@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "StreamingMedia31",
   "version": "1.0.0",
   "docs": {},
@@ -83,7 +83,6 @@
                 "requiresLength": false
               },
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -153,7 +152,6 @@
                 "requiresLength": false
               },
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -224,7 +222,6 @@
                 "requiresLength": false
               },
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -245,7 +242,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -514,8 +510,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

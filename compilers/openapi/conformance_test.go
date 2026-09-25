@@ -5,7 +5,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3135,7 +3135,7 @@ func findUnmodeled(sites []unmodeledSite, key, wantJSON string) (unmodeledSite, 
 // assertRawPreservedBinary pins what a !!binary extension keeps: the base64 the
 // source wrote. Decoding it and storing the bytes in a JSON string lost the
 // spelling on every value and lost the data itself on any byte that is not
-// valid UTF-8, since encoding/json rewrites those to U+FFFD (GitHub #242).
+// valid UTF-8, since v1's encoding/json rewrote those to U+FFFD (GitHub #242).
 //
 // The block-form row carries the line breaks with it, because they are part of
 // what the source wrote; base64.StdEncoding skips them, so a consumer resolving

@@ -22,9 +22,9 @@ type Service struct {
 	// interface / Smithy resource / tag.
 	Groups []OperationGroup `json:"groups,omitempty"`
 	// Auth is the service-level default requirement (OR-of-ANDs, §9). An empty
-	// non-nil slice (explicitly public) differs from nil (no default), so the
-	// field carries no omitempty.
-	Auth []AuthRequirement `json:"auth"`
+	// non-nil slice (explicitly public) differs from nil (no default); omitzero
+	// writes nil as an absent key and the empty slice as [].
+	Auth []AuthRequirement `json:"auth,omitzero"`
 	// CommonErrors are errors every operation can return (Smithy service-level
 	// errors).
 	CommonErrors []ErrorCase `json:"commonErrors,omitempty"`
@@ -63,10 +63,10 @@ type OperationGroup struct {
 	// Operations holds the group's operations.
 	Operations []Operation `json:"operations,omitempty"`
 	// Resource carries Smithy resource semantics when declared.
-	Resource *ResourceInfo `json:"resource,omitempty"`
+	Resource *ResourceInfo `json:"resource,omitzero"`
 	// Availability records the group's versioning timeline (TypeSpec interfaces
 	// are versionable).
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

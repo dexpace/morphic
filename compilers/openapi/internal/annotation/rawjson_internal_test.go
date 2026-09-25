@@ -1,7 +1,8 @@
 package annotation
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,12 +19,20 @@ import (
 // differential oracle for TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded,
 // which is the only claim about it worth making — that everything came through
 // it unchanged except number spelling and the rows rawDivergences names.
-func decodeAndMarshal(node *yaml.Node) (json.RawMessage, error) {
+//
+// The old conversion went through v1's encoding/json, whose defaults this now
+// has to opt back into explicitly rather than inherit them for free:
+// Deterministic sorts map keys the way v1's Marshal always did; AllowInvalidUTF8
+// is what let a byte no UTF-8 can name through as U+FFFD instead of refusing
+// it, which is the loss rawDivergences' `!!binary` rows pin; and EscapeForHTML
+// matches the HTML-safe escaping v1 always applied, which the new walk's
+// minimal escaping no longer does.
+func decodeAndMarshal(node *yaml.Node) (jsontext.Value, error) {
 	var v any
 	if err := node.Decode(&v); err != nil {
 		return nil, err
 	}
-	return json.Marshal(v)
+	return json.Marshal(v, json.Deterministic(true), jsontext.AllowInvalidUTF8(true), jsontext.EscapeForHTML(true))
 }
 
 // throughFloat64 re-encodes raw JSON through Go's JSON model, which rounds every
@@ -33,14 +42,18 @@ func decodeAndMarshal(node *yaml.Node) (json.RawMessage, error) {
 //
 // Both sides of the comparison go through it, not just the new output: the trip
 // also canonicalizes how an escape is spelled (a "\ufffd" escape comes back as
-// the literal rune), and normalizing one side alone would report that as a
-// difference. Rounding an already-rounded number changes nothing, so applying it
-// to the old output costs the comparison none of its force.
-func throughFloat64(t *testing.T, raw json.RawMessage) string {
+// the literal rune, and a raw HTML-special character decodes to the same rune
+// its escaped form does), and normalizing one side alone would report that as a
+// difference. Rounding an already-rounded number changes nothing, so applying
+// it to the old output costs the comparison none of its force. Deterministic
+// carries over from decodeAndMarshal for the same reason it is there: an
+// unsorted re-marshal of a JSON object would report a difference this helper
+// exists to cancel out.
+func throughFloat64(t *testing.T, raw jsontext.Value) string {
 	t.Helper()
 	var v any
 	require.NoError(t, json.Unmarshal(raw, &v))
-	out, err := json.Marshal(v)
+	out, err := json.Marshal(v, json.Deterministic(true))
 	require.NoError(t, err)
 	return string(out)
 }
@@ -99,7 +112,7 @@ func TestRawFromNode_ResolvesYAMLIntegerBases(t *testing.T) {
 			got, err := RawFromNode(openapitest.YAMLNode(t, tc.yaml))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got))
-			assert.True(t, json.Valid(got), "every rendered number is JSON-valid")
+			assert.True(t, got.IsValid(), "every rendered number is JSON-valid")
 		})
 	}
 }
@@ -116,7 +129,7 @@ func TestRawFromNode_RendersEveryScalarTag(t *testing.T) {
 		{"string", "hello", `"hello"`},
 		{"quoted number stays a string", `"123"`, `"123"`},
 		{"empty string", `""`, `""`},
-		{"HTML is escaped, as encoding/json does it", `"a<b>&c"`, `"a\u003cb\u003e\u0026c"`},
+		{"HTML-special characters are not escaped, matching the IR's minimal-escaping canonical form", `"a<b>&c"`, `"a<b>&c"`},
 		{"out-of-float64-range plain scalar stays a string", "1e400", `"1e400"`},
 		// A tag YAML has a type for and JSON does not keeps the source text
 		// (GitHub #242). The resolved form is derivable from the spelling; the
@@ -211,7 +224,7 @@ func TestRawFromNode_RefusesWhatJSONCannotName(t *testing.T) {
 		{"binary tag on non-base64", `!!binary "###"`, "binary literal"},
 		// NewBigVal itself now refuses a binary exponent (GitHub #45), so this
 		// is refused one step earlier than it used to be: at NumericLiteral,
-		// not at the json.Valid splice check (see spliceNumber and
+		// not at the spliceNumber validity check (see spliceNumber and
 		// TestSpliceNumber_RefusesANonJSONNumber for that check's own case).
 		{"float tag on a binary-exponent literal", "!!float 1p4", "not a decimal numeric literal"},
 	}
@@ -299,6 +312,21 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
 			"chains past",
 		},
+		// yaml.v3 never hands this walk a node whose Value is not valid UTF-8 —
+		// a real parse only produces one from a well-formed source document —
+		// so both rows below are reachable only through a hand-built node, the
+		// same way the alias shapes above are.
+		{
+			"scalar text that is not valid UTF-8",
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "\xff"},
+			"invalid UTF-8",
+		},
+		{
+			"mapping key that is not valid UTF-8",
+			mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "\xff"},
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
+			"invalid UTF-8",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -338,17 +366,19 @@ var rawDivergences = map[string]struct{ old, want string }{
 	"2021-1-1":            {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
 	"2021-01-01 10:20:30": {`"2021-01-01T10:20:30Z"`, `"2021-01-01 10:20:30"`},
 	`!!binary aGVsbG8=`:   {`"hello"`, `"aGVsbG8="`},
-	// The old spelling is the replacement character encoding/json writes for a
-	// byte no UTF-8 can name, which is the loss itself: 0xFF and a source that
-	// really wrote U+FFFD both reached the IR as this, with nothing to tell
-	// them apart.
+	// The old spelling is the replacement character decodeAndMarshal's v2
+	// Marshal writes, under AllowInvalidUTF8, for a byte no UTF-8 can name —
+	// which is the loss itself: 0xFF and a source that really wrote U+FFFD both
+	// reached the IR as this, with nothing to tell them apart.
 	//
-	// It is spelled the way encoding/json spells it, and that ties this row to
-	// a toolchain: Go 1.26 wrote the escape \ufffd where 1.27 writes the
-	// character raw, so this row and the one below redden on the older one.
-	// Whichever change moves the go directive in go.mod owns rewriting both —
-	// the claim they make is that the old conversion lost the byte, not that a
-	// version of encoding/json spelled the loss one way (#431).
+	// It is spelled the way that option spells it: the character written raw,
+	// not a \ufffd escape. #431 recorded this as toolchain-sensitive because
+	// v1's encoding/json changed which spelling it wrote between Go 1.26 and
+	// 1.27; decodeAndMarshal no longer goes through v1 at all, so it is v2's
+	// AllowInvalidUTF8 spelling that this row and the one below now pin, and
+	// whichever change moves off it owns rewriting both — the claim they make
+	// is that the old conversion lost the byte, not that any particular encoder
+	// spells the loss one way.
 	`!!binary /w==`: {"\"\ufffd\"", `"/w=="`},
 	// Nesting is the same rule one level down: one divergent scalar makes the
 	// whole construct diverge, which is how every raw site holding a structure
@@ -475,7 +505,7 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")
 
-	err = c.mappingInto(map[string]json.RawMessage{}, openapitest.YAMLNode(t, "[1]"), 0)
+	err = c.mappingInto(map[string]jsontext.Value{}, openapitest.YAMLNode(t, "[1]"), 0)
 	require.Error(t, err, "filling a mapping from a sequence is a caller bug")
 	assert.Contains(t, err.Error(), "expected a mapping")
 
@@ -491,7 +521,7 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 // TestSpliceNumber_RefusesANonJSONNumber covers the refusal scalar's !!int/
 // !!float arm cannot reach today, the same way TestRawConv_RefusesNodesNoCallerShouldPass
 // covers verbatimTagged's default case: no value.NumericLiteral result can
-// fail spliceNumber's json.Valid check, since NewBigVal enforces BigVal's
+// fail spliceNumber's IsValid check, since NewBigVal enforces BigVal's
 // "always JSON-valid" contract itself now. Until GitHub #45 was fixed a binary
 // exponent slipped through that contract, and this check was what caught it
 // here. It stays as insurance against a future regression in that contract, so

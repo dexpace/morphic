@@ -1,7 +1,7 @@
 package irverify
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"reflect"
 
 	"github.com/dexpace/morphic/ir"
@@ -17,12 +17,11 @@ var (
 // one a consumer can route.
 //
 // Both maps are checked in one walk because their payload is the same type and
-// the same hazard: an ir.RawValue is copied into the output byte for byte, so a
-// payload that is not a JSON value fails json.Marshal for the whole document
-// (invariant #7) — one bad entry anywhere costs the entire artifact, and the
-// error names json.RawMessage rather than the entry that carried it. RawConfig
-// is the half nothing guarded at all: its five carriers are where an AsyncAPI
-// compiler will write protocol bindings.
+// the same hazard: an ir.RawValue is written into the output as the JSON it
+// holds, so a payload that is not a JSON value fails the whole document's
+// encoding (invariant #7) — one bad entry anywhere costs the entire artifact.
+// RawConfig is the half nothing guarded at all: its five carriers are where an
+// AsyncAPI compiler will write protocol bindings.
 //
 // Entries need no ordering first: each violation carries its key in Path, and
 // Verify orders the whole result by (Code, Path) before returning it. The bool
@@ -114,17 +113,19 @@ func rawConfigEntry(key string, entry reflect.Value, path string) []Violation {
 // type, so the payload is a byte slice by construction, and Bytes never panics
 // on one however it was reached.
 //
-// Nil is reported alongside malformed and empty bytes. json.Marshal survives a
-// nil — it encodes as null — but the value comes back as the four bytes "null",
-// so a document carrying one stops round-tripping to an equal document, and an
+// Nil is reported alongside malformed and empty bytes. Encoding a nil
+// jsontext.Value survives — it writes the literal null — but decoding reads
+// that back as the value itself, the four bytes "null", not as nil, so a
+// document carrying one stops round-tripping to an equal document, and an
 // entry with no payload preserves no construct in the first place.
 func appendRawValue(vs []Violation, value reflect.Value, what, path string) []Violation {
-	if raw := value.Bytes(); json.Valid(raw) {
+	raw := value.Bytes()
+	if jsontext.Value(raw).IsValid() {
 		return vs
 	}
-	return append(vs, Violation{
-		Code:    "ir/invalid-raw-value",
-		Message: what + " value is not a JSON value, so the document cannot be marshaled",
-		Path:    path,
-	})
+	msg := what + " value is not a JSON value, so the document cannot be marshaled"
+	if raw == nil {
+		msg = what + " value is nil, which encodes as null and decodes back as the bytes null rather than nil"
+	}
+	return append(vs, Violation{Code: "ir/invalid-raw-value", Message: msg, Path: path})
 }

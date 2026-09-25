@@ -10,7 +10,7 @@
 package annotation
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"strconv"
@@ -35,10 +35,11 @@ import (
 // construct here — while a node that cannot be represented yields an error.
 //
 // A node fails to convert when it names something JSON cannot: a mapping key
-// that is not a string, a key written twice, .nan or .inf, or a scalar whose tag
-// promises a type its text does not hold. The walk's own bounds refuse two
-// shapes more — an alias that cycles, and one that expands past its node budget.
-// A tag yaml.v3 assigns no type to is not a failure: its scalar keeps its text.
+// that is not a string, a key written twice, .nan or .inf, a scalar whose tag
+// promises a type its text does not hold, or text that is not valid UTF-8. The
+// walk's own bounds refuse two shapes more — an alias that cycles, and one that
+// expands past its node budget. A tag yaml.v3 assigns no type to is not a
+// failure: its scalar keeps its text.
 //
 // The conversion walks the node tree rather than decoding it into `any` and
 // re-marshalling, because that decode rounds every numeric literal through
@@ -293,7 +294,7 @@ func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jsonObject(members), nil
+	return jsonObject(members)
 }
 
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
@@ -306,7 +307,7 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jsonObject(members), nil
+	return jsonObject(members)
 }
 
 // UnevaluatedRaw combines a non-false unevaluatedProperties and any
@@ -324,7 +325,7 @@ func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jsonObject(members), nil
+	return jsonObject(members)
 }
 
 // presentMembers collects the given keywords that are present on s as raw JSON
@@ -366,10 +367,13 @@ type rawMember struct {
 	val ir.RawValue
 }
 
-// jsonObject renders ordered raw members into a JSON object, or nil when empty.
-func jsonObject(members []rawMember) ir.RawValue {
+// jsonObject renders ordered raw members into a JSON object, or nil when
+// empty. Unlike rawConv.mapping, member order here is the caller's — a fixed
+// handful of JSON Schema keywords in keyword order — and is preserved rather
+// than sorted.
+func jsonObject(members []rawMember) (ir.RawValue, error) {
 	if len(members) == 0 {
-		return nil
+		return nil, nil
 	}
 	var b strings.Builder
 	b.WriteByte('{')
@@ -377,13 +381,16 @@ func jsonObject(members []rawMember) ir.RawValue {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		key, _ := json.Marshal(m.key)
+		key, err := jsontext.AppendQuote(nil, m.key)
+		if err != nil {
+			return nil, fmt.Errorf("member %q: %w", m.key, err)
+		}
 		b.Write(key)
 		b.WriteByte(':')
 		b.Write(m.val)
 	}
 	b.WriteByte('}')
-	return ir.RawValue(b.String())
+	return ir.RawValue(b.String()), nil
 }
 
 // The two site kinds. Declaration is a position that writes a schema of its
@@ -840,8 +847,7 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 //
 // len rather than a nil comparison: nil and a zero-length slice are distinct
 // states, and an empty payload is the worse of the two. It preserves no
-// construct, and json.Marshal rejects it for the whole document while naming
-// json.RawMessage rather than the entry that carried it.
+// construct, and it fails the encoding of the whole document that carries it.
 func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer string, srcIndex int,
 ) {

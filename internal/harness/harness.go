@@ -3,7 +3,7 @@ package harness
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"sort"
 	"strings"
@@ -103,14 +103,13 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 // deterministic. It is a package-level seam over json.Marshal that defaults to
 // json.Marshal in production, where such a value can never fail to re-marshal;
 // tests replace it to exercise that otherwise-unreachable defensive error path.
-var reserializeJSON = json.Marshal
+var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
 
 // roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and
-// compares the two encodings byte for byte. Comparing serialized JSON — not
-// the in-memory structs — is deliberate: it catches a null-vs-[] flip on the
-// IR's deliberately non-omitempty Value collections that an in-memory
-// EquateEmpty compare would miss, while still ignoring the harmless
-// omitempty empty-vs-nil distinction.
+// compares the two encodings byte for byte rather than doc against the decoded
+// value. An empty payload decodes back as nil, which a struct comparison would
+// report and the wire cannot express; what the bytes still catch is any decode
+// that loses or alters something the document says.
 func roundTrips(doc *ir.Document) (string, bool) {
 	first, err := json.Marshal(doc)
 	if err != nil {

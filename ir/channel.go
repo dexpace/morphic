@@ -11,7 +11,7 @@ type Channel struct {
 	// Address is the topic/routing key/path, may contain {params}; nil =
 	// unknown/runtime-assigned address (reply channels and dynamic topics; SDKs
 	// expose a runtime address arg).
-	Address *string `json:"address,omitempty"`
+	Address *string `json:"address,omitzero"`
 	// Docs is the channel's documentation.
 	Docs Docs `json:"docs"`
 	// Tags are the channel's tag memberships.
@@ -44,9 +44,9 @@ type Message struct {
 	// type registry like any anonymous type (headers can be named, composed, even
 	// Avro-defined; and $message.header#/… paths need a type to resolve against).
 	// Emitters compute flat lists per §4.3.
-	Headers *TypeRef `json:"headers,omitempty"`
+	Headers *TypeRef `json:"headers,omitzero"`
 	// CorrelationID locates the correlation value: In: "header" | "" (payload).
-	CorrelationID *PropPath `json:"correlationID,omitempty"`
+	CorrelationID *PropPath `json:"correlationID,omitzero"`
 	// ContentType is the message content type.
 	ContentType string `json:"contentType,omitempty"`
 	// Tags are the message's tag memberships.
@@ -54,7 +54,7 @@ type Message struct {
 	// Docs is the message's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the message as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Examples are correlated header+payload example pairs (Example.Headers +
 	// .Value).
 	Examples []Example `json:"examples,omitempty"`

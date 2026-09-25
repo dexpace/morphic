@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "ParamRefInheritance",
   "version": "1.0.0",
   "docs": {},
@@ -38,10 +38,7 @@
                   "required": false,
                   "default": {
                     "kind": "string",
-                    "str": "0",
-                    "bytes": null,
-                    "list": null,
-                    "object": null
+                    "str": "0"
                   },
                   "docs": {
                     "summary": "Cursor",
@@ -65,10 +62,7 @@
                   "required": false,
                   "default": {
                     "kind": "string",
-                    "str": "9",
-                    "bytes": null,
-                    "list": null,
-                    "object": null
+                    "str": "9"
                   },
                   "constraints": {
                     "maxLength": 100,
@@ -105,7 +99,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -143,7 +136,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -221,10 +213,7 @@
           },
           "default": {
             "kind": "string",
-            "str": "0",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "0"
           },
           "flatten": false,
           "eventHeader": false,
@@ -259,10 +248,7 @@
           },
           "default": {
             "kind": "string",
-            "str": "0",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "0"
           },
           "constraints": {
             "maxLength": 100,
@@ -306,8 +292,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

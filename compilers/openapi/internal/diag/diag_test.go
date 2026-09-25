@@ -1,7 +1,7 @@
 package diag_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"go/ast"
 	"go/parser"
@@ -65,9 +65,11 @@ func TestNewf_PopulatesEveryField(t *testing.T) {
 
 // TestNewf_SanitizesInvalidUTF8 pins invariant #7 at the compiler boundary. A
 // third-party validator that truncates a multibyte rune hands this constructor
-// ill-formed bytes, and json.Marshal rewrites those to U+FFFD — so a document
-// carrying one would stop round-tripping byte-for-byte. The exhaustive
-// constructor contract lives in ir; this proves Newf is wired to it.
+// ill-formed bytes, which Newf must scrub before the message reaches an
+// ir.Diagnostic: marshaling refuses invalid UTF-8 outright rather than
+// rewriting it, so an unsanitized message would fail to marshal at all, not
+// merely lose byte-for-byte fidelity. The exhaustive constructor contract lives
+// in ir; this proves Newf is wired to it.
 func TestNewf_SanitizesInvalidUTF8(t *testing.T) {
 	t.Parallel()
 	// "\xe0\xa5" is the truncated lead of U+0965 (E0 A5 A5): one ill-formed byte

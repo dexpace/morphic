@@ -42,7 +42,7 @@ func TestDeprecation_JSONContract(t *testing.T) {
 func TestErrorExample_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ErrorExample{},
-		`{"type":{"target":"","nullable":false},"content":{"kind":"","bytes":null,"list":null,"object":null}}`,
+		`{"type":{"target":"","nullable":false},"content":{"kind":""}}`,
 		ir.ErrorExample{Type: populatedTypeRef(), Content: populatedValue()})
 }
 
