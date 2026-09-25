@@ -54,9 +54,8 @@ func TestMechanismFieldNames_AccountForEverySourceField(t *testing.T) {
 	}
 
 	var want []string
-	st := reflect.TypeOf(soa.SecurityScheme{})
-	for i := range st.NumField() {
-		f := st.Field(i)
+	st := reflect.TypeFor[soa.SecurityScheme]()
+	for f := range st.Fields() {
 		if f.Anonymous || !f.IsExported() {
 			continue // the embedded marshaller model is not a document field
 		}

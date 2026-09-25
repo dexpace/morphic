@@ -15,7 +15,7 @@ import (
 // docWithRef builds a model whose property points at target via a TypeRef.
 func docWithRef(target ir.TypeID) *ir.Document {
 	holder := &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/Holder"},
+		ID: "t/x/Holder",
 		Properties: []ir.Property{{
 			ID:   "p/x/Holder/f",
 			Type: ir.TypeRef{Target: target},
@@ -61,7 +61,7 @@ func TestCheckReferentialIntegrity_DanglingTypeRef(t *testing.T) {
 
 func TestCheckReferentialIntegrity_ResolvedRefIsClean(t *testing.T) {
 	doc := docWithRef("t/x/Target")
-	doc.Types["t/x/Target"] = &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/Target"}}
+	doc.Types["t/x/Target"] = &ir.Any{ID: "t/x/Target"}
 	assert.Empty(t, refViolations(doc))
 }
 
@@ -240,7 +240,7 @@ func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 	// Document.Types. "t/x/ghost" resolves in no type, so the reference-typed map
 	// key must be reported even though the entry's Naming value is well-formed.
 	doc := &ir.Document{
-		Types: ir.TypeRegistry{"t/x/M": &ir.Any{TypeCommon: ir.TypeCommon{ID: "t/x/M"}}},
+		Types: ir.TypeRegistry{"t/x/M": &ir.Any{ID: "t/x/M"}},
 		Services: []ir.Service{{
 			Renames: map[ir.TypeID]ir.Naming{"t/x/ghost": {Source: "Ghost"}},
 		}},
@@ -278,8 +278,8 @@ const aliasRuns = 500
 func TestVerify_AliasedPointerIsDeterministic(t *testing.T) {
 	t.Parallel()
 	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
-	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a"}, Base: shared}
-	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b"}, Base: shared}
+	a := &ir.Model{ID: "t/a", Base: shared}
+	b := &ir.Model{ID: "t/b", Base: shared}
 	doc := &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
 
 	want := fmt.Sprintf("%+v", Verify(doc))

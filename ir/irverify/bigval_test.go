@@ -30,19 +30,25 @@ func bigValCarriers(literal string) map[string]*ir.Document {
 	prov := ir.Provenance{Source: ir.NoSource}
 	scalar := func(c *ir.Constraints) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-			TypeCommon:  ir.TypeCommon{ID: "t/x/S", Name: named("s"), Provenance: prov},
+			ID:          "t/x/S",
+			Name:        named("s"),
+			Provenance:  prov,
 			Constraints: c,
 		}}}
 	}
 	valued := func(v ir.Value) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-			TypeCommon: ir.TypeCommon{ID: "t/x/L", Name: named("l"), Provenance: prov},
+			ID:         "t/x/L",
+			Name:       named("l"),
+			Provenance: prov,
 			Value:      v,
 		}}}
 	}
 	property := func(p ir.Property) *ir.Document {
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-			TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: named("m"), Provenance: prov},
+			ID:         "t/x/M",
+			Name:       named("m"),
+			Provenance: prov,
 			Properties: []ir.Property{p},
 		}}}
 	}
@@ -137,13 +143,17 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 	t.Parallel()
 	prov := ir.Provenance{Source: ir.NoSource}
 	unused := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-		TypeCommon: ir.TypeCommon{ID: "t/x/L", Name: named("l"), Provenance: prov},
+		ID:         "t/x/L",
+		Name:       named("l"),
+		Provenance: prov,
 		Value:      ir.Value{Kind: ir.ValueString, Str: "not a number"},
 	}}}
 	assert.Empty(t, irverify.Verify(unused), "a non-numeric Value carries no literal to check")
 
 	empty := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		TypeCommon:  ir.TypeCommon{ID: "t/x/S", Name: named("s"), Provenance: prov},
+		ID:          "t/x/S",
+		Name:        named("s"),
+		Provenance:  prov,
 		Constraints: &ir.Constraints{Min: bigVal("")},
 	}}}
 	got := irverify.Verify(empty)
@@ -158,7 +168,9 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 func TestVerify_AbsentBoundIsClean(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
-		TypeCommon:  ir.TypeCommon{ID: "t/x/S", Name: named("s"), Provenance: ir.Provenance{Source: ir.NoSource}},
+		ID:          "t/x/S",
+		Name:        named("s"),
+		Provenance:  ir.Provenance{Source: ir.NoSource},
 		Constraints: &ir.Constraints{Pattern: "^[a-z]+$"},
 	}}}
 	assert.Empty(t, irverify.Verify(doc))

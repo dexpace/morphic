@@ -16,6 +16,7 @@ package scan
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
@@ -428,8 +429,8 @@ func (s *refScan) push(n *yaml.Node, role walkRole) {
 // pushReversed enqueues nodes so that a LIFO pop yields them in their original
 // order, preserving the depth-first pre-order collect documents.
 func (s *refScan) pushReversed(nodes []*yaml.Node, role walkRole) {
-	for i := len(nodes) - 1; i >= 0; i-- {
-		s.push(nodes[i], role)
+	for _, node := range slices.Backward(nodes) {
+		s.push(node, role)
 	}
 }
 
@@ -445,8 +446,7 @@ func (s *refScan) visitOutside(n *yaml.Node) {
 	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.outside = append(s.outside, n)
 	}
-	for i := len(pairs) - 1; i >= 0; i-- {
-		p := pairs[i]
+	for _, p := range slices.Backward(pairs) {
 		switch {
 		case strings.HasPrefix(p.Key, "x-"), schemaDataKeys[p.Key]:
 			// extension or example/default data: not a schema position
@@ -472,8 +472,7 @@ func (s *refScan) visitSchema(n *yaml.Node) {
 	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.out = append(s.out, n)
 	}
-	for i := len(pairs) - 1; i >= 0; i-- {
-		p := pairs[i]
+	for _, p := range slices.Backward(pairs) {
 		switch {
 		case subSchemaObjectKeys[p.Key]:
 			s.push(p.Val, roleSchema)
@@ -491,8 +490,8 @@ func (s *refScan) visitSchemaMap(n *yaml.Node) {
 		return
 	}
 	pairs := s.view.MappingPairs(n)
-	for i := len(pairs) - 1; i >= 0; i-- {
-		s.push(pairs[i].Val, roleSchema)
+	for _, pair := range slices.Backward(pairs) {
+		s.push(pair.Val, roleSchema)
 	}
 }
 

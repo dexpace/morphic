@@ -74,7 +74,7 @@ func TestDocument_MarshalIsDeterministic(t *testing.T) {
 
 func TestTypeRegistry_KindTagIsAdjacent(t *testing.T) {
 	t.Parallel()
-	raw, err := json.Marshal(&ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x"}})
+	raw, err := json.Marshal(&ir.Model{ID: "t/x"})
 	require.NoError(t, err)
 	var probe struct {
 		Kind ir.TypeKind `json:"kind"`

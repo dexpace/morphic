@@ -15,6 +15,8 @@
 package sourceindex
 
 import (
+	"slices"
+
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -178,8 +180,8 @@ func (x *Index) walk(maxNodes int64) {
 			ancestors[f.n] = true
 			stack = append(stack, frame{n: f.n, exit: true})
 		}
-		for i := len(f.n.Content) - 1; i >= 0; i-- {
-			stack = append(stack, frame{n: f.n.Content[i], depth: f.depth + 1})
+		for _, v := range slices.Backward(f.n.Content) {
+			stack = append(stack, frame{n: v, depth: f.depth + 1})
 		}
 	}
 }

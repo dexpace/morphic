@@ -278,7 +278,8 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 	id := ir.PrimTypeID(k)
 	if _, ok := t.reg[id]; !ok {
 		t.reg[id] = &ir.Primitive{
-			TypeCommon: ir.TypeCommon{ID: id, Provenance: ir.Provenance{Source: t.src}},
+			ID:         id,
+			Provenance: ir.Provenance{Source: t.src},
 			Prim:       k,
 		}
 	}

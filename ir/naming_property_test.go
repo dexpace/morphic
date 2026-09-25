@@ -113,7 +113,7 @@ func assertWordSequenceShape(t *testing.T, name, got string) {
 	if lowered := strings.ToLower(got); lowered != got {
 		t.Fatalf("output carries casing\n  input: %q\n  got:   %q\n  lower: %q", name, got, lowered)
 	}
-	for _, word := range strings.Split(got, "_") {
+	for word := range strings.SplitSeq(got, "_") {
 		if word == "" {
 			t.Fatalf("empty word: a leading, trailing or doubled separator\n  input: %q\n  got: %q", name, got)
 		}

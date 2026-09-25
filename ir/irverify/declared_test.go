@@ -25,7 +25,7 @@ func declaredIDViolations(doc *ir.Document) []Violation {
 // business and a fixture that left one empty would be testing that rule instead.
 func idBearingDoc(present bool) *ir.Document {
 	model := &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/M"},
+		ID: "t/x/M",
 		Properties: []ir.Property{{
 			ID:   pick(present, ir.PropID("p/x/M/f")),
 			Type: ir.TypeRef{Target: "t/x/M"},
@@ -125,7 +125,7 @@ func TestCheckDeclaredIDs_EmptyOperationAndServiceIDs(t *testing.T) {
 func TestCheckDeclaredIDs_EmptyPropertyID(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/M": &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/M"},
+		ID:         "t/x/M",
 		Properties: []ir.Property{{Type: ir.TypeRef{Target: "t/x/M"}}},
 	}}}
 

@@ -26,11 +26,11 @@ func deepDoc() *ir.Document {
 	for range ir.MaxWalkDepth {
 		v = ir.Value{Kind: ir.ValueList, List: []ir.Value{v}}
 	}
-	m := &ir.Model{TypeCommon: ir.TypeCommon{
+	m := &ir.Model{
 		ID:       "t/x/M",
 		Name:     ir.Naming{Source: "M", Canonical: "m"},
 		Examples: []ir.Example{{Value: &v}},
-	}}
+	}
 	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 }
 

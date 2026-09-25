@@ -27,7 +27,8 @@ func nestedListValue(depth int) ir.Value {
 func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 	def := nestedListValue(200)
 	m := &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"}},
+		ID:   "t/x/M",
+		Name: ir.Naming{Source: "M", Canonical: "m"},
 		Properties: []ir.Property{{
 			ID:       "p/x/M/f",
 			Name:     ir.Naming{Source: "f", Canonical: "f"},
@@ -38,7 +39,7 @@ func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		m.ID:             m,
-		"t/prim/integer": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/integer"}, Prim: ir.PrimInteger},
+		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
 	}}
 
 	for _, v := range irverify.Verify(doc) {

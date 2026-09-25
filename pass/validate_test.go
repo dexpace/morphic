@@ -16,8 +16,8 @@ func validDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion, Name: "t", Version: "1",
 		Types: ir.TypeRegistry{
-			"t/prim/string": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string"}, Prim: "string"},
-			"t/m": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/m"}, Properties: []ir.Property{
+			"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: "string"},
+			"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{
 				{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
 			}},
 		},
@@ -75,8 +75,8 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/u"] = &ir.Union{
-		TypeCommon: ir.TypeCommon{ID: "t/u"},
-		Variants:   []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
+		ID:       "t/u",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}},
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
 			// t/prim/string exists but is not one of the union's variants.
@@ -169,8 +169,8 @@ func TestValidate_DuplicateEnumValuesAreLegal(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/e"] = &ir.Enum{
-		TypeCommon: ir.TypeCommon{ID: "t/e"},
-		ValueType:  ir.PrimString,
+		ID:        "t/e",
+		ValueType: ir.PrimString,
 		Members: []ir.EnumMember{
 			{Name: ir.Naming{Source: "a"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
 			{Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},

@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -317,8 +318,8 @@ func structuralPointerHint(pointer string) (string, bool) {
 	}
 
 	hint := ids.UnescapeSegment(segments[len(segments)-1])
-	for i := len(roles) - 1; i >= 0; i-- {
-		hint = compile.SubHint(hint, roles[i])
+	for _, role := range slices.Backward(roles) {
+		hint = compile.SubHint(hint, role)
 	}
 	return hint, true
 }

@@ -330,7 +330,7 @@ func appendGrammarViolation(vs []Violation, source, canon, path string) []Violat
 // because it does not need one: a Canonical carried without a Source is measured
 // by this and by nothing else.
 func isSegmented(s string) bool {
-	for _, word := range strings.Split(s, "_") {
+	for word := range strings.SplitSeq(s, "_") {
 		var prev rune
 		for i, r := range word {
 			if i > 0 && straddlesLetterDigit(prev, r) {
@@ -363,7 +363,7 @@ func isWordSequence(s string) bool {
 	if s == "" {
 		return true
 	}
-	for _, word := range strings.Split(s, "_") {
+	for word := range strings.SplitSeq(s, "_") {
 		if word == "" {
 			return false // a leading, trailing, or doubled separator
 		}

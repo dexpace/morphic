@@ -16,7 +16,7 @@ func TestIntern_IdempotentOnSamePointer(t *testing.T) {
 	calls := 0
 	build := func() ir.TypeDef {
 		calls++
-		return &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "x"}, Prim: ir.PrimString}
+		return &ir.Primitive{ID: "x", Prim: ir.PrimString}
 	}
 	first := l.types.Intern("/p", "x", build)
 	second := l.types.Intern("/p", "x", build)

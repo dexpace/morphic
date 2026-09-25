@@ -234,10 +234,14 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 	t.Parallel()
 	const shared = "com.example.User"
-	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/A",
-		Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{shared}}}}
-	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/x/B",
-		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}}}}
+	a := &ir.Model{
+		ID:   "t/x/A",
+		Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{shared}},
+	}
+	b := &ir.Model{
+		ID:   "t/x/B",
+		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}},
+	}
 
 	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})

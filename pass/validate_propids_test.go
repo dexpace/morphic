@@ -102,7 +102,7 @@ func TestValidate_DiscriminatorPropertyBelongsToItsModel(t *testing.T) {
 		"a union-style discriminator tags no property by identity")
 
 	doc := discriminatedDoc("p/other/a")
-	doc.Types["t/other"] = &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/other"}, Properties: []ir.Property{
+	doc.Types["t/other"] = &ir.Model{ID: "t/other", Properties: []ir.Property{
 		{ID: "p/other/a", WireName: "a", Type: ir.TypeRef{Target: "t/prim/string"}},
 	}}
 	got := codes(pass.Validate(doc))
@@ -119,7 +119,7 @@ func TestValidate_DiscriminatorPropertyThroughComposition(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	doc.Types["t/sub"] = &ir.Model{
-		TypeCommon:    ir.TypeCommon{ID: "t/sub"},
+		ID:            "t/sub",
 		Base:          &ir.TypeRef{Target: "t/m"},
 		Discriminator: &ir.Discriminator{Property: "p/m/a"},
 	}

@@ -92,7 +92,7 @@ func payloadAndVersioningSites() []refSite {
 		}, "t/ghost/versioned-type"},
 		{"discriminator default", ".Discriminator.Default", func(d *ir.Document, t ir.TypeID) {
 			d.Types["t/u"] = &ir.Union{
-				TypeCommon:    ir.TypeCommon{ID: "t/u"},
+				ID:            "t/u",
 				Discriminator: &ir.Discriminator{PropertyName: "kind", Default: t},
 			}
 		}, "t/ghost/disc-default"},
@@ -223,8 +223,8 @@ const aliasRuns = 500
 // fixed. The shared target dangles so the walk has something to report.
 func aliasedDoc() *ir.Document {
 	shared := &ir.TypeRef{Target: "t/ghost/aliased"}
-	a := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a"}, Base: shared}
-	b := &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b"}, Base: shared}
+	a := &ir.Model{ID: "t/a", Base: shared}
+	b := &ir.Model{ID: "t/b", Base: shared}
 	return &ir.Document{Types: ir.TypeRegistry{a.ID: a, b.ID: b}}
 }
 

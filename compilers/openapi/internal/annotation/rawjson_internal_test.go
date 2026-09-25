@@ -250,7 +250,7 @@ func TestRawFromNode_IsBoundedOnAliasAmplification(t *testing.T) {
 	b.WriteString("a0: &a0 [x, x, x, x, x, x, x, x, x]\n")
 	for level := 1; level <= 8; level++ {
 		fmt.Fprintf(&b, "a%d: &a%d [", level, level)
-		for i := 0; i < 9; i++ {
+		for i := range 9 {
 			if i > 0 {
 				b.WriteString(", ")
 			}
@@ -447,7 +447,7 @@ func TestRawDivergences_NamesOnlyCorpusRows(t *testing.T) {
 // parser reaches this shape only by anchoring an alias, and never this deep.
 func aliasChain(n int) *yaml.Node {
 	node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "end"}
-	for i := 0; i < n; i++ {
+	for range n {
 		node = &yaml.Node{Kind: yaml.AliasNode, Value: "a", Alias: node}
 	}
 	return node
@@ -519,7 +519,7 @@ func TestRawFromNode_BoundsAMergeChainThatNeverRevisitsANode(t *testing.T) {
 	t.Parallel()
 	innermost := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	chain := innermost
-	for i := 0; i < maxRawDepth+10; i++ {
+	for range maxRawDepth + 10 {
 		chain = mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!merge", Value: "<<"}, chain)
 	}
 

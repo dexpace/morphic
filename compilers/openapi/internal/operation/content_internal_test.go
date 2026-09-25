@@ -22,12 +22,12 @@ import (
 func TestBodyModelPointer_NoModelBehindBody(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
 	l.types.Register("t/cycle/a", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
 	})
 	l.types.Register("t/cycle/b", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
 	})
 	prim := l.types.PrimID(ir.PrimString)
 
@@ -158,15 +158,15 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 func TestPropIDByWire_DeadEnds(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
 	l.types.Register("t/cycle/a", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/a"}, Base: &ir.TypeRef{Target: "t/cycle/b"},
+		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
 	})
 	l.types.Register("t/cycle/b", &ir.Scalar{
-		TypeCommon: ir.TypeCommon{ID: "t/cycle/b"}, Base: &ir.TypeRef{Target: "t/cycle/a"},
+		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
 	})
 	l.types.Register("t/model/cycle", &ir.Model{
-		TypeCommon: ir.TypeCommon{ID: "t/model/cycle"}, Base: &ir.TypeRef{Target: "t/model/cycle"},
+		ID: "t/model/cycle", Base: &ir.TypeRef{Target: "t/model/cycle"},
 	})
 	prim := l.types.PrimID(ir.PrimString)
 

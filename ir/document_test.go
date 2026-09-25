@@ -18,10 +18,8 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 		Version:   "1.0.0",
 		Types: ir.TypeRegistry{
 			userID: &ir.Model{
-				TypeCommon: ir.TypeCommon{
-					ID:   userID,
-					Name: ir.Naming{Source: "User", Canonical: "user"},
-				},
+				ID:   userID,
+				Name: ir.Naming{Source: "User", Canonical: "user"},
 				Properties: []ir.Property{{
 					ID:       ir.PropID("p/openapi/components/schemas/User/properties/id"),
 					Name:     ir.Naming{Source: "id", Canonical: "id"},

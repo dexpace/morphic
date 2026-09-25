@@ -3082,7 +3082,7 @@ type unmodeledSite struct {
 // value graph rather than naming carriers so that a test asserting "this is kept
 // somewhere sensible" cannot pass by looking only where it expected to.
 func unmodeledSites(doc *ir.Document) []unmodeledSite {
-	unmodeledType := reflect.TypeOf(ir.Unmodeled(nil))
+	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
 	var out []unmodeledSite
 	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Type() != unmodeledType || !v.CanInterface() {

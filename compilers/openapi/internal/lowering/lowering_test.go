@@ -28,12 +28,11 @@ import (
 // TestNew_KeepsTheDocumentItWasGiven pins.
 func TestCtx_HasNoExportedMap(t *testing.T) {
 	t.Parallel()
-	rt := reflect.TypeOf(lowering.Ctx{})
+	rt := reflect.TypeFor[lowering.Ctx]()
 	require.Positive(t, rt.NumField(), "a context with no fields would pass this vacuously")
 
 	var checked int
-	for i := range rt.NumField() {
-		f := rt.Field(i)
+	for f := range rt.Fields() {
 		if !f.IsExported() {
 			continue
 		}

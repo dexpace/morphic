@@ -38,9 +38,6 @@ func bigOf(v string) *ir.BigVal {
 	return &b
 }
 
-// i64 returns a pointer to v, which the length and count bounds take.
-func i64(v int64) *int64 { return &v }
-
 // TestConstraints_ReadsEveryScalarKeyword pins the whole scalar set in one
 // place. A keyword read into the wrong field, or not read at all, is a
 // constraint the source declared and the IR does not carry — and the emptiness
@@ -57,11 +54,11 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	assert.Equal(t, bigOf("1"), got.Min)
 	assert.Equal(t, bigOf("9"), got.Max)
 	assert.Equal(t, bigOf("3"), got.MultipleOf)
-	assert.Equal(t, i64(2), got.MinLength)
-	assert.Equal(t, i64(8), got.MaxLength)
+	assert.Equal(t, new(int64(2)), got.MinLength)
+	assert.Equal(t, new(int64(8)), got.MaxLength)
 	assert.Equal(t, "^a", got.Pattern)
-	assert.Equal(t, i64(1), got.MinProps)
-	assert.Equal(t, i64(4), got.MaxProps)
+	assert.Equal(t, new(int64(1)), got.MinProps)
+	assert.Equal(t, new(int64(4)), got.MaxProps)
 }
 
 // TestConstraints_NothingDeclaredIsNilNotEmpty pins the emptiness check. An

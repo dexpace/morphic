@@ -14,17 +14,17 @@ import (
 // plus the leaf each target names, so the document is referentially closed and
 // the only thing a violation can be about is the union itself.
 func unionOf(targets ...ir.TypeID) *ir.Document {
-	u := &ir.Union{TypeCommon: ir.TypeCommon{
+	u := &ir.Union{
 		ID:   "t/x/U",
 		Name: ir.Naming{Source: "U", Canonical: "u"},
-	}}
+	}
 	types := ir.TypeRegistry{u.ID: u}
 	for _, target := range targets {
 		u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: target}})
-		types[target] = &ir.Scalar{TypeCommon: ir.TypeCommon{
+		types[target] = &ir.Scalar{
 			ID:   target,
 			Name: ir.Naming{Source: "Leaf", Canonical: "leaf"},
-		}}
+		}
 	}
 	return &ir.Document{Types: types}
 }

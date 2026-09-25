@@ -39,7 +39,7 @@ func TestGitAttributes_PinsLineEndings(t *testing.T) {
 	require.NoError(t, err, ".gitattributes must exist at the repository root")
 
 	var pins []string
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" && !strings.HasPrefix(trimmed, "#") {
 			pins = append(pins, trimmed)
 		}

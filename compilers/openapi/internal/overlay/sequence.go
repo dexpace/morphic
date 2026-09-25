@@ -3,6 +3,7 @@ package overlay
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
@@ -194,7 +195,7 @@ func (s *sequence) file(i int, action soaoverlay.Action, warnings []string) {
 			s.warnings = append(s.warnings, placed+rest)
 			continue
 		}
-		if !contains(s.notes, w) {
+		if !slices.Contains(s.notes, w) {
 			s.notes = append(s.notes, w)
 		}
 	}
@@ -236,16 +237,6 @@ func actionType(action soaoverlay.Action) string {
 	default:
 		return "unknown"
 	}
-}
-
-// contains reports whether list holds s.
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 // countNodes counts the nodes a Content walk from root reaches.

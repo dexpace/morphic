@@ -24,7 +24,7 @@ func TestResolvePrimKind_DanglingTargetIsNotResolved(t *testing.T) {
 func TestResolvePrimKind_BaselessScalarIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/opaque": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}},
+		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
 	_, ok := g.resolvePrimKind(ir.TypeRef{Target: "t/opaque"})
 	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
@@ -36,7 +36,7 @@ func TestResolvePrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	// and report no primitive rather than spin.
 	self := ir.TypeRef{Target: "t/cycle"}
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/cycle": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/cycle"}, Base: &self},
+		"t/cycle": &ir.Scalar{ID: "t/cycle", Base: &self},
 	})
 	_, ok := g.resolvePrimKind(self)
 	assert.False(t, ok, "a cyclic base chain terminates without resolving")
@@ -52,7 +52,7 @@ func TestIsAnyType_DanglingTargetIsNotAny(t *testing.T) {
 func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}},
+		"t/model": &ir.Model{ID: "t/model"},
 	})
 	assert.False(t,
 		g.differentTypeKind(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/missing"}),
@@ -103,10 +103,10 @@ func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
 func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":  &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}},
-		"t/list":   &ir.List{TypeCommon: ir.TypeCommon{ID: "t/list"}},
-		"t/opaque": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}},
-		"t/string": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString},
+		"t/model":  &ir.Model{ID: "t/model"},
+		"t/list":   &ir.List{ID: "t/list"},
+		"t/opaque": &ir.Scalar{ID: "t/opaque"},
+		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
 	assert.True(t, g.isStructuralType(ir.TypeRef{Target: "t/model"}),
@@ -124,8 +124,8 @@ func TestIsStructuralType_DistinguishesCompositeFromOpaque(t *testing.T) {
 func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/opaque": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/opaque"}},
-		"t/string": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString},
+		"t/opaque": &ir.Scalar{ID: "t/opaque"},
+		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
 	assert.False(t, g.typesConflict(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/string"}),
@@ -137,8 +137,8 @@ func TestTypesConflict_OpaqueScalarVsPrimitiveIsNotConflict(t *testing.T) {
 func TestTypesConflict_StructuralVsPrimitiveIsConflict(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":  &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/model"}},
-		"t/string": &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/string"}, Prim: ir.PrimString},
+		"t/model":  &ir.Model{ID: "t/model"},
+		"t/string": &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
 	})
 
 	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/string"}),

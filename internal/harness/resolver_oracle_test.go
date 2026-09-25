@@ -258,11 +258,10 @@ func hasCyclicRef(diags []ir.Diagnostic) bool {
 
 // markerValue reads the value the helper printed for a marker.
 func markerValue(text, marker string) (string, bool) {
-	i := strings.Index(text, marker)
-	if i < 0 {
+	_, rest, ok := strings.Cut(text, marker)
+	if !ok {
 		return "", false
 	}
-	rest := text[i+len(marker):]
 	if j := strings.IndexByte(rest, '\n'); j >= 0 {
 		rest = rest[:j]
 	}

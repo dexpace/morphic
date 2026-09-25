@@ -71,11 +71,9 @@ func TestEngine_ConcurrentRunSharesOneEngine(t *testing.T) {
 	got := make([]workerRun, concurrentWorkers)
 	var wg sync.WaitGroup
 	for w := range concurrentWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			got[w] = runCorpus(ctx, eng, specs, w)
-		}()
+		})
 	}
 	wg.Wait()
 
