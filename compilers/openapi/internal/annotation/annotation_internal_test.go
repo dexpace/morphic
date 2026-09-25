@@ -172,3 +172,19 @@ func TestKind_String(t *testing.T) {
 	assert.Equal(t, "Reference", Reference.String())
 	assert.Equal(t, "Kind(99)", Kind(99).String())
 }
+
+// TestJSONObject_PropagatesAQuoteFailure covers jsonObject's one failure mode:
+// a member key that is not valid UTF-8. Every caller in this package passes a
+// fixed JSON Schema keyword as the key, so no real schema reaches this — it is
+// exercised directly, the same way rawjson_internal_test.go's
+// TestSpliceNumber_RefusesANonJSONNumber exercises a check its own caller can
+// no longer fail, guarding against a future member key that is not a
+// compile-time constant.
+func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
+	t.Parallel()
+	got, err := jsonObject([]rawMember{{key: "\xff", val: ir.RawValue("1")}})
+
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "invalid UTF-8")
+}

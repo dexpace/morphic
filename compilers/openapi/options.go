@@ -107,10 +107,9 @@ type Options struct {
 	// architecture §2.2 names, and is deliberately not the IR overlay pass beside
 	// it: a fix that has to land before naming and hoisting heuristics read the
 	// broken shape cannot be made afterwards.
-	Overlay *Overlay `json:"overlay,omitempty"`
+	Overlay *Overlay `json:"overlay,omitzero"`
 	// Limits bounds how large an input this compile will lower. The zero value
-	// takes every default, so it carries no omitempty: a struct is never empty to
-	// encoding/json, and a tag implying otherwise would be read as a promise.
+	// takes every default.
 	Limits Limits `json:"limits"`
 }
 
@@ -182,14 +181,14 @@ const (
 type Limits struct {
 	// MaxSourceBytes bounds one source document's size in bytes, checked before
 	// it is parsed.
-	MaxSourceBytes int `json:"maxSourceBytes,omitempty"`
+	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
 	// MaxSourceNodes bounds the YAML nodes one source document parses to,
 	// checked before the typed model is built from it.
-	MaxSourceNodes int `json:"maxSourceNodes,omitempty"`
+	MaxSourceNodes int `json:"maxSourceNodes,omitzero"`
 	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
 	// as the top type with an error diagnostic naming the budget; the rest of the
 	// document still lowers.
-	MaxEnumMembers int `json:"maxEnumMembers,omitempty"`
+	MaxEnumMembers int `json:"maxEnumMembers,omitzero"`
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to one source
 	// document, or to its overlay, beyond the document's own: what the document
 	// costs once every alias stands in for a copy of what it names, less what it
@@ -204,7 +203,7 @@ type Limits struct {
 	// openapi/budget-exceeded, because that is the shape of a bomb rather than of
 	// a large document. What is left unbounded is how far a document within that
 	// ratio may expand, so its cost is at most that multiple of its own size.
-	MaxAliasSurplus int `json:"maxAliasSurplus,omitempty"`
+	MaxAliasSurplus int `json:"maxAliasSurplus,omitzero"`
 }
 
 // withDefaults returns a copy of l with each unset budget filled from its
@@ -263,7 +262,7 @@ type Overlay struct {
 	// silently does nothing ships an SDK missing the very fix it was written to
 	// make. Under strict such an action is reported and the compile refuses;
 	// under lax it is not reported at all.
-	Lax bool `json:"lax,omitempty"`
+	Lax bool `json:"lax,omitzero"`
 }
 
 // withDefaults returns a copy of o with unset fields filled from the defaults.

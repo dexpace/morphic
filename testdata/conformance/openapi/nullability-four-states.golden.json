@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "NullabilityFourStates",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "nullability_four_states"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -165,8 +164,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

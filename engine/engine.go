@@ -25,9 +25,9 @@ import (
 // settings it cannot decode are an error, and settings another cannot are that
 // other's defaults. See compilers.Registry.Detect.
 type RunOptions struct {
-	FormatOptions   any               `json:"formatOptions,omitempty"`
+	FormatOptions   any               `json:"formatOptions,omitzero"`
 	CompilerOptions map[string]string `json:"compilerOptions,omitempty"`
-	SkipValidate    bool              `json:"skipValidate,omitempty"`
+	SkipValidate    bool              `json:"skipValidate,omitzero"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -43,7 +43,7 @@ var errOptionChannels = errors.New(
 // Diagnostics is the whole list for the run. When Document is non-nil it holds
 // the same values, so a caller reading either channel sees every finding.
 type Result struct {
-	Document    *ir.Document           `json:"document,omitempty"`
+	Document    *ir.Document           `json:"document,omitzero"`
 	Diagnostics []ir.Diagnostic        `json:"diagnostics,omitempty"`
 	Format      compilers.SourceFormat `json:"format"`
 }

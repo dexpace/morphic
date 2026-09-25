@@ -2,7 +2,8 @@
 package irtest
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,7 +27,7 @@ func Update() bool { return *update }
 // about what "the golden encoding" is. Both screen out a nil doc first, so one
 // never reaches here.
 func encodeGolden(doc *ir.Document) ([]byte, error) {
-	raw, err := json.MarshalIndent(doc, "", "  ")
+	raw, err := json.Marshal(doc, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, err
 	}

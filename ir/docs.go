@@ -60,16 +60,16 @@ type Example struct {
 	Description string `json:"description,omitempty"`
 	// Value is a single-value example (schemas, properties, parameters); for
 	// message examples it is the payload.
-	Value *Value `json:"value,omitempty"`
+	Value *Value `json:"value,omitzero"`
 	// Headers holds the correlated header values for message examples (AsyncAPI
 	// message examples are header+payload pairs — never split them).
-	Headers *Value `json:"headers,omitempty"`
+	Headers *Value `json:"headers,omitzero"`
 	// Input is the operation-scenario input, paired with Output or Error.
-	Input *Value `json:"input,omitempty"`
+	Input *Value `json:"input,omitzero"`
 	// Output is the operation-scenario success result paired with Input.
-	Output *Value `json:"output,omitempty"`
+	Output *Value `json:"output,omitzero"`
 	// Error ends the scenario in this error instead of Output.
-	Error *ErrorExample `json:"error,omitempty"`
+	Error *ErrorExample `json:"error,omitzero"`
 	// ExternalURL points to an externally hosted example.
 	ExternalURL string `json:"externalURL,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.

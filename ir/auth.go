@@ -68,7 +68,7 @@ type AuthScheme struct {
 	// Docs is the scheme's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the scheme as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// In is the apiKey location: header | query | cookie | user | password.
 	In string `json:"in,omitempty"`
 	// KeyName is the apiKey name.

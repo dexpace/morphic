@@ -36,30 +36,29 @@ const (
 // Value is typed data kept separate from the type graph: defaults, constants,
 // literal types, enum member values, and examples (ir-design §6). Kind selects
 // which payload field is meaningful; the remaining fields hold their zero
-// value. Collection payloads (Bytes/List/Object) carry no omitempty so a
-// present-but-empty collection round-trips as []/{} rather than collapsing to
-// nil; the ValueNull compact form therefore also carries their null fields, e.g.
-// Value{Kind: ValueNull} marshals to {"kind":"null","bytes":null,"list":null,"object":null}.
+// value, and every payload is omitted when empty. Kind already says which
+// payload a value carries, so an empty list and a nil one are the same value
+// and share one spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`
 	// Bool is the payload for ValueBool.
-	Bool bool `json:"bool,omitempty"`
+	Bool bool `json:"bool,omitzero"`
 	// Str is the payload for ValueString and ValueSymbol.
 	Str string `json:"str,omitempty"`
 	// Num is the payload for ValueNumber, an arbitrary-precision decimal string.
 	Num BigVal `json:"num,omitempty"`
 	// Bytes is the payload for ValueBytes, base64-encoded in JSON form.
-	Bytes []byte `json:"bytes"`
+	Bytes []byte `json:"bytes,omitempty"`
 	// List is the payload for ValueList, an ordered sequence of values.
-	List []Value `json:"list"`
+	List []Value `json:"list,omitempty"`
 	// Object is the payload for ValueObject, an ordered set of named values.
 	// Object member order carries meaning, so it is a slice, never a map.
-	Object []Field `json:"object"`
+	Object []Field `json:"object,omitempty"`
 	// Ref is the payload for ValueRefKind, a reference to a declared constant.
-	Ref *ValueRef `json:"ref,omitempty"`
+	Ref *ValueRef `json:"ref,omitzero"`
 	// Ctor is the payload for ValueCtor, a constructor-built value.
-	Ctor *CtorValue `json:"ctor,omitempty"`
+	Ctor *CtorValue `json:"ctor,omitzero"`
 }
 
 // Field is one named member of a ValueObject, in source order.
@@ -87,7 +86,7 @@ type CtorValue struct {
 	Scalar TypeID `json:"scalar,omitempty"`
 	// Name is the constructor name ("fromISO", "now", custom inits).
 	Name string `json:"name,omitempty"`
-	// Args are the constructor arguments in source order; a present-but-empty
-	// argument list round-trips as [] rather than nil, so it carries no omitempty.
-	Args []Value `json:"args"`
+	// Args are the constructor arguments in source order. No arguments and a
+	// nil list are the same call, so an empty list is omitted.
+	Args []Value `json:"args,omitempty"`
 }

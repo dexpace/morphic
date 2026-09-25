@@ -227,13 +227,21 @@ below are the ones most likely to bite in this codebase — the full guide gover
   (stdlib, external, local); no dot imports.
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
   comment on every package; comments explain *why*, not what.
-- **Serialization:** explicit JSON struct tags on every field; `omitempty` only on optional
-  fields; custom codecs for special forms, but not symmetrically — each member of the IR's
-  `TypeDef` sum has a `MarshalJSON` that writes its adjacent `kind` tag, and *decoding* is
-  centralized in `(*TypeRegistry).UnmarshalJSON`, which reads that tag; no member unmarshals
-  itself, and `BigVal` has no codec at all because it *is* a string type and already marshals as
-  a JSON string. `grep -rnE 'func .*(Unm|M)arshalJSON' ir/` is the current list; never `float64`
-  for money — and in this repo, never in the IR at all, per the representation conventions above.
+- **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
+  `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
+  every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
+  same; `omitzero` on every other optional field (pointers, bools, numbers), because v2's
+  `omitempty` keeps a zero number or bool and drops a pointer to an empty struct, and on a
+  collection where nil and empty differ (`Operation.Auth`: absent inherits, `[]` is explicitly
+  public). A `Document` owns its bytes both ways: `MarshalJSONTo` pins the canonical options
+  (sorted maps, RFC 8785 minimal escaping, no invalid UTF-8), and `UnmarshalJSONFrom` reads
+  `irVersion` first, then refuses unknown members, duplicate names and invalid UTF-8 whatever the
+  caller's options. A sub-structure encoded on its own takes the caller's options: pass
+  `json.Deterministic(true)`. Each `TypeDef` kind codes itself through one generic kind-tagged
+  wrapper, and `(*TypeRegistry).UnmarshalJSONFrom` dispatches on the tag; `BigVal` has no codec
+  because it *is* a string type. `grep -rnE 'func .*(Unm|M)arshalJSON' ir/` is the current list;
+  never `float64` for money — and in this repo, never in the IR at all, per the representation
+  conventions above.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 

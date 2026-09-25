@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,9 +14,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// badExtDoc returns a document that cannot be marshalled: its Unmodeled holds an
-// invalid json.RawMessage, whose malformed bytes json.Marshal's encoder rejects
-// while compacting them — RawMessage.MarshalJSON hands them back unexamined.
+// badExtDoc returns a document that cannot be marshalled: its Unmodeled holds
+// an ir.RawValue with malformed bytes, which the encoder refuses when it writes
+// the value into the document.
 //
 // Check no longer reaches its round-trip oracle with this: irverify reports the
 // payload as ir/invalid-raw-value first, which is the point of that check. It is
@@ -28,15 +29,23 @@ func badExtDoc() *ir.Document {
 	}}
 }
 
-// dupKeyDoc returns a structurally sound document that loses information in
-// serialization: two type IDs that are distinct invalid-UTF-8 byte strings
-// encode to the same U+FFFD key, so the marshalled object carries a duplicate
-// key that decodes back to a single entry. Each entry is keyed by its own ID, so
-// Verify passes it through to the round-trip oracle.
-// The IDs are well-shaped so the document reaches the round-trip oracle: an ID
-// the grammar could not have produced is a structural violation, and Check
-// returns at the first one. Only their paths carry the ill-formed bytes that make
-// two distinct keys collide once JSON coerces them to U+FFFD.
+// dupKeyDoc returns a structurally sound document whose two type IDs are
+// distinct invalid-UTF-8 byte strings. Before canonicalOptions started refusing
+// invalid UTF-8, the two encoded to the same U+FFFD-replaced JSON key, so the
+// marshalled object carried a duplicate key that silently lost an entry on the
+// way back in — that collision is what gives the fixture its name. Now
+// marshaling either ID is refused outright, before any such collision can form
+// (TestRoundTrips_DupKeyDocRefusedAtMarshal).
+//
+// Verify does not treat invalid UTF-8 in an ID as a structural violation, so
+// Check still reaches the round-trip oracle on this document; it now fires by
+// refusing the marshal rather than by comparing mismatched bytes
+// (TestCheck_RoundtripOutcome).
+//
+// The IDs are well-shaped so the document reaches the round-trip oracle at
+// all: an ID the grammar could not have produced is a structural violation,
+// and Check returns at the first one. Only their paths carry the ill-formed
+// bytes.
 //
 // The nodes are Any rather than Primitive for the same reachability reason. A
 // primitive's ID is derived from its kind, so a primitive anywhere but
@@ -84,8 +93,37 @@ func TestRoundTrips_UnmarshalError(t *testing.T) {
 	assert.Contains(t, detail, "unmarshal:")
 }
 
-func TestRoundTrips_MismatchIsReported(t *testing.T) {
+// TestRoundTrips_DupKeyDocRefusedAtMarshal pins the boundary the stricter codec
+// moved: dupKeyDoc's two invalid-UTF-8 IDs used to collide into one
+// U+FFFD-replaced JSON key on marshal, which is what used to reach the
+// byte-comparison branch below. canonicalOptions now refuses invalid UTF-8
+// outright (AllowInvalidUTF8(false)), so the fixture is rejected before a
+// collision can even form.
+func TestRoundTrips_DupKeyDocRefusedAtMarshal(t *testing.T) {
 	detail, ok := roundTrips(dupKeyDoc())
+	assert.False(t, ok)
+	assert.Contains(t, detail, "marshal:")
+	assert.Contains(t, detail, "invalid UTF-8")
+}
+
+// TestRoundTrips_MismatchIsReported drives the "round-trip JSON differs" branch
+// through the reserializeJSON seam rather than a document. dupKeyDoc, the
+// fixture that used to reach it, is refused at marshal time instead (see
+// TestRoundTrips_DupKeyDocRefusedAtMarshal), and no document found since
+// encodes and then decodes into something that encodes differently. The
+// branch stays as the oracle's defence against a decode that loses data.
+func TestRoundTrips_MismatchIsReported(t *testing.T) {
+	orig := reserializeJSON
+	t.Cleanup(func() { reserializeJSON = orig })
+	reserializeJSON = func(v any) ([]byte, error) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		return append(b, '!'), nil // an otherwise-honest remarshal, perturbed by one byte
+	}
+
+	detail, ok := roundTrips(soundDoc())
 	assert.False(t, ok)
 	assert.Contains(t, detail, "round-trip JSON differs")
 }
@@ -188,6 +226,10 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	assert.Equal(t, OutcomeViolations, r.Outcome)
 }
 
+// TestCheck_RoundtripOutcome pins that Check reports OutcomeRoundtrip for
+// dupKeyDoc regardless of which of roundTrips' branches actually fires: it is
+// now the marshal refusal (TestRoundTrips_DupKeyDocRefusedAtMarshal), not a
+// byte mismatch, but Check classifies every roundTrips failure alike.
 func TestCheck_RoundtripOutcome(t *testing.T) {
 	orig := compile
 	t.Cleanup(func() { compile = orig })
@@ -197,6 +239,7 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeRoundtrip, r.Outcome)
+	assert.Contains(t, r.Detail, "marshal:", "dupKeyDoc is refused before the byte comparison ever runs")
 }
 
 // TestCheck_InvalidRawValueIsAViolationNotARoundTrip pins the reordering the

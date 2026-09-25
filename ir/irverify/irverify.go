@@ -189,13 +189,14 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 // checkDiagnostics asserts every diagnostic message is well-formed UTF-8
 // (invariant #7). A message carrying an ill-formed byte run — as a third-party
 // validator emits when it truncates a multibyte rune — reaches
-// Document.Diagnostics, and json.Marshal rewrites invalid UTF-8 to U+FFFD, so
-// the document stops round-tripping byte-for-byte. Producers coerce messages
-// through ir.NewDiagnostic; this check catches any that bypass it. Message is
-// the only diagnostic field that carries free-form validator text: a Code may
-// embed a validator-supplied rule suffix, but those rule names are bounded
-// ASCII identifiers, and Provenance holds line:col or synthetic pointers — so
-// neither can carry the ill-formed bytes Message can.
+// Document.Diagnostics, and a Document refuses to encode a string that is not
+// UTF-8 rather than rewrite it to U+FFFD, so one such message fails the whole
+// document. Producers coerce messages through ir.NewDiagnostic; this check
+// catches any that bypass it.
+// Message is the only diagnostic field that carries free-form validator
+// text: a Code may embed a validator-supplied rule suffix, but those rule
+// names are bounded ASCII identifiers, and Provenance holds line:col or
+// synthetic pointers — so neither can carry the ill-formed bytes Message can.
 func checkDiagnostics(doc *ir.Document) []Violation {
 	var vs []Violation
 	for i, d := range doc.Diagnostics {

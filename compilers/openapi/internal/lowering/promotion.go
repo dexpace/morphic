@@ -1,7 +1,7 @@
 package lowering
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"maps"
 	"slices"
 	"strings"
@@ -75,7 +75,7 @@ const (
 type ExtensionPromotions struct {
 	// Disabled turns promotion off. Off means off: every extension is kept
 	// verbatim and no typed field is written from one.
-	Disabled bool `json:"disabled,omitempty"`
+	Disabled bool `json:"disabled,omitzero"`
 	// Targets replaces the default map rather than extending it, so a caller who
 	// states a mapping gets exactly that mapping. Empty means the default. Keys
 	// are extension names as the document writes them, x- prefix included.

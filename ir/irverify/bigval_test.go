@@ -87,9 +87,9 @@ func assertBigValCode(t *testing.T, literal, code string) {
 }
 
 // TestVerify_NonNumericBigValIsAViolation drives the half ir.NewBigVal rejects
-// outright. ir.BigVal is a defined string type with no UnmarshalJSON, so every
-// one of these reaches a document either by conversion or by a JSON decode that
-// meets no constructor.
+// outright. ir.BigVal is a defined string type with no UnmarshalJSONFrom, so
+// every one of these reaches a document either by conversion or by a JSON
+// decode that meets no constructor.
 func TestVerify_NonNumericBigValIsAViolation(t *testing.T) {
 	t.Parallel()
 	for _, literal := range []string{"abc", "1.2.3", "0x1f", "NaN", "1e", "1 ; DROP TABLE"} {

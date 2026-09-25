@@ -51,10 +51,9 @@ type Diagnostic struct {
 }
 
 // NewDiagnostic builds a Diagnostic, coercing message to well-formed UTF-8 so
-// the enclosing Document round-trips through JSON byte-for-byte (invariant
-// #7): a third-party validator can emit a truncated multibyte rune in its
-// error text, and json.Marshal silently rewrites invalid UTF-8 to U+FFFD,
-// breaking that round-trip if left uncoerced until marshal time. irverify's
+// the enclosing Document can be written at all: a third-party validator can
+// emit a truncated multibyte rune in its error text, and a Document refuses to
+// encode a string that is not UTF-8 rather than rewrite it to U+FFFD. irverify's
 // ir/diagnostic-invalid-utf8 check flags any message that still reaches a
 // Document ill-formed; strings.ToValidUTF8 doesn't allocate when message is
 // already valid, so the common path costs one scan.

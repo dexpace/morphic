@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "AllOfConflictingType",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "all_of_conflicting_type"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -52,10 +51,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "1",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "1"
           },
           "flatten": false,
           "eventHeader": false,
@@ -65,10 +61,7 @@
             {
               "value": {
                 "kind": "number",
-                "num": "1",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "1"
               }
             }
           ],
@@ -264,8 +257,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

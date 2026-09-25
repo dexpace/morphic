@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 func writeFile(t *testing.T, name, contents string) string {
@@ -298,6 +301,27 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 		"-pretty must write the bytes stdout gets")
 }
 
+// TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
+// encoder it does not share: what compile prints is byte for byte what
+// irtest.WriteGolden writes for the same document, indentation and trailing
+// newline included. Comparing -pretty with stdout cannot show this, since both
+// go through encodeDocument.
+func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", unsortedSpec)
+
+	var stdout, stderr bytes.Buffer
+	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
+
+	res, _, ok := runPipeline(spec, specOptions{}, io.Discard)
+	require.True(t, ok, "the pipeline must produce a document")
+	golden := filepath.Join(t.TempDir(), "doc.golden.json")
+	require.NoError(t, irtest.WriteGolden(golden, res.Document))
+	want, err := os.ReadFile(golden)
+	require.NoError(t, err)
+	assert.Empty(t, cmp.Diff(string(want), stdout.String()), "stdout must be the golden encoding")
+}
+
 // TestRun_CompactOutputKeepsDocumentOrder is the determinism check the format
 // change has to survive: compacting the indented artifact must reproduce the
 // compact one byte for byte. Whitespace removal cannot reorder anything, so the
@@ -311,8 +335,8 @@ func TestRun_CompactOutputKeepsDocumentOrder(t *testing.T) {
 	compact := compileToFile(t, spec)
 	pretty := compileToFile(t, spec, "-pretty")
 
-	var flattened bytes.Buffer
-	require.NoError(t, json.Compact(&flattened, pretty))
+	flattened := jsontext.Value(pretty).Clone()
+	require.NoError(t, flattened.Compact())
 	assert.Empty(t, cmp.Diff(flattened.String()+"\n", string(compact)),
 		"compacting the indented artifact must reproduce the compact one exactly")
 

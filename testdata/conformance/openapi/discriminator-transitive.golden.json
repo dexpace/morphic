@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "DiscriminatorTransitive",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "discriminator_transitive"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -421,8 +420,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

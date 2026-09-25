@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "InlineResidue",
   "version": "1.0.0",
   "docs": {},
@@ -56,7 +56,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -76,7 +75,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -231,17 +229,12 @@
           },
           "default": {
             "kind": "list",
-            "bytes": null,
             "list": [
               {
                 "kind": "number",
-                "num": "3",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "3"
               }
-            ],
-            "object": null
+            ]
           },
           "flatten": false,
           "eventHeader": false,
@@ -289,8 +282,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

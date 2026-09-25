@@ -13,13 +13,14 @@ import (
 // Docs, OneWay, Idempotency, Bindings, and Provenance carry no omitempty
 // because every operation has a naming, docs, a one-way flag, an idempotency
 // classification, a (possibly empty) bindings struct, and provenance. Auth
-// carries no omitempty for the same reason as Service.Auth and Server.Auth:
-// an empty non-nil slice ("explicitly public") must differ from nil ("inherit
-// the service default").
+// carries omitzero rather than omitempty for the same reason as Service.Auth
+// and Server.Auth: an empty non-nil slice ("explicitly public") must differ
+// from nil ("inherit the service default"), so nil Auth omits the key
+// entirely rather than writing null.
 func TestOperation_ZeroValueShape(t *testing.T) {
 	t.Parallel()
 	assertZeroValueShape(t, ir.Operation{},
-		`{"name":{},"docs":{},"oneWay":false,"idempotency":{},"auth":null,"bindings":{},"provenance":{"source":0}}`)
+		`{"name":{},"docs":{},"oneWay":false,"idempotency":{},"bindings":{},"provenance":{"source":0}}`)
 }
 
 // TestOperation_PopulatedRoundTrip pins that a fully populated Operation —

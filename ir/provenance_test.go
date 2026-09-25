@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 	"unicode/utf8"
 
@@ -55,9 +55,10 @@ func TestNewDiagnostic_PreservesOtherFields(t *testing.T) {
 
 // TestNewDiagnostic_RoundTripsByteForByte is the invariant #7 property: a
 // constructed diagnostic survives marshal → unmarshal → marshal unchanged.
-// Without coercion the raw ill-formed bytes would encode as the \uFFFD escape on
-// the first marshal but as raw U+FFFD bytes on the second, breaking the
-// byte-for-byte guarantee and the deep-equal of the in-memory value.
+// Without coercion, marshaling the raw ill-formed bytes would fail outright —
+// encoding/json/v2 refuses invalid UTF-8 rather than substituting U+FFFD — so
+// the round trip depends entirely on NewDiagnostic having already made
+// d.Message valid before either marshal runs.
 func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	t.Parallel()
 	d := ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "bad \xe0\xa5 byte", ir.Provenance{})

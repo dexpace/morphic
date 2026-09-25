@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,7 +68,7 @@ func TestTypeCommon_WireNameByFormatDeterministic(t *testing.T) {
 // typeDefZeroShapeTests is the Class A table for every concrete TypeDef kind:
 // each must marshal its zero value with the "kind" tag adjacent and correct,
 // followed by TypeCommon's shared fields and then its own fields in
-// declaration order (json.go's marshalWithKind contract).
+// declaration order (json.go's kinded wrapper).
 func typeDefZeroShapeTests() []struct {
 	name string
 	td   ir.TypeDef
@@ -122,7 +122,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "literal",
 			td:   &ir.Literal{},
-			want: `{"kind":"literal","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"value":{"kind":"","bytes":null,"list":null,"object":null}}`,
+			want: `{"kind":"literal","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"value":{"kind":""}}`,
 		},
 		{
 			name: "external",
@@ -140,9 +140,8 @@ func typeDefZeroShapeTests() []struct {
 // TestTypeDef_ZeroValueShapeWithKindTag pins the zero-value marshal shape of
 // every concrete TypeDef kind, including the adjacent "kind" discriminator
 // (invariant #7 / the sealed-sum JSON encoding). This is the Class A test
-// json_internal_test.go does not cover: that file drives marshalWithKind's
-// error and formatting branches directly, but never asserts the exact
-// zero-value payload for each real kind.
+// json_internal_test.go does not cover: that file drives the codec's helpers
+// directly, but never asserts the exact zero-value payload for each real kind.
 func TestTypeDef_ZeroValueShapeWithKindTag(t *testing.T) {
 	t.Parallel()
 	for _, tt := range typeDefZeroShapeTests() {
@@ -543,7 +542,7 @@ func TestEventInfo_JSONContract(t *testing.T) {
 func TestEnumMember_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.EnumMember{},
-		`{"name":{},"value":{"kind":"","bytes":null,"list":null,"object":null},"docs":{}}`,
+		`{"name":{},"value":{"kind":""},"docs":{}}`,
 		ir.EnumMember{
 			Name:         populatedNaming(),
 			Value:        ir.Value{Kind: ir.ValueString, Str: "active"},

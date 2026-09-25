@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "ParamStyles",
   "version": "1.0.0",
   "docs": {},
@@ -153,7 +153,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -266,7 +265,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -296,7 +294,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -359,10 +356,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "a",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "a"
           },
           "docs": {}
         },
@@ -373,10 +367,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "b",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "b"
           },
           "docs": {}
         }
@@ -403,8 +394,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

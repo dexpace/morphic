@@ -86,9 +86,9 @@ func TestCompatibleVersion(t *testing.T) {
 		// generation" literal WAS the current version, and the row asserted the
 		// build rejects its own documents. The rows below spell IRVersion
 		// directly and need no such maintenance.
-		{"the generation before this one", "0.3.0", false},
-		{"a later generation", "0.5.0", false},
-		{"a differing patch", "0.4.1", false},
+		{"the generation before this one", "0.4.0", false},
+		{"a later generation", "0.6.0", false},
+		{"a differing patch", "0.5.1", false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},

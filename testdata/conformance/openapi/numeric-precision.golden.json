@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "NumericPrecision",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "numeric_precision"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -40,10 +39,7 @@
           },
           "value": {
             "kind": "number",
-            "num": "1",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "1"
           },
           "docs": {}
         },
@@ -54,10 +50,7 @@
           },
           "value": {
             "kind": "number",
-            "num": "123456789012345678901234567890",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "123456789012345678901234567890"
           },
           "docs": {}
         }
@@ -87,10 +80,7 @@
           },
           "value": {
             "kind": "number",
-            "num": "420",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "420"
           },
           "docs": {}
         },
@@ -101,10 +91,7 @@
           },
           "value": {
             "kind": "number",
-            "num": "493",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "493"
           },
           "docs": {}
         }
@@ -127,10 +114,7 @@
       },
       "value": {
         "kind": "number",
-        "num": "1.8e308",
-        "bytes": null,
-        "list": null,
-        "object": null
+        "num": "1.8e308"
       }
     },
     "t/openapi/components/schemas/S": {
@@ -232,10 +216,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "1.8e308",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "1.8e308"
           },
           "flatten": false,
           "eventHeader": false,
@@ -326,10 +307,7 @@
             {
               "value": {
                 "kind": "number",
-                "num": "0.5",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "0.5"
               }
             }
           ],
@@ -358,10 +336,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "420",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "420"
           },
           "flatten": false,
           "eventHeader": false,
@@ -404,10 +379,7 @@
             {
               "value": {
                 "kind": "number",
-                "num": "30",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "30"
               }
             }
           ],
@@ -436,10 +408,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "1000000",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "1000000"
           },
           "flatten": false,
           "eventHeader": false,
@@ -470,10 +439,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "9",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "9"
           },
           "flatten": false,
           "eventHeader": false,
@@ -584,8 +550,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

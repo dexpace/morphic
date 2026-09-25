@@ -67,7 +67,7 @@ type Property struct {
 	// WireID is the protobuf field number / thrift id / tuple element index
 	// (1-based when Model.Positional); nil = none (pointer because 0 is a legal
 	// ordinal).
-	WireID *int `json:"wireID,omitempty"`
+	WireID *int `json:"wireID,omitzero"`
 	// ExtensionOf is "" for the model's own field, else the fully-qualified
 	// declaring scope of a third-party extension field (protobuf extend).
 	ExtensionOf string `json:"extensionOf,omitempty"`
@@ -87,16 +87,16 @@ type Property struct {
 	// Visibility is the lifecycle set; zero value = visible in all.
 	Visibility Visibility `json:"visibility"`
 	// Default is the property's default value.
-	Default *Value `json:"default,omitempty"`
+	Default *Value `json:"default,omitzero"`
 	// Constraints restricts the property's admissible values, and holds only
 	// what the property's own position declared. A bound on a $ref'd schema
 	// stays on the node Type points at and is never copied here, unlike Docs,
 	// Deprecation and Default, which merge from that target with use-site
 	// precedence: bounds conjoin rather than override, so nil means this
 	// position declared none, not that the value is unbounded (ir-design §12.2).
-	Constraints *Constraints `json:"constraints,omitempty"`
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding overrides the property's wire encoding.
-	Encoding *Encoding `json:"encoding,omitempty"`
+	Encoding *Encoding `json:"encoding,omitzero"`
 	// Args are field arguments for parameterized fields: GraphQL field arguments
 	// on any property at any depth; empty elsewhere.
 	Args []Parameter `json:"args,omitempty"`
@@ -113,15 +113,15 @@ type Property struct {
 	// Secret requests redaction in logs/docs (TypeSpec @secret, format:password).
 	Secret bool `json:"secret"`
 	// XML is the XML wire shape when it diverges from the JSON-implied shape.
-	XML *XMLHints `json:"xml,omitempty"`
+	XML *XMLHints `json:"xml,omitzero"`
 	// Examples are property-level example values.
 	Examples []Example `json:"examples,omitempty"`
 	// Docs is the property's documentation.
 	Docs Docs `json:"docs"`
 	// Deprecation marks the property as deprecated.
-	Deprecation *Deprecation `json:"deprecation,omitempty"`
+	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the property's versioning timeline.
-	Availability *Availability `json:"availability,omitempty"`
+	Availability *Availability `json:"availability,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the property came from.

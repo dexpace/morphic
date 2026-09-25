@@ -1,7 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"go/ast"
 	"reflect"
 	"slices"
@@ -45,7 +45,7 @@ func TestTypeDef_EveryDeclaredKindIsRegistered(t *testing.T) {
 // TestTypeDef_EveryDeclaredKindTagsItsJSON fails when a kind's zero value does not
 // marshal with an adjacent "kind" tag, or does not survive TypeRegistry decoding.
 //
-// MarshalJSON is written once per concrete type in json.go and nothing requires
+// MarshalJSONTo is written once per concrete type in json.go and nothing requires
 // one, so a new kind silently encodes without its tag — and invariant 7 (the
 // document round-trips) breaks with the rest of the gate green.
 func TestTypeDef_EveryDeclaredKindTagsItsJSON(t *testing.T) {
@@ -60,8 +60,8 @@ func TestTypeDef_EveryDeclaredKindTagsItsJSON(t *testing.T) {
 			raw, err := json.Marshal(ir.TypeRegistry{id: td})
 			require.NoError(t, err)
 			assert.Contains(t, string(raw), `"kind":"`+string(kc.kind)+`"`,
-				"ir.%s (%q) marshals without its adjacent kind tag: give %T a MarshalJSON "+
-					"calling marshalWithKind(%s, …)", kc.name, kc.kind, td, kc.name)
+				"ir.%s (%q) marshals without its adjacent kind tag: give %T a MarshalJSONTo "+
+					"calling marshalKinded, the way every other kind does (json.go)", kc.name, kc.kind, td)
 
 			var back ir.TypeRegistry
 			require.NoError(t, json.Unmarshal(raw, &back),

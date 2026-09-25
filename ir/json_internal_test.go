@@ -1,7 +1,10 @@
 package ir
 
 import (
-	"strings"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,51 +40,201 @@ func TestTypeDef_MarkerMethods(t *testing.T) {
 	}
 }
 
-// TestMarshalWithKind_MarshalError drives the json.Marshal failure branch by
-// handing marshalWithKind a value encoding/json cannot encode.
-func TestMarshalWithKind_MarshalError(t *testing.T) {
+// TestStringMember_Branches pins every return path of stringMember directly:
+// the document and registry decoders reach it only with input a decoder has
+// already read, so its refusals of malformed input are otherwise unexercised.
+func TestStringMember_Branches(t *testing.T) {
 	t.Parallel()
-	_, err := marshalWithKind(KindAny, make(chan int))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "marshal any")
+
+	t.Run("malformed input at the first token", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := stringMember(jsontext.Value(""), "irVersion")
+		require.Error(t, err)
+	})
+
+	t.Run("not an object", func(t *testing.T) {
+		t.Parallel()
+		_, found, err := stringMember(jsontext.Value("42"), "irVersion")
+		require.Error(t, err)
+		assert.False(t, found)
+		assert.ErrorContains(t, err, "want a JSON object, got")
+	})
+
+	t.Run("malformed key mid-scan", func(t *testing.T) {
+		t.Parallel()
+		// PeekKind sees the opening quote and enters the loop, but the key
+		// string itself is never closed.
+		_, _, err := stringMember(jsontext.Value(`{"ab`), "irVersion")
+		require.Error(t, err)
+	})
+
+	t.Run("skipping a non-matching key fails on a malformed value", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := stringMember(jsontext.Value(`{"other":`), "irVersion")
+		require.Error(t, err)
+	})
+
+	t.Run("matching key has a malformed value", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := stringMember(jsontext.Value(`{"irVersion":`), "irVersion")
+		require.Error(t, err)
+	})
+
+	t.Run("member present but not a string", func(t *testing.T) {
+		t.Parallel()
+		_, found, err := stringMember(jsontext.Value(`{"irVersion":123}`), "irVersion")
+		require.Error(t, err)
+		assert.False(t, found)
+		assert.ErrorContains(t, err, `"irVersion" is a JSON number, not a string`)
+	})
+
+	t.Run("member found on the first key", func(t *testing.T) {
+		t.Parallel()
+		v, found, err := stringMember(jsontext.Value(`{"irVersion":"0.5.0"}`), "irVersion")
+		require.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "0.5.0", v)
+	})
+
+	t.Run("member found after skipping others", func(t *testing.T) {
+		t.Parallel()
+		v, found, err := stringMember(jsontext.Value(`{"a":1,"b":{"nested":true},"irVersion":"0.5.0"}`), "irVersion")
+		require.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "0.5.0", v)
+	})
+
+	t.Run("an object that never ends after a whole member", func(t *testing.T) {
+		t.Parallel()
+		// Every member reads cleanly, so only the missing close can report it;
+		// without that read this was indistinguishable from an absent member.
+		_, found, err := stringMember(jsontext.Value(`{"a":1`), "irVersion")
+		require.Error(t, err)
+		assert.False(t, found)
+	})
+
+	t.Run("member absent from an otherwise well-formed object", func(t *testing.T) {
+		t.Parallel()
+		v, found, err := stringMember(jsontext.Value(`{"a":1,"b":2}`), "irVersion")
+		require.NoError(t, err)
+		assert.False(t, found)
+		assert.Empty(t, v)
+	})
 }
 
-// TestMarshalWithKind_NonObject drives the "must encode as an object" guard by
-// handing marshalWithKind a value that encodes as a JSON scalar/array.
-func TestMarshalWithKind_NonObject(t *testing.T) {
+// TestNamed pins named's rewrite in isolation: it retags a *json.SemanticError
+// whose GoType is exactly the internal type it is given to read P instead, and
+// leaves every other error — nil, a non-SemanticError, or a SemanticError
+// naming an unrelated type — untouched.
+func TestNamed(t *testing.T) {
 	t.Parallel()
-	for name, v := range map[string]any{
-		"number": 42,
-		"array":  []int{1},
-		"string": "x",
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			_, err := marshalWithKind(KindPrimitive, v)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "must encode as an object")
-		})
-	}
+
+	t.Run("rewrites a SemanticError naming the internal type", func(t *testing.T) {
+		t.Parallel()
+		type alias Model
+		serr := &json.SemanticError{GoType: reflect.TypeFor[kinded[alias]]()}
+		got := named[Model](serr, reflect.TypeFor[kinded[alias]]())
+		gotSerr, ok := errors.AsType[*json.SemanticError](got)
+		require.True(t, ok)
+		assert.Equal(t, reflect.TypeFor[Model](), gotSerr.GoType)
+	})
+
+	t.Run("leaves a SemanticError naming an unrelated type untouched", func(t *testing.T) {
+		t.Parallel()
+		type alias Model
+		serr := &json.SemanticError{GoType: reflect.TypeFor[int]()}
+		got := named[Model](serr, reflect.TypeFor[kinded[alias]]())
+		gotSerr, ok := errors.AsType[*json.SemanticError](got)
+		require.True(t, ok)
+		assert.Equal(t, reflect.TypeFor[int](), gotSerr.GoType,
+			"GoType must be left alone when it doesn't name the internal type")
+	})
+
+	t.Run("leaves a non-SemanticError untouched", func(t *testing.T) {
+		t.Parallel()
+		type alias Model
+		plain := errors.New("boom")
+		got := named[Model](plain, reflect.TypeFor[kinded[alias]]())
+		assert.Same(t, plain, got)
+	})
+
+	t.Run("leaves nil untouched", func(t *testing.T) {
+		t.Parallel()
+		type alias Model
+		// marshalKinded calls named on every successful marshal, err included,
+		// so this is the most common call of all — worth pinning directly
+		// rather than leaving it to be exercised only incidentally.
+		got := named[Model](nil, reflect.TypeFor[kinded[alias]]())
+		assert.NoError(t, got)
+	})
 }
 
-// TestMarshalWithKind_EmptyObject drives the empty-object branch: a value that
-// encodes as "{}" must still receive its adjacent kind tag and no stray comma.
-func TestMarshalWithKind_EmptyObject(t *testing.T) {
+// TestDecodeTypeDef pins decodeTypeDef's own contract directly: it returns a
+// nil TypeDef alongside every error, and it threads its opts parameter
+// through to the nested decode rather than deciding leniency itself.
+func TestDecodeTypeDef(t *testing.T) {
 	t.Parallel()
-	out, err := marshalWithKind(KindAny, struct{}{})
-	require.NoError(t, err)
-	assert.Equal(t, `{"kind":"any"}`, string(out))
-}
 
-// TestMarshalWithKind_NonEmptyObject confirms the populated-object branch splices
-// fields after the kind tag.
-func TestMarshalWithKind_NonEmptyObject(t *testing.T) {
-	t.Parallel()
-	out, err := marshalWithKind(KindPrimitive, struct {
-		Prim string `json:"prim"`
-	}{Prim: "string"})
-	require.NoError(t, err)
-	got := string(out)
-	assert.True(t, strings.HasPrefix(got, `{"kind":"primitive",`), "kind tag leads: %s", got)
-	assert.Contains(t, got, `"prim":"string"`)
+	t.Run("decodes a known kind", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"primitive","prim":"string"}`), nil)
+		require.NoError(t, err)
+		require.NotNil(t, td)
+		assert.Equal(t, KindPrimitive, td.Kind())
+		prim, ok := td.(*Primitive)
+		require.True(t, ok)
+		assert.Equal(t, PrimString, prim.Prim)
+	})
+
+	t.Run("refuses an entry with no kind member", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`{}`), nil)
+		require.Error(t, err)
+		assert.Nil(t, td)
+		assert.ErrorContains(t, err, `no "kind" member`)
+	})
+
+	t.Run("refuses a non-string kind", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":123}`), nil)
+		require.Error(t, err)
+		assert.Nil(t, td)
+		assert.ErrorContains(t, err, `is a JSON number, not a string`)
+	})
+
+	t.Run("refuses a non-object entry", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`123`), nil)
+		require.Error(t, err)
+		assert.Nil(t, td)
+		assert.ErrorContains(t, err, "reading kind tag:")
+	})
+
+	t.Run("refuses an unknown kind", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"nope"}`), nil)
+		require.Error(t, err)
+		assert.Nil(t, td)
+		assert.ErrorContains(t, err, `unknown kind "nope"`)
+	})
+
+	t.Run("prefixes a body mismatch with the id and kind", func(t *testing.T) {
+		t.Parallel()
+		td, err := decodeTypeDef("t/x", jsontext.Value(`{"kind":"primitive","prim":123}`), nil)
+		require.Error(t, err)
+		assert.Nil(t, td)
+		assert.ErrorContains(t, err, "t/x (primitive):")
+	})
+
+	t.Run("threads opts through to the body decode", func(t *testing.T) {
+		t.Parallel()
+		raw := jsontext.Value(`{"kind":"primitive","prim":"string","bogus":1}`)
+
+		_, err := decodeTypeDef("t/x", raw, nil)
+		assert.NoError(t, err, "an unknown member is ignored when opts carries no RejectUnknownMembers")
+
+		_, err = decodeTypeDef("t/x", raw, json.RejectUnknownMembers(true))
+		require.Error(t, err, "the same unknown member must be refused once opts asks for it")
+		assert.ErrorContains(t, err, "t/x (primitive):")
+	})
 }

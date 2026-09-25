@@ -13,7 +13,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -599,7 +599,7 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 // solely by numeric literals written in a spelling JSON rejects (.5, 5., 0644)
 // that Morphic captures losslessly anyway.
 //
-// A literal is only a candidate cause when json.Valid rejects its source text —
+// A literal is only a candidate cause when its source text fails IsValid —
 // that is the grammar the library's YAML-to-JSON conversion has to satisfy, so a
 // spelling JSON already accepts provoked nothing and cannot excuse the finding.
 // Every rejected literal must then be one value.NumericLiteral recovers, the very
@@ -612,7 +612,7 @@ func invalidSyntaxOnValidNumbers(node *yaml.Node) bool {
 	}
 	var recovered, unrepresentable bool
 	walkNumericScalars(node, 0, func(scalar *yaml.Node) {
-		if json.Valid([]byte(scalar.Value)) {
+		if jsontext.Value(scalar.Value).IsValid() {
 			return
 		}
 		if _, err := value.NumericLiteral(scalar); err != nil {

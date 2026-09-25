@@ -1,7 +1,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"testing"
 
@@ -39,9 +39,9 @@ func BenchmarkCompile_Petstore(b *testing.B) {
 }
 
 // BenchmarkMarshalDocument_Petstore measures serializing a compiled document.
-// The IR's sum types and BigVal carry hand-written MarshalJSON, and every golden
-// snapshot, IR diff and cache entry pays this cost, so it is worth watching
-// separately from the compile that produced the document.
+// The IR's sum types carry hand-written codecs, and every golden snapshot, IR
+// diff and cache entry pays this cost, so it is worth watching separately from
+// the compile that produced the document.
 func BenchmarkMarshalDocument_Petstore(b *testing.B) {
 	doc := compilePetstore(b)
 

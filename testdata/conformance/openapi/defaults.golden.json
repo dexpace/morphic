@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "Defaults",
   "version": "1.0.0",
   "docs": {},
@@ -11,7 +11,6 @@
         "canonical": "defaults"
       },
       "docs": {},
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -99,10 +98,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "9007199254740993",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "9007199254740993"
           },
           "flatten": false,
           "eventHeader": false,
@@ -133,10 +129,7 @@
           },
           "default": {
             "kind": "number",
-            "num": "41",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "num": "41"
           },
           "flatten": false,
           "eventHeader": false,
@@ -167,10 +160,7 @@
           },
           "default": {
             "kind": "bool",
-            "bool": true,
-            "bytes": null,
-            "list": null,
-            "object": null
+            "bool": true
           },
           "flatten": false,
           "eventHeader": false,
@@ -201,9 +191,7 @@
           },
           "default": {
             "kind": "bytes",
-            "bytes": "aGk=",
-            "list": null,
-            "object": null
+            "bytes": "aGk="
           },
           "flatten": false,
           "eventHeader": false,
@@ -234,24 +222,16 @@
           },
           "default": {
             "kind": "list",
-            "bytes": null,
             "list": [
               {
                 "kind": "number",
-                "num": "1",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "1"
               },
               {
                 "kind": "number",
-                "num": "2",
-                "bytes": null,
-                "list": null,
-                "object": null
+                "num": "2"
               }
-            ],
-            "object": null
+            ]
           },
           "flatten": false,
           "eventHeader": false,
@@ -311,8 +291,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "diagnostics": [

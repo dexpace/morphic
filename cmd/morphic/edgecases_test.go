@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"os"
@@ -25,6 +25,21 @@ import (
 type failWriter struct{ err error }
 
 func (f failWriter) Write([]byte) (int, error) { return 0, f.err }
+
+// newlineFailWriter accepts a marshalled document but refuses the trailing
+// newline encodeDocument appends afterwards, to drive that write's own error
+// branch separately from a destination that refuses the document itself.
+type newlineFailWriter struct {
+	buf bytes.Buffer
+	err error
+}
+
+func (w *newlineFailWriter) Write(p []byte) (int, error) {
+	if string(p) == "\n" {
+		return 0, w.err
+	}
+	return w.buf.Write(p)
+}
 
 // closeFailWriteCloser accepts writes but fails Close, to drive writeCompiled's
 // f.Close error branch.
@@ -104,8 +119,8 @@ func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Opt
 }
 
 // badDoc returns an ir.Document that cannot be marshalled to JSON: its
-// Unmodeled holds an invalid json.RawMessage, whose malformed bytes
-// json.Marshal's encoder rejects while compacting them.
+// Unmodeled holds an ir.RawValue with malformed bytes, which the encoder refuses
+// when it writes the value into the document.
 func badDoc() *ir.Document {
 	return &ir.Document{
 		Name:      "Bad",
@@ -373,10 +388,10 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 }
 
 // TestEncodeDocument_ErrorPaths pins that both output forms tell the same two
-// failures apart. The compact form is the one that needs saying: json.Encoder
-// reports a refusing destination and an unmarshallable document as one error
-// from Encode, so without the writer that records what the destination said,
-// every disk failure would be reported as a marshal failure.
+// failures apart. Both now stream through json.MarshalWrite, which reports a
+// refusing destination and an unmarshallable document as one error either way,
+// so without the writer that records what the destination said, a disk
+// failure in either form would be reported as a marshal failure.
 func TestEncodeDocument_ErrorPaths(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +408,10 @@ func TestEncodeDocument_ErrorPaths(t *testing.T) {
 			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, true, "write ir document"},
 		{"compact, refusing destination",
 			failWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, false, "write ir document"},
+		{"indented, newline write fails",
+			&newlineFailWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, true, "write ir document"},
+		{"compact, newline write fails",
+			&newlineFailWriter{err: errors.New("disk gone")}, &ir.Document{Name: "ok"}, false, "write ir document"},
 	}
 
 	for _, tt := range tests {
@@ -766,4 +785,19 @@ func TestWriteParsed_ToStdoutSuccess(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, writeCompiled(compileOptions{}, &buf, &ir.Document{Name: "ok"}))
 	assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
+}
+
+// TestWriteParsed_ToStdoutWritesNothingForABadDocument pins that stdout gets a
+// whole document or nothing. The description runs past the encoder's internal
+// buffer, so an encoder writing straight to stdout would already have flushed
+// part of the document there by the time it reaches the malformed payload.
+func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
+	t.Parallel()
+	doc := badDoc()
+	doc.Docs.Description = strings.Repeat("x", 64<<10)
+	var stdout bytes.Buffer
+	err := writeCompiled(compileOptions{}, &stdout, doc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "marshal ir document")
+	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
 }

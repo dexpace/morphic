@@ -15,11 +15,11 @@ import (
 )
 
 // TestUnmodeled_JSONRoundTrip pins that Unmodeled round-trips through
-// assertRoundTrip's byte-level cmp.Diff. RawValue is json.RawMessage, which
-// json.Marshal compacts and HTML-escapes on the way out, so this only works
-// because both fixture values below are already written compact and free of
-// <, > and & — either would round-trip to a semantically equal but
-// byte-different value and fail the diff.
+// assertRoundTrip's byte-level cmp.Diff. Encoding reformats a RawValue on the
+// way out, stripping whitespace and making string escapes minimal, so this only
+// works because both fixture values below are already in that form; one that is
+// not would round-trip to a semantically equal but byte-different value and fail
+// the diff.
 func TestUnmodeled_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	assertRoundTrip(t, ir.Unmodeled{

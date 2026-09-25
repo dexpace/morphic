@@ -21,8 +21,9 @@ type Server struct {
 	// Auth is server-scoped security — AsyncAPI's primary auth placement (broker
 	// connections authenticate per server; different servers of one service may
 	// require different schemes). An empty non-nil slice (explicitly public)
-	// differs from nil, so the field carries no omitempty.
-	Auth []AuthRequirement `json:"auth"`
+	// differs from nil; omitzero writes nil as an absent key and the empty slice
+	// as [].
+	Auth []AuthRequirement `json:"auth,omitzero"`
 	// Bindings holds server-level protocol bindings kept raw.
 	Bindings map[string]RawConfig `json:"bindings,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.

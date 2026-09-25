@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.4.0",
+  "irVersion": "0.5.0",
   "name": "Component Reuse",
   "version": "1",
   "docs": {},
@@ -102,7 +102,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -213,7 +212,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -348,7 +346,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -403,7 +400,6 @@
               ],
               "oneWay": false,
               "idempotency": {},
-              "auth": null,
               "bindings": {
                 "http": [
                   {
@@ -423,7 +419,6 @@
           ]
         }
       ],
-      "auth": null,
       "provenance": {
         "source": 0
       }
@@ -452,10 +447,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "second",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "second"
           },
           "docs": {}
         },
@@ -466,10 +458,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "minute",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "minute"
           },
           "docs": {}
         }
@@ -499,10 +488,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "asc",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "asc"
           },
           "docs": {}
         },
@@ -513,10 +499,7 @@
           },
           "value": {
             "kind": "string",
-            "str": "desc",
-            "bytes": null,
-            "list": null,
-            "object": null
+            "str": "desc"
           },
           "docs": {}
         }
@@ -699,8 +682,7 @@
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {},
-      "auth": null
+      "description": {}
     }
   ],
   "sources": [

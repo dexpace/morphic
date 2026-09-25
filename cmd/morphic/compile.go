@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -347,9 +349,15 @@ func severityRank(s ir.Severity) int {
 // output and keeps the property the marshal-first order used to provide: a
 // document that will not marshal removes the temp file and leaves whatever is
 // at outPath untouched, because outPath is only ever reached by the rename.
+// Stdout has no rename to withhold, so it gets the document encoded whole or
+// nothing, rather than the part that encoded before a failure.
 func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) error {
 	if opts.outPath == "" {
-		return encodeDocument(stdout, doc, true)
+		var buf bytes.Buffer
+		if err := encodeDocument(&buf, doc, true); err != nil {
+			return err
+		}
+		return writeRaw(stdout, buf.Bytes())
 	}
 	return replaceFile(opts.outPath, func(w io.Writer) error {
 		return encodeDocument(w, doc, opts.pretty)
@@ -496,8 +504,8 @@ func fillTemp(f outputFile, tmp string, fill func(io.Writer) error) error {
 
 // destWriter passes writes through to w and records the error w returned. It is
 // what keeps a destination that refused the bytes distinguishable from a
-// document that would not marshal: json.Encoder reports both as one error from
-// Encode, and they are different things to tell a user about.
+// document that would not marshal: json.MarshalWrite reports both as one error,
+// and they are different things to tell a user about.
 type destWriter struct {
 	w   io.Writer
 	err error
@@ -513,31 +521,27 @@ func (d *destWriter) Write(p []byte) (int, error) {
 
 // encodeDocument writes doc's IR JSON to w, ending in a newline either way.
 //
-// The two forms take different routes on purpose, and neither is the obvious
-// choice for the other. Indented output goes through json.MarshalIndent — the
-// same bytes irtest.WriteGolden writes — because a json.Encoder with SetIndent
-// indents into a second buffer it keeps for itself, which costs roughly twice
-// the allocation for an identical result. Compact output goes through the
-// encoder precisely because there is no second pass: it hands the marshalled
-// bytes to w directly, where json.Marshal would first copy them into a slice
-// for the caller to write.
+// Both forms go through json.MarshalWrite, which streams the encoded bytes
+// straight to w rather than building them in a slice first; indenting is just
+// an encode option on that same call, not a separate route. MarshalWrite ends
+// no value with a newline, so this writes one, which makes the indented form
+// byte-for-byte what irtest.WriteGolden writes.
 func encodeDocument(w io.Writer, doc *ir.Document, indent bool) error {
-	if indent {
-		raw, err := json.MarshalIndent(doc, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal ir document: %w", err)
-		}
-		return writeRaw(w, append(raw, '\n'))
-	}
-
 	dest := &destWriter{w: w}
-	if err := json.NewEncoder(dest).Encode(doc); err != nil {
+
+	var err error
+	if indent {
+		err = json.MarshalWrite(dest, doc, jsontext.WithIndent("  "))
+	} else {
+		err = json.MarshalWrite(dest, doc)
+	}
+	if err != nil {
 		if dest.err != nil {
 			return fmt.Errorf("write ir document: %w", dest.err)
 		}
 		return fmt.Errorf("marshal ir document: %w", err)
 	}
-	return nil
+	return writeRaw(w, []byte("\n"))
 }
 
 // writeRaw writes raw to w, wrapping any error with context.

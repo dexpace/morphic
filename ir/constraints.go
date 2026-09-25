@@ -16,10 +16,10 @@ package ir
 type Constraints struct {
 	// Min is the inclusive lower numeric bound (JSON Schema minimum): an
 	// admissible value is >= it. nil = this position declared none.
-	Min *BigVal `json:"min,omitempty"`
+	Min *BigVal `json:"min,omitzero"`
 	// Max is the inclusive upper numeric bound (JSON Schema maximum): an
 	// admissible value is <= it. nil = this position declared none.
-	Max *BigVal `json:"max,omitempty"`
+	Max *BigVal `json:"max,omitzero"`
 	// ExclusiveMin is the exclusive lower numeric bound (JSON Schema
 	// exclusiveMinimum): an admissible value is > it. nil = this position
 	// declared none.
@@ -30,22 +30,22 @@ type Constraints struct {
 	// slot per side would have to keep that one and lower the other some other
 	// way, which is a change to the weaker keyword that a consumer diffing two
 	// revisions of a spec could not see at all (GitHub #425).
-	ExclusiveMin *BigVal `json:"exclusiveMin,omitempty"`
+	ExclusiveMin *BigVal `json:"exclusiveMin,omitzero"`
 	// ExclusiveMax is the exclusive upper numeric bound (JSON Schema
 	// exclusiveMaximum): an admissible value is < it. nil = this position
 	// declared none. It is independent of Max exactly as ExclusiveMin is of Min.
-	ExclusiveMax *BigVal `json:"exclusiveMax,omitempty"`
+	ExclusiveMax *BigVal `json:"exclusiveMax,omitzero"`
 	// MultipleOf constrains the value to a multiple of this number.
-	MultipleOf *BigVal `json:"multipleOf,omitempty"`
+	MultipleOf *BigVal `json:"multipleOf,omitzero"`
 	// Precision bounds the total decimal digits (Avro decimal, XSD totalDigits,
 	// OData Edm.Decimal).
-	Precision *int64 `json:"precision,omitempty"`
+	Precision *int64 `json:"precision,omitzero"`
 	// Scale bounds the fractional decimal digits (XSD fractionDigits).
-	Scale *int64 `json:"scale,omitempty"`
+	Scale *int64 `json:"scale,omitzero"`
 	// MinLength is the minimum string/bytes length.
-	MinLength *int64 `json:"minLength,omitempty"`
+	MinLength *int64 `json:"minLength,omitzero"`
 	// MaxLength is the maximum string/bytes length.
-	MaxLength *int64 `json:"maxLength,omitempty"`
+	MaxLength *int64 `json:"maxLength,omitzero"`
 	// Pattern is an ECMA-262 regex as written; emitters translate or drop it with
 	// a diagnostic.
 	Pattern string `json:"pattern,omitempty"`
@@ -53,15 +53,15 @@ type Constraints struct {
 	// second argument).
 	PatternMessage string `json:"patternMessage,omitempty"`
 	// MinItems is the minimum collection length.
-	MinItems *int64 `json:"minItems,omitempty"`
+	MinItems *int64 `json:"minItems,omitzero"`
 	// MaxItems is the maximum collection length.
-	MaxItems *int64 `json:"maxItems,omitempty"`
+	MaxItems *int64 `json:"maxItems,omitzero"`
 	// UniqueItems requires distinct collection elements.
 	UniqueItems bool `json:"uniqueItems"`
 	// MinProps is the minimum number of properties.
-	MinProps *int64 `json:"minProps,omitempty"`
+	MinProps *int64 `json:"minProps,omitzero"`
 	// MaxProps is the maximum number of properties.
-	MaxProps *int64 `json:"maxProps,omitempty"`
+	MaxProps *int64 `json:"maxProps,omitzero"`
 }
 
 // Encoding is the logical-type / encoding-name / wire-type triple that reifies
@@ -74,7 +74,7 @@ type Encoding struct {
 	Name string `json:"name,omitempty"`
 	// WireType is the on-wire primitive when it differs from the logical type
 	// (utcDateTime encoded as int32; bytes as base64 string).
-	WireType *TypeRef `json:"wireType,omitempty"`
+	WireType *TypeRef `json:"wireType,omitzero"`
 	// MediaType is the content media type of the value itself (Smithy @mediaType,
 	// JSON Schema contentMediaType); "" = none.
 	MediaType string `json:"mediaType,omitempty"`
@@ -82,7 +82,7 @@ type Encoding struct {
 	// or an application/json-typed string holds (JSON Schema contentSchema); nil =
 	// unstated. It is a reference into the type registry like any other schema,
 	// never the encoded value's own type.
-	Schema *TypeRef `json:"schema,omitempty"`
+	Schema *TypeRef `json:"schema,omitzero"`
 }
 
 // XMLHints describes an XML wire shape that diverges from the JSON-implied one

@@ -9,15 +9,15 @@ type OpBindings struct {
 	// transcoding additional_bindings — with the primary first.
 	HTTP []HTTPBinding `json:"http,omitempty"`
 	// RPC is the Protobuf/gRPC, Smithy RPC, or JSON-RPC binding.
-	RPC *RPCBinding `json:"rpc,omitempty"`
+	RPC *RPCBinding `json:"rpc,omitzero"`
 	// Message is the AsyncAPI operation / webhook binding.
-	Message *MessageBinding `json:"message,omitempty"`
+	Message *MessageBinding `json:"message,omitzero"`
 	// GraphQL is the query/mutation/subscription field binding. GraphQL
 	// subscriptions bind here plus streaming fields on the core — not via
 	// MessageBinding.
-	GraphQL *GraphQLBinding `json:"graphql,omitempty"`
+	GraphQL *GraphQLBinding `json:"graphql,omitzero"`
 	// OTP is the Erlang/OTP behaviour-operation binding (§8.5).
-	OTP *OTPBinding `json:"otp,omitempty"`
+	OTP *OTPBinding `json:"otp,omitzero"`
 }
 
 // HTTPLocation is where an HTTP parameter binds on the wire (ir-design §8.1).
@@ -65,20 +65,20 @@ type HTTPBinding struct {
 	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// ResponseBodyPath sets the HTTP response body to this sub-field of the
 	// response type (gRPC transcoding response_body); nil = the whole payload.
-	ResponseBodyPath *PropPath `json:"responseBodyPath,omitempty"`
+	ResponseBodyPath *PropPath `json:"responseBodyPath,omitzero"`
 	// SuccessStatus maps response index to primary status (denormalized
 	// convenience; conditions are the truth).
 	SuccessStatus map[int]int `json:"successStatus,omitempty"`
 	// Compression requires the client to compress the request body
 	// (Smithy @requestCompression).
-	Compression *RequestCompression `json:"compression,omitempty"`
+	Compression *RequestCompression `json:"compression,omitzero"`
 	// ChecksumRequired requires the client to send a payload checksum
 	// (Smithy @httpChecksumRequired).
 	ChecksumRequired bool `json:"checksumRequired"`
 	// PatchImplicitOptionality controls PATCH implicit optionality: nil = protocol
 	// default (PATCH projections make properties optional); false = disabled
 	// (TypeSpec @patch implicitOptionality).
-	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitempty"`
+	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
 	// IsWebhook marks an inbound webhook operation (OpenAPI 3.1 webhooks).
 	IsWebhook bool `json:"isWebhook"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
@@ -113,7 +113,7 @@ type HTTPParamBinding struct {
 	// deepObject | pipe/space-delimited.
 	Style string `json:"style,omitempty"`
 	// Explode overrides the default explode behavior; nil = default.
-	Explode *bool `json:"explode,omitempty"`
+	Explode *bool `json:"explode,omitzero"`
 	// AllowReserved permits reserved characters unescaped in the value.
 	AllowReserved bool `json:"allowReserved"`
 	// PathPattern is a multi-segment path pattern constraint for this param
@@ -150,7 +150,7 @@ type RPCBinding struct {
 	FullMethod string `json:"fullMethod,omitempty"`
 	// InputType is the request message type params fold into (nil = synthesize
 	// from Params).
-	InputType *TypeRef `json:"inputType,omitempty"`
+	InputType *TypeRef `json:"inputType,omitzero"`
 	// ParamStructure is "" | "by_name" | "by_position" | "either" — how params
 	// serialize (JSON-RPC positional vs named; OpenRPC paramStructure). Param
 	// order is already source order; this is the mode.
@@ -184,7 +184,7 @@ type MessageBinding struct {
 	Messages []MessageID `json:"messages,omitempty"`
 	// Reply carries request-reply semantics; nil = none. A send-op with no Reply
 	// and no Responses is one-way (set Operation.OneWay).
-	Reply *Reply `json:"reply,omitempty"`
+	Reply *Reply `json:"reply,omitzero"`
 	// Bindings holds operation-level protocol bindings kept raw (kafka
 	// groupId/clientId — constrain SDK client config).
 	Bindings map[string]RawConfig `json:"bindings,omitempty"`
@@ -196,11 +196,11 @@ type MessageBinding struct {
 type Reply struct {
 	// Channel is the static reply channel; nil when the address is dynamic-only
 	// (an AsyncAPI reply channel's own address is null by spec).
-	Channel *ChannelID `json:"channel,omitempty"`
+	Channel *ChannelID `json:"channel,omitzero"`
 	// Address is the dynamic reply address: where in the request message the
 	// reply destination lives, e.g. In:"header", Segments:[replyTo] (AsyncAPI
 	// Operation Reply Address runtime expressions).
-	Address *PropPath `json:"address,omitempty"`
+	Address *PropPath `json:"address,omitzero"`
 	// Messages is the reply payload message set; when Channel is set it must be a
 	// subset of that channel's own Messages, which pass.Validate checks.
 	Messages []MessageID `json:"messages,omitempty"`
@@ -232,7 +232,7 @@ type OTPBinding struct {
 	Process ChannelID `json:"process,omitempty"`
 	// RequestTag is the tag of the request tuple (a symbol Value, e.g. 'get');
 	// nil = the whole term is the request.
-	RequestTag *Value `json:"requestTag,omitempty"`
+	RequestTag *Value `json:"requestTag,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

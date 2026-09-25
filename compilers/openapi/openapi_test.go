@@ -2,7 +2,7 @@ package openapi_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"os"
 	"testing"
 

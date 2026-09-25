@@ -714,9 +714,8 @@ func TestDeclaresAny_AsksTheRawNodes(t *testing.T) {
 }
 
 // TestPreserveInto_RecordsOnlyRealBytes pins the len check rather than a nil
-// comparison: an empty payload preserves no construct, and json.Marshal rejects
-// it for the whole document while naming json.RawMessage rather than the entry
-// that carried it.
+// comparison: an empty payload preserves no construct, and it fails the encoding
+// of the whole document that carries it.
 func TestPreserveInto_RecordsOnlyRealBytes(t *testing.T) {
 	t.Parallel()
 	var p ir.Unmodeled

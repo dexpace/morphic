@@ -21,9 +21,9 @@ var (
 // goes, and the grammar it must satisfy is enforced only at construction.
 // ir.BigVal is a defined string type, so ir.BigVal(raw) compiles and skips
 // ir.NewBigVal entirely, and — unlike the sealed TypeDef sum — it carries no
-// UnmarshalJSON, so a document decoded from JSON never meets the constructor at
-// all (GitHub #282). Round-tripping is not the safety net here: the value is
-// carried faithfully precisely because it is a string.
+// UnmarshalJSONFrom, so a document decoded from JSON never meets the
+// constructor at all (GitHub #282). Round-tripping is not the safety net
+// here: the value is carried faithfully precisely because it is a string.
 //
 // The two codes are separate because they name different repairs. A value the
 // constructor rejects is not a number at all; a value it accepts but rewrites is
