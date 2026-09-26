@@ -376,14 +376,6 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 			name: "an alias reordered above its anchor",
 			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
 		},
-		{
-			// A reference-resolution failure is located by Provenance.Position,
-			// and a permutation moves the offending node to a different line.
-			name: "a diagnostic located by line and column",
-			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths:\n 0:\n  0:\n" +
-				"      responses:\n       0:\n        description: 0\n" +
-				"      callbacks:\n       0:\n        0:\n         description:\n",
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -393,6 +385,44 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 				"the permutation changed the document's meaning, so this is not a finding: %s", res.Detail)
 		})
 	}
+}
+
+// TestOrderInvariant_PositionedDiagnosticIsNotOrderDependent covers the "a
+// diagnostic located by line and column" case this test used to carry as a
+// real-bytes fixture (#550). That fixture's top-level integer key made
+// rendering fail before the compiler produced anything: an unrelated error
+// diagnostic tripped OutcomeErrorDiag in Check, before orderInvariant ever
+// ran, so the case passed without asking its question. No real document does
+// better — every position-located finding this compiler makes is an error (a
+// pre-parse refusal or a dropped stream document) — so the document and its
+// diagnostic are supplied directly through the compile seam instead.
+//
+// The stub reads the reported line off whatever bytes it is handed rather
+// than hard-coding either order's answer, so reversing the fixture's mapping
+// genuinely relocates the marker key and the two compiles disagree about
+// where the finding sits — and only about that.
+func TestOrderInvariant_PositionedDiagnosticIsNotOrderDependent(t *testing.T) {
+	t.Run("a diagnostic located by line and column", func(t *testing.T) {
+		const src = "marker: 1\nother: 2\n"
+		orig := compile
+		t.Cleanup(func() { compile = orig })
+		compile = func(_ context.Context, _ string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
+			idx := bytes.Index(data, []byte("marker:"))
+			require.GreaterOrEqual(t, idx, 0, "fixture must keep the marker key")
+			d := ir.Diagnostic{
+				Severity: ir.SeverityWarning,
+				Code:     "x/positioned",
+				Provenance: ir.Provenance{
+					Source:   0,
+					Position: ir.Position{Line: bytes.Count(data[:idx], []byte("\n")) + 1, Column: 1},
+				},
+			}
+			return &ir.Document{IRVersion: ir.IRVersion, Diagnostics: []ir.Diagnostic{d}}, []ir.Diagnostic{d}, nil
+		}
+
+		res := Check(context.Background(), "positioned.yaml", []byte(src))
+		assert.Equal(t, OutcomeOK, res.Outcome, "detail: %s", res.Detail)
+	})
 }
 
 // yamlMapping returns a mapping node for the depth-bound test.
