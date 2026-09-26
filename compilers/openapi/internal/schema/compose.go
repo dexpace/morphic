@@ -48,7 +48,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		diags = append(diags, applyFalseBranches(c, m, s, pointer)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -589,7 +589,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, anchors, depth, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, refDiags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 				diags = append(diags, refDiags...)
@@ -867,7 +867,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
 // discriminator when one is declared. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
-func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
+func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
 	variants := make([]ir.Variant, 0, len(branches))
@@ -888,7 +888,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	disc, discDiags := lowerDiscriminator(c, ts, s, nil, pointer)
+	disc, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, nil, pointer)
 	u.Discriminator = disc
 	return u, append(diags, discDiags...)
 }
@@ -938,7 +938,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, anchors, depth, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, anchors, depth, body, b, vptr, vhint)
 				diags = append(diags, variantDiags...)
@@ -1175,29 +1175,29 @@ func refHint(ref string) string {
 // single model and so is named only by PropertyName; otherwise the tag
 // resolves to the declaring property's PropID, falling back to PropertyName
 // if undeclared.
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, m *ir.Model, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil, nil
 	}
-	mapping, diags := discriminatorMapping(c, ts, d, pointer)
+	mapping, diags := discriminatorMapping(c, ts, anchors, depth, d, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(c, ts, d, pointer)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, anchors, depth, d, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
 }
 
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
-// into TypeIDs, in source order. An entry that does not resolve to an interned
-// schema yields one error diagnostic and is dropped — never a synthesized ID
-// that nothing backs (issue #14). An all-dropped mapping collapses to nil,
-// preserving infer-by-name semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
+// into TypeIDs, in source order. An entry that names no schema yields one error
+// diagnostic and is dropped — never a synthesized ID that nothing backs (issue
+// #14). An all-dropped mapping collapses to nil, preserving infer-by-name
+// semantics and a clean round-trip.
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil, nil
@@ -1205,7 +1205,8 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok := mappingTargetID(c, ts, target)
+		id, ok, targetDiags := resolveMappingTarget(c, ts, anchors, depth, target)
+		diags = append(diags, targetDiags...)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
@@ -1222,18 +1223,47 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
 // dropping it with one diagnostic when it does not resolve to an interned schema.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
 		return "", nil
 	}
-	id, ok := mappingTargetID(c, ts, dm)
+	id, ok, diags := resolveMappingTarget(c, ts, anchors, depth, dm)
 	if !ok {
-		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
+		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q", dm)}
+			"discriminator defaultMapping references unresolved schema %q", dm))
 	}
-	return id, nil
+	return id, diags
+}
+
+// resolveMappingTarget resolves a mapping target — a mapping entry's or a
+// defaultMapping's — to the ID of the schema it names, interning that schema the
+// way a $ref to it would when nothing has yet: mappingTargetID first, then the
+// position the target's pointer addresses, hoisted by hoistSubSchema.
+//
+// A mapping value is a reference in all but syntax, and the resolver never
+// follows it, so an inline target used to resolve only once some other lowering
+// had interned it: declared after the base, it was dropped as unresolved, and
+// declared before, it resolved (GitHub #530). Hoisting it here resolves it in
+// either order to the same pointer-derived ID, and the node it interns is named
+// as any reference's is — provisionally, until the declaration arrives.
+func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, target string) (ir.TypeID, bool, []ir.Diagnostic) {
+	if id, ok := mappingTargetID(c, ts, target); ok {
+		return id, true, nil
+	}
+	pointer, ok := c.RefScope().InternalPointer(target)
+	if !ok {
+		return "", false, nil
+	}
+	if _, _, handled := c.RefScope().ComponentRef(pointer); handled {
+		return "", false, nil
+	}
+	decl, ok := c.RefScope().DeclaredAt(pointer)
+	if !ok {
+		return "", false, nil
+	}
+	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
 }
 
 // mappingTargetID resolves a discriminator mapping target — a bare schema
@@ -1244,9 +1274,10 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 // empty-named component resolve to its real (anonymous) ID rather than an
 // unbacked ids.NamedType. Otherwise the target must be a same-file $ref to a
 // declared component or an already-interned node; a target that resolves to
-// neither yields ok=false, since unlike a schema position, a discriminator
-// subtype cannot be hoisted from a bare pointer — the caller drops and
-// diagnoses it.
+// neither yields ok=false. This is the non-hoisting half: it answers from what
+// is already declared or already interned, and never lowers anything new —
+// resolveMappingTarget is what hoists an inline position this alone cannot
+// reach.
 func mappingTargetID(c lowering.Ctx, ts *compile.Types, target string) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
 		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true

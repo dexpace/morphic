@@ -189,7 +189,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	l := newRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, 0, d, "/components/schemas/Pet")
 	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
@@ -201,7 +201,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id, diags := discriminatorDefault(l.ctx, l.types, d, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, 0, d, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -210,9 +210,67 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.ctx, l.types, &oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.ctx, l.types, &AnchorIndex{}, 0, &oas3.Discriminator{PropertyName: "kind"}, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
+}
+
+// TestResolveMappingTarget_Branches pins resolveMappingTarget's own branches,
+// which start only once mappingTargetID has already answered ok=false: a
+// genuinely external reference and a pointer to an undeclared component are
+// both refused before a pointer is even built or hoisted, a pointer this
+// document declares nothing at is refused too, and a pointer to a position the
+// document does declare is hoisted — even a bare scalar property, which
+// mappingTargetID's own already-interned fallback cannot reach because a
+// property position never interns a node of its own until something (a $ref, or
+// this) asks for one (TestMappingTargetID_FallsBackToAnInternedPointer pins the
+// same gap from mappingTargetID's side).
+func TestResolveMappingTarget_Branches(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, openapitest.ComponentSpec(`    Cat: {type: string}
+    Pet:
+      type: object
+      properties: {kind: {type: string}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	// A bare declared name resolves through mappingTargetID, never touching the
+	// pointer machinery below it.
+	id, ok, targetDiags := resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, "Cat")
+	assert.True(t, ok)
+	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Cat")), id)
+	assert.Empty(t, targetDiags)
+
+	// A $ref to a declared component resolves the same way.
+	id, ok, _ = resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, "#/components/schemas/Cat")
+	assert.True(t, ok)
+	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Cat")), id)
+
+	// A genuine external reference is refused by InternalPointer, before any
+	// pointer this function could hoist even exists.
+	_, ok, _ = resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, "other.yaml#/A")
+	assert.False(t, ok, "an external reference never resolves")
+
+	// A component pointer naming an undeclared component is classified and
+	// refused by ComponentRef, never falling through to a hoist.
+	_, ok, _ = resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, "#/components/schemas/Ghost")
+	assert.False(t, ok, "an undeclared component is refused, not hoisted as an inline position")
+
+	// An inline pointer addressing a position this document does not declare.
+	_, ok, _ = resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, "#/components/schemas/Pet/properties/missing")
+	assert.False(t, ok, "a missing inline position does not resolve")
+
+	// An inline pointer to a position the document does declare is hoisted, a
+	// bare scalar property included.
+	const scalarTarget = "#/components/schemas/Pet/properties/kind"
+	_, mappingOK := mappingTargetID(l.ctx, l.types, scalarTarget)
+	require.False(t, mappingOK, "mappingTargetID alone cannot reach an un-interned scalar position")
+
+	id, ok, _ = resolveMappingTarget(l.ctx, l.types, &l.anchors, 0, scalarTarget)
+	require.True(t, ok, "resolveMappingTarget hoists it instead")
+	assert.Equal(t, ids.ForPointer("/components/schemas/Pet/properties/kind"), id)
+	_, interned := l.types.Node(id)
+	assert.True(t, interned, "the hoisted alias is registered in the type registry")
 }
 
 // TestRawMappingKeys_OnlyEnumeratesAMapping pins the shape guards on the branch

@@ -89,9 +89,9 @@ import (
 //     first is lowered — an OpenAPI document is one YAML document — and the
 //     second reaches the IR in no form, which is reported as an error rather
 //     than dropped in silence as it used to be (GitHub #387).
-//   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
-//     target is undeclared, external, or a sub-schema, dropped with an
-//     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
+//   - dangling/openapi/f04, f05, f06, f09: discriminator mappings whose target
+//     is undeclared or external, dropped with an unresolved-ref error rather than
+//     written as a dangling TypeID (GitHub #14).
 //   - dangling/openapi/f12-refs.yaml: a same-file self-reference spelled with the
 //     m.yaml basename; swept under its own filename the doc part no longer
 //     matches, so the loader reports the external m.yaml it cannot open
@@ -104,9 +104,12 @@ import (
 //     compiler resolves it to the interned node, but the loader still reports
 //     the malformed JSON pointer as an unresolved-ref error first (GitHub #14).
 //
-// The remaining dangling reproducers (f07, f10, f11, f28, f31) intern their
-// targets and compile clean, so they're deliberately absent — the rot-guard
-// below fails any listed fixture that turns out to compile OK.
+// The remaining dangling reproducers (f07, f08, f10, f11, f13, f28, f31) intern
+// their targets and compile clean, so they're deliberately absent — the
+// rot-guard below fails any listed fixture that turns out to compile OK. f08 and
+// f13 map a discriminator tag to a sub-schema that is not a subtype; the mapping
+// resolves as a $ref to it would (GitHub #530), and pass.Validate, which this
+// sweep does not run, reports it as pass/discriminator-missing-variant.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
 		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):               true,
@@ -143,10 +146,8 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"):           true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"):                    true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"):                    true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"):        true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
 	}

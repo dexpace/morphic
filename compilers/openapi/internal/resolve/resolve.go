@@ -20,6 +20,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 
@@ -42,6 +43,26 @@ type Scope struct {
 	// Declares reports whether the document declares a component schema of this
 	// name.
 	Declares func(name string) bool
+	// Doc is the parsed document a pointer is read against, as the resolver
+	// reads it; see DeclaredAt.
+	Doc any
+}
+
+// DeclaredAt returns the schema declared at a same-document pointer, found the
+// way the resolver finds a $ref's target, and ok=false when the pointer
+// addresses no schema.
+//
+// It is for a reference that is only a string. A $ref carries its target's
+// declaration once the resolver has followed it, but a discriminator mapping
+// value is never resolved, so without this a mapping could name an inline
+// position only once some other lowering had interned it (GitHub #530).
+func (s Scope) DeclaredAt(pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], bool) {
+	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if err != nil {
+		return nil, false
+	}
+	js, ok := target.(*oas3.JSONSchema[oas3.Referenceable])
+	return js, ok && js != nil
 }
 
 // sameFile reports whether a $ref document part names this compilation's own
