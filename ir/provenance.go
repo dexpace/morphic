@@ -1,6 +1,9 @@
 package ir
 
-import "strings"
+import (
+	"encoding/json/jsontext"
+	"strings"
+)
 
 // NoSource is the Source value for a node that came from no input file at all.
 // An IR pass reporting on the document it was handed has no source to name, and
@@ -15,19 +18,38 @@ const NoSource = -1
 // Provenance records where a node came from and whether it was declared or
 // inferred (ir-design §13). Everything heuristic is auditable; everything
 // broken is reportable with an exact source location.
+//
+// Each kind of locator has a field of its own, because a consumer holding one
+// cannot tell which kind it is from its spelling: a renderer printed a line and
+// column as a pointer fragment (GitHub #509), and no check could hold a pointer
+// to RFC 6901 while the same field admitted the other two (GitHub #511).
 type Provenance struct {
 	// Source indexes into Document.Sources, or is NoSource for a node that
 	// addresses no input file. Nothing else is in range.
 	Source int `json:"source"`
-	// Pointer locates the construct: a JSON pointer or line:col into Source for
-	// anything read from a file, or an IR-space location — a stable ID, or a path
-	// through the document's own fields — for a finding an IR pass made about the
-	// document rather than about a source. Spelling is the producer's; nothing
-	// parses this.
-	Pointer string `json:"pointer,omitempty"`
+	// Pointer is the RFC 6901 pointer to the construct inside Source. Empty
+	// locates nothing finer than the source itself: it is the pointer to the
+	// whole document, and what a node with no single place in it records.
+	Pointer jsontext.Pointer `json:"pointer,omitempty"`
+	// Position is where the construct starts inside Source, for a finding made
+	// before the construct has a pointer — on a raw node, or in a part of the
+	// source no pointer reaches.
+	Position Position `json:"position,omitzero"`
+	// Node locates a finding in the IR rather than in a source: a stable ID, or a
+	// path through the document's own fields, for what an IR pass reports about
+	// the document it was handed. Spelling is the producer's; nothing parses it.
+	Node string `json:"node,omitempty"`
 	// Inferred is "" for declared facts; otherwise it names the heuristic that
 	// produced this node (e.g. "pagination-name-match").
 	Inferred string `json:"inferred,omitempty"`
+}
+
+// Position is a 1-based line and column inside a source. The zero value is no
+// position, and a zero Column is a line whose column the producer does not
+// know.
+type Position struct {
+	Line   int `json:"line"`
+	Column int `json:"column,omitzero"`
 }
 
 // Severity classifies a Diagnostic. The engine decides what is fatal.

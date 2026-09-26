@@ -255,3 +255,25 @@ func TestValidate_CompilerOptionReachesThePipeline(t *testing.T) {
 		"the overlay must have been applied, which only --opt can have done")
 	assert.Empty(t, stdout.String(), "validate writes no document")
 }
+
+// TestRun_ValidateReportsAStreamDropAsAPositionNotAFragment is the end-to-end
+// pin for GitHub #509. A YAML stream's second document used to be reported as
+// a URI fragment (spec.yaml#5:1), which reads as a pointer into the first
+// document rather than a line and column past it. It now renders as
+// path:line:col, the form editors and terminals turn into a link.
+func TestRun_ValidateReportsAStreamDropAsAPositionNotAFragment(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "twodocs.yaml", "openapi: 3.1.0\n"+
+		"info: {title: t, version: \"1\"}\n"+
+		"paths: {}\n"+
+		"---\n"+
+		"second: doc\n")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"validate", spec}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stderr.String(), "twodocs.yaml:5:1:",
+		"the drop is reported as a position, at the line the second document begins")
+	assert.NotContains(t, stderr.String(), "#5:1", "not a URI fragment into the first document")
+}

@@ -885,7 +885,7 @@ func (t tail) diagnostics(srcIndex int) []ir.Diagnostic {
 	}
 	prov := ir.Provenance{Source: srcIndex}
 	if t.line > 0 {
-		prov.Pointer = fmt.Sprintf("%d:%d", t.line, t.column)
+		prov.Position = ir.Position{Line: t.line, Column: t.column}
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.StreamDocumentsDropped, prov,
 		"only one document of the YAML stream was lowered; %s", t.describe())}

@@ -1957,9 +1957,16 @@ place it was declared and the one place it is recorded.
 
 ```go
 type Provenance struct {
-    Source   int       // index into Document.Sources, or NoSource (-1)
-    Pointer  string    // JSON pointer or line:col into that source
-    Inferred string    // "" = declared; else the heuristic that produced this node ("pagination-name-match")
+    Source   int              // index into Document.Sources, or NoSource (-1)
+    Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
+    Position Position         // 1-based line and column into that source, where no pointer exists yet
+    Node     string           // IR-space location: a stable ID or a path through the document's own fields
+    Inferred string           // "" = declared; else the heuristic that produced this node ("pagination-name-match")
+}
+
+type Position struct {
+    Line   int // 1-based; 0 = no position
+    Column int // 1-based; 0 = the producer knows the line only
 }
 
 const NoSource = -1 // the node addresses no input file
@@ -1973,6 +1980,17 @@ type Diagnostic struct {
 ```
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
+
+**One field per kind of locator.** A consumer cannot tell a locator's kind from its spelling, so
+each kind has its own field. `Pointer` is the structural locator into a source and holds nothing
+but an RFC 6901 pointer, which is what lets a consumer walk it with `jsontext.Pointer`'s methods.
+`Position` is for a finding made before the construct has a pointer — on a raw node the parser
+hands back, or in a part of the source no pointer reaches — and is the form editors turn into a
+link. `Node` is where an IR pass reports a finding about the document itself; its spelling is the
+producer's, and nothing parses it. A verifier holds a `Pointer` to RFC 6901 and a `Position` to
+1-based values, and refuses either one on `NoSource`, where there is no file for it to be inside.
+Nothing requires exactly one locator: a finding may carry a `Node` beside a source location, and a
+node the lowering reached may carry both a pointer and a position.
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so

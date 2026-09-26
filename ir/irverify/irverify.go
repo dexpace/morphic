@@ -195,8 +195,8 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 // catches any that bypass it.
 // Message is the only diagnostic field that carries free-form validator
 // text: a Code may embed a validator-supplied rule suffix, but those rule
-// names are bounded ASCII identifiers, and Provenance holds line:col or
-// synthetic pointers — so neither can carry the ill-formed bytes Message can.
+// names are bounded ASCII identifiers, and a provenance pointer is held to
+// RFC 6901, well-formed UTF-8 included, by checkProvenance.
 func checkDiagnostics(doc *ir.Document) []Violation {
 	var vs []Violation
 	for i, d := range doc.Diagnostics {

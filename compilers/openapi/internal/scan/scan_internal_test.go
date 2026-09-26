@@ -93,7 +93,7 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.NotEmpty(t, diags[0].Provenance.Pointer, "line:col provenance")
+			assert.NotZero(t, diags[0].Provenance.Position, "position provenance")
 		})
 	}
 }
@@ -830,16 +830,37 @@ func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
 }
 
-// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator:
-// a node is reported at its own line and column, and no node at all at the
-// source alone — never at a position fabricated from a nil.
+// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator: a
+// placed node is reported at its own line and column, a node the parser never
+// placed carries no position, and no node at all names the source alone —
+// never a position fabricated from a nil.
 func TestInSource_AnchorsANodeAndNamesTheSourceForNone(t *testing.T) {
 	t.Parallel()
 	locate := InSource(4)
 
-	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "12:7"},
-		locate(&yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7}))
-	assert.Equal(t, ir.Provenance{Source: 4}, locate(nil))
+	tests := map[string]struct {
+		node *yaml.Node
+		want ir.Provenance
+	}{
+		"a placed node reports its line and column": {
+			node: &yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7},
+			want: ir.Provenance{Source: 4, Position: ir.Position{Line: 12, Column: 7}},
+		},
+		"a node the parser never placed carries no position": {
+			node: &yaml.Node{},
+			want: ir.Provenance{Source: 4},
+		},
+		"no node names the source alone": {
+			node: nil,
+			want: ir.Provenance{Source: 4},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, locate(tt.node))
+		})
+	}
 }
 
 // TestCycles_AnchorsThroughTheLocator pins that a refusal takes its provenance

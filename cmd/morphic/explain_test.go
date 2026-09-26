@@ -170,3 +170,24 @@ func TestDiagnosticsAt_SelectsOnlyTheCoordinate(t *testing.T) {
 	assert.Equal(t, "a", got[0].Code, "emitted order is preserved")
 	assert.Equal(t, "c", got[1].Code)
 }
+
+// TestDiagnosticsAt_RootExcludesPositionAndNodeLocatedFindings pins what
+// listing under the root pointer means now that Position and Node exist
+// beside it: a finding located by either also carries an empty Pointer, but
+// neither is "the whole document" — only a finding whose Source has no
+// locator beside it at all is. Listing the first two under "" would claim
+// every position- or node-located finding in the compile happened at the
+// root, which is stampedAt's own doc comment and not merely a coincidence of
+// this fixture.
+func TestDiagnosticsAt_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
+	t.Parallel()
+	byPosition := ir.Diagnostic{Code: "p",
+		Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}}}
+	byNode := ir.Diagnostic{Code: "n", Provenance: ir.Provenance{Source: ir.NoSource, Node: "op/x"}}
+	atRoot := ir.Diagnostic{Code: "r", Provenance: ir.Provenance{Source: 0}}
+
+	got := diagnosticsAt([]ir.Diagnostic{byPosition, byNode, atRoot}, "")
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "r", got[0].Code, "only the finding with no locator beside its source is the root")
+}

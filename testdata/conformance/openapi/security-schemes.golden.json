@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.5.0",
+  "irVersion": "0.6.0",
   "name": "SecuritySchemes",
   "version": "1.0.0",
   "docs": {},
@@ -179,7 +179,10 @@
       "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
       "provenance": {
         "source": 0,
-        "pointer": "46:21"
+        "position": {
+          "line": 46,
+          "column": 21
+        }
       }
     },
     {

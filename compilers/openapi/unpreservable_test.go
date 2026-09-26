@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -154,7 +155,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
-	assert.Equal(t, "/components/schemas/T/items", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/T/items"), d.Provenance.Pointer,
 		"the diagnostic locates the construct that was lost, not its owner")
 	assert.Contains(t, d.Message, "no form at all")
 }

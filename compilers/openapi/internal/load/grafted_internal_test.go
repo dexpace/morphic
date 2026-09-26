@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 	for name, tc := range map[string]struct {
 		overlay string
 		code    string
-		pointer string
+		pointer jsontext.Pointer
 	}{
 		"a cycle refusal": {
 			overlay: "  - target: $.components.schemas\n    update: {C: {$ref: '#/components/schemas/C'}}\n",
@@ -97,7 +98,7 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 			continue
 		}
 		found++
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "6:26"}, d.Provenance,
+		assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 6, Column: 26}}, d.Provenance,
 			"the source declared this node, at this position")
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)

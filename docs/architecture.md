@@ -289,8 +289,9 @@ a cognitive complexity of 20. The method cap exists because the god object that
 
 ## 4. Diagnostics & provenance
 
-Every IR node carries a `Provenance` (source format, file, JSON pointer or line/col, original
-source name, and an `Inferred` marker naming the heuristic when applicable). Every stage returns
+Every IR node carries a `Provenance`: a source format and file, a JSON pointer or a line and
+column into it, or — on `NoSource` — an IR-space `Node` a pass reports about the document itself;
+plus the original source name and an `Inferred` marker naming the heuristic when applicable. Every stage returns
 `[]Diagnostic{Severity, Code, Message, Provenance}`. Codes are stable strings
 (`openapi/unresolved-ref`, `ir/dangling-type-ref`, `pass/discriminator-missing-variant`) so CI
 can allowlist. A mature allowlist entry is keyed by (diagnostic code × entity ID), requires a

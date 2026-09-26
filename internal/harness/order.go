@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -19,12 +18,6 @@ import (
 // nesting past 128 — so hitting it means a pathological input, not legitimate
 // depth.
 const maxReverseDepth = 512
-
-// positionPlaceholder stands in for a provenance pointer that locates a
-// construct by source position. The leading control byte is what makes it a
-// placeholder rather than a value: no producer spells a pointer with one, so it
-// cannot collide with a pointer that means itself.
-const positionPlaceholder = "\x01position"
 
 // orderInvariant compiles a source twice — once with its mappings as declared,
 // once with every mapping's entry order reversed — and reports what the
@@ -136,43 +129,19 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 // than a lowering that depends on order. Severity, code and pointer identify the
 // finding without that.
 //
-// A pointer spelled line:col is excluded for the same reason. Provenance.Pointer
-// admits either a structural pointer or a source position, and a permutation
-// moves a construct to a different line by design. Replacing it rather than
-// dropping the field keeps the finding in the multiset, so a permutation that
-// changes how many were reported still shows.
+// A source position is left out for the same reason: a permutation moves a
+// construct to a different line by design. Whether the finding has one stays
+// in, so a permutation that changes how a finding is located still shows.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
-		pointer := d.Provenance.Pointer
-		if isSourcePosition(pointer) {
-			pointer = positionPlaceholder
-		}
-		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%d",
-			d.Severity, d.Code, pointer, d.Provenance.Source))
+		p := d.Provenance
+		positioned := p.Position != ir.Position{}
+		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d",
+			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source))
 	}
 	sort.Strings(out)
 	return out
-}
-
-// isSourcePosition reports whether a provenance pointer is a line:col position
-// rather than a structural pointer.
-func isSourcePosition(pointer string) bool {
-	line, col, ok := strings.Cut(pointer, ":")
-	return ok && isDigits(line) && isDigits(col)
-}
-
-// isDigits reports whether s is a non-empty run of ASCII digits.
-func isDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // sourceOrderedCollections orders the collections a mapping's entry order

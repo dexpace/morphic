@@ -7,6 +7,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -29,7 +30,7 @@ func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry 
 func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 	var out []ir.Severity
 	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == pointer {
+		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			out = append(out, d.Severity)
 		}
 	}
@@ -330,7 +331,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 
 	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
 	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string"}`)
-	assert.Equal(t, "/components/schemas/Repository/allOf/1/properties/clone_url",
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Repository/allOf/1/properties/clone_url"),
 		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},

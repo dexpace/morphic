@@ -319,7 +319,7 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok, "the shared schema is registered under the path item's own pointer")
-	assert.Equal(t, "/paths/~1pets~1{petId}/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 
 	_, fabricatedGet := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")]
 	_, fabricatedDelete := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/delete/parameters/1/schema")]
@@ -397,7 +397,7 @@ webhooks:
 	assert.Equal(t, wantID, op.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
-	assert.Equal(t, "/webhooks/petEvent/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/webhooks/petEvent/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 }
 
 // TestParameters_CallbackPathItemParameterPointer covers the same merge
@@ -431,7 +431,7 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
 	assert.Equal(t, wantID, cbOp.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
-	assert.Equal(t, wantPointer, typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(wantPointer), typeDef.Common().Provenance.Pointer)
 }
 
 // TestParameters_ShadowedPathItemParamUsesOperationPointer covers the other
@@ -981,11 +981,11 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(provenanceSpec), &root))
-	check := func(kind, name, pointer string) int {
+	check := func(kind, name string, pointer jsontext.Pointer) int {
 		if pointer == "" {
 			return 0
 		}
-		assert.True(t, pointerResolves(&root, pointer),
+		assert.True(t, pointerResolves(&root, string(pointer)),
 			"%s %s: pointer %q does not resolve in source", kind, name, pointer)
 		return 1
 	}
@@ -1300,7 +1300,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 
 	seen := map[string]int{}
 	for _, d := range diags {
-		seen[string(d.Severity)+"|"+d.Code+"|"+d.Provenance.Pointer+"|"+d.Message]++
+		seen[string(d.Severity)+"|"+d.Code+"|"+string(d.Provenance.Pointer)+"|"+d.Message]++
 	}
 	for key, n := range seen {
 		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
@@ -1369,7 +1369,7 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 		"the second claim is reported once, not both claims")
 	for _, d := range diags {
 		if d.Code == diag.DuplicateOperationID {
-			assert.Equal(t, "/paths/~1b/get", d.Provenance.Pointer, "reported at the mount that collided")
+			assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), d.Provenance.Pointer, "reported at the mount that collided")
 			assert.Contains(t, d.Message, "/paths/~1a/get", "and names the mount that claimed it first")
 		}
 	}
@@ -1569,7 +1569,7 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, `[{"url":"`+tc.url+`"}]`, string(entry.Value),
 			"%s keeps the list its own path item declared", tc.op)
-		assert.Equal(t, tc.kept, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.kept), entry.Provenance.Pointer)
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the degradation as the paths route already did", tc.op)
 	}
@@ -1648,7 +1648,7 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
 			"%s keeps the value its own path item declared", tc.op)
-		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, tc.at),
 			"%s announces the key at the key's own pointer", tc.op)
 	}
@@ -1799,12 +1799,12 @@ func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 		assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
 		assert.JSONEq(t, `[{"url":"`+tc.own+`"}]`, string(own.Value),
 			"%s keeps its own list, not its path item's", tc.op)
-		assert.Equal(t, tc.ownAt, own.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.ownAt), own.Provenance.Pointer)
 
 		inherited, ok := op.Unmodeled["openapi:servers"]
 		require.True(t, ok, "%s keeps its path item's list beside it, not replaced by it", tc.op)
 		assert.JSONEq(t, `[{"url":"`+tc.inherited+`"}]`, string(inherited.Value))
-		assert.Equal(t, tc.inheritedAt, inherited.Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer(tc.inheritedAt), inherited.Provenance.Pointer,
 			"each entry keeps the coordinate of the object that declared it")
 
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
@@ -1921,7 +1921,7 @@ func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `"`+tc.text+` `+field.keyword+`"`, string(entry.Value),
 				"%s keeps the text its own path item declared", tc.op)
-			assert.Equal(t, tc.kept+"/"+field.keyword, entry.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer(tc.kept+"/"+field.keyword), entry.Provenance.Pointer)
 		}
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the path item's documentation as kept rather than lowered", tc.op)
@@ -2144,7 +2144,7 @@ paths:
 	var at []string
 	for _, d := range diags {
 		if strings.Contains(d.Message, "path-item servers kept under Unmodeled") {
-			at = append(at, d.Provenance.Pointer)
+			at = append(at, string(d.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/paths/~1a", "/paths/~1b"}, at,
@@ -2218,7 +2218,7 @@ paths:
 	for _, d := range diags {
 		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
 			announced++
-			assert.Equal(t, "/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
+			assert.Equal(t, jsontext.Pointer("/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"),
 				d.Provenance.Pointer, "announced at the expression whose item mounts nothing")
 		}
 	}
@@ -2300,7 +2300,7 @@ func TestResponses_ACollisionIsReportedTheSameInEitherOrder(t *testing.T) {
 	reversed := diagsFor(mixed + lower + upper)
 	require.Len(t, asWritten, 1, "three keys on one range are one collision; got %v", asWritten)
 	assert.Equal(t, asWritten, reversed, "the report must not depend on which key was written first")
-	assert.Equal(t, "/paths/~1w/get/responses", asWritten[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1w/get/responses"), asWritten[0].Provenance.Pointer)
 	assert.Contains(t, asWritten[0].Message, `"4XX", "4Xx", "4xx"`, "every colliding key, in sorted order")
 }
 
@@ -2383,7 +2383,7 @@ components:
 		assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
 	}
 	for _, d := range diags {
-		assert.NotEqual(t, "/components/responses/NF", d.Provenance.Pointer,
+		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), d.Provenance.Pointer,
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
 	}
 }

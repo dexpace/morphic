@@ -5,6 +5,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,7 +138,7 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	keyword := unmodeledEntry(t, schema.Common().Unmodeled, "openapi:additionalItems")
 	assert.Equal(t, ir.ReasonOutOfScope, keyword.Reason,
 		"no IR node is coming for a keyword this compiler does not model")
-	assert.Equal(t, "/components/schemas/S/additionalItems", keyword.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/additionalItems"), keyword.Provenance.Pointer)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/unknown-schema-keyword", "/components/schemas/S/additionalItems"))
 
@@ -146,7 +147,7 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	key := unmodeledEntry(t, op.Unmodeled, "openapi:operationid")
 	assert.Equal(t, ir.ReasonOutOfScope, key.Reason,
 		"OpenAPI defines no such key, so no IR node is coming for it either")
-	assert.Equal(t, "/paths/~1widgets/get/operationid", key.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1widgets/get/operationid"), key.Provenance.Pointer)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1widgets/get/operationid"))
 }
@@ -296,7 +297,7 @@ components:
 		assert.Equal(t, tc.want, string(entry.Value), "%s key keeps what the source wrote", tc.keyword)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason, "%s key reason", tc.keyword)
 		at := "/components/schemas/S/" + tc.keyword + "/" + tc.key[len("openapi:"+tc.keyword+"/"):]
-		assert.Equal(t, at, entry.Provenance.Pointer, "%s key provenance", tc.keyword)
+		assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer, "%s key provenance", tc.keyword)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, "openapi/unknown-object-key", at),
 			"%s key is announced as an object's, not as a schema keyword's", tc.keyword)
@@ -327,7 +328,7 @@ paths:
 	assert.JSONEq(t, `1`, string(entry.Value), "the key keeps the value the source wrote")
 	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
 		"OpenAPI defines no such key on a path item, so no IR node is coming for it")
-	assert.Equal(t, "/paths/~1x/bogusPathItem", entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1x/bogusPathItem"), entry.Provenance.Pointer)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1x/bogusPathItem"))
 	_, isError := ir.FirstError(diags)

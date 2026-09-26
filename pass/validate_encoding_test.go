@@ -72,7 +72,7 @@ func TestValidate_EncodingKeyAddressesNoProperty(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted key must address nothing")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			at := tc.at + "/contents/0/encoding/p/m/ghost"
-			assert.Equal(t, at, found[0].Provenance.Pointer)
+			assert.Equal(t, at, found[0].Provenance.Node)
 			assert.Equal(t, `encoding key "p/m/ghost" at `+at+
 				` addresses no property of the content's type "t/m"`, found[0].Message,
 				"the message names the key, where it sits, and what it failed to address")
@@ -103,7 +103,7 @@ func TestValidate_PayloadRequiredOutsideARequest(t *testing.T) {
 			}
 			require.Len(t, found, 1, "the one planted field must be reported once")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
-			assert.Equal(t, tc.at, found[0].Provenance.Pointer)
+			assert.Equal(t, tc.at, found[0].Provenance.Node)
 			assert.Equal(t, "payload at "+tc.at+" sets required, which only a request body can state",
 				found[0].Message)
 		})
@@ -137,7 +137,7 @@ func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 	found := withCode(pass.Validate(doc), "ir/encoding-key-unknown-property")
 	require.Len(t, found, 1, "exactly the planted key must address nothing")
 	assert.Equal(t, "s/commonErrors/0/contents/0/encoding/p/m/ghost",
-		found[0].Provenance.Pointer,
+		found[0].Provenance.Node,
 		"the pointer names the service by ID, as checkServerIndices does, so one node "+
 			"does not have two spellings from one package")
 }
