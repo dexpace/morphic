@@ -554,18 +554,18 @@ snapshot pins the whole lowering deterministically.
 | `ResolveScalarChains` | `Scalar.Base` chain, `Constraints`, `Encoding` | nearest representable base + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
 | `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct; non-string map key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
-| `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map, `DisallowUnknownFields` on `closed` | §4.3 |
+| `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
-| `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / omitempty + presence bit | §5.1; INV8 |
+| `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
 | `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}` | sealed interface + marker method + concrete variants | §4.4; INV2 |
-| `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSON` + typed factories | §4.3–§4.4 |
+| `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` + typed factories | §4.3–§4.4 |
 | `LowerOpenEnums` | `Enum.Closed`, `ValueType`, `Members`, `Flags`, `FallbackMember` | closed → typed consts; open → `string`+consts+`Unknown(raw)`; flags → bitset | §4.5 |
 | `ExtractInterfaces` | `Model.Abstract`, `Implements`, union membership | Go interfaces / client interfaces for testability | §4.3 |
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}` | imported library type + dependency-manifest entry; unmappable → diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly | §6 |
 | `BuildRequestShaping` | `plan.BindingView`, `plan.ParamShape` | request builders, per-protocol param binding, options-bag structs | §8 |
-| `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | iterator/auto-pager type + `Next()/Err()`; pacing left to policy | §7.3 |
+| `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
 | `LowerErrors` | `plan.PlannedError`, `UsageFlags.Error`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
@@ -615,7 +615,7 @@ type Common struct {
 }
 
 type Expr interface{ isExpr() }
-type Named   struct { Pkg, Name string }   // time.Time, uuid.UUID
+type Named   struct { Pkg, Name string }   // time.Time, uuid.UUID — both standard library (§8)
 type Pointer struct { Elem Expr }
 type Slice   struct { Elem Expr }
 type MapExpr struct { Key, Value Expr }
@@ -654,9 +654,11 @@ discriminator → implicit discriminator (variant const/name) → JSON-type disc
 distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
 ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
 generation. Because Morphic keeps `Union` lossless in the IR and only a emitter picks a strategy, a
-Go refiner that finds no strategy emits a coded diagnostic and falls back to `json.RawMessage` per
-variant — a degrade, never a whole-document failure (§13 test T-7). That graceful-degradation margin
-is exactly what the ABI seam buys and the fused-pipeline generator cannot have.
+Go refiner that finds no strategy emits a coded diagnostic and falls back to `jsontext.Value` per
+variant, which keeps the variant's bytes as they arrived — a degrade, never a whole-document failure
+(§13 test T-7). That graceful-degradation margin is exactly what the ABI seam buys and the
+fused-pipeline generator cannot have. Whatever the strategy, the union's codec is a
+`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason §4.8 gives.
 
 ### 4.5 Open enums
 
@@ -690,19 +692,42 @@ decision in its *emitter* (`boxType`), keeping `Required` and `Nullable` orthogo
 model right up to that point. That is Morphic's split precisely: orthogonal bits in the IR, boxed in
 refine. Two Go-specific optimizations to inherit: reference types (slice/map/pointer) can encode one
 of the four states in their own `nil` (ogen's `NilSemantic: invalid | optional | null`), saving a
-wrapper; `explicit` protobuf presence → pointer/hazzer, `implicit` → `,omitempty` with
-zero-not-serialized. `ClientOptional` relaxes the client-side type even when `Required=true`;
+wrapper; `explicit` protobuf presence → pointer/hazzer, `implicit` → `omitzero,omitempty`, so a
+zero is not serialized. `ClientOptional` relaxes the client-side type even when `Required=true`;
 `DefaultAdded` may be suppressed for back-compat. Where Go's zero value would force a *deliberate*
 collapse of two states, a `Diagnostic` is emitted — never a silent conflation (§13 test T-3).
+
+Presence is stated in `encoding/json/v2` terms, and `omitempty` never keeps a presence state. v2
+defines `omitempty` by the encoded JSON — a field is dropped when it would encode as `null`, `""`,
+`{}` or `[]` — so it keeps a zero number or `false` and drops a pointer to an empty struct: a set
+but empty value turns into an absent one, the silent conflation just forbidden. `omitzero` is
+defined by the Go value and asks the type's `IsZero` method when it has one. The boxes implement
+`IsZero` as "not set" beside their own `MarshalJSONTo`/`UnmarshalJSONFrom`, so a box field tagged
+`omitzero` is omitted exactly when unset, and an `Opt[int]` set to `0` is written. The `implicit`
+tag carries both options because each alone misses a zero: `omitempty` keeps `0` and `false`, and
+`omitzero` keeps an empty non-nil slice or map.
 
 ### 4.8 Discriminators
 
 `LowerDiscriminator` reads a `Discriminator` whose `Mapping` points at **TypeIDs, not names**, so a
-presentation rename never breaks the wiring. It emits a tag-dispatched `UnmarshalJSON` that peeks
-the discriminator **wire** key (never the Go field name), typed factory functions, and a
-`MarshalJSON` that writes the tag. `Property` vs `PropertyName` vs `Index` (positional), `Envelope`
-vs inline, and the `Default` variant on an absent/unrecognized tag all survive un-lowered; the
-choice of factory vs native vs wrapper is the refiner's.
+presentation rename never breaks the wiring. It emits a tag-dispatched `UnmarshalJSONFrom` that
+peeks the discriminator **wire** key (never the Go field name), typed factory functions, and a
+`MarshalJSONTo` that writes the tag. `Property` vs `PropertyName` vs `Index` (positional),
+`Envelope` vs inline, and the `Default` variant on an absent/unrecognized tag all survive
+un-lowered; the choice of factory vs native vs wrapper is the refiner's.
+
+The pair is `encoding/json/v2`'s `MarshalerTo`/`UnmarshalerFrom`, not v1's `MarshalJSON`/
+`UnmarshalJSON`, because only the v2 methods see the caller's encoder and decoder. `MarshalJSONTo`
+writes the variant straight to the caller's `jsontext.Encoder`. A tag may sit anywhere in its
+object, so `UnmarshalJSONFrom` buffers the one value it dispatches (`dec.ReadValue()`), scans it
+for the tag without decoding the rest, and decodes the variant from that buffer under
+`dec.Options()`: the options the caller decoded under reach the variant's body. A v1
+`UnmarshalJSON` receives only bytes, so it decodes the variant under options of its own choosing,
+never the caller's, and a type-specific decoder the caller registered with `json.WithUnmarshalers`
+stops applying at the first union. The one option a model sets over its caller's is
+`RejectUnknownMembers`, which each model pins for itself (§8.1). `ir/json.go` is the worked
+example: `(*TypeRegistry).UnmarshalJSONFrom` buffers each entry, `stringMember` finds the `kind`
+tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decoder's options.
 
 ### 4.9 Containers, scalars, external types
 
@@ -809,6 +834,11 @@ buys nothing and costs readability. But a template with an `if` that inspects th
 contain **no policy branching and no structural branching**: all decisions were made in plan/refine;
 the template only interpolates scalar policy values (retry count, header name). So templates cannot
 diverge across languages the way Mustache *structure* templates do.
+
+The Go templates lean on the standard library wherever Go 1.27 does the work (§8). In particular the
+transport template does not drain an unread response body by hand so that its connection can be
+reused: `net/http` does that itself on `Close`, up to a bound it sets, and past the bound closes the
+connection rather than read an arbitrarily large body.
 
 ### 5.3 Two guards on the boilerplate templates
 
@@ -961,8 +991,25 @@ IR kind breaks compilation of every dispatch that must handle it (the `assertNev
 
 ## 8. First-target walkthrough — a Go SDK emitter
 
-`TargetKey("go")`. Six IR constructs traced through `plan → refine → emit`. IR field names per
-`ir-design.md`.
+`TargetKey("go")`. IR constructs traced through `plan → refine → emit`, one per subsection. IR field
+names per `ir-design.md`.
+
+**Generated SDKs require Go 1.27 or newer.** Their `go.mod` declares `go 1.27`, and the lowerings
+below use what that release provides:
+
+- **JSON is `encoding/json/v2` and `encoding/json/jsontext`.** Go 1.27 builds them by default; Go
+  1.26 builds them only under `GOEXPERIMENT=jsonv2`, a setting of the importing program's build
+  environment that a library cannot make for it, and whose use outside toolchain development the
+  `go` command documents as unsupported. Codecs are `MarshalJSONTo`/`UnmarshalJSONFrom` (§4.8),
+  presence is `omitzero` (§4.7), and a union's fallback is `jsontext.Value` (§4.4).
+- **`ir.PrimUUID` maps to the standard library's `uuid.UUID`**, new in Go 1.27, so an SDK takes no
+  third-party dependency for it. It encodes as the canonical string, through its `MarshalText`.
+- **The auto-pager is an `iter.Seq2[T, error]`** (§8.3), ranged over with `for item, err := range`.
+- **Runtime templates are tested with `testing/synctest` and `httptest.NewTestServer`** (§13 test
+  T-13), and the transport template leaves draining unread bodies to `net/http` (§5.2).
+
+The cost is the SDK users still on Go 1.26. Go supports each major release until two newer ones
+exist, so 1.26 leaves support when 1.28 ships; from then on every supported release meets the floor.
 
 ### 8.1 A model with lifecycle visibility
 
@@ -975,7 +1022,13 @@ Additional:"closed" }`.
   `StructType{Name:"UserCreate"}` (create). `LowerOptionality`: required-nonnull → value fields,
   optional → `Pointer`. `RenderCasing` turns `["email"]`→`Email`, keeping `Tag:json:"email"` from
   `WireName`. `password` (`Secret`) gets a redacting `String()` and is excluded from the read shape.
-  `Additional:"closed"` → decoder uses `DisallowUnknownFields`.
+  `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
+  `json.RejectUnknownMembers(true)`. Every model pins that option for itself, `false` unless
+  closed: a v2 option reaches every value below the call that sets it, so a closed model would
+  otherwise make an open model nested in it strict, and a strict caller would reach a model the
+  spec leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
+  `map[string]T` tagged `json:",embed"`, which receives the undeclared members whatever the options
+  say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `models/user.go`.
   Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
 
@@ -988,12 +1041,13 @@ Discriminator{PropertyName:"type", Mapping:{"card":Card.ID, "bank":BankTransfer.
   whole (INV2).
 - **refine.** Go has no sum type → `LowerUnions` picks the sealed-interface strategy:
   `type Payment interface { isPayment() }`, `Card`/`BankTransfer` each implement an unexported
-  marker. `LowerDiscriminator` reads `Mapping` (keyed by **TypeID**) and generates `UnmarshalJSON`
-  that peeks the `"type"` wire key and dispatches; an unrecognized tag with no `Default` becomes a
-  coded decode error, not a silent nil. Variant identity survives → `NewPaymentCard(...)`.
-- **emit.** Printer emits the interface, markers, concrete structs, and the custom
-  `Unmarshal/Marshal` keyed on the **wire** name `"type"`. The switch-completeness test guarantees
-  every variant is handled.
+  marker. `LowerDiscriminator` reads `Mapping` (keyed by **TypeID**) and generates
+  `UnmarshalJSONFrom` that peeks the `"type"` wire key and dispatches; an unrecognized tag with no
+  `Default` becomes a coded decode error, not a silent nil. Variant identity survives →
+  `NewPaymentCard(...)`.
+- **emit.** Printer emits the interface, markers, concrete structs, and the
+  `UnmarshalJSONFrom`/`MarshalJSONTo` pair keyed on the **wire** name `"type"` (§4.8). The
+  switch-completeness test guarantees every variant is handled.
 
 ### 8.3 A paginated operation (`ListUsers`, cursor pagination)
 
@@ -1006,11 +1060,12 @@ bound `HTTPBinding{GET /users, query limit+cursor}`.
   ItemPath:body→items, CursorIn:cursor, CursorOut:next_cursor} }`. Item-type unwrap is a plan
   decision. Pacing delay is **not** here — it is runtime policy.
 - **refine.** `BuildRequestShaping` builds the request from the query bindings.
-  `func (c *Client) ListUsers(ctx, *ListUsersParams) *UserIterator`, where `UserIterator` walks pages
-  using `CursorOut` to read `next_cursor` and `CursorIn` to feed it back; items deserialize
-  elementwise over `ItemPath`.
-- **emit.** Printer emits `ListUsers`, `ListUsersParams`, and the `UserIterator` type + `Next()/Err()`.
-  The iterator *runtime* (fetch-and-pace loop) is `pagination.go.tmpl` parameterised by
+  `func (c *Client) ListUsers(ctx, *ListUsersParams) iter.Seq2[User, error]` is a range-over-func
+  auto-pager: it walks pages using `CursorOut` to read `next_cursor` and `CursorIn` to feed it back,
+  yields each item deserialized elementwise over `ItemPath`, yields one non-nil error and stops when
+  a fetch fails, and fetches no further page once the caller's loop breaks.
+- **emit.** Printer emits `ListUsers` and `ListUsersParams`; the pager needs no named iterator type.
+  The pager *runtime* (fetch-and-pace loop) is `pagination.go.tmpl` parameterised by
   `Policy.Pagination.AutoPageDelay` — the legitimate boilerplate seam.
 
 ### 8.4 A streaming operation (`StreamEvents`, server-sent events)
@@ -1108,10 +1163,10 @@ degrade; a missing row is an IR bug (INV9), not a compiler change.
 
 | IR construct | Refine decision (Go) | Wire truth preserved |
 |---|---|---|
-| `Primitive` (incl. `integer`/`number`/`decimal`) | native type; arbitrary-precision → `math/big`/decimal lib or diagnostic; `any`→`any`; nil `*TypeRef`→void | — |
+| `Primitive` (incl. `integer`/`number`/`decimal`) | native type; arbitrary-precision → `math/big`/decimal lib or diagnostic; `uuid`→standard-library `uuid.UUID`; `any`→`any`; nil `*TypeRef`→void | — |
 | `Scalar{Base}` chain | resolve to nearest base + merged constraints; nil-base → newtype | encoding triple |
 | `Model` (Base/Implements/Mixins) | struct; embed base+mixins, interfaces for `Implements`; `Abstract`→interface; `Positional`→index-ordered struct | `WireID` order |
-| `AdditionalProps` / `Additional` | catch-all `map`; `closed`→`DisallowUnknownFields` | pattern channel |
+| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | pattern channel |
 | `Union` (4 tag modes) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | `WireName`/`WireID` per variant |
 | `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | member `WireName` |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/struct; `List.Encoding`→serializer mode | packed/expanded |
@@ -1119,10 +1174,10 @@ degrade; a missing row is an IR bug (INV9), not a compiler change.
 | `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | — |
 | `Any` | `any` (distinct from a diagnosed unknown) | — |
 | `Visibility` sets | N structs from `ModelShape`; PATCH → optional | — |
-| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/omitempty+presence; collapse→diagnostic | — |
+| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic | — |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | numeric bounds as decimal |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSON` + factories | discriminator wire key |
-| `Pagination` (PropPaths) | iterator/auto-pager; item unwrap from plan; pacing from policy | path-based item/cursor read |
+| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` + factories | discriminator wire key |
+| `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | path-based item/cursor read |
 | `Streaming` + `StreamDetail` | `EventStream.Recv()`/`Send()` over event union; terminal ends; direction from core, framing from binding | per-event content-type |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | monitor/final-state channel |
 | `OneWay` | fire-and-forget method, no response binding | — |
@@ -1241,6 +1296,10 @@ throughout this document.
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
     alone, diffed against the generated SDK under HTTP interception; request-side mismatches block,
     response-side inform.
+13. **T-13 · Runtime determinism** — the retry, backoff and timeout templates run inside a
+    `testing/synctest` bubble against `httptest.NewTestServer`, whose in-memory network works within
+    the bubble: a backoff schedule is asserted exactly under the fake clock and completes instantly,
+    and `synctest.Sleep` advances the clock and waits for the runtime under test to settle.
 
 ---
 
@@ -1294,9 +1353,9 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
    fact?" before the second language lands, so the plan does not bloat with speculative,
    target-shaped fields.
 2. **Target-AST granularity.** The line is "declarations and signatures = typed AST; behavior and
-   boilerplate = template". Method *bodies* that are pure boilerplate (the iterator `Next`, the retry
-   loop) stay templated; an over-fine AST that models statement-level Go grammar is a non-goal. The
-   exact granularity is a per-feature judgment that will be litigated as features land.
+   boilerplate = template". Method *bodies* that are pure boilerplate (the pager's fetch loop, the
+   retry loop) stay templated; an over-fine AST that models statement-level Go grammar is a
+   non-goal. The exact granularity is a per-feature judgment that will be litigated as features land.
 3. **Where content-negotiation ties break.** The `json > form > multipart > binary` default is a
    shared plan helper (resolves `ir-design.md` Q3), but a target that wants a different primary needs
    a clean override path that does not fork the plan. Leaning: an override on `plan.Policy`, since the
