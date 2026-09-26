@@ -28,7 +28,7 @@ func TestExternal_OpenOfAMissingFilePassesTheOSErrorThrough(t *testing.T) {
 	t.Parallel()
 	name := filepath.Join(t.TempDir(), "missing.yaml")
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{}).Open(name)
+	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Open(name)
 
 	require.Error(t, err)
 	assert.True(t, os.IsNotExist(err), "the error is os.Open's own, unwrapped: %v", err)
@@ -40,7 +40,7 @@ func TestExternal_OpenOfAMissingFilePassesTheOSErrorThrough(t *testing.T) {
 func TestExternal_OpenOfADirectoryFailsOnTheRead(t *testing.T) {
 	t.Parallel()
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{}).Open(t.TempDir())
+	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Open(t.TempDir())
 
 	require.Error(t, err, "a directory opens but does not read")
 }
@@ -56,7 +56,7 @@ func TestExternal_OpenPreparesTheFileAndCachesItsTree(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 
 	doc := &soa.OpenAPI{}
-	f, err := newExternal(doc, Options{}).Open(path)
+	f, err := newExternal(doc, Options{}, newExternalReads()).Open(path)
 	require.NoError(t, err)
 
 	got, err := io.ReadAll(f)
@@ -82,7 +82,7 @@ func TestExternal_OpenOverTheByteBudgetIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "big.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", 32)), 0o600))
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: 16}).Open(path)
+	_, err := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: 16}, newExternalReads()).Open(path)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "external document "+path+" refused")
@@ -97,7 +97,7 @@ func TestExternal_OpenRefusesARefusedFileAgainUnread(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "big.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", 32)), 0o600))
-	reader := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: 16})
+	reader := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: 16}, newExternalReads())
 	_, first := reader.Open(path)
 	require.Error(t, first)
 	require.NoError(t, os.Remove(path))
@@ -138,8 +138,9 @@ func (r *serveThenFail) Read(p []byte) (int, error) {
 func TestExternal_PrepareStopsReadingAtTheByteBudget(t *testing.T) {
 	t.Parallel()
 	const limit = 5
+	reader := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: limit}, newExternalReads())
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{MaxSourceBytes: limit}).prepare("k", &serveThenFail{max: 10 * limit})
+	_, err := reader.prepare("k", &serveThenFail{max: 10 * limit})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("%d-byte budget", limit),
@@ -155,8 +156,9 @@ func TestExternal_PrepareUnderAMaxIntByteBudgetReadsTheDocument(t *testing.T) {
 	t.Parallel()
 	const body = "a: 1\n"
 	doc := &soa.OpenAPI{}
+	reader := newExternal(doc, Options{MaxSourceBytes: math.MaxInt}, newExternalReads())
 
-	data, err := newExternal(doc, Options{MaxSourceBytes: math.MaxInt}).prepare("k", strings.NewReader(body))
+	data, err := reader.prepare("k", strings.NewReader(body))
 
 	require.NoError(t, err)
 	assert.Equal(t, body, string(data))
@@ -173,7 +175,7 @@ func TestExternal_PrepareParsesUnchangedBytesOnce(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x 1\nb: *x\n"
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{})
+	reader := newExternal(doc, Options{}, newExternalReads())
 	_, err := reader.prepare("k", strings.NewReader(body))
 	require.NoError(t, err)
 	first, ok := doc.GetCachedExternalDocument("k")
@@ -194,7 +196,7 @@ func TestExternal_PrepareParsesUnchangedBytesOnce(t *testing.T) {
 // #538), so skipping them would let the new bytes reach the parser unjudged.
 func TestExternal_PrepareJudgesChangedBytesAgain(t *testing.T) {
 	t.Parallel()
-	reader := newExternal(&soa.OpenAPI{}, Options{})
+	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads())
 	_, err := reader.prepare("k", strings.NewReader("a: 1\n"))
 	require.NoError(t, err)
 
@@ -212,7 +214,7 @@ func TestExternal_PrepareJudgesChangedBytesAgain(t *testing.T) {
 func TestExternal_PrepareSkipsOnlyWhatItPrepared(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{MaxSourceNodes: 5})
+	reader := newExternal(doc, Options{MaxSourceNodes: 5}, newExternalReads())
 	_, err := reader.prepare("k", strings.NewReader("a: [1, 2, 3, 4, 5]\n"))
 	require.Error(t, err, "sanity: the first document is past the node budget")
 
@@ -233,7 +235,7 @@ func TestExternal_PrepareLeavesUnparseableBytesForTheResolver(t *testing.T) {
 	const bad = "a: [\n"
 	doc := &soa.OpenAPI{}
 
-	data, err := newExternal(doc, Options{}).prepare("k", strings.NewReader(bad))
+	data, err := newExternal(doc, Options{}, newExternalReads()).prepare("k", strings.NewReader(bad))
 
 	require.NoError(t, err)
 	assert.Equal(t, bad, string(data))
@@ -249,7 +251,7 @@ func TestExternal_AdmitRefusesARecursiveAnchor(t *testing.T) {
 	root, parsed := parseTree([]byte("p: &a [*a]\n"))
 	require.True(t, parsed)
 
-	err := newExternal(&soa.OpenAPI{}, Options{}).admit("k", root)
+	err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -266,7 +268,7 @@ func TestExternal_AdmitJoinsTwoFindings(t *testing.T) {
 	root, parsed := parseTree([]byte("p: &a [*a]\nq: !x {b: 1}\n"))
 	require.True(t, parsed)
 
-	err := newExternal(&soa.OpenAPI{}, Options{}).admit("k", root)
+	err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(),
@@ -283,7 +285,7 @@ func TestExternal_AdmitOverTheNodeBudgetIsRefused(t *testing.T) {
 	nodes := nodeCount(root)
 	require.Greater(t, nodes, 3, "sanity: the fixture crosses the budget below")
 
-	err := newExternal(&soa.OpenAPI{}, Options{MaxSourceNodes: 3}).admit("k", root)
+	err := newExternal(&soa.OpenAPI{}, Options{MaxSourceNodes: 3}, newExternalReads()).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -298,7 +300,7 @@ func TestExternal_AdmitHoldsTheAliasBudget(t *testing.T) {
 	root, parsed := parseTree([]byte("a: &x {b: 1}\nc: *x\n"))
 	require.True(t, parsed)
 
-	err := newExternal(&soa.OpenAPI{}, Options{MaxAliasSurplus: 1}).admit("k", root)
+	err := newExternal(&soa.OpenAPI{}, Options{MaxAliasSurplus: 1}, newExternalReads()).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -319,7 +321,7 @@ func TestExternal_AdmitRefusesWhereTheScanCannotFinish(t *testing.T) {
 	root, parsed := parseTree([]byte(b.String()))
 	require.True(t, parsed)
 
-	err := newExternal(&soa.OpenAPI{}, Options{}).admit("k", root)
+	err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).admit("k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -351,7 +353,7 @@ func TestExternal_DoCachesASuccessfulResponsesBody(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := &soa.OpenAPI{}
-	resp, err := newExternal(doc, Options{}).Do(req)
+	resp, err := newExternal(doc, Options{}, newExternalReads()).Do(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -380,7 +382,7 @@ func TestExternal_DoLeavesANonSuccessResponseUntouched(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := &soa.OpenAPI{}
-	resp, err := newExternal(doc, Options{}).Do(req)
+	resp, err := newExternal(doc, Options{}, newExternalReads()).Do(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -401,7 +403,7 @@ func TestExternal_DoPassesATransportErrorThrough(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -421,7 +423,7 @@ func TestExternal_DoFailsOnATruncatedBody(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -439,7 +441,7 @@ func TestExternal_DoFailsOnARefusedBody(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -457,7 +459,7 @@ func TestExternal_DoRefusesARefusedURLAgainUnfetched(t *testing.T) {
 		_, err := w.Write([]byte("p: &a [*a]\n"))
 		assert.NoError(t, err)
 	})
-	reader := newExternal(&soa.OpenAPI{}, Options{})
+	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads())
 	fetch := func() error {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 		require.NoError(t, err)
@@ -481,7 +483,7 @@ func TestExternal_DoRefusesARefusedURLAgainUnfetched(t *testing.T) {
 func TestNewExternal_InitializesTheCacheOnAZeroDocument(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	e := newExternal(doc, Options{})
+	e := newExternal(doc, Options{}, newExternalReads())
 
 	require.NotPanics(t, func() {
 		_, err := e.prepare("k", strings.NewReader("a: 1\n"))

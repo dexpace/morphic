@@ -599,10 +599,10 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 		keys = append(keys, string(method))
 	}
 	// The unmarshaller skips a key whose value carries a YAML anchor, so `bogus:
-	// &a {...}` is in neither the map nor a field (GitHub #412). Source anchors
-	// are cleared before the model is built (GitHub #459, #501), so only a
-	// document the resolver parses itself still holds one (GitHub #538). The raw
-	// node is the only place such a key is written.
+	// &a {...}` is in neither the map nor a field (GitHub #412). Anchors are
+	// cleared before a model is built (GitHub #459, #501, #538), short of an
+	// external document past the hop bound that recovery follows; the raw node
+	// stays the one place such a key would be written.
 	for _, key := range annotation.RawMappingKeys(pi.GetRootNode()) {
 		if pathItemDeclares(pi, key) {
 			continue
@@ -625,10 +625,10 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // undeclaredPathItemKeys answers for it), naming a standard method, a field of
 // the model, or an x- extension.
 //
-// A method held nowhere in the map is still declared. In a path item from a
-// document the resolver parsed itself (GitHub #538), `get: &g {...}` is skipped
-// by the anchor rule and not lowered, but the specification defines the key, so
-// the census cannot truthfully call it one the document may not write.
+// A method held nowhere in the map is still declared: naming a standard method
+// is enough. `get: &g {...}` would be skipped by the anchor rule and not
+// lowered, but the specification defines the key, so the census cannot
+// truthfully call it one the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
 	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)

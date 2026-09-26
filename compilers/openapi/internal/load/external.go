@@ -33,23 +33,32 @@ import (
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
-	// judged holds each document's verdict by the key it was read under:
-	// the error it was refused with, or the digest of the bytes it was
-	// prepared from. The resolver asks again on every reference until it
-	// has built something from a document, so a refused one fails again
-	// unread, and a prepared one is judged again only if its bytes changed:
-	// the resolver parses what it reads itself wherever it misses the
-	// stored tree. Shared by every copy of the reader and safe for
-	// concurrent use.
+	// read holds every document prepared and every request's answer, shared by
+	// the readers of one compile so a second resolution can be handed what the
+	// first read (see resolveExternal).
+	read *externalReads
+	// replaying has the reader answer a request from read rather than send it,
+	// while read holds one: the n-th request for a URL gets the n-th answer
+	// recorded for it. A second resolution's reader replays the first's.
+	replaying bool
+	// judged holds each document's verdict by the key it was read under: the
+	// error it was refused with, or the digest of the bytes it was prepared
+	// from. The resolver asks again on every reference until it has built
+	// something from a document, so a refused one fails again unread, and a
+	// prepared one is judged again only if its bytes changed. Shared by every
+	// copy of the reader and safe for concurrent use. A second resolution keeps
+	// its own, since a digest vouches for a tree stored in this reader's
+	// document; a refusal reaches it as a replayed answer.
 	judged *sync.Map
 }
 
-// newExternal returns the reader for doc's external references. The document's
-// caches are initialized here rather than trusted to be, because storing into
-// an uninitialized one faults inside the library.
-func newExternal(doc *soa.OpenAPI, opts Options) external {
+// newExternal returns the reader for doc's external references, recording in
+// read what it prepares and how its requests are answered. The document's caches
+// are initialized here rather than trusted to be, because storing into an
+// uninitialized one faults inside the library.
+func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
-	return external{doc: doc, opts: opts, judged: &sync.Map{}}
+	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{}}
 }
 
 // Open reads the file name as the resolver's default file system would, and
@@ -72,26 +81,44 @@ func (e external) Open(name string) (fs.File, error) {
 // Do fetches req as the resolver's default client would, and prepares the body
 // of a successful response under the request's URL. A URL refused once fails
 // again without being fetched. Any other outcome is the resolver's to report,
-// as it was.
+// as it was. Every answer is recorded in read, which a replaying reader answers
+// from while it can (see replaying).
 //
 // The resolver looks a document up by its URL as net/url spells it, and the
-// client sees only the request, so an absolute $ref spelled otherwise misses
-// and the resolver parses that document itself (GitHub #538).
+// client sees only the request, so an absolute $ref spelled otherwise misses;
+// resolveExternal recovers that document (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
-	if err := e.refusal(key); err != nil {
-		return nil, err
+	if e.replaying {
+		if a, ok := e.read.nextAnswer(key); ok {
+			return a.response(req)
+		}
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+	resp, err := e.send(req, key)
+	if err != nil {
+		e.read.recordAnswer(key, answer{err: err})
 		return resp, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		e.read.recordAnswer(key, answer{status: resp.StatusCode})
+		return resp, nil
 	}
 	data, err := e.prepare(key, resp.Body)
 	if err = errors.Join(err, resp.Body.Close()); err != nil {
+		e.read.recordAnswer(key, answer{err: err})
 		return nil, err
 	}
+	e.read.recordAnswer(key, answer{status: resp.StatusCode, body: data})
 	resp.Body = io.NopCloser(bytes.NewReader(data))
 	return resp, nil
+}
+
+// send makes req over the network, unless the document under key was refused.
+func (e external) send(req *http.Request, key string) (*http.Response, error) {
+	if err := e.refusal(key); err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
 }
 
 // prepare reads an external document from r, no further than one byte past the
@@ -128,6 +155,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 	}
 	releaseAnchors(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
+	e.read.recordTree(key, root)
 	e.judged.Store(key, sha256.Sum256(data))
 	return data, nil
 }
