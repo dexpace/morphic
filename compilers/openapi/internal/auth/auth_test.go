@@ -277,7 +277,7 @@ components:
 // The entry is a hand-built nil, which no parsed document produces — a
 // malformed entry still arrives as an object. That makes this the nil-guard
 // case rather than the reporting one, so nothing is reported: the entry carries
-// no $ref to have failed. TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere
+// no $ref to have failed. TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce
 // covers the shapes a document can write, through the compiler.
 func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
@@ -292,26 +292,28 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
-// TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere pins which unresolvable
-// entries this package reports and which it leaves alone, through the compiler
-// rather than a hand-built node — the shapes below are what a document can
-// actually write, and a hand-built one is not among them.
+// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins which
+// unresolvable entries this package reports and which it leaves alone, through
+// the compiler rather than a hand-built node — the shapes below are what a
+// document can actually write, and a hand-built one is not among them.
 //
 // Every case here drops the entry from the registry, and none is named by any
-// security requirement, so nothing downstream would report it either. What
-// separates them is whether anything else already places the fault. A $ref that
-// resolves to nothing is reported by the load phase at no pointer at all
-// (issue #235), leaving the entry unplaced — that is the gap this package
-// fills. An entry written as something other than an object already draws the
-// loader's type-mismatch, which names both the entry and what was wrong with
-// it, so a second report would send the reader to the same place to learn less.
-func TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere(t *testing.T) {
+// security requirement, so nothing downstream would report it either. None is
+// reported here either, now that the load phase resolves references one at a
+// time: a $ref that resolves to nothing is reported at the entry's own
+// components pointer, naming the reference and the resolver's reason (GitHub
+// #385) — the gap this package used to fill when that report carried no
+// pointer at all (issue #235). An entry written as something other than an
+// object already draws the loader's type-mismatch, which names both the entry
+// and what was wrong with it, so a second report would send the reader to the
+// same place to learn less.
+func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
 		entry string
-		// wantRef is the reference the report must name, or "" when this
-		// package is expected to report nothing at all.
+		// wantRef is the reference the load phase's report must quote, or ""
+		// when nothing should land at the entry's own pointer.
 		wantRef string
 	}{
 		{
@@ -345,12 +347,12 @@ components:
 			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 			if tc.wantRef == "" {
 				assert.Empty(t, got,
-					"the loader already names this entry and its fault: %+v", diags)
+					"a non-$ref shape is left to the loader's own type-mismatch: %+v", diags)
 				return
 			}
-			require.Len(t, got, 1, "the entry is placed exactly once: %+v", diags)
-			assert.Contains(t, got[0], `"ghost"`, "the report names the entry")
-			assert.Contains(t, got[0], tc.wantRef, "and the reference that failed")
+			require.Len(t, got, 1, "the load phase reports the broken $ref exactly once: %+v", diags)
+			assert.Contains(t, got[0], `unresolved $ref "`+tc.wantRef+`"`,
+				"the load phase's own report, naming the reference as written")
 		})
 	}
 }
@@ -804,10 +806,12 @@ paths: {}
 // TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared pins that the
 // two reports about one broken scheme agree with each other. The document does
 // declare "ghost" — its $ref is what fails — so the requirement naming it must
-// not be told the scheme is undeclared, which contradicts the entry-level report
-// standing right beside it and sends a reader to add a declaration already
-// there. Both now say the name resolves to nothing, which is true whether the
-// document wrote the entry or not.
+// not be told the scheme is undeclared, which contradicts the load phase's own
+// report standing right beside it and sends a reader to add a declaration
+// already there. The entry-level report is now the load phase's, naming the
+// reference at the entry's own pointer (GitHub #385); the requirement-level one
+// still says only that the name is unresolved, never that it was never
+// declared.
 func TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
@@ -823,8 +827,8 @@ components:
 
 	entry := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 	require.Len(t, entry, 1, "the entry whose $ref failed is reported: %+v", diags)
-	assert.Contains(t, entry[0], `"ghost"`, "naming the scheme, so it stands without its pointer")
-	assert.Contains(t, entry[0], "resolves to nothing")
+	assert.Contains(t, entry[0], `unresolved $ref "#/components/securitySchemes/Missing"`,
+		"the load phase's own report, naming the reference that failed")
 
 	req := messagesAtPointer(diags, "/security/0")
 	require.Len(t, req, 1, "so is the requirement that names it: %+v", diags)

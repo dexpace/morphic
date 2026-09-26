@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -115,9 +117,11 @@ components:
 }
 
 // TestCompile_ExternalRefRefusalIsReportedOncePerDistinctFailure pins the shape
-// of the refusal. The resolver returns one joined error over every reference it
-// could not follow; rendering that join whole put four failures in the message
-// field of one diagnostic, which read as the same sentence stuttered four times.
+// of the refusal now that the load phase resolves references one at a time
+// (GitHub #385): four external $refs the compiler refuses to follow are four
+// distinct findings, each at the $ref that produced it, not the one diagnostic
+// a joined resolver error used to render as the same sentence stuttered four
+// times.
 func TestCompile_ExternalRefRefusalIsReportedOncePerDistinctFailure(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -137,8 +141,20 @@ components:
 	diags := compileWithOptions(t, "spec.yaml", spec, openapi.Options{})
 	require.True(t, hasErrorRef(diags), "four refused refs are reported")
 
+	var pointers []string
 	for _, d := range diags {
+		if d.Code != diag.UnresolvedRef {
+			continue
+		}
 		assert.NotContains(t, d.Message, "\n",
 			"one diagnostic carries one message, not a joined list: %+v", d)
+		pointers = append(pointers, d.Provenance.Pointer)
 	}
+	slices.Sort(pointers)
+	assert.Equal(t, []string{
+		"/components/schemas/A",
+		"/components/schemas/B",
+		"/paths/~1a/get/parameters/0",
+		"/paths/~1a/get/responses/200",
+	}, pointers, "each refusal is its own finding, at its own $ref")
 }

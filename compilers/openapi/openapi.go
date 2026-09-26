@@ -80,12 +80,39 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	// components schemas → auth → service/operations → meta; assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, lowerDiags...)
+	all := append(diags, withoutRereported(lowerDiags, diags)...)
 	if err != nil {
 		return nil, all, err
 	}
 	out.Diagnostics = all
 	return out, out.Diagnostics, nil
+}
+
+// withoutRereported drops each lowering report of an unresolved reference that
+// the load phase already reported at the same position.
+//
+// The load phase resolves every reference and reports a failure at the $ref,
+// with the resolver's reason. The lowering reports a schema reference it could
+// not follow at that same pointer, without one — and also where the load phase
+// reported nothing, such as a reference the resolver followed into a document
+// the lowering cannot read (GitHub #74) — so only a report the load phase has
+// already made at that exact provenance is dropped. Kept, one failure would
+// read as two (GitHub #385).
+func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
+	reported := make(map[ir.Provenance]bool)
+	for _, d := range loaded {
+		if d.Code == diag.UnresolvedRef {
+			reported[d.Provenance] = true
+		}
+	}
+	out := make([]ir.Diagnostic, 0, len(lowered))
+	for _, d := range lowered {
+		if d.Code == diag.UnresolvedRef && reported[d.Provenance] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // run drives the four-phase pipeline over one loaded document (architecture

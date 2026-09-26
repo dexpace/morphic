@@ -12,7 +12,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,12 +88,12 @@ func (r *externalReads) preparedFor(used string) ([]byte, *yaml.Node, bool) {
 // no reference the first resolution left unfollowed. A document it still finds
 // unprepared would break that, and is reported as the compiler's own fault
 // rather than dropped in silence.
-func resolveExternal(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
-	rebuild func() (*soa.OpenAPI, error),
+func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	read := newExternalReads()
 	reader := newExternal(doc, opts, read)
-	diags := resolveWith(ctx, locate, doc, path, opts, &reader)
+	diags := resolveWith(ctx, at, doc, path, opts, &reader)
 	used := documentsUsed(ctx, doc)
 	if !anyAnchored(doc, unprepared(doc, read, used)) {
 		return doc, diags, nil
@@ -112,8 +111,8 @@ func resolveExternal(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI,
 		}
 	}
 	reader = newExternal(again, opts, read)
-	diags = resolveWith(ctx, locate, again, path, opts, &reader)
-	return again, append(diags, stillUnprepared(locate, unprepared(again, read, documentsUsed(ctx, again)))...), nil
+	diags = resolveWith(ctx, at, again, path, opts, &reader)
+	return again, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -144,8 +143,8 @@ func hasAnchor(root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, naming the first reference that read it.
-func stillUnprepared(locate scan.Locator, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it.
+func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -153,9 +152,9 @@ func stillUnprepared(locate scan.Locator, missed []usedDocument) []ir.Diagnostic
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, locate(nil),
-			"internal: the resolver read %s itself for the $ref at %s after it was handed a prepared copy; "+
-				"anchored entries in it may be missing (GitHub #538)", m.key, m.site))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
+			"internal: the resolver read %s itself after it was handed a prepared copy; "+
+				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
 	return diags
 }

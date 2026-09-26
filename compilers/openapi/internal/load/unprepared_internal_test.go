@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -40,7 +41,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	return resolveExternal(t.Context(), scan.InSource(0), doc, path, Options{AllowExternalRefs: true}, rebuild)
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
 }
 
 // resolveSpecWith is resolveSpec with a caller-supplied rebuild, for the tests
@@ -53,7 +54,7 @@ func resolveSpecWith(t *testing.T, spec, path string, rebuild func() (*soa.OpenA
 	releaseAnchors(root)
 	doc, _, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	return resolveExternal(t.Context(), scan.InSource(0), doc, path, Options{AllowExternalRefs: true}, rebuild)
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to
@@ -255,6 +256,80 @@ func TestResolveExternal_ARebuildErrorIsReturned(t *testing.T) {
 	assert.Equal(t, int32(1), requests.Load(), "the first pass still reads the document once before rebuild fails")
 }
 
+// otherDocWithAnchoredGetAndFinding is a document reached only through an
+// external $ref: an anchored get operation (so the resolver's own parse would
+// fold right over it, GitHub #501) whose 200 response carries a finding
+// (GitHub #537), and a second, separately anchored response on the same
+// operation — proving recovery for the responses map's fold too, not only the
+// path item's, which anchoredExternalDoc already covers.
+const otherDocWithAnchoredGetAndFinding = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    get: &g
+      operationId: EXTGET
+      responses:
+        "200":
+          description: ok
+          headers:
+            X:
+              schema: {type: string}
+              required: notabool
+        "404": &n
+          description: missing
+`
+
+// combinedRootSpec is root.yaml from the reconciliation with m4: two ordinary
+// ghost references alongside the $ref to other.yaml at url, so the diagnostic
+// list the test below compares is more than the one entry the recovery pass
+// touches.
+func combinedRootSpec(url string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    parameters:\n      - {$ref: '#/components/parameters/GhostParam'}\n" +
+		"    get: {operationId: getA, responses: {\"200\": {description: ok}}}\n" +
+		"  /x: {$ref: \"" + url + "#/paths/~1x\"}\n" +
+		"components:\n  schemas:\n    S: {$ref: '#/components/schemas/GhostSchema'}\n"
+}
+
+// TestResolveExternal_ASecondPassReportsWhatOnePassWould pins the reconciliation
+// with m4's two-pass resolveExternal (see its own doc comment): the second pass
+// REPLACES the first pass's diagnostics rather than adding to them, and
+// replacing must neither double nor lose a report. The two ordinary ghost
+// references in combinedRootSpec are what makes that a claim about the whole
+// diagnostic list a compile reports, not only about the one entry the recovery
+// touches.
+func TestResolveExternal_ASecondPassReportsWhatOnePassWould(t *testing.T) {
+	t.Parallel()
+	srv, requests := countingServer(t, otherDocWithAnchoredGetAndFinding)
+
+	run := func(url string) (*Document, []ir.Diagnostic) {
+		requests.Store(0)
+		src := compilers.Source{Path: "root.yaml", Data: []byte(combinedRootSpec(url))}
+		got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, int32(1), requests.Load(), "one request per compile")
+		return got, diags
+	}
+
+	recovered, twoPassDiags := run("HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/other.yaml")
+	_, onePassDiags := run(srv.URL + "/other.yaml")
+
+	if d := cmp.Diff(onePassDiags, twoPassDiags); d != "" {
+		t.Errorf("a second pass must report exactly what one pass would (-onePass +twoPass):\n%s", d)
+	}
+
+	ref, ok := recovered.Doc.Paths.Get("/x")
+	require.True(t, ok)
+	item := ref.GetObject()
+	require.NotNil(t, item)
+	get := item.Get()
+	require.NotNil(t, get, "the anchored get was folded, not skipped")
+	assert.Equal(t, "EXTGET", get.GetOperationID())
+	_, ok = get.GetResponses().Get("404")
+	assert.True(t, ok, "the separately anchored 404 was folded, not skipped")
+}
+
 // TestLoad_RecoversARespelledExternalReference drives the recovery through the
 // public entry point rather than resolveExternal directly, so build's own
 // rebuild closure — not a test-supplied stand-in — is what runs and succeeds.
@@ -308,14 +383,14 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 // exhaustive). It is driven directly with fabricated usedDocuments instead.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
-	locate := scan.InSource(3)
+	at := pointerAt(3, overlay.Origin{})
 	missed := []usedDocument{
 		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1x")},
 		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1y")}, // same key: reported once
 		{key: "http://a/2.yaml", site: jsontext.Pointer("/paths/~1z")},
 	}
 
-	diags := stillUnprepared(locate, missed)
+	diags := stillUnprepared(at, missed)
 
 	require.Len(t, diags, 2, "one report per distinct key")
 	for _, d := range diags {
@@ -324,10 +399,10 @@ func TestStillUnprepared(t *testing.T) {
 		assert.Equal(t, 3, d.Provenance.Source)
 	}
 	assert.Contains(t, diags[0].Message, "http://a/1.yaml")
-	assert.Contains(t, diags[0].Message, "/paths/~1x", "names the site of the first reference that read it")
-	assert.NotContains(t, diags[0].Message, "/paths/~1y", "the second reference to the same key is not a second report")
+	assert.Equal(t, "/paths/~1x", diags[0].Provenance.Pointer,
+		"reported at the first reference that read it, not at the second one to the same key")
 	assert.Contains(t, diags[1].Message, "http://a/2.yaml")
-	assert.Contains(t, diags[1].Message, "/paths/~1z")
+	assert.Equal(t, "/paths/~1z", diags[1].Provenance.Pointer)
 }
 
 // aliasKindsFixture carries one internal $ref of every Referenced* alias

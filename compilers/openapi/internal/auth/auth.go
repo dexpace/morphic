@@ -30,17 +30,14 @@ import (
 // registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
 // so operation- and document-level requirements reference registered IDs.
 //
-// An entry whose $ref resolves to nothing is reported at its own components
-// pointer and interned nowhere. It is reported here rather than left to the
-// requirements that name it, because nothing has to name it: the load phase's
-// report of the same failure carries no pointer at all (issue #235), so an
-// unreferenced entry would otherwise be a scheme the document declares, the IR
-// silently drops, and no diagnostic sites.
+// An entry whose $ref resolves to nothing interns nowhere, and is reported by
+// the load phase at its own components pointer with the resolver's reason
+// (GitHub #385), so nothing here reports it again.
 //
-// An entry that resolves to an object but names no mechanism is refused for the
-// same reason and reported the same way — see mechanismRefusalDiag. Those two
-// are the only entries reported as interning nothing; every other diagnostic
-// from here is about a scheme that did intern (see preserveUnreadFields).
+// An entry that resolves to an object but names no mechanism is refused and
+// reported at that pointer — see mechanismRefusalDiag. It is the only entry
+// reported here as interning nothing; every other diagnostic from here is about
+// a scheme that did intern (see preserveUnreadFields).
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -56,7 +53,6 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		entry := ids.Ptr("components", "securitySchemes", name)
 		ss, decl := resolve.ObjectAt[soa.SecurityScheme](c.RefScope(), rs, entry)
 		if ss == nil {
-			diags = append(diags, unresolvableSchemeDiags(c, name, rs, entry)...)
 			continue
 		}
 		scheme, ok, schemeDiags := lowerSecurityScheme(c, name, ss, entry, decl)
@@ -70,34 +66,6 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		return nil, diags
 	}
 	return out, diags
-}
-
-// unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
-// scheme — but only the one shape that nothing else places.
-//
-// Two kinds of entry reach the caller's nil: one written as something other
-// than an object (null, a scalar, a sequence), and one whose $ref resolves to
-// nothing — a missing internal target, or an external one this compile refuses.
-// Only the second is unplaced. The first already draws the loader's
-// type-mismatch, which names both the entry and what was wrong with it, so a
-// second report here would send the reader to the same position to learn less.
-//
-// rs is the entry as the document wrote it, which is what separates the two:
-// the reference is empty for everything that is not one. Its own nil is not
-// reachable from a parsed document — a malformed entry still arrives as an
-// object — so that guard is for a hand-built node, matching resolve.Object's.
-func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
-	entry jsontext.Pointer,
-) []ir.Diagnostic {
-	if rs == nil {
-		return nil
-	}
-	ref := rs.GetReference().String()
-	if ref == "" {
-		return nil
-	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entry,
-		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme,
@@ -549,7 +517,7 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 //
 // req's own nil is not reachable from a parsed document — a malformed entry
 // still arrives as a requirement — so that half of the guard is for a hand-built
-// slice, matching unresolvableSchemeDiags'.
+// slice.
 func writtenAsObject(req *soa.SecurityRequirement) bool {
 	return req != nil && req.GetRootNode() != nil
 }

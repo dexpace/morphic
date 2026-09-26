@@ -2623,6 +2623,14 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 // would otherwise half-distribute — the variant carrying the body while its
 // branch vanished — so all of them keep the verbatim lowering, which loses
 // nothing, and each still reports the broken reference.
+//
+// It drives the lowering directly (lowerSpecOnly) rather than through the
+// compiler, so the diagnostic checked below is the lowering's own — the one
+// diagUnresolvedBranches reports at the branch pointer without a reason — and
+// not the load phase's report of the same $ref, resolved and reasoned, which a
+// full compile would keep instead once compilers/openapi/withoutRereported has
+// deduplicated the two (see TestCompile_AResolutionFailureIsReportedOnceAtItsRef
+// for that combined view).
 func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
@@ -2643,7 +2651,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/A/properties/missing'}]
 `)
-	doc, diags := lowerSpec(t, spec)
+	doc, diags := lowerSpecOnly(t, spec)
 
 	for _, name := range []string{"Undeclared", "CrossDocument", "EmptyRef", "NoSuchPointer"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
