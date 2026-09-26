@@ -689,20 +689,28 @@ func treeNodes(n *yaml.Node) int {
 // inside the error bars. The trees are built outside the clock.
 //
 // The assertion is a ratio, not a duration: a wall-clock threshold is a
-// machine's number and this is a shape's. Doubling the merge keys doubles a
-// linear walk and quadruples a quadratic one, and the allowance of three sits
-// between them.
+// machine's number and this is a shape's. The large tree carries four times
+// the small tree's merge breadth, so a linear walk reads 4 and a quadratic one
+// reads 16; the allowance of 8 is their geometric mean, a factor of two of
+// noise on either side.
 //
 // Each size is read as the fastest of several walks, since interference only
 // ever adds time, and the walks alternate between the sizes so both minimums
 // come from the same stretch of time. An earlier version timed every walk of
 // the larger tree, then every walk of the smaller, and a burst of load landing
 // on one run of walks and not the other — which packages starting and stopping
-// under go test ./... produce — decided the ratio: it failed CI at 3.37.
-// Measured under that kind of load over 160 trials each, timing the sizes in
-// runs peaked at 3.38 and the median of paired ratios at 3.73, while
-// alternating minimums never crossed 3 and peaked at 2.51. On the quadratic
-// walk the same statistic reads 4.30.
+// under go test ./... produce — decided the ratio: it failed CI at 3.37. A
+// later version narrowed the gap further, to double breadth against an
+// allowance of 3 (linear 2, quadratic 4), and that gap was too narrow to
+// survive a race-detector run sharing the machine with the rest of the suite:
+// it reached 3.25 on CI (GitHub #555). Widening the gap rather than the
+// allowance is what leaves room on both sides.
+//
+// Measured at this width, on this change, over 40 runs under -race with
+// another package's race-detector suite running concurrently for load: the
+// alternating-minimum ratio peaked at 4.02 and its median was 1.19. That
+// describes this design as measured here, not a number to maintain — remeasure
+// after a change that could move it rather than editing this sentence to match.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	tree := func(k int) *yaml.Node {
 		var root yaml.Node
@@ -718,7 +726,7 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
 		return elapsed
 	}
-	small, large := tree(8000), tree(16000)
+	small, large := tree(4000), tree(16000)
 
 	// One walk of each first, so neither minimum is the cold one.
 	walk(small)
@@ -728,9 +736,10 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		bestSmall = min(bestSmall, walk(small))
 		bestLarge = min(bestLarge, walk(large))
 	}
+	t.Logf("MEASURE ratio=%.6f small=%v large=%v", float64(bestLarge)/float64(bestSmall), bestSmall, bestLarge)
 
-	assert.Less(t, bestLarge, 3*bestSmall,
-		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
+	assert.Less(t, bestLarge, 8*bestSmall,
+		"four times the merge breadth must not cost sixteen times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
 
 // TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The
