@@ -20,7 +20,7 @@ func TestUnknownKeywordsIn_KeepsWhatTheModelDoesNotName(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nx-ray: kept\nnotAKeyword: 7\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", 3)
+	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(3))
 
 	require.Len(t, got, 1, "the x-* is the extension reader's, not the census's; got %v", got)
 	entry := got["openapi:notAKeyword"]
@@ -52,7 +52,7 @@ func TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone(t *testing.T) {
 	s := schemaFromYAML(t, body.String())
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", 0)
+	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(0))
 
 	assert.Empty(t, got, "each is decided about elsewhere, so the census keeps none of them")
 	assert.Empty(t, diags)
@@ -73,7 +73,7 @@ func TestUnknownKeywordsIn_AlreadyRecordedKeyIsLeftAlone(t *testing.T) {
 	}
 	got := ir.Unmodeled{"openapi:dependentRequired": already}
 
-	diags := UnknownKeywordsIn(&got, s, "/A", 0)
+	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
 
 	assert.Equal(t, ir.Unmodeled{"openapi:dependentRequired": already}, got)
 	assert.Empty(t, diags, "a keyword another reader already announced is not announced twice")
@@ -87,7 +87,7 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnotAKeyword: .nan\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/A", 0)
+	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
 
 	assert.Empty(t, got)
 	require.Len(t, diags, 1)
@@ -110,7 +110,7 @@ func TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted(t *testing.T) {
 	obj := fakeObject{core: &fakeCore{keys: reported}, root: parsedMapping(t, "zeta: 1\nalpha: 2\n")}
 
 	var got ir.Unmodeled
-	diags := UnknownKeysUnder(&got, obj, 1, "/info/contact", "info/contact")
+	diags := UnknownKeysUnder(&got, obj, sourced(1), "/info/contact", "info/contact")
 
 	assert.Equal(t, []string{"zeta", "alpha"}, reported, "the model's own slice is not reordered")
 	require.Len(t, got, 2)
@@ -123,6 +123,29 @@ func TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted(t *testing.T) {
 	assert.Equal(t, "openapi/unknown-object-key", diags[0].Code)
 	assert.Contains(t, diags[0].Message, `"alpha"`, "the findings follow the sorted keys")
 	assert.Contains(t, diags[1].Message, `"zeta"`)
+}
+
+// TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer pins GitHub #522: two
+// undeclared keys on the same owner are located independently, so an overlay
+// that rewrites one leaves the other with the base — in both the kept entry
+// and the diagnostic announcing it.
+func TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer(t *testing.T) {
+	t.Parallel()
+	obj := fakeObject{core: &fakeCore{keys: []string{"alpha", "zeta"}}, root: parsedMapping(t, "alpha: 1\nzeta: 2\n")}
+
+	var got ir.Unmodeled
+	diags := UnknownKeysIn(&got, obj, overlaid("/x/zeta"), "/x")
+
+	require.Len(t, got, 2)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/x/alpha"}, got["openapi:alpha"].Provenance,
+		"the untouched key stays with the base")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x/zeta"}, got["openapi:zeta"].Provenance,
+		"the overlaid key names the overlay")
+
+	require.Len(t, diags, 2)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/x/alpha"}, diags[0].Provenance,
+		"sorted keys put alpha first")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x/zeta"}, diags[1].Provenance)
 }
 
 // TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes exercises the bound. An
@@ -144,7 +167,7 @@ func TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes(t *testing.T) {
 	obj := fakeObject{core: &fakeCore{keys: keys}, root: parsedMapping(t, body.String())}
 
 	var got ir.Unmodeled
-	diags := UnknownKeysIn(&got, obj, 0, "/x")
+	diags := UnknownKeysIn(&got, obj, sourced(0), "/x")
 
 	assert.Len(t, got, MaxUnknownKeys)
 	assert.NotContains(t, got, "openapi:k"+strconv.Itoa(1000+over-1), "the tail past the bound is dropped")
@@ -168,7 +191,7 @@ func TestUnknownKeysIn_KeyWithNoSourceNodeIsReported(t *testing.T) {
 	obj := fakeObject{core: &fakeCore{keys: []string{"absent"}}, root: parsedMapping(t, "present: 1\n")}
 
 	var got ir.Unmodeled
-	diags := UnknownKeysIn(&got, obj, 2, "/x")
+	diags := UnknownKeysIn(&got, obj, sourced(2), "/x")
 
 	assert.Empty(t, got, "there was no node to read")
 	require.Len(t, diags, 1)
@@ -194,8 +217,8 @@ func TestUnknownKeysUnder_KeyHoldingASeparatorIsItsOwnEntry(t *testing.T) {
 	}
 
 	var got ir.Unmodeled
-	diags := UnknownKeysUnder(&got, root, 0, "", "")
-	diags = append(diags, UnknownKeysUnder(&got, contact, 0, "/info/contact", "info/contact")...)
+	diags := UnknownKeysUnder(&got, root, sourced(0), "", "")
+	diags = append(diags, UnknownKeysUnder(&got, contact, sourced(0), "/info/contact", "info/contact")...)
 
 	assert.Equal(t, ir.RawValue(`"fromRoot"`), got["openapi:info~1contact~1slack"].Value,
 		"the root's key is one segment, escaped")
@@ -223,7 +246,7 @@ func TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported(t *testing.T) {
 			Provenance: ir.Provenance{Pointer: "/x/schema/other"}},
 	}
 
-	diags := UnknownKeysIn(&got, obj, 0, "/x")
+	diags := UnknownKeysIn(&got, obj, sourced(0), "/x")
 
 	assert.Equal(t, ir.RawValue("9"), got["openapi:same"].Value, "neither entry is overwritten")
 	assert.Equal(t, ir.RawValue("9"), got["openapi:other"].Value)
@@ -254,7 +277,7 @@ func TestUnknownKeysIn_ModelWithNoCensusRecordsNothing(t *testing.T) {
 			t.Parallel()
 			var got ir.Unmodeled
 
-			diags := UnknownKeysIn(&got, tc.model, 0, "/x")
+			diags := UnknownKeysIn(&got, tc.model, sourced(0), "/x")
 
 			assert.Nil(t, got)
 			assert.Empty(t, diags)
