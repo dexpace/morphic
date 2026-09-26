@@ -53,7 +53,8 @@ type Operation struct {
 	// ReturnTypeVisibility overrides the visibility filter for the response view;
 	// nil = protocol default.
 	ReturnTypeVisibility []Lifecycle `json:"returnTypeVisibility,omitempty"`
-	// OverloadOf points at the operation this one overloads (TypeSpec @overload).
+	// OverloadOf points at the operation this one overloads (TypeSpec @overload);
+	// when set, never empty.
 	OverloadOf *OpID `json:"overloadOf,omitzero"`
 	// Bindings describes how the neutral core maps onto concrete protocols (§8).
 	Bindings OpBindings `json:"bindings"`
@@ -145,7 +146,7 @@ type Content struct {
 	// and stays in Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
-	// part property's PropID.
+	// part property's PropID; no key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads).
@@ -390,7 +391,8 @@ type PropPath struct {
 	// In is "" = body/payload | "header"; continuation tokens and reply addresses
 	// can live in response/message headers, not just bodies.
 	In string `json:"in,omitempty"`
-	// Segments are the ordered property IDs walked from the root.
+	// Segments are the ordered property IDs walked from the root; no entry is
+	// empty.
 	Segments []PropID `json:"segments,omitempty"`
 }
 
@@ -398,7 +400,8 @@ type PropPath struct {
 type ParamPath struct {
 	// Param is the parameter name the path roots in.
 	Param string `json:"param,omitempty"`
-	// Segments are the ordered property IDs walked from the parameter.
+	// Segments are the ordered property IDs walked from the parameter; no entry
+	// is empty.
 	Segments []PropID `json:"segments,omitempty"`
 }
 
@@ -408,9 +411,10 @@ type LongRunning struct {
 	// … — how the final state is located.
 	FinalStateVia string `json:"finalStateVia,omitempty"`
 	// PollingOperation is the declared poll op (Azure.Core @pollingOperation — a
-	// library convention, not core TypeSpec).
+	// library convention, not core TypeSpec); when set, never empty.
 	PollingOperation *OpID `json:"pollingOperation,omitzero"`
-	// FinalOperation is the declared final-result op (Azure.Core @finalOperation).
+	// FinalOperation is the declared final-result op (Azure.Core @finalOperation);
+	// when set, never empty.
 	FinalOperation *OpID `json:"finalOperation,omitzero"`
 	// PollingType is the status-monitor type.
 	PollingType *TypeRef `json:"pollingType,omitzero"`

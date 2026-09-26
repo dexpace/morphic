@@ -175,6 +175,14 @@ Every named entity has an ID — including services (Thrift `service B extends A
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
 
+An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
+declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
+omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil
+`*TypeRef` (§3.3). Two positions document an empty value as meaningful, and they are the only ones:
+`Discriminator.Default`, whose zero value means no default, and `Discriminator.Property`, empty when
+`PropertyName` or `Index` locates the tag instead (§4.3). `irverify` reports an empty reference
+anywhere else as `ir/empty-<noun>-ref`.
+
 This is the direct answer to oagen's name-keyed registry (silent collision merging, string-rewrite
 ref fixing) and Kiota's name-keyed children (collision reconciliation logic), and adopts the
 intent of TCGC's `crossLanguageDefinitionId`.

@@ -196,7 +196,8 @@ type PatternProps struct {
 // polymorphic model hierarchy or union (ir-design §4.3). Exactly one of
 // Property, PropertyName, or Index locates the tag.
 type Discriminator struct {
-	// Property is the property carrying the tag in model hierarchies.
+	// Property is the property carrying the tag in model hierarchies; empty when
+	// PropertyName or Index locates the tag instead.
 	Property PropID `json:"property,omitempty"`
 	// PropertyName is the wire name of the tag property in unions, where the
 	// property exists on no single model (TypeSpec @discriminated
@@ -205,7 +206,8 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype; nil = infer by type name.
+	// Mapping maps wire value to subtype; nil = infer by type name; no value is
+	// empty.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.
