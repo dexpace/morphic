@@ -163,6 +163,11 @@ These all exist already — extend them rather than building a parallel mechanis
   `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
   deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above.
+- **Goroutine leak check**: `internal/leakcheck` wraps `TestMain` around Go 1.27's `goroutineleak`
+  profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
+  `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
+  blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
+  `goleak` should cover those too is #568.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:
@@ -220,8 +225,8 @@ below are the ones most likely to bite in this codebase — the full guide gover
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
   preconditions, `assert` for values; compare with `cmp.Diff`, never `reflect.DeepEqual`;
   golden files for complex expected output; `t.Helper()` in helpers; `t.Cleanup()` over
-  `defer`; external test packages (`package foo_test`) preferred; `goleak` where goroutines
-  exist.
+  `defer`; external test packages (`package foo_test`) preferred; where goroutines exist, the
+  goroutine leak check under Testing strategy above (the styleguide names `goleak`; #568).
 - **Packages:** one package per directory; `internal/` aggressively for implementation detail;
   no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
   (stdlib, external, local); no dot imports.
