@@ -175,6 +175,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},
+		{"discriminator-inline-subtype", assertDiscriminatorInlineSubtype, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
@@ -952,6 +953,36 @@ func assertDiscriminatorInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagn
 		assert.Equal(t, namedID("Pet"), sub.Base.Target)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 		assert.Nil(t, sub.Discriminator, "a subtype does not restate its base's discriminator")
+	}
+}
+
+// assertDiscriminatorInlineSubtype covers the subtypes OpenAPI's implicit
+// mapping cannot name (GitHub #517). The implicit tag is the name of the
+// component schema that declares a subtype, so one declared inline — as a
+// property or a union branch — takes no tag, while it still composes the
+// discriminated base. Kennel's Dog shares its key with the component Dog on
+// purpose: a tag read off the pointer gives both the same value.
+func assertDiscriminatorInlineSubtype(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok, "the base is a Model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Empty(t, pet.Discriminator.Mapping, "every tag in this document is implicit")
+
+	for _, tc := range []struct {
+		id    ir.TypeID
+		value string
+	}{
+		{namedID("Dog"), "Dog"},
+		{"t/anon/components/schemas/Kennel/properties/Dog", ""},
+		{"t/anon/components/schemas/Kennel/properties/pet", ""},
+		{"t/anon/components/schemas/Either/oneOf/0", ""},
+	} {
+		sub, ok := doc.Types[tc.id].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", tc.id)
+		require.NotNil(t, sub.Base, "%s composes the discriminated base", tc.id)
+		assert.Equal(t, namedID("Pet"), sub.Base.Target)
+		assert.Equal(t, tc.value, sub.DiscriminatorValue,
+			"%s: only a component schema has a name to answer to", tc.id)
 	}
 }
 
