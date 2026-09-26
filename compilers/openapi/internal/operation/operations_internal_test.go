@@ -458,12 +458,15 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 // the census must report none of them.
 //
 // The item is unmarshalled through the library directly, as the resolver
-// unmarshals one it loads through an external reference: the source document's
-// own anchors are cleared before its model is built (GitHub #459), so this is
-// the path the census's raw reading still serves. The anchored `get` is not
-// lowered there — the same skip unmounts it — and that is a loss of its own,
-// outside what a census of undeclared keys can answer; what is pinned here is
-// only that it is not misreported as a key the specification does not define.
+// unmarshals a document it parses itself because it missed the prepared tree —
+// one fetched under a URL whose spelling net/url does not reproduce (GitHub
+// #538). The source document's own anchors are cleared before its model is
+// built (GitHub #459), and a document loaded through an external reference is
+// held to the same clearing (GitHub #501), so this is the path the census's
+// raw reading still serves. The anchored `get` is not lowered there — the same
+// skip unmounts it — and that is a loss of its own, outside what a census of
+// undeclared keys can answer; what is pinned here is only that it is not
+// misreported as a key the specification does not define.
 func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	pi := pathItemOf(t, `

@@ -121,12 +121,9 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 // do read names — the recursive-anchor refusal quotes the one it found — and
 // nothing after the parse reads one.
 //
-// It reaches the source document only. A document an external reference names
-// is read and parsed by the resolver itself, from bytes, and its tree never
-// passes through here, so an anchored entry in one is still skipped in silence
-// (GitHub #501). Clearing the anchors there would mean
-// rewriting its bytes before the resolver parses them, which no hook the
-// resolver offers allows short of lexing YAML by hand.
+// A document an external reference names is read by the resolver rather than
+// by Load, and external releases its anchors the same way, after the same
+// refusals, before the resolver builds a model from it (GitHub #501).
 //
 // The walk follows Content and never an alias, so it visits each node of the
 // tree once and cannot cycle through a recursive anchor, which the refusals
@@ -284,10 +281,16 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 // resolve resolves every reference in doc and converts what could not be
 // resolved into diagnostics, the refusal of external references included.
 func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
-	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
+	resolveOpts := soa.ResolveAllOptions{
 		OpenAPILocation:     path,
 		DisableExternalRefs: !opts.AllowExternalRefs,
-	})
+	}
+	if opts.AllowExternalRefs {
+		reader := newExternal(doc, opts)
+		resolveOpts.VirtualFS = reader
+		resolveOpts.HTTPClient = reader
+	}
+	resErrs, err := resolveAll(ctx, doc, resolveOpts)
 	diags := resolveDiags(locate, err)
 	for _, re := range resErrs {
 		diags = append(diags, resolveDiag(locate, re))
