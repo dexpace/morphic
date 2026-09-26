@@ -75,7 +75,8 @@ engine (or CLI) decides what is fatal.
 
 ## Install
 
-Requires Go 1.26 or newer.
+Requires the Go release named by the `go` directive in [`go.mod`](go.mod), or newer. Under the
+default `GOTOOLCHAIN=auto`, an older `go` command from Go 1.21 on downloads that release itself.
 
 ```bash
 go install github.com/dexpace/morphic/cmd/morphic@latest
