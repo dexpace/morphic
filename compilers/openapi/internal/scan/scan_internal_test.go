@@ -821,6 +821,59 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	}
 }
 
+// TestDetectCycles_AnchorFragmentIsNotWalked pins the fix for GitHub #523: a
+// fragment with no leading '/' names a $anchor, not a pointer, and the resolver
+// never walks it as one. Reading it as though '#x-s' were the pointer 'x-s' made
+// the scan walk it from the root as a key, refusing a document the resolver
+// never treats as a cycle.
+//
+// The pointer-spelled twin is the point of the pair: it fails if the leading-'/'
+// refusal is reverted (which would also swallow this real cycle) as readily as
+// the anchor case fails if a fix refuses the key rather than the anchor
+// spelling.
+func TestDetectCycles_AnchorFragmentIsNotWalked(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		src     string
+		isCycle bool
+	}{
+		{name: "anchor spelling names a $anchor, not a pointer", src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#x-s'
+components:
+  schemas:
+    A:
+      $ref: '#x-s'
+`},
+		{name: "the pointer spelling is a real cycle through the document root", isCycle: true, src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#/x-s'
+components:
+  schemas:
+    A:
+      $ref: '#/x-s'
+`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			diags := scanBytes(t, []byte(tc.src))
+			if !tc.isCycle {
+				assert.Empty(t, diags, "'#x-s' names a $anchor, which the resolver's pointer walk never enters")
+				return
+			}
+			require.NotEmpty(t, diags, "'#/x-s' is a real pointer cycle through the document root")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
 // TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
 // need: without it, a suite made only of refusals would pass on a scan that
 // refused everything handed to it.

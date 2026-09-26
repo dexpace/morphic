@@ -73,6 +73,19 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 		"a fragment from another document must not become a pointer into this one")
 }
 
+// TestBodySchemaPointer_NonUTF8FragmentStaysLocal pins the other reason a $ref
+// falls back to the local pointer: a fragment that decodes to bytes that are
+// not UTF-8 can never resolve, because no document key can spell them. Reading
+// it anyway would have carried the raw byte into a PropID the IR cannot encode
+// (GitHub #520).
+func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	js := oas3.NewJSONSchemaFromReference("#/components/schemas/%FF")
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
+		"a fragment that is not UTF-8 must not become a pointer")
+}
+
 // TestBodySchemaPointer_SelfNamedRefFollowsFragment pins the other half: a ref
 // spelling this document's own filename is internal, so its fragment is a
 // pointer here after all.

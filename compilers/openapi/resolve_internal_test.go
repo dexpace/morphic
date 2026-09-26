@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -9,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -263,4 +266,67 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 	require.NotNil(t, pet.Discriminator, "the discriminator survives lowering")
 	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
 		"the encoded mapping target names the declared component, and the entry is kept")
+}
+
+// TestInternalPointer_ScanAndLoweringReadFragmentsAlike holds nodeview's and
+// resolve's fragment readers to each other. The pre-lowering cycle scan reads a
+// $ref's fragment through nodeview.InternalPointer, a hand-written mirror of the
+// resolver; lowering reads the same fragment through resolve.Scope.InternalPointer,
+// which asks the resolver's own references.Reference instead. They mirror one
+// target by two different means, on opposite sides of the archtest ordering (this
+// package may import both; neither of them may import the other, and no package
+// they can both reach would host a shared predicate without widening an
+// allowlist for it) — so a rule added to one and not the other is exactly the
+// drift a grep-for-the-other-test convention cannot catch, and this test can.
+//
+// The one documented exception is a fragment that is empty after trimming: the
+// scan reads a bare '#' as the root, which is where the resolver lands it, but
+// lowering refuses it — there is no position there to intern. Every other row
+// asserts the two agree, both on whether the fragment is a pointer and on what
+// it names.
+func TestInternalPointer_ScanAndLoweringReadFragmentsAlike(t *testing.T) {
+	t.Parallel()
+	sc := resolve.Scope{SelfPath: "spec.yaml", Declares: func(string) bool { return false }}
+	tests := []struct{ name, ref string }{
+		// GitHub #523: a fragment with no leading '/' names a $anchor, not a
+		// pointer, however it decodes.
+		{"anchor name", "#x-s"},
+		{"undecodable escape without a leading slash", "#%ZZ"},
+		{"a slash spelled as an escape still introduces a pointer", "#%2F"},
+		{"lone slash", "#/"},
+		// GitHub #520: a fragment that decodes to bytes that are not UTF-8 names
+		// no document key, however it is spelled.
+		{"non-UTF-8 byte", "#/a%FF"},
+		{"overlong encoding is not UTF-8", "#/a%C0%AF"},
+		{"UTF-16 surrogate is not UTF-8", "#/a%ED%A0%80"},
+		{"non-UTF-8 byte in a realistic pointer", "#/components/schemas/%FF"},
+		// Escaping the two readers must keep agreeing on.
+		{"a plus decodes to a space", "#/a+b"},
+		{"second hash ends the pointer", "#/a#b"},
+		{"leading and trailing space", " #/a "},
+		{"non-canonical escape, accepted by both (GitHub #14)", "#/A~B"},
+		{"percent-encoded hyphen", "#/components/schemas/Foo%2DBar"},
+		// The documented exception: empty after trimming.
+		{"bare hash", "#"},
+		{"hash and a space", "# "},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			scanPointer, scanOK := nodeview.InternalPointer(tc.ref)
+			lowerPointer, lowerOK := sc.InternalPointer(tc.ref)
+
+			// The fragment is empty once trimmed: the one spelling the two
+			// readers give a different verdict for.
+			if tc.ref == "#" || tc.ref == "# " {
+				assert.Equal(t, jsontext.Pointer(""), scanPointer)
+				assert.True(t, scanOK, "the scan reads a bare '#' as the root, where the resolver lands it")
+				assert.Equal(t, jsontext.Pointer(""), lowerPointer)
+				assert.False(t, lowerOK, "lowering has no position to intern for the whole document")
+				return
+			}
+			assert.Equal(t, scanOK, lowerOK, "the two readers must agree whether %q is a pointer", tc.ref)
+			assert.Equal(t, scanPointer, lowerPointer, "and on what it names")
+		})
+	}
 }

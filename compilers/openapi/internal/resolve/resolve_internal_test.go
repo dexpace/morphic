@@ -74,6 +74,9 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		// either: GetURI trims and stops. A self-reference has to be spelled the way
 		// the file is named.
 		{name: "document half is not decoded", ref: "m%2Eyaml#/components/schemas/A", internal: false},
+		// No document key can spell a byte that is not UTF-8, so the fragment can
+		// never resolve (GitHub #520).
+		{name: "non-UTF-8 fragment", ref: "#/components/schemas/%FF", want: "", internal: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -105,6 +108,13 @@ func TestFragmentPointer_ReadsTheFragmentOfAnyDocument(t *testing.T) {
 		{name: "a bare # names the whole document, which is refused", ref: "#"},
 		{name: "no fragment at all", ref: "other.yaml"},
 		{name: "the empty ref", ref: ""},
+		{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F", want: "/", wantOK: true},
+		// No document key can spell bytes that are not UTF-8, whichever document
+		// the reference names, so both are refused rather than read as pointers
+		// carrying them (GitHub #520).
+		{name: "non-UTF-8 fragment refused", ref: "#/components/schemas/%FF"},
+		{name: "non-UTF-8 fragment refused in another document too", ref: "other.yaml#/components/schemas/%FF"},
+		{name: "overlong encoding is not UTF-8", ref: "#/a%C0%AF"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
