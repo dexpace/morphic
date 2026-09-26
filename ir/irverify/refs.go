@@ -22,8 +22,8 @@ type refSite struct {
 //
 // An empty ID is skipped because it is no reference: some positions spell
 // "none" with one (Discriminator.Default). Whether a position may hold one is a
-// different question: answered for ir.TypeRef by checkTypeRefs, open for the
-// bare ID positions (GitHub #473).
+// different question: answered for ir.TypeRef by checkTypeRefs and for the bare
+// ID positions by checkEmptyRefs (GitHub #473).
 func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 	var sites []refSite
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {

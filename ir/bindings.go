@@ -101,7 +101,8 @@ type HTTPParamBinding struct {
 	Param string `json:"param,omitempty"`
 	// ParamPath is the nested source field within the logical param, when the
 	// binding targets a sub-field of a message-typed param (gRPC transcoding
-	// {book.name}, dotted query params); empty = the whole param.
+	// {book.name}, dotted query params); empty = the whole param. No entry is
+	// empty.
 	ParamPath []PropID `json:"paramPath,omitempty"`
 	// Location is where the parameter binds on the wire. host = the param fills a
 	// HostPrefix label (Smithy @hostLabel); querystring = the whole query string
@@ -129,7 +130,7 @@ type HTTPParamBinding struct {
 	// params).
 	ContentType string `json:"contentType,omitempty"`
 	// BodyPath is, for body_property, where in the body model it lands
-	// (TypeSpec HttpProperty).
+	// (TypeSpec HttpProperty); no entry is empty.
 	BodyPath []PropID `json:"bodyPath,omitempty"`
 }
 
@@ -138,7 +139,8 @@ type HTTPParamBinding struct {
 type Callback struct {
 	// Expression is the runtime expression that resolves the callback URL.
 	Expression string `json:"expression,omitempty"`
-	// Operations are the callback operations keyed by that expression.
+	// Operations are the callback operations keyed by that expression; no entry
+	// is empty.
 	Operations []OpID `json:"operations,omitempty"`
 }
 
@@ -175,12 +177,13 @@ const (
 
 // MessageBinding maps an Operation onto a messaging channel (ir-design §8.3).
 type MessageBinding struct {
-	// Channel is the channel the operation acts on.
+	// Channel is the channel the operation acts on; never empty.
 	Channel ChannelID `json:"channel,omitempty"`
 	// Direction is send | receive (application perspective).
 	Direction MsgDirection `json:"direction,omitempty"`
 	// Messages are which of the channel's messages this operation uses; it must be
-	// a subset of the channel's own Messages, which pass.Validate checks.
+	// a subset of the channel's own Messages, which pass.Validate checks. No entry
+	// is empty.
 	Messages []MessageID `json:"messages,omitempty"`
 	// Reply carries request-reply semantics; nil = none. A send-op with no Reply
 	// and no Responses is one-way (set Operation.OneWay).
@@ -195,14 +198,16 @@ type MessageBinding struct {
 // Reply describes request-reply semantics of a MessageBinding (ir-design §8.3).
 type Reply struct {
 	// Channel is the static reply channel; nil when the address is dynamic-only
-	// (an AsyncAPI reply channel's own address is null by spec).
+	// (an AsyncAPI reply channel's own address is null by spec); when set, never
+	// empty.
 	Channel *ChannelID `json:"channel,omitzero"`
 	// Address is the dynamic reply address: where in the request message the
 	// reply destination lives, e.g. In:"header", Segments:[replyTo] (AsyncAPI
 	// Operation Reply Address runtime expressions).
 	Address *PropPath `json:"address,omitzero"`
 	// Messages is the reply payload message set; when Channel is set it must be a
-	// subset of that channel's own Messages, which pass.Validate checks.
+	// subset of that channel's own Messages, which pass.Validate checks. No entry
+	// is empty.
 	Messages []MessageID `json:"messages,omitempty"`
 	// Docs is the reply's documentation.
 	Docs Docs `json:"docs"`
@@ -228,7 +233,8 @@ type OTPBinding struct {
 	Kind string `json:"kind,omitempty"`
 	// Process is the channel modeling the target process: Address = registered
 	// name (nil Address = unregistered/runtime pid); registration kind
-	// (local/global/via) in Channel.Bindings["otp"].
+	// (local/global/via) in Channel.Bindings["otp"]. Never empty: an
+	// unregistered process is still a channel, with a nil Address.
 	Process ChannelID `json:"process,omitempty"`
 	// RequestTag is the tag of the request tuple (a symbol Value, e.g. 'get');
 	// nil = the whole term is the request.
