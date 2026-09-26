@@ -8,11 +8,13 @@ import (
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/values"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -494,7 +496,7 @@ func mappingTagsFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id
 	}
 	var tags []string
 	for tag, target := range m.All() {
-		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
+		if tid, ok := mappingTargetID(c, ts, d, target); ok && tid == id {
 			tags = append(tags, tag)
 		}
 	}
@@ -1169,7 +1171,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok := mappingTargetID(c, ts, target)
+		id, ok := mappingTargetID(c, ts, d, target)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
@@ -1191,7 +1193,7 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	if dm == "" {
 		return "", nil
 	}
-	id, ok := mappingTargetID(c, ts, dm)
+	id, ok := mappingTargetID(c, ts, d, dm)
 	if !ok {
 		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
@@ -1211,13 +1213,21 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 // neither yields ok=false, since unlike a schema position, a discriminator
 // subtype cannot be hoisted from a bare pointer — the caller drops and
 // diagnoses it.
-func mappingTargetID(c lowering.Ctx, ts *compile.Types, target string) (ir.TypeID, bool) {
+//
+// A "#/$defs/..." target is read from the discriminator that holds it, the way
+// a $ref in the same schema is (defs.TargetFrom), so it names the definition
+// the schema carries rather than a document-rooted position that is not there
+// (GitHub #557).
+func mappingTargetID(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
 		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
 	}
 	pointer, ok := c.RefScope().InternalPointer(target)
 	if !ok {
 		return "", false
+	}
+	if defs.IsPointer(pointer) {
+		return defsMappingTarget(c, ts, d, target, pointer)
 	}
 	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved
@@ -1502,4 +1512,23 @@ func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	default:
 		return "", "", false
 	}
+}
+
+// defsMappingTarget is mappingTargetID for a "#/$defs/..." target: the
+// definition read from the discriminator's own position, found at the pointer
+// it is written at. A target spelled with a document part is held out of that
+// reading, as load holds a $ref spelled so.
+func defsMappingTarget(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string, pointer jsontext.Pointer) (ir.TypeID, bool) {
+	if c.Doc == nil || references.Reference(target).GetURI() != "" {
+		return "", false
+	}
+	from := jsontext.Pointer(d.GetCore().GetJSONPointer(c.Doc.GetRootNode()))
+	if from == "" {
+		return "", false
+	}
+	_, at, ok := defs.TargetFrom(c.Doc, from, pointer)
+	if !ok {
+		return "", false
+	}
+	return resolve.InternedID(ts, at)
 }

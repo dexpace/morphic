@@ -171,7 +171,7 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // ok=false for a cross-document reference, a reference to an undeclared
 // component, or a pointer the library could not resolve.
 func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], ref string) (ir.TypeID, bool, []ir.Diagnostic) {
-	pointer, ok := c.RefScope().InternalPointer(ref)
+	pointer, ok := c.RefScope().TargetPointer(js, ref)
 	if !ok {
 		return "", false, nil
 	}

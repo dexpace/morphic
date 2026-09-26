@@ -270,7 +270,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
-	diags = append(diags, resolve(ctx, locate, doc, src.Path, opts)...)
+	diags = append(diags, resolve(ctx, locate, root, doc, src.Path, opts)...)
 
 	return &Document{
 		Doc: doc,
@@ -302,16 +302,26 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 
 // resolve resolves every reference in doc and converts what could not be
 // resolved into diagnostics, the refusal of external references included.
-func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
-	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
-		OpenAPILocation:     path,
-		DisableExternalRefs: !opts.AllowExternalRefs,
+//
+// A "#/$defs/..." reference is held out of the resolver's own pass and resolved
+// afterwards to the definition the resolver's rule names for it in its own place
+// (withDefsHeld, resolveDefs). A chain through one that never ends was refused
+// before this runs: reach checks exactly those edges.
+func resolve(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
+	refs := defsRefs(ctx, root, doc)
+	var resErrs []error
+	var err error
+	withDefsHeld(refs, func() {
+		resErrs, err = resolveAll(ctx, doc, soa.ResolveAllOptions{
+			OpenAPILocation:     path,
+			DisableExternalRefs: !opts.AllowExternalRefs,
+		})
 	})
 	diags := resolveDiags(locate, err)
 	for _, re := range resErrs {
 		diags = append(diags, resolveDiag(locate, re))
 	}
-	return diags
+	return append(diags, resolveDefs(ctx, locate, doc, path, opts, refs)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

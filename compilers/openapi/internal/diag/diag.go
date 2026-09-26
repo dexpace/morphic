@@ -34,16 +34,20 @@ const (
 	// the decoded tree alone, for a recursive YAML anchor or a chain of
 	// $ref-only schemas connected by ordinary same-document pointers; and a
 	// reference-chain model (compilers/openapi/internal/load's reach) run once
-	// the document has a parsed model to walk, for a cycle that closes only
-	// through $anchor, $id, or $defs-relative resolution — state the resolver
-	// keeps between references (which document a $defs pointer resolves against,
-	// which schema a re-registered $id or $anchor is found under) that the
-	// pre-parse scan cannot see. The second check is a sound over-approximation,
-	// not an exact simulation of the resolver: it refuses a document whenever any
-	// resolver state the model cannot rule out would close a cycle, which costs a
-	// small, measured rate of false refusals on adversarial combinations of those
-	// keywords in exchange for a verdict that never depends on declaration order
-	// (see reach's own doc comment).
+	// the document has a parsed model to walk, for a cycle that closes through
+	// $anchor or $id resolution, or through a $defs pointer.
+	//
+	// An $anchor/$id lookup depends on resolver state the pre-parse scan cannot
+	// see — which schema a re-registered $id or $anchor is found under — and
+	// reach is a sound over-approximation of it, not an exact simulation: it
+	// refuses a document whenever any resolver state the model cannot rule out
+	// would close a cycle, which costs a small, measured rate of false refusals
+	// on adversarial combinations of those keywords in exchange for a verdict
+	// that never depends on declaration order (see reach's own doc comment). A
+	// "#/$defs/..." pointer's target is exact instead: load resolves each one to
+	// the definition the resolver's own rule names for it before the general
+	// resolver ever runs (GitHub #557), so reach checks exactly that edge rather
+	// than approximating it.
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that the pre-parse cycle scan did not run to
 	// completion — either it aborted (a detector bug) or the document exceeded one

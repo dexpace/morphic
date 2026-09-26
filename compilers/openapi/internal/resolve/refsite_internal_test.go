@@ -25,7 +25,15 @@ func schemaFromYAML(t *testing.T, body string) *oas3.JSONSchema[oas3.Referenceab
 // what gives a reference a target to be read through.
 func resolvedProperty(t *testing.T, body, p string) *oas3.JSONSchema[oas3.Referenceable] {
 	t.Helper()
-	root := schemaFromYAML(t, body)
+	_, prop := resolvedPropertyIn(t, body, p)
+	return prop
+}
+
+// resolvedPropertyIn is resolvedProperty that also returns the document the
+// property sits in, which a "#/$defs/..." pointer is navigated in.
+func resolvedPropertyIn(t *testing.T, body, p string) (root, prop *oas3.JSONSchema[oas3.Referenceable]) {
+	t.Helper()
+	root = schemaFromYAML(t, body)
 	prop, ok := root.GetSchema().GetProperties().Get(p)
 	require.True(t, ok, "the fixture declares property %q", p)
 	valErrs, err := prop.Resolve(t.Context(), oas3.ResolveOptions{
@@ -33,7 +41,7 @@ func resolvedProperty(t *testing.T, body, p string) *oas3.JSONSchema[oas3.Refere
 	})
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	return prop
+	return root, prop
 }
 
 // TestIsRefSite_IncludesTheDegenerateRef pins the deliberately broad test. A
@@ -92,12 +100,31 @@ func TestNamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	assert.False(t, declaresUser.NamesReferent(plain, "Bare"),
 		"a bare name addresses no pointer at all")
 
-	prop := resolvedProperty(t,
+	root, prop := resolvedPropertyIn(t,
 		"$defs:\n  Target: {type: string}\nproperties:\n  p: {$ref: '#/$defs/Target'}\n", "p")
-	assert.True(t, declaresUser.NamesReferent(prop, "#/$defs/Target"),
+	inRoot := declaresUser
+	inRoot.Doc = root
+	assert.True(t, inRoot.NamesReferent(prop, "#/$defs/Target"),
 		"a sub-schema pointer counts once it resolved to a body")
 
 	unresolved := schemaFromYAML(t, "{$ref: '#/$defs/Missing'}\n")
 	assert.False(t, declaresUser.NamesReferent(unresolved, "#/$defs/Missing"),
 		"a sub-schema pointer that resolved to nothing does not")
+}
+
+// TestTargetPointer_DocumentPartIsHeldOutOfTheRule pins TargetPointer's own
+// guard: a "#/$defs/..." pointer spelled with an explicit document part (even
+// one naming this same file) is exactly what load holds out of the resolver's
+// own pass (load.defsRefs matches only a $ref with no document part), so
+// reading it here would answer for a reference this compilation never resolves
+// this way.
+func TestTargetPointer_DocumentPartIsHeldOutOfTheRule(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "$defs:\n  Target: {type: string}\nproperties:\n  p: {type: string}\n")
+	p, ok := root.GetSchema().GetProperties().Get("p")
+	require.True(t, ok)
+
+	scope := Scope{SelfPath: "spec.yaml", Doc: root}
+	_, ok = scope.TargetPointer(p, "spec.yaml#/$defs/Target")
+	assert.False(t, ok, "a document part, even this document's own name, is held out of the rule")
 }
