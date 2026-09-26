@@ -253,9 +253,8 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
 
-	locate := locator(srcIndex, origin)
 	diags := cyc
-	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
+	diags = append(diags, findings(ctx, locator(srcIndex, origin), doc, valErrs, minor)...)
 	rebuildDoc := opts.rebuildDoc
 	if rebuildDoc == nil {
 		rebuildDoc = unmarshal
@@ -264,7 +263,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		again, _, err := rebuildDoc(ctx, src.Data, root)
 		return again, err
 	}
-	doc, resolveDiags, err := resolve(ctx, locate, doc, src.Path, opts, rebuild)
+	doc, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, src.Path, opts, rebuild)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -298,40 +297,18 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 	return diags
 }
 
-// resolve resolves every reference in doc and converts what could not be
-// resolved into diagnostics, the refusal of external references included. It
-// returns the document it resolved, which is a rebuild of doc when doc's own
-// resolution parsed an external document the compiler had prepared under
-// another key (see resolveExternal).
-func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
-	rebuild func() (*soa.OpenAPI, error),
+// resolve resolves every reference in doc and reports what each resolution
+// found at the $ref that produced it (see resolveWith). It returns the document
+// it resolved, which is a rebuild of doc when doc's own resolution parsed an
+// external document the compiler had prepared under another key (see
+// resolveExternal).
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
-		return doc, resolveWith(ctx, locate, doc, path, opts, nil), nil
+		return doc, resolveWith(ctx, at, doc, path, opts, nil), nil
 	}
-	return resolveExternal(ctx, locate, doc, path, opts, rebuild)
-}
-
-// resolveWith resolves every reference in doc, reading external documents
-// through reader when one is given, and converts what could not be resolved
-// into diagnostics.
-func resolveWith(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
-	reader *external,
-) []ir.Diagnostic {
-	resolveOpts := soa.ResolveAllOptions{
-		OpenAPILocation:     path,
-		DisableExternalRefs: !opts.AllowExternalRefs,
-	}
-	if reader != nil {
-		resolveOpts.VirtualFS = *reader
-		resolveOpts.HTTPClient = *reader
-	}
-	resErrs, err := resolveAll(ctx, doc, resolveOpts)
-	diags := resolveDiags(locate, err)
-	for _, re := range resErrs {
-		diags = append(diags, resolveDiag(locate, re))
-	}
-	return diags
+	return resolveExternal(ctx, at, doc, path, opts, rebuild)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -354,6 +331,17 @@ func locator(srcIndex int, origin overlay.Origin) scan.Locator {
 			return prov
 		}
 		return inSource(n)
+	}
+}
+
+// pointerAt answers where a pointer is, as the lowering answers it
+// (lowering.Ctx.ProvenanceAt): the overlay's index for a position the overlay
+// introduced or rewrote, srcIndex otherwise. A load diagnostic placed by a
+// pointer is placed where a lowering one at the same pointer is, which is what
+// lets the compiler tell the two report the same position.
+func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Provenance {
+	return func(p jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Source: origin.IndexAt(p, srcIndex), Pointer: string(p)}
 	}
 }
 
@@ -992,26 +980,6 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.Open
 	return &out, valErrs, nil
 }
 
-// resolveAll resolves every reference in doc, converting a panic from the
-// third-party resolver into an ordinary error — the resolve-side counterpart to
-// unmarshal's barrier, needed because the resolver faults on shapes the parser
-// accepts (e.g. a $ref with no value, which nil-derefs while populating the
-// resolved node).
-//
-// The returned error joins the resolve errors, which the caller turns into
-// diagnostics rather than aborting: a document that trips this is a malformed
-// spec, not an I/O or programmer error. Named returns are reset in the recover
-// so a partially-populated result never leaks.
-func resolveAll(ctx context.Context, doc *soa.OpenAPI, opts soa.ResolveAllOptions) (resErrs []error, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			resErrs = nil
-			err = fmt.Errorf("reference resolver panicked (%v): %w", r, ErrParse)
-		}
-	}()
-	return doc.ResolveAllReferences(ctx, opts)
-}
-
 // validationDiag converts one speakeasy validation error into a diagnostic. A
 // structured *validation.Error yields severity, a rule-suffixed code, the
 // provenance locate gives its node, and the finding itself as the message;
@@ -1041,59 +1009,6 @@ func validationMessage(verr validation.Error) string {
 		msg += " (document: " + verr.DocumentLocation + ")"
 	}
 	return msg
-}
-
-// resolveDiags converts the resolver's failure into one diagnostic per distinct
-// failure. ResolveAllReferences returns errors.Join over every reference it
-// could not resolve, and rendering that join as one Diagnostic.Message put N
-// failures in a field that holds one — a document with four external $refs read
-// as the same sentence stuttered four times.
-//
-// Parts that render identically collapse: a refusal carries one fixed sentence
-// and no location, so N of them say no more than one. They separate again once
-// the refusal names its site (GitHub #235).
-func resolveDiags(locate scan.Locator, err error) []ir.Diagnostic {
-	parts := joinedParts(err)
-	out := make([]ir.Diagnostic, 0, len(parts))
-	seen := make(map[string]bool, len(parts))
-	for _, part := range parts {
-		msg := part.Error()
-		if seen[msg] {
-			continue
-		}
-		seen[msg] = true
-		out = append(out, resolveDiag(locate, part))
-	}
-	return out
-}
-
-// joinedParts splits an errors.Join result into its parts; any other error is
-// its own only part, and a nil error has none.
-//
-// One level only, and no recursion to bound: ResolveAllReferences joins a flat
-// list built in one loop, so a part is never itself a join.
-func joinedParts(err error) []error {
-	if err == nil {
-		return nil
-	}
-	// Matched at the top level by construction — the join is what
-	// ResolveAllReferences returns. errors.As would walk further into speakeasy
-	// error types whose As method panics; see asValidationError.
-	if multi, ok := err.(interface{ Unwrap() []error }); ok {
-		return multi.Unwrap()
-	}
-	return []error{err}
-}
-
-// resolveDiag converts one reference-resolution error into a diag.UnresolvedRef
-// diagnostic, anchored and rendered the way validationDiag anchors and renders
-// a finding when the error is one. Resolution failures never abort lowering:
-// the validate pass reports dangling references downstream.
-func resolveDiag(locate scan.Locator, err error) ir.Diagnostic {
-	if verr, ok := asValidationError(err); ok {
-		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, locate(verr.Node), "%s", validationMessage(verr))
-	}
-	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, locate(nil), "%s", err.Error())
 }
 
 // asValidationError extracts a structured validation error. The wrapped value

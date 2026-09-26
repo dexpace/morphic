@@ -28,8 +28,10 @@ const graftBase = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /
 // One case per site rather than one for the mechanism: the sites take their
 // provenance through different paths (two pre-parse refusals off the index, a
 // library validation finding), and a fix that reached one and not another
-// would pass a single case. A resolver failure is not among them because the
-// library reports one with no node at all, grafted or not (GitHub #235).
+// would pass a single case. A resolver failure is not among them: it is placed
+// by the $ref's own JSON pointer (pointerAt), never by a raw node, so the
+// node-to-pointer translation this test pins does not apply to it — see
+// TestResolve_OverlayIntroducedReferenceNamesTheOverlay for its overlay case.
 func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
