@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -180,6 +181,96 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 	require.Len(t, doc.Sources, 1)
 	assert.Equal(t, "openapi@3.1", doc.Sources[0].Format)
 	assert.Equal(t, 0, propertyProvenance(t, doc, "Pet", "name").Source)
+}
+
+// primKindsSpec declares properties spanning several primitive kinds — string,
+// integer, number and boolean — so a compile interning more than one primitive
+// can assert they are all provenanced alike regardless of kind.
+const primKindsSpec = `openapi: 3.1.0
+info:
+  title: Prims
+  version: "1"
+paths: {}
+components:
+  schemas:
+    Widget:
+      type: object
+      properties:
+        name: {type: string}
+        count: {type: integer}
+        ratio: {type: number}
+        active: {type: boolean}
+`
+
+// addBirthProperty overlays a fifth primitive kind — string/date — onto
+// Widget, so its one and only intern call happens while lowering a position
+// whose own Provenance.Source is the overlay's index (1), not the spec's (0).
+const addBirthProperty = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.components.schemas.Widget.properties
+    update:
+      born: {type: string, format: date}
+`
+
+// primitiveProvenances returns every *ir.Primitive in doc.Types, keyed by ID.
+func primitiveProvenances(doc *ir.Document) map[ir.TypeID]ir.Provenance {
+	out := make(map[ir.TypeID]ir.Provenance)
+	for id, def := range doc.Types {
+		if prim, ok := def.(*ir.Primitive); ok {
+			out[id] = prim.Provenance
+		}
+	}
+	return out
+}
+
+// TestCompile_PrimitivesNameNoSource pins GitHub #528: a shared primitive is
+// reached by kind from every position of it in every source, so none of them
+// is its coordinate and its Provenance must never claim one — with or without
+// an overlay in play.
+//
+// The overlaid case is more than a repeat of the plain one: it gives the
+// compile a second source index (1) and one primitive kind, date, whose only
+// intern call happens while lowering a position addressed by that index. A
+// stamp that quietly started following the calling position's source instead
+// of staying fixed at NoSource would show up there first, while every other
+// kind — interned from the spec at index 0 — would still read correctly.
+func TestCompile_PrimitivesNameNoSource(t *testing.T) {
+	t.Parallel()
+	tests := map[string]*openapi.Overlay{
+		"plain":    nil,
+		"overlaid": {Path: "patch.yaml", Data: []byte(addBirthProperty)},
+	}
+	for name, overlay := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(primKindsSpec)}},
+				compilers.Options{FormatOptions: openapi.Options{Overlay: overlay}})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+			if overlay != nil {
+				require.Len(t, doc.Sources, 2, "a source index 1 must exist for this case to test anything")
+			}
+
+			kinds := map[ir.PrimKind]bool{}
+			for _, def := range doc.Types {
+				if prim, ok := def.(*ir.Primitive); ok {
+					kinds[prim.Prim] = true
+				}
+			}
+			require.GreaterOrEqual(t, len(kinds), 4, "the fixture must exercise several primitive kinds")
+
+			got := primitiveProvenances(doc)
+			want := make(map[ir.TypeID]ir.Provenance, len(got))
+			for id := range got {
+				want[id] = ir.Provenance{Source: ir.NoSource}
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("primitive provenance (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
 
 // TestCompile_OverlayPreservesSourceLineNumbers pins the reason the overlay is

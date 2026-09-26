@@ -68,7 +68,7 @@ func TestTypes_MintingIntoASourceSpaceIsRefused(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			types := compile.NewTypes(0)
+			types := compile.NewTypes()
 			tc.run(types)
 			require.Len(t, types.Violations(), 1, "the collision is reported exactly once")
 			assert.Contains(t, types.Violations()[0], `namespace "openapi"`)
@@ -83,7 +83,7 @@ func TestTypes_MintingIntoASourceSpaceIsRefused(t *testing.T) {
 // on every compile.
 func TestTypes_SeparateSpacesAreNotRefused(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/components/schemas/User", "t/openapi/components/schemas/User", model)
 	types.Intern("/components/schemas/User/properties/tags", "t/anon/components/schemas/User/properties/tags", model)
 	types.Register("t/composed/components/schemas/User/oneOf/0", model())
@@ -99,7 +99,7 @@ func TestTypes_SeparateSpacesAreNotRefused(t *testing.T) {
 // cannot be a namespace used two ways.
 func TestTypes_IDWithNoSpaceSegmentClaimsNothing(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Register("bare", model())
 	types.Intern("/p", "bare", model)
 

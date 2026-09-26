@@ -56,6 +56,16 @@ func TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer(t *testing.T) {
 	assert.Contains(t, out, "/components/schemas/S -> t/openapi/components/schemas/S (model)",
 		"the whole document holds every coordinate that interned a node")
 	assert.NotContains(t, out, `"irVersion"`, "an empty --explain is still --explain, not the document")
+
+	// explainSpec's property "a" is a bare string, so the compile interns the
+	// shared string primitive: reverting inSource's NoSource clause makes
+	// t/prim/string appear here, which is what makes the NotContains below more
+	// than a check against a primitive that was never present. A primitive
+	// names no coordinate (GitHub #528), so the root query — which every
+	// coordinate sits beneath — must not be it either.
+	assert.Contains(t, out, "no type node was interned at this coordinate",
+		"nothing is declared at the document root itself")
+	assert.NotContains(t, out, "t/prim/", "a shared primitive has no coordinate to report anywhere")
 }
 
 // TestExplainDocument_MissAtACoordinateNamesWhatInternedBelow covers the case the
@@ -156,6 +166,35 @@ func TestExplainDocument_NilDocumentIsReportedNotDereferenced(t *testing.T) {
 	var w bytes.Buffer
 	require.NotPanics(t, func() { explainDocument(&w, nil, nil, "/p") })
 	assert.Contains(t, w.String(), "no type node was interned at this coordinate")
+}
+
+// TestNodeAtPointer_NoSourceLosesToASourcedNodeAtTheSameEmptyPointer pins the
+// predicate nodeAtPointer filters on: a node's Source, not whether its Pointer
+// happens to be empty. A primitive's Pointer is always "" — it is never
+// assigned one — so on a document holding both a NoSource primitive and a node
+// a compiler genuinely lowered at the root (Source 0, Pointer ""), the root
+// query must return the latter. No committed spec lowers anything at the
+// document root, so this is the only way to tell the two predicates apart:
+// every other explain test's "root" case only ever has a primitive to skip.
+func TestNodeAtPointer_NoSourceLosesToASourcedNodeAtTheSameEmptyPointer(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/prim/string": &ir.Primitive{
+			ID:         "t/prim/string",
+			Prim:       ir.PrimString,
+			Provenance: ir.Provenance{Source: ir.NoSource},
+		},
+		"t/root": &ir.Model{
+			ID:         "t/root",
+			Provenance: ir.Provenance{Source: 0, Pointer: ""},
+		},
+	}}
+
+	id, td, ok := nodeAtPointer(doc, "")
+
+	require.True(t, ok, "a node genuinely declared at the root must still be found there")
+	assert.Equal(t, ir.TypeID("t/root"), id)
+	assert.Equal(t, ir.KindModel, td.Kind(), "the root names the sourced node, never the shared primitive")
 }
 
 func TestDiagnosticsAt_SelectsOnlyTheCoordinate(t *testing.T) {

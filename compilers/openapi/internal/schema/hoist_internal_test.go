@@ -52,7 +52,7 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
 	c := lowering.Ctx{SrcIndex: 0}
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
 	var built int
@@ -80,7 +80,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	t.Parallel()
 	c := lowering.Ctx{SrcIndex: 4}
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 
 	_, ok, diags := registeredNode(c, ts, "t/absent", "/components/schemas/Ghost")
 

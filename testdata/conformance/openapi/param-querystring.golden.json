@@ -337,7 +337,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "date"
     },
@@ -349,7 +349,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "string"
     }
