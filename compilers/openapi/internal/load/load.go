@@ -72,6 +72,14 @@ type Options struct {
 	// the bound an input to the stage, so nothing a test does to it is visible to
 	// a concurrent load.
 	buildIndex func(root *yaml.Node) sourceindex.Index
+	// chainCheck runs the reference-chain cycle refusal, or nil for chainCycle
+	// itself. It is unexported for the same reason as buildIndex: it is this
+	// package's test seam for the branch where the check reports its own
+	// protection incomplete rather than a cycle (recoverChains recovering a
+	// panic from reading the library's model) — a document that survives far
+	// enough to reach this check does not also panic reachCycle's own bounded
+	// walks, so nothing else exercises that branch through build.
+	chainCheck func(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -204,8 +212,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 // build turns the decoded tree of a source's first document into a Document:
 // the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, then validation findings and reference resolution as
-// diagnostics. A nil document with error diagnostics is a refusal to lower.
+// version check, the reference-chain cycle refusal, then validation findings
+// and reference resolution as diagnostics. A nil document with error
+// diagnostics is a refusal to lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
@@ -249,6 +258,16 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	locate := locator(srcIndex, origin)
+	chainCheck := opts.chainCheck
+	if chainCheck == nil {
+		chainCheck = chainCycle
+	}
+	if d, found := chainCheck(ctx, locate, root, doc); found {
+		if d.Severity == ir.SeverityError {
+			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
+		}
+		cyc = append(cyc, d)
+	}
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
 	diags = append(diags, resolve(ctx, locate, doc, src.Path, opts)...)

@@ -28,11 +28,22 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref that could not be resolved.
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle — a recursive YAML anchor, a
-	// chain of $ref-only schemas that never reaches a concrete type, or a
-	// reference whose pointer resolves through a reference already being resolved
-	// — caught before it can crash the parser with a stack overflow or deadlock
-	// the resolver on a lock its own goroutine holds.
+	// CyclicRef reports a degenerate reference cycle, caught before it can crash
+	// the parser with a stack overflow or deadlock the resolver on a lock its own
+	// goroutine holds. Two independent checks report it: a pre-parse scan over
+	// the decoded tree alone, for a recursive YAML anchor or a chain of
+	// $ref-only schemas connected by ordinary same-document pointers; and a
+	// reference-chain model (compilers/openapi/internal/load's reach) run once
+	// the document has a parsed model to walk, for a cycle that closes only
+	// through $anchor, $id, or $defs-relative resolution — state the resolver
+	// keeps between references (which document a $defs pointer resolves against,
+	// which schema a re-registered $id or $anchor is found under) that the
+	// pre-parse scan cannot see. The second check is a sound over-approximation,
+	// not an exact simulation of the resolver: it refuses a document whenever any
+	// resolver state the model cannot rule out would close a cycle, which costs a
+	// small, measured rate of false refusals on adversarial combinations of those
+	// keywords in exchange for a verdict that never depends on declaration order
+	// (see reach's own doc comment).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that the pre-parse cycle scan did not run to
 	// completion — either it aborted (a detector bug) or the document exceeded one
