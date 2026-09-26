@@ -269,3 +269,34 @@ func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
 	assert.True(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
 		"and the same tree fits a real one — the budget is what differed")
 }
+
+// TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition pins the rule for a
+// construct no single position addresses: the one source that supplied every
+// position it combines, else the answer for the position it is recorded at.
+func TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition(t *testing.T) {
+	t.Parallel()
+	origin := Origin{index: 1, pointers: map[jsontext.Pointer]bool{
+		"/s/if": true, "/s/then": true, "/t": true, "/t/if": true,
+	}}
+	tests := []struct {
+		name    string
+		origin  Origin
+		pointer jsontext.Pointer
+		from    []jsontext.Pointer
+		want    int
+	}{
+		{name: "no positions is the pointer's own answer", origin: origin, pointer: "/t", want: 1},
+		{name: "no positions, base-owned pointer", origin: origin, pointer: "/s", want: 0},
+		{name: "every position the overlay's", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/if", "/s/then"}, want: 1},
+		{name: "positions from both documents", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/if", "/s/else"}, want: 0},
+		{name: "every position the base's", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/else"}, want: 0},
+		{name: "an overlay-introduced declaring position", origin: origin, pointer: "/t", from: []jsontext.Pointer{"/t/if"}, want: 1},
+		{name: "no overlay applied", origin: Origin{}, pointer: "/s", from: []jsontext.Pointer{"/s/if"}, want: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.origin.IndexOf(tc.pointer, tc.from, 0))
+		})
+	}
+}

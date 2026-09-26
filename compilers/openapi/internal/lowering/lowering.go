@@ -325,6 +325,11 @@ func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, form
 // without touching a single lowering: a position the overlay introduced or
 // rewrote names the overlay as its source, because the question is asked here
 // rather than answered from a field each caller reads.
-func (c Ctx) ProvenanceAt(pointer jsontext.Pointer) ir.Provenance {
-	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: string(pointer)}
+//
+// from is for a record no single position addresses: a §4.7 entry folding
+// several keywords into one object is located at the schema declaring them, and
+// from names the keywords' own positions, so the entry names whichever document
+// wrote all of them (see overlay.Origin.IndexOf).
+func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
+	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: string(pointer)}
 }
