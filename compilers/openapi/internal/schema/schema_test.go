@@ -2438,6 +2438,321 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 		"and the other order was already correct, from the declaration replacing the reference's guess")
 }
 
+// crossPathSchemaRoot names one shape /paths (or /webhooks) can hold a schema
+// at, for TestCrossPathReference_SubtreeIsNamedByItsDeclaration. positionHint
+// cannot replay the enclosing hint under any of them: it comes from an
+// operationId, a response, a parameter or a webhook, none of which the
+// pointer records.
+type crossPathSchemaRoot struct {
+	name string
+	// block returns /b's (or the webhook's) top-level path-item entry with
+	// schema spliced in, indented to sit directly under paths: or webhooks:.
+	block func(schema string) string
+	// webhook is true when block belongs under webhooks: instead of paths:.
+	webhook bool
+	// pointer is the RFC 6901 pointer to the schema position block declares.
+	pointer string
+}
+
+func crossPathSchemaRoots() []crossPathSchemaRoot {
+	return []crossPathSchemaRoot{
+		{
+			name: "response",
+			block: func(schema string) string {
+				return "  /b:\n    get:\n      operationId: getB\n      responses:\n" +
+					"        \"200\":\n          description: ok\n          content:\n" +
+					"            application/json: {schema: " + schema + "}\n"
+			},
+			pointer: "/paths/~1b/get/responses/200/content/application~1json/schema",
+		},
+		{
+			name: "request body",
+			block: func(schema string) string {
+				return "  /b:\n    post:\n      operationId: postB\n      requestBody:\n" +
+					"        content:\n          application/json: {schema: " + schema + "}\n" +
+					"      responses: {\"204\": {description: ok}}\n"
+			},
+			pointer: "/paths/~1b/post/requestBody/content/application~1json/schema",
+		},
+		{
+			name: "parameter",
+			block: func(schema string) string {
+				return "  /b:\n    get:\n      operationId: getB\n      parameters:\n" +
+					"        - {name: q, in: query, schema: " + schema + "}\n" +
+					"      responses: {\"204\": {description: ok}}\n"
+			},
+			pointer: "/paths/~1b/get/parameters/0/schema",
+		},
+		{
+			name: "header",
+			block: func(schema string) string {
+				return "  /b:\n    get:\n      operationId: getB\n      responses:\n" +
+					"        \"200\":\n          description: ok\n          headers:\n" +
+					"            X-H: {schema: " + schema + "}\n"
+			},
+			pointer: "/paths/~1b/get/responses/200/headers/X-H/schema",
+		},
+		{
+			name: "webhook",
+			block: func(schema string) string {
+				return "  hook:\n    post:\n      operationId: hookB\n      requestBody:\n" +
+					"        content:\n          application/json: {schema: " + schema + "}\n" +
+					"      responses: {\"204\": {description: ok}}\n"
+			},
+			webhook: true,
+			pointer: "/webhooks/hook/post/requestBody/content/application~1json/schema",
+		},
+	}
+}
+
+// subtreeAt returns the registry entries at or under the node pointer itself
+// derives an ID from, so two documents naming the same position under
+// different, immaterial surroundings (an unrelated path declared before or
+// after it) can be compared on that position alone.
+func subtreeAt(doc *ir.Document, pointer string) map[ir.TypeID]ir.TypeDef {
+	base := "t/anon" + pointer
+	out := map[ir.TypeID]ir.TypeDef{}
+	for id, td := range doc.Types {
+		if s := string(id); s == base || strings.HasPrefix(s, base+"/") {
+			out[id] = td
+		}
+	}
+	return out
+}
+
+// TestCrossPathReference_SubtreeIsNamedByItsDeclaration is the #529
+// reproduction. A $ref from one path's schema into another path's body
+// interns the subtree beneath its target when the referencing path lowers
+// first: the declaration renamed the target's own node when it arrived, but
+// everything beneath it kept the hint the reference had composed from its own
+// guess, because positionHint had no replay to make outside
+// /components/schemas.
+//
+// For each root the owner can declare its schema at, three documents are
+// compiled: the owner alone, the owner with /a's reference declared first,
+// and the owner declared first. The registry restricted to the owner's own
+// schema pointer must come out identical in all three.
+func TestCrossPathReference_SubtreeIsNamedByItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\n"
+	const ownerSchema = "{type: array, items: {type: array, items: {type: object, properties: {v: {type: string}}}}}"
+
+	for _, root := range crossPathSchemaRoots() {
+		t.Run(root.name, func(t *testing.T) {
+			t.Parallel()
+			aBlock := "  /a:\n    get:\n      operationId: getA\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          content:\n" +
+				"            application/json: {schema: {$ref: '#" + root.pointer + "/items', description: x}}\n"
+
+			pathsAlone := "paths:\n" + root.block(ownerSchema)
+			pathsRefFirst := "paths:\n" + aBlock + root.block(ownerSchema)
+			pathsOwnerFirst := "paths:\n" + root.block(ownerSchema) + aBlock
+			webhooksBlock := ""
+			if root.webhook {
+				pathsAlone = "paths: {}\n"
+				pathsRefFirst = "paths:\n" + aBlock
+				pathsOwnerFirst = "paths:\n" + aBlock
+				webhooksBlock = "webhooks:\n" + root.block(ownerSchema)
+			}
+
+			alone, diags := parseFull(t, preamble+pathsAlone+webhooksBlock)
+			openapitest.RequireNoErrorDiags(t, diags)
+			refFirst, diags := parseFull(t, preamble+pathsRefFirst+webhooksBlock)
+			openapitest.RequireNoErrorDiags(t, diags)
+			ownerFirst, diags := parseFull(t, preamble+pathsOwnerFirst+webhooksBlock)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			aloneSub := subtreeAt(alone, root.pointer)
+			require.NotEmpty(t, aloneSub, "the owner's own declaration hoists a subtree")
+			assert.Empty(t, cmp.Diff(aloneSub, subtreeAt(refFirst, root.pointer)),
+				"the reference declared first must not change the owner's own subtree")
+			assert.Empty(t, cmp.Diff(aloneSub, subtreeAt(ownerFirst, root.pointer)),
+				"nor must declaring the owner first")
+		})
+	}
+}
+
+// TestUndeclaredRegion_TwoReferencesAgreeInBothOrders is #529's second gap: a
+// position no declaration ever lowers — one beneath not, if, a $defs entry or
+// a dependentSchemas entry, each kept verbatim in Unmodeled by the
+// declaration that owns them (ir-design §4.7) — is reached only by
+// references. Two references into one such region, one aimed at the outer
+// position and one beneath it, used to name the inner position differently
+// depending on which lowered first: a reference aimed at it directly took
+// positionHint's old last-token fallback, while one recursing down from the
+// outer position composed the name structurally, and the two disagreed.
+func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
+	t.Parallel()
+	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
+	const innerSchema = "{type: array, items: {type: array, items: {type: object, properties: {v: {type: string}}}}}"
+
+	for _, tc := range []struct {
+		name string
+		wrap func(inner string) string
+		// suffix is the RFC 6901 pointer from the schema root to the outer,
+		// undeclared position wrap creates.
+		suffix string
+	}{
+		{"not", func(inner string) string { return "{type: object, not: " + inner + "}" }, "not"},
+		{"if", func(inner string) string { return "{type: object, if: " + inner + "}" }, "if"},
+		{"a $defs entry", func(inner string) string {
+			return "{type: object, $defs: {D: " + inner + "}}"
+		}, "$defs/D"},
+		{"a dependentSchemas entry", func(inner string) string {
+			return "{type: object, dependentSchemas: {k: " + inner + "}}"
+		}, "dependentSchemas/k"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			bBlock := "  /b:\n    get:\n      operationId: getB\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          content:\n" +
+				"            application/json: {schema: " + tc.wrap(innerSchema) + "}\n"
+			outer := "/paths/~1b/get/responses/200/content/application~1json/schema/" + tc.suffix
+
+			aBlock := "  /a:\n    get:\n      operationId: getA\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          content:\n" +
+				"            application/json: {schema: {$ref: '#" + outer + "/items'}}\n"
+			cBlock := "  /c:\n    get:\n      operationId: getC\n      responses:\n" +
+				"        \"200\":\n          description: ok\n          content:\n" +
+				"            application/json: {schema: {$ref: '#" + outer + "'}}\n"
+
+			// /a's reference is aimed one level beneath /c's — declared first,
+			// this is the order that was wrong on main.
+			innerFirst, diags := parseFull(t, preamble+bBlock+aBlock+cBlock)
+			openapitest.RequireNoErrorDiags(t, diags)
+			outerFirst, diags := parseFull(t, preamble+bBlock+cBlock+aBlock)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			assert.NotEmpty(t, innerFirst.Types, "the region is reachable at all")
+			assert.Empty(t, cmp.Diff(innerFirst.Types, outerFirst.Types),
+				"the undeclared region is named the same whichever reference reaches it first")
+		})
+	}
+}
+
+// TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys pins why the
+// fix rebuilds the node a reference already built rather than deferring the
+// reference until every declaration has lowered: a reader that looks at the
+// referenced body while the reference itself is lowering must still find a
+// real node there, in either declaration order.
+//
+// /b's multipart body composes Base through allOf, so the property "file" the
+// encoding key names lives on Base, not on /b's own node — partEncodings
+// resolves the key by walking the composition (propIDByWire), and that walk
+// needs body's node to already exist when /a's own operation is lowered. This
+// passes under the shipped rebuild in both orders; deferring the reference
+// instead — measured, not shipped — left the reference-first order with an
+// ir/encoding-key-unknown-property diagnostic, because the walk found no node
+// to search yet and partPropID fell back to a pointer that named no property.
+func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {
+	t.Parallel()
+	const preamble = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n"
+	const aBlock = `  /a:
+    post:
+      operationId: postA
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/paths/~1b/post/requestBody/content/multipart~1form-data/schema'
+            encoding:
+              file: {contentType: application/octet-stream}
+      responses:
+        "204": {description: ok}
+`
+	const bBlock = `  /b:
+    post:
+      operationId: postB
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/Base'
+              type: object
+              properties:
+                meta: {type: string}
+      responses:
+        "204": {description: ok}
+`
+	const components = "components:\n  schemas:\n    Base:\n      type: object\n      properties:\n" +
+		"        file: {type: string, format: binary}\n"
+
+	for _, tc := range []struct{ name, spec string }{
+		{"reference declared first", preamble + aBlock + bBlock + components},
+		{"owner declared first", preamble + bBlock + aBlock + components},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, tc.spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			base, ok := typeByName(doc, "Base").(*ir.Model)
+			require.True(t, ok, "Base lowers to a model")
+			baseFile, ok := openapitest.PropsByWire(base.Properties)["file"]
+			require.True(t, ok, "Base declares file")
+
+			postA := openapitest.FindOp(t, doc, "postA")
+			require.NotNil(t, postA.Request)
+			require.Len(t, postA.Request.Contents, 1)
+			enc := postA.Request.Contents[0].Encoding
+			require.Len(t, enc, 1, "meta carries no explicit encoding and is left out")
+			for propID := range enc {
+				assert.Equal(t, baseFile.ID, propID,
+					"the encoding key names the property Base itself declares, not a pointer under /a")
+			}
+		})
+	}
+}
+
+// sortedDiagStrings renders diags as a sorted multiset of their full values, so
+// two diagnostic lists can be compared on what they report rather than on the
+// order two different lowering walks happened to append it in.
+func sortedDiagStrings(diags []ir.Diagnostic) []string {
+	out := make([]string, len(diags))
+	for i, d := range diags {
+		out[i] = fmt.Sprintf("%s\t%s\t%s\t%+v", d.Severity, d.Code, d.Message, d.Provenance)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic checks the risk
+// InternDeclared's rebuild carries: rebuilding re-enters the same lowering
+// over the same schema, so any diagnostic the reference's build already
+// reported fires again, and only compile.Diags's identity dedup — matching on
+// the whole diagnostic value — keeps it from doubling in the final list. A
+// message that interpolated a hint or a name derived from naming state would
+// differ between the two lowerings and defeat that dedup; grepping every
+// DiagAt and diag.Newf call site under this package for one turns up none, so
+// this pins the claim empirically for a construct that does emit a
+// diagnostic at the referenced position itself: oneOf and anyOf co-declared,
+// whose message names only the two fixed keywords (preserveUnusedCombinator).
+func TestCrossPathReference_RebuildDoesNotDuplicateADiagnostic(t *testing.T) {
+	t.Parallel()
+	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
+	const ownerSchema = "{type: object, oneOf: [{type: object, properties: {x: {type: string}}}], " +
+		"anyOf: [{type: object, properties: {y: {type: string}}}]}"
+	const bBlock = "  /b:\n    get:\n      operationId: getB\n      responses:\n" +
+		"        \"200\":\n          description: ok\n          content:\n" +
+		"            application/json: {schema: " + ownerSchema + "}\n"
+	const aBlock = "  /a:\n    get:\n      operationId: getA\n      responses:\n" +
+		"        \"200\":\n          description: ok\n          content:\n" +
+		"            application/json: {schema: {$ref: " +
+		"'#/paths/~1b/get/responses/200/content/application~1json/schema', description: x}}\n"
+
+	_, aloneDiags := parseFull(t, preamble+bBlock)
+	openapitest.RequireNoErrorDiags(t, aloneDiags)
+	require.NotEmpty(t, aloneDiags, "the fixture is chosen to emit a diagnostic when lowered once")
+
+	_, refFirstDiags := parseFull(t, preamble+aBlock+bBlock)
+	openapitest.RequireNoErrorDiags(t, refFirstDiags)
+
+	assert.Equal(t, sortedDiagStrings(aloneDiags), sortedDiagStrings(refFirstDiags),
+		"the declaration's rebuild must not leave a second copy of a diagnostic "+
+			"the reference's build already reported")
+}
+
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
 // second half of the pointer collision. A $ref naming an inline position hoists
 // that position's home before the position itself is reached, and the position

@@ -1079,25 +1079,6 @@ var compositionKeywords = map[string]bool{"allOf": true, "oneOf": true, "anyOf":
 // is all there is to name it by: it has no $ref target to take a name from.
 func positionalBranchHint(index string) string { return "variant_" + index }
 
-// branchPointerHint returns the hint the branch at pointer takes, for a caller
-// holding only the pointer.
-//
-// It exists so hoistSubSchema answers what the composition would have
-// (GitHub #181). An outside $ref can name a branch's pointer, and only the first
-// lowering to arrive interns the node, so a hint derived differently there makes
-// the document depend on declaration order — silently, since either spelling is a
-// valid hint and nothing compares them. The $ref-branch half of that already
-// agrees; this is the inline half, where the composition knows the branch's
-// ordinal and a bare pointer walk knew only the last segment, which is the
-// ordinal with nothing to say it is one.
-func branchPointerHint(pointer jsontext.Pointer) (string, bool) {
-	keyword, index := pointer.Parent().LastToken(), pointer.LastToken()
-	if !compositionKeywords[keyword] || !isDecimalIndex(index) {
-		return "", false
-	}
-	return positionalBranchHint(index), true
-}
-
 // isDecimalIndex reports whether s is a non-empty run of ASCII digits — the
 // shape a composition branch's pointer segment takes.
 func isDecimalIndex(s string) bool {
@@ -1149,7 +1130,7 @@ func referencedBranch(b *oas3.JSONSchema[oas3.Referenceable]) (*oas3.JSONSchema[
 	if !ok {
 		return nil, false
 	}
-	if _, branch, ok := positionHint(pointer); !ok || !branch {
+	if _, branch := positionHint(pointer); !branch {
 		return nil, false
 	}
 	next := annotation.DeclaredSchema(b)
@@ -1162,18 +1143,18 @@ func referencedBranch(b *oas3.JSONSchema[oas3.Referenceable]) (*oas3.JSONSchema[
 // `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
 // declared under (GitHub #505), and a pointer into a component's body suggests
 // the hint the declaration gives that position, as positionHint replays it,
-// rather than a keyword or an ordinal (GitHub #521). A pointer outside
-// /components/schemas suggests its last token.
+// rather than a keyword or an ordinal (GitHub #521). positionHint replays a
+// pointer outside /components/schemas the same way, resetting at every token
+// it does not know, so such a pointer suggests the steps inside its own
+// schema rather than its last token alone (GitHub #529).
 //
 // A reference whose fragment is no pointer — a whole-document URI, a $anchor —
 // suggests what follows its last '/', percent-decoded when that decodes to
 // UTF-8, so `./Fish%2DTank.yaml` suggests "Fish-Tank.yaml".
 func refHint(ref string) string {
 	if pointer, ok := resolve.FragmentPointer(ref); ok {
-		if hint, _, ok := positionHint(pointer); ok {
-			return hint
-		}
-		return pointer.LastToken()
+		hint, _ := positionHint(pointer)
+		return hint
 	}
 	name := ref
 	if _, after, ok := strings.CutLast(ref, "/"); ok {

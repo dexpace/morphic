@@ -1,0 +1,51 @@
+# A position beneath `not` is reached only by references: the declaration
+# that owns not's body keeps it verbatim in Unmodeled rather than lowering it.
+# Two references into one such region, one aimed at it and one beneath it,
+# used to name the shared inner position by whichever reference happened to
+# lower first, because positionHint declined to answer outside
+# /components/schemas (GitHub #529). /a, whose reference is the inner one, is
+# declared first — the order that was wrong.
+openapi: 3.1.0
+info:
+  title: Two references into one undeclared region agree in either order
+  version: 1.0.0
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/not/items'
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                not:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        v:
+                          type: string
+  /c:
+    get:
+      operationId: getC
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/not'

@@ -50,10 +50,12 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hin
 		// declaration that owns it arrives (GitHub #372).
 		return ts.InternProvisional(string(pointer), id, mint)
 	}
-	interned := ts.Intern(string(pointer), id, mint)
-	// The declaration reaching its own coordinate. On a first visit this is the
-	// name the node was just built with; on a later one it is what replaces a
-	// placeholder a reference left here.
+	// The declaration reaching its own coordinate. A reference that got here
+	// first built the node and everything beneath it under its own names, so the
+	// declaration builds it again rather than taking the reference's (GitHub #529).
+	interned := ts.InternDeclared(string(pointer), id, mint)
+	// On a first visit this is the name the node was just built with; after a
+	// reference it is what replaces the placeholder it left here.
 	ts.NameFromDeclaration(string(pointer), hint)
 	return interned
 }

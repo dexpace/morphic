@@ -1,0 +1,40 @@
+# A $ref from one path's response schema into another path's response schema
+# interns the whole subtree beneath its target, not just the target itself.
+# The declaration renames the target's own node when it arrives, but a
+# reference lowering first used to leave every node beneath it named from the
+# reference's own guess, because positionHint had nothing to replay outside
+# /components/schemas (GitHub #529). /a, the referencing path, is declared
+# first — the order that was wrong.
+openapi: 3.1.0
+info:
+  title: A cross-path reference names the subtree beneath its target
+  version: 1.0.0
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/items'
+                description: an outside reference into /b's response body
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      v:
+                        type: string

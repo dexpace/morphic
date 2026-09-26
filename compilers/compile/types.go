@@ -32,6 +32,9 @@ type Types struct {
 	// declared holds the hint a declaration gave each coordinate it reached
 	// without finding a placeholder there. See NameFromDeclaration.
 	declared map[string]string
+	// byReference holds the coordinates whose node a reference built and the
+	// declaration that owns them has not rebuilt yet. See InternDeclared.
+	byReference map[string]bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -64,6 +67,7 @@ func NewTypes(src int) *Types {
 
 		provisional: make(map[string]bool),
 		declared:    make(map[string]string),
+		byReference: make(map[string]bool),
 	}
 }
 
@@ -184,7 +188,49 @@ func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.
 		return interned
 	}
 	t.provisional[pointer] = true
+	t.byReference[pointer] = true
 	return interned
+}
+
+// InternDeclared is Intern for the declaration that owns pointer. Where a
+// reference built the node first, it builds it again and replaces the
+// reference's node under the same ID.
+//
+// Renaming the one node a reference left at the coordinate is not enough: the
+// reference lowered the whole subtree beneath it, and every node there took a
+// hint composed from the reference's placeholder, which Intern's early return
+// then kept from the declaration. Under /components/schemas the placeholder can
+// be made to match (the schema package replays the declaration's hint from the
+// pointer), but under /paths the enclosing hint comes from an operationId or a
+// response the pointer does not record, so the subtree's names depended on
+// declaration order (GitHub #529). Rebuilding is what lets the declaration name
+// it: the build lowers the same schema at the same pointers, so it interns the
+// same nodes under the same IDs, now named by the declaration.
+//
+// The rebuild happens once per coordinate. A build that yields nothing is
+// refused and the reference's node kept, so the IDs other nodes already hold
+// still resolve.
+func (t *Types) InternDeclared(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
+	if !t.byReference[pointer] {
+		return t.Intern(pointer, id, build)
+	}
+	delete(t.byReference, pointer)
+	existing := t.byPointer[pointer]
+	if existing != id {
+		t.refuse("rebuild rejected: %q is interned as %q, not %q", pointer, existing, id)
+		return existing
+	}
+	if build == nil {
+		t.refuse("rebuild rejected: nil build for id=%q at %q", id, pointer)
+		return existing
+	}
+	td := build()
+	if ir.IsNilTypeDef(td) {
+		t.refuse("rebuild rejected: build returned a nil type definition for id=%q at %q", id, pointer)
+		return existing
+	}
+	t.reg[id] = td
+	return id
 }
 
 // NameFromDeclaration gives the node at pointer the hint its declaration

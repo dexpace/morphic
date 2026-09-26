@@ -32,12 +32,13 @@ func TestPropIDByName_NotFound(t *testing.T) {
 }
 
 // TestRefHint_Shapes pins refHint's paths: positionHint's answer for a
-// fragment that spells a pointer at or beneath a component schema — so a union
-// variant or a branch position is suggested as the node it holds, not its
-// ordinal or its keyword (GitHub #521) — the decoded last token of a pointer
-// positionHint declines to answer (GitHub #505), and, for a reference whose
-// fragment is no pointer at all, the text after the last '/', percent-decoded
-// when that decodes to valid UTF-8 (GitHub #520), kept as written otherwise.
+// fragment that spells a pointer, decoded at both layers a $ref encodes it in
+// (GitHub #505) — so a union variant or a branch position is suggested as the
+// node it holds, not its ordinal or its keyword (GitHub #521), whether at a
+// component schema or, by the same replay, anywhere else (GitHub #529) —
+// and, for a reference whose fragment is no pointer at all, the text after
+// the last '/', percent-decoded when that decodes to valid UTF-8 (GitHub
+// #520), kept as written otherwise.
 func TestRefHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -60,8 +61,8 @@ func TestRefHint_Shapes(t *testing.T) {
 			ref: "#/components/schemas/A/items", want: compile.SubHint("A", "item")},
 		{name: "a property whose key reads like a keyword is suggested by the key",
 			ref: "#/components/schemas/A/properties/items", want: "items"},
-		{name: "a pointer outside components falls back to its last token",
-			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/items", want: "items"},
+		{name: "a pointer outside components is named by positionHint's replay, not its last token",
+			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/items", want: compile.SubHint("schema", "item")},
 		{name: "a percent escape in a non-pointer fragment decodes",
 			ref: "./Fish%2DTank.yaml", want: "Fish-Tank.yaml"},
 		{name: "an invalid percent escape is kept as written",
@@ -77,15 +78,18 @@ func TestRefHint_Shapes(t *testing.T) {
 	}
 }
 
-// TestSubSchemaHint_Fallbacks covers subSchemaHint's two positional fallbacks,
-// neither of which a full compile reaches because both need a schema shape a
-// declaration never itself produces:
+// TestSubSchemaHint_Fallbacks covers subSchemaHint's remaining fallback, plus
+// one shape positionHint's total replay now settles by itself:
 //
 //   - A branch whose $ref does resolve, but to a target with no hint of its
 //     own — an empty-named component — falls back to the branch's own
 //     positional hint rather than the empty string targetHint found.
-//   - A branch outside /components/schemas, where positionHint always
-//     declines, is still recognized as a branch by branchPointerHint.
+//   - A branch under /paths is found the same way a component one is: since
+//     positionHint replays every pointer now (GitHub #529), the walk reaches
+//     the branch step itself, with no separate branchPointerHint check.
+//
+// Neither row a full compile reaches, since both need a schema shape a
+// declaration never itself produces.
 func TestSubSchemaHint_Fallbacks(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +100,7 @@ func TestSubSchemaHint_Fallbacks(t *testing.T) {
 	inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
 	assert.Equal(t, "variant_0",
 		subSchemaHint(inline, "/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0"),
-		"positionHint never answers outside /components/schemas, so a branch there still falls back to its ordinal")
+		"positionHint's replay finds the branch under /paths directly, with no separate fallback")
 }
 
 // TestReferencedBranch_Shapes pins the three ways referencedBranch declines to
@@ -330,8 +334,12 @@ func TestBranchPointerHint_Shapes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := branchPointerHint(tc.pointer)
-			assert.Equal(t, tc.want != "", ok, "pointer %q", tc.pointer)
+			hint, branch := positionHint(tc.pointer)
+			got := ""
+			if branch {
+				got = hint
+			}
+			assert.Equal(t, tc.want != "", branch, "pointer %q", tc.pointer)
 			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
 		})
 	}
@@ -349,8 +357,8 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 		pointer := jsontext.Pointer("/components/schemas/Host/oneOf/" + strconv.Itoa(i))
 
 		fromComposition := branchHint(inline, i)
-		fromPointer, ok := branchPointerHint(pointer)
-		require.True(t, ok, "the branch pointer is recognized as one")
+		fromPointer, branch := positionHint(pointer)
+		require.True(t, branch, "the branch pointer is recognized as one")
 		assert.Equal(t, fromComposition, fromPointer,
 			"branch %d must be named the same whichever lowering interns it first", i)
 		assert.Equal(t, fromComposition, subSchemaHint(inline, pointer),
@@ -358,19 +366,25 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 	}
 }
 
-// TestPositionHint_Shapes pins the left-to-right walk from a component down:
-// each step either recomposes the enclosing hint by role — items,
-// additionalProperties, contentSchema, a patternProperties entry, a
-// prefixItems slot, a composition branch — or, for a keyed map (properties,
-// $defs, definitions, dependentSchemas, dependencies), takes the key itself.
-// The keyed-map rows are why a key is never read as a keyword: a property, a
-// patternProperties entry or a $defs entry literally spelled "items" is the
-// key "items", not the items keyword, and the walk only reaches the role for
-// an "items" it meets as a keyword token in its own right (GitHub #518). The
-// branch rows are the same agreement for a composition's ordinal, which names
-// "variant_0", never "0". The walk answers only at or beneath a component
-// schema, where the pointer alone determines every enclosing hint; elsewhere
-// (a position under /paths) it declines.
+// TestPositionHint_Shapes pins the left-to-right walk down a schema: each step
+// either recomposes the enclosing hint by role — items, additionalProperties,
+// contentSchema, a patternProperties entry, a prefixItems slot, a composition
+// branch — or, for a keyed map (properties, $defs, definitions,
+// dependentSchemas, dependencies), takes the key itself. The keyed-map rows
+// are why a key is never read as a keyword: a property, a patternProperties
+// entry or a $defs entry literally spelled "items" is the key "items", not
+// the items keyword, and the walk only reaches the role for an "items" it
+// meets as a keyword token in its own right (GitHub #518). The branch rows
+// are the same agreement for a composition's ordinal, which names
+// "variant_0", never "0".
+//
+// Beneath /components/schemas the walk roots at the component, so the
+// pointer alone determines every enclosing hint exactly. Elsewhere it roots
+// at the pointer's first token instead and resets at every token it does not
+// know, so a position under /paths is named entirely by the steps inside its
+// own schema, with no memory of the operation or response that led there
+// (GitHub #529) — a placeholder for a position a declaration lowers, and the
+// name itself for one only a reference ever reaches.
 func TestPositionHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -378,138 +392,141 @@ func TestPositionHint_Shapes(t *testing.T) {
 		pointer jsontext.Pointer
 		want    string
 		branch  bool
-		wantOK  bool
 	}{
 		{
 			name: "a bare component", pointer: "/components/schemas/Foo",
-			want: "Foo", wantOK: true,
+			want: "Foo",
 		},
 		{
 			name: "items under a component", pointer: "/components/schemas/Foo/items",
-			want: compile.SubHint("Foo", "item"), wantOK: true,
+			want: compile.SubHint("Foo", "item"),
 		},
 		{
 			name:    "nested roles",
 			pointer: "/components/schemas/Foo/items/additionalProperties",
-			want:    compile.SubHint(compile.SubHint("Foo", "item"), "value"), wantOK: true,
+			want:    compile.SubHint(compile.SubHint("Foo", "item"), "value"),
 		},
 		{
 			name:    "a property literally named items is not the items keyword",
 			pointer: "/components/schemas/Foo/properties/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a property named items holding an array names its own items by role",
 			pointer: "/components/schemas/Foo/properties/items/items",
-			want:    compile.SubHint("items", "item"), wantOK: true,
+			want:    compile.SubHint("items", "item"),
 		},
 		{
 			name:    "a property literally named properties holding items names its own items by role",
 			pointer: "/components/schemas/Foo/properties/properties/items",
-			want:    compile.SubHint("properties", "item"), wantOK: true,
+			want:    compile.SubHint("properties", "item"),
 		},
 		{
 			name:    "additionalProperties holding an object whose own additionalProperties is a role",
 			pointer: "/components/schemas/Foo/properties/additionalProperties/additionalProperties",
-			want:    compile.SubHint("additionalProperties", "value"), wantOK: true,
+			want:    compile.SubHint("additionalProperties", "value"),
 		},
 		{
 			name:    "a patternProperties entry whose pattern holds ~1",
 			pointer: "/components/schemas/Foo/patternProperties/a~1b",
-			want:    compile.SubHint("Foo", "pattern"), wantOK: true,
+			want:    compile.SubHint("Foo", "pattern"),
 		},
 		{
 			name:    "a patternProperties entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/patternProperties/items",
-			want:    compile.SubHint("Foo", "pattern"), wantOK: true,
+			want:    compile.SubHint("Foo", "pattern"),
 		},
 		{
 			name:    "an items entry inside a patternProperties entry keyed items",
 			pointer: "/components/schemas/Foo/patternProperties/items/items",
-			want:    compile.SubHint(compile.SubHint("Foo", "pattern"), "item"), wantOK: true,
+			want:    compile.SubHint(compile.SubHint("Foo", "pattern"), "item"),
 		},
 		{
 			name:    "a $defs entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/$defs/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a dependentSchemas entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/dependentSchemas/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a contentSchema",
 			pointer: "/components/schemas/Foo/contentSchema",
-			want:    compile.SubHint("Foo", "content"), wantOK: true,
+			want:    compile.SubHint("Foo", "content"),
 		},
 		{
 			name:    "a prefixItems slot",
 			pointer: "/components/schemas/Foo/prefixItems/2",
-			want:    compile.SubHint("Foo", "2"), wantOK: true,
+			want:    compile.SubHint("Foo", "2"),
 		},
 		{
 			name:    "a prefixItems member that is no slot is named after its own token",
 			pointer: "/components/schemas/Foo/prefixItems/x",
-			want:    "x", wantOK: true,
+			want:    "x",
 		},
 		{
 			name:    "a component literally named items is named items",
 			pointer: "/components/schemas/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a oneOf branch is named variant_N, not its ordinal",
 			pointer: "/components/schemas/Foo/oneOf/0",
-			want:    "variant_0", branch: true, wantOK: true,
+			want:    "variant_0", branch: true,
 		},
 		{
 			name:    "items beneath a oneOf branch is named off the branch's hint, not the ordinal",
 			pointer: "/components/schemas/Foo/oneOf/0/items",
-			want:    compile.SubHint("variant_0", "item"), wantOK: true,
+			want:    compile.SubHint("variant_0", "item"),
 		},
 		{
 			name:    "a branch reached through a property named oneOf",
 			pointer: "/components/schemas/Foo/properties/oneOf/anyOf/0",
-			want:    "variant_0", branch: true, wantOK: true,
+			want:    "variant_0", branch: true,
 		},
 		{
 			name:    "a property named oneOf with no index is not a branch",
 			pointer: "/components/schemas/Foo/properties/oneOf",
-			want:    "oneOf", wantOK: true,
+			want:    "oneOf",
 		},
 		{
 			name:    "an unrecognised keyword is named after its own token, and what it holds hangs off that",
 			pointer: "/components/schemas/Foo/not/items",
-			want:    compile.SubHint("not", "item"), wantOK: true,
+			want:    compile.SubHint("not", "item"),
 		},
 		{
 			name:    "an extension keyword is treated the same as any other unrecognised token",
 			pointer: "/components/schemas/Foo/x-ext/items",
-			want:    compile.SubHint("x-ext", "item"), wantOK: true,
+			want:    compile.SubHint("x-ext", "item"),
 		},
 		{
 			name:    "a keyed keyword with no key names itself",
 			pointer: "/components/schemas/Foo/properties",
-			want:    "properties", wantOK: true,
+			want:    "properties",
 		},
 		{
-			name:    "a position under /paths has no enclosing hint to recover",
+			name:    "a position under /paths resets at every token the walk does not know, so items is named off schema's own hint, not the response or media type that led there",
 			pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/items",
+			want:    compile.SubHint("schema", "item"),
 		},
 		{
 			name:    `the component keyed ""`,
 			pointer: "/components/schemas//items",
-			want:    compile.SubHint("", "item"), wantOK: true,
+			want:    compile.SubHint("", "item"),
 		},
-		{name: "the schemas map itself names no component", pointer: "/components/schemas"},
-		{name: "the empty pointer", pointer: ""},
+		{
+			name:    "the schemas map has too few tokens to root at a component, so it replays like any other pointer and is named by its last token",
+			pointer: "/components/schemas",
+			want:    "schemas",
+		},
+		{name: "the empty pointer has no tokens to replay, so it is named \"\" and is never a branch", pointer: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, branch, ok := positionHint(tc.pointer)
-			assert.Equal(t, tc.wantOK, ok, "pointer %q", tc.pointer)
+			got, branch := positionHint(tc.pointer)
 			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
 			assert.Equal(t, tc.branch, branch, "pointer %q", tc.pointer)
 		})
