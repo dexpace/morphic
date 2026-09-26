@@ -1,7 +1,6 @@
 package operation
 
 import (
-	"encoding/json/jsontext"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -26,12 +25,11 @@ import (
 // function of the context, the registry and the memos (#177), and this holds
 // the ones a single-lowering test wants in one place.
 type lowerer struct {
-	ctx          lowering.Ctx
-	out          *ir.Document
-	types        *compile.Types
-	diags        compile.Diags
-	anchors      schema.AnchorIndex
-	operationIDs map[string]jsontext.Pointer
+	ctx     lowering.Ctx
+	out     *ir.Document
+	types   *compile.Types
+	diags   compile.Diags
+	anchors schema.AnchorIndex
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -40,10 +38,9 @@ type lowerer struct {
 func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          ctx,
-		out:          &ir.Document{Types: types.Registry()},
-		types:        types,
-		operationIDs: make(map[string]jsontext.Pointer),
+		ctx:   ctx,
+		out:   &ir.Document{Types: types.Registry()},
+		types: types,
 	}
 }
 
@@ -79,7 +76,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	l.out.Auth = schemes
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors, l.operationIDs)
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, &l.anchors)
 	l.diags.AppendAll(svcDiags)
 	return svc, append(loadDiags, l.diags.List()...)
 }

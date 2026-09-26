@@ -265,20 +265,34 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 }
 
 // findings converts the model build's validation errors into diagnostics,
-// dropping the two kinds that are library artifacts rather than spec problems:
+// dropping the two kinds that are library artifacts rather than spec problems —
 // a numeric literal Morphic captures losslessly anyway, and a schema finding
-// raised only because the library checked against the wrong meta-schema.
+// raised only because the library checked against the wrong meta-schema — and
+// the findings of a rule the compiler checks itself.
 func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string) []ir.Diagnostic {
 	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
-			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)]) {
+			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)] || compilerOwned(verr)) {
 			continue
 		}
 		diags = append(diags, validationDiag(locate, ve))
 	}
 	return diags
+}
+
+// compilerOwned reports whether a finding belongs to a rule the compiler checks
+// itself, where the library's verdict would only disagree with it.
+//
+// operationId uniqueness is the one. The library counts operations as it walks
+// the unresolved model, so an operation a YAML alias mounts twice counts twice
+// while one a $ref mounts twice counts once, and no webhook or callback operation
+// counts at all: the alias form was refused where the $ref form only warned, and
+// a repeat inside a callback went unreported. The service lowering judges every
+// claim once it has seen them all (GitHub #502).
+func compilerOwned(verr validation.Error) bool {
+	return verr.Rule == validation.RuleValidationOperationIdUnique
 }
 
 // resolve resolves every reference in doc and converts what could not be

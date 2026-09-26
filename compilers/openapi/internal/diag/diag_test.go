@@ -143,7 +143,7 @@ func codes() []string {
 		diag.DisjointVisibility,
 		diag.AliasAmplification, diag.BudgetExceeded,
 		diag.UnattachableRequired, diag.InternalInvariant,
-		diag.DuplicateOperationID, diag.IncompleteSecurityScheme,
+		diag.DuplicateOperationID, diag.ConflictingOperationID, diag.IncompleteSecurityScheme,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,

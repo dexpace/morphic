@@ -361,3 +361,91 @@ actions:
 	found, _ := ir.FirstError(diags)
 	assert.Equal(t, diag.CyclicRef, found.Code, "the introduced cycle is what refused it: %+v", diags)
 }
+
+// addPathReusingTheBaseOperationID overlays a second path onto overlaySpec,
+// giving it the operationId the base already declares on /pets. The base
+// writes "listPets" once; this overlay writes a second declaration of it, so
+// the two must conflict rather than merely remount one declaration.
+//
+// The new path is named /z rather than the /b a hand-drawn example might
+// reach for: findings are ordered by mount pointer (byte order), and /z sorts
+// after /pets while /b would sort before it. Naming the new path anything
+// that sorts first would attribute the conflict to the base's own /pets
+// instead — the byte-order rule cuts both ways, and this is what pins it
+// landing on the overlay's own declaration rather than the base's.
+const addPathReusingTheBaseOperationID = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.paths
+    update:
+      /z:
+        get:
+          operationId: listPets
+          responses:
+            '200': {description: ok}
+`
+
+// TestCompile_OverlayAddingAConflictingOperationIDIsAnError pins where the
+// conflict lands when the overlay itself writes the second declaration: the
+// pointer the overlay introduced, attributed to the overlay's own source
+// index rather than the base spec's.
+func TestCompile_OverlayAddingAConflictingOperationIDIsAnError(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileWith(t, openapi.Options{
+		Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addPathReusingTheBaseOperationID)},
+	})
+	require.NotNil(t, doc)
+
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.ConflictingOperationID {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1, "one second declaration of listPets: %+v", diags)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Equal(t, 1, found[0].Provenance.Source, "attributed to the overlay that wrote the second declaration")
+	assert.Equal(t, "/paths/~1z/get", found[0].Provenance.Pointer)
+}
+
+// copyPetsPathIntoZ models an Overlay 1.1 `copy` action reusing /pets'
+// operationId under a new path. copy merges its source into whatever the
+// target already selects rather than minting the key itself, so the first
+// action makes an empty mapping at /z for the second to merge into; /z is
+// named for the same byte-order reason addPathReusingTheBaseOperationID is.
+const copyPetsPathIntoZ = `overlay: 1.1.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.paths
+    update:
+      /z: {}
+  - target: $.paths['/z']
+    copy: $.paths['/pets']
+`
+
+// TestCompile_OverlayCopyOfAPathItemIsAConflictNotARemount pins the Overlay
+// 1.1 `copy` action against the alias reading that would treat it as one
+// declaration mounted twice. The library's copy deep-clones the source node
+// rather than reusing it, so the copied /z/get has a *yaml.Node of its own:
+// declaringNode sees two distinct declarations, and OpenAPI requires the id
+// to be unique across both, so this is the same conflict a hand-written
+// second declaration would be — not a remount of one declaration, which is
+// what the alias and $ref forms are.
+func TestCompile_OverlayCopyOfAPathItemIsAConflictNotARemount(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileWith(t, openapi.Options{
+		Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(copyPetsPathIntoZ)},
+	})
+	require.NotNil(t, doc)
+
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.ConflictingOperationID {
+			found = append(found, d)
+		}
+	}
+	require.Len(t, found, 1, "the copy is a second declaration, not a remount: %+v", diags)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Equal(t, 1, found[0].Provenance.Source)
+	assert.Equal(t, "/paths/~1z/get", found[0].Provenance.Pointer)
+}

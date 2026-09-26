@@ -1,0 +1,46 @@
+# Three ways a document reuses one operationId declaration without repeating
+# it: a components/pathItems entry $ref'd at two paths, a components/callbacks
+# entry $ref'd from two parent operations, and a two-deep $ref chain (a path
+# item $ref'ing another path item that itself $refs a component). Each mounts
+# one declaration more than once, so each raises only the compiler's own
+# openapi/duplicate-operation-id warning (GitHub #502) — this fixture puts that
+# warning under the corpus order-invariance sweep. A YAML alias would do the
+# same, but reversing a mapping puts an alias before its own anchor, which the
+# order oracle already excludes, so every reuse here is a $ref.
+openapi: 3.1.0
+info:
+  title: Operation IDs reused by reference, not repeated
+  version: 1.0.0
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+  /chain-1: {$ref: '#/components/pathItems/Chained'}
+  /chain-2: {$ref: '#/paths/~1chain-1'}
+  /first:
+    post:
+      operationId: first
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/Shared'}
+      responses: {"200": {description: ok}}
+  /second:
+    post:
+      operationId: second
+      callbacks:
+        onEvent: {$ref: '#/components/callbacks/Shared'}
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Shared:
+      get:
+        operationId: sharedGet
+        responses: {"200": {description: ok}}
+    Chained:
+      get:
+        operationId: chainedGet
+        responses: {"200": {description: ok}}
+  callbacks:
+    Shared:
+      '{$request.body#/url}':
+        post:
+          operationId: sharedCallback
+          responses: {"200": {description: ok}}

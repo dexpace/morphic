@@ -66,6 +66,59 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 	assert.True(t, found, "diagnostics should carry line:col provenance")
 }
 
+// TestLoad_OperationIDUniquenessIsTheCompilers pins compilerOwned's one member:
+// the library's own operationId-uniqueness finding never reaches a diagnostic,
+// because the service lowering judges every claim itself once it has seen them
+// all (GitHub #502). The alias form is what the library gets wrong in the way
+// this compiler does not: it counts the anchor and its alias as two operations,
+// where a $ref reusing one declaration counts as one.
+//
+// TestLoad_DuplicateParameterStillReported beside it is the control the comment
+// on compilerOwned promises: a finding the compiler does not own must still
+// reach a diagnostic, or the two tests together would only prove findings()
+// drops everything rather than this one rule.
+func TestLoad_OperationIDUniquenessIsTheCompilers(t *testing.T) {
+	t.Parallel()
+	const aliasedOperationID = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(aliasedOperationID)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationIdUnique),
+		"the library's own finding for this rule never reaches a diagnostic: %+v", diags)
+}
+
+// TestLoad_DuplicateParameterStillReported is the control for
+// TestLoad_OperationIDUniquenessIsTheCompilers: compilerOwned names one rule,
+// not every validation error the library raises inside an operation, so a
+// duplicated parameter — a defect the compiler checks no rule of its own for —
+// must still surface.
+func TestLoad_DuplicateParameterStillReported(t *testing.T) {
+	t.Parallel()
+	const duplicateParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: q, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+		"a rule the compiler does not own must still surface: %+v", diags)
+}
+
 // TestLoad_ExternalRefResolutionErrors drives the resErrs branch of load: an
 // external $ref to a malformed response yields per-reference validation errors
 // (not a single hard error), which load forwards as unresolved-ref diagnostics.
