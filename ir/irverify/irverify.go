@@ -91,6 +91,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkIndices,
 		checkBigVals,
 		checkUTF8,
+		checkValues,
 	}
 }
 
