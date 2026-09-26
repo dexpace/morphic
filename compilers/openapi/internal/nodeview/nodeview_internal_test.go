@@ -95,6 +95,16 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
 		{name: "bare hash names the root", ref: "#", want: "", internal: true},
 		{name: "undecodable escape kept raw", ref: "#/a%zz", want: "/a%zz", internal: true},
+		// A fragment with no leading '/' is a $anchor name or other non-pointer
+		// text, not a pointer: the resolver never walks it as one (GitHub #523).
+		{name: "anchor name is not a pointer", ref: "#x-s", want: "", internal: false},
+		{name: "undecodable escape without a slash stays no pointer", ref: "#%ZZ", want: "", internal: false},
+		{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F", want: "/", internal: true},
+		{name: "lone slash", ref: "#/", want: "/", internal: true},
+		// No document key spells bytes that are not UTF-8, but the resolver walks
+		// the pointer up to the token it cannot find, so the scan must too
+		// (GitHub #520).
+		{name: "non-UTF-8 byte is walked like any pointer", ref: "#/a%FF", want: "/a\xff", internal: true},
 		{name: "no fragment", ref: "other.yaml", internal: false},
 		{name: "another document", ref: "other.yaml#/components/schemas/A", internal: false},
 	}

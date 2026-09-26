@@ -821,6 +821,78 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	}
 }
 
+// TestDetectCycles_AnchorFragmentIsNotWalked pins the fix for GitHub #523: a
+// fragment with no leading '/' names a $anchor, not a pointer, and the resolver
+// never walks it as one. Reading it as though '#x-s' were the pointer 'x-s' made
+// the scan walk it from the root as a key, refusing a document the resolver
+// never treats as a cycle.
+//
+// The pointer-spelled twin is the point of the pair. The anchor case fails if
+// the leading-'/' refusal is reverted; the pointer case fails if a fix refuses
+// the key rather than the anchor spelling, which would swallow this real cycle.
+func TestDetectCycles_AnchorFragmentIsNotWalked(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		src     string
+		isCycle bool
+	}{
+		{name: "anchor spelling names a $anchor, not a pointer", src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#x-s'
+components:
+  schemas:
+    A:
+      $ref: '#x-s'
+`},
+		{name: "the pointer spelling is a real cycle through the document root", isCycle: true, src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#/x-s'
+components:
+  schemas:
+    A:
+      $ref: '#/x-s'
+`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			diags := scanBytes(t, []byte(tc.src))
+			if !tc.isCycle {
+				assert.Empty(t, diags, "'#x-s' names a $anchor, which the resolver's pointer walk never enters")
+				return
+			}
+			require.NotEmpty(t, diags, "'#/x-s' is a real pointer cycle through the document root")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
+// TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver pins why the scan reads
+// a fragment that is not UTF-8 as a pointer, although lowering refuses it
+// (GitHub #520). The resolver walks '#/paths/~1a/%FF' through /a before failing
+// on the last token, exactly as it walks '#/paths/~1a/t', so both re-enter the
+// reference being resolved and are refused alike. Refusing the fragment in the
+// scan's reader too would make the verdict turn on whether that token is UTF-8.
+func TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver(t *testing.T) {
+	t.Parallel()
+	for _, token := range []string{"t", "%FF"} {
+		t.Run(token, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: '#/paths/~1a/" + token + "'}\n"
+			diags := scanBytes(t, []byte(src))
+			require.NotEmpty(t, diags, "the pointer passes through /a, the reference being resolved")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
 // TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
 // need: without it, a suite made only of refusals would pass on a scan that
 // refused everything handed to it.

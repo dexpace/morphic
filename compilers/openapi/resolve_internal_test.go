@@ -1,7 +1,10 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
@@ -9,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -330,4 +335,108 @@ func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID
 	require.True(t, ok, "%s lowers to an alias over what its $ref names", name)
 	require.NotNil(t, alias.Base, "the alias names what it stands for")
 	assert.Equal(t, target, alias.Base.Target, msg)
+}
+
+// TestInternalPointer_ScanAndLoweringReadFragmentsAlike holds nodeview's and
+// resolve's fragment readers to each other. The pre-lowering cycle scan reads a
+// $ref's fragment through nodeview.InternalPointer, a hand-written mirror of the
+// resolver; lowering reads the same fragment through resolve.Scope.InternalPointer,
+// which asks the resolver's own references.Reference instead. They mirror one
+// target by two different means, on opposite sides of the archtest ordering (this
+// package may import both; neither of them may import the other, and no package
+// they can both reach would host a shared predicate without widening an
+// allowlist for it) — so a rule added to one and not the other is exactly the
+// drift a grep-for-the-other-test convention cannot catch, and this test can.
+//
+// Every row is a reference with no document part. A document part is where the
+// two answer different questions: lowering reads its own file's name as this
+// document, while the scan leaves every document part to the resolver, which
+// treats it as another document.
+//
+// They part on two kinds of fragment, each read by the scan and refused by
+// lowering. A bare '#' names the whole document: the resolver lands it on the
+// root, where there is no position to intern. A fragment that decodes to bytes
+// that are not UTF-8 names no key, and no ID the IR can encode, but the
+// resolver walks it until the token it cannot find (GitHub #520). Every other
+// row asserts the two agree, both on whether the fragment is a pointer and on
+// what it names.
+func TestInternalPointer_ScanAndLoweringReadFragmentsAlike(t *testing.T) {
+	t.Parallel()
+	sc := fragmentScope()
+	for _, tc := range fragmentReadings {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			scanPointer, scanOK := nodeview.InternalPointer(tc.ref)
+			lowerPointer, lowerOK := sc.InternalPointer(tc.ref)
+			if tc.parted {
+				assert.True(t, scanOK, "the scan reads %q the way the resolver walks it", tc.ref)
+				assert.Equal(t, tc.scanReads, scanPointer)
+				assert.False(t, lowerOK, "lowering has no position to intern for %q", tc.ref)
+				assert.Equal(t, jsontext.Pointer(""), lowerPointer)
+				return
+			}
+			assert.Equal(t, scanOK, lowerOK, "the two readers must agree whether %q is a pointer", tc.ref)
+			assert.Equal(t, scanPointer, lowerPointer, "and on what it names")
+		})
+	}
+}
+
+// FuzzInternalPointer_ScanAndLoweringReadFragmentsAlike carries the test above
+// past its rows. Whatever the fragment, the two readers agree unless the scan
+// reads the root or bytes that are not UTF-8, and lowering refuses both.
+func FuzzInternalPointer_ScanAndLoweringReadFragmentsAlike(f *testing.F) {
+	for _, tc := range fragmentReadings {
+		f.Add(tc.ref)
+	}
+	sc := fragmentScope()
+	f.Fuzz(func(t *testing.T, ref string) {
+		if doc, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(doc) != "" {
+			return // a document part, where the readers answer different questions
+		}
+		scanPointer, scanOK := nodeview.InternalPointer(ref)
+		lowerPointer, lowerOK := sc.InternalPointer(ref)
+		if scanOK && (scanPointer == "" || !utf8.ValidString(string(scanPointer))) {
+			assert.False(t, lowerOK, "lowering refuses %q, which the scan reads as %q", ref, scanPointer)
+			return
+		}
+		assert.Equal(t, scanOK, lowerOK, "the two readers must agree whether %q is a pointer", ref)
+		assert.Equal(t, scanPointer, lowerPointer, "and on what %q names", ref)
+	})
+}
+
+// fragmentScope is the lowering side of the fragment tests: a document that
+// declares nothing, since reading a fragment never asks what is declared.
+func fragmentScope() resolve.Scope {
+	return resolve.Scope{SelfPath: "spec.yaml", Declares: func(string) bool { return false }}
+}
+
+// fragmentReadings are $ref values with no document part, and how the two
+// fragment readers must read each. A parted row is one they read apart on
+// purpose: the scan reads it as scanReads, and lowering refuses it.
+var fragmentReadings = []struct {
+	name, ref string
+	parted    bool
+	scanReads jsontext.Pointer
+}{
+	// GitHub #523: a fragment with no leading '/' names a $anchor, not a
+	// pointer, however it decodes.
+	{name: "anchor name", ref: "#x-s"},
+	{name: "undecodable escape without a leading slash", ref: "#%ZZ"},
+	{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F"},
+	{name: "lone slash", ref: "#/"},
+	// Escaping the two readers must keep agreeing on.
+	{name: "a plus decodes to a space", ref: "#/a+b"},
+	{name: "second hash ends the pointer", ref: "#/a#b"},
+	{name: "leading and trailing space", ref: " #/a "},
+	{name: "non-canonical escape, accepted by both (GitHub #14)", ref: "#/A~B"},
+	{name: "percent-encoded hyphen", ref: "#/components/schemas/Foo%2DBar"},
+	// Parted: empty after trimming, so the whole document.
+	{name: "bare hash", ref: "#", parted: true, scanReads: ""},
+	{name: "hash and a space", ref: "# ", parted: true, scanReads: ""},
+	// Parted: decodes to bytes that are not UTF-8 (GitHub #520).
+	{name: "non-UTF-8 byte", ref: "#/a%FF", parted: true, scanReads: "/a\xff"},
+	{name: "overlong encoding is not UTF-8", ref: "#/a%C0%AF", parted: true, scanReads: "/a\xc0\xaf"},
+	{name: "UTF-16 surrogate is not UTF-8", ref: "#/a%ED%A0%80", parted: true, scanReads: "/a\xed\xa0\x80"},
+	{name: "non-UTF-8 byte in a realistic pointer", ref: "#/components/schemas/%FF", parted: true,
+		scanReads: "/components/schemas/\xff"},
 }
