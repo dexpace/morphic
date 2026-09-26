@@ -78,6 +78,12 @@ func TestDetect_Formats(t *testing.T) {
 			compilers.SourceFormat{}, false, nil},
 		{"unparseable json", "api.json", `{"openapi": "3.1.0", "info": {`,
 			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		// A key that is not UTF-8 refuses the whole document, which is what lets
+		// ids.Ptr assume every token it escapes is UTF-8.
+		{"undecodable yaml key", "api.yaml", "openapi: 3.1.0\ninfo: {}\n\xff: x\n",
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
+		{"undecodable json key", "api.json", "{\"openapi\": \"3.1.0\", \"\xff\": 1}",
+			compilers.SourceFormat{}, false, []string{diag.UndecodableSource}},
 		// Broken, and never this compiler's: the key it names is a value, not a
 		// key, so the parse error describes a parser that was wrong to be asked.
 		{"unparseable, key only mentioned", "svc.proto", "syntax = \"openapi\";\n{[",

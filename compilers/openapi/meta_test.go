@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -82,7 +83,7 @@ func TestTagExtensions_NilEntrySkipped(t *testing.T) {
 
 	require.Len(t, got, 2, "one surviving tag contributes its own site and its externalDocs one")
 	assert.Equal(t, "tags/1", got[0].Scope, "the site is keyed at the tag's own index, not its position")
-	assert.Equal(t, "/tags/1", got[0].Owner)
+	assert.Equal(t, jsontext.Pointer("/tags/1"), got[0].Owner)
 }
 
 // TestTagUnknownSites_NilEntrySkipped is TestTagExtensions_NilEntrySkipped's
@@ -98,9 +99,9 @@ func TestTagUnknownSites_NilEntrySkipped(t *testing.T) {
 	require.Len(t, got, 2,
 		"the nil tag contributes nothing, and the surviving one contributes its own site and its externalDocs")
 	assert.Equal(t, "tags/1", got[0].scope, "the site is keyed at the tag's own index, not its position")
-	assert.Equal(t, "/tags/1", got[0].owner)
+	assert.Equal(t, jsontext.Pointer("/tags/1"), got[0].owner)
 	assert.Equal(t, "tags/1/externalDocs", got[1].scope, "and its externalDocs is scoped under that same index")
-	assert.Equal(t, "/tags/1/externalDocs", got[1].owner)
+	assert.Equal(t, jsontext.Pointer("/tags/1/externalDocs"), got[1].owner)
 }
 
 func TestMeta_NoInfoNoServers(t *testing.T) {

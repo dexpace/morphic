@@ -47,7 +47,7 @@ var rules = map[string][]string{
 	// nothing but ir. Its own entry says that, rather than letting it inherit the
 	// compiler's much wider allowlist by being an unkeyed subdirectory.
 	"compilers/openapi/internal/diag": {module + "/ir"},
-	// Pointer arithmetic and the OpenAPI derivation of an ID from a pointer. It
+	// Pointer construction and the OpenAPI derivation of an ID from a pointer. It
 	// reaches the framework for the grammar wrapped around a path and nothing
 	// else: what is OpenAPI's here is the path, and a package that could reach
 	// the compiler would be able to derive one from something other than a
@@ -65,12 +65,10 @@ var rules = map[string][]string{
 	// internal test file cannot import a package that imports its own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
-	// through aliases and `<<` merge keys. It reaches ids for the pointer
-	// unescaping one lookup needs and ynode for the merge tag its key predicate
-	// tests against, and is below both the scans that first wanted it and the
-	// schema lowering that wants the same view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// through aliases and `<<` merge keys. It reaches ynode for the merge tag its
+	// key predicate tests against, and is below both the scans that first wanted
+	// it and the schema lowering that wants the same view.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -97,9 +95,9 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
-	// reports through diag, reaching ids for the pointer arithmetic that names a
-	// position and nodeview for the document root — and nothing that lowers,
-	// because it runs before there is anything to lower.
+	// reports through diag, reaching ids for the pointer that names a position and
+	// nodeview for the document root — and nothing that lowers, because it runs
+	// before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",

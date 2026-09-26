@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"encoding/json/jsontext"
 	"strconv"
 	"testing"
 
@@ -74,9 +75,9 @@ func TestAttribute_DegradesWhenOnlyTheSecondWalkRunsOut(t *testing.T) {
 
 	pointers, nodes, ok := attribute(&root, before, maxNodes)
 	require.True(t, ok, "and the same tree fits a real one — the budget is what differed")
-	assert.Equal(t, map[string]bool{"/b": true}, pointers,
+	assert.Equal(t, map[jsontext.Pointer]bool{"/b": true}, pointers,
 		"which is also the answer the exhausted walk withheld")
-	assert.Equal(t, map[*yaml.Node]string{key: "/b", value: "/b"}, nodes,
+	assert.Equal(t, map[*yaml.Node]jsontext.Pointer{key: "/b", value: "/b"}, nodes,
 		"and both nodes of the new member sit at that pointer")
 }
 

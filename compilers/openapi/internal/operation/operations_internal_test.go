@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"encoding/json/jsontext"
 	"reflect"
 	"slices"
 	"sort"
@@ -111,7 +112,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	merged := mergeParameters(pi.GetParameters(), op.GetParameters(), pathPtr, opPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
 	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
-	assert.Equal(t, "/paths/~1users~1{id}/get/parameters/0", merged[0].pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1users~1{id}/get/parameters/0"), merged[0].pointer,
 		"the op-level parameter keeps its own declaration pointer")
 
 	byName := map[string]sourcedParam{}
@@ -122,7 +123,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	_, hasTrace := byName["trace"]
 	assert.True(t, hasID)
 	assert.True(t, hasTrace)
-	assert.Equal(t, "/paths/~1users~1{id}/parameters/1", byName["trace"].pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1users~1{id}/parameters/1"), byName["trace"].pointer,
 		"the unshadowed path-level parameter keeps its own declaration pointer, at its own path-item index")
 }
 
@@ -350,7 +351,7 @@ func TestPathOperations_NilAdditionalOperationSkipped(t *testing.T) {
 
 	require.Len(t, ops, 1, "the nil entry is skipped and the real one is not")
 	assert.Equal(t, "PURGE", ops[0].method)
-	assert.Equal(t, "/additionalOperations/PURGE", ops[0].seg)
+	assert.Equal(t, jsontext.Pointer("/additionalOperations/PURGE"), ops[0].seg)
 }
 
 // httpMethodsNames is the plain-string projection of httpMethods, which

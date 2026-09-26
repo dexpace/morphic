@@ -9,6 +9,7 @@
 package auth
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strconv"
@@ -86,7 +87,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 // reachable from a parsed document — a malformed entry still arrives as an
 // object — so that guard is for a hand-built node, matching resolve.Object's.
 func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
-	entry string,
+	entry jsontext.Pointer,
 ) []ir.Diagnostic {
 	if rs == nil {
 		return nil
@@ -116,7 +117,7 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 // with its provenance path — so following decl here would collapse two schemes
 // onto one identity and break that agreement at once.
 func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
-	entry, decl string,
+	entry, decl jsontext.Pointer,
 ) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
 	scheme = ir.AuthScheme{
 		ID:         ids.Auth(name),
@@ -152,7 +153,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 // Only oauth2 reads inside `flows`: on any other type the whole node is kept
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
-func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl string) []ir.Diagnostic {
+func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
 	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
@@ -172,7 +173,7 @@ func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Secur
 // same object — scheme.Flows came from oauthFlows, which walks presentFlows — so
 // the i-th lowered flow is the i-th declared one and the two cannot differ in
 // length.
-func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr string) []ir.Diagnostic {
+func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
 		fptr := flowsPtr + ids.Ptr(f.keyword)
@@ -211,7 +212,7 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 // the reference, and it is the declaration it resolves to that is missing the
 // field. Both are reported, each at its own entry, so the wording has to be
 // true of the alias as well as of the target.
-func mechanismRefusalDiag(c lowering.Ctx, name, missing, entry string) ir.Diagnostic {
+func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
@@ -337,7 +338,7 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 // an entry written as a $ref rather than the entry itself — the value is read
 // from that node, so the entry that records it must name it (issue #107).
 func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
-	decl string,
+	decl jsontext.Pointer,
 ) []ir.Diagnostic {
 	defined := fieldsDefinedBy(ss.GetType())
 	var diags []ir.Diagnostic
@@ -472,7 +473,7 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 // resolves to nothing is a defect in the document rather than a construct the
 // IR declines to model, which is the call an unresolvable $ref in a schema
 // position and an unresolvable discriminator mapping already get here.
-func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base string) ([]ir.AuthRequirement, []ir.Diagnostic) {
+func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
@@ -509,7 +510,7 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 // scheme, which is true of all three — calling it undeclared would contradict
 // the entry-level report LowerSecuritySchemes leaves beside it in the latter
 // two cases.
-func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer string,
+func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if !writtenAsObject(req) {
 		return ir.AuthRequirement{}, false, nil

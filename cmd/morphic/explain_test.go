@@ -39,6 +39,25 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	assert.NotContains(t, out, `"irVersion"`, "--explain replaces the document, it does not add to it")
 }
 
+// TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer pins that an empty
+// --explain is the root coordinate rather than an absent flag: the empty JSON
+// Pointer names the whole document, and it is the only query everything
+// interned sits beneath.
+func TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", explainSpec)
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", ""}, &stdout, &stderr)
+
+	require.Equal(t, 0, code, "stderr: %s", stderr.String())
+	out := stdout.String()
+	assert.Contains(t, out, `coordinate "" (the whole document)`)
+	assert.Contains(t, out, "/components/schemas/S -> t/openapi/components/schemas/S (model)",
+		"the whole document holds every coordinate that interned a node")
+	assert.NotContains(t, out, `"irVersion"`, "an empty --explain is still --explain, not the document")
+}
+
 // TestExplainDocument_MissAtACoordinateNamesWhatInternedBelow covers the case the
 // command exists for: a schema that reduced to a shared primitive owns no node at
 // its own coordinate, and what interned beneath it is the difference between
@@ -100,8 +119,36 @@ func TestExplainDocument_NilEntriesAreSkipped(t *testing.T) {
 	assert.Contains(t, w.String(), "node t/real (model)")
 
 	var below bytes.Buffer
-	require.NotPanics(t, func() { explainDocument(&below, doc, nil, "/") })
+	require.NotPanics(t, func() { explainDocument(&below, doc, nil, "") })
 	assert.Contains(t, below.String(), "interned below it (1)")
+}
+
+// TestExplainDocument_TrailingSlashIsAToken pins that a trailing '/' names a
+// member of its own: /components/schemas/ is the schema keyed "", so only its
+// subtree is beneath it. Trimming the slash, as the query once was, lists every
+// component's subtree instead, and the queried schema as beneath itself.
+func TestExplainDocument_TrailingSlashIsAToken(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/empty": &ir.Model{
+			ID: "t/empty", Provenance: ir.Provenance{Pointer: "/components/schemas/"},
+		},
+		"t/emptyprop": &ir.Model{
+			ID: "t/emptyprop", Provenance: ir.Provenance{Pointer: "/components/schemas//properties/x"},
+		},
+		"t/otherprop": &ir.Model{
+			ID: "t/otherprop", Provenance: ir.Provenance{Pointer: "/components/schemas/User/properties/y"},
+		},
+	}}
+	var w bytes.Buffer
+	explainDocument(&w, doc, nil, "/components/schemas/")
+
+	out := w.String()
+	assert.Contains(t, out, "node t/empty (model)", `the schema keyed "" is found at its own pointer`)
+	assert.Contains(t, out, "interned below it (1)")
+	assert.Contains(t, out, "/components/schemas//properties/x")
+	assert.NotContains(t, out, "/components/schemas/User/properties/y",
+		"a sibling schema's property shares the query's text but not its token boundary")
 }
 
 func TestExplainDocument_NilDocumentIsReportedNotDereferenced(t *testing.T) {

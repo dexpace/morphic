@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -30,7 +31,7 @@ type lowerer struct {
 	types        *compile.Types
 	diags        compile.Diags
 	anchors      schema.AnchorIndex
-	operationIDs map[string]string
+	operationIDs map[string]jsontext.Pointer
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -42,7 +43,7 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 		ctx:          ctx,
 		out:          &ir.Document{Types: types.Registry()},
 		types:        types,
-		operationIDs: make(map[string]string),
+		operationIDs: make(map[string]jsontext.Pointer),
 	}
 }
 

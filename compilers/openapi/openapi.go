@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -105,7 +106,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// (micro-compiler-design §4.1). Nothing below allocates them.
 	out := &ir.Document{Types: ts.Registry()}
 	var anchors schema.AnchorIndex
-	operationIDs := make(map[string]string)
+	operationIDs := make(map[string]jsontext.Pointer)
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
 	// diagnostics now, so a shared declaration reported from N use sites returns N

@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,8 +43,8 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Report: func(sev ir.Severity, code, pointer, format string, args ...any) {
-			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
+		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: string(pointer)}, format, args...))
 		},
 	}
 	return g, recorded

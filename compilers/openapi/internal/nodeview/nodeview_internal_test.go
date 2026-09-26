@@ -1,6 +1,7 @@
 package nodeview
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"testing"
@@ -55,7 +56,7 @@ func TestPointerPath_Cases(t *testing.T) {
 	)
 	tests := []struct {
 		name    string
-		pointer string
+		pointer jsontext.Pointer
 		want    *yaml.Node
 	}{
 		{"sequence index in range", "/arr/1", root.Content[1].Content[1]},
@@ -83,8 +84,9 @@ func TestPointerPath_Cases(t *testing.T) {
 func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name, ref, want string
-		internal        bool
+		name, ref string
+		want      jsontext.Pointer
+		internal  bool
 	}{
 		{name: "plain", ref: "#/components/schemas/A", want: "/components/schemas/A", internal: true},
 		{name: "trailing space", ref: "#/paths/~1a ", want: "/paths/~1a", internal: true},
@@ -196,7 +198,7 @@ func TestPureRefTarget_Cases(t *testing.T) {
 	tests := []struct {
 		name string
 		n    *yaml.Node
-		want string
+		want jsontext.Pointer
 	}{
 		{"sibling key before the ref", ynode.Map(ynode.Scalar("type"), ynode.Scalar("object"),
 			ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A")), "/components/schemas/A"},
@@ -541,7 +543,7 @@ func TestPointerPath_SegmentCapStopsTheWalk(t *testing.T) {
 	root.Content[1] = root
 
 	ref := strings.Repeat("/a", maxPointerSegments+1)
-	path, complete := New().PointerPath(root, ref)
+	path, complete := New().PointerPath(root, jsontext.Pointer(ref))
 	assert.False(t, complete, "a pointer past the segment cap does not resolve")
 	assert.Len(t, path, maxPointerSegments+1,
 		"the walk stops at the cap: the root plus one node per followed token")
@@ -705,7 +707,7 @@ func TestPointerPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	v := New()
 
 	for i := range width {
-		_, complete := v.PointerPath(root, fmt.Sprintf("/components/schemas/S%d", i))
+		_, complete := v.PointerPath(root, jsontext.Pointer(fmt.Sprintf("/components/schemas/S%d", i)))
 		require.True(t, complete, "every pointer resolves")
 	}
 
@@ -739,7 +741,7 @@ func TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne(t *testing.T) {
 
 	target, ok := v.PureRefTarget(withRef)
 	assert.True(t, ok)
-	assert.Equal(t, "/components/schemas/S", target)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S"), target)
 
 	_, ok = v.PureRefTarget(without)
 	assert.False(t, ok, "a mapping with no $ref names no target, index or not")
@@ -753,7 +755,7 @@ func TestPureRefTarget_ReadsTheIndexWhereTheWalkBuiltOne(t *testing.T) {
 	v.keys[withRef]["$ref"] = ynode.Scalar("#/components/schemas/Planted")
 	target, ok = v.PureRefTarget(withRef)
 	require.True(t, ok)
-	assert.Equal(t, "/components/schemas/Planted", target,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Planted"), target,
 		"the index is what answered, not a rescan of the pairs beneath it")
 }
 

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json/jsontext"
 	"strconv"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
@@ -81,14 +82,14 @@ type Origin struct {
 	//
 	// Its nil-ness is what Applied reports, so a successful application of an
 	// overlay that changed nothing still yields a non-nil empty map.
-	pointers map[string]bool
+	pointers map[jsontext.Pointer]bool
 	// nodes holds the same positions keyed by the node that sits at each — the
 	// value the walk attributed, and the key beside it when the overlay
 	// introduced that too. A diagnostic raised on a raw node has the node and
 	// not the pointer; this is what lets it be answered at all, since a grafted
 	// node carries no line and column of its own (the library's clone keeps
 	// neither) and would otherwise be reported at 0:0 in the source.
-	nodes map[*yaml.Node]string
+	nodes map[*yaml.Node]jsontext.Pointer
 }
 
 // Applied reports whether an overlay was applied to the document at all.
@@ -106,7 +107,7 @@ func (o Origin) Source() ir.SourceInfo { return o.source }
 // `<<` merge key, which the node tree holds once at the anchor's own position —
 // falls back, so an unrecognized pointer under-attributes rather than
 // misattributes.
-func (o Origin) IndexAt(pointer string, fallback int) int {
+func (o Origin) IndexAt(pointer jsontext.Pointer, fallback int) int {
 	if o.pointers[pointer] {
 		return o.index
 	}
@@ -130,7 +131,7 @@ func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
 	if !ok {
 		return ir.Provenance{}, false
 	}
-	return ir.Provenance{Source: o.index, Pointer: pointer}, true
+	return ir.Provenance{Source: o.index, Pointer: string(pointer)}, true
 }
 
 // Apply applies opts to root in place and returns the attribution of what it
@@ -176,8 +177,8 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 	}
 	complete = complete && normalized
 
-	var pointers map[string]bool
-	var nodes map[*yaml.Node]string
+	var pointers map[jsontext.Pointer]bool
+	var nodes map[*yaml.Node]jsontext.Pointer
 	ok := false
 	if complete {
 		pointers, nodes, ok = attribute(root, before, budget)
@@ -416,14 +417,14 @@ func snapshot(root *yaml.Node, budget int) (map[*yaml.Node]string, bool) {
 // node a finding can be anchored on, and the library appends it uncloned from
 // the overlay document, so it carries that document's line and column: read as
 // the source's, a worse answer than none.
-func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[string]bool, map[*yaml.Node]string, bool) {
+func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[jsontext.Pointer]bool, map[*yaml.Node]jsontext.Pointer, bool) {
 	changed := func(n *yaml.Node) bool {
 		prior, known := before[n]
 		return !known || prior != n.Value
 	}
 
-	pointers := map[string]bool{}
-	nodes := map[*yaml.Node]string{}
+	pointers := map[jsontext.Pointer]bool{}
+	nodes := map[*yaml.Node]jsontext.Pointer{}
 	stack := []frame{{node: nodeview.DocumentRoot(root)}}
 	for ; len(stack) > 0; budget-- {
 		if budget == 0 {
@@ -450,7 +451,7 @@ func attribute(root *yaml.Node, before map[*yaml.Node]string, budget int) (map[s
 // addresses it and, for a mapping's value, the key it sits under.
 type frame struct {
 	node    *yaml.Node
-	pointer string
+	pointer jsontext.Pointer
 	key     *yaml.Node
 }
 

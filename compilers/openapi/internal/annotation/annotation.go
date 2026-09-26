@@ -194,7 +194,7 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 // the object the extensions were written on; each entry is located at its own
 // key beneath it and marked ReasonVendorExtension, since the format assigns an
 // x-* key no semantics at all.
-func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	return ExtensionsUnder(ext, srcIndex, owner, "")
 }
 
@@ -216,7 +216,7 @@ func ExtensionsFrom(ext *extensions.Extensions, srcIndex int, owner string) (ir.
 // (scope, owner) pairs. That same gap holds against the non-extension keys a
 // carrier already holds under these scopes, such as the
 // "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
-func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
@@ -230,14 +230,14 @@ func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope stri
 		raw, err := RawFromNode(node)
 		if err != nil || raw == nil {
 			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-				ir.Provenance{Source: srcIndex, Pointer: owner},
+				ir.Provenance{Source: srcIndex, Pointer: string(owner)},
 				"extension %q could not be serialized", name))
 			continue
 		}
 		out[prefix+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
-			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ids.Ptr(name)},
+			Provenance: ir.Provenance{Source: srcIndex, Pointer: string(owner + ids.Ptr(name))},
 		}
 	}
 	if len(out) == 0 {
@@ -251,7 +251,7 @@ func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner, scope stri
 // the carrier that ends up holding them (see ExtensionsUnder).
 type ExtensionSite struct {
 	Scope string
-	Owner string
+	Owner jsontext.Pointer
 	Ext   *extensions.Extensions
 }
 
@@ -636,7 +636,7 @@ type Set struct {
 // previously made it separately and disagreed: one passed a referent, one passed
 // nil because a declaration has none, and one passed nil because it never
 // resolved the referent it had.
-func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
+func Read(st Site, pointer jsontext.Pointer, srcIndex int) (Set, []ir.Diagnostic) {
 	var out Set
 
 	referent := st.Referent
@@ -678,7 +678,7 @@ func Read(st Site, pointer string, srcIndex int) (Set, []ir.Diagnostic) {
 // even though these hang off a schema: the JSON Schema rule that an unrecognized
 // keyword is legal governs the schema itself, and these three are OpenAPI
 // objects that the schema vocabulary says nothing about.
-func subObjectKeys(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	subs := []struct {
 		keyword string
 		obj     any
@@ -710,7 +710,7 @@ func subObjectKeys(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, 
 // ir.Encoding depends on what the position lowered to, which only the schema
 // package can answer — schema.recordUnplacedContent asks the node that was
 // built rather than the keyword that was written.
-func unmodeledAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	vOnly, vDiags := validationOnlyAt(s, pointer, srcIndex)
 	dialect, dDiags := dialectAt(s, pointer, srcIndex)
 
@@ -734,7 +734,7 @@ var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
 
 // dialectAt keeps each dialect keyword s declares verbatim and announces it, so
 // the exclusion is visible in the output rather than only in this comment.
-func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, keyword := range DialectKeywords {
@@ -746,7 +746,7 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 			continue
 		}
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
-			ir.Provenance{Source: srcIndex, Pointer: at},
+			ir.Provenance{Source: srcIndex, Pointer: string(at)},
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
 				"honoured for reference resolution", keyword))
@@ -758,7 +758,7 @@ func dialectAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir
 //
 // Site-only: an example written beside a $ref describes the position, never the
 // referent, which is the class of annotation the $ref-sibling defect broke.
-func schemaExamplesAt(s *oas3.Schema, pointer string, srcIndex int) ([]ir.Example, []ir.Diagnostic) {
+func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	if node := s.GetExample(); node != nil {
@@ -773,13 +773,13 @@ func schemaExamplesAt(s *oas3.Schema, pointer string, srcIndex int) ([]ir.Exampl
 // appendExampleAt converts one example node, reporting an unconvertible value
 // rather than dropping it.
 func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
-	srcIndex int, base string, seg ...string,
+	srcIndex int, base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	at := base + ids.Ptr(seg...)
 	v, err := value.FromNode(node)
 	if err != nil {
 		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-			ir.Provenance{Source: srcIndex, Pointer: at}, "example: %s", err.Error()))
+			ir.Provenance{Source: srcIndex, Pointer: string(at)}, "example: %s", err.Error()))
 	}
 	return append(out, ir.Example{Value: &v}), diags
 }
@@ -788,14 +788,14 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 // not model, keeping each verbatim and announcing it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
 	// keep takes the conversion's error alongside its payload so a keyword that
 	// could not be converted is reported rather than passed on as an absent one —
 	// the two were indistinguishable here before GitHub #144.
-	keep := func(key string, raw ir.RawValue, err error, entryPtr, label string) {
+	keep := func(key string, raw ir.RawValue, err error, entryPtr jsontext.Pointer, label string) {
 		if err != nil {
 			diags = append(diags, UnpreservableDiag(key, entryPtr, srcIndex, err))
 			return
@@ -849,7 +849,7 @@ func validationOnlyAt(s *oas3.Schema, pointer string, srcIndex int) (ir.Unmodele
 // states, and an empty payload is the worse of the two. It preserves no
 // construct, and it fails the encoding of the whole document that carries it.
 func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	reason ir.UnmodeledReason, pointer string, srcIndex int,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer, srcIndex int,
 ) {
 	if len(raw) == 0 {
 		return
@@ -860,7 +860,7 @@ func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	(*p)[key] = ir.UnmodeledEntry{
 		Reason:     reason,
 		Value:      raw,
-		Provenance: ir.Provenance{Source: srcIndex, Pointer: pointer},
+		Provenance: ir.Provenance{Source: srcIndex, Pointer: string(pointer)},
 	}
 }
 
@@ -874,7 +874,7 @@ func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 // construct; a converted one writes the entry; an unconvertible one writes
 // nothing and yields the diagnostic that says so.
 func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
-	reason ir.UnmodeledReason, pointer string, srcIndex int,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer, srcIndex int,
 ) (bool, []ir.Diagnostic) {
 	raw, err := RawFromNode(node)
 	if err != nil {
@@ -899,9 +899,9 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // failure as a warning and is deliberately left alone: it already branches on the
 // error and never claimed to have kept anything, so it is not the defect this
 // code exists for.
-func UnpreservableDiag(key, pointer string, srcIndex int, err error) ir.Diagnostic {
+func UnpreservableDiag(key string, pointer jsontext.Pointer, srcIndex int, err error) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct,
-		ir.Provenance{Source: srcIndex, Pointer: pointer},
+		ir.Provenance{Source: srcIndex, Pointer: string(pointer)},
 		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
 			"in no form at all: %s", key, err.Error())
 }
@@ -911,14 +911,14 @@ func UnpreservableDiag(key, pointer string, srcIndex int, err error) ir.Diagnost
 // nothing; an unconvertible one never reaches here, because its caller reports it
 // through UnpreservableDiag first.
 func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	declPtr, entryPtr, label string, srcIndex int,
+	declPtr, entryPtr jsontext.Pointer, label string, srcIndex int,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword,
-		ir.Provenance{Source: srcIndex, Pointer: declPtr},
+		ir.Provenance{Source: srcIndex, Pointer: string(declPtr)},
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }
 

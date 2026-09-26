@@ -1,6 +1,8 @@
 package resolve
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/speakeasy-api/openapi/references"
 )
 
@@ -64,7 +66,7 @@ const maxRefChain = 32
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
-}](scope Scope, ref R, usePtr string) (*T, string) {
+}](scope Scope, ref R, usePtr jsontext.Pointer) (*T, jsontext.Pointer) {
 	obj := Object[T, S, R](ref)
 	if obj == nil {
 		return nil, usePtr

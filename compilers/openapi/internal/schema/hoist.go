@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -24,7 +26,7 @@ const TopLevelDepth = 0
 // reached through its pointer map resolves; a miss is a compiler bug no source can provoke, and the
 // caller — which was about to attach docs, examples or preserved constructs to
 // that node — would otherwise discard them without a trace.
-func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer string) (ir.TypeDef, bool, []ir.Diagnostic) {
+func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) (ir.TypeDef, bool, []ir.Diagnostic) {
 	td, ok := ts.Node(id)
 	if ok {
 		return td, true, nil
@@ -38,7 +40,7 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer str
 // interns build's result under that ID. build receives the already-built
 // TypeCommon (its ID field is the same id), so it never needs pointer, hint,
 // or a bare id to re-derive it.
-func internNode(c lowering.Ctx, ts *compile.Types, pointer, hint string,
+func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
 	build func(common ir.TypeCommon) ir.TypeDef,
 ) ir.TypeID {
 	id := ids.ForPointer(pointer)
@@ -46,20 +48,20 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer, hint string,
 	if c.NamesByReference() {
 		// A $ref named this coordinate, so the name is a placeholder until the
 		// declaration that owns it arrives (GitHub #372).
-		return ts.InternProvisional(pointer, id, mint)
+		return ts.InternProvisional(string(pointer), id, mint)
 	}
-	interned := ts.Intern(pointer, id, mint)
+	interned := ts.Intern(string(pointer), id, mint)
 	// The declaration reaching its own coordinate. On a first visit this is the
 	// name the node was just built with; on a later one it is what replaces a
 	// placeholder a reference left here.
-	ts.NameFromDeclaration(pointer, hint)
+	ts.NameFromDeclaration(string(pointer), hint)
 	return interned
 }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
 // top-level component schema is named (source + canonical words); any deeper
 // inline position is anonymous and carries only the context-derived hint.
-func commonFor(c lowering.Ctx, id ir.TypeID, pointer, hint string) ir.TypeCommon {
+func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer, hint string) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
 		Provenance: c.ProvenanceAt(pointer),

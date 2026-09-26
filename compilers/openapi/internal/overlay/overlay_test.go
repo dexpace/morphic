@@ -3,6 +3,7 @@ package overlay_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,7 +102,7 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
       /owners: {get: {operationId: listOwners}}
 `, false)
 
-	introduced := []string{
+	introduced := []jsontext.Pointer{
 		"/components/schemas/Pet/properties/tag",
 		"/tags/1",
 		"/components/schemas/Owner",
@@ -113,7 +114,7 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
 		assert.Equal(t, overlayIndex, origin.IndexAt(p, srcIndex), "%s came from the overlay", p)
 	}
 
-	declared := []string{
+	declared := []jsontext.Pointer{
 		"/components/schemas/Pet",
 		"/components/schemas/Pet/properties/name",
 		"/tags/0",
@@ -217,7 +218,7 @@ func TestApply_AttributesACopiedSubtree(t *testing.T) {
 	origin, _ := applyTo(t, header+
 		"  - target: $.components.schemas.Slot\n    copy: $.components.schemas.Pet\n", false)
 
-	for _, p := range []string{
+	for _, p := range []jsontext.Pointer{
 		"/components/schemas/Slot/properties",
 		"/components/schemas/Slot/properties/name",
 		"/components/schemas/Slot/properties/name/type",

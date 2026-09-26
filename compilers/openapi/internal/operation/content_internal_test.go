@@ -1,6 +1,7 @@
 package operation
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -56,7 +57,7 @@ func TestBodySchemaPointer_LocalRefFragment(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromReference("#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 // TestBodySchemaPointer_ForeignDocumentRefStaysLocal pins the document half of a
@@ -68,7 +69,7 @@ func TestBodySchemaPointer_ForeignDocumentRefStaysLocal(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("./ext-form.yaml#/components/schemas/Form")
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"),
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
 		"a fragment from another document must not become a pointer into this one")
 }
 
@@ -80,7 +81,7 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	l.ctx.Source = ir.SourceInfo{Path: "spec.yaml"}
 	js := oas3.NewJSONSchemaFromReference("spec.yaml#/components/schemas/Form")
-	assert.Equal(t, "/components/schemas/Form", bodySchemaPointer(l.ctx, js, "/local"))
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
 }
 
 func TestContentTypeKeys_Nil(t *testing.T) {
@@ -131,13 +132,13 @@ func TestBodySchemaPointer_ExternalRefNoFragment(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromReference("external.yaml")
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"), "a fragmentless ref falls back to the local pointer")
 }
 
 func TestBodySchemaPointer_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, "/local", bodySchemaPointer(l.ctx, nil, "/local"))
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, nil, "/local"))
 }
 
 func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {

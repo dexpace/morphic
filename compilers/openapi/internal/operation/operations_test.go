@@ -1,6 +1,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strconv"
@@ -14,7 +15,6 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -1034,17 +1034,16 @@ func headersOf(op ir.Operation) []ir.Property {
 }
 
 // pointerResolves reports whether an RFC 6901 JSON pointer resolves to some
-// node in a parsed YAML document: each segment (unescaped ~1 then ~0, via the
-// production ids.UnescapeSegment) is followed as a mapping key, or, in a
-// sequence, a decimal index. The empty pointer is skipped by callers, not
-// treated as resolving here.
+// node in a parsed YAML document: each token (unescaped via jsontext.Pointer's
+// own Tokens) is followed as a mapping key, or, in a sequence, a decimal index.
+// The empty pointer names the whole document and resolves; callers skip it.
 func pointerResolves(root *yaml.Node, pointer string) bool {
 	node := root
 	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
 		node = node.Content[0]
 	}
-	for raw := range strings.SplitSeq(strings.TrimPrefix(pointer, "/"), "/") {
-		next, ok := pointerStep(node, ids.UnescapeSegment(raw))
+	for token := range jsontext.Pointer(pointer).Tokens() {
+		next, ok := pointerStep(node, token)
 		if !ok {
 			return false
 		}

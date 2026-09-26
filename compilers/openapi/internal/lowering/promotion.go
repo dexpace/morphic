@@ -1,6 +1,7 @@
 package lowering
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"maps"
 	"slices"
@@ -128,7 +129,7 @@ func (c Ctx) PromoteDeprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, pro
 		text, ok := extensionText(entry.Value)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct,
-				entry.Provenance.Pointer, "extension %q is not a string, so it does not fill %s",
+				jsontext.Pointer(entry.Provenance.Pointer), "extension %q is not a string, so it does not fill %s",
 				key, c.promotions[key]))
 			continue
 		}

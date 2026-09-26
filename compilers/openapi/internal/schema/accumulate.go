@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/speakeasy-api/openapi/extensions"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "gopkg.in/yaml.v3"
@@ -32,10 +34,10 @@ import (
 // fine as long as it isn't silent. proto carries the annotations that surround
 // the value (name, summary, description); base and seg locate the node, joined
 // into a pointer only on the failure path, so an example that converts builds no
-// pointer string at all. Shared by every example site: schema (schemaExamples),
+// pointer at all. Shared by every example site: schema (schemaExamples),
 // media type, header, and parameter (exampleList).
 func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
-	base string, seg ...string,
+	base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
@@ -50,7 +52,7 @@ func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yam
 // written, allocating the map on first write. An absent or unconvertible
 // payload records nothing, so no caller needs a nil guard of its own.
 func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
-	reason ir.UnmodeledReason, pointer string,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) {
 	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
 }
@@ -59,7 +61,7 @@ func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 // one that could not be converted at all. It returns whether an entry was
 // written, so a caller announces only what it actually kept (GitHub #144).
 func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
-	reason ir.UnmodeledReason, pointer string,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
 }
@@ -68,7 +70,7 @@ func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
 // PreserveNode addressed by keyword rather than by node, which is how all but a
 // handful of preservation sites reach their payload.
 func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	reason ir.UnmodeledReason, pointer string,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) (bool, []ir.Diagnostic) {
 	return PreserveNode(c, p, "openapi:"+keyword, annotation.RawPropertyNode(s, keyword), reason, pointer)
 }
@@ -83,7 +85,7 @@ func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyw
 // which runs after Read and deliberately keeps nothing once the reference has
 // expanded. A census running before it could not tell that from an unread
 // keyword.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer string) []ir.Diagnostic {
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	return annotation.UnknownKeywordsIn(p, s, pointer, c.SrcIndex)
 }
 
@@ -97,14 +99,14 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // keyword, and declPtr where a §4.7 entry combines several keywords into one
 // synthesized object that no single node addresses.
 func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
-	declPtr, entryPtr, label string,
+	declPtr, entryPtr jsontext.Pointer, label string,
 ) []ir.Diagnostic {
 	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.SrcIndex)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
 // a List over its item schema with its collection constraints.
-func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		if prefix := s.GetPrefixItems(); len(prefix) > 0 {
@@ -134,13 +136,13 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // object whose extensions all failed to serialize — exactly when the result is
 // empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
 // twin hold two of the callers to that.
-func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
 }
 
 // ExtensionsIn is ExtensionsOf for an object with no Unmodeled map of its own,
 // whose entries ride on an enclosing node's under scope — see
 // annotation.ExtensionsUnder for what scope names and why it is needed.
-func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	return annotation.ExtensionsUnder(ext, c.SrcIndex, owner, scope)
 }

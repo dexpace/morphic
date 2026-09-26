@@ -1,6 +1,8 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -44,7 +46,7 @@ const (
 // way whoever asks, and none of it needs the lowering walk. Which dialect
 // applies is the caller's to decide — that is a fact about the document, not
 // about the schema, and it is the one thing this reader will not go and find.
-func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer string, srcIndex int) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, srcIndex int) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
 	}
@@ -79,7 +81,7 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer string, srcIndex
 // Named for the residue rather than the site so it cannot be misread as the
 // boundSide beside it in the same signatures.
 type boundResidue struct {
-	pointer  string
+	pointer  jsontext.Pointer
 	srcIndex int
 	kept     ir.Unmodeled
 }
