@@ -234,7 +234,7 @@ func lowerX(ctx Ctx, ts *compile.Types, node N, at string) (Out, []ir.Diagnostic
   alongside `ts` is the obvious alternative and is rejected: it reinstates accumulation as a side
   effect, which is the property being removed.
 
-Every function is then constructible in a test from a literal `Ctx` and a fresh `compile.NewTypes(0)`.
+Every function is then constructible in a test from a literal `Ctx` and a fresh `compile.NewTypes()`.
 
 ```go
 // Ctx is everything a lowering needs and must not change. Copied, not shared.
@@ -523,7 +523,7 @@ obligations are the design rather than a postscript to it.
 **A Tier-0 move must show:** goldens byte-identical with no `-update`; coverage still exactly 100%;
 an `internal/archtest` rules entry for the new package; and — the obligation that makes the move
 worth doing — **table-driven unit tests for the package's own surface**, built from a literal `Ctx`
-and a fresh `compile.NewTypes(0)`, calling neither `Compile` nor a document fixture.
+and a fresh `compile.NewTypes()`, calling neither `Compile` nor a document fixture.
 
 That last requirement is the acceptance criterion separating this from a file shuffle. Today's suite
 is integration-heavy enough that a purely cosmetic split would keep passing. **If a package cannot

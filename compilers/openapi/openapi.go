@@ -20,10 +20,10 @@ import (
 
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //
-// Three places stamp it and all three have to agree: the loader records it in
-// the SourceInfo, the type registry stamps the primitives it interns, and the
-// lowering stamps every Provenance it builds. Naming it says they must, where a
-// bare 0 written at each site only happens to.
+// Every place that stamps it has to agree: the loader records it in the
+// SourceInfo, and the lowering stamps every Provenance it builds. Naming it says
+// they must, where a bare 0 written at each site only happens to. The type
+// registry does not stamp it: a shared primitive names no source (GitHub #528).
 //
 // A varying index arrives with the link pass, from Compile's caller.
 const rootSrcIndex = 0
@@ -77,7 +77,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 		return nil, diags, err
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
+	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
 	all := append(diags, lowerDiags...)
 	if err != nil {
