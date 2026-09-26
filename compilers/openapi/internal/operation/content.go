@@ -91,7 +91,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.SrcIndex, mediaPtr)...)
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -381,7 +381,7 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)
-	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.SrcIndex, encPtr, scope)...)
+	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.ProvenanceAt, encPtr, scope)...)
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each
@@ -639,7 +639,7 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	diags = append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.SrcIndex, hdecl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
 	return append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 }
 
@@ -684,7 +684,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 		return out, nil
 	}
 	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
-	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.SrcIndex, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.ProvenanceAt, decl)...)
 	proto := ir.Example{
 		Name:        name,
 		Summary:     ex.GetSummary(),
@@ -766,7 +766,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	bodyExt, bodyExtDiags := schema.ExtensionsOf(c, rb.Extensions, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
-	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, c.SrcIndex, bodyPtr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, c.ProvenanceAt, bodyPtr)...)
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags

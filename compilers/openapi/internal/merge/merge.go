@@ -29,7 +29,8 @@ type Merger struct {
 	// Resolve looks a type up in the registry. Conflict detection compares what
 	// two references point at, not the references themselves.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Report records one diagnostic, stamped with the compile's source index.
+	// Report records one diagnostic at pointer, attributed to the input document
+	// that supplied that position.
 	Report func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
 }
 
@@ -433,7 +434,7 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 		return
 	}
 	annotation.PreserveInto(&dst.Unmodeled, key, raw,
-		ir.ReasonDegradedLowering, pointer, src.Provenance.Source)
+		ir.ReasonDegradedLowering, src.Provenance)
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,

@@ -164,7 +164,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// The co-declared bound keyword ir.Constraints has no field for is kept on
 	// the parameter, the carrier at this position, exactly as a property keeps
 	// its own (GitHub #286).
-	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
+	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
@@ -220,7 +220,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.SrcIndex)
+	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
@@ -315,7 +315,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
-	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.SrcIndex, pptr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
 	diags = append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
 	return append(diags, c.PromoteDeprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
 }

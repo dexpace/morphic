@@ -69,7 +69,7 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(sites))
 	for _, site := range sites {
 		diags = append(diags,
-			annotation.UnknownKeysUnder(p, site.model, c.SrcIndex, site.owner, site.scope)...)
+			annotation.UnknownKeysUnder(p, site.model, c.ProvenanceAt, site.owner, site.scope)...)
 	}
 	return diags
 }
@@ -137,7 +137,7 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 // source path it was written at — see annotation.ExtensionsUnder for why one
 // unscoped key for all of them would not do.
 func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsAt(c.SrcIndex, append(rootExtensions(c), tagExtensions(c)...)...)
+	return annotation.ExtensionsAt(c.ProvenanceAt, append(rootExtensions(c), tagExtensions(c)...)...)
 }
 
 // rootExtensions returns the extension sites a document has exactly one of. The
@@ -241,7 +241,7 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 // ir.Server itself; sptr is the server's own pointer in the servers list.
 func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
-	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.SrcIndex, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.ProvenanceAt, sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
 		Name:        serverName(s),
@@ -250,7 +250,7 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 		Variables:   vars,
 		Unmodeled:   ext,
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.SrcIndex, sptr)...)
+	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
 // serverName builds a server's neutral naming: the declared name when the source
@@ -295,7 +295,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
 		// field is read directly — as XMLHints already reads its own.
-		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.SrcIndex, vptr)
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.ProvenanceAt, vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
@@ -304,7 +304,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.SrcIndex, vptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.ProvenanceAt, vptr)...)
 		out = append(out, one)
 	}
 	return out, diags

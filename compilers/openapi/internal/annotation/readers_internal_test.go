@@ -280,7 +280,7 @@ func TestExtensionsFrom_KeepsEachAndLocatesItAtItsOwnKey(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-a: 1\nx-b: {k: v}\n")
 
-	got, diags := ExtensionsFrom(s.GetExtensions(), 3, "/components/schemas/S")
+	got, diags := ExtensionsFrom(s.GetExtensions(), sourced(3), "/components/schemas/S")
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 2)
@@ -296,11 +296,11 @@ func TestExtensionsFrom_KeepsEachAndLocatesItAtItsOwnKey(t *testing.T) {
 // `unmodeled: {}` the source never wrote.
 func TestExtensionsFrom_NothingWrittenIsNotAnEmptyMap(t *testing.T) {
 	t.Parallel()
-	got, diags := ExtensionsFrom(nil, 0, "/x")
+	got, diags := ExtensionsFrom(nil, sourced(0), "/x")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, diags = ExtensionsFrom(schemaFromYAML(t, "type: string\n").GetExtensions(), 0, "/x")
+	got, diags = ExtensionsFrom(schemaFromYAML(t, "type: string\n").GetExtensions(), sourced(0), "/x")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 }
@@ -312,7 +312,7 @@ func TestExtensionsFrom_UnserializableIsWarnedNotKept(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
 
-	got, diags := ExtensionsFrom(s.GetExtensions(), 0, "/x")
+	got, diags := ExtensionsFrom(s.GetExtensions(), sourced(0), "/x")
 
 	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
 	require.Len(t, diags, 1)
@@ -328,13 +328,31 @@ func TestExtensionsUnder_KeysBeneathTheScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-a: 1\n")
 
-	got, diags := ExtensionsUnder(s.GetExtensions(), 2, "/info/contact", "info/contact")
+	got, diags := ExtensionsUnder(s.GetExtensions(), sourced(2), "/info/contact", "info/contact")
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
 	require.Contains(t, got, "openapi:info/contact/x-a")
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/info/contact/x-a"},
 		got["openapi:info/contact/x-a"].Provenance)
+}
+
+// TestExtensionsUnder_AttributesEachEntryAtItsOwnKey pins GitHub #522: an
+// overlay that rewrites one extension on an owner must not carry its
+// attribution onto a sibling extension the overlay never touched, since both
+// entries are located through the same owner pointer plus their own key.
+func TestExtensionsUnder_AttributesEachEntryAtItsOwnKey(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nx-a: 1\nx-b: 2\n")
+
+	got, diags := ExtensionsUnder(s.GetExtensions(), overlaid("/o/x-b"), "/o", "")
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 2)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/o/x-a"}, got["openapi:x-a"].Provenance,
+		"the untouched sibling stays with the base")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/o/x-b"}, got["openapi:x-b"].Provenance,
+		"the overlaid entry names the overlay")
 }
 
 // TestExtensionsAt_FoldsEverySiteWithoutCollision is the reason the scope
@@ -345,7 +363,7 @@ func TestExtensionsAt_FoldsEverySiteWithoutCollision(t *testing.T) {
 	info := schemaFromYAML(t, "type: string\nx-a: 1\n")
 	license := schemaFromYAML(t, "type: string\nx-a: 2\n")
 
-	got, diags := ExtensionsAt(0,
+	got, diags := ExtensionsAt(sourced(0),
 		ExtensionSite{Scope: "info", Owner: "/info", Ext: info.GetExtensions()},
 		ExtensionSite{Scope: "info/license", Owner: "/info/license", Ext: license.GetExtensions()},
 		ExtensionSite{Scope: "components", Owner: "/components", Ext: nil},
@@ -365,7 +383,7 @@ func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
 	t.Parallel()
 	bad := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
 
-	got, diags := ExtensionsAt(0, ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
+	got, diags := ExtensionsAt(sourced(0), ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
 
 	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
 	require.Len(t, diags, 1)
@@ -719,13 +737,13 @@ func TestDeclaresAny_AsksTheRawNodes(t *testing.T) {
 func TestPreserveInto_RecordsOnlyRealBytes(t *testing.T) {
 	t.Parallel()
 	var p ir.Unmodeled
-	PreserveInto(&p, "openapi:x", nil, ir.ReasonOutOfScope, "/x", 0)
+	PreserveInto(&p, "openapi:x", nil, ir.ReasonOutOfScope, sourced(0)("/x"))
 	assert.Nil(t, p, "an absent payload allocates nothing")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, "/x", 0)
+	PreserveInto(&p, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, sourced(0)("/x"))
 	assert.Nil(t, p, "nor does an empty one")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, "/x", 7)
+	PreserveInto(&p, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, sourced(7)("/x"))
 	assert.Equal(t, ir.Unmodeled{"openapi:x": {
 		Reason: ir.ReasonOutOfScope, Value: ir.RawValue("1"),
 		Provenance: ir.Provenance{Source: 7, Pointer: "/x"},
@@ -740,18 +758,18 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	t.Parallel()
 	var p ir.Unmodeled
 
-	kept, diags := PreserveNodeInto(&p, "openapi:x", nil, ir.ReasonNoIRHome, "/x", 0)
+	kept, diags := PreserveNodeInto(&p, "openapi:x", nil, ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.False(t, kept)
 	assert.Empty(t, diags)
 	assert.Nil(t, p)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Nil(t, p, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
@@ -765,7 +783,7 @@ func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	_, err := RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err)
 
-	got := UnpreservableDiag("openapi:not", "/components/schemas/S/not", 2, err)
+	got := UnpreservableDiag("openapi:not", sourced(2)("/components/schemas/S/not"), err)
 
 	assert.Equal(t, ir.SeverityError, got.Severity)
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/S/not"}, got.Provenance)
@@ -786,7 +804,7 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		"contains: {type: string}\nminContains: 1\n"+
 		"unevaluatedProperties: {type: string}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", 0)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
 
 	for _, key := range []string{
 		"openapi:not", "openapi:if-then-else", "openapi:dependentSchemas",
@@ -808,7 +826,7 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\ncontains: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", 0)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
 
 	assert.NotContains(t, got, "openapi:not")
 	assert.NotContains(t, got, "openapi:contains")
@@ -818,6 +836,28 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	}
 }
 
+// TestValidationOnlyAt_AttributesTheEntryAtItsKeyword pins GitHub #522's
+// enclosing-object rule from the other side: the kept entry is located at the
+// keyword itself and names the overlay that rewrote it, while the
+// announcement is located at the schema and stays with the base, because it
+// reports on the schema declaring a validation-only keyword rather than on the
+// keyword's own text.
+func TestValidationOnlyAt_AttributesTheEntryAtItsKeyword(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\nnot: {type: integer}\n")
+
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"))
+
+	entry, ok := got["openapi:not"]
+	require.True(t, ok)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, entry.Provenance,
+		"the kept entry names the overlay that rewrote the keyword")
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, diags[0].Provenance,
+		"the announcement is located at the schema and stays with the base")
+}
+
 // TestSchemaExamplesAt_ReadsBothKeywordsInOrder pins that `example` and each
 // entry of `examples` are read, since a position may write either and the two
 // are separate keywords rather than aliases.
@@ -825,7 +865,7 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nexample: one\nexamples: [two, three]\n")
 
-	got, diags := schemaExamplesAt(s, "/components/schemas/S", 0)
+	got, diags := schemaExamplesAt(s, "/components/schemas/S", sourced(0))
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 3)
@@ -833,4 +873,19 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 		require.NotNil(t, got[i].Value)
 		assert.Equal(t, want, got[i].Value.Str, "example %d", i)
 	}
+}
+
+// TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer pins
+// GitHub #522 on the warning route: an overlay that rewrites `example` into
+// something unconvertible is named by the diagnostic reporting the failure,
+// because the diagnostic is located at the example's own pointer.
+func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: number\nexample: .nan\n")
+
+	got, diags := schemaExamplesAt(s, "/S", overlaid("/S/example"))
+
+	assert.Empty(t, got, "an unconvertible example yields no value")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/example"}, diags[0].Provenance)
 }

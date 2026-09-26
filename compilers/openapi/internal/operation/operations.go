@@ -228,7 +228,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		mounted++
 	}
 	if mounted == 0 {
-		return append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, pathPtr), pi, pathPtr, declPtr)...)
+		return append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, pathPtr), pi, pathPtr, declPtr)...)
 	}
 	return diags
 }
@@ -278,7 +278,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			mounted++
 		}
 		if mounted == 0 {
-			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, hookPtr), pi, hookPtr, declPtr)...)
+			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, hookPtr), pi, hookPtr, declPtr)...)
 		}
 	}
 	return diags
@@ -421,7 +421,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // run after it.
 func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
-	ext, diags := annotation.ExtensionsAt(c.SrcIndex,
+	ext, diags := annotation.ExtensionsAt(c.ProvenanceAt,
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
 		annotation.ExtensionSite{Scope: "externalDocs", Owner: docsPtr,
 			Ext: src.GetExternalDocs().GetExtensions()},
@@ -429,9 +429,9 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 			Ext: src.GetResponses().GetExtensions()},
 	)
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
-		src.GetExternalDocs(), c.SrcIndex, docsPtr, "externalDocs")...)
+		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
 }
 
 // applyOperationServers preserves an operation's own `servers` verbatim under
@@ -539,7 +539,7 @@ func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsont
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, undeclaredPathItemKeys(pi),
-		pi.GetRootNode(), c.SrcIndex, declPtr, into.scope)...)
+		pi.GetRootNode(), c.ProvenanceAt, declPtr, into.scope)...)
 }
 
 // carrier is where a path item's own declarations are kept, and under what key
@@ -596,10 +596,10 @@ func onOperation(op *ir.Operation) carrier {
 // item, so a diagnostic carrying the node's own pointer would name none of them —
 // and since diagnostic identity is the whole value, two items would produce one
 // indistinguishable finding rather than two.
-func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr jsontext.Pointer) carrier {
+func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
 	return carrier{
 		unmodeled:  u,
-		provenance: ir.Provenance{Source: srcIndex, Pointer: string(mountPtr)},
+		provenance: c.ProvenanceAt(mountPtr),
 		scope:      "pathItem" + string(mountPtr),
 		serversKey: "openapi:pathItem" + string(mountPtr) + "/servers",
 	}
@@ -974,7 +974,7 @@ func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rp
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysIn(p, r, c.SrcIndex, rptr)...)
+	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
@@ -1113,7 +1113,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	}
 	orphan := ir.Unmodeled{}
 	orphanDiags := preserveUnmountedPathItem(c,
-		onNearestNode(&orphan, c.SrcIndex, cb.mount), pi, cb.mount, cb.decl)
+		onNearestNode(c, &orphan, cb.mount), pi, cb.mount, cb.decl)
 	return opIDs, ops, orphan, append(diags, orphanDiags...)
 }
 

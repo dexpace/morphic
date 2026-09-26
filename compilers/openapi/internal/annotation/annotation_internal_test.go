@@ -23,7 +23,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", 0)
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -39,7 +39,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", 0)
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0))
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -53,7 +53,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", 0)
+	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0))
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -72,7 +72,7 @@ func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
 	t.Parallel()
 	built := &oas3.Schema{Not: oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})}
 
-	got, diags := validationOnlyAt(built, "/p", 0)
+	got, diags := validationOnlyAt(built, "/p", sourced(0))
 
 	assert.Nil(t, got, "no raw bytes to keep, so nothing is kept")
 	assert.Empty(t, diags, "and nothing is announced for a keyword that was not kept")
@@ -85,7 +85,7 @@ func TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped(t *testing.T) {
 	t.Parallel()
 	node := &oas3.Schema{Example: &yaml.Node{Kind: yaml.Kind(99)}}
 
-	got, diags := schemaExamplesAt(node, "/p", 3)
+	got, diags := schemaExamplesAt(node, "/p", sourced(3))
 
 	assert.Empty(t, got, "an unconvertible example yields no value")
 	require.Len(t, diags, 1, "and is reported rather than dropped")
@@ -100,7 +100,7 @@ func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var p ir.Unmodeled
-			diags := PreserveKeywordInto(&p, "openapi:not", raw, "/p", "/p/not", "not", 0)
+			diags := PreserveKeywordInto(&p, "openapi:not", raw, "/p", "/p/not", "not", sourced(0))
 			assert.Nil(t, p)
 			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 		})
@@ -115,7 +115,7 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", 7)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7))
 
 	entry, ok := got["openapi:dependentRequired"]
 	require.True(t, ok, "dependentRequired must be kept verbatim")
@@ -135,7 +135,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", 0)
+	got, diags := dialectAt(s, "/components/schemas/S", sourced(0))
 
 	require.Len(t, got, 2, "one entry per keyword written")
 	for _, keyword := range []string{"$id", "$schema"} {
@@ -146,6 +146,25 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
 	assert.True(t, DeclaresAny(s, DialectKeywords),
 		"and the hoist gate agrees a node is needed to hold them")
+}
+
+// TestDialectAt_AttributesTheKeywordRatherThanTheSchema pins GitHub #522: an
+// overlay that rewrites `$id` names the overlay as the source of both the kept
+// entry and the diagnostic announcing it, since dialectAt locates each keyword
+// at its own pointer rather than at the schema's.
+func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "$id: 'urn:example:a'\ntype: string\n")
+
+	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"))
+
+	entry, ok := got["openapi:$id"]
+	require.True(t, ok)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/$id"}, entry.Provenance)
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/$id"}, diags[0].Provenance)
 }
 
 // schemaFromYAML unmarshals body as a bare schema through the same marshaller

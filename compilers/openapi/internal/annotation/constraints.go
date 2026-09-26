@@ -35,7 +35,7 @@ const (
 //
 // A keyword that reaches no field comes back as the second return, an
 // ir.Unmodeled the caller merges into whichever carrier its reading position
-// owns. pointer and srcIndex locate it, exactly as they locate what Read keeps.
+// owns. pointer and locate place it, exactly as they place what Read keeps.
 // One keyword can land there: a 3.0 exclusiveMinimum/exclusiveMaximum true with
 // no bound beside it to make exclusive (see applyExclusiveFlag). Everything
 // else a schema says about its values reaches a field, so that map is usually
@@ -46,12 +46,12 @@ const (
 // way whoever asks, and none of it needs the lowering walk. Which dialect
 // applies is the caller's to decide — that is a fact about the document, not
 // about the schema, and it is the one thing this reader will not go and find.
-func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, srcIndex int) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, locate Locator) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
-	residue := boundResidue{pointer: pointer, srcIndex: srcIndex}
+	residue := boundResidue{pointer: pointer, locate: locate}
 	diags := numericBounds(c, s)
 	diags = append(diags, applyExclusive(c, s, minBound, &residue, exclusiveBoolean)...)
 	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
@@ -81,9 +81,9 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 // Named for the residue rather than the site so it cannot be misread as the
 // boundSide beside it in the same signatures.
 type boundResidue struct {
-	pointer  jsontext.Pointer
-	srcIndex int
-	kept     ir.Unmodeled
+	pointer jsontext.Pointer
+	locate  Locator
+	kept    ir.Unmodeled
 }
 
 // keepUnmodifiable keeps a 3.0 exclusive-bound modifier that had no bound to
@@ -94,7 +94,7 @@ type boundResidue struct {
 // absence of one is the reason it is being kept at all.
 func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic {
 	PreserveInto(&b.kept, "openapi:"+exclProp, ir.RawValue("true"),
-		ir.ReasonDegradedLowering, b.pointer+ids.Ptr(exclProp), b.srcIndex)
+		ir.ReasonDegradedLowering, b.locate(b.pointer+ids.Ptr(exclProp)))
 	return unmodifiableExclusiveDiag(inclProp, exclProp)
 }
 
