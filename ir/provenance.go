@@ -54,9 +54,9 @@ type Diagnostic struct {
 // the enclosing Document can be written at all: a third-party validator can
 // emit a truncated multibyte rune in its error text, and a Document refuses to
 // encode a string that is not UTF-8 rather than rewrite it to U+FFFD. irverify's
-// ir/diagnostic-invalid-utf8 check flags any message that still reaches a
-// Document ill-formed; strings.ToValidUTF8 doesn't allocate when message is
-// already valid, so the common path costs one scan.
+// ir/invalid-utf8 check flags any message that still reaches a Document
+// ill-formed; strings.ToValidUTF8 doesn't allocate when message is already
+// valid, so the common path costs one scan.
 func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnostic {
 	return Diagnostic{
 		Severity:   sev,

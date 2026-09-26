@@ -443,8 +443,8 @@ func OneLine(err error) string {
 //
 // The cut lands on a rune boundary. The bytes are a foreign library's and may be
 // multi-byte, and half a rune in a diagnostic is ill-formed text put in front of
-// a reader — the one thing a report must not do, and the reason checkDiagnostics
-// refuses to quote invalid UTF-8 back at all.
+// a reader — the one thing a report must not do, and the reason irverify's
+// checkUTF8 quotes none of the invalid UTF-8 it finds back.
 func cutToCap(msg string) string {
 	if len(msg) <= MaxQuotedErrorBytes {
 		return msg

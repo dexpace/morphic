@@ -397,41 +397,46 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 }
 
 // TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
-// Naming shares. It is about the encoding rather than the spelling: ill-formed
-// bytes survive a marshal as the replacement rune, so a document carrying them
-// decodes to one that re-marshals differently and stops round-tripping.
+// Naming shares, now checkUTF8's rather than a naming-specific one: it is
+// about the encoding rather than the spelling, and it reports at the precise
+// channel path (".Name.Source", not ".Name") rather than the coarser one the
+// removed, naming-specific rule it replaces used to report at.
 //
-// Canonical and Hint would each draw a violation without this rule — the
-// replacement rune is not a word character, so isWordSequence rejects it — but
-// one naming the wrong repair, since splitting on non-word characters is not
-// what fixes undecodable bytes. Source draws nothing at all without it. So the
-// assertion is that ir/naming-invalid-utf8 is among what is reported, not that
-// it is all of it.
-//
-// Only this rule's own message is held to quoting nothing. The content rules
-// beside it deliberately carry the spelling they object to, which puts the
-// ill-formed bytes in their message (GitHub #400) — a separate question from
-// whether the encoding rule fires.
+// Canonical and Hint each draw two further violations without any UTF-8 rule
+// at all — the replacement rune neither Go's ToLower nor isWordSequence can
+// treat as a plain lowercase word character, so ir/naming-cased and
+// ir/naming-not-words both fire (GitHub #400, out of scope here). Source draws
+// nothing else, which is what makes its fixture the one that pins the count as
+// well as the code: restoring the deleted naming-specific rule alongside
+// checkUTF8 would redden it by reporting the same defect twice.
 func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
 	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
 
-	for channel, n := range map[string]ir.Naming{
-		"source":    {Source: ill, Canonical: ir.CanonicalWords(ill)},
-		"canonical": {Canonical: ill},
-		"hint":      {Hint: ill},
+	for _, tc := range []struct {
+		channel   string
+		n         ir.Naming
+		path      string
+		wantTotal int
+	}{
+		{"source", ir.Naming{Source: ill, Canonical: ir.CanonicalWords(ill)}, "doc.Types[t/x/M].Name.Source", 1},
+		{"canonical", ir.Naming{Canonical: ill}, "doc.Types[t/x/M].Name.Canonical", 3},
+		{"hint", ir.Naming{Hint: ill}, "doc.Types[t/x/M].Name.Hint", 3},
 	} {
-		t.Run(channel, func(t *testing.T) {
+		t.Run(tc.channel, func(t *testing.T) {
 			t.Parallel()
+			got := irverify.Verify(modelNamed(tc.n))
+			require.Len(t, got, tc.wantTotal, "%s: %+v", tc.channel, got)
+
 			var reported *irverify.Violation
-			for _, v := range irverify.Verify(modelNamed(n)) {
-				if v.Code == "ir/naming-invalid-utf8" {
-					reported = &v
+			for i := range got {
+				if got[i].Code == "ir/invalid-utf8" {
+					reported = &got[i]
 				}
 			}
-			require.NotNil(t, reported, "the encoding rule fires on %s", channel)
-			assert.Equal(t, "doc.Types[t/x/M].Name", reported.Path)
+			require.NotNil(t, reported, "the encoding rule fires on %s", tc.channel)
+			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
 		})
 	}
