@@ -170,3 +170,27 @@ func TestDiagnosticsAt_SelectsOnlyTheCoordinate(t *testing.T) {
 	assert.Equal(t, "a", got[0].Code, "emitted order is preserved")
 	assert.Equal(t, "c", got[1].Code)
 }
+
+// TestDiagnosticsAt_RootExcludesPositionAndNodeLocatedFindings pins what
+// listing under the root pointer means now that Position and Node exist
+// beside it. A finding located by position, or by a pass's node on NoSource,
+// also carries an empty Pointer, but neither is about the whole document:
+// listing them under "" would put every such finding in the compile at the
+// root. A node beside a real source locates nothing inside it, so that finding
+// is about the source as a whole and is listed, as the CLI prints it bare.
+func TestDiagnosticsAt_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
+	t.Parallel()
+	byPosition := ir.Diagnostic{Code: "p",
+		Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}}}
+	byNode := ir.Diagnostic{Code: "n", Provenance: ir.Provenance{Source: ir.NoSource, Node: "op/x"}}
+	besideSource := ir.Diagnostic{Code: "s", Provenance: ir.Provenance{Source: 0, Node: "op/x"}}
+	atRoot := ir.Diagnostic{Code: "r", Provenance: ir.Provenance{Source: 0}}
+
+	got := diagnosticsAt([]ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, "")
+
+	codes := make([]string, 0, len(got))
+	for _, d := range got {
+		codes = append(codes, d.Code)
+	}
+	assert.Equal(t, []string{"s", "r"}, codes, "only findings about the source as a whole are at the root")
+}

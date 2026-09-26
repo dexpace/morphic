@@ -1,6 +1,7 @@
 package irverify_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -197,7 +198,7 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	}
 	for _, m := range []struct {
 		id      ir.TypeID
-		pointer string
+		pointer jsontext.Pointer
 		source  string
 	}{
 		{id: "t/openapi/prim/string", pointer: "/prim/string", source: "String"},
@@ -244,7 +245,7 @@ func TestVerify_DerivedIDsAreClean(t *testing.T) {
 		doc.Types[id] = &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "N", Canonical: "n"},
-			Provenance: ir.Provenance{Pointer: "/" + path},
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
 	}
 	assert.Empty(t, irverify.Verify(doc))

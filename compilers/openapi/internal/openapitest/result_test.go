@@ -1,6 +1,7 @@
 package openapitest_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -43,7 +44,7 @@ func (r *recorder) failed() bool {
 }
 
 // diagAt builds one diagnostic with the code, severity and pointer a case needs.
-func diagAt(code string, sev ir.Severity, pointer string) ir.Diagnostic {
+func diagAt(code string, sev ir.Severity, pointer jsontext.Pointer) ir.Diagnostic {
 	return ir.Diagnostic{
 		Severity:   sev,
 		Code:       code,

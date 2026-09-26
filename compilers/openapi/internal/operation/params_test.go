@@ -1,6 +1,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/validation"
@@ -100,7 +101,7 @@ func TestParams_UnconvertibleExampleDiagnosed(t *testing.T) {
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/paths/~1items/get/parameters/0/example", d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/parameters/0/example"), d.Provenance.Pointer)
 	assert.Contains(t, d.Message, "example:")
 }
 
@@ -437,16 +438,16 @@ func TestParams_ProvenanceIsTheDeclaringPosition(t *testing.T) {
 	byName := openapitest.IndexBy(getPet.Params, func(p ir.Parameter) string { return p.Name.Source })
 	require.Len(t, byName, 3, "two declared plus the inherited path-item one")
 
-	assert.Equal(t, "/paths/~1pets~1{petId}/get/parameters/0", byName["fields"].Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/get/parameters/0"), byName["fields"].Provenance.Pointer,
 		"an operation's own entry is declared under that operation")
-	assert.Equal(t, "/components/parameters/Page", byName["page"].Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/parameters/Page"), byName["page"].Provenance.Pointer,
 		"a $ref'd entry is declared at the component it names, not at the use site")
 
 	const pathItem = "/paths/~1pets~1{petId}/parameters/0"
-	assert.Equal(t, pathItem, byName["petId"].Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer(pathItem), byName["petId"].Provenance.Pointer,
 		"an inherited entry keeps the path item's pointer rather than the operation it merged into")
 	require.Len(t, deletePet.Params, 1)
-	assert.Equal(t, pathItem, deletePet.Params[0].Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer(pathItem), deletePet.Params[0].Provenance.Pointer,
 		"and both operations on the path name the one declaration, not one pointer each")
 
 	for name, p := range byName {
@@ -675,7 +676,7 @@ func TestParams_SchemaXMLHintsKeptUnderUnmodeled(t *testing.T) {
 			require.True(t, ok, "an xml hint with no Parameter field is kept raw, not dropped")
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, tc.want, string(entry.Value), "kept verbatim")
-			assert.Equal(t, tc.schemaPtr+"/xml", entry.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer(tc.schemaPtr+"/xml"), entry.Provenance.Pointer,
 				"located at the xml keyword itself")
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/xml"),
@@ -747,7 +748,7 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 			require.True(t, ok, "%s has no ir.Parameter field, so it is kept raw, not dropped", tc.keyword)
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `true`, string(entry.Value), "kept verbatim")
-			assert.Equal(t, at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer, "located at the keyword itself")
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
 				tc.keyword+" has no ir.Parameter home", "and announced once")
@@ -768,7 +769,7 @@ func TestParams_SchemaDefaultIsNotAlsoKeptVerbatim(t *testing.T) {
 	assert.Equal(t, "dq", p.Default.Str)
 	assert.NotContains(t, p.Unmodeled, "openapi:default", "and is not restated verbatim beside it")
 	for _, d := range diags {
-		assert.NotEqual(t, "/paths/~1x/get/parameters/0/schema/default", d.Provenance.Pointer,
+		assert.NotEqual(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/default"), d.Provenance.Pointer,
 			"nor announced as homeless; got %+v", d)
 	}
 }
@@ -817,7 +818,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 		entry, ok := param.Unmodeled[want]
 		require.True(t, ok, "%s: %s kept on the carrier that has no field for it", param.Name.Source, want)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 	}
 }
 
@@ -851,9 +852,9 @@ func TestParams_AllowEmptyValueKept(t *testing.T) {
 		require.True(t, ok, "%s keeps its declared flag", tc.name)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, tc.want, string(entry.Value))
-		assert.Equal(t, "/paths/~1x/get/parameters/"+tc.index+"/allowEmptyValue",
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/"+tc.index+"/allowEmptyValue"),
 			entry.Provenance.Pointer, "kept at the keyword's own coordinate")
-		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 	}
 
 	assert.NotContains(t, params["silent"].Unmodeled, "openapi:allowEmptyValue",
@@ -1002,7 +1003,7 @@ func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
 	require.True(t, ok, "kept beside the constraints it did not reach; got %v", params["bare"].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, "true", string(entry.Value))
-	assert.Equal(t, "/paths/~1x/get/parameters/0/schema/exclusiveMinimum", entry.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/schema/exclusiveMinimum"), entry.Provenance.Pointer,
 		"located at the keyword itself")
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,

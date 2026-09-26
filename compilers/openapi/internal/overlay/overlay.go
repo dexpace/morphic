@@ -131,7 +131,7 @@ func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
 	if !ok {
 		return ir.Provenance{}, false
 	}
-	return ir.Provenance{Source: o.index, Pointer: string(pointer)}, true
+	return ir.Provenance{Source: o.index, Pointer: pointer}, true
 }
 
 // Apply applies opts to root in place and returns the attribution of what it

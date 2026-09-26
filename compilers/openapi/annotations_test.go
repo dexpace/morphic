@@ -1193,7 +1193,7 @@ func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string
 	t.Helper()
 	for _, d := range diags {
 		if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityInfo &&
-			strings.HasSuffix(d.Provenance.Pointer, pointerSuffix) {
+			strings.HasSuffix(string(d.Provenance.Pointer), pointerSuffix) {
 			return
 		}
 	}

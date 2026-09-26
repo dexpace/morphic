@@ -34,12 +34,6 @@ type Merger struct {
 	Report func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any)
 }
 
-// declaredAt reads the JSON pointer a property was declared at. ir.Provenance
-// carries the pointer as a string until #511 types the field.
-func declaredAt(p *ir.Property) jsontext.Pointer {
-	return jsontext.Pointer(p.Provenance.Pointer)
-}
-
 // WireNameIndex maps each property's wire name to its position in props, so a
 // redeclaration reconciles in one lookup rather than a rescan (fillModelProperties
 // runs once per allOf branch, so a linear scan would be quadratic in a wide model).
@@ -92,7 +86,7 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // survives in the document and not only in the diagnostic stream. source
 // renders it, and is called only when there is something to keep.
 func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source func() (ir.RawValue, error)) {
-	pointer := declaredAt(&src)
+	pointer := src.Provenance.Pointer
 	dropped, lost := g.recordRedeclarationConflict(dst, &src)
 
 	dst.Required = dst.Required || src.Required
@@ -143,7 +137,7 @@ func (g *Merger) foldDocs(dst, src *ir.Property) bool {
 	if src.Docs.Description == "" || src.Docs.Description == dst.Docs.Description {
 		return false
 	}
-	g.detailDiffersDiag(dst, declaredAt(src), "description")
+	g.detailDiffersDiag(dst, src.Provenance.Pointer, "description")
 	return true
 }
 
@@ -162,7 +156,7 @@ func (g *Merger) foldShapeDetail(dst, src *ir.Property) bool {
 	if dst.Default == nil {
 		dst.Default = src.Default
 	} else if src.Default != nil && !reflect.DeepEqual(dst.Default, src.Default) {
-		g.detailDiffersDiag(dst, declaredAt(src), "default")
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "default")
 		lost = true
 	}
 	dst.Constraints = mergeConstraints(dst.Constraints, src.Constraints)
@@ -171,7 +165,7 @@ func (g *Merger) foldShapeDetail(dst, src *ir.Property) bool {
 		// cmp.Or like its neighbors; the len()==0 predicate is the rule.
 		dst.Examples = src.Examples
 	} else if len(src.Examples) != 0 && !reflect.DeepEqual(dst.Examples, src.Examples) {
-		g.detailDiffersDiag(dst, declaredAt(src), "examples")
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "examples")
 		lost = true
 	}
 	return lost
@@ -185,13 +179,13 @@ func (g *Merger) foldAnnotations(dst, src *ir.Property) bool {
 	if dst.Deprecation == nil {
 		dst.Deprecation = src.Deprecation
 	} else if src.Deprecation != nil && *src.Deprecation != *dst.Deprecation {
-		g.detailDiffersDiag(dst, declaredAt(src), "deprecation")
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "deprecation")
 		lost = true
 	}
 	if dst.XML == nil {
 		dst.XML = src.XML
 	} else if src.XML != nil && *src.XML != *dst.XML {
-		g.detailDiffersDiag(dst, declaredAt(src), "xml")
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "xml")
 		lost = true
 	}
 	return lost
@@ -353,7 +347,7 @@ const maxTypeResolveDepth = 64
 // (diag.ConflictingRedecl). At most one diagnostic fires: a type conflict
 // subsumes any constraint conflict.
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
-	pointer := declaredAt(src)
+	pointer := src.Provenance.Pointer
 	if dst.Type.Target != src.Type.Target {
 		dropped = true
 	} else {
@@ -421,7 +415,7 @@ const losingDeclarationKey = "openapi:conflicting-redeclaration"
 // reached the IR in no form must not be left to that announcement (GitHub
 // #144).
 func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.RawValue, error)) {
-	pointer := declaredAt(src)
+	pointer := src.Provenance.Pointer
 	if pointer == "" {
 		return
 	}

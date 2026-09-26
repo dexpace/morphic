@@ -11,7 +11,7 @@ import (
 // to the one source at index.
 func sourced(index int) Locator {
 	return func(pointer jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Source: index, Pointer: string(pointer)}
+		return ir.Provenance{Source: index, Pointer: pointer}
 	}
 }
 
@@ -22,8 +22,8 @@ func sourced(index int) Locator {
 func overlaid(pointers ...jsontext.Pointer) Locator {
 	return func(pointer jsontext.Pointer) ir.Provenance {
 		if slices.Contains(pointers, pointer) {
-			return ir.Provenance{Source: 1, Pointer: string(pointer)}
+			return ir.Provenance{Source: 1, Pointer: pointer}
 		}
-		return ir.Provenance{Source: 0, Pointer: string(pointer)}
+		return ir.Provenance{Source: 0, Pointer: pointer}
 	}
 }

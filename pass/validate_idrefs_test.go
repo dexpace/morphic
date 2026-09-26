@@ -226,7 +226,7 @@ func TestValidate_DanglingTypedIDRef(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted reference must dangle")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, tc.id)
-			assert.Contains(t, found[0].Provenance.Pointer, tc.where)
+			assert.Contains(t, found[0].Provenance.Node, tc.where)
 		})
 	}
 }

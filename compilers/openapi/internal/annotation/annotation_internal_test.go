@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -91,7 +92,7 @@ func TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped(t *testing.T) {
 	require.Len(t, diags, 1, "and is reported rather than dropped")
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 	assert.Equal(t, 3, diags[0].Provenance.Source, "stamped with the source it was handed")
-	assert.Equal(t, "/p/example", diags[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/p/example"), diags[0].Provenance.Pointer)
 }
 
 func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T) {
@@ -121,7 +122,7 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	require.True(t, ok, "dependentRequired must be kept verbatim")
 	assert.JSONEq(t, `{"a":["b"]}`, string(entry.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
-	assert.Equal(t, "/components/schemas/S/dependentRequired", entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/dependentRequired"), entry.Provenance.Pointer)
 
 	require.Len(t, diags, 1, "and is announced exactly once")
 	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
