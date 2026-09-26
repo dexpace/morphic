@@ -54,11 +54,12 @@ func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, point
 //
 // A nil entry is skipped rather than dereferenced: a malformed registry is what
 // pass.Validate and irverify exist to report, and explain must not be the thing
-// that crashes on one.
+// that crashes on one. So is a node that names no source, such as a shared
+// primitive: it has no coordinate, and its empty pointer is not the root's.
 func nodeAtPointer(doc *ir.Document, pointer string) (ir.TypeID, ir.TypeDef, bool) {
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
-		if td == nil {
+		if !inSource(td) {
 			continue
 		}
 		if td.Common().Provenance.Pointer == pointer {
@@ -89,7 +90,7 @@ func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
 	var out []coordinate
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
-		if td == nil {
+		if !inSource(td) {
 			continue
 		}
 		p := td.Common().Provenance.Pointer
@@ -99,6 +100,12 @@ func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].pointer < out[j].pointer })
 	return out
+}
+
+// inSource reports whether td is a node with a coordinate to explain: present,
+// and located in a source rather than on ir.NoSource.
+func inSource(td ir.TypeDef) bool {
+	return td != nil && td.Common().Provenance.Source != ir.NoSource
 }
 
 // diagnosticsAt returns the diagnostics stamped at pointer, in emitted order.

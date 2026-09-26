@@ -15,7 +15,7 @@ import (
 // self-reference reached during build resolves instead of re-entering.
 func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	var seenDuringBuild bool
 	id := types.Intern("/p", "t/x", func() ir.TypeDef {
@@ -34,7 +34,7 @@ func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 
 func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	_, ok := types.Lookup("/nope")
 	assert.False(t, ok)
@@ -46,7 +46,7 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 // the paired lookup safe: whenever a coordinate resolves, so does its node.
 func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 
 	td, ok := types.NodeAt("/p")
@@ -62,7 +62,7 @@ func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 // would occupy already denotes the branch it was built from.
 func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Register("t/composed", &ir.Model{ID: "t/composed"})
 
 	td, ok := types.Node("t/composed")
@@ -73,11 +73,12 @@ func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	assert.False(t, coordinated, "a minted node claims no coordinate")
 }
 
-// TestTypes_PrimRefInternsOnceAndStampsSource pins that primitives are interned
-// by kind rather than by position and carry the compile's source index.
-func TestTypes_PrimRefInternsOnceAndStampsSource(t *testing.T) {
+// TestTypes_PrimRefInternsOnceAndNamesNoSource pins that primitives are interned
+// by kind rather than by position, and that one shared by every position of its
+// kind claims no source (GitHub #528).
+func TestTypes_PrimRefInternsOnceAndNamesNoSource(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(7)
+	types := compile.NewTypes()
 
 	first := types.PrimRef(ir.PrimString)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), first.Target,
@@ -87,14 +88,14 @@ func TestTypes_PrimRefInternsOnceAndStampsSource(t *testing.T) {
 
 	td, ok := types.Node(first.Target)
 	require.True(t, ok)
-	assert.Equal(t, 7, td.Common().Provenance.Source)
+	assert.Equal(t, ir.Provenance{Source: ir.NoSource}, td.Common().Provenance)
 	_, coordinated := types.Lookup(string(first.Target))
 	assert.False(t, coordinated, "primitives are leaves and hold no coordinate")
 }
 
 func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	reg := types.Registry()
 	types.Register("t/late", &ir.Any{})
 
@@ -182,7 +183,7 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 	for name, attempt := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			types := compile.NewTypes(0)
+			types := compile.NewTypes()
 			attempt(types)
 
 			assert.Zero(t, types.Len(), "nothing malformed reaches the registry")
@@ -196,7 +197,7 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 
 func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 	types.Register("t/composed", &ir.Any{})
 
@@ -214,7 +215,7 @@ func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 // node that was overwritten is no longer present to fail.
 func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	node := func(id ir.TypeID) func() ir.TypeDef {
 		return func() ir.TypeDef { return &ir.Model{ID: id} }
 	}
@@ -233,7 +234,7 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 // so it must not be mistaken for two coordinates colliding.
 func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	build := func() ir.TypeDef { return &ir.Model{ID: "t/x/A"} }
 	types.Intern("/p", "t/x/A", build)
 	types.Intern("/p", "t/x/A", build)
@@ -248,7 +249,7 @@ func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 // caused by the first.
 func TestTypes_RefusedInternReleasesItsID(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/first", "t/x/A", func() ir.TypeDef { return nil })
 	require.Len(t, types.Violations(), 1, "the nil build is refused")
 
@@ -279,7 +280,7 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			types := compile.NewTypes(0)
+			types := compile.NewTypes()
 			tc.use(types)
 			require.Len(t, types.Violations(), 1, "whichever arrives second is refused")
 			assert.Contains(t, types.Violations()[0], "needs a namespace of its own")
@@ -317,7 +318,7 @@ func hintAt(t *testing.T, types *compile.Types) string {
 // it whenever it arrives.
 func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
 		return named("items")
@@ -346,13 +347,13 @@ func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
 	t.Parallel()
 	const raw = "A"
 
-	declaredFirst := compile.NewTypes(0)
+	declaredFirst := compile.NewTypes()
 	declaredFirst.Intern(provisionalPointer, provisionalID, func() ir.TypeDef {
 		return &ir.Scalar{ID: provisionalID, Name: compile.NamingHint(raw)}
 	})
 	interned := hintAt(t, declaredFirst)
 
-	referencedFirst := compile.NewTypes(0)
+	referencedFirst := compile.NewTypes()
 	referencedFirst.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
 		return named("placeholder")
 	})
@@ -369,7 +370,7 @@ func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
 // so a reference arriving later cannot have marked it and the name stands.
 func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.Intern("/a/items", "t/anon/a/items", func() ir.TypeDef {
 		return named("a_item")
@@ -389,7 +390,7 @@ func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 // them are replacing anything.
 func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	require.NotPanics(t, func() { types.NameFromDeclaration("/nothing/here", "x") })
 	assert.Empty(t, types.Violations())
 }
@@ -399,7 +400,7 @@ func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
 // declaration to rename and no coordinate left mapped.
 func TestTypes_RefusedProvisionalInternIsNotNamed(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef { return nil })
 	_, ok := types.NodeAt("/a/items")

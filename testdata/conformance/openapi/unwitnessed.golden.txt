@@ -162,7 +162,6 @@ Property.WireID
 Property.WireNameByFormat
 ProtocolDecl.Name
 ProtocolDecl.Options
-Provenance.Source
 RPCBinding.FullMethod
 RPCBinding.IdempotencyLevel
 RPCBinding.InputType

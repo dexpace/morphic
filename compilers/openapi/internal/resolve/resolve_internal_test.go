@@ -162,7 +162,7 @@ func TestSameFile(t *testing.T) {
 
 func TestInternedID_ByPointerHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
 	id, ok := InternedID(ts, deepPointer)
@@ -172,7 +172,7 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	// A node lives at the pointer-derived ID without a byPointer entry: internedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
@@ -185,7 +185,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 
 func TestInternedID_Miss(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	_, ok := InternedID(ts, deepPointer)
 	assert.False(t, ok, "an un-interned pointer does not resolve")
 }

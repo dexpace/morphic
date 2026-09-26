@@ -16,7 +16,6 @@ import (
 type Types struct {
 	reg       ir.TypeRegistry
 	byPointer map[string]ir.TypeID
-	src       int
 	refused   []string
 	// spaces records how each namespace is addressed — true for minted, false
 	// for source-addressed — so claimSpace can catch one namespace used both
@@ -49,13 +48,11 @@ func (t *Types) refuse(format string, args ...any) {
 // diagnostics rather than dropping them.
 func (t *Types) Violations() []string { return t.refused }
 
-// NewTypes returns an empty registry whose interned primitives are stamped with
-// source index src.
-func NewTypes(src int) *Types {
+// NewTypes returns an empty registry.
+func NewTypes() *Types {
 	return &Types{
 		reg:       ir.TypeRegistry{},
 		byPointer: make(map[string]ir.TypeID),
-		src:       src,
 		spaces:    make(map[Space]bool),
 		byID:      make(map[ir.TypeID]string),
 
@@ -269,6 +266,11 @@ func (t *Types) Node(id ir.TypeID) (ir.TypeDef, bool) {
 // to it. Primitives are leaves reached by kind rather than by position, so they
 // never enter the pointer-keyed table.
 //
+// Its provenance is ir.NoSource, the IR's value for a node that addresses no
+// input file. One primitive is shared by every position of its kind in every
+// source, and a source index with no pointer would read as the whole document
+// having declared it (GitHub #528).
+//
 // It writes the registry directly, claiming neither the ID nor the space: both
 // claims are about a coordinate owning an ID, and a primitive has no coordinate.
 // What that leaves unguarded here — another node landing in the prim space — is
@@ -279,7 +281,7 @@ func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 	if _, ok := t.reg[id]; !ok {
 		t.reg[id] = &ir.Primitive{
 			ID:         id,
-			Provenance: ir.Provenance{Source: t.src},
+			Provenance: ir.Provenance{Source: ir.NoSource},
 			Prim:       k,
 		}
 	}

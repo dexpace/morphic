@@ -169,7 +169,9 @@ formats must reach that same node for the same kind, or they disagree about the 
 same type. The `prim` namespace is reserved for exactly those nodes: anything else addressed there
 either collides with the primitive of that kind or squats the name of the next one. `irverify`
 holds both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document,
-whatever produced it.
+whatever produced it. For the same reason a primitive's `Provenance` names no source: its `Source`
+is `NoSource` (§13), since a source index with no pointer would read as the whole file having
+declared it.
 
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
@@ -1976,7 +1978,8 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
-reusing one would make a renderer fabricate a location. `NoSource` is therefore the **only**
+reusing one would make a renderer fabricate a location. A shared primitive has none either: it is
+reached by kind from every position of it in every source (§3.1). `NoSource` is therefore the **only**
 out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.

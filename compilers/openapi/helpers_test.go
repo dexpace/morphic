@@ -97,7 +97,7 @@ type lowerer struct {
 // of them and miss the other — which is what newRawLowerer, hand-constructing
 // the struct beside newLowerer, used to allow.
 func lowererOver(ctx lowering.Ctx) *lowerer {
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	return &lowerer{
 		ctx:          ctx,
 		out:          &ir.Document{Types: types.Registry()},

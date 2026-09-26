@@ -63,7 +63,7 @@ func TestParse_KeyThatIsNotUTF8IsRefused(t *testing.T) {
 // the node is simply absent and every reference to it dangles.
 func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Register("", nil)
 	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 
