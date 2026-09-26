@@ -4,11 +4,13 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -193,3 +195,30 @@ func TestInternedID_Miss(t *testing.T) {
 // deepPointer is a sub-schema coordinate, deep enough that no component-name
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
+
+// TestScope_DeclaredAt pins the four shapes a pointer can be at: a schema
+// position resolves to its declaration, a position that is not a schema at
+// all and a position the document does not declare both come back ok=false
+// rather than panicking or returning a zero *oas3.JSONSchema a caller could
+// mistake for a real one, and a Scope built with no Doc resolves nothing
+// (GitHub #530 — a discriminator mapping value has no js.GetResolvedSchema()
+// to fall back to, so DeclaredAt is what a caller without one uses instead).
+func TestScope_DeclaredAt(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.DocDeclaring("Pet")
+	doc.Info = soa.Info{Title: "T", Version: "1"}
+	sc := Scope{Doc: doc}
+
+	got, ok := sc.DeclaredAt("/components/schemas/Pet")
+	require.True(t, ok, "a schema position resolves to its declaration")
+	assert.NotNil(t, got)
+
+	_, ok = sc.DeclaredAt("/info")
+	assert.False(t, ok, "a non-schema position does not resolve")
+
+	_, ok = sc.DeclaredAt("/components/schemas/Ghost")
+	assert.False(t, ok, "a position the document does not declare does not resolve")
+
+	_, ok = Scope{}.DeclaredAt("/components/schemas/Pet")
+	assert.False(t, ok, "a nil Doc resolves nothing")
+}

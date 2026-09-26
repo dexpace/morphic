@@ -78,15 +78,21 @@ var loweringRecursions = [][]string{
 // The scalar hoisters and the encoding reader joined it when contentSchema
 // gained an IR home: its value is a schema, so lowering it re-enters the walk
 // from a scalar position, which until then was the walk's one leaf.
+// Discriminator lowering joined it the same way (#530): a mapping target is a
+// reference the resolver never follows, so resolving one now re-enters the
+// walk at the position it names instead of only ever consulting what had
+// already interned there.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple",
-	"composedVariant", "contentSchemaRef", "fillAdditional", "fillAllOf",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
+	"composedVariant", "contentSchemaRef", "discriminatorDefault",
+	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
 	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDistributedUnion",
-	"lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
-	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "resolveSchemaRef",
-	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
+	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
+	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
+	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
+	"refTypeRef", "resolveMappingTarget", "resolveSchemaRef", "scalarEncoding",
+	"scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,
