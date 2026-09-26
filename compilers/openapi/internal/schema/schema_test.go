@@ -2240,6 +2240,35 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
+		// The remaining rows all aim refAt at a keyed or branch position ABOVE the
+		// asserted node (GitHub #518): a reference aimed at the node itself is
+		// renamed by the declaration in either order (#372) and cannot see a role
+		// the old tail-reading predictor misread from the key or the ordinal.
+		{"a property named items is not the items keyword",
+			"    A: {type: object, properties: {items: {type: array, items: " +
+				openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/properties/items/items", "items_item",
+			"t/anon/components/schemas/A/properties/items"},
+		{"a property named additionalProperties is not the additionalProperties keyword",
+			"    A: {type: object, properties: {additionalProperties: {type: object, additionalProperties: " +
+				openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/properties/additionalProperties/additionalProperties",
+			"additional_properties_value", "t/anon/components/schemas/A/properties/additionalProperties"},
+		{"a property named contentSchema is not the contentSchema keyword",
+			"    A: {type: object, properties: {contentSchema: {type: array, items: " +
+				openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/properties/contentSchema/items", "content_schema_item",
+			"t/anon/components/schemas/A/properties/contentSchema"},
+		{"a patternProperties entry keyed items is not the items keyword",
+			"    A: {type: object, patternProperties: {items: {type: array, items: " +
+				openapitest.InlineProbeBody + "}}}\n",
+			"t/anon/components/schemas/A/patternProperties/items/items", "a_pattern_item",
+			"t/anon/components/schemas/A/patternProperties/items"},
+		{"items beneath a oneOf branch is named off the branch, not the ordinal",
+			"    A: {oneOf: [{type: array, items: {type: array, items: " +
+				openapitest.InlineProbeBody + "}}, {type: integer}]}\n",
+			"t/anon/components/schemas/A/oneOf/0/items/items", "variant_0_item_item",
+			"t/anon/components/schemas/A/oneOf/0/items"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -2305,6 +2334,108 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, "response_item", unreferenced.Types[id].Common().Name.Hint,
 		"which is what the two above are being held to")
+}
+
+// TestPureRefPosition_IsNamedByItsDeclarationInBothOrders is GitHub #519: a
+// pure $ref position — one that interns nothing from its own declaration,
+// unlike the structural positions TestInlinePosition_HintIsTheSameInBothOrders
+// covers — has nothing for the declaration to rename when the declaration
+// lowers first, so a later reference used to hoist a node there under its own
+// guess at the $ref's target and that guess stuck. The recorded hint fixes it.
+//
+// T gives every row something to point the $ref at; it is a plain object, so
+// the last row's branch is unambiguously named after it ("t") rather than
+// after its position, which is the one row where that is correct instead of
+// the bug (GitHub #521: a $ref branch is named after its target).
+func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
+	t.Parallel()
+	const tDecl = "    T: {type: object, properties: {t: {type: string}}}\n"
+	for _, tc := range []struct {
+		name  string
+		owner string
+		id    ir.TypeID
+		hint  string
+	}{
+		{"items", "    A: {type: array, items: {$ref: '#/components/schemas/T'}}\n" + tDecl,
+			"t/anon/components/schemas/A/items", "a_item"},
+		{"additionalProperties", "    A: {type: object, additionalProperties: {$ref: '#/components/schemas/T'}}\n" + tDecl,
+			"t/anon/components/schemas/A/additionalProperties", "a_value"},
+		{"a property", "    A: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}\n" + tDecl,
+			"t/anon/components/schemas/A/properties/p", "p"},
+		{"prefixItems", "    A: {type: array, prefixItems: [{$ref: '#/components/schemas/T'}]}\n" + tDecl,
+			"t/anon/components/schemas/A/prefixItems/0", "a_0"},
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": {$ref: '#/components/schemas/T'}}}\n" + tDecl,
+			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern"},
+		// A $ref branch is the one position the composition names after its
+		// target rather than its own location, in either order — branchHint
+		// and subSchemaHint agree on that (GitHub #521) — so this row's
+		// expectation does not flip between the two orders below.
+		{"a union branch", "    A: {oneOf: [{$ref: '#/components/schemas/T'}, {type: integer}]}\n" + tDecl,
+			"t/anon/components/schemas/A/oneOf/0", "t"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pos := stolenPosition{name: tc.name, owner: tc.owner, id: tc.id}
+			for _, order := range []struct {
+				name     string
+				refFirst bool
+			}{{"owner declared first", false}, {"reference declared first", true}} {
+				doc, diags := parseFull(t, pos.spec(order.refFirst))
+				openapitest.RequireNoErrorDiags(t, diags)
+				td, ok := doc.Types[tc.id]
+				require.True(t, ok, "%s: the position owns a node at %s", order.name, tc.id)
+				assert.Equal(t, tc.hint, td.Common().Name.Hint, order.name)
+			}
+		})
+	}
+}
+
+// TestPureRefPosition_UnderPathsIsNamedByItsDeclaration is
+// TestPureRefPosition_IsNamedByItsDeclarationInBothOrders's counterpart under
+// /paths, modelled on TestInlinePosition_UnderPathsIsNamedByItsDeclaration:
+// positionHint cannot replay the enclosing hint there at all, so the guess a
+// reference makes at that position falls back to the $ref's own target
+// ("t") rather than "response_item". /b's declaration is the only lowering
+// that ever knows the position is "response_item", and recording that hint
+// before anything is interned there is what lets it survive regardless of
+// which of /b or /a lowers first.
+func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
+	t.Parallel()
+	const id = ir.TypeID("t/anon/paths/~1b/get/responses/200/content/application~1json/schema/items")
+	const bBlock = `  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: array, items: {$ref: '#/components/schemas/T'}}}
+`
+	const aBlock = `  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/items', description: x}}
+`
+	const components = "components:\n  schemas:\n    T: {type: object, properties: {t: {type: string}}}\n"
+	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
+
+	// b declared first is the order that was wrong on main: b's declaration
+	// reaches the position and interns nothing there (a pure $ref), so there
+	// was nothing for it to rename once a's reference hoisted a node under its
+	// own guess at the $ref's target.
+	bFirst, diags := parseFull(t, preamble+bBlock+aBlock+components)
+	openapitest.RequireNoErrorDiags(t, diags)
+	aFirst, diags := parseFull(t, preamble+aBlock+bBlock+components)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Equal(t, "response_item", bFirst.Types[id].Common().Name.Hint,
+		"the declaration's hint is recorded and survives even though it interns nothing itself")
+	assert.Equal(t, "response_item", aFirst.Types[id].Common().Name.Hint,
+		"and the other order was already correct, from the declaration replacing the reference's guess")
 }
 
 // TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the

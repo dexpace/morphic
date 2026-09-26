@@ -1,0 +1,22 @@
+# GitHub #519: a pure $ref position — one with nothing beside the $ref for its
+# own declaration to intern — takes whichever lowering reaches it first.
+# Declaring the owners before the Out* references that name their pure-$ref
+# positions is the order that exposed it: the declaration interns nothing
+# there, so there is nothing for it to rename once a later reference hoists a
+# node under its own guess at the $ref's target instead of the position.
+openapi: 3.1.0
+info: {title: Pointer Hint Pure Ref Position, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: array, items: {$ref: '#/components/schemas/T'}}
+    B: {type: object, additionalProperties: {$ref: '#/components/schemas/T'}}
+    C: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}
+    D: {type: array, prefixItems: [{$ref: '#/components/schemas/T'}]}
+    E: {type: object, patternProperties: {"^x": {$ref: '#/components/schemas/T'}}}
+    T: {type: object, properties: {t: {type: string}}}
+    OutItems: {$ref: '#/components/schemas/A/items'}
+    OutAdditionalProperties: {$ref: '#/components/schemas/B/additionalProperties'}
+    OutProperty: {$ref: '#/components/schemas/C/properties/p'}
+    OutPrefixItems: {$ref: '#/components/schemas/D/prefixItems/0'}
+    OutPatternProperties: {$ref: '#/components/schemas/E/patternProperties/^x'}

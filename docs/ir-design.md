@@ -482,9 +482,10 @@ the branch position takes a node of its own — an alias over the target carryin
 `Base`/`Mixins` point at that. It is the same alias any other `$ref`-with-siblings position hoists
 when it carries no `Property` or `Parameter` of its own to hold them — `items`, a union branch, a
 component — so nothing about composition is special here; a `$ref` entry writing nothing beside
-itself composes straight to the target and hoists no node. The alias's name hint comes from the `$ref`
-target, which is also what an outside `$ref` naming the branch pointer derives, since either may
-be the lowering that interns the node.
+itself composes straight to the target and hoists no node. The alias's name hint is the hint the
+node the `$ref` resolves to carries — a component's name, or, for a position inside a schema, the
+hint its own declaration gives it — which is also what an outside `$ref` naming the branch pointer
+derives, since either may be the lowering that interns the node.
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
 `allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same

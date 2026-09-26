@@ -1,0 +1,47 @@
+# GitHub #518: an outside $ref naming a position inside another schema's body
+# used to guess that position's hint by reading the pointer from its tail and
+# recognizing a keyword by spelling alone, so a property, a patternProperties
+# entry, or the child of a oneOf branch shaped or spelled like a structural
+# keyword was misread as that keyword instead of its own position, and a
+# branch's ordinal stood in for the enclosing hint of what sits beneath it.
+# Declaring the Out* references before the schemas they name is the order
+# that exposed it: the reference interns the position, and everything beneath
+# it, first under its wrong guess, and nothing later corrects the subtree —
+# only the position's own node is fixed up by the declaration that follows.
+openapi: 3.1.0
+info: {title: Pointer Hint Keyword-Named Keys, version: "1"}
+paths: {}
+components:
+  schemas:
+    OutItems: {$ref: '#/components/schemas/A/properties/items'}
+    OutAdditionalProperties: {$ref: '#/components/schemas/A/properties/additionalProperties'}
+    OutContentSchema: {$ref: '#/components/schemas/A/properties/contentSchema'}
+    OutPrefixItemsKey: {$ref: '#/components/schemas/A/properties/prefixItems'}
+    OutPatternProperties: {$ref: '#/components/schemas/A/patternProperties/items'}
+    OutBranchChild: {$ref: '#/components/schemas/B/oneOf/0/items'}
+    A:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {type: object, properties: {v: {type: string}}}
+        additionalProperties:
+          type: object
+          additionalProperties: {type: object, properties: {v: {type: string}}}
+        contentSchema:
+          type: array
+          items: {type: object, properties: {v: {type: string}}}
+        prefixItems:
+          type: array
+          prefixItems: [{type: object, properties: {v: {type: string}}}]
+      patternProperties:
+        items:
+          type: array
+          items: {type: object, properties: {v: {type: string}}}
+    B:
+      oneOf:
+        - type: array
+          items:
+            type: array
+            items: {type: object, properties: {v: {type: string}}}
+        - type: integer

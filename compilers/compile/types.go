@@ -29,6 +29,9 @@ type Types struct {
 	// reached them through a reference rather than through the declaration that
 	// owns them. See InternProvisional.
 	provisional map[string]bool
+	// declared holds the hint a declaration gave each coordinate it reached
+	// without finding a placeholder there. See NameFromDeclaration.
+	declared map[string]string
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -60,6 +63,7 @@ func NewTypes(src int) *Types {
 		byID:      make(map[ir.TypeID]string),
 
 		provisional: make(map[string]bool),
+		declared:    make(map[string]string),
 	}
 }
 
@@ -166,27 +170,41 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 // whichever order the two happen.
 //
 // A coordinate already interned is not marked: the declaration may have been
-// there first, and a name it settled is not a placeholder.
+// there first, and a name it settled is not a placeholder. Nor is a coordinate
+// the declaration reached before any node existed there: it named the position
+// then, and that name is what the node takes (GitHub #519).
 func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
 	_, before := t.byPointer[pointer]
 	interned := t.Intern(pointer, id, build)
-	if _, after := t.byPointer[pointer]; after && !before {
-		t.provisional[pointer] = true
+	if _, after := t.byPointer[pointer]; !after || before {
+		return interned
 	}
+	if hint, ok := t.declared[pointer]; ok {
+		t.reg[interned].Common().Name.Hint = neutralHint(hint)
+		return interned
+	}
+	t.provisional[pointer] = true
 	return interned
 }
 
 // NameFromDeclaration gives the node at pointer the hint its declaration
 // derives, replacing a placeholder a reference left there first.
 //
-// It is a no-op for a coordinate that is not carrying a placeholder, which is
-// every coordinate the declaration reached first — there the name is already the
-// one this would write. That is also what makes a second declaration at one
-// coordinate silent here rather than last-write-wins: two declarations claiming
-// one coordinate is what claimID refuses, and re-reporting it as a naming
-// problem would name the symptom instead of the cause.
+// A coordinate not carrying a placeholder is every coordinate the declaration
+// reached first, and there the hint is recorded instead. A declaration can reach
+// a position and intern nothing there — a $ref it resolves straight to its
+// target, a body that reduces to a shared primitive — and a reference naming the
+// position later hoists the node the declaration never made. Without the record
+// that node kept the reference's name in one declaration order and took the
+// declaration's in the other (GitHub #519); InternProvisional reads it. Where the
+// declaration did intern a node the record is never read, since no reference
+// can intern that coordinate again.
+//
+// Two declarations claiming one coordinate is what claimID refuses; re-reporting
+// it here as a naming problem would name the symptom instead of the cause.
 func (t *Types) NameFromDeclaration(pointer, hint string) {
 	if !t.provisional[pointer] {
+		t.declared[pointer] = hint
 		return
 	}
 	delete(t.provisional, pointer)
