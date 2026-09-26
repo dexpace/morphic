@@ -99,20 +99,36 @@ type Compiler interface {
 	// not serve. An ok answer must name a format, or Registry.Detect ignores
 	// it, diags included, and asks the next compiler.
 	//
-	// opts carries the caller's bounds for reading src, which recognition
-	// honors. FormatOptions of a type this compiler does not take mean its
-	// defaults; only Compile rejects them.
+	// Detection honors the bounds opts sets for reading src. FormatOptions of
+	// another compiler's type mean this one's defaults; only Compile rejects
+	// them.
 	//
 	// diags is read only when ok is false. Declining another format's bytes is
 	// silent; diags is for this compiler's own source when it is unreadable or
-	// opts forbid reading it.
+	// opts forbid reading it, and names src as Source 0.
 	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
+	// Compile lowers sources into a Document, or refuses them by returning a nil
+	// one and no error. Every Provenance.Source it reports other than
+	// ir.NoSource, on the Document or in the returned diagnostics, indexes the
+	// table SourceTable gives for the same arguments, and a returned Document's
+	// Sources names those inputs in that order.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
+	// SourceTable names the inputs a compile of sources under opts reads, in the
+	// order its provenance indexes them: the sources, then any input the
+	// options supply, such as an overlay.
+	//
+	// It is the table a refusal's diagnostics index, since a refusal has no
+	// Document to carry one. It reads no input and fails on none, so an entry
+	// holds only the Path it was given. For options a compile would reject, it
+	// names the sources alone. It is required: a caller left to guess the
+	// table can name only the sources, and would print an overlay's findings
+	// without their file.
+	SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 
 // Registry maps source formats to compilers. It is a plain instance — there is

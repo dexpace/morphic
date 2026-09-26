@@ -2054,6 +2054,13 @@ out-of-table `Source` value the IR declares: a verifier accepts it and reports e
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.
 
+**A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
+index the table that document would have carried. The compiler names it without reading anything
+(`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
+`engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
+made before any compiler claimed the spec, which names it as source `0`: it is about a file the
+table names, and only a finding about no file at all takes `NoSource`.
+
 **One field per kind of locator.** A consumer cannot tell a locator's kind from its spelling, so
 each kind has its own field. `Pointer` is the structural locator into a source and holds nothing
 but an RFC 6901 pointer, which is what lets a consumer walk it with `jsontext.Pointer`'s methods.
