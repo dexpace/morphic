@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,4 +72,57 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	require.NoError(t, err)
 
 	assertHasErrorCode(t, diags, diag.InternalInvariant)
+}
+
+// TestWithoutRereported is a unit table over the four ways a lowering
+// diagnostic and the load phase's diagnostics can relate. Only one of the four
+// drops anything: the exact key withoutRereported dedupes on is the whole
+// Provenance, not the pointer alone, so a diagnostic at the same pointer under
+// a different code, or the same code at a different pointer, both survive.
+func TestWithoutRereported(t *testing.T) {
+	t.Parallel()
+	at := ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}
+	elsewhere := ir.Provenance{Source: 0, Pointer: "/components/schemas/T"}
+
+	tests := map[string]struct {
+		lowered []ir.Diagnostic
+		loaded  []ir.Diagnostic
+		want    []ir.Diagnostic
+	}{
+		"a different code at the same provenance is kept": {
+			lowered: []ir.Diagnostic{{Code: diag.DegradedConstruct, Provenance: at}},
+			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			want:    []ir.Diagnostic{{Code: diag.DegradedConstruct, Provenance: at}},
+		},
+		"unresolved-ref at a different provenance is kept": {
+			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: elsewhere}},
+			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			want:    []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: elsewhere}},
+		},
+		"unresolved-ref at the same provenance is dropped": {
+			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			want:    []ir.Diagnostic{},
+		},
+		"an empty loaded list keeps everything": {
+			lowered: []ir.Diagnostic{
+				{Code: diag.UnresolvedRef, Provenance: at},
+				{Code: diag.DegradedConstruct, Provenance: elsewhere},
+			},
+			loaded: nil,
+			want: []ir.Diagnostic{
+				{Code: diag.UnresolvedRef, Provenance: at},
+				{Code: diag.DegradedConstruct, Provenance: elsewhere},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := withoutRereported(tc.lowered, tc.loaded)
+			if d := cmp.Diff(tc.want, got); d != "" {
+				t.Errorf("withoutRereported(-want +got):\n%s", d)
+			}
+		})
+	}
 }
