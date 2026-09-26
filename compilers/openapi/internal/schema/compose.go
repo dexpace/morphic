@@ -445,8 +445,8 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 // this subtype, falling back to the subtype's own schema name (OpenAPI's
 // implicit mapping) when the mapping omits it — the name as declared, not the
 // pointer token spelling it, which escapes a '/' as ~1 (GitHub #505). An inline
-// subtype has no schema name and takes its pointer's last token instead
-// (GitHub #517).
+// subtype (a property, a body, a union branch, ...) has no schema name and so no
+// implicit tag; only a mapping entry can give it one (GitHub #517).
 //
 // Every discriminated ancestor is asked, not only the immediate base: a
 // hierarchy deeper than two levels composes an intermediate schema that declares
@@ -477,7 +477,10 @@ func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
 			len(tags), strings.Join(tags, ", "))}
 	}
-	return pointer.LastToken(), nil
+	if name, ok := ids.ComponentSchemaName(pointer); ok {
+		return name, nil
+	}
+	return "", nil
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted
