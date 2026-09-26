@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -397,7 +398,7 @@ func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 }
 
 // InternalPointer reports the JSON pointer a $ref value names inside this
-// document, and whether it names this document at all.
+// document, and whether it names a position there the resolver can follow.
 //
 // It mirrors the resolver exactly: speakeasy splits a $ref on '#', treats what
 // precedes it as a URI and what follows as the pointer, trims whitespace from
@@ -410,8 +411,13 @@ func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 // space — is enough to be one. A dependency bump should re-check those two
 // methods, as MergeDepthLimit's comment does for the behavior it tracks.
 //
-// A fragment that is no pointer, such as `#name`, comes back as written, and the
-// scan walks it although the resolver does not follow it (GitHub #523).
+// The mirror holds the other way too. A fragment that does not start with '/'
+// is refused: the resolver never walks one as a pointer — its pointer walk
+// rejects it, and `#name` is a $anchor it looks up by name if at all — and
+// walking the name from the root as a key refused a document as a cycle the
+// resolver never enters (GitHub #523). So is a fragment that decodes to bytes
+// that are not UTF-8, which no document key can spell (GitHub #520). A bare '#'
+// stays: it names the root, where the resolver lands it.
 func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	parts := strings.Split(ref, "#")
 	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
@@ -420,6 +426,12 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer := strings.TrimSpace(parts[1])
 	if decoded, err := url.QueryUnescape(pointer); err == nil {
 		pointer = decoded
+	}
+	if pointer != "" && !strings.HasPrefix(pointer, "/") {
+		return "", false // a $anchor name or other non-pointer fragment
+	}
+	if !utf8.ValidString(pointer) {
+		return "", false // no document key spells these bytes
 	}
 	return jsontext.Pointer(pointer), true
 }

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -94,6 +96,95 @@ func TestCompile_CyclicSpecDoesNotCrash(t *testing.T) {
 			assertHasErrorCode(t, diags, diag.CyclicRef)
 		})
 	}
+}
+
+// TestCompile_AnchorFragmentIsLeftToTheResolver is the compiler-level half of
+// the GitHub #523 fix. '#x-s' names a $anchor, not a pointer, so the
+// pre-lowering cycle scan must no longer read it as the pointer 'x-s' and walk
+// it from the document root as a key — which used to refuse this document as a
+// cycle the resolver itself never enters. Milestone 1 resolves no anchors, so
+// the reference still does not resolve; it is now reported unresolved where it
+// is written instead of refusing the whole document.
+func TestCompile_AnchorFragmentIsLeftToTheResolver(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+x-s:
+  $ref: '#x-s'
+components:
+  schemas:
+    A:
+      $ref: '#x-s'
+`
+	doc, diags, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "anchor.yaml", Data: []byte(src)}}, compilers.Options{})
+	require.NoError(t, err, "an unresolved anchor reference is a spec problem, not a Go error")
+	require.NotNil(t, doc, "the document is no longer refused as a cycle")
+	for _, d := range diags {
+		assert.NotEqual(t, diag.CyclicRef, d.Code,
+			"'#x-s' names a $anchor, which the resolver's pointer walk never enters: %+v", d)
+	}
+	assertHasErrorCode(t, diags, diag.UnresolvedRef)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/A"),
+		"the reference is reported unresolved where it is written; got %+v", diags)
+}
+
+// TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
+// the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
+// never reach a PropID, since no document key can spell them and the IR cannot
+// encode one that does. Before the fix, the multipart body's encoding key was
+// derived from the raw byte the fragment decoded to, and the document could not
+// be marshalled at all.
+func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /upload:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/%FF'
+              properties:
+                file: {type: string, format: binary}
+            encoding:
+              file: {contentType: application/octet-stream}
+      responses:
+        "204": {description: ok}
+components:
+  schemas:
+    Form: {type: object}
+`
+	doc, _, err := New().Compile(t.Context(),
+		[]compilers.Source{{Path: "multipart.yaml", Data: []byte(src)}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	_, err = json.Marshal(doc)
+	require.NoError(t, err, "no byte that is not UTF-8 reaches the document")
+
+	// The library's own resolver error for this reference carries U+FFFD in
+	// place of the raw byte (load.go's resolveDiag, a separate issue); scoping
+	// the check to everything but Diagnostics is what that leftover requires.
+	withoutDiagnostics := *doc
+	withoutDiagnostics.Diagnostics = nil
+	clean, err := json.Marshal(&withoutDiagnostics)
+	require.NoError(t, err)
+	assert.NotContains(t, string(clean), "\ufffd",
+		"U+FFFD must not reach anything but a diagnostic message")
+
+	op := openapitest.FirstOp(t, doc.Services[0])
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	want := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody",
+		"content", "multipart/form-data", "schema", "properties", "file"))
+	enc := op.Request.Contents[0].Encoding
+	require.Len(t, enc, 1, "exactly one part is configured; got %v", enc)
+	_, ok := enc[want]
+	assert.True(t, ok, "the encoding key derives from the body's own local position; got %v", enc)
 }
 
 var componentOnlyCycles = []struct{ name, data string }{
