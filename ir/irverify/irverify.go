@@ -93,6 +93,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
+		checkValues,
 	}
 }
 
