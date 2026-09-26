@@ -78,12 +78,14 @@ var schemaDataKeys = map[string]bool{
 type Locator func(n *yaml.Node) ir.Provenance
 
 // InSource is the Locator for a document nothing has patched: srcIndex, and the
-// node's own line and column when there is a node.
+// node's own line and column when there is a node. A node the parser did not
+// place has neither, which is the zero Position: no position, rather than one
+// at 0:0.
 func InSource(srcIndex int) Locator {
 	return func(n *yaml.Node) ir.Provenance {
 		prov := ir.Provenance{Source: srcIndex}
 		if n != nil {
-			prov.Pointer = fmt.Sprintf("%d:%d", n.Line, n.Column)
+			prov.Position = ir.Position{Line: n.Line, Column: n.Column}
 		}
 		return prov
 	}

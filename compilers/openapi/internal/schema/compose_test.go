@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"testing"
@@ -191,7 +192,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
 	assert.JSONEq(t, `{"type":"integer"}`, string(lost.Value),
 		"and it is the declaration the second branch wrote, not the one that won")
-	assert.Equal(t, "/components/schemas/Conflictish/allOf/1/properties/id", lost.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/1/properties/id"), lost.Provenance.Pointer)
 }
 
 // TestAllOf_ALosingRedeclarationIsKeptAsWritten pins what the entry holds at
@@ -575,7 +576,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	entry, ok := m.Unmodeled["openapi:allOf/0"]
 	require.True(t, ok, "the branch is kept verbatim; got %+v", m.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.Equal(t, "/components/schemas/S/allOf/0", entry.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), entry.Provenance.Pointer,
 		"the entry locates the branch, not the composed schema")
 	for _, kept := range []string{
 		`"additionalProperties":false`, `"not":{"type":"string"}`, `"minProperties":2`,
@@ -1674,7 +1675,7 @@ func TestHoistLiteral_UnconvertibleConstBecomesAny(t *testing.T) {
 		"exactly one warning fires for the unconvertible value")
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/components/schemas/K", d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/K"), d.Provenance.Pointer)
 }
 
 func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
@@ -1699,7 +1700,7 @@ func TestEnumAsUnion_UnconvertibleMemberBecomesAny(t *testing.T) {
 		"exactly one warning for the unconvertible member, distinct from the heterogeneous-enum info diagnostic")
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/components/schemas/M/enum/1", d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/M/enum/1"), d.Provenance.Pointer)
 }
 
 func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
@@ -1721,8 +1722,8 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 `)
 	doc, diags := lowerSpec(t, spec)
 	require.Len(t, diags, 2, "the dates convert cleanly: neither diagnostic is about a member")
-	assert.Equal(t, []string{"/components/schemas/D", "/components/schemas/D/default"},
-		[]string{diags[0].Provenance.Pointer, diags[1].Provenance.Pointer})
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/D", "/components/schemas/D/default"},
+		[]jsontext.Pointer{diags[0].Provenance.Pointer, diags[1].Provenance.Pointer})
 	e, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum, never degrades to a Union of literals")
 	assert.True(t, e.Closed)
@@ -2660,7 +2661,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 			"resolves to nothing this document declares", name)
 	}
 	for _, d := range diags {
-		assert.NotEqual(t, "/components/schemas/Undeclared/oneOf/1", d.Provenance.Pointer,
+		assert.NotEqual(t, jsontext.Pointer("/components/schemas/Undeclared/oneOf/1"), d.Provenance.Pointer,
 			"the branch beside the broken one resolves, so nothing is reported against it")
 	}
 }

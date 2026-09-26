@@ -30,7 +30,7 @@ import (
 // before the invariant checks run.
 func unreachableKeyDiag(entry string, at jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)},
+		ir.Provenance{Source: srcIndex, Pointer: at},
 		"%s is written at a key the source mapping does not present directly, most likely "+
 			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
 }
@@ -48,7 +48,7 @@ func unreachableKeyDiag(entry string, at jsontext.Pointer, srcIndex int) ir.Diag
 // either side moves keys they already publish.
 func occupiedEntryDiag(entry string, at, held jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)},
+		ir.Provenance{Source: srcIndex, Pointer: at},
 		"%s is already held by the construct at %q, so this key is represented in the IR in "+
 			"no form at all", entry, held)
 }
@@ -228,7 +228,7 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
 	entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
 	if taken, occupied := (*p)[entry]; occupied {
-		return []ir.Diagnostic{occupiedEntryDiag(entry, at, jsontext.Pointer(taken.Provenance.Pointer), srcIndex)}
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer, srcIndex)}
 	}
 	node := RawChildNode(root, key)
 	if node == nil {
@@ -239,7 +239,7 @@ func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner json
 		return diags
 	}
 	return append(diags, diag.Newf(cl.severity, cl.code,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)}, cl.message, key))
+		ir.Provenance{Source: srcIndex, Pointer: at}, cl.message, key))
 }
 
 // unrecorded returns the keys this census has to answer for: the ones cl has not
@@ -259,7 +259,7 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 			continue
 		}
 		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
-			e.Provenance.Pointer == string(owner+ids.Ptr(key)) {
+			e.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)
@@ -286,7 +286,7 @@ func scoped(scope, key string) string {
 // budgetDiag reports the keys past MaxUnknownKeys, which reach the IR in no form.
 func budgetDiag(total int, owner jsontext.Pointer, srcIndex int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyBudget,
-		ir.Provenance{Source: srcIndex, Pointer: string(owner)},
+		ir.Provenance{Source: srcIndex, Pointer: owner},
 		"object writes %d keys its model names no field for and no other reader kept, past the "+
 			"%d this compiler keeps; the rest are represented in the IR in no form at all",
 		total, MaxUnknownKeys)

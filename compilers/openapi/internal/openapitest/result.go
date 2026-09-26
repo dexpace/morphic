@@ -1,6 +1,8 @@
 package openapitest
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -102,7 +104,7 @@ func HasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
 // HasDiagCodeAt reports whether diags carries code at exactly pointer.
 func HasDiagCodeAt(diags []ir.Diagnostic, code, pointer string) bool {
 	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == pointer {
+		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			return true
 		}
 	}
@@ -132,7 +134,7 @@ func DiagMessageAt(t TB, diags []ir.Diagnostic, code string, sev ir.Severity, po
 	t.Helper()
 	var found []string
 	for _, d := range diags {
-		if d.Code == code && d.Severity == sev && d.Provenance.Pointer == pointer {
+		if d.Code == code && d.Severity == sev && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			found = append(found, d.Message)
 		}
 	}
@@ -156,7 +158,7 @@ func FirstDegradedWarning(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
 func AssertInfoDiagAt(t TB, diags []ir.Diagnostic, pointer string) {
 	t.Helper()
 	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == pointer {
+		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			return
 		}
 	}

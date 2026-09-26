@@ -53,7 +53,12 @@ package ir
 //   - Decoding refuses what it used to take in silence: a member the schema
 //     does not define, a duplicate name, a string that is not UTF-8, and a
 //     missing or foreign irVersion, which is read before any other member.
-const IRVersion = "0.5.0"
+//
+// 0.6.0 gives each kind of Provenance locator its own key. "pointer" holds
+// only an RFC 6901 pointer; a line and column move to "position", and an IR
+// pass's location in the document itself moves to "node". A consumer pinned to
+// 0.5.0 finds neither new key and reads those findings as unlocated.
+const IRVersion = "0.6.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build. It is the predicate behind the compatibility policy in

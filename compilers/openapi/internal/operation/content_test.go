@@ -1,6 +1,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -552,13 +553,13 @@ func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
 	require.True(t, ok, "allowReserved is kept; got %v", kept)
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, "true", string(entry.Value))
-	assert.Equal(t, at+"/allowReserved", entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at+"/allowReserved"), entry.Provenance.Pointer)
 	openapitest.AssertInfoDiagAt(t, diags, at+"/allowReserved")
 
 	ext, ok := kept["openapi:encoding/q/x-vendor"]
 	require.True(t, ok, "the encoding's own x-* is kept; got %v", kept)
 	assert.Equal(t, ir.ReasonVendorExtension, ext.Reason)
-	assert.Equal(t, at+"/x-vendor", ext.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at+"/x-vendor"), ext.Provenance.Pointer)
 }
 
 // TestEncoding_AbsentAllowReservedRecordsNothing is the control: preservation
@@ -788,7 +789,7 @@ func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	// externalValue that would have given it a home.
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok, "the skipped entry is reported")
-	assert.Equal(t, "/paths/~1examples/get/responses/200/content/application~1json/examples/empty",
+	assert.Equal(t, jsontext.Pointer("/paths/~1examples/get/responses/200/content/application~1json/examples/empty"),
 		d.Provenance.Pointer)
 }
 
@@ -818,7 +819,7 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
 	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
 
 	require.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	pointers := map[string]bool{}
+	pointers := map[jsontext.Pointer]bool{}
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			pointers[d.Provenance.Pointer] = true
@@ -867,7 +868,7 @@ components:
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/paths/~1items/get/responses/200/content/application~1json/examples/bad",
+	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/responses/200/content/application~1json/examples/bad"),
 		d.Provenance.Pointer, "the reference site, not a /value the source never had")
 	assert.Contains(t, d.Message, "example:")
 }
@@ -1139,7 +1140,7 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	assert.Equal(t,
 		ir.PropID("p/openapi/paths/~1u/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Rate"),
 		headers[0].ID, "the encoding entry that binds the name keeps the header's identity")
-	assert.Equal(t, headers[0].Provenance.Pointer, string(headers[0].ID)[len("p/openapi"):],
+	assert.Equal(t, headers[0].Provenance.Pointer, jsontext.Pointer(string(headers[0].ID)[len("p/openapi"):]),
 		"provenance tracks the same use-site pointer as the ID")
 }
 
@@ -1293,8 +1294,8 @@ func assertHeaderSerializationKept(t *testing.T, h ir.Property, diags []ir.Diagn
 		require.True(t, ok, "%s is kept", key)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, want, string(entry.Value))
-		assert.Equal(t, at+"/"+key, entry.Provenance.Pointer)
-		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(at+"/"+key), entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 	}
 }
 
@@ -1699,7 +1700,7 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 			require.True(t, ok, "the passed-over schema is kept verbatim; got %v", unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
-			assert.Equal(t, tc.at+"/schema", entry.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer(tc.at+"/schema"), entry.Provenance.Pointer,
 				"located at the keyword itself, not at the object that carried it")
 
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at+"/schema")
@@ -1818,7 +1819,7 @@ func TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins(t *testing.T) {
 	require.True(t, ok, "and the passed-over schema is kept; got %v", op.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
-	assert.Equal(t, at, entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
 	assert.Contains(t, msg, "lowered as its content", "the message names the elected spelling")
@@ -1858,7 +1859,7 @@ func TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt(t *testing.T) {
 	require.True(t, ok, "the passed-over content map is kept verbatim; got %v", op.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{}`, string(entry.Value))
-	assert.Equal(t, at, entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
 	assert.Contains(t, msg, "lowered as its schema", "the message names the elected spelling")

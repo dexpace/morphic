@@ -326,5 +326,5 @@ func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, form
 // rewrote names the overlay as its source, because the question is asked here
 // rather than answered from a field each caller reads.
 func (c Ctx) ProvenanceAt(pointer jsontext.Pointer) ir.Provenance {
-	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: string(pointer)}
+	return ir.Provenance{Source: c.overlay.IndexAt(pointer, c.SrcIndex), Pointer: pointer}
 }

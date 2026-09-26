@@ -3,7 +3,9 @@ package irverify_test
 import (
 	"math"
 	"testing"
+	"unicode/utf8"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -111,4 +113,108 @@ func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 		}
 	}
 	assert.Len(t, paths, 2, "both the diagnostic and the preserved entry must be reported: %v", paths)
+}
+
+// TestVerify_ProvenanceLocatorRules is the table for appendLocatorViolations:
+// one row per rule (a malformed pointer, a malformed position, a locator on
+// NoSource) and the clean neighbour beside it, so a rule tightened to catch
+// more than it should reddens here rather than only in the rule's own
+// package. The provenance sits on a diagnostic — the shape #400's ill-formed
+// message bytes were found on — and each row asserts the exact set of codes
+// Verify reports, not merely that some code fired.
+func TestVerify_ProvenanceLocatorRules(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		prov ir.Provenance
+		want []string
+	}{
+		{
+			name: "pointer with no leading slash is malformed",
+			prov: ir.Provenance{Pointer: "components/x"},
+			want: []string{"ir/provenance-pointer-malformed"},
+		},
+		{
+			name: "pointer with a tilde escaping nothing is malformed",
+			prov: ir.Provenance{Pointer: "/a~2b"},
+			want: []string{"ir/provenance-pointer-malformed"},
+		},
+		{
+			name: "pointer with invalid UTF-8 is malformed",
+			prov: ir.Provenance{Pointer: "/a\xffb"},
+			want: []string{"ir/provenance-pointer-malformed"},
+		},
+		{
+			name: "the empty pointer names the whole document and is clean",
+			prov: ir.Provenance{Pointer: ""},
+			want: nil,
+		},
+		{
+			name: "an escaped tilde and slash are clean",
+			prov: ir.Provenance{Pointer: "/a~0b~1c"},
+			want: nil,
+		},
+		{
+			name: "line 0 with a column is malformed: lines are 1-based",
+			prov: ir.Provenance{Position: ir.Position{Line: 0, Column: 3}},
+			want: []string{"ir/provenance-position-malformed"},
+		},
+		{
+			name: "a negative column is malformed",
+			prov: ir.Provenance{Position: ir.Position{Line: 3, Column: -1}},
+			want: []string{"ir/provenance-position-malformed"},
+		},
+		{
+			name: "a positive line with column 0 is clean: the column is merely unknown",
+			prov: ir.Provenance{Position: ir.Position{Line: 3, Column: 0}},
+			want: nil,
+		},
+		{
+			name: "a pointer on NoSource has nothing to be inside",
+			prov: ir.Provenance{Source: ir.NoSource, Pointer: "/x"},
+			want: []string{"ir/provenance-locator-without-source"},
+		},
+		{
+			name: "a position on NoSource has nothing to be inside",
+			prov: ir.Provenance{Source: ir.NoSource, Position: ir.Position{Line: 5, Column: 1}},
+			want: []string{"ir/provenance-locator-without-source"},
+		},
+		{
+			name: "a node on NoSource is exactly what a pass finding looks like",
+			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
+			want: nil,
+		},
+		{
+			name: "a source with a pointer, a position and a node all together is clean",
+			prov: ir.Provenance{
+				Source:   0,
+				Pointer:  "/x",
+				Position: ir.Position{Line: 5, Column: 1},
+				Node:     "op/x",
+			},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &ir.Document{
+				IRVersion: ir.IRVersion,
+				Diagnostics: []ir.Diagnostic{
+					{Severity: ir.SeverityWarning, Code: "test/x", Message: "m", Provenance: tt.prov},
+				},
+			}
+
+			got := irverify.Verify(doc)
+			var codes []string
+			for _, v := range got {
+				codes = append(codes, v.Code)
+				assert.True(t, utf8.ValidString(v.Message),
+					"a violation's message is valid UTF-8 even when it quotes an ill-formed pointer (#400)")
+			}
+			if diff := cmp.Diff(tt.want, codes); diff != "" {
+				t.Errorf("codes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }

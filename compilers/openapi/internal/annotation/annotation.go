@@ -230,14 +230,14 @@ func ExtensionsUnder(ext *extensions.Extensions, srcIndex int, owner jsontext.Po
 		raw, err := RawFromNode(node)
 		if err != nil || raw == nil {
 			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-				ir.Provenance{Source: srcIndex, Pointer: string(owner)},
+				ir.Provenance{Source: srcIndex, Pointer: owner},
 				"extension %q could not be serialized", name))
 			continue
 		}
 		out[prefix+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
-			Provenance: ir.Provenance{Source: srcIndex, Pointer: string(owner + ids.Ptr(name))},
+			Provenance: ir.Provenance{Source: srcIndex, Pointer: owner + ids.Ptr(name)},
 		}
 	}
 	if len(out) == 0 {
@@ -746,7 +746,7 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) (ir.Unmod
 			continue
 		}
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct,
-			ir.Provenance{Source: srcIndex, Pointer: string(at)},
+			ir.Provenance{Source: srcIndex, Pointer: at},
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and is not "+
 				"honoured for reference resolution", keyword))
@@ -779,7 +779,7 @@ func appendExampleAt(out []ir.Example, diags []ir.Diagnostic, node *yaml.Node,
 	v, err := value.FromNode(node)
 	if err != nil {
 		return out, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-			ir.Provenance{Source: srcIndex, Pointer: string(at)}, "example: %s", err.Error()))
+			ir.Provenance{Source: srcIndex, Pointer: at}, "example: %s", err.Error()))
 	}
 	return append(out, ir.Example{Value: &v}), diags
 }
@@ -860,7 +860,7 @@ func PreserveInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	(*p)[key] = ir.UnmodeledEntry{
 		Reason:     reason,
 		Value:      raw,
-		Provenance: ir.Provenance{Source: srcIndex, Pointer: string(pointer)},
+		Provenance: ir.Provenance{Source: srcIndex, Pointer: pointer},
 	}
 }
 
@@ -901,7 +901,7 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // code exists for.
 func UnpreservableDiag(key string, pointer jsontext.Pointer, srcIndex int, err error) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.UnpreservableConstruct,
-		ir.Provenance{Source: srcIndex, Pointer: string(pointer)},
+		ir.Provenance{Source: srcIndex, Pointer: pointer},
 		"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
 			"in no form at all: %s", key, err.Error())
 }
@@ -918,7 +918,7 @@ func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	}
 	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entryPtr, srcIndex)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword,
-		ir.Provenance{Source: srcIndex, Pointer: string(declPtr)},
+		ir.Provenance{Source: srcIndex, Pointer: declPtr},
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }
 

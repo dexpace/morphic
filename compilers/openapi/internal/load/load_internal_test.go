@@ -59,11 +59,11 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 	require.NotEmpty(t, diags)
 	found := false
 	for _, d := range diags {
-		if d.Provenance.Pointer != "" {
+		if d.Provenance.Position != (ir.Position{}) {
 			found = true
 		}
 	}
-	assert.True(t, found, "diagnostics should carry line:col provenance")
+	assert.True(t, found, "diagnostics should carry position provenance")
 }
 
 // TestLoad_ExternalRefResolutionErrors drives the resErrs branch of load: an
@@ -72,8 +72,9 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 //
 // It has to opt in to external references to get there at all, and the sited
 // assertion is what says it did: a refusal to leave the document comes back on
-// the joined-error branch with no location, so a diagnostic carrying line:col
-// can only have come from the validation errors this test is named for.
+// the joined-error branch with no location, so a diagnostic carrying a
+// position can only have come from the validation errors this test is named
+// for.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	t.Parallel()
 	path := "../../../../testdata/openapi/resolve_main_external.yaml"
@@ -88,7 +89,7 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 
 	sited := false
 	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef && d.Provenance.Pointer != "" {
+		if d.Code == diag.UnresolvedRef && d.Provenance.Position != (ir.Position{}) {
 			sited = true
 		}
 	}
@@ -191,7 +192,7 @@ func TestValidationDiag(t *testing.T) {
 		validation.Error{Severity: "warning", Rule: "dup-tag", UnderlyingError: errors.New("x"), Node: at})
 	assert.Equal(t, ir.SeverityWarning, structured.Severity)
 	assert.Equal(t, diag.Validation+"/dup-tag", structured.Code)
-	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "4:9"}, structured.Provenance,
+	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 4, Column: 9}}, structured.Provenance,
 		"anchored where the locator puts the finding's node")
 	assert.Equal(t, "x", structured.Message,
 		"the finding alone: the severity, rule and position the library prefixes are the diagnostic's own fields")
@@ -222,7 +223,7 @@ func TestResolveDiag(t *testing.T) {
 	structured := resolveDiag(scan.InSource(0),
 		validation.Error{Severity: "error", Rule: "bad-ref", UnderlyingError: errors.New("x"), Node: at})
 	assert.Equal(t, diag.UnresolvedRef, structured.Code)
-	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "7:3"}, structured.Provenance,
+	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 7, Column: 3}}, structured.Provenance,
 		"anchored where the locator puts the finding's node")
 	assert.Equal(t, "x", structured.Message, "rendered the way validationDiag renders a finding")
 

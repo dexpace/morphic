@@ -205,7 +205,7 @@ func TestValidate_DanglingRefInPreviouslyUnwalkedField(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted target must dangle")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, string(tc.target))
-			assert.Contains(t, found[0].Provenance.Pointer, tc.where)
+			assert.Contains(t, found[0].Provenance.Node, tc.where)
 		})
 	}
 }
@@ -253,11 +253,11 @@ func TestValidate_AliasedPointerIsDeterministic(t *testing.T) {
 	}
 }
 
-// pointers returns each diagnostic's provenance pointer, in order.
+// pointers returns each diagnostic's IR-space location, in order.
 func pointers(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
-		out = append(out, d.Provenance.Pointer)
+		out = append(out, d.Provenance.Node)
 	}
 	return out
 }

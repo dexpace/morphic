@@ -36,7 +36,7 @@ type Merger struct {
 // declaredAt reads the JSON pointer a property was declared at. ir.Provenance
 // carries the pointer as a string until #511 types the field.
 func declaredAt(p *ir.Property) jsontext.Pointer {
-	return jsontext.Pointer(p.Provenance.Pointer)
+	return p.Provenance.Pointer
 }
 
 // WireNameIndex maps each property's wire name to its position in props, so a

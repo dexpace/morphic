@@ -200,6 +200,8 @@ var integerFields = map[string]string{
 	"Constraints.MaxItems":  "length bound",
 	"Constraints.MinProps":  "property-count bound",
 	"Constraints.MaxProps":  "property-count bound",
+	"Position.Line":         "line inside a source file, not a position in any IR slice",
+	"Position.Column":       "column inside a source file, not a position in any IR slice",
 }
 
 // integerTypes names the Go integer types an ir field can be built from.

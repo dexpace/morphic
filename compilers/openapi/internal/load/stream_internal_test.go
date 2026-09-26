@@ -47,7 +47,7 @@ func TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest(t *testing.T) {
 	got := streamDiags(diags)
 	require.Len(t, got, 1)
 	assert.Equal(t, ir.SeverityError, got[0].Severity, "content the IR does not hold is a losslessness failure")
-	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "7:1"}, got[0].Provenance,
+	assert.Equal(t, ir.Provenance{Source: 3, Position: ir.Position{Line: 7, Column: 1}}, got[0].Provenance,
 		"anchored where the first dropped document begins")
 	assert.Contains(t, got[0].Message, "the one after it holds", "the count of what was dropped")
 }

@@ -114,12 +114,15 @@ func TestDiags_DedupesByFullIdentity(t *testing.T) {
 		Provenance: ir.Provenance{Source: 0, Pointer: "/p"},
 	}
 	differs := map[string]func(d *ir.Diagnostic){
-		"severity":   func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
-		"code":       func(d *ir.Diagnostic) { d.Code = "x/z" },
-		"message":    func(d *ir.Diagnostic) { d.Message = "other" },
-		"source":     func(d *ir.Diagnostic) { d.Provenance.Source = 1 },
-		"pointer":    func(d *ir.Diagnostic) { d.Provenance.Pointer = "/q" },
-		"inferredBy": func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
+		"severity":        func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
+		"code":            func(d *ir.Diagnostic) { d.Code = "x/z" },
+		"message":         func(d *ir.Diagnostic) { d.Message = "other" },
+		"source":          func(d *ir.Diagnostic) { d.Provenance.Source = 1 },
+		"pointer":         func(d *ir.Diagnostic) { d.Provenance.Pointer = "/q" },
+		"inferredBy":      func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
+		"position line":   func(d *ir.Diagnostic) { d.Provenance.Position.Line = 5 },
+		"position column": func(d *ir.Diagnostic) { d.Provenance.Position.Column = 5 },
+		"node":            func(d *ir.Diagnostic) { d.Provenance.Node = "op/x" },
 	}
 	for name, mutate := range differs {
 		t.Run(name, func(t *testing.T) {

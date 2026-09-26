@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"maps"
 	"slices"
@@ -54,16 +55,16 @@ func (s settingFlag) Set(raw string) error {
 // given at all. The empty pointer names the whole document, so an empty value is
 // a coordinate like any other and cannot double as the flag being absent.
 type pointerFlag struct {
-	pointer string
+	pointer jsontext.Pointer
 	set     bool
 }
 
 // String renders the pointer as given. The flag package calls it on a zero value
 // to decide whether to print a default, and the empty string prints none.
-func (f *pointerFlag) String() string { return f.pointer }
+func (f *pointerFlag) String() string { return string(f.pointer) }
 
 // Set records the pointer and that the flag was given.
 func (f *pointerFlag) Set(raw string) error {
-	f.pointer, f.set = raw, true
+	f.pointer, f.set = jsontext.Pointer(raw), true
 	return nil
 }

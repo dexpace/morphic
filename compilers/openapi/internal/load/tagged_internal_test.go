@@ -32,7 +32,7 @@ func TestLoad_ATaggedMappingIsRefusedBeforeParsing(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.TaggedMapping, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "8:8"}, diags[0].Provenance,
+	assert.Equal(t, ir.Provenance{Source: 5, Position: ir.Position{Line: 8, Column: 8}}, diags[0].Provenance,
 		"the refusal names the mapping the tag is written on")
 	assert.Contains(t, diags[0].Message, `"!content:"`, "and quotes the tag")
 }

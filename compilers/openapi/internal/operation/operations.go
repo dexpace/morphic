@@ -599,7 +599,7 @@ func onOperation(op *ir.Operation) carrier {
 func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr jsontext.Pointer) carrier {
 	return carrier{
 		unmodeled:  u,
-		provenance: ir.Provenance{Source: srcIndex, Pointer: string(mountPtr)},
+		provenance: ir.Provenance{Source: srcIndex, Pointer: mountPtr},
 		scope:      "pathItem" + string(mountPtr),
 		serversKey: "openapi:pathItem" + string(mountPtr) + "/servers",
 	}

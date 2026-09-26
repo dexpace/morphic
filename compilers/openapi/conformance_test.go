@@ -5,6 +5,7 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
@@ -709,7 +710,7 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		if td.Common().Provenance.Pointer == "" {
 			continue // shared primitives are pointerless by construction
 		}
-		assert.True(t, strings.HasPrefix(td.Common().Provenance.Pointer, "/components/"),
+		assert.True(t, strings.HasPrefix(string(td.Common().Provenance.Pointer), "/components/"),
 			"type %s hoists at a component declaration, not a use site", id)
 	}
 
@@ -733,7 +734,7 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, widgets.Responses[0].Headers, 1)
 	header := widgets.Responses[0].Headers[0]
 	assert.Equal(t, ir.TypeID("t/anon/components/headers/RateUnit/schema"), header.Type.Target)
-	assert.Equal(t, "/components/responses/Listed/headers/X-Rate-Unit", header.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/responses/Listed/headers/X-Rate-Unit"), header.Provenance.Pointer,
 		"the header's identity is the map entry that binds its name")
 
 	require.Len(t, order.Bindings.HTTP[0].Callbacks, 1)
@@ -2769,7 +2770,7 @@ func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagno
 			"%s keeps the value the source wrote", tc.key)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason,
 			"OpenAPI defines no such key on a path item, so no IR node is coming for it")
-		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, "openapi/unknown-object-key", tc.at),
 			"%s is announced once, at the key's own pointer, graded as any undeclared key", tc.key)

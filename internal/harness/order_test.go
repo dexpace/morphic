@@ -3,6 +3,7 @@ package harness
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"os"
 	"path/filepath"
@@ -252,6 +253,32 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	})
 }
 
+// TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned pins the two
+// halves of the multiset key that a Position adds. A permutation moves a
+// finding's line and column by design — TestOrderInvariant_PermutationArtifactsAreNotFindings
+// pins that end to end — so two findings differing only in those render as the
+// same entry; but whether a finding carries a position at all is not something
+// a permutation changes, so a positioned finding must still render differently
+// from the same finding with none.
+func TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned(t *testing.T) {
+	t.Parallel()
+	base := ir.Diagnostic{
+		Severity:   ir.SeverityError,
+		Code:       "x/y",
+		Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}},
+	}
+
+	movedLine := base
+	movedLine.Provenance.Position = ir.Position{Line: 9, Column: 3}
+	assert.Equal(t, diagnosticSet([]ir.Diagnostic{base}), diagnosticSet([]ir.Diagnostic{movedLine}),
+		"line and column alone must not distinguish two findings")
+
+	unpositioned := base
+	unpositioned.Provenance.Position = ir.Position{}
+	assert.NotEqual(t, diagnosticSet([]ir.Diagnostic{base}), diagnosticSet([]ir.Diagnostic{unpositioned}),
+		"whether a finding has a position at all must still distinguish it from one that has none")
+}
+
 // TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding pins the sorting:
 // properties, pattern properties and examples are held in source order, so a
 // permutation reorders them by design and must not be reported.
@@ -350,7 +377,7 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
 		},
 		{
-			// Provenance.Pointer holds line:col for a reference-resolution failure,
+			// A reference-resolution failure is located by Provenance.Position,
 			// and a permutation moves the offending node to a different line.
 			name: "a diagnostic located by line and column",
 			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths:\n 0:\n  0:\n" +
@@ -403,35 +430,6 @@ func TestReencodeMappings_EncodeFailureIsRefused(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// TestIsSourcePosition_ClassifiesPointers covers the split diagnosticSet turns
-// on: a source position moves with the source and must not identify a finding,
-// while every other pointer spelling — a JSON pointer, an IR-space ID — is
-// stable and must keep identifying one.
-func TestIsSourcePosition_ClassifiesPointers(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		pointer string
-		want    bool
-	}{
-		{"a line and column", "11:21", true},
-		{"the first position", "0:0", true},
-		{"empty", "", false},
-		{"no line", ":21", false},
-		{"no column", "11:", false},
-		{"a non-numeric half", "a:1", false},
-		{"a third segment", "1:2:3", false},
-		{"a JSON pointer", "/components/schemas/A", false},
-		{"an IR-space id", "t/openapi/components/schemas/A", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, isSourcePosition(tc.pointer))
-		})
-	}
-}
-
 // TestCheck_OrderDependentOutcome pins that Check classifies an order-dependent
 // compiler as such rather than folding it into another oracle. The seam returns
 // a different registry for the permuted bytes, which is what a lowering that
@@ -450,7 +448,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 		m := &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
-			Provenance: ir.Provenance{Pointer: "/" + path},
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}, nil, nil
 	}

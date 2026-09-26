@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -286,23 +287,53 @@ func renderDiagnostics(w io.Writer, res *engine.Result) {
 	}
 }
 
-// location renders the "where" of a diagnostic line, leading space included:
-// " <path>#<pointer>" when the provenance resolves to a source file,
-// " <pointer>" when it names only an IR-space position (a pass diagnostic whose
-// pointer is an IR id), and nothing at all when it names neither.
+// location renders the "where" of a diagnostic line, leading space included.
+// A source locator is spelled against the file it indexes: " <path>#<pointer>"
+// for a pointer, " <path>:<line>:<column>" for a position, which is the form
+// editors and terminals turn into a link, and " <path>" for a finding about
+// the source as a whole. An IR-space node, what a pass reports about the
+// document itself, is spelled bare.
 //
-// The empty case is what a diagnostic raised before any document existed
+// A locator whose source names no file here is spelled bare too. That is a
+// compile that was refused: it returns no document, so there is no source
+// table to read the path from.
+//
+// Nothing at all is what a diagnostic raised before any document existed
 // carries — an unrecognized spec format has no position inside a spec that was
 // never lowered — and printing nothing is the point: any location shown there
 // would be one the finding is not about.
 func location(doc *ir.Document, prov ir.Provenance) string {
-	if path := sourcePath(doc, prov.Source); path != "" {
-		return " " + path + "#" + prov.Pointer
+	path := sourcePath(doc, prov.Source)
+	switch {
+	case prov.Pointer != "":
+		return " " + onPath(path, "#", string(prov.Pointer))
+	case prov.Position.Line > 0:
+		return " " + onPath(path, ":", positionText(prov.Position))
+	case path != "":
+		return " " + path
+	case prov.Node != "":
+		return " " + prov.Node
+	default:
+		return ""
 	}
-	if prov.Pointer != "" {
-		return " " + prov.Pointer
+}
+
+// onPath spells locator against path, joined by sep, or alone when no path
+// resolved.
+func onPath(path, sep, locator string) string {
+	if path == "" {
+		return locator
 	}
-	return ""
+	return path + sep + locator
+}
+
+// positionText spells a position as <line>:<column>, or <line> alone when the
+// producer knows no column.
+func positionText(p ir.Position) string {
+	if p.Column > 0 {
+		return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
+	}
+	return strconv.Itoa(p.Line)
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning

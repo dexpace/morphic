@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"testing"
 
@@ -704,7 +705,7 @@ func TestReconcileProperty_ALosingDetailIsKeptAndReported(t *testing.T) {
 			d := (*recorded)[0]
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
 			assert.Equal(t, diag.DegradedConstruct, d.Code)
-			assert.Equal(t, "/allOf/1/properties/id", d.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/allOf/1/properties/id"), d.Provenance.Pointer)
 			assert.Contains(t, d.Message, `"id"`)
 			assert.Contains(t, d.Message, tc.detail, "the message names the detail that disagreed")
 			assert.Equal(t, ir.Unmodeled{

@@ -1,6 +1,7 @@
 package openapi_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
@@ -127,7 +128,7 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 
 	introduced := propertyProvenance(t, doc, "Pet", "tag")
 	assert.Equal(t, 1, introduced.Source, "the overlay introduced this property")
-	assert.Equal(t, "/components/schemas/Pet/properties/tag", introduced.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Pet/properties/tag"), introduced.Pointer)
 
 	declared := propertyProvenance(t, doc, "Pet", "name")
 	assert.Equal(t, 0, declared.Source, "the spec declared this one")
@@ -194,7 +195,7 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 func TestCompile_OverlayPreservesSourceLineNumbers(t *testing.T) {
 	t.Parallel()
 	// A response object spelled as a string: a validation finding sited by
-	// line:col, several lines below the info block the overlay grows.
+	// position, several lines below the info block the overlay grows.
 	const spec = `openapi: 3.1.0
 info:
   title: Pets
@@ -210,16 +211,16 @@ actions:
   - target: $.info
     update: {description: added above the finding}
 `
-	sited := func(opts openapi.Options) []string {
+	sited := func(opts openapi.Options) []ir.Diagnostic {
 		doc, diags, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
 			compilers.Options{FormatOptions: opts})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
-		var out []string
+		var out []ir.Diagnostic
 		for _, d := range diags {
-			if d.Provenance.Pointer != "" {
-				out = append(out, d.Code+" @ "+d.Provenance.Pointer)
+			if d.Provenance.Position != (ir.Position{}) {
+				out = append(out, d)
 			}
 		}
 		require.NotEmpty(t, out, "the fixture must produce a sited diagnostic to compare")

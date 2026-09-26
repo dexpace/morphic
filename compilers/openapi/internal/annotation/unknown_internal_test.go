@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strconv"
 	"strings"
 	"testing"
@@ -230,7 +231,7 @@ func TestUnknownKeysIn_EntryHeldByAnotherConstructIsReported(t *testing.T) {
 	require.Len(t, diags, 1, "the key recorded for this very construct is not announced again")
 	assert.Equal(t, "openapi/unknown-key-entry-taken", diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, "/x/other", diags[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/x/other"), diags[0].Provenance.Pointer)
 	assert.Contains(t, diags[0].Message, "/x/schema/other", "the holder is named, so the clash is findable")
 }
 

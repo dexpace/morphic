@@ -124,8 +124,10 @@ Help always prints to stdout and exits `0`.
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 
 Diagnostics print one per line as `<severity> <code> <location>: <message>`, where `<location>` is
-`<path>#<pointer>` for a finding in a spec file, a bare pointer for one an IR pass made about the
-document, and absent for one raised before any document existed.
+`<path>#<pointer>` for a finding at a pointer in a spec file, `<path>:<line>:<column>` for one found
+before it had a pointer, `<path>` alone for one about the file as a whole, the IR location bare for
+one an IR pass made about the document, and absent for one raised before any document existed. A
+spec the compiler refused produces no document to name the file from, so its locations print bare.
 
 Both commands use the same exit codes: `0` clean (and for any help request); `1` the spec has
 problems — a diagnostic reached the `--fail-on` threshold, or it could not be lowered at all, which

@@ -101,13 +101,13 @@ func TestLoad_AnOverlayRefusalNamesTheOverlay(t *testing.T) {
 	// The position is derived from the text, not written down: it is the alias
 	// on the fifth line, and a counted column is the number that drifts.
 	line := strings.Split(doc, "\n")[4]
-	want := fmt.Sprintf("5:%d", strings.Index(line, "*a")+1)
+	want := ir.Position{Line: 5, Column: strings.Index(line, "*a") + 1}
 
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), overlayOf(doc))
 
 	require.NoError(t, err)
 	require.Len(t, diags, 1)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: want}, diags[0].Provenance,
+	assert.Equal(t, ir.Provenance{Source: 1, Position: want}, diags[0].Provenance,
 		"the alias that closes the cycle, in the overlay's own text")
 }
 
