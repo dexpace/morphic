@@ -122,7 +122,7 @@ type AuthRequirement struct {
 // SchemeUse names one scheme and the scopes required of it within an
 // AuthRequirement (ir-design §9).
 type SchemeUse struct {
-	// Scheme is the referenced auth scheme.
+	// Scheme is the referenced auth scheme; never empty.
 	Scheme AuthID `json:"scheme,omitempty"`
 	// Scopes are the scopes required of the scheme (OAuth2/OpenID).
 	Scopes []string `json:"scopes,omitempty"`

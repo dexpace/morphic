@@ -72,7 +72,7 @@ type Field struct {
 // ValueRef references a declared constant: a TypeSpec enum-member default or a
 // reference to a named const (ir-design §6).
 type ValueRef struct {
-	// Type identifies the declaring type.
+	// Type identifies the declaring type; never empty.
 	Type TypeID `json:"type,omitempty"`
 	// Member names the referenced member within Type.
 	Member string `json:"member,omitempty"`
@@ -82,7 +82,7 @@ type ValueRef struct {
 // utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
 // inherently non-literal, so compilers must not fold them (ir-design §6).
 type CtorValue struct {
-	// Scalar identifies the scalar whose constructor is invoked.
+	// Scalar identifies the scalar whose constructor is invoked; never empty.
 	Scalar TypeID `json:"scalar,omitempty"`
 	// Name is the constructor name ("fromISO", "now", custom inits).
 	Name string `json:"name,omitempty"`

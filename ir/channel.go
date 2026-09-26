@@ -19,6 +19,7 @@ type Channel struct {
 	// Params are the channel's address parameters.
 	Params []Parameter `json:"params,omitempty"`
 	// Messages is the channel's message set; messages live in Document.Messages.
+	// No entry is empty.
 	Messages []MessageID `json:"messages,omitempty"`
 	// Servers indexes into Document.Servers scoped to this channel.
 	Servers []int `json:"servers,omitempty"`
