@@ -101,7 +101,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr jsontext.Pointer, label string,
 ) []ir.Diagnostic {
-	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.ProvenanceAt)
+	return annotation.PreserveKeywordInto(p, key, raw, c.ProvenanceAt(entryPtr), c.ProvenanceAt(declPtr), label)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else

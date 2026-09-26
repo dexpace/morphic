@@ -100,7 +100,7 @@ func TestPreserveKeywordInto_EmptyPayloadRecordsAndAnnouncesNothing(t *testing.T
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var p ir.Unmodeled
-			diags := PreserveKeywordInto(&p, "openapi:not", raw, "/p", "/p/not", "not", sourced(0))
+			diags := PreserveKeywordInto(&p, "openapi:not", raw, sourced(0)("/p/not"), sourced(0)("/p"), "not")
 			assert.Nil(t, p)
 			assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 		})

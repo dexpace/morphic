@@ -1785,7 +1785,10 @@ weakening, and outright dropping, so it says nothing about why. **`Provenance`**
 construct itself rather than the node carrying it, so an emitter can report on an entry at its
 own source position instead of the enclosing schema's — falling back to the declaring position
 only where the entry combines several keywords into one synthesized object and no single node
-addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
+addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`). Such an entry's
+`Source` names the input document that wrote every keyword it combines, when one did, and the
+declaring position's otherwise: an overlay that wrote the whole construct is credited with it, and
+one that only added to it leaves it with the document that declares it.
 
 A key names the origin format, then the construct — and, where one carrier holds constructs from
 more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the

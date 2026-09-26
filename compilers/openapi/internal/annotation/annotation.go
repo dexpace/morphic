@@ -35,7 +35,10 @@ import (
 // credited the patched document with the overlay's additions (GitHub #522). The
 // compiler passes lowering.Ctx.ProvenanceAt, which knows what the overlay
 // introduced; this package sits below that context and cannot ask it directly.
-type Locator func(jsontext.Pointer) ir.Provenance
+//
+// from is for a record no single position addresses, and names the positions it
+// was assembled from (see lowering.Ctx.ProvenanceAt).
+type Locator func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance
 
 // RawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
 // holds.
@@ -298,32 +301,25 @@ func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 }
 
 // IfThenElseRaw combines the present if/then/else arms into one raw JSON
-// object.
-func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, error) {
-	members, err := presentMembers(s, "if", "then", "else")
-	if err != nil {
-		return nil, err
-	}
-	return jsonObject(members)
+// object, and returns the arms it combined.
+func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+	return combine(s, "if", "then", "else")
 }
 
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
-// object.
-func ContainsRaw(s *oas3.Schema) (ir.RawValue, error) {
+// object, and returns the keywords it combined.
+func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	members, err := presentMembers(s, "contains", "minContains", "maxContains")
-	if err != nil {
-		return nil, err
-	}
-	return jsonObject(members)
+	return combine(s, "contains", "minContains", "maxContains")
 }
 
 // UnevaluatedRaw combines a non-false unevaluatedProperties and any
 // unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
-// structural mode, handled in fillAdditional).
-func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, error) {
+// structural mode, handled in fillAdditional), and returns the keywords it
+// combined.
+func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	var want []string
 	if up := s.GetUnevaluatedProperties(); up != nil && !IsFalseSchema(up) {
 		want = append(want, "unevaluatedProperties")
@@ -331,11 +327,24 @@ func UnevaluatedRaw(s *oas3.Schema) (ir.RawValue, error) {
 	if s.GetUnevaluatedItems() != nil {
 		want = append(want, "unevaluatedItems")
 	}
-	members, err := presentMembers(s, want...)
-	if err != nil {
-		return nil, err
+	return combine(s, want...)
+}
+
+// combine renders the keys s writes, of those given, as one raw JSON object,
+// and returns the keys it rendered; nothing written yields no object rather than
+// an empty one. The entry built from it has no position of its own, so the keys
+// are what its provenance is asked about (GitHub #534).
+func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
+	members, err := presentMembers(s, keys...)
+	if err != nil || len(members) == 0 {
+		return nil, nil, err
 	}
-	return jsonObject(members)
+	present := make([]string, 0, len(members))
+	for _, m := range members {
+		present = append(present, m.key)
+	}
+	raw, err := jsonObject(members)
+	return raw, present, err
 }
 
 // presentMembers collects the given keywords that are present on s as raw JSON
@@ -377,14 +386,11 @@ type rawMember struct {
 	val ir.RawValue
 }
 
-// jsonObject renders ordered raw members into a JSON object, or nil when
-// empty. Unlike rawConv.mapping, member order here is the caller's — a fixed
-// handful of JSON Schema keywords in keyword order — and is preserved rather
-// than sorted.
+// jsonObject renders ordered raw members into a JSON object; combine is what
+// keeps an empty set from reaching it. Unlike rawConv.mapping, member order here
+// is the caller's — a fixed handful of JSON Schema keywords in keyword order —
+// and is preserved rather than sorted.
 func jsonObject(members []rawMember) (ir.RawValue, error) {
-	if len(members) == 0 {
-		return nil, nil
-	}
 	var b strings.Builder
 	b.WriteByte('{')
 	for i, m := range members {
@@ -803,12 +809,19 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	// keep takes the conversion's error alongside its payload so a keyword that
 	// could not be converted is reported rather than passed on as an absent one —
 	// the two were indistinguishable here before GitHub #144.
-	keep := func(key string, raw ir.RawValue, err error, entryPtr jsontext.Pointer, label string) {
+	//
+	// combined names the keywords an entry folds together, when it folds several:
+	// such an entry is located at the schema, and is attributed by its keywords.
+	keep := func(key string, raw ir.RawValue, err error, entryPtr jsontext.Pointer, label string, combined ...string) {
 		if err != nil {
 			diags = append(diags, UnpreservableDiag(key, locate(entryPtr), err))
 			return
 		}
-		diags = append(diags, PreserveKeywordInto(&p, key, raw, pointer, entryPtr, label, locate)...)
+		from := make([]jsontext.Pointer, 0, len(combined))
+		for _, keyword := range combined {
+			from = append(from, pointer+ids.Ptr(keyword))
+		}
+		diags = append(diags, PreserveKeywordInto(&p, key, raw, locate(entryPtr, from...), locate(pointer), label)...)
 	}
 	// A keyword whose entry is its own node needs no label of its own: the
 	// keyword names it. Only the §4.7 entries combining several keywords into one
@@ -822,9 +835,9 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	if s.GetNot() != nil {
 		keepKeyword("not")
 	}
-	ite, iteErr := IfThenElseRaw(s)
+	ite, iteKeys, iteErr := IfThenElseRaw(s)
 	if ite != nil || iteErr != nil {
-		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else")
+		keep("openapi:if-then-else", ite, iteErr, pointer, "if/then/else", iteKeys...)
 	}
 	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		keepKeyword("dependentSchemas")
@@ -839,13 +852,13 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	if s.GetPropertyNames() != nil {
 		keepKeyword("propertyNames")
 	}
-	craw, cErr := ContainsRaw(s)
+	craw, cKeys, cErr := ContainsRaw(s)
 	if craw != nil || cErr != nil {
-		keep("openapi:contains", craw, cErr, pointer, "contains")
+		keep("openapi:contains", craw, cErr, pointer, "contains", cKeys...)
 	}
-	u, uErr := UnevaluatedRaw(s)
+	u, uKeys, uErr := UnevaluatedRaw(s)
 	if u != nil || uErr != nil {
-		keep("openapi:unevaluated", u, uErr, pointer, "unevaluated")
+		keep("openapi:unevaluated", u, uErr, pointer, "unevaluated", uKeys...)
 	}
 	return p, diags
 }
@@ -913,18 +926,18 @@ func UnpreservableDiag(key string, prov ir.Provenance, err error) ir.Diagnostic 
 			"in no form at all: %s", key, err.Error())
 }
 
-// PreserveKeywordInto records a validation-only keyword and returns the one
-// diagnostic announcing it. An absent payload records nothing and announces
-// nothing; an unconvertible one never reaches here, because its caller reports it
-// through UnpreservableDiag first.
+// PreserveKeywordInto records a validation-only keyword at entry and returns the
+// one diagnostic announcing it at note, the schema that wrote it. An absent
+// payload records nothing and announces nothing; an unconvertible one never
+// reaches here, because its caller reports it through UnpreservableDiag first.
 func PreserveKeywordInto(p *ir.Unmodeled, key string, raw ir.RawValue,
-	declPtr, entryPtr jsontext.Pointer, label string, locate Locator,
+	entry, note ir.Provenance, label string,
 ) []ir.Diagnostic {
 	if len(raw) == 0 {
 		return nil
 	}
-	PreserveInto(p, key, raw, ir.ReasonValidationOnly, locate(entryPtr))
-	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, locate(declPtr),
+	PreserveInto(p, key, raw, ir.ReasonValidationOnly, entry)
+	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
 		"validation-only keyword %q kept verbatim under Unmodeled", label)}
 }
 
