@@ -43,34 +43,41 @@ import (
 // response is stored under its request's URL, which is the resolver's key for
 // every URL spelled as net/url spells it. The client sees only the request, so
 // an absolute $ref URL spelled otherwise — an upper-case scheme, an empty port —
-// misses, and the resolver parses that document itself (GitHub #538).
+// misses. resolveExternal detects that miss after the fact and recovers the
+// entries it would have cost (GitHub #538).
 //
-// Each verdict is kept for the compile. The resolver keeps a document only
-// once it has built something from it, and asks for it again on every reference
-// until then: every reference into a refused one, and every one into a document
-// whose earlier references built nothing. A refused document fails again
-// unread: reading, parsing and scanning it per reference would multiply the
-// cost its budgets bound. A prepared one is read again, as the default reader
-// would read it, and judged again only if its bytes changed: while they are the
-// same its tree still stands where the resolver looks, but the resolver parses
-// what it reads itself wherever it misses that tree (GitHub #538), so changed
-// bytes must not reach it unjudged.
+// Each verdict is kept for the resolution that reached it. The resolver keeps a
+// document only once it has built something from it, and asks for it again on
+// every reference until then: every reference into a refused one, and every one
+// into a document whose earlier references built nothing. A refused document
+// fails again unread: reading, parsing and scanning it per reference would
+// multiply the cost its budgets bound. A prepared one is read again, as the
+// default reader would read it, and judged again only if its bytes changed:
+// while they are the same its tree still stands where the resolver looks, but
+// the resolver parses what it reads itself wherever it misses that tree (GitHub
+// #538), so changed bytes must not reach it unjudged.
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
+	// read holds every document prepared, shared by the readers of one compile
+	// so a second resolution can be handed what the first read (see resolve).
+	read *externalReads
 	// judged holds each document's verdict by the key it was read under: the
 	// error it was refused with, or the digest of the bytes it was prepared
 	// from. It is shared by every copy of the reader, and safe for concurrent
-	// use, which nothing in the resolver's interfaces rules out.
+	// use, which nothing in the resolver's interfaces rules out. Unlike read, it
+	// is not handed to a second resolution: a digest vouches for a tree stored in
+	// this reader's document, which the rebuilt one does not hold.
 	judged *sync.Map
 }
 
-// newExternal returns the reader for doc's external references. The document's
-// caches are initialized here rather than trusted to be, because storing into
-// an uninitialized one faults inside the library.
-func newExternal(doc *soa.OpenAPI, opts Options) external {
+// newExternal returns the reader for doc's external references, recording what
+// it prepares in read. The document's caches are initialized here rather than
+// trusted to be, because storing into an uninitialized one faults inside the
+// library.
+func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
-	return external{doc: doc, opts: opts, judged: &sync.Map{}}
+	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{}}
 }
 
 // Open reads the file name as the resolver's default file system would, and
@@ -147,6 +154,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 	}
 	releaseAnchors(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
+	e.read.record(key, data, root)
 	e.judged.Store(key, sha256.Sum256(data))
 	return data, nil
 }
