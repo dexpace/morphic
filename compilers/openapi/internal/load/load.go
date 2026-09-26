@@ -121,12 +121,11 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 // do read names — the recursive-anchor refusal quotes the one it found — and
 // nothing after the parse reads one.
 //
-// It reaches the source document only. A document an external reference names
-// is read and parsed by the resolver itself, from bytes, and its tree never
-// passes through here, so an anchored entry in one is still skipped in silence
-// (GitHub #501). Clearing the anchors there would mean
-// rewriting its bytes before the resolver parses them, which no hook the
-// resolver offers allows short of lexing YAML by hand.
+// A document an external reference names is read by the resolver rather than
+// by Load, through external, which releases its anchors the same way, after
+// the same refusals, in the tree it stores for the resolver to build from
+// (GitHub #501). A resolver that misses that tree parses the document itself,
+// anchors and all (GitHub #538).
 //
 // The walk follows Content and never an alias, so it visits each node of the
 // tree once and cannot cycle through a recursive anchor, which the refusals
@@ -299,10 +298,16 @@ func compilerOwned(verr validation.Error) bool {
 // resolve resolves every reference in doc and converts what could not be
 // resolved into diagnostics, the refusal of external references included.
 func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
-	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
+	resolveOpts := soa.ResolveAllOptions{
 		OpenAPILocation:     path,
 		DisableExternalRefs: !opts.AllowExternalRefs,
-	})
+	}
+	if opts.AllowExternalRefs {
+		reader := newExternal(doc, opts)
+		resolveOpts.VirtualFS = reader
+		resolveOpts.HTTPClient = reader
+	}
+	resErrs, err := resolveAll(ctx, doc, resolveOpts)
 	diags := resolveDiags(locate, err)
 	for _, re := range resErrs {
 		diags = append(diags, resolveDiag(locate, re))
@@ -1047,7 +1052,10 @@ func resolveDiags(locate scan.Locator, err error) []ir.Diagnostic {
 // its own only part, and a nil error has none.
 //
 // One level only, and no recursion to bound: ResolveAllReferences joins a flat
-// list built in one loop, so a part is never itself a join.
+// list built in one loop, one part per reference it could not resolve. A part
+// can be a join of its own — the external reader joins a failed read with the
+// error closing what it read — but it is still one reference's failure, and is
+// reported as one.
 func joinedParts(err error) []error {
 	if err == nil {
 		return nil
