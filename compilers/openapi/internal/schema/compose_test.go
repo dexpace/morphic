@@ -1032,11 +1032,11 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 // TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub #505:
 // a name holding a character a pointer escapes reaches the IR decoded wherever
 // it is read off a pointer's last token. That is the implicit discriminatorValue,
-// read off the subtype's own pointer and sent on the wire, and the hints read
-// off a $ref: a union variant's, a branch alias's, and a node's that a $ref
-// names inside another schema, by its key or by the $ref it holds. Read raw,
-// those carried the escapes: Cat~1Dog on the wire, cat_1_dog, fish_2_d_tank and
-// a_1_b as names.
+// read off the subtype's own pointer and sent on the wire, the hints a union
+// variant and a branch alias read off the $ref they hold, and the hint a $defs
+// entry takes from its own key even when what it holds is itself a $ref
+// (GitHub #519). Read raw, those carried the escapes: Cat~1Dog on the wire,
+// cat_1_dog, fish_2_d_tank and a_1_b as names.
 func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -1107,8 +1107,63 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 
 	inner, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/inner")]
 	require.True(t, ok, "a $ref to a $ref carrying a sibling hoists a node of its own")
-	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, inner.Common().Name.Hint,
-		"and one that is itself a $ref takes the decoded name of what it references")
+	assert.Equal(t, compile.NamingHint("inner").Hint, inner.Common().Name.Hint,
+		"and one that is itself a $ref is named for its position, as a property holding a $ref is (GitHub #519)")
+}
+
+// TestUnionVariant_IsNamedAsTheNodeItHolds pins GitHub #521: a union variant
+// naming a $ref is named as the type it holds, not the pointer's own ordinal
+// or keyword. Choice/oneOf/0 targets X's own inline first branch directly;
+// Choice/oneOf/1 targets a plain structural position (A's items); Choice's
+// remaining two variants and Z's only variant all target a branch that is
+// itself a $ref, so naming them chases that $ref on to its own target
+// (targetHint): X/oneOf/1 takes two hops to reach Y's items (the branch
+// itself, then its own $ref), and Z/oneOf/0 one more on top of that — three in
+// all — which is what exercises maxTargetHintHops set too low. On main these
+// read 0, items, 1 and 0 for Choice's four variants, taking the pointer's own
+// ordinal or keyword instead.
+func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Choice: {oneOf: [{$ref: '#/components/schemas/X/oneOf/0'}, {$ref: '#/components/schemas/A/items'},
+                     {$ref: '#/components/schemas/X/oneOf/1'}, {$ref: '#/components/schemas/Z/oneOf/0'}]}
+    X: {oneOf: [{type: object, properties: {a: {type: string}}}, {$ref: '#/components/schemas/Y/items'}]}
+    Z: {oneOf: [{$ref: '#/components/schemas/X/oneOf/1'}]}
+    A: {type: array, items: {type: object, properties: {b: {type: string}}}}
+    Y: {type: array, items: {type: object, properties: {y: {type: string}}}}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	choice, ok := typeByName(doc, "Choice").(*ir.Union)
+	require.True(t, ok, "Choice should be a union")
+	require.Len(t, choice.Variants, 4)
+	z, ok := typeByName(doc, "Z").(*ir.Union)
+	require.True(t, ok, "Z should be a union")
+	require.Len(t, z.Variants, 1)
+
+	labeled := map[string]ir.Variant{
+		"Choice/oneOf/0 (X's own inline branch)": choice.Variants[0],
+		"Choice/oneOf/1 (A's items)":             choice.Variants[1],
+		"Choice/oneOf/2 (X/oneOf/1, two hops)":   choice.Variants[2],
+		"Choice/oneOf/3 (Z/oneOf/0, three hops)": choice.Variants[3],
+		"Z/oneOf/0 (X/oneOf/1, two hops)":        z.Variants[0],
+	}
+	got := make(map[string]string, len(labeled))
+	for label, v := range labeled {
+		target, ok := doc.Types[v.Type.Target]
+		require.True(t, ok, "%s: variant target %s is interned", label, v.Type.Target)
+		assert.Equal(t, v.Name.Hint, target.Common().Name.Hint,
+			"%s: the variant must be named as the node its Type.Target holds", label)
+		got[label] = v.Name.Hint
+	}
+	want := map[string]string{
+		"Choice/oneOf/0 (X's own inline branch)": "variant_0",
+		"Choice/oneOf/1 (A's items)":             "a_item",
+		"Choice/oneOf/2 (X/oneOf/1, two hops)":   "y_item",
+		"Choice/oneOf/3 (Z/oneOf/0, three hops)": "y_item",
+		"Z/oneOf/0 (X/oneOf/1, two hops)":        "y_item",
+	}
+	assert.Empty(t, cmp.Diff(want, got))
 }
 
 func TestOneOf_WithDiscriminator(t *testing.T) {

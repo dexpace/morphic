@@ -227,132 +227,131 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
 
-// subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
-// aliases when the sub-schema is itself a $ref carrying siblings, the branch
-// hint when the pointer addresses a composition branch, the structural hint when
-// it addresses an inline structural position, the pointer's last token
-// otherwise.
+// subSchemaHint names the node a $ref'd sub-schema pointer owns: the hint the
+// declaration that owns the position gives it, wherever that can be read off the
+// pointer, and otherwise the target a $ref names, the branch hint, or the
+// pointer's last token.
 //
-// Every case but the last exists because another lowering can own the same
-// pointer and derives its hint that way. Both lowerings reach the pointer — the
-// enclosing schema through its own body, this one through an outside $ref naming
-// it — and only the first to arrive interns the node, so a hint derived
-// differently here makes the document depend on declaration order.
+// Both lowerings reach the pointer — the enclosing schema through its own body,
+// this one through an outside $ref naming it — and only the first to arrive
+// interns the node. The declaration renames that node when it arrives second,
+// but not what the reference interned beneath it, whose names hang off this one;
+// so a hint derived differently here makes the subtree depend on declaration
+// order. positionHint is what keeps the two in step beneath /components/schemas.
 //
-// The branch case is the second half of that agreement for a composition branch.
-// Falling through to the last segment named an inline branch after its own
-// ordinal — "0" — which is a hint an emitter cannot build an identifier from,
-// and which disagreed with the composition's "variant_0" (GitHub #181).
-//
-// The structural case is the same agreement for items, additionalProperties, a
-// patternProperties entry and a prefixItems slot (GitHub #353), where the last
-// segment named the node after the keyword that holds it — "items" — or after
-// the pattern text or the slot ordinal, none of which distinguish it from the
-// same position on any other schema.
-//
-// One order dependence is left: a position that is itself a pure $ref interns no
-// node of its own, so its declaration never renames what an outside $ref names
-// there (GitHub #519).
+// A composition branch that is itself a $ref is the one position whose
+// declaration hint depends on more than the pointer: the composition names it
+// after its target (branchHint), and so does this.
 func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
-	if decl != nil && decl.IsReference() {
-		if name := refHint(decl.GetRef().String()); name != "" {
+	hint, branch, ok := positionHint(pointer)
+	isRef := decl != nil && decl.IsReference()
+	if ok && (!branch || !isRef) {
+		return hint
+	}
+	if isRef {
+		if name := targetHint(decl); name != "" {
 			return name
 		}
 	}
-	if hint, ok := branchPointerHint(pointer); ok {
+	if ok {
 		return hint
 	}
-	if hint, ok := structuralPointerHint(pointer); ok {
+	if hint, ok := branchPointerHint(pointer); ok {
 		return hint
 	}
 	return pointer.LastToken()
 }
 
-// componentSchemas is the pointer of the components/schemas map. A structural
-// position's enclosing hint is the enclosing pointer's own last token only
-// strictly beneath it; see structuralPointerHint for why the derivation is
-// confined there.
-const componentSchemas jsontext.Pointer = "/components/schemas"
+// componentSchemaTokens is the length of /components/schemas/<name>, the
+// shortest pointer positionHint answers: the component itself.
+const componentSchemaTokens = 3
 
-// structuralPointerHint returns the hint the inline structural position at
-// pointer takes, for a caller holding only the pointer, and whether the pointer
-// addresses one it can answer.
+// positionHint returns the hint the structural lowering gives the schema
+// position at pointer, whether that position is a composition branch, and
+// whether pointer is one it can answer: a position at or beneath a component
+// schema.
 //
-// It is branchPointerHint's counterpart for the four positions whose hint is
-// composed rather than positional: the structural lowering builds them as
-// compile.SubHint(enclosing, role), so answering requires the enclosing node's
-// hint, which a bare pointer walk does not carry. Under /components/schemas it
-// does: the enclosing hint there is the enclosing pointer's own last token —
-// the component's name, or a property's key — so the composition can be replayed
-// by peeling roles off the tail and rebuilding from what is left.
+// It replays the lowering token by token from the component down, because the
+// hint is composed rather than positional: items is compile.SubHint(enclosing,
+// "item"), so answering needs the enclosing node's hint, and only a walk from the
+// root knows which tokens are keywords. Reading the pointer from its tail instead
+// took a property, a pattern or a $defs entry literally named items for the items
+// keyword (GitHub #518), and a branch's ordinal for the enclosing hint of what
+// sits beneath the branch, where the composition says variant_0.
 //
-// It is confined to that root because the derivation is not total, and the
-// remainder is a naming decision rather than a bug to paper over. A position
-// under /paths takes its enclosing hint from an operationId, a response, or a
-// media-type key, and the pointer records none of them: the same items position
-// is "response_item" to the structural lowering and has no pointer spelling that
-// reproduces it. Answering those with a pointer-derived name would replace one
-// disagreement with a different one, so they keep the last-token fallback.
-// That leaves no order dependence there — components lower before paths, so a
-// reference from one always interns first — but it does leave a name that
-// depends on whether an unrelated schema points at the position. GitHub #372
-// holds that remainder.
+// It is confined to /components/schemas because the derivation is not total
+// elsewhere. A position under /paths takes its enclosing hint from an
+// operationId, a response, or a media-type key, which the pointer does not
+// record, so those keep the fallbacks in subSchemaHint. The declaration still
+// names the node a reference hoisted there, but not the subtree the reference
+// interned beneath it, so a reference from one path into another leaves those
+// names depending on declaration order (GitHub #529).
 //
-// The walk is bounded by construction: each step moves to an ancestor, which is
-// strictly shorter, so the loop ends at the root at the latest.
-func structuralPointerHint(pointer jsontext.Pointer) (string, bool) {
-	var roles []string // innermost first
-	for pointer != "" {
-		role, parent, ok := structuralRole(pointer)
-		if !ok {
-			break
-		}
-		roles = append(roles, role)
-		pointer = parent
+// Positions the lowering does not walk — not, if, then, else and the rest, and a
+// keyword it does not know — are named after their own token, as the fallback
+// always named them; only the reference reaches those, so any stable spelling
+// keeps them order-independent. The walk takes one token per step or two, so it
+// is bounded by the pointer's length.
+func positionHint(pointer jsontext.Pointer) (hint string, branch, ok bool) {
+	tokens := slices.Collect(pointer.Tokens())
+	if len(tokens) < componentSchemaTokens || tokens[0] != "components" || tokens[1] != "schemas" {
+		return "", false, false
 	}
-	if len(roles) == 0 || pointer == componentSchemas || !componentSchemas.Contains(pointer) {
-		return "", false
+	hint = tokens[2]
+	for i := componentSchemaTokens; i < len(tokens); {
+		var step int
+		hint, branch, step = positionStep(hint, tokens[i:])
+		i += step
 	}
-	hint := pointer.LastToken()
-	for _, role := range slices.Backward(roles) {
-		hint = compile.SubHint(hint, role)
-	}
-	return hint, true
+	return hint, branch, true
 }
 
-// structuralRole reports the role the structural lowering names the position at
-// pointer by, and the pointer of the schema holding that position: one token up
-// for items, additionalProperties and contentSchema, two for a
-// patternProperties entry and a prefixItems slot.
-//
-// The roles are the suffixes the compile.SubHint call sites pass, and a change to
-// one of them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders
-// is what fails when they drift, provided its row aims the outside $ref above the
-// node it asserts (see the refAt column there): a reference aimed at the node
-// itself is renamed by the declaration in either order and cannot see a role
-// missing here.
-//
-// A role is recognized by its token's spelling alone, so a key spelled like a
-// keyword — a property named items — is read as the keyword (GitHub #518).
-func structuralRole(pointer jsontext.Pointer) (role string, parent jsontext.Pointer, ok bool) {
-	last, up := pointer.LastToken(), pointer.Parent()
-	switch last {
-	case "items":
-		return "item", up, true
-	case "additionalProperties":
-		return "value", up, true
-	case "contentSchema":
-		return "content", up, true
+// positionStep applies the keyword at rest[0] to the enclosing hint, returning
+// the hint of the position it leads to, whether that position is a composition
+// branch, and how many tokens the step consumed: two for a keyword whose
+// children are keyed or indexed, one otherwise.
+func positionStep(enclosing string, rest []string) (hint string, branch bool, step int) {
+	keyword := rest[0]
+	if role, ok := structuralRoles[keyword]; ok {
+		return compile.SubHint(enclosing, role), false, 1
 	}
-	switch up.LastToken() {
-	case "patternProperties":
-		return "pattern", up.Parent(), true
-	case "prefixItems":
-		if isDecimalIndex(last) {
-			return last, up.Parent(), true
-		}
+	if len(rest) < 2 {
+		return keyword, false, 1
 	}
-	return "", "", false
+	child := rest[1]
+	switch {
+	case keyedSchemaMaps[keyword]:
+		return child, false, 2
+	case keyword == "patternProperties":
+		return compile.SubHint(enclosing, "pattern"), false, 2
+	case keyword == "prefixItems" && isDecimalIndex(child):
+		return compile.SubHint(enclosing, child), false, 2
+	case compositionKeywords[keyword] && isDecimalIndex(child):
+		return positionalBranchHint(child), true, 2
+	}
+	return keyword, false, 1
+}
+
+// structuralRoles maps each keyword whose one schema the structural lowering
+// names by role to that role: the suffixes its compile.SubHint call sites pass. A
+// change to one of them has to be made here too, and
+// TestInlinePosition_HintIsTheSameInBothOrders is what fails when they drift,
+// provided its row aims the outside $ref above the node it asserts (see the
+// refAt column there): a reference aimed at the node itself is renamed by the
+// declaration in either order and cannot see a role missing here.
+var structuralRoles = map[string]string{
+	"items":                "item",
+	"additionalProperties": "value",
+	"contentSchema":        "content",
+}
+
+// keyedSchemaMaps are the keywords whose value maps a key to a schema that is
+// named by the key alone: a property by its name, and the $defs, definitions,
+// dependentSchemas and dependencies entries by theirs, as the pointer's last
+// token always named them. patternProperties is keyed too but names by role, so
+// positionStep takes it separately.
+var keyedSchemaMaps = map[string]bool{
+	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
