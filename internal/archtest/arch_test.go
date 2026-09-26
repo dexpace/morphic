@@ -117,6 +117,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses and the type already interned
