@@ -124,7 +124,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -144,8 +144,12 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups()
-	diags = append(diags, lowerPaths(ctx, c, ts, anchors, operationIDs, groups, &svc)...)
-	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, operationIDs, groups, &svc)...)
+	claims := newOperationIDClaims()
+	diags = append(diags, lowerPaths(ctx, c, ts, anchors, claims, groups, &svc)...)
+	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, claims, groups, &svc)...)
+	// After both walks: whether an operationId is unique is a question about
+	// every operation the service mounts, callbacks included.
+	diags = append(diags, claims.report(c)...)
 	svc.Groups = groups.finalize()
 	return svc, lowerTagDefs(c), diags
 }
@@ -179,7 +183,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -193,7 +197,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if pi == nil {
 			continue
 		}
-		diags = append(diags, lowerPathItem(c, ts, anchors, operationIDs, groups, svc, path, pi, declPtr)...)
+		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, pi, declPtr)...)
 	}
 	return diags
 }
@@ -204,7 +208,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
@@ -219,7 +223,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			ptrs:          ptrs,
 			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 		}
-		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
@@ -237,7 +241,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // each webhook operation carries IsWebhook on its HTTP binding. It stops
 // between webhooks when ctx is done, as lowerPaths does, and svc holds what a
 // webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -263,7 +267,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 				ptrs:          ptrs,
 				params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 			}
-			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 			diags = append(diags, opDiags...)
 			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
@@ -343,7 +347,7 @@ type opContext struct {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -393,7 +397,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled
 		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, operationIDs, src, opCtx.ptrs, opCtx.inferred)
+		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, claims, src, opCtx.ptrs, opCtx.inferred)
 		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 		diags = append(diags, cbDiags...)
 	}
@@ -402,7 +406,8 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	// After the extensions are on the map, since that is what it reads.
 	diags = append(diags, c.PromoteDeprecation(op.Unmodeled, op.Deprecation, &op.Provenance)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
-	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
+	claims.add(src, opCtx.ptrs)
+	return op, extra, diags
 }
 
 // applyOperationAnnotations keeps the operation's own x-* and undeclared keys,
@@ -467,30 +472,6 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
 		"operation servers kept under Unmodeled; an operation has no server-scope list to bind "+
 			"them to, and these override any path-item servers kept beside them"))
-}
-
-// checkOperationIDUnique reports an operationId claimed by more than one
-// operation. OpenAPI requires it to be unique across the whole API, and the
-// resolver cannot see this shape: one path item declaring an operationId and
-// mounted at two paths is written once but describes two operations. Names are
-// presentation, so the IR still records what the document said (invariant 4) —
-// but an emitter renders both under one identifier, so the collision has to be
-// reported rather than discovered downstream.
-//
-// operationIDs is the caller's, allocated where the lowering starts, so this
-// only ever writes into it — the lazy make it used to carry was unreachable
-// from newLowerer, which has always allocated the map up front.
-func checkOperationIDUnique(c lowering.Ctx, operationIDs map[string]jsontext.Pointer, op ir.Operation, mount jsontext.Pointer) []ir.Diagnostic {
-	if op.Name.Source == "" {
-		return nil // no operationId: emitters synthesize from the method and path
-	}
-	if first, seen := operationIDs[op.Name.Source]; seen {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DuplicateOperationID, mount,
-			"operationId %q is already used by the operation at %s; "+
-				"OpenAPI requires it to be unique across the API", op.Name.Source, first)}
-	}
-	operationIDs[op.Name.Source] = mount
-	return nil
 }
 
 // operationName builds an operation's neutral naming: the operationId when
@@ -1037,7 +1018,7 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil, nil
@@ -1065,7 +1046,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 				continue
 			}
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, operationIDs, pi, cbPtrs, exprStr, inferred)
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, claims, pi, cbPtrs, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
@@ -1088,7 +1069,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // applyPathItem runs once per operation, so an item producing none reaches it
 // through nothing. The map goes where the Callback Object's own extensions
 // already go — the parent's HTTP binding, which is where the callbacks live.
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	declared := pathOperations(pi)
 	opIDs := make([]ir.OpID, 0, len(declared))
 	ops := make([]ir.Operation, 0, len(declared))
@@ -1102,7 +1083,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 			ptrs:        ptrs,
 			params:      mergeParameters(pi.GetParameters(), po.src.GetParameters(), cb.decl, ptrs.decl),
 		}
-		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+		op, _, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)

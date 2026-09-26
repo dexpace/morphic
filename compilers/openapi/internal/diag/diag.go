@@ -241,10 +241,17 @@ const (
 	// this — it is a compiler bug — but it is reported rather than dropped in
 	// silence, since the alternative is losing constructs with no trace at all.
 	InternalInvariant = "openapi/internal-invariant"
-	// DuplicateOperationID reports an operationId claimed by more than one
-	// operation, which OpenAPI forbids. A path item mounted at two paths is the
-	// shape that reaches this without the document repeating the id in source.
+	// DuplicateOperationID reports an operationId that one declaration claims
+	// more than once because it is mounted more than once: a path item or an
+	// operation reused by a $ref, a YAML alias or a merge key. The document
+	// writes the id once, so it is a warning, but each mount is an operation of
+	// its own and an emitter renders them all under one identifier.
 	DuplicateOperationID = "openapi/duplicate-operation-id"
+	// ConflictingOperationID reports an operationId that a second declaration
+	// writes again. OpenAPI requires the id to be unique among every operation
+	// the document describes, webhooks and callbacks included, and this is the
+	// document repeating it, so it is an error (GitHub #502).
+	ConflictingOperationID = "openapi/conflicting-operation-id"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming which authentication mechanism it is — `type`, or the RFC 7235
 	// `scheme` token that is the mechanism when the type is http. The entry
