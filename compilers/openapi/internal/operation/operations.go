@@ -654,8 +654,10 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 // enters no map and no field, and reading the map alone kept it by nothing and
 // reported it nowhere while a plainly-valued key beside it was kept and warned
 // about (GitHub #412). The source document's anchors are cleared before its
-// model is built (GitHub #459), so this class is left only in a path item that
-// an external reference loaded, which the resolver parses itself (GitHub #501).
+// model is built (GitHub #459), and a document an external reference loaded is
+// held to the same clearing (GitHub #501), so this class is left only in a
+// document the resolver parses itself because it missed the prepared tree: one
+// fetched under a URL whose spelling net/url does not reproduce (GitHub #538).
 // The raw node is the only place such a key is written, so the raw node is read,
 // against the vocabulary pathItemDeclares spells. That is the reading GitHub
 // #377 set aside, on two grounds since answered: the method
@@ -719,11 +721,12 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // reading of undeclaredPathItemKeys already answers for it — naming a standard
 // method, a field of the model, or an x- extension.
 //
-// A method held nowhere in the map is still declared: in an externally loaded
-// path item, `get: &g {...}` is skipped by the same anchor rule as an
-// undeclared key, and is not lowered either, but it is a key the specification
-// defines, and the census has no truthful way to grade it as one the document
-// may not write.
+// A method held nowhere in the map is still declared: in a path item from a
+// document the resolver parsed itself — one fetched under a URL whose spelling
+// net/url does not reproduce (GitHub #538) — `get: &g {...}` is skipped by the
+// same anchor rule as an undeclared key, and is not lowered either, but it is a
+// key the specification defines, and the census has no truthful way to grade it
+// as one the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
 	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)

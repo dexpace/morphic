@@ -101,6 +101,10 @@ type Options struct {
 	// same bytes compile differently in two directories, and the resolved content
 	// still does not reach lowering — Sources records one entry either way
 	// (GitHub #74 carries the multi-file work).
+	//
+	// A document a reference names this way is held to the same budgets and
+	// pre-parse refusals as the source, and is refused as that reference's
+	// failure the moment it crosses one.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
@@ -180,10 +184,13 @@ const (
 // none of those describes something a caller could legitimately want more of.
 type Limits struct {
 	// MaxSourceBytes bounds one source document's size in bytes, checked before
-	// it is parsed.
+	// it is parsed. It binds the same way on a document an external reference
+	// names, checked before that document is parsed in its turn.
 	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
 	// MaxSourceNodes bounds the YAML nodes one source document parses to,
-	// checked before the typed model is built from it.
+	// checked before the typed model is built from it. A document an external
+	// reference names is checked against it the same way, before the model
+	// reaches that document.
 	MaxSourceNodes int `json:"maxSourceNodes,omitzero"`
 	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
 	// as the top type with an error diagnostic naming the budget; the rest of the
@@ -195,7 +202,8 @@ type Limits struct {
 	// costs as written. A document with no alias adds nothing, so this never
 	// refuses one for its size. A source past it is refused before the typed
 	// model is built from it, where that cost would be paid, and an overlay
-	// before it is applied.
+	// before it is applied. A document an external reference names is held to
+	// it the same way, before the resolver builds from that document either.
 	//
 	// Turning it off does not turn off alias refusal. A document whose aliases
 	// expand it past both 128 times its own size and 32,768 nodes is refused

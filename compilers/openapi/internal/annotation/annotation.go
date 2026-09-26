@@ -548,18 +548,22 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 // is the only place such a key is written at all (speakeasy-api/openapi
 // v1.24.1, GitHub #412). What the parsed model dropped can only be recovered
 // from what the source wrote. The source document's anchors are cleared before
-// its model is built (load.releaseAnchors, GitHub #459), so the skip reaches
-// only a path item in a document the resolver loaded through an external
-// reference, which is parsed where nothing here can clear them (GitHub #501).
+// its model is built (load.releaseAnchors, GitHub #459), and a document loaded
+// through an external reference is held to the same clearing before the
+// resolver builds from it (GitHub #501), so the skip reaches only a path item
+// in a document the resolver parsed itself because it missed that prepared
+// tree — one fetched under a URL whose spelling net/url does not reproduce
+// (GitHub #538).
 //
 // A `<<` merge key is not a key the mapping writes: it names other mappings
 // whose pairs the parser reads in, and those pairs are what the model holds —
-// unless a merged-in value is itself anchored in an externally loaded document,
-// when the library's skip drops it too and neither reading sees it; only a
-// merge-expanded view can, which is GitHub #395's to close. It is left out here for the same reason the raw-JSON
-// converter expands it rather than encoding it. Like every raw-node reader in
-// this package, this reads the mapping's own pairs and not the merged-in ones,
-// which is #395.
+// unless a merged-in value is itself anchored in a document the resolver
+// parsed itself because it missed the prepared tree (GitHub #538), when the
+// library's skip drops it too and neither reading sees it; only a
+// merge-expanded view can, which is GitHub #395's to close. It is left out
+// here for the same reason the raw-JSON converter expands it rather than
+// encoding it. Like every raw-node reader in this package, this reads the
+// mapping's own pairs and not the merged-in ones, which is #395.
 //
 // A key repeated in the mapping is one key to the parser and is returned once,
 // because a census that named it twice would find its own first entry occupied
