@@ -264,3 +264,65 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
 		"the encoded mapping target names the declared component, and the entry is kept")
 }
+
+// TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516.
+// speakeasy-api/openapi v1.25.2 validates each reference token against a
+// character class capped at U+FFFF (jsonpointer/navigation.go, tokenRegex),
+// where RFC 6901 admits every character up to U+10FFFF. A $ref through a key
+// holding an emoji or a CJK Extension B ideograph is refused as malformed,
+// while the same reference through a Basic Multilingual Plane key resolves.
+//
+// The twins below differ in that one character. A schema reference still
+// lowers to the right target, because lowering derives it from the pointer —
+// but the false diagnostic still fails the compile. A path item mounted by
+// $ref has no such fallback: the refused twin loses the mount outright.
+//
+// When the astral twin compiles like the other, the library is fixed: assert
+// they compile alike and close #516.
+func TestCompile_APointerTokenPastUFFFFIsRefusedUpstream(t *testing.T) {
+	t.Parallel()
+	twin := func(key string) string {
+		return `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  "/` + key + `":
+    get: {operationId: getKey, responses: {"200": {description: ok}}}
+  /mount: {$ref: '#/paths/~1` + key + `'}
+components:
+  schemas:
+    Holder: {type: object, properties: {"` + key + `": {type: object}}}
+    Uses: {$ref: '#/components/schemas/Holder/properties/` + key + `'}
+`
+	}
+
+	basic, basicDiags := parseFull(t, twin("é"))
+	openapitest.RequireNoErrorDiags(t, basicDiags)
+	assert.Equal(t, 2, operationsNamed(basic, "getKey"),
+		"a key inside the Basic Multilingual Plane resolves: the item is mounted at both paths")
+
+	astral, astralDiags := parseFull(t, twin("😀"))
+	assert.True(t, ir.HasError(astralDiags),
+		"the resolver still refuses a token past U+FFFF; if it no longer does, see this test's comment")
+	assert.Equal(t, 1, operationsNamed(astral, "getKey"),
+		"the refused reference mounts nothing, which is what the fix will change")
+}
+
+// operationsNamed counts the operations in doc, in any group of any service,
+// whose source operationId is name.
+func operationsNamed(doc *ir.Document, name string) int {
+	groups := make([]ir.OperationGroup, 0, len(doc.Services))
+	for _, svc := range doc.Services {
+		groups = append(groups, svc.Groups...)
+	}
+	n := 0
+	for len(groups) > 0 {
+		g := groups[0]
+		groups = append(groups[1:], g.Groups...)
+		for _, op := range g.Operations {
+			if op.Name.Source == name {
+				n++
+			}
+		}
+	}
+	return n
+}
