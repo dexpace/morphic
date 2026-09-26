@@ -1029,6 +1029,135 @@ func TestAllOf_DiscriminatorSubtypeValue(t *testing.T) {
 		"a subtype absent from the mapping falls back to its schema name")
 }
 
+// discriminatorValues reads the DiscriminatorValue of every Model named in
+// typeIDs off doc, so a mismatch anywhere in the set shows every id at once
+// rather than only the first one asserted.
+func discriminatorValues(t *testing.T, doc *ir.Document, typeIDs ...ir.TypeID) map[ir.TypeID]string {
+	t.Helper()
+	got := make(map[ir.TypeID]string, len(typeIDs))
+	for _, id := range typeIDs {
+		m, ok := doc.Types[id].(*ir.Model)
+		require.True(t, ok, "%s should be a model", id)
+		got[id] = m.DiscriminatorValue
+	}
+	return got
+}
+
+// TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue pins GitHub #517.
+// OpenAPI's implicit discriminator mapping names a subtype by its component
+// schema name; an inline subtype — declared here as a property, once keyed like
+// the unrelated component Dog and once keyed like nothing in the document —
+// has no schema name of its own and so gets no implicit tag. Before the fix the
+// fallback read the subtype's pointer's last token instead, so Kennel's "Dog"
+// property claimed the same tag as the component Dog, and its "pet" property
+// claimed its own property key as a tag the document never assigned.
+func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+      type: object
+      properties:
+        bark: {type: string}
+    Kennel:
+      type: object
+      properties:
+        Dog:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+          type: object
+          properties:
+            woof: {type: string}
+        pet:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+          type: object
+          properties:
+            meow: {type: string}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	want := map[ir.TypeID]string{
+		componentID("Dog"): "Dog",
+		kennelDog:          "",
+		kennelPet:          "",
+	}
+	got := discriminatorValues(t, doc, componentID("Dog"), kennelDog, kennelPet)
+	assert.Empty(t, cmp.Diff(want, got),
+		"the component keeps its implicit tag; neither inline subtype gets one")
+}
+
+// TestAllOf_InlineSubtypeDiscriminatorValueFromMapping pins the path the #517
+// fix leaves untouched: a mapping entry can still name an inline subtype by
+// JSON reference, and mappingTagsFor — not subtypeDiscriminatorValue's
+// implicit-name fallback — is what gives it that tag. Kennel is declared before
+// Pet so the mapping's own target resolves on this same pass (mappingTargetID
+// only finds an already-interned coordinate); the ordering is incidental to
+// this fix and not what the test pins.
+func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Kennel:
+      type: object
+      properties:
+        Dog:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+          type: object
+          properties:
+            woof: {type: string}
+        pet:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+          type: object
+          properties:
+            meow: {type: string}
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          woofer: '#/components/schemas/Kennel/properties/Dog'
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+      type: object
+      properties:
+        bark: {type: string}
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	kennelDog := ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
+	kennelPet := ir.TypeID("t/anon/components/schemas/Kennel/properties/pet")
+	want := map[ir.TypeID]string{
+		componentID("Dog"): "Dog",
+		kennelDog:          "woofer",
+		kennelPet:          "",
+	}
+	got := discriminatorValues(t, doc, componentID("Dog"), kennelDog, kennelPet)
+	assert.Empty(t, cmp.Diff(want, got),
+		"a mapping entry names Kennel's inline Dog by JSON reference; pet still gets no implicit tag")
+
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok, "Pet should be a model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"woofer": kennelDog}, pet.Discriminator.Mapping,
+		"the base's own mapping resolves the same inline subtype the tag was read from")
+}
+
 // TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub #505:
 // a name holding a character a pointer escapes reaches the IR decoded wherever
 // it is read off a pointer's last token. That is the implicit discriminatorValue,
@@ -2561,6 +2690,49 @@ func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "combo", v.DiscriminatorValue,
 			"variant %d carries the mapping key naming the enclosing schema, not its own hint", i)
+	}
+}
+
+// TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue extends
+// GitHub #517 to buildComposedVariant, the union-branch caller of
+// subtypeDiscriminatorValue: the enclosing schema of this co-declared oneOf is
+// hoisted inline (a property, not a component), so it has no schema name and
+// its distributed variants get no implicit tag either — the same rule the allOf
+// case pins, at the other of the two call sites the fix touches. Before the fix
+// both variants took the property key "Combo" as their tag, colliding with each
+// other and with anything actually named Combo.
+func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Kennel:
+      type: object
+      properties:
+        Combo:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+          oneOf:
+            - $ref: '#/components/schemas/A'
+            - $ref: '#/components/schemas/B'
+`)
+	doc, diags := lowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	u, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Kennel/properties/Combo")].(*ir.Union)
+	require.True(t, ok, "the co-declared oneOf hoists a union at the inline property")
+	require.Len(t, u.Variants, 2)
+	for i := range u.Variants {
+		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok)
+		assert.Empty(t, v.DiscriminatorValue,
+			"variant %d has no mapping entry and its enclosing schema has no name to fall back to", i)
 	}
 }
 
