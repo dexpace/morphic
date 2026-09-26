@@ -588,8 +588,8 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 		return false
 	}
 	name := mismatch.ParentName
-	if i := strings.LastIndexByte(name, '.'); i >= 0 {
-		name = name[i+1:]
+	if _, after, ok := strings.CutLast(name, "."); ok {
+		name = after
 	}
 	_, ok := numericBoundKeywords[name]
 	return ok

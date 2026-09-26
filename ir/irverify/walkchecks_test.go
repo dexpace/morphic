@@ -104,9 +104,13 @@ func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 }
 
 // checkName is a walkChecks entry's function name, without its package path.
+// A name with no dot is returned whole, as the slice this replaced returned it.
 func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) string {
 	full := runtime.FuncForPC(reflect.ValueOf(check).Pointer()).Name()
-	return full[strings.LastIndex(full, ".")+1:]
+	if _, after, ok := strings.CutLast(full, "."); ok {
+		return after
+	}
+	return full
 }
 
 // last returns the final element of ss, or "" when ss is empty.
