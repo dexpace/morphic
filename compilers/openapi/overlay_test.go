@@ -461,6 +461,13 @@ actions:
 // and servers, and a path item the overlay mounts that no operation reaches.
 // The call paths only a 3.0 document or a failing read reaches are
 // TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet's.
+//
+// They also carry GitHub #534's combined entries. The overlay writes Pet's
+// if/then/else and contains entries whole, and Tags' unevaluatedItems on the
+// array schema it describes. Widget's base declares then and the overlay adds
+// if, the arm the combining reader lists first, so a rule that read only the
+// first keyword would credit the overlay with the entry. A combined entry that
+// will not render is TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry's.
 const provenanceSpec = `openapi: 3.1.0
 info:
   title: t
@@ -511,6 +518,12 @@ components:
       x-gone: 1
       properties:
         name: {type: string}
+    Widget:
+      type: object
+      then: {required: [w2]}
+    Tags:
+      type: array
+      items: {type: string}
   securitySchemes:
     apiKey:
       type: apiKey
@@ -536,6 +549,8 @@ actions:
       if: {required: [name]}
       then: {required: [tag]}
       dependentSchemas: {name: {required: [name]}}
+      contains: {type: string}
+      minContains: 1
       frobnicate: 1
       $id: "https://example.com/pet"
       properties:
@@ -545,6 +560,12 @@ actions:
   - target: $.components.schemas.Pet
     update:
       x-gone: 1
+  - target: $.components.schemas.Widget
+    update:
+      if: {required: [w1]}
+  - target: $.components.schemas.Tags
+    update:
+      unevaluatedItems: {type: string}
   - target: $.paths['/pets'].get.responses['200']
     update:
       bogus: 1
@@ -655,6 +676,19 @@ func entryKeyed(t *testing.T, entries map[string]ir.UnmodeledEntry, key string) 
 	return entries[at]
 }
 
+// entriesKeyed returns every Unmodeled entry named key, for a key the fixture
+// writes on more than one schema, where entryKeyed would refuse the second.
+func entriesKeyed(entries map[string]ir.UnmodeledEntry, key string) []ir.UnmodeledEntry {
+	suffix := "[" + key + "]"
+	var out []ir.UnmodeledEntry
+	for path, entry := range entries {
+		if strings.HasSuffix(path, suffix) {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
 // diagKey identifies a diagnostic by code and source pointer. The pair is
 // unique in these fixtures except at an unmounted path item, whose servers-kept
 // note and no-operation warning share both, so diagnosticsByCodeAndPointer
@@ -686,9 +720,10 @@ func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnos
 // reverting the fix at any one of them reddens the row beside it. The
 // controls (x-base, x-obj) must stay with the base: crediting the overlay with
 // everything it touches, rather than with what it introduced or rewrote, would
-// be the opposite defect. The if-then-else row is not a control. It pins a
-// known gap: a combined entry takes the schema's attribution although the
-// overlay wrote every keyword in it, and fixing that (GitHub #534) flips it.
+// be the opposite defect. GitHub #534's combined entries have no position of
+// their own and are credited by their keywords instead: to the overlay where
+// it wrote every one, and to the document declaring the schema where each
+// document wrote some, as on Widget.
 func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
@@ -718,7 +753,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"extension removed then re-added by a later action", "openapi:x-gone", 1},
 		{"validation-only keyword the overlay adds (schema.go attachDeclaredAnnotations)", "openapi:not", 1},
 		{"a second validation-only keyword added beside it", "openapi:dependentSchemas", 1},
-		{"combined if/then/else entry keeps the schema's attribution (GitHub #534)", "openapi:if-then-else", 0},
+		{"combined entry the overlay writes in full (contains + minContains)", "openapi:contains", 1},
+		{"combined entry on an array schema (unevaluatedItems alone)", "openapi:unevaluated", 1},
 		{"dialect keyword the overlay adds", "openapi:$id", 1},
 		{"unknown schema keyword the overlay adds (accumulate.go PreserveUnknownKeywords)", "openapi:frobnicate", 1},
 		{"property extension (schema.go fillPropertyAnnotations)", "openapi:x-prop", 1},
@@ -759,6 +795,21 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		})
 	}
 
+	t.Run("an if/then/else entry names the overlay only where it wrote every arm", func(t *testing.T) {
+		// Pet and Widget each carry one under the same key, so the two are
+		// told apart by the declaring schema their pointers name (§12).
+		found := entriesKeyed(entries, "openapi:if-then-else")
+		require.Len(t, found, 2, "Pet's entry and Widget's")
+		sources := map[jsontext.Pointer]int{}
+		for _, entry := range found {
+			sources[entry.Provenance.Pointer] = entry.Provenance.Source
+		}
+		assert.Equal(t, map[jsontext.Pointer]int{
+			"/components/schemas/Pet":    1, // the overlay wrote if and then
+			"/components/schemas/Widget": 0, // the base wrote then, the overlay if
+		}, sources)
+	})
+
 	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
 	for _, tc := range []struct {
 		name    string
@@ -782,12 +833,14 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	}
 
 	t.Run("validation-only announcements stay at the enclosing schema", func(t *testing.T) {
-		// not, if/then/else and dependentSchemas each announce once, all
-		// located at the schema declaration rather than at their own
-		// keyword — the enclosing-object rule — even though the overlay
-		// added every keyword they announce.
+		// not, if/then/else, dependentSchemas and contains each announce once,
+		// all located at the schema declaration rather than at their own
+		// keyword or keywords — the enclosing-object rule — even though the
+		// overlay added every keyword they announce. A note reports on the
+		// schema rather than on the entry it announces, so it keeps the
+		// schema's attribution while the combined entries name the overlay.
 		validationOnly := byCodeAndPointer[diagKey{diag.ValidationOnlyKeyword, "/components/schemas/Pet"}]
-		require.Len(t, validationOnly, 3)
+		require.Len(t, validationOnly, 4)
 		for _, d := range validationOnly {
 			assert.Equal(t, 0, d.Provenance.Source, "%s", d.Message)
 		}
@@ -871,6 +924,63 @@ actions:
 	require.Len(t, unkept, 1, "the oneOf that will not render is reported: %+v", diags)
 	assert.Equal(t, 1, unkept[0].Provenance.Source,
 		"a branch set the overlay added is reported as the overlay's (schema.go preserveBranchSets)")
+}
+
+// TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry is the failure half of
+// GitHub #534's rows in TestCompile_OverlayIsCreditedWithTheKeysItAdds: a
+// combined entry that will not render is reported instead of kept, and the
+// report is attributed as the entry would have been. Widget's failing if is the
+// first arm the combining reader reads and the base's then comes after it, so a
+// rule that stopped collecting keywords at the failure would credit the overlay.
+func TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet: {type: object}
+    Widget:
+      type: object
+      then: {required: [w2]}
+`
+	const patch = `overlay: 1.0.0
+info: {title: o, version: "1"}
+actions:
+  - target: $.components.schemas.Pet
+    update:
+      if: {required: [name]}
+      then: {const: .nan}
+  - target: $.components.schemas.Widget
+    update:
+      if: {const: .nan}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+	for _, d := range diags {
+		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	}
+
+	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
+	for _, tc := range []struct {
+		name    string
+		pointer jsontext.Pointer
+		want    int
+	}{
+		{"the overlay wrote every arm", "/components/schemas/Pet", 1},
+		{"the overlay wrote if and the base then", "/components/schemas/Widget", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			unkept := byCodeAndPointer[diagKey{diag.UnpreservableConstruct, tc.pointer}]
+			require.Len(t, unkept, 1, "the if/then/else that will not render is reported: %+v", diags)
+			assert.Equal(t, tc.want, unkept[0].Provenance.Source)
+		})
+	}
 }
 
 // addPathReusingTheBaseOperationID overlays a second path onto overlaySpec,

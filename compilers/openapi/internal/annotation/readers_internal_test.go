@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -421,30 +422,42 @@ func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
 // TestCombinedRaw_JoinsOnlyWhatIsWritten pins the three combining readers. Each
 // keyword present goes into one object in the requested order, and a
 // combination with nothing written yields nothing rather than an empty object.
+// The keywords returned beside it are exactly the ones it holds, since those are
+// what the entry's provenance is asked about (GitHub #534).
 func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		body string
-		read func(*oas3.Schema) (ir.RawValue, error)
+		read func(*oas3.Schema) (ir.RawValue, []string, error)
 		want string
+		keys []string
 	}{
 		{
 			name: "every if/then/else arm", read: IfThenElseRaw,
 			body: "if: {type: string}\nthen: {maxLength: 2}\nelse: {type: integer}\n",
 			want: `{"if":{"type":"string"},"then":{"maxLength":2},"else":{"type":"integer"}}`,
+			keys: []string{"if", "then", "else"},
+		},
+		{
+			name: "only the arms written", read: IfThenElseRaw,
+			body: "if: {type: string}\nelse: {type: integer}\n",
+			want: `{"if":{"type":"string"},"else":{"type":"integer"}}`,
+			keys: []string{"if", "else"},
 		},
 		{name: "no arms at all", read: IfThenElseRaw, body: "type: string\n"},
 		{
 			name: "contains with both bounds", read: ContainsRaw,
 			body: "contains: {type: string}\nminContains: 1\nmaxContains: 3\n",
 			want: `{"contains":{"type":"string"},"minContains":1,"maxContains":3}`,
+			keys: []string{"contains", "minContains", "maxContains"},
 		},
 		{name: "no contains family", read: ContainsRaw, body: "type: array\n"},
 		{
 			name: "both unevaluated keywords", read: UnevaluatedRaw,
 			body: "unevaluatedProperties: {type: string}\nunevaluatedItems: {type: integer}\n",
 			want: `{"unevaluatedProperties":{"type":"string"},"unevaluatedItems":{"type":"integer"}}`,
+			keys: []string{"unevaluatedProperties", "unevaluatedItems"},
 		},
 		{
 			name: "a false unevaluatedProperties is a structural mode, not a keyword to keep",
@@ -455,8 +468,9 @@ func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := tc.read(schemaFromYAML(t, tc.body))
+			got, keys, err := tc.read(schemaFromYAML(t, tc.body))
 			require.NoError(t, err)
+			assert.Equal(t, tc.keys, keys, "the keywords combined, in the requested order")
 			if tc.want == "" {
 				assert.Nil(t, got, "nothing written yields no object")
 				return
@@ -469,24 +483,48 @@ func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 // TestCombinedRaw_AnUnconvertibleMemberFailsTheWhole pins the rule presentMembers
 // exists for: an object labelled verbatim that silently omits one of its
 // keywords would restate GitHub #144 in miniature, so the combination errors
-// instead.
+// instead. The error names the first member that failed, and every keyword
+// written is still returned beside it, since the report that stands in for the
+// entry is attributed by them (GitHub #534).
 func TestCombinedRaw_AnUnconvertibleMemberFailsTheWhole(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		body string
-		read func(*oas3.Schema) (ir.RawValue, error)
+		name   string
+		body   string
+		read   func(*oas3.Schema) (ir.RawValue, []string, error)
+		failed string
+		keys   []string
 	}{
-		{name: "if/then/else", body: "if: {type: string}\nthen: {const: .nan}\n", read: IfThenElseRaw},
-		{name: "contains", body: "contains: {const: .nan}\nminContains: 1\n", read: ContainsRaw},
-		{name: "unevaluated", body: "unevaluatedProperties: {type: string}\nunevaluatedItems: {const: .nan}\n", read: UnevaluatedRaw},
+		{
+			name: "if/then/else", read: IfThenElseRaw,
+			body:   "if: {type: string}\nthen: {const: .nan}\n",
+			failed: "then", keys: []string{"if", "then"},
+		},
+		{
+			name: "contains, with a keyword written after the one that fails", read: ContainsRaw,
+			body:   "contains: {const: .nan}\nminContains: 1\n",
+			failed: "contains", keys: []string{"contains", "minContains"},
+		},
+		{
+			name: "unevaluated", read: UnevaluatedRaw,
+			body:   "unevaluatedProperties: {type: string}\nunevaluatedItems: {const: .nan}\n",
+			failed: "unevaluatedItems", keys: []string{"unevaluatedProperties", "unevaluatedItems"},
+		},
+		{
+			name: "two members that fail", read: IfThenElseRaw,
+			body:   "if: {const: .nan}\nelse: {const: .inf}\n",
+			failed: "if", keys: []string{"if", "else"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := tc.read(schemaFromYAML(t, tc.body))
+			got, keys, err := tc.read(schemaFromYAML(t, tc.body))
 			require.Error(t, err, "the whole combination fails rather than dropping a member")
 			assert.Nil(t, got)
+			assert.True(t, strings.HasPrefix(err.Error(), tc.failed+": "),
+				"the error names the first member that failed: %v", err)
+			assert.Equal(t, tc.keys, keys, "every keyword written, whether or not it converted")
 		})
 	}
 }
@@ -914,6 +952,72 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, diags[0].Provenance)
+}
+
+// TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords pins GitHub #534:
+// a combined entry — if/then/else, contains, unevaluated — has no position of
+// its own, so it is attributed by asking the Locator about exactly the
+// keywords it combines, rather than about the schema alone. A single-keyword
+// entry, and the note announcing each entry, ask about nothing but the position
+// they are located at.
+func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\n"+
+		"not: {type: integer}\n"+
+		"if: {required: [name]}\nthen: {required: [tag]}\n"+
+		"contains: {type: string}\nminContains: 1\n"+
+		"unevaluatedProperties: false\nunevaluatedItems: {type: string}\n")
+	var calls []recordedCall
+
+	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+
+	assert.ElementsMatch(t, []recordedCall{
+		{pointer: "/S/not"},
+		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},              // not the absent else
+		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}}, // not the absent maxContains
+		{pointer: "/S", from: []jsontext.Pointer{"/S/unevaluatedItems"}},           // a false unevaluatedProperties is a structural mode
+		// and one note per entry, each at the schema
+		{pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"},
+	}, calls)
+
+	// recording answers source 1 only when asked with from, so each source shows
+	// which question its record's provenance came from.
+	for key, want := range map[string]int{
+		"openapi:not": 0, "openapi:if-then-else": 1, "openapi:contains": 1, "openapi:unevaluated": 1,
+	} {
+		entry, ok := got[key]
+		require.True(t, ok, "%s is kept", key)
+		assert.Equal(t, want, entry.Provenance.Source, key)
+	}
+	require.Len(t, diags, 4, "one announcement per entry kept")
+	for _, d := range diags {
+		assert.Equal(t, 0, d.Provenance.Source, "a note is asked about the schema alone: %s", d.Message)
+	}
+}
+
+// TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords is the
+// failure half of the test above: a combined entry that will not render is
+// reported instead of kept, and the report is attributed as the entry would have
+// been, by every keyword written, the one that failed to convert included.
+func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\n"+
+		"if: {required: [name]}\nthen: {const: .nan}\n"+
+		"contains: {const: .nan}\nminContains: 1\n")
+	var calls []recordedCall
+
+	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+
+	assert.Empty(t, got, "an entry that will not render is not kept")
+	assert.ElementsMatch(t, []recordedCall{
+		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},
+		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}},
+	}, calls)
+	require.Len(t, diags, 2)
+	for _, d := range diags {
+		assert.Equal(t, ir.SeverityError, d.Severity, "%s", d.Message)
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S"}, d.Provenance, "%s", d.Message)
+	}
 }
 
 // TestSchemaExamplesAt_ReadsBothKeywordsInOrder pins that `example` and each

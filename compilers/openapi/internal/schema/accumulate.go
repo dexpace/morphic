@@ -95,13 +95,13 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // nothing.
 //
 // entryPtr locates the entry itself, which is what a validation emitter reports
-// against: the keyword's own node where the source writes the entry as one
-// keyword, and declPtr where a §4.7 entry combines several keywords into one
-// synthesized object that no single node addresses.
+// against: the keyword's own node. A §4.7 entry combining several keywords has
+// no such node and is not recorded here but by annotation.Read, which attributes
+// it by the keywords it holds (GitHub #534).
 func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr jsontext.Pointer, label string,
 ) []ir.Diagnostic {
-	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.ProvenanceAt)
+	return annotation.PreserveKeywordInto(p, key, raw, c.ProvenanceAt(entryPtr), c.ProvenanceAt(declPtr), label)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
