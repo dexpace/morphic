@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -276,4 +278,74 @@ func TestRun_ValidateReportsAStreamDropAsAPositionNotAFragment(t *testing.T) {
 	assert.Contains(t, stderr.String(), "twodocs.yaml:5:1:",
 		"the drop is reported as a position, at the line the second document begins")
 	assert.NotContains(t, stderr.String(), "#5:1", "not a URI fragment into the first document")
+}
+
+// TestRun_ValidateReportsACyclicRefWithItsFile is the end-to-end pin for GitHub
+// #527 and #388: a spec Compile refuses returns no Document, so before this fix
+// the run carried no source table and the cycle printed as a bare "9:7" — a
+// position with nothing to say which file it was in.
+//
+// The column is derived from the fixture rather than counted by hand, so a rewrap
+// of this literal cannot silently make the assertion pass against the wrong
+// character.
+func TestRun_ValidateReportsACyclicRefWithItsFile(t *testing.T) {
+	t.Parallel()
+	const cyclic = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+`
+	spec := writeFile(t, "cyclic.yaml", cyclic)
+	line := strings.Split(cyclic, "\n")[3]
+	col := strings.Index(line, "{$ref") + 1
+	require.Greater(t, col, 0, "the fixture must hold the schema object the cycle is reported at")
+	want := fmt.Sprintf("%s:4:%d:", spec, col)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"validate", spec}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stderr.String(), want)
+}
+
+// TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile is the end-to-end
+// pin for the other half of the same defect: an overlay's own refusal lives in
+// a second file, which a bare locator could not name any better than the spec's
+// own refusals could.
+func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	// The same recursive-anchor shape internal/load/overlay_refusals_internal_test.go
+	// pins at the loader's level: an anchor inside the update aliases itself,
+	// which gives the overlay library's clone no base case.
+	const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
+		"actions:\n  - target: $.info\n    update: {p: &a [*a]}\n"
+	overlay := writeFile(t, "bad-overlay.yaml", anchorCycle)
+	line := strings.Split(anchorCycle, "\n")[4]
+	col := strings.Index(line, "*a") + 1
+	require.Greater(t, col, 0, "the fixture must hold the alias that closes the cycle")
+	want := fmt.Sprintf("%s:5:%d:", overlay, col)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stderr.String(), want, "the overlay's own file, not the spec's")
+	assert.NotContains(t, stderr.String(), spec+":", "the spec is clean; the overlay is what refused")
+}
+
+// TestRun_ValidateReportsAnUndecodableSourceWithItsFile is the end-to-end pin
+// for the source detection declines: it has no document to read a table from
+// either, so it used to report nothing at all rather than the file that
+// declared a version and would not read.
+func TestRun_ValidateReportsAnUndecodableSourceWithItsFile(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "broken.yaml", "openapi: 3.1.0\ninfo: [unterminated\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"validate", spec}, &stdout, &stderr)
+
+	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stderr.String(), spec+": ", "the bare path, with no locator to attach")
+	assert.NotContains(t, stderr.String(), spec+"#", "no document exists to hold a pointer into")
 }

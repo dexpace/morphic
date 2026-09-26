@@ -45,6 +45,8 @@ func (s *stubCompiler) Detect(src compilers.Source, opts compilers.Options) (com
 
 func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (s *stubCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+
 func (s *stubCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return &ir.Document{IRVersion: ir.IRVersion}, nil, nil
 }

@@ -247,6 +247,8 @@ func bounded(limit int) int {
 //
 // An applied overlay becomes a second entry in Document.Sources, and every
 // position it introduced or rewrote names that entry as its Provenance.Source.
+// A compile the overlay made refuse has no Document, and names it through
+// Compiler.SourceTable instead.
 // The positions it left alone keep the source's own line and column, because the
 // overlay is applied to the parsed node tree rather than to re-serialised bytes.
 type Overlay struct {

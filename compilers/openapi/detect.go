@@ -74,10 +74,10 @@ type sniffProbe struct {
 // the budget. A registry reads it only when no compiler takes the source, so it
 // costs another format's compiler nothing.
 func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
-	// NoSource, not source 0: detection runs before any document exists, so
-	// there is no source table for a provenance to index into.
-	noSource := ir.Provenance{Source: ir.NoSource}
-	if d, over := load.OverByteBudget(noSource, src.Data, detectionBudget(opts)); over {
+	// Source 0 is src: the one source detection is handed is the whole of the
+	// table a declined diagnostic can index (compilers.Compiler.Detect).
+	atSource := ir.Provenance{Source: rootSrcIndex}
+	if d, over := load.OverByteBudget(atSource, src.Data, detectionBudget(opts)); over {
 		return compilers.Recognition{}, []ir.Diagnostic{d}, false
 	}
 
@@ -89,7 +89,7 @@ func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers
 		return recognized("swagger", probe.Swagger, parsed), nil, true
 	case err != nil && declaresProbeKey(src.Data):
 		return compilers.Recognition{}, []ir.Diagnostic{diag.Newf(
-			ir.SeverityError, diag.UndecodableSource, noSource,
+			ir.SeverityError, diag.UndecodableSource, atSource,
 			"source declares an OpenAPI or Swagger version and cannot be read: %s", diag.OneLine(err))}, false
 	default:
 		return compilers.Recognition{}, nil, false

@@ -283,7 +283,7 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 func renderDiagnostics(w io.Writer, res *engine.Result) {
 	for _, d := range res.Diagnostics {
 		emitf(w, "%s %s%s: %s\n",
-			d.Severity, d.Code, location(res.Document, d.Provenance), d.Message)
+			d.Severity, d.Code, location(res.Sources, d.Provenance), d.Message)
 	}
 }
 
@@ -294,16 +294,13 @@ func renderDiagnostics(w io.Writer, res *engine.Result) {
 // the source as a whole. An IR-space node, what a pass reports about the
 // document itself, is spelled bare.
 //
-// A locator whose source names no file here is spelled bare too. That is a
-// compile that was refused: it returns no document, so there is no source
-// table to read the path from.
-//
-// Nothing at all is what a diagnostic raised before any document existed
-// carries — an unrecognized spec format has no position inside a spec that was
-// never lowered — and printing nothing is the point: any location shown there
-// would be one the finding is not about.
-func location(doc *ir.Document, prov ir.Provenance) string {
-	path := sourcePath(doc, prov.Source)
+// sources is the table the run reports beside its diagnostics, which a refused
+// compile has too (engine.Result.Sources). A locator whose index resolves to
+// no entry is spelled bare rather than against a file it does not name, and a
+// finding that names neither a source nor a node gets nothing: any location
+// shown there would be one the finding is not about.
+func location(sources []ir.SourceInfo, prov ir.Provenance) string {
+	path := sourcePath(sources, prov.Source)
 	switch {
 	case prov.Pointer != "":
 		return " " + onPath(path, "#", string(prov.Pointer))
@@ -337,12 +334,12 @@ func positionText(p ir.Position) string {
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning
-// "" when the document or index is unavailable.
-func sourcePath(doc *ir.Document, source int) string {
-	if doc == nil || source < 0 || source >= len(doc.Sources) {
+// "" when the index addresses no entry of sources.
+func sourcePath(sources []ir.SourceInfo, source int) string {
+	if source < 0 || source >= len(sources) {
 		return ""
 	}
-	return doc.Sources[source].Path
+	return sources[source].Path
 }
 
 // exitCodeFor returns 1 when any diagnostic is at or above the failOn severity,

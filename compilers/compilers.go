@@ -152,13 +152,31 @@ type Compiler interface {
 	// serialization — or where opts forbid reading it at all, a source past the
 	// caller's size budget. No other compiler is in a position to say either,
 	// and the caller would otherwise have to report the source as unrecognized.
+	// Such a diagnostic names src as Source 0: the one source detection was
+	// handed is the whole of the table it can index.
 	Detect(src Source, opts Options) (rec Recognition, diags []ir.Diagnostic, ok bool)
 	// DecodeOptions turns textual settings into the value this compiler expects
 	// in Options.FormatOptions. An empty set yields defaults. An unknown key, an
 	// unusable value, or a file that cannot be read is an error — a setting that
 	// is silently ignored leaves the caller believing they configured something.
 	DecodeOptions(set OptionSet) (any, error)
+	// Compile lowers sources into a Document, or refuses them by returning a nil
+	// one. Every Provenance.Source it reports, on the Document or in the
+	// returned diagnostics, indexes the table SourceTable gives for the same
+	// arguments, and a returned Document's Sources names those inputs in that
+	// order.
 	Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
+	// SourceTable names the inputs a compile of sources under opts reads, in the
+	// order its provenance indexes them: the sources, then any input the
+	// options supply, such as an overlay.
+	//
+	// It exists for the compile that returns no Document. A refusal's
+	// diagnostics still index a table, and without this one a caller has
+	// nothing to resolve them against and cannot say which file a finding is
+	// in. It reads no input and fails on none, so an entry carries the Path it
+	// was given and nothing a read would have filled in. For options a compile
+	// would reject, it names the sources alone.
+	SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 
 // Registry maps source formats to compilers. It is a plain instance — there is
