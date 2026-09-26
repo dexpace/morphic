@@ -241,10 +241,10 @@ by a conformance table and the properties every answer must satisfy by a fuzz ta
 (GitHub #186).
 
 One rule sits under all of those and under `Aliases` too, because it is about the encoding rather
-than the spelling: **every channel's bytes must decode** (`ir/naming-invalid-utf8`). Ill-formed
-UTF-8 survives a marshal as the replacement rune, so a document carrying it decodes to one that
-re-marshals to different bytes and the "Serializable" invariant above stops holding — broken by a
-name nothing else here objects to.
+than the spelling: **every channel's bytes must decode**. It is not a naming rule at all: every
+string a document holds must be well-formed UTF-8, because a `Document` refuses to encode one that
+is not, so a single ill-formed name, ID or description fails the whole artifact. `irverify` holds
+every string to it under one code, `ir/invalid-utf8`, at the path of the string that broke it.
 
 **`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
 matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,

@@ -2,8 +2,6 @@ package irverify
 
 import (
 	"sort"
-	"strconv"
-	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,7 +32,6 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkPrimKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkUnions(doc)...)
-	vs = append(vs, checkDiagnostics(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)
 
@@ -93,6 +90,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
+		checkUTF8,
 	}
 }
 
@@ -181,32 +179,6 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 			Code:    "ir/" + noun + "-id-mismatch",
 			Message: "registry key " + key + " disagrees with node ID " + nodeID,
 			Path:    reg + "[" + key + "]",
-		})
-	}
-	return vs
-}
-
-// checkDiagnostics asserts every diagnostic message is well-formed UTF-8
-// (invariant #7). A message carrying an ill-formed byte run — as a third-party
-// validator emits when it truncates a multibyte rune — reaches
-// Document.Diagnostics, and a Document refuses to encode a string that is not
-// UTF-8 rather than rewrite it to U+FFFD, so one such message fails the whole
-// document. Producers coerce messages through ir.NewDiagnostic; this check
-// catches any that bypass it.
-// Message is the only diagnostic field that carries free-form validator
-// text: a Code may embed a validator-supplied rule suffix, but those rule
-// names are bounded ASCII identifiers, and Provenance holds line:col or
-// synthetic pointers — so neither can carry the ill-formed bytes Message can.
-func checkDiagnostics(doc *ir.Document) []Violation {
-	var vs []Violation
-	for i, d := range doc.Diagnostics {
-		if utf8.ValidString(d.Message) {
-			continue
-		}
-		vs = append(vs, Violation{
-			Code:    "ir/diagnostic-invalid-utf8",
-			Message: "diagnostic message is not valid UTF-8",
-			Path:    "diagnostics[" + strconv.Itoa(i) + "]",
 		})
 	}
 	return vs
