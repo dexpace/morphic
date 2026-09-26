@@ -228,82 +228,79 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 }
 
 // subSchemaHint names the node a $ref'd sub-schema pointer owns: the hint the
-// declaration that owns the position gives it, wherever that can be read off the
-// pointer, and otherwise the target a $ref names, the branch hint, or the
-// pointer's last token.
+// declaration that owns the position gives it, as positionHint replays it from
+// the pointer.
 //
 // Both lowerings reach the pointer — the enclosing schema through its own body,
 // this one through an outside $ref naming it — and only the first to arrive
-// interns the node. The declaration renames that node when it arrives second,
-// but not what the reference interned beneath it, whose names hang off this one;
-// so a hint derived differently here makes the subtree depend on declaration
-// order. positionHint is what keeps the two in step beneath /components/schemas.
+// interns the node. Beneath /components/schemas the replay is exact, so the
+// reference names the node and everything it interns beneath it as the
+// declaration would. Elsewhere it is a placeholder the declaration replaces
+// when it arrives, or, for a position no declaration ever lowers, the name
+// itself (positionHint): compile.Types rebuilds the subtree a reference
+// interned first (GitHub #529), and names a coordinate the declaration
+// reached before any node existed there (GitHub #519).
 //
 // A composition branch that is itself a $ref is the one position whose
 // declaration hint depends on more than the pointer: the composition names it
 // after its target (branchHint), and so does this.
 func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
-	hint, branch, ok := positionHint(pointer)
-	isRef := decl != nil && decl.IsReference()
-	if ok && (!branch || !isRef) {
-		return hint
-	}
-	if isRef {
+	hint, branch := positionHint(pointer)
+	if branch && decl != nil && decl.IsReference() {
 		if name := targetHint(decl); name != "" {
 			return name
 		}
 	}
-	if ok {
-		return hint
-	}
-	if hint, ok := branchPointerHint(pointer); ok {
-		return hint
-	}
-	return pointer.LastToken()
+	return hint
 }
 
 // componentSchemaTokens is the length of /components/schemas/<name>, the
-// shortest pointer positionHint answers: the component itself.
+// pointer positionHint roots a component's walk at: the component itself.
 const componentSchemaTokens = 3
 
 // positionHint returns the hint the structural lowering gives the schema
-// position at pointer, whether that position is a composition branch, and
-// whether pointer is one it can answer: a position at or beneath a component
-// schema.
+// position at pointer, and whether that position is a composition branch.
 //
-// It replays the lowering token by token from the component down, because the
-// hint is composed rather than positional: items is compile.SubHint(enclosing,
-// "item"), so answering needs the enclosing node's hint, and only a walk from the
-// root knows which tokens are keywords. Reading the pointer from its tail instead
-// took a property, a pattern or a $defs entry literally named items for the items
+// It replays the lowering token by token, because the hint is composed rather
+// than positional: items is compile.SubHint(enclosing, "item"), so answering
+// needs the enclosing node's hint, and only a walk from the root knows which
+// tokens are keywords. Reading the pointer from its tail instead took a
+// property, a pattern or a $defs entry literally named items for the items
 // keyword (GitHub #518), and a branch's ordinal for the enclosing hint of what
 // sits beneath the branch, where the composition says variant_0.
 //
-// It is confined to /components/schemas because the derivation is not total
-// elsewhere. A position under /paths takes its enclosing hint from an
-// operationId, a response, or a media-type key, which the pointer does not
-// record, so those keep the fallbacks in subSchemaHint. The declaration still
-// names the node a reference hoisted there, but not the subtree the reference
-// interned beneath it, so a reference from one path into another leaves those
-// names depending on declaration order (GitHub #529).
+// Beneath /components/schemas the walk starts at the component, whose hint is
+// its name, so the replay is exact. Anywhere else it starts at the pointer's
+// first token, because the hint a declaration there gives its schema — an
+// operationId, a response, a media-type key — is not in the pointer. What it
+// replays there is a placeholder for any position a declaration lowers, which
+// the declaration replaces (see subSchemaHint), and the name itself for a
+// position only references reach, such as one beneath not. Those have no
+// declaration to settle them, so the name has to be a function of the pointer
+// alone: two references into one such region, the outer one and one beneath
+// it, then name the inner node alike in either order. The walk resets its hint
+// at every token it does not know, so whatever precedes a schema — the
+// operation, the response, a header's name — leaves the positions within it
+// named by the steps inside the schema only (GitHub #529).
 //
-// Positions the lowering does not walk — not, if, then, else and the rest, and a
-// keyword it does not know — are named after their own token, as the fallback
-// always named them; only the reference reaches those, so any stable spelling
-// keeps them order-independent. The walk takes one token per step or two, so it
-// is bounded by the pointer's length.
-func positionHint(pointer jsontext.Pointer) (hint string, branch, ok bool) {
+// Positions the lowering does not walk — not, if, then, else and the rest — are
+// named after their own token, as the tail reading named them. The walk takes
+// one token per step or two, so it is bounded by the pointer's length.
+func positionHint(pointer jsontext.Pointer) (hint string, branch bool) {
 	tokens := slices.Collect(pointer.Tokens())
-	if len(tokens) < componentSchemaTokens || tokens[0] != "components" || tokens[1] != "schemas" {
-		return "", false, false
+	start := min(1, len(tokens))
+	if len(tokens) >= componentSchemaTokens && tokens[0] == "components" && tokens[1] == "schemas" {
+		start = componentSchemaTokens
 	}
-	hint = tokens[2]
-	for i := componentSchemaTokens; i < len(tokens); {
+	if start > 0 {
+		hint = tokens[start-1]
+	}
+	for i := start; i < len(tokens); {
 		var step int
 		hint, branch, step = positionStep(hint, tokens[i:])
 		i += step
 	}
-	return hint, branch, true
+	return hint, branch
 }
 
 // positionStep applies the keyword at rest[0] to the enclosing hint, returning
