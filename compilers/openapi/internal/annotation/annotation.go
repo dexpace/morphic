@@ -545,25 +545,24 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 // mapping wrote. A Path Item Object's unmarshaller folds a key it does not
 // recognize into the item's operations map, which the census reads — but skips
 // a key whose value carries a YAML anchor before that fold, so the raw mapping
-// is the only place such a key is written at all (speakeasy-api/openapi
-// v1.24.1, GitHub #412). What the parsed model dropped can only be recovered
-// from what the source wrote. The source document's anchors are cleared before
-// its model is built (load.releaseAnchors, GitHub #459), and a document loaded
-// through an external reference is held to the same clearing before the
-// resolver builds from it (GitHub #501), so the skip reaches only a path item
-// in a document the resolver parsed itself because it missed that prepared
-// tree — one fetched under a URL whose spelling net/url does not reproduce
-// (GitHub #538).
+// was, for such a key, the only place it was written at all (speakeasy-api/
+// openapi v1.24.1, GitHub #412). The source document's anchors are cleared
+// before its model is built (load.releaseAnchors, GitHub #459), and every
+// external document is held to the same clearing before any model is built
+// from it — directly, when the resolver reaches for this compiler's own
+// prepared copy (GitHub #501), or by rebuilding and resolving again under the
+// resolver's own key, when it first reached for a copy of its own instead
+// (GitHub #538). No input reaches the unmarshaller with an anchor left on it
+// any more, so this reading currently finds no key the parsed model has not
+// already folded.
 //
 // A `<<` merge key is not a key the mapping writes: it names other mappings
-// whose pairs the parser reads in, and those pairs are what the model holds —
-// unless a merged-in value is itself anchored in a document the resolver
-// parsed itself because it missed the prepared tree (GitHub #538), when the
-// library's skip drops it too and neither reading sees it; only a
-// merge-expanded view can, which is GitHub #395's to close. It is left out
-// here for the same reason the raw-JSON converter expands it rather than
-// encoding it. Like every raw-node reader in this package, this reads the
-// mapping's own pairs and not the merged-in ones, which is #395.
+// whose pairs the parser reads in, and those pairs are what the model holds.
+// It is left out here for the same reason the raw-JSON converter expands it
+// rather than encoding it. Like every raw-node reader in this package, this
+// reads the mapping's own pairs and not the merged-in ones, so a key that
+// reaches the model only through a merge is invisible here regardless of
+// anchors — which is GitHub #395's to close.
 //
 // A key repeated in the mapping is one key to the parser and is returned once,
 // because a census that named it twice would find its own first entry occupied

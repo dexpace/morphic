@@ -53,7 +53,7 @@ func TestExternal_OpenPreparesTheFileAndCachesItsTree(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 
 	doc := &soa.OpenAPI{}
-	f, err := newExternal(doc, Options{}).Open(path)
+	f, err := newExternal(doc, Options{}, newExternalReads()).Open(path)
 	require.NoError(t, err)
 
 	got, err := io.ReadAll(f)
@@ -133,7 +133,7 @@ func TestExternal_PrepareLeavesUnparseableBytesForTheResolver(t *testing.T) {
 	const bad = "a: [\n"
 	doc := &soa.OpenAPI{}
 
-	data, err := newExternal(doc, Options{}).prepare("k", strings.NewReader(bad))
+	data, err := newExternal(doc, Options{}, newExternalReads()).prepare("k", strings.NewReader(bad))
 
 	require.NoError(t, err)
 	assert.Equal(t, bad, string(data))
@@ -219,7 +219,7 @@ func TestExternal_DoCachesASuccessfulResponsesBody(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := &soa.OpenAPI{}
-	resp, err := newExternal(doc, Options{}).Do(req)
+	resp, err := newExternal(doc, Options{}, newExternalReads()).Do(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -248,7 +248,7 @@ func TestExternal_DoLeavesANonSuccessResponseUntouched(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := &soa.OpenAPI{}
-	resp, err := newExternal(doc, Options{}).Do(req)
+	resp, err := newExternal(doc, Options{}, newExternalReads()).Do(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -269,7 +269,7 @@ func TestExternal_DoPassesATransportErrorThrough(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -289,7 +289,7 @@ func TestExternal_DoFailsOnATruncatedBody(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -307,7 +307,7 @@ func TestExternal_DoFailsOnARefusedBody(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
 	require.NoError(t, err)
 
-	resp, err := newExternal(&soa.OpenAPI{}, Options{}).Do(req)
+	resp, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads()).Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -321,7 +321,7 @@ func TestExternal_DoFailsOnARefusedBody(t *testing.T) {
 func TestNewExternal_InitializesTheCacheOnAZeroDocument(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	e := newExternal(doc, Options{})
+	e := newExternal(doc, Options{}, newExternalReads())
 
 	require.NotPanics(t, func() {
 		_, err := e.prepare("k", strings.NewReader("a: 1\n"))

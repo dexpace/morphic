@@ -654,11 +654,13 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 // enters no map and no field, and reading the map alone kept it by nothing and
 // reported it nowhere while a plainly-valued key beside it was kept and warned
 // about (GitHub #412). The source document's anchors are cleared before its
-// model is built (GitHub #459), and a document an external reference loaded is
-// held to the same clearing (GitHub #501), so this class is left only in a
-// document the resolver parses itself because it missed the prepared tree: one
-// fetched under a URL whose spelling net/url does not reproduce (GitHub #538).
-// The raw node is the only place such a key is written, so the raw node is read,
+// model is built (GitHub #459), and every external document is held to the
+// same clearing before any model is built from it: directly, when the
+// resolver reaches for this compiler's own prepared copy (GitHub #501), or,
+// when it reached for a copy of its own instead, by rebuilding and resolving
+// again under the exact key it used (GitHub #538). No input reaches the
+// unmarshaller with an anchor still on it any more, so the raw node this
+// reading reads never holds a key the first one missed. It is read regardless,
 // against the vocabulary pathItemDeclares spells. That is the reading GitHub
 // #377 set aside, on two grounds since answered: the method
 // vocabulary was unsettled until #293 settled it, and a key set of the
@@ -721,12 +723,15 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // reading of undeclaredPathItemKeys already answers for it — naming a standard
 // method, a field of the model, or an x- extension.
 //
-// A method held nowhere in the map is still declared: in a path item from a
-// document the resolver parsed itself — one fetched under a URL whose spelling
-// net/url does not reproduce (GitHub #538) — `get: &g {...}` is skipped by the
-// same anchor rule as an undeclared key, and is not lowered either, but it is a
-// key the specification defines, and the census has no truthful way to grade it
-// as one the document may not write.
+// A method held nowhere in the map is still declared, because naming a
+// standard method is enough; nothing here depends on the fold having found it.
+// Before this compiler recovered such a document (GitHub #538), a path item
+// from one the resolver parsed itself — fetched under a URL whose spelling
+// net/url does not reproduce — could reach here with `get: &g {...}` skipped
+// by the same anchor rule as an undeclared key, unlowered but still a key the
+// specification defines. That document's anchors are now cleared before any
+// model is built from it, so no input reaches this check by that path any
+// more.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
 	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)

@@ -72,6 +72,14 @@ type Options struct {
 	// the bound an input to the stage, so nothing a test does to it is visible to
 	// a concurrent load.
 	buildIndex func(root *yaml.Node) sourceindex.Index
+	// rebuildDoc rebuilds the model for resolveExternal's second pass, or nil for
+	// unmarshal itself. It is unexported because it is this package's test seam,
+	// for the same reason buildIndex is one: unmarshal is a pure function of the
+	// (ctx, data, root) build's rebuild closure always calls it with, the exact
+	// arguments its first, already-successful call in this same build used, so
+	// that closure can never observe unmarshal fail. A test substitutes this to
+	// drive the rebuild-source error return in resolve's caller regardless.
+	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -248,7 +256,19 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	locate := locator(srcIndex, origin)
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
-	diags = append(diags, resolve(ctx, locate, doc, src.Path, opts)...)
+	rebuildDoc := opts.rebuildDoc
+	if rebuildDoc == nil {
+		rebuildDoc = unmarshal
+	}
+	rebuild := func() (*soa.OpenAPI, error) {
+		again, _, err := rebuildDoc(ctx, src.Data, root)
+		return again, err
+	}
+	doc, resolveDiags, err := resolve(ctx, locate, doc, src.Path, opts, rebuild)
+	if err != nil {
+		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
+	}
+	diags = append(diags, resolveDiags...)
 
 	return &Document{
 		Doc: doc,
@@ -279,16 +299,32 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 }
 
 // resolve resolves every reference in doc and converts what could not be
-// resolved into diagnostics, the refusal of external references included.
-func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
+// resolved into diagnostics, the refusal of external references included. It
+// returns the document it resolved, which is a rebuild of doc when doc's own
+// resolution parsed an external document the compiler had prepared under
+// another key (see resolveExternal).
+func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
+	rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, []ir.Diagnostic, error) {
+	if !opts.AllowExternalRefs {
+		return doc, resolveWith(ctx, locate, doc, path, opts, nil), nil
+	}
+	return resolveExternal(ctx, locate, doc, path, opts, rebuild)
+}
+
+// resolveWith resolves every reference in doc, reading external documents
+// through reader when one is given, and converts what could not be resolved
+// into diagnostics.
+func resolveWith(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
+	reader *external,
+) []ir.Diagnostic {
 	resolveOpts := soa.ResolveAllOptions{
 		OpenAPILocation:     path,
 		DisableExternalRefs: !opts.AllowExternalRefs,
 	}
-	if opts.AllowExternalRefs {
-		reader := newExternal(doc, opts)
-		resolveOpts.VirtualFS = reader
-		resolveOpts.HTTPClient = reader
+	if reader != nil {
+		resolveOpts.VirtualFS = *reader
+		resolveOpts.HTTPClient = *reader
 	}
 	resErrs, err := resolveAll(ctx, doc, resolveOpts)
 	diags := resolveDiags(locate, err)

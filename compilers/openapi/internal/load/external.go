@@ -40,18 +40,23 @@ import (
 // response is stored under its request's URL, which is the resolver's key for
 // every URL spelled as net/url spells it. The client sees only the request, so
 // an absolute $ref URL spelled otherwise — an upper-case scheme, an empty port —
-// misses, and the resolver parses that document itself (GitHub #538).
+// misses. resolveExternal detects that miss after the fact and recovers the
+// entries it would have cost (GitHub #538).
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
+	// read holds every document prepared, shared by the readers of one compile
+	// so a second resolution can be handed what the first read (see resolve).
+	read *externalReads
 }
 
-// newExternal returns the reader for doc's external references. The document's
-// caches are initialized here rather than trusted to be, because storing into
-// an uninitialized one faults inside the resolver.
-func newExternal(doc *soa.OpenAPI, opts Options) external {
+// newExternal returns the reader for doc's external references, recording what
+// it prepares in read. The document's caches are initialized here rather than
+// trusted to be, because storing into an uninitialized one faults inside the
+// resolver.
+func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
-	return external{doc: doc, opts: opts}
+	return external{doc: doc, opts: opts, read: read}
 }
 
 // Open reads the file name as the resolver's default file system would, and
@@ -113,6 +118,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 	}
 	releaseAnchors(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
+	e.read.record(key, data, root)
 	return data, nil
 }
 
