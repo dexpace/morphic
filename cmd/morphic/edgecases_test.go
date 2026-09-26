@@ -110,6 +110,14 @@ func (nilDocCompiler) Detect(compilers.Source, compilers.Options) (compilers.Rec
 
 func (nilDocCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (nilDocCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources))
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	return table
+}
+
 func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{
 		Severity: ir.SeverityError,
@@ -170,6 +178,7 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout.String(), "no IR JSON should be written for a nil document")
 	assert.Contains(t, stderr.String(), "openapi/unsupported-version")
+	assert.Contains(t, stderr.String(), spec, "nilDocCompiler's SourceTable names the spec even without a Document")
 }
 
 func TestRunParse_SkipValidateToStdout(t *testing.T) {
@@ -330,30 +339,30 @@ func TestSeverityRank_AllLevels(t *testing.T) {
 
 func TestSourcePath_Cases(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}}
+	table := []ir.SourceInfo{{Path: "spec.yaml"}}
 	tests := []struct {
-		name   string
-		doc    *ir.Document
-		source int
-		want   string
+		name    string
+		sources []ir.SourceInfo
+		source  int
+		want    string
 	}{
-		{"nil document", nil, 0, ""},
-		{"negative index", doc, -1, ""},
-		{"index past end", doc, 1, ""},
-		{"valid index", doc, 0, "spec.yaml"},
+		{"no table", nil, 0, ""},
+		{"negative index", table, -1, ""},
+		{"index past end", table, 1, ""},
+		{"valid index", table, 0, "spec.yaml"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, sourcePath(tt.doc, tt.source))
+			assert.Equal(t, tt.want, sourcePath(tt.sources, tt.source))
 		})
 	}
 }
 
 // TestRenderDiagnostics_WithAndWithoutSourcePath is the table over every shape
 // location renders: each of the three locators alone, the precedence between
-// them, a source with none of them, and a source index the document's table
-// cannot resolve — a refused compile's shape, which returns no document at all
+// them, a source with none of them, and a source index past the end of the
+// table — a producer bug, which location renders bare rather than guess at
 // (see location's doc comment). Whole lines are asserted, not fragments: the
 // location is what varies between rows, and a containment check on the
 // message alone would pass for a line that rendered the location wrongly or
@@ -368,7 +377,7 @@ func TestSourcePath_Cases(t *testing.T) {
 // IR-space location.
 func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}}
+	sources := []ir.SourceInfo{{Path: "spec.yaml"}}
 
 	tests := []struct {
 		name string
@@ -425,7 +434,7 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			res := &engine.Result{
-				Document: doc,
+				Sources: sources,
 				Diagnostics: []ir.Diagnostic{
 					{Severity: ir.SeverityError, Code: "openapi/bad", Message: "m", Provenance: tt.prov},
 				},

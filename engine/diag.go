@@ -34,14 +34,12 @@ const (
 // Error is the severity because nothing was lowered: the spec reached the IR in
 // no form at all.
 //
-// The provenance is deliberately positionless. These are raised before anything
-// is lowered, so there is no document whose Sources table an index could
-// address, and ir.NoSource is the IR's value for a finding that names no entry
-// in one. An index invented here would have a renderer point at a file the
-// finding is not about.
+// It names the spec as Source 0 of the table Run reports beside it, and no
+// position in it: these are raised before anything is lowered, about the file
+// as a whole.
 func specProblem(code, format string, args ...any) ir.Diagnostic {
 	return ir.NewDiagnostic(ir.SeverityError, code, fmt.Sprintf(format, args...),
-		ir.Provenance{Source: ir.NoSource})
+		ir.Provenance{Source: 0})
 }
 
 // mergeDiagnostics returns stored followed by every diagnostic in produced that

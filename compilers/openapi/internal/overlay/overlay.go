@@ -76,12 +76,15 @@ type Origin struct {
 	index int
 	// source is the overlay's identity as an input document.
 	source ir.SourceInfo
+	// applied reports that the overlay changed the document, whether or not
+	// its positions could be attributed to it.
+	applied bool
 	// pointers holds every position the overlay introduced or rewrote, closed
 	// downwards: a cloned subtree contributes each of its own nodes, so a lookup
 	// is one map hit rather than a walk up the pointer's prefixes.
 	//
-	// Its nil-ness is what Applied reports, so a successful application of an
-	// overlay that changed nothing still yields a non-nil empty map.
+	// It is nil when the overlay applied past the node budget, where no
+	// position is attributed to it.
 	pointers map[jsontext.Pointer]bool
 	// nodes holds the same positions keyed by the node that sits at each — the
 	// value the walk attributed, and the key beside it when the overlay
@@ -92,8 +95,12 @@ type Origin struct {
 	nodes map[*yaml.Node]jsontext.Pointer
 }
 
-// Applied reports whether an overlay was applied to the document at all.
-func (o Origin) Applied() bool { return o.pointers != nil }
+// Applied reports whether an overlay was applied to the document at all. It
+// does not say its positions were attributed: past the node budget the overlay
+// still applies and every position keeps the source as its origin, but the
+// overlay remains an input the document was built from, and the warning that
+// says so names it.
+func (o Origin) Applied() bool { return o.applied }
 
 // Source is the overlay's identity as an input document, for Document.Sources.
 // It is meaningful only when Applied reports true.
@@ -184,10 +191,13 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 		pointers, nodes, ok = attribute(root, before, budget)
 	}
 	if !ok {
-		return Origin{}, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
+		// Applied without attribution: the source keeps every position, but the
+		// overlay stays in Document.Sources, since the warning below names it.
+		degraded := Origin{index: index, source: sourceInfo(doc, opts), applied: true}
+		return degraded, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", budget))
 	}
-	return Origin{index: index, source: sourceInfo(doc, opts), pointers: pointers, nodes: nodes}, diags
+	return Origin{index: index, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
 }
 
 // applyRecovered runs the application under a barrier, converting a panic from

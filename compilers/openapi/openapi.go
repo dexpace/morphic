@@ -21,10 +21,11 @@ import (
 
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //
-// Three places stamp it and all three have to agree: the loader records it in
-// the SourceInfo, the type registry stamps the primitives it interns, and the
-// lowering stamps every Provenance it builds. Naming it says they must, where a
-// bare 0 written at each site only happens to.
+// Every place that stamps it has to agree: the loader records it in the
+// SourceInfo, the type registry stamps the primitives it interns, the lowering
+// stamps every Provenance it builds, and detection and a refused compile name
+// the source by it. Naming it says they must, where a bare 0 written at each
+// site only happens to.
 //
 // A varying index arrives with the link pass, from Compile's caller.
 const rootSrcIndex = 0
@@ -86,6 +87,25 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	out.Diagnostics = all
 	return out, out.Diagnostics, nil
+}
+
+// SourceTable implements compilers.Compiler: the source at rootSrcIndex, then
+// the overlay at overlaySrcIndex when the options name one. Compile takes
+// exactly one source, so the two indexes are the ones every provenance this
+// compiler builds uses.
+//
+// The overlay is listed whenever it is named, not only when it applied: a
+// compile it refused reports at its index, and that refusal is the case this
+// table exists for.
+func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources)+1)
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	if o, err := optionsFrom(opts); err == nil && o.Overlay != nil {
+		table = append(table, ir.SourceInfo{Path: o.Overlay.Path})
+	}
+	return table
 }
 
 // run drives the four-phase pipeline over one loaded document (architecture
@@ -206,13 +226,10 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 
 // undecodable reports a source this compiler recognized and could not read.
 //
-// NoSource, not source 0: the parse that failed is the one that would have built
-// the document, so no document is returned and there is no source table for a
-// provenance to index into. A Source of 0 against the nil document engine.Run
-// hands on resolves to no path at all, so it would name nothing while claiming
-// to. The loader's own message carries the position instead, which is the half
-// of a location a reader can act on here.
+// It names the source even though no document is returned: SourceTable is the
+// table a refusal's diagnostics index. The loader's own message carries the
+// position, which the parse that failed never turned into a node.
 func undecodable(err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: rootSrcIndex},
 		"source cannot be read: %s", diag.OneLine(err))
 }
