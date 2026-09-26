@@ -35,11 +35,11 @@ func TestPropIDByName_NotFound(t *testing.T) {
 // TestTargetHint_Shapes pins what a reference suggests from its text alone:
 // each row is unresolved, so the walk reads the pointer, never the schema
 // behind it. A fragment spelling a pointer is decoded at both layers (GitHub
-// #505) and named by positionHint beneath /components/schemas, so a branch or
-// structural position is suggested as the node it holds (GitHub #521);
-// elsewhere by a branch's positional hint or the pointer's last token. Any
-// other fragment (non-UTF-8 included, GitHub #520) is named by the text after
-// its last '/', percent-decoded when that is valid UTF-8, else as written.
+// #505) and named by positionHint, so a branch or structural position is
+// suggested as the node it holds (GitHub #521), whether at a component or
+// elsewhere (GitHub #529). Any other fragment (non-UTF-8 included, GitHub
+// #520) is named by the text after its last '/', percent-decoded when that is
+// valid UTF-8, else as written.
 func TestTargetHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -60,8 +60,8 @@ func TestTargetHint_Shapes(t *testing.T) {
 			ref: "#/components/schemas/A/properties/items", want: "items"},
 		{name: "a branch outside components is suggested as the variant too",
 			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0", want: "variant_0"},
-		{name: "any other position outside components is suggested by its last token",
-			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/items", want: "items"},
+		{name: "any other position outside components is named by positionHint's replay, not its last token",
+			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/items", want: compile.SubHint("schema", "item")},
 		{name: "no fragment at all", ref: "bare", want: "bare"},
 		{name: "another document, no fragment", ref: "other.yaml", want: "other.yaml"},
 		{name: "a document in a directory, no fragment", ref: "./schemas/Pet.yaml", want: "Pet.yaml"},
@@ -86,11 +86,10 @@ func TestTargetHint_Shapes(t *testing.T) {
 // oas3.NewReferencedScheme instead of driving a compile, to pin where
 // targetHint's walk goes on and where it stops. A reference to a composition
 // branch holding a $ref (at, holding to) is named after that branch's target
-// (GitHub #521), inside a component or not, and the walk ends at a component or
-// document path; a target that names nothing leaves the branch's own name. Any
-// other position holding a $ref is named for the position: as its declaration
-// names it beneath a component, by the pointer's last token elsewhere
-// (GitHub #729).
+// (GitHub #521), inside a component or not; a target that names nothing leaves
+// the branch's own name. Any other position holding a $ref is named for the
+// position, as positionHint replays it: a guess under /paths that the
+// declaration replaces (GitHub #729).
 func TestTargetHint_FollowsABranchToItsTarget(t *testing.T) {
 	t.Parallel()
 	const under = "#/paths/~1x/get/responses/200/content/application~1json/schema"
@@ -108,7 +107,7 @@ func TestTargetHint_FollowsABranchToItsTarget(t *testing.T) {
 		{"a branch whose other document names nothing", "#/components/schemas/X/oneOf/0", "./schemas/", "variant_0"},
 		{"any other position beneath a component", "#/components/schemas/X/items", "#/components/schemas/Y",
 			compile.SubHint("X", "item")},
-		{"any other position elsewhere", under + "/items", "#/components/schemas/Y", "items"},
+		{"any other position elsewhere", under + "/items", "#/components/schemas/Y", compile.SubHint("schema", "item")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -168,9 +167,7 @@ func TestTargetHint_StopsAtTheHopCap(t *testing.T) {
 // row per answer ownHint gives, each for a schema that is a $ref and for one
 // that is not. A branch holding a $ref takes its target's name, falling back to
 // its own when the target names nothing (an empty-named component); every other
-// position is named for where it is, whatever it holds. Beneath
-// /components/schemas that is positionHint's name; elsewhere it is a branch's
-// ordinal or the pointer's last token.
+// position is named for where it is, whatever it holds: positionHint's name.
 //
 // The $ref rows resolve nothing, so a target is named from its pointer alone.
 func TestSubSchemaHint_Shapes(t *testing.T) {
@@ -196,8 +193,9 @@ func TestSubSchemaHint_Shapes(t *testing.T) {
 			"/components/schemas/A/oneOf/0", "variant_0"},
 		{"a branch elsewhere, inline", inline, under + "/oneOf/0", "variant_0"},
 		{"a branch elsewhere, holding a $ref", ref("#/components/schemas/T"), under + "/oneOf/0", "T"},
-		{"any other position elsewhere, inline", inline, under + "/items", "items"},
-		{"any other position elsewhere, holding a $ref", ref("#/components/schemas/T"), under + "/items", "items"},
+		{"any other position elsewhere, inline", inline, under + "/items", compile.SubHint("schema", "item")},
+		{"any other position elsewhere, holding a $ref", ref("#/components/schemas/T"), under + "/items",
+			compile.SubHint("schema", "item")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -359,15 +357,15 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	}
 }
 
-// TestBranchPointerHint_Shapes pins which pointers name a composition branch.
+// TestPositionHint_BranchShapes pins which pointers name a composition branch.
 //
-// The parse decides whether hoistSubSchema answers what the composition would,
+// The walk decides whether hoistSubSchema answers what the composition would,
 // so a pointer it misreads either reintroduces the disagreement (GitHub #181) or
 // invents a variant hint for something that is not a branch. The rows that are
 // not branches matter as much as the rows that are: `oneOf` is a legal property
 // name, and a schema keyword taking numbered children is not necessarily a
 // composition.
-func TestBranchPointerHint_Shapes(t *testing.T) {
+func TestPositionHint_BranchShapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -388,14 +386,19 @@ func TestBranchPointerHint_Shapes(t *testing.T) {
 		{name: "a non-numeric child of a composition keyword", pointer: "/components/schemas/S/oneOf/x"},
 		{name: "a negative index is not a segment the compiler writes", pointer: "/components/schemas/S/oneOf/-1"},
 		{name: "an empty index", pointer: "/components/schemas/S/oneOf/"},
+		{name: "a branch outside components", pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0", want: "variant_0"},
 		{name: "a bare segment", pointer: "oneOf"},
 		{name: "the empty pointer", pointer: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := branchPointerHint(tc.pointer)
-			assert.Equal(t, tc.want != "", ok, "pointer %q", tc.pointer)
+			hint, branch := positionHint(tc.pointer)
+			got := ""
+			if branch {
+				got = hint
+			}
+			assert.Equal(t, tc.want != "", branch, "pointer %q", tc.pointer)
 			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
 		})
 	}
@@ -413,8 +416,8 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 		pointer := jsontext.Pointer("/components/schemas/Host/oneOf/" + strconv.Itoa(i))
 
 		fromComposition := branchHint(inline, i)
-		fromPointer, ok := branchPointerHint(pointer)
-		require.True(t, ok, "the branch pointer is recognized as one")
+		fromPointer, branch := positionHint(pointer)
+		require.True(t, branch, "the branch pointer is recognized as one")
 		assert.Equal(t, fromComposition, fromPointer,
 			"branch %d must be named the same whichever lowering interns it first", i)
 		assert.Equal(t, fromComposition, subSchemaHint(inline, pointer),
@@ -422,15 +425,15 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 	}
 }
 
-// TestPositionHint_Shapes pins the left-to-right walk from a component down:
-// each step either recomposes the enclosing hint by role (items,
-// additionalProperties, contentSchema, a patternProperties entry, a prefixItems
-// slot, a composition branch) or, for a keyed map (properties, $defs,
-// definitions, dependentSchemas, dependencies), takes the key itself. A key is
-// never read as a keyword: a property spelled "items" is the key, and only an
-// "items" met as a keyword token gets the role (GitHub #518). A branch ordinal
-// names "variant_0", never "0". The walk answers only at or beneath a component
-// schema; elsewhere it declines.
+// TestPositionHint_Shapes pins the left-to-right walk down a schema: each step
+// recomposes the enclosing hint by role (items, additionalProperties,
+// contentSchema, a patternProperties entry, a prefixItems slot, a composition
+// branch) or, for a keyed map (properties, $defs, definitions,
+// dependentSchemas, dependencies), takes the key itself. A key is never read as
+// a keyword (GitHub #518), and a branch ordinal names "variant_0", never "0".
+// Beneath /components/schemas the walk roots at the component; elsewhere at the
+// pointer's first token, resetting at every token it does not know (GitHub
+// #529).
 func TestPositionHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -438,157 +441,161 @@ func TestPositionHint_Shapes(t *testing.T) {
 		pointer jsontext.Pointer
 		want    string
 		branch  bool
-		wantOK  bool
 	}{
 		{
 			name: "a bare component", pointer: "/components/schemas/Foo",
-			want: "Foo", wantOK: true,
+			want: "Foo",
 		},
 		{
 			name: "items under a component", pointer: "/components/schemas/Foo/items",
-			want: compile.SubHint("Foo", "item"), wantOK: true,
+			want: compile.SubHint("Foo", "item"),
 		},
 		{
 			name:    "nested roles",
 			pointer: "/components/schemas/Foo/items/additionalProperties",
-			want:    compile.SubHint(compile.SubHint("Foo", "item"), "value"), wantOK: true,
+			want:    compile.SubHint(compile.SubHint("Foo", "item"), "value"),
 		},
 		{
 			name:    "a property literally named items is not the items keyword",
 			pointer: "/components/schemas/Foo/properties/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a property named items holding an array names its own items by role",
 			pointer: "/components/schemas/Foo/properties/items/items",
-			want:    compile.SubHint("items", "item"), wantOK: true,
+			want:    compile.SubHint("items", "item"),
 		},
 		{
 			name:    "a property literally named properties holding items names its own items by role",
 			pointer: "/components/schemas/Foo/properties/properties/items",
-			want:    compile.SubHint("properties", "item"), wantOK: true,
+			want:    compile.SubHint("properties", "item"),
 		},
 		{
 			name:    "additionalProperties holding an object whose own additionalProperties is a role",
 			pointer: "/components/schemas/Foo/properties/additionalProperties/additionalProperties",
-			want:    compile.SubHint("additionalProperties", "value"), wantOK: true,
+			want:    compile.SubHint("additionalProperties", "value"),
 		},
 		{
 			name:    "a patternProperties entry whose pattern holds ~1",
 			pointer: "/components/schemas/Foo/patternProperties/a~1b",
-			want:    compile.SubHint("Foo", "pattern"), wantOK: true,
+			want:    compile.SubHint("Foo", "pattern"),
 		},
 		{
 			name:    "a patternProperties entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/patternProperties/items",
-			want:    compile.SubHint("Foo", "pattern"), wantOK: true,
+			want:    compile.SubHint("Foo", "pattern"),
 		},
 		{
 			name:    "an items entry inside a patternProperties entry keyed items",
 			pointer: "/components/schemas/Foo/patternProperties/items/items",
-			want:    compile.SubHint(compile.SubHint("Foo", "pattern"), "item"), wantOK: true,
+			want:    compile.SubHint(compile.SubHint("Foo", "pattern"), "item"),
 		},
 		{
 			name:    "a $defs entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/$defs/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a dependentSchemas entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/dependentSchemas/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a definitions entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/definitions/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a dependencies entry keyed items is not the items keyword",
 			pointer: "/components/schemas/Foo/dependencies/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a contentSchema",
 			pointer: "/components/schemas/Foo/contentSchema",
-			want:    compile.SubHint("Foo", "content"), wantOK: true,
+			want:    compile.SubHint("Foo", "content"),
 		},
 		{
 			name:    "a prefixItems slot",
 			pointer: "/components/schemas/Foo/prefixItems/2",
-			want:    compile.SubHint("Foo", "2"), wantOK: true,
+			want:    compile.SubHint("Foo", "2"),
 		},
 		{
 			name:    "a prefixItems member that is no slot is named after its own token",
 			pointer: "/components/schemas/Foo/prefixItems/x",
-			want:    "x", wantOK: true,
+			want:    "x",
 		},
 		{
 			name:    "a component literally named items is named items",
 			pointer: "/components/schemas/items",
-			want:    "items", wantOK: true,
+			want:    "items",
 		},
 		{
 			name:    "a oneOf branch is named variant_N, not its ordinal",
 			pointer: "/components/schemas/Foo/oneOf/0",
-			want:    "variant_0", branch: true, wantOK: true,
+			want:    "variant_0", branch: true,
 		},
 		{
 			name:    "items beneath a oneOf branch is named off the branch's hint, not the ordinal",
 			pointer: "/components/schemas/Foo/oneOf/0/items",
-			want:    compile.SubHint("variant_0", "item"), wantOK: true,
+			want:    compile.SubHint("variant_0", "item"),
 		},
 		{
 			name:    "a branch reached through a property named oneOf",
 			pointer: "/components/schemas/Foo/properties/oneOf/anyOf/0",
-			want:    "variant_0", branch: true, wantOK: true,
+			want:    "variant_0", branch: true,
 		},
 		{
 			name:    "a property named oneOf with no index is not a branch",
 			pointer: "/components/schemas/Foo/properties/oneOf",
-			want:    "oneOf", wantOK: true,
+			want:    "oneOf",
 		},
 		{
 			name:    "a non-numeric child of a composition keyword is not a branch",
 			pointer: "/components/schemas/Foo/oneOf/x",
-			want:    "x", wantOK: true,
+			want:    "x",
 		},
 		{
 			name:    "an unrecognised keyword is named after its own token, and what it holds hangs off that",
 			pointer: "/components/schemas/Foo/not/items",
-			want:    compile.SubHint("not", "item"), wantOK: true,
+			want:    compile.SubHint("not", "item"),
 		},
 		{
 			name:    "an extension keyword is treated the same as any other unrecognised token",
 			pointer: "/components/schemas/Foo/x-ext/items",
-			want:    compile.SubHint("x-ext", "item"), wantOK: true,
+			want:    compile.SubHint("x-ext", "item"),
 		},
 		{
 			name:    "a keyed keyword with no key names itself",
 			pointer: "/components/schemas/Foo/properties",
-			want:    "properties", wantOK: true,
+			want:    "properties",
 		},
 		{
-			name:    "a position under /paths has no enclosing hint to recover",
+			name:    "a position under /paths resets at every token the walk does not know, so items is named off the schema's own hint, not the response or media type that led there",
 			pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/items",
+			want:    compile.SubHint("schema", "item"),
 		},
 		{
-			name:    "nor has one under a component that is not a schema",
+			name:    "a component that is not a schema replays the same way",
 			pointer: "/components/responses/R/content/application~1json/schema/items",
+			want:    compile.SubHint("schema", "item"),
 		},
 		{
 			name:    `the component keyed ""`,
 			pointer: "/components/schemas//items",
-			want:    compile.SubHint("", "item"), wantOK: true,
+			want:    compile.SubHint("", "item"),
 		},
-		{name: "the schemas map itself names no component", pointer: "/components/schemas"},
-		{name: "the empty pointer", pointer: ""},
+		{
+			name:    "the schemas map has too few tokens to root at a component, so it replays like any other pointer",
+			pointer: "/components/schemas",
+			want:    "schemas",
+		},
+		{name: "the empty pointer has no tokens to replay, so it is named \"\" and is never a branch", pointer: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, branch, ok := positionHint(tc.pointer)
-			assert.Equal(t, tc.wantOK, ok, "pointer %q", tc.pointer)
+			got, branch := positionHint(tc.pointer)
 			assert.Equal(t, tc.want, got, "pointer %q", tc.pointer)
 			assert.Equal(t, tc.branch, branch, "pointer %q", tc.pointer)
 		})

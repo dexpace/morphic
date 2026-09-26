@@ -1276,8 +1276,8 @@ func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 }
 
 // TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds is the same property for
-// variants naming positions in a response body, where positionHint cannot
-// replay the pointer. A branch is still named by its ordinal, a branch holding
+// variants naming positions in a response body, where the pointer does not spell
+// the enclosing hint. A branch is still named by its ordinal, a branch holding
 // a $ref after its target — through a second branch here, for two hops — and a
 // property by its key, so each variant still agrees with the node it holds.
 // Before this held outside /components/schemas the first three variants read
