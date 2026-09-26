@@ -4,6 +4,8 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -360,4 +362,251 @@ actions:
 	// HasError while leaving the cycle this test is named for unexercised.
 	found, _ := ir.FirstError(diags)
 	assert.Equal(t, diag.CyclicRef, found.Code, "the introduced cycle is what refused it: %+v", diags)
+}
+
+// provenanceSpec and provenancePatch exercise GitHub #522's fix on every
+// annotation-package call path it touches: a component schema, an operation,
+// a response, a media type, a parameter, a security scheme, the document's
+// own info block, and a path item the overlay mounts that no operation
+// reaches.
+const provenanceSpec = `openapi: 3.1.0
+info:
+  title: t
+  version: "1"
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {type: string}
+components:
+  schemas:
+    Pet:
+      type: object
+      x-base: 1
+      x-rw: 1
+      x-obj: {a: 1}
+      x-gone: 1
+      properties:
+        name: {type: string}
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: X-Key
+      in: header
+`
+
+const provenancePatch = `overlay: 1.0.0
+info: {title: o, version: "1"}
+actions:
+  - target: $.components.schemas.Pet
+    update:
+      x-added: 1
+      x-rw: 2
+      x-obj: {b: 2}
+      not: {type: integer}
+      if: {required: [name]}
+      then: {required: [tag]}
+      dependentSchemas: {name: {required: [name]}}
+      frobnicate: 1
+      $id: "https://example.com/pet"
+      properties:
+        tag: {type: string}
+  - target: $.components.schemas.Pet['x-gone']
+    remove: true
+  - target: $.components.schemas.Pet
+    update:
+      x-gone: 1
+  - target: $.paths['/pets'].get.responses['200']
+    update:
+      bogus: 1
+  - target: $.paths['/pets'].get.responses['200'].content['application/json']
+    update:
+      mediaBogus: 1
+  - target: $.paths['/pets'].get.parameters[0]
+    update:
+      paramBogus: 1
+  - target: $.paths['/pets'].get
+    update:
+      x-op: 1
+  - target: $.components.securitySchemes.apiKey
+    update:
+      x-scheme: 1
+  - target: $.info
+    update:
+      x-info: 1
+  - target: $.paths
+    update:
+      /empty:
+        x-pi: 1
+        servers: [{url: "https://e.example"}]
+`
+
+// unmodeledEntriesByPath walks the whole compiled document for every
+// ir.UnmodeledEntry it holds, keyed by the full path the walk reached it at.
+// Deriving the set from the value graph, rather than naming each carrier, is
+// what keeps the table below honest about which map an entry actually landed
+// on instead of merely one it could have.
+func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
+	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
+	out := map[string]ir.UnmodeledEntry{}
+	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Type() == entryType && v.CanInterface() {
+			out[path] = v.Interface().(ir.UnmodeledEntry)
+		}
+		return true
+	})
+	return out
+}
+
+// entryKeyed returns the one Unmodeled entry named key, wherever in the
+// document the walk found it: the path down to it is an implementation detail
+// this test does not pin, only the map key the reader that wrote it chose.
+func entryKeyed(t *testing.T, entries map[string]ir.UnmodeledEntry, key string) ir.UnmodeledEntry {
+	t.Helper()
+	suffix := "[" + key + "]"
+	var at string
+	for path := range entries {
+		if !strings.HasSuffix(path, suffix) {
+			continue
+		}
+		require.Empty(t, at, "Unmodeled key %q found at two paths: %q and %q", key, at, path)
+		at = path
+	}
+	require.NotEmpty(t, at, "no Unmodeled entry keyed %q anywhere in the document", key)
+	return entries[at]
+}
+
+// diagKey identifies a diagnostic by code and source pointer. The pair is
+// unique everywhere except the one place GitHub #522 left mismatched: an
+// unmounted path item's servers-kept note and its no-operation warning share
+// both a code and a pointer, so diagnosticsByCodeAndPointer keeps every
+// diagnostic found at a key instead of only the last.
+type diagKey struct{ code, pointer string }
+
+// diagnosticsByCodeAndPointer groups diags by diagKey, in the order Compile
+// returned them.
+func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnostic {
+	out := map[diagKey][]ir.Diagnostic{}
+	for _, d := range diags {
+		k := diagKey{d.Code, d.Provenance.Pointer}
+		out[k] = append(out[k], d)
+	}
+	return out
+}
+
+// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522 end to end.
+// The annotation package's readers sit below lowering.Ctx in the import graph
+// and used to be handed the base document's raw source index rather than the
+// context's own attribution, so an extension, an unknown key, a dialect
+// keyword or a validation-only keyword an overlay added claimed to come from
+// the base document it patched — and so did the diagnostics announcing them.
+//
+// Every row here names the production call path it exercises, so that
+// reverting the fix at any one of them reddens the row beside it. The
+// controls (x-base, x-obj, if-then-else) must stay with the base: crediting
+// the overlay with everything it touches, rather than with what it
+// introduced or rewrote, would be the opposite defect.
+func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(provenanceSpec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(provenancePatch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+	assert.False(t, ir.HasError(diags), "the overlay applies cleanly: %+v", diags)
+	for _, d := range diags {
+		assert.NotEqual(t, diag.OverlayAction, d.Code,
+			"an action that silently matched nothing would hollow this test out: %+v", d)
+	}
+	assert.Empty(t, irverify.Verify(doc), "the fixture stays structurally valid")
+
+	entries := unmodeledEntriesByPath(doc)
+	for _, tc := range []struct {
+		name string
+		key  string
+		want int
+	}{
+		{"schema extension the overlay adds (schema.go Read)", "openapi:x-added", 1},
+		{"schema extension the base declares, control", "openapi:x-base", 0},
+		{"scalar extension the overlay rewrites in place", "openapi:x-rw", 1},
+		{"mapping extension the overlay only merges into", "openapi:x-obj", 0},
+		{"extension removed then re-added by a later action", "openapi:x-gone", 1},
+		{"validation-only keyword the overlay adds (accumulate.go path)", "openapi:not", 1},
+		{"a second validation-only keyword added beside it", "openapi:dependentSchemas", 1},
+		{"synthesized if/then/else entry stays with the enclosing schema", "openapi:if-then-else", 0},
+		{"dialect keyword the overlay adds", "openapi:$id", 1},
+		{"unknown schema keyword the overlay adds", "openapi:frobnicate", 1},
+		{"operation extension (operations.go ExtensionsAt)", "openapi:x-op", 1},
+		{"response unknown key (operations.go UnknownKeysIn)", "openapi:bogus", 1},
+		{"media type unknown key (content.go)", "openapi:mediaBogus", 1},
+		{"parameter unknown key (params.go)", "openapi:paramBogus", 1},
+		{"security scheme extension (auth.go)", "openapi:x-scheme", 1},
+		{"document info extension (meta.go)", "openapi:info/x-info", 1},
+		{"unmounted path item's servers (onNearestNode)", "openapi:pathItem/paths/~1empty/servers", 1},
+		{"unmounted path item's own extension (onNearestNode)", "openapi:pathItem/paths/~1empty/x-pi", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entry := entryKeyed(t, entries, tc.key)
+			assert.Equal(t, tc.want, entry.Provenance.Source, tc.key)
+		})
+	}
+
+	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
+	for _, tc := range []struct {
+		name    string
+		code    string
+		pointer string
+		want    int
+	}{
+		{"dialect keyword diagnostic", diag.DegradedConstruct, "/components/schemas/Pet/$id", 1},
+		{"unknown schema keyword diagnostic", diag.UnknownSchemaKeyword, "/components/schemas/Pet/frobnicate", 1},
+		{"response unknown key diagnostic", diag.UnknownObjectKey, "/paths/~1pets/get/responses/200/bogus", 1},
+		{"media type unknown key diagnostic", diag.UnknownObjectKey,
+			"/paths/~1pets/get/responses/200/content/application~1json/mediaBogus", 1},
+		{"parameter unknown key diagnostic", diag.UnknownObjectKey,
+			"/paths/~1pets/get/parameters/0/paramBogus", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			list := byCodeAndPointer[diagKey{tc.code, tc.pointer}]
+			require.Len(t, list, 1)
+			assert.Equal(t, tc.want, list[0].Provenance.Source)
+		})
+	}
+
+	t.Run("validation-only announcements stay at the enclosing schema", func(t *testing.T) {
+		// not, if/then/else and dependentSchemas each announce once, all
+		// located at the schema declaration rather than at their own
+		// keyword — the enclosing-object rule — even though two of the
+		// three keywords they announce were added by the overlay.
+		validationOnly := byCodeAndPointer[diagKey{diag.ValidationOnlyKeyword, "/components/schemas/Pet"}]
+		require.Len(t, validationOnly, 3)
+		for _, d := range validationOnly {
+			assert.Equal(t, 0, d.Provenance.Source, "%s", d.Message)
+		}
+	})
+
+	t.Run("both diagnostics an unmounted path item draws name the overlay", func(t *testing.T) {
+		// Before the fix, onNearestNode stamped the mount point's carrier
+		// with the raw source index while the diagnostic beside it, built
+		// through the lowering context, correctly named the overlay — so
+		// the servers-kept note and the no-operation warning disagreed
+		// about which document drew an entirely overlay-introduced path
+		// item.
+		unmounted := byCodeAndPointer[diagKey{diag.DegradedConstruct, "/paths/~1empty"}]
+		require.Len(t, unmounted, 2)
+		for _, d := range unmounted {
+			assert.Equal(t, 1, d.Provenance.Source, "%s", d.Message)
+		}
+	})
 }

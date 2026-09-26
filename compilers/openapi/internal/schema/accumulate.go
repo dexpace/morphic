@@ -54,7 +54,7 @@ func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yam
 func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) {
-	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
+	annotation.PreserveInto(p, key, raw, reason, c.ProvenanceAt(pointer))
 }
 
 // PreserveNode records the construct written at node under key in *p, reporting
@@ -63,7 +63,7 @@ func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) (bool, []ir.Diagnostic) {
-	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
+	return annotation.PreserveNodeInto(p, key, node, reason, c.ProvenanceAt(pointer))
 }
 
 // PreserveSchemaKeyword records the top-level keyword s writes under key. It is
@@ -86,7 +86,7 @@ func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyw
 // expanded. A census running before it could not tell that from an unread
 // keyword.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	return annotation.UnknownKeywordsIn(p, s, pointer, c.SrcIndex)
+	return annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -101,7 +101,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr jsontext.Pointer, label string,
 ) []ir.Diagnostic {
-	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.SrcIndex)
+	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.ProvenanceAt)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
@@ -137,12 +137,12 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
 // twin hold two of the callers to that.
 func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
+	return annotation.ExtensionsFrom(ext, c.ProvenanceAt, owner)
 }
 
 // ExtensionsIn is ExtensionsOf for an object with no Unmodeled map of its own,
 // whose entries ride on an enclosing node's under scope — see
 // annotation.ExtensionsUnder for what scope names and why it is needed.
 func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsUnder(ext, c.SrcIndex, owner, scope)
+	return annotation.ExtensionsUnder(ext, c.ProvenanceAt, owner, scope)
 }

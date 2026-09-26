@@ -138,7 +138,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	// defines for a securityScheme which this entry's own mechanism gives no
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
 	// at all.
-	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
 	return scheme, true, append(diags,
 		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
@@ -154,17 +154,17 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
 func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
-	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.ProvenanceAt, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
 		return diags
 	}
 	flows := ss.GetFlows()
 	flowsPtr := decl + ids.Ptr("flows")
-	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.SrcIndex, flowsPtr, "flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.ProvenanceAt, flowsPtr, "flows")
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
 	diags = append(diags, flowsDiags...)
-	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.SrcIndex, flowsPtr, "flows")...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.ProvenanceAt, flowsPtr, "flows")...)
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
@@ -177,10 +177,10 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
 		fptr := flowsPtr + ids.Ptr(f.keyword)
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, fptr)
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.ProvenanceAt, fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.SrcIndex, fptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.ProvenanceAt, fptr)...)
 	}
 	return diags
 }
@@ -348,7 +348,7 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 		}
 		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
-			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, at, c.SrcIndex)
+			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
