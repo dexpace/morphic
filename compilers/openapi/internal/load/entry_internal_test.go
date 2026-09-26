@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,7 +99,7 @@ func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *te
 	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2")
 	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
 
-	atVersion := schemaFindings(t.Context(), doc)
+	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc))
 	for site := range dropped {
 		assert.Contains(t, atVersion, site,
 			"a dropped finding is one the library's own run raised")
@@ -114,7 +115,7 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 	spec := defaultMapping32Spec + "    Broken: {type: 42}\n"
 	doc, _ := parseSpec(t, spec)
 
-	atVersion := schemaFindings(t.Context(), doc,
+	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc),
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
 	require.NotEmpty(t, atVersion, "the invalid schema is a finding at 3.2 too")
 
