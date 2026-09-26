@@ -214,6 +214,10 @@ var rules = map[string][]string{
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},
+	// Test infrastructure outside the pipeline, like internal/harness above —
+	// but stdlib-only, which is what lets a package that starts a goroutine in
+	// its tests call it without pulling anything else in.
+	"internal/leakcheck": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

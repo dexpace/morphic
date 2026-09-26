@@ -163,6 +163,10 @@ These all exist already — extend them rather than building a parallel mechanis
   `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
   deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above.
+- **Goroutine leak check**: `internal/leakcheck` wraps `TestMain` around Go 1.27's `goroutineleak`
+  profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
+  `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
+  blocked on an unreachable primitive — not a running one, nor one a global still holds.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:
