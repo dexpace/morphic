@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"encoding/json/jsontext"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -68,7 +67,7 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 		auth, authDiags := auth.LowerSecuritySchemes(l.ctx)
 		l.out.Auth = auth
 		l.diags.AppendAll(authDiags)
-		svc, tagDefs, svcDiags := operation.LowerService(t.Context(), l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors, l.operationIDs)
+		svc, tagDefs, svcDiags := operation.LowerService(t.Context(), l.ctx.WithAuth(l.out.Auth), l.types, &l.anchors)
 		l.out.TagDefs = tagDefs
 		l.diags.AppendAll(svcDiags)
 		l.out.Services = []ir.Service{svc}
@@ -84,12 +83,11 @@ func lowerServiceSpec(t *testing.T, src string) (*ir.Document, ir.Service, []ir.
 // lowering in isolation still want those five things in one place, and holding
 // them here keeps that convenience out of the production call graph.
 type lowerer struct {
-	ctx          lowering.Ctx
-	out          *ir.Document
-	types        *compile.Types
-	diags        compile.Diags
-	anchors      schema.AnchorIndex
-	operationIDs map[string]jsontext.Pointer
+	ctx     lowering.Ctx
+	out     *ir.Document
+	types   *compile.Types
+	diags   compile.Diags
+	anchors schema.AnchorIndex
 }
 
 // lowererOver is the only place the fixture's fields are initialised. Both
@@ -99,10 +97,9 @@ type lowerer struct {
 func lowererOver(ctx lowering.Ctx) *lowerer {
 	types := compile.NewTypes(0)
 	return &lowerer{
-		ctx:          ctx,
-		out:          &ir.Document{Types: types.Registry()},
-		types:        types,
-		operationIDs: make(map[string]jsontext.Pointer),
+		ctx:   ctx,
+		out:   &ir.Document{Types: types.Registry()},
+		types: types,
 	}
 }
 

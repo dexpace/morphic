@@ -16,6 +16,7 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -265,24 +266,6 @@ func TestParamKey_NilParameterIsNotAKey(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
-// the first claim on an operationId is recorded silently and the second names
-// it. This used to cover a lazy map init instead, which is gone — the map is
-// the caller's and is allocated where the lowering starts.
-func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(nil)
-	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
-
-	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
-		"the first claim is recorded without a word")
-
-	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
-}
-
 // TestFaultFor_ClassifiesAtTheClassBoundaries pins where one HTTP class ends and
 // the next begins, which no fixture reaches: the corpus uses 400, 404, 429 and
 // the 4XX/5XX wildcards, so both upper bounds are stated by the code and held by
@@ -492,4 +475,92 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	return pi
+}
+
+// TestDeclarations_SortsMountsAndDeclarationsByMountPointer feeds one set of
+// claims in two orders and requires identical output: both the mounts within a
+// declaration and the declarations themselves are ordered by mount pointer, a
+// property of the document rather than of the order claims arrived in.
+func TestDeclarations_SortsMountsAndDeclarationsByMountPointer(t *testing.T) {
+	t.Parallel()
+	nodeA, nodeD := &yaml.Node{}, &yaml.Node{}
+	claims := []operationIDClaim{
+		{node: nodeD, ptrs: opPointers{mount: "/paths/~1d/get", decl: "/paths/~1d/get"}},
+		{node: nodeA, ptrs: opPointers{mount: "/paths/~1b/get", decl: "/paths/~1a/get"}},
+		{node: nodeA, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+	}
+	reversed := slices.Clone(claims)
+	slices.Reverse(reversed)
+
+	want := declarations(claims)
+	assert.Empty(t, cmp.Diff(want, declarations(reversed), cmp.AllowUnexported(opPointers{})),
+		"declaration order must not depend on claim order")
+
+	require.Len(t, want, 2)
+	require.Len(t, want[0], 2, "nodeA's two mounts group into one declaration")
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/get"), want[0][0].mount, "mounts sorted within the declaration")
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), want[0][1].mount)
+	require.Len(t, want[1], 1)
+	assert.Equal(t, jsontext.Pointer("/paths/~1d/get"), want[1][0].mount, "declarations sorted by their first mount")
+}
+
+// TestDeclarations_NilNodesAreEachTheirOwnDeclaration pins the stricter reading
+// declarations takes for a claim with no node: two such claims never group,
+// even sharing an operationId, so judge reports them as a genuine conflict
+// rather than a remount. Building the claims directly, rather than through add,
+// is what lets this be pinned without a node at all.
+func TestDeclarations_NilNodesAreEachTheirOwnDeclaration(t *testing.T) {
+	t.Parallel()
+	claims := []operationIDClaim{
+		{node: nil, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+		{node: nil, ptrs: opPointers{mount: "/paths/~1b/get", decl: "/paths/~1b/get"}},
+	}
+	decls := declarations(claims)
+	require.Len(t, decls, 2, "a nil node never groups with another claim, its own or anyone else's")
+
+	diags := judge(newRawLowerer(nil).ctx, "dup", decls)
+	require.Len(t, diags, 1, "two declarations of one id is a conflict, not a remount")
+	assert.Equal(t, diag.ConflictingOperationID, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
+// TestDeclaringNode_FollowsATwoHopAliasChain pins the case an operation alias
+// (`get: *op`) needs: the value node for such an operation is itself an
+// AliasNode, so its root has to be walked to the mapping it names before two
+// such operations can be told apart from two independent declarations.
+func TestDeclaringNode_FollowsATwoHopAliasChain(t *testing.T) {
+	t.Parallel()
+	mapping := &yaml.Node{Kind: yaml.MappingNode}
+	hop1 := &yaml.Node{Kind: yaml.AliasNode, Alias: mapping}
+	hop2 := &yaml.Node{Kind: yaml.AliasNode, Alias: hop1}
+	assert.Same(t, mapping, declaringNode(hop2))
+}
+
+// TestDeclaringNode_ReturnsRatherThanHangsOnATwoNodeCycle is the bound
+// maxAliasHops exists for. yaml.v3's own alias guard rejects a self-referential
+// anchor before this ever runs, so no document reaches a real cycle here — but
+// declaringNode's own loop has no other reason to terminate on one, and this
+// pins that its hop counter is what stops it rather than the input.
+func TestDeclaringNode_ReturnsRatherThanHangsOnATwoNodeCycle(t *testing.T) {
+	t.Parallel()
+	a := &yaml.Node{Kind: yaml.AliasNode}
+	b := &yaml.Node{Kind: yaml.AliasNode}
+	a.Alias = b
+	b.Alias = a
+
+	got := declaringNode(a)
+	assert.True(t, got == a || got == b, "returns one of the two cycle members rather than hanging")
+}
+
+// TestOperationIDClaims_AddSkipsAnEmptyOperationID pins add's guard: an
+// operation with no operationId claims nothing, because an emitter synthesizes
+// its name from the method and path rather than reading one that was never
+// declared.
+func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
+	t.Parallel()
+	claims := newOperationIDClaims()
+	claims.add(&soa.Operation{}, opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"})
+
+	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
+	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
 }

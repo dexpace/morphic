@@ -2,12 +2,14 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -1388,6 +1390,342 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
+}
+
+// renderOperationIDDiags renders each operationId diagnostic in diags as
+// "severity code pointer", sorted. Pinning the three together in one string is
+// what shows a table row's severity, code and location cannot drift apart, and
+// including the library's own rule's code alongside the compiler's two is what
+// shows it never appears — compilerOwned drops its finding in the loader
+// before a diagnostic is ever built from it.
+func renderOperationIDDiags(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		switch d.Code {
+		case diag.DuplicateOperationID, diag.ConflictingOperationID, diag.Validation + "/validation-operation-id-unique":
+			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestOperations_OperationIDUniqueness is the end-to-end table over every
+// operationId reuse and repeat shape GitHub #502 and its follow-up probes
+// found: one declaration mounted more than once — by a $ref, a YAML alias, a
+// merge key, or a chain of either — is a warning at each later mount, and a
+// second declaration writing the same id is an error at that declaration,
+// whether the two declarations are both paths, or a path against a callback, a
+// webhook, or a component.
+func TestOperations_OperationIDUniqueness(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		spec string
+		want []string
+	}{
+		{
+			name: "ref mounts one declaration twice (GitHub #502)",
+			spec: duplicateOperationIDSpec,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "path-item alias mounts one declaration twice (GitHub #502)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "two path declarations genuinely repeat the id (GitHub #502)",
+			spec: openapitest.PathsSpec(`  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "operation alias mounts one declaration twice across paths (p1)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: &op
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    get: *op
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "operation alias mounts one declaration twice across methods (p2)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: &op
+      operationId: dup
+      responses: {"200": {description: ok}}
+    put: *op
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/put"},
+		},
+		{
+			name: "merge key mounts one declaration twice (p3)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    <<: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a two-deep ref chain mounts one declaration twice (p5)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/paths/~1a'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a callback operation genuinely repeats a path operation's id (p6-callback)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: parent
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post: {operationId: dup, responses: {"200": {description: ok}}}
+      responses: {"200": {description: ok}}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1b/post/callbacks/onEvent/{$request.body#~1url}/post",
+			},
+		},
+		{
+			name: "a webhook genuinely repeats a path operation's id (p6-webhook)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+webhooks:
+  hook:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /webhooks/hook/post"},
+		},
+		{
+			name: "two webhooks genuinely repeat one id (p7)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /webhooks/h2/post"},
+		},
+		{
+			name: "an alias between two components mounts one declaration twice (p8)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/One'}
+  /b: {$ref: '#/components/pathItems/Two'}
+components:
+  pathItems:
+    One: &shared
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+    Two: *shared
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "two components each ref'd once genuinely repeat the id (p9)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/One'}
+  /b: {$ref: '#/components/pathItems/Two'}
+components:
+  pathItems:
+    One:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+    Two:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /components/pathItems/Two/get"},
+		},
+		{
+			name: "an alias remount and a genuine repeat both name one id (p10)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+  /c:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1c/get",
+				"warning openapi/duplicate-operation-id /paths/~1b/get",
+			},
+		},
+		{
+			// sharedCallbackSpec is the fix's own core scenario for a referenced
+			// callback (issue #107): parentC and parentD each $ref one callback
+			// component, so its operation is one declaration the two parents mount,
+			// not two declarations of their own.
+			name: "a callback ref'd from two parent operations mounts one declaration twice (p11)",
+			spec: sharedCallbackSpec,
+			want: []string{
+				"warning openapi/duplicate-operation-id /paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post",
+			},
+		},
+		{
+			// /b declares get and put sharing one id; /a re-mounts both by
+			// referencing /b whole. get and put are different declaring nodes, so
+			// they conflict with each other independently of the remount: the
+			// get declaration's own remount warning, the put declaration's own
+			// remount warning, and one error where the put declaration's id
+			// collides with the get declaration's.
+			name: "a ref'd item declaring get and put that share an id (p12)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+    put: {operationId: dup, responses: {"200": {description: ok}}}
+  /a: {$ref: '#/paths/~1b'}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1b/put",
+				"warning openapi/duplicate-operation-id /paths/~1b/get",
+				"warning openapi/duplicate-operation-id /paths/~1b/put",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, tc.spec)
+			assert.Empty(t, cmp.Diff(tc.want, renderOperationIDDiags(diags)))
+		})
+	}
+}
+
+// TestOperations_OperationIDFindingsIgnoreDeclarationOrder is the two-order
+// half of the table above: harness.Check stops at the first error diagnostic,
+// so its order-invariance oracle never reaches conflicting-operation-id, and a
+// hand-written case is the only thing that can pin it. Each pair declares the
+// same document with its two mounts swapped, the first in the order that was
+// wrong on main — main's whichever-lowered-second check reported at
+// /paths/~1a/get for a /b-then-/a document and at /paths/~1b/get for the
+// reverse, two different answers for one document. Findings are now ordered by
+// mount pointer rather than by lowering order, so both orders must render
+// identically.
+func TestOperations_OperationIDFindingsIgnoreDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		first, then string
+	}{
+		{
+			name: "two genuinely repeated path operations",
+			first: openapitest.PathsSpec(`  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+			then: openapitest.PathsSpec(`  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+		},
+		{
+			name: "two webhooks genuinely repeating one id",
+			first: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			then: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+		},
+		{
+			name: "a ref remounting one declaration at two paths",
+			first: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b: {$ref: '#/components/pathItems/Shared'}
+  /a: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			then: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, firstDiags := parseFull(t, tc.first)
+			_, thenDiags := parseFull(t, tc.then)
+			assert.Empty(t, cmp.Diff(renderOperationIDDiags(firstDiags), renderOperationIDDiags(thenDiags)))
+		})
+	}
 }
 
 // TestOperation_UnserializableExtensionStillWarns pins the operation's half of

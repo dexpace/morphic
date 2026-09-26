@@ -2,7 +2,6 @@ package openapi
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -101,12 +100,11 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // never interned — and the diagnostics gathered before the stop are returned, so
 // a caller who cancels on a deadline still sees what the compile had found.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
-	// out, the anchor memo and the claimed-operationId set are this function's,
-	// not a struct's: a document being built, a memo, and a loop-local set
-	// (micro-compiler-design §4.1). Nothing below allocates them.
+	// out and the anchor memo are this function's, not a struct's: a document
+	// being built and a memo (micro-compiler-design §4.1). Nothing below
+	// allocates them.
 	out := &ir.Document{Types: ts.Registry()}
 	var anchors schema.AnchorIndex
-	operationIDs := make(map[string]jsontext.Pointer)
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
 	// diagnostics now, so a shared declaration reported from N use sites returns N
@@ -130,7 +128,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors, operationIDs)
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors)
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
