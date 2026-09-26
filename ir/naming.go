@@ -42,8 +42,8 @@ type Naming struct {
 	//
 	//   - every entry names something, since one with nothing visible in it
 	//     matches nothing;
-	//   - every entry decodes, since one holding ill-formed UTF-8 does not
-	//     survive the round-trip invariant #7 promises;
+	//   - every entry decodes, since a document holding ill-formed UTF-8
+	//     cannot be encoded at all;
 	//   - no entry repeats another, or the entity's own Source, since either
 	//     admits no name that was not already admitted — so a producer that
 	//     wrote one built the list wrong.

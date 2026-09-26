@@ -46,9 +46,8 @@ var nameOptional = map[reflect.Type]bool{
 // checkNaming asserts every named entity has a name at all; that the names it
 // carries are what invariant #4 promises — neutral lower_snake word sequences,
 // carrying no casing an emitter should own and no character that is not part of
-// a word; and that every channel's bytes decode, which is a claim about the
-// encoding rather than the spelling and so is the one rule they all share. It
-// reuses the shared bounded walk to reach every ir.Naming value in the document,
+// a word. Whether a channel's bytes decode at all is checkUTF8's, which holds
+// every string in the document to it. It reuses the shared bounded walk to reach every ir.Naming value in the document,
 // and reports whether that walk was cut short so a name past the cap cannot go
 // unchecked in silence.
 //
@@ -68,8 +67,7 @@ var nameOptional = map[reflect.Type]bool{
 //
 // Naming.Aliases is held to none of those and to rules of its own instead,
 // because it is a verbatim channel rather than a name the IR decides — see
-// appendAliasViolations, and ir.Naming.Aliases for why. The one rule every
-// channel shares, aliases included, is appendUTF8Violation's.
+// appendAliasViolations, and ir.Naming.Aliases for why.
 func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
@@ -127,8 +125,10 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 //
 // Each is decidable from the list and the Naming carrying it, with no grammar
 // and no second node: whether an entry has anything visible in it
-// (isBlankName), whether its bytes decode at all, and whether it admits a name
-// some earlier entry — or the entity's own Source — already did. A repeat is
+// (isBlankName), and whether it admits a name some earlier entry — or the
+// entity's own Source — already did. An entry whose bytes do not decode is
+// checkUTF8's to report and is judged by nothing here, since the two rules
+// after it quote the alias and would repeat the bytes into their own message. A repeat is
 // reported at its later occurrence, naming the earlier one, so the message says
 // which to delete and which to keep. A blank repeat is reported blank: the
 // repair is to fill it in or drop it, not to distinguish it from the other
@@ -157,7 +157,7 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 				Path:    aliasPath(path, i),
 			})
 		case !utf8.ValidString(alias):
-			vs = append(vs, utf8Violation("alias", aliasPath(path, i)))
+			// checkUTF8 reports it.
 		case repeated:
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-duplicate",
@@ -204,51 +204,11 @@ func appendAbsentViolation(vs []Violation, source, canon, hint, path string) []V
 
 // appendNamingViolations reports the ways one Naming can break neutrality: the
 // grammar rule over the canonical, and the content rules over each channel that
-// carries a name for an emitter to render — plus the byte rule below, which
-// every channel is held to because none of them can be read back otherwise.
+// carries a name for an emitter to render.
 func appendNamingViolations(vs []Violation, source, canon, hint, path string) []Violation {
-	vs = appendUTF8Violation(vs, "source name", source, path)
-	vs = appendUTF8Violation(vs, "canonical name", canon, path)
-	vs = appendUTF8Violation(vs, "name hint", hint, path)
 	vs = appendGrammarViolation(vs, source, canon, path)
 	vs = appendContentViolations(vs, "canonical name", canon, path)
 	return appendContentViolations(vs, "name hint", hint, path)
-}
-
-// utf8Violation is the report for a name channel carrying bytes no decoder
-// reads back as what was written. It is the one rule every channel shares,
-// aliases included, because it is about the encoding rather than the spelling:
-// an ill-formed sequence survives a marshal as the replacement rune, so the
-// document decodes to something that re-marshals to different bytes and
-// invariant #7 is broken by a name nothing else here objects to.
-//
-// checkDiagnostics makes the same claim over the only other free-form spec text
-// the IR carries (ir/diagnostic-invalid-utf8), and like it this message quotes
-// nothing: repeating the bytes would put them in the report too. That is also
-// why the value is not a parameter — there is nothing here to say about it
-// beyond which channel it arrived in.
-//
-// Canonical and Hint are only incidentally covered without this rule — the
-// replacement rune is not a word character, so isWordSequence rejects it — and
-// incidentally is not covered: the violation would name the wrong repair, since
-// splitting on non-word characters is not what fixes undecodable bytes.
-func utf8Violation(channel, path string) Violation {
-	return Violation{
-		Code:    "ir/naming-invalid-utf8",
-		Message: channel + " is not valid UTF-8",
-		Path:    path,
-	}
-}
-
-// appendUTF8Violation reports channel's name when its bytes are ill-formed. The
-// alias rule decides the same thing in its own switch and appends
-// utf8Violation directly, since a switch branch needs the test separate from
-// the report.
-func appendUTF8Violation(vs []Violation, channel, name, path string) []Violation {
-	if utf8.ValidString(name) {
-		return vs
-	}
-	return append(vs, utf8Violation(channel, path))
 }
 
 // appendContentViolations reports the ways the name in one channel can break
