@@ -295,7 +295,11 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema}
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema}
+	if c.Doc != nil {
+		scope.Doc = c.Doc
+	}
+	return scope
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source

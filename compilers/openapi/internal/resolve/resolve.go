@@ -26,6 +26,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -43,6 +44,27 @@ type Scope struct {
 	// Declares reports whether the document declares a component schema of this
 	// name.
 	Declares func(name string) bool
+	// Doc is the parsed document a "#/$defs/..." pointer is navigated in; nil
+	// leaves every such pointer unresolved.
+	Doc defs.Navigable
+}
+
+// TargetPointer returns the pointer of the position the $ref at js resolves to
+// in this document: InternalPointer's answer, except that a "#/$defs/..."
+// pointer names the definition the resolver's rule finds relative to js
+// (defs.Target), never the document-rooted /$defs/... it spells, which the
+// document does not have (GitHub #557). ok is false for a reference into
+// another document and for a $defs pointer the rule finds nothing for.
+func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
+	pointer, ok := s.InternalPointer(ref)
+	if !ok || !defs.IsPointer(pointer) {
+		return pointer, ok
+	}
+	if references.Reference(ref).GetURI() != "" {
+		return "", false // held out of the rule, as load holds it: see load.defsRefs
+	}
+	_, at, found := defs.Target(s.Doc, js, pointer)
+	return at, found
 }
 
 // sameFile reports whether a $ref document part names this compilation's own
@@ -175,7 +197,7 @@ func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
 // which is the last condition here), and the internedID cache hit, which would
 // make the answer depend on which schema happened to lower first.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
-	pointer, ok := s.InternalPointer(ref)
+	pointer, ok := s.TargetPointer(js, ref)
 	if !ok {
 		return false
 	}
