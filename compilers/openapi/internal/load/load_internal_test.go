@@ -313,6 +313,17 @@ func TestIsNumericBoundKeyword_BoundKeyword(t *testing.T) {
 	assert.True(t, isNumericBoundKeyword(verr))
 }
 
+// TestIsNumericBoundKeyword_BareKeyword covers the no-separator arm: a parent path
+// of one segment is its own trailing segment, so a bare keyword is recognized too.
+func TestIsNumericBoundKeyword_BareKeyword(t *testing.T) {
+	t.Parallel()
+	verr := validation.Error{
+		Rule:            validation.RuleValidationTypeMismatch,
+		UnderlyingError: &validation.TypeMismatchError{ParentName: "minimum"},
+	}
+	assert.True(t, isNumericBoundKeyword(verr))
+}
+
 // TestInvalidSyntaxOnValidNumbers_NilNode covers the nil guard.
 func TestInvalidSyntaxOnValidNumbers_NilNode(t *testing.T) {
 	t.Parallel()
