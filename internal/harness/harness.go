@@ -73,7 +73,7 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	if vs := irverify.Verify(doc); len(vs) > 0 {
 		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
 	}
-	if detail, ok := roundTrips(doc); !ok {
+	if detail, ok := roundTrip(doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeRoundtrip, Detail: detail}
 	}
 	if detail, ok := deterministic(ctx, spec, data, doc); !ok {
@@ -104,6 +104,13 @@ var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document,
 // json.Marshal in production, where such a value can never fail to re-marshal;
 // tests replace it to exercise that otherwise-unreachable defensive error path.
 var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
+
+// roundTrip is the round-trip oracle Check applies: a package-level seam over
+// roundTrips for the same reason compile is one. A test swaps it to drive
+// Check's OutcomeRoundtrip classification directly, so that test does not
+// depend on which documents Verify lets through to this oracle — a pointer
+// cycle, for one, verifies clean and cannot be encoded (GitHub #573).
+var roundTrip = roundTrips
 
 // roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and
 // compares the two encodings byte for byte rather than doc against the decoded
