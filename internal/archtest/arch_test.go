@@ -186,6 +186,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
+		// The fields a path item writes beside its $ref are read through the
+		// mapping view rather than the model, because the model erases every one
+		// of them: nodeview follows aliases and `<<` merge keys exactly as the
+		// resolver does, which is what keeps the read faithful to the source.
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/value",

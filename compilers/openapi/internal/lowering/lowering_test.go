@@ -309,6 +309,25 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"a diagnostic is stamped through the same question")
 }
 
+// TestCtx_ExternalRefsIsTheCallersPolicyOnACopy holds the reference-resolution
+// policy the seam reads: it is set on a copy, so the compile's own answer
+// survives, and the zero context refuses — the loader's own default, so a
+// context nobody extended cannot resolve outside the document by accident.
+func TestCtx_ExternalRefsIsTheCallersPolicyOnACopy(t *testing.T) {
+	t.Parallel()
+	declaring := lowering.Ctx{}
+	assert.False(t, declaring.AllowExternalRefs(),
+		"the zero context performs no I/O, exactly as the loader's zero options do")
+
+	allowing := declaring.WithExternalRefs(true)
+	assert.True(t, allowing.AllowExternalRefs())
+	assert.False(t, declaring.AllowExternalRefs(),
+		"the caller's context is unchanged, so the policy cannot be widened downstream")
+
+	assert.False(t, allowing.WithExternalRefs(false).AllowExternalRefs(),
+		"and a context can be narrowed back, which is what a later phase would do")
+}
+
 // TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to
 // thread: it is set on a copy, so a lowering that descends under a $ref cannot
 // leak the marking back to the caller that is still lowering a declaration.

@@ -252,6 +252,23 @@ const (
 	// the document describes, webhooks and callbacks included, and this is the
 	// document repeating it, so it is an error (GitHub #502).
 	ConflictingOperationID = "openapi/conflicting-operation-id"
+	// PathItemRefCollision reports a construct a path item's use site declares
+	// beside its $ref that the referenced path item declares too — the same
+	// method key (or additionalOperations key), summary, description, servers,
+	// x-* name, undeclared key, or item-level (name, in) parameter pair.
+	//
+	// OpenAPI says a Path Item Object with a $ref may carry other fields and
+	// says nothing about which declaration wins, so the result is undefined
+	// rather than invalid: the compiler applies the rule it already applies to
+	// a $ref-adjacent schema sibling and lets the use site's declaration win,
+	// and the losing declaration is not lowered at that mount.
+	//
+	// Warning, not error, for the reason InvalidStatusKey is one: the document
+	// still lowers and nothing is lost that the diagnostic does not name, and
+	// harness.Check stops at the first error diagnostic, which would put a
+	// collision fixture's later findings and every oracle past it out of reach
+	// (GitHub #577).
+	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming which authentication mechanism it is — `type`, or the RFC 7235
 	// `scheme` token that is the mechanism when the type is http. The entry
