@@ -1121,7 +1121,8 @@ func isDecimalIndex(s string) bool {
 // percent-decoding for the URI, RFC 6901 unescaping for the pointer — so
 // `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
 // declared under (GitHub #505). A reference whose fragment is no pointer — a
-// whole-document URI, a $anchor — suggests what follows its last '/', as written.
+// whole-document URI, a $anchor, a fragment that decodes to bytes that are not
+// UTF-8 (GitHub #520) — suggests what follows its last '/', as written.
 //
 // For a component the last token is its name. For a position deeper in a schema
 // it is a keyword or an ordinal, unlike the hint the target itself carries

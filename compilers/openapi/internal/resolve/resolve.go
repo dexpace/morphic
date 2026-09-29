@@ -19,6 +19,7 @@ import (
 	"encoding/json/jsontext"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
@@ -75,11 +76,16 @@ func (s Scope) sameFile(doc string) bool {
 //
 // It reports ok=false for a reference with no fragment, for a fragment that is
 // not a pointer (`#name` names a $anchor), and for a bare `#`, which names the
-// whole document rather than a position in it. A fragment that decodes to bytes
-// that are not UTF-8 comes back as it decodes (GitHub #520).
+// whole document rather than a position in it. It also refuses a fragment that
+// decodes to bytes that are not UTF-8: no document key can spell them, so the
+// resolver never finds the target, and a pointer carrying them would reach an ID
+// the IR cannot encode (GitHub #520).
 func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 	pointer := jsontext.Pointer(references.Reference(ref).GetJSONPointer())
 	if !strings.HasPrefix(string(pointer), "/") {
+		return "", false
+	}
+	if !utf8.ValidString(string(pointer)) {
 		return "", false
 	}
 	return pointer, true
@@ -108,9 +114,10 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 // `#addr` names a JSON Schema `$anchor`, not a coordinate, and Milestone 1
 // resolves no anchors; letting it through returned "addr" as though it were a
 // pointer, and every ID derived from it was a path no source coordinate spells
-// (GitHub #141). The resolver library happens to reject it too, but relying on
-// that puts the refusal outside this compiler, where a library that started
-// resolving anchors would silently reinstate the malformed derivation.
+// (GitHub #141). The refusal has to be this compiler's own: the resolver library
+// does resolve some such fragments, a reference inside the schema that declares
+// the anchor among them, so deferring to it would reinstate the malformed
+// derivation wherever it follows one.
 func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer, ok := FragmentPointer(ref)
 	if !ok {

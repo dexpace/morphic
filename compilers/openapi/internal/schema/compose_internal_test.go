@@ -32,7 +32,7 @@ func TestPropIDByName_NotFound(t *testing.T) {
 
 // TestRefHint_Shapes pins refHint's two paths: the decoded last token of a
 // $ref's fragment when it spells a pointer (GitHub #505), and the raw text after
-// the last '/' when the reference spells no pointer at all.
+// the last '/' when resolve.FragmentPointer reads no pointer from it.
 func TestRefHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -48,6 +48,7 @@ func TestRefHint_Shapes(t *testing.T) {
 		{name: "another document, no fragment", ref: "other.yaml", want: "other.yaml"},
 		{name: "a document in a directory, no fragment", ref: "./schemas/Pet.yaml", want: "Pet.yaml"},
 		{name: "a $anchor is not a pointer", ref: "#anchor", want: "#anchor"},
+		{name: "a fragment that is not UTF-8 is not a pointer", ref: "#/components/schemas/%FF", want: "%FF"},
 		{name: `a lone slash names the member keyed ""`, ref: "#/", want: ""},
 	}
 	for _, tc := range tests {

@@ -903,8 +903,9 @@ func bodyModelPointer(ts *compile.Types, body ir.TypeID) (jsontext.Pointer, bool
 }
 
 // bodySchemaPointer returns the JSON pointer under which a body schema's
-// properties were interned: the ref target's pointer when the media schema is a
-// same-document $ref, else localPtr.
+// properties were interned: the ref target's pointer when
+// resolve.Scope.InternalPointer reads one from the media schema's $ref, else
+// localPtr.
 //
 // It is the fallback for a body the IR gives no model for (bodyModelPointer),
 // where the schema declares properties that nothing in the IR holds — a
@@ -916,7 +917,9 @@ func bodyModelPointer(ts *compile.Types, body ir.TypeID) (jsontext.Pointer, bool
 // would otherwise become an identity in *this* one, naming whichever local
 // schema happened to share the path — a property of a different document
 // addressed as if it were ours. localPtr is the honest fallback there: it is
-// the position the reference itself occupies here.
+// the position the reference itself occupies here. It is for a fragment that
+// decodes to bytes that are not UTF-8 too, which no key here spells and no
+// PropID can carry (GitHub #520).
 func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr jsontext.Pointer) jsontext.Pointer {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
