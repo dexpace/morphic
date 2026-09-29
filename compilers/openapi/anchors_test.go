@@ -142,21 +142,32 @@ func withoutSourceHash(doc *ir.Document) *ir.Document {
 	return &out
 }
 
-// operationNamed finds the operation whose source operationId is name, in any
-// group of any service.
+// operationNamed finds the first operation whose source operationId is name, in
+// any group of any service.
 func operationNamed(doc *ir.Document, name string) (ir.Operation, bool) {
+	ops := operationsNamed(doc, name)
+	if len(ops) == 0 {
+		return ir.Operation{}, false
+	}
+	return ops[0], true
+}
+
+// operationsNamed returns every operation whose source operationId is name, in
+// any group of any service, in the order the groups are walked.
+func operationsNamed(doc *ir.Document, name string) []ir.Operation {
 	groups := make([]ir.OperationGroup, 0, len(doc.Services))
 	for _, svc := range doc.Services {
 		groups = append(groups, svc.Groups...)
 	}
+	var ops []ir.Operation
 	for len(groups) > 0 {
 		g := groups[0]
 		groups = append(groups[1:], g.Groups...)
 		for _, op := range g.Operations {
 			if op.Name.Source == name {
-				return op, true
+				ops = append(ops, op)
 			}
 		}
 	}
-	return ir.Operation{}, false
+	return ops
 }
