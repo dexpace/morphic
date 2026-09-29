@@ -4,6 +4,8 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -360,4 +362,421 @@ actions:
 	// HasError while leaving the cycle this test is named for unexercised.
 	found, _ := ir.FirstError(diags)
 	assert.Equal(t, diag.CyclicRef, found.Code, "the introduced cycle is what refused it: %+v", diags)
+}
+
+// provenanceSpec and provenancePatch exercise GitHub #522's fix on every
+// annotation-package call path a clean 3.1 document reaches: component schemas
+// and a property of one, an operation and its externalDocs, a response with its
+// header, media type and example, a request body and its encoding, a parameter
+// and its schema, both security schemes and an OAuth flow, the document's info
+// and servers, and a path item the overlay mounts that no operation reaches.
+// The call paths only a 3.0 document or a failing read reaches are
+// TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet's.
+const provenanceSpec = `openapi: 3.1.0
+info:
+  title: t
+  version: "1"
+servers:
+  - url: https://{env}.example
+    variables:
+      env: {default: api}
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      externalDocs: {url: https://docs.example}
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Rate: {schema: {type: integer}}
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                one: {value: one}
+    post:
+      operationId: addPet
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+            encoding:
+              file: {contentType: application/octet-stream}
+      responses:
+        '204': {description: ok}
+components:
+  schemas:
+    Pet:
+      type: object
+      x-base: 1
+      x-rw: 1
+      x-obj: {a: 1}
+      x-gone: 1
+      properties:
+        name: {type: string}
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: X-Key
+      in: header
+    oauth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://auth.example
+          scopes: {}
+`
+
+const provenancePatch = `overlay: 1.0.0
+info: {title: o, version: "1"}
+actions:
+  - target: $.components.schemas.Pet
+    update:
+      x-added: 1
+      x-rw: 2
+      x-obj: {b: 2}
+      not: {type: integer}
+      if: {required: [name]}
+      then: {required: [tag]}
+      dependentSchemas: {name: {required: [name]}}
+      frobnicate: 1
+      $id: "https://example.com/pet"
+      properties:
+        tag: {type: string}
+  - target: $.components.schemas.Pet['x-gone']
+    remove: true
+  - target: $.components.schemas.Pet
+    update:
+      x-gone: 1
+  - target: $.paths['/pets'].get.responses['200']
+    update:
+      bogus: 1
+      x-resp: 1
+  - target: $.paths['/pets'].get.responses['200'].content['application/json']
+    update:
+      mediaBogus: 1
+  - target: $.paths['/pets'].get.parameters[0]
+    update:
+      paramBogus: 1
+  - target: $.paths['/pets'].get
+    update:
+      x-op: 1
+      opBogus: 1
+  - target: $.components.securitySchemes.apiKey
+    update:
+      x-scheme: 1
+      schemeBogus: 1
+      bearerFormat: JWT
+  - target: $.info
+    update:
+      x-info: 1
+      infoBogus: 1
+  - target: $.paths
+    update:
+      /empty:
+        x-pi: 1
+        piBogus: {responses: {'200': {description: ok}}}
+        servers: [{url: "https://e.example"}]
+  - target: $.paths['/pets'].get.externalDocs
+    update:
+      edBogus: 1
+  - target: $.paths['/pets'].get.parameters[0].schema
+    update:
+      x-ps: 1
+  - target: $.paths['/pets'].get.responses['200'].headers['X-Rate']
+    update:
+      headerBogus: 1
+  - target: $.paths['/pets'].get.responses['200'].content['application/json'].examples.one
+    update:
+      exBogus: 1
+  - target: $.paths['/pets'].post.requestBody
+    update:
+      rbBogus: 1
+  - target: $.paths['/pets'].post.requestBody.content['multipart/form-data'].encoding.file
+    update:
+      encBogus: 1
+  - target: $.components.schemas.Pet.properties.name
+    update:
+      x-prop: 1
+  - target: $.components.schemas
+    update:
+      Closed: {allOf: [{type: object}, false]}
+      Narrowed:
+        type: object
+        properties: {a: {type: string}, b: {type: string}}
+        oneOf: [{required: [a]}, {required: [b]}]
+  - target: $.components.securitySchemes.oauth.flows
+    update:
+      x-flows: 1
+      flowsBogus: 1
+  - target: $.components.securitySchemes.oauth.flows.implicit
+    update:
+      x-flow: 1
+      flowBogus: 1
+  - target: $.servers[0]
+    update:
+      x-srv: 1
+      srvBogus: 1
+  - target: $.servers[0].variables.env
+    update:
+      x-var: 1
+      varBogus: 1
+`
+
+// unmodeledEntriesByPath walks the whole compiled document for every
+// ir.UnmodeledEntry it holds, keyed by the full path the walk reached it at.
+// Deriving the set from the value graph, rather than naming each carrier, is
+// what keeps the table below honest about which map an entry actually landed
+// on instead of merely one it could have.
+func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
+	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
+	out := map[string]ir.UnmodeledEntry{}
+	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Type() == entryType && v.CanInterface() {
+			out[path] = v.Interface().(ir.UnmodeledEntry)
+		}
+		return true
+	})
+	return out
+}
+
+// entryKeyed returns the one Unmodeled entry named key, wherever in the
+// document the walk found it: the path down to it is an implementation detail
+// this test does not pin, only the map key the reader that wrote it chose.
+func entryKeyed(t *testing.T, entries map[string]ir.UnmodeledEntry, key string) ir.UnmodeledEntry {
+	t.Helper()
+	suffix := "[" + key + "]"
+	var at string
+	for path := range entries {
+		if !strings.HasSuffix(path, suffix) {
+			continue
+		}
+		require.Empty(t, at, "Unmodeled key %q found at two paths: %q and %q", key, at, path)
+		at = path
+	}
+	require.NotEmpty(t, at, "no Unmodeled entry keyed %q anywhere in the document", key)
+	return entries[at]
+}
+
+// diagKey identifies a diagnostic by code and source pointer. The pair is
+// unique in these fixtures except at an unmounted path item, whose servers-kept
+// note and no-operation warning share both, so diagnosticsByCodeAndPointer
+// keeps every diagnostic found at a key instead of only the last.
+type diagKey struct{ code, pointer string }
+
+// diagnosticsByCodeAndPointer groups diags by diagKey, in the order Compile
+// returned them.
+func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnostic {
+	out := map[diagKey][]ir.Diagnostic{}
+	for _, d := range diags {
+		k := diagKey{d.Code, d.Provenance.Pointer}
+		out[k] = append(out[k], d)
+	}
+	return out
+}
+
+// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522 end to end.
+// The annotation package's readers sit below lowering.Ctx in the import graph
+// and used to be handed the base document's raw source index rather than the
+// context's own attribution, so an extension, an unknown key, a dialect
+// keyword or a validation-only keyword an overlay added claimed to come from
+// the base document it patched — and so did the diagnostics announcing them.
+//
+// Every row here names the production call path it exercises, so that
+// reverting the fix at any one of them reddens the row beside it. The
+// controls (x-base, x-obj) must stay with the base: crediting the overlay with
+// everything it touches, rather than with what it introduced or rewrote, would
+// be the opposite defect. The if-then-else row is not a control. It pins a
+// known gap: a combined entry takes the schema's attribution although the
+// overlay wrote every keyword in it, and fixing that (GitHub #534) flips it.
+func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(provenanceSpec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(provenancePatch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+	assert.False(t, ir.HasError(diags), "the overlay applies cleanly: %+v", diags)
+	for _, d := range diags {
+		assert.NotEqual(t, diag.OverlayAction, d.Code,
+			"an action that silently matched nothing would hollow this test out: %+v", d)
+	}
+	assert.Empty(t, irverify.Verify(doc), "the fixture stays structurally valid")
+
+	entries := unmodeledEntriesByPath(doc)
+	for _, tc := range []struct {
+		name string
+		key  string
+		want int
+	}{
+		{"schema extension the overlay adds (schema.go attachDeclaredAnnotations)", "openapi:x-added", 1},
+		{"schema extension the base declares, control", "openapi:x-base", 0},
+		{"scalar extension the overlay rewrites in place", "openapi:x-rw", 1},
+		{"mapping extension the overlay only merges into", "openapi:x-obj", 0},
+		{"extension removed then re-added by a later action", "openapi:x-gone", 1},
+		{"validation-only keyword the overlay adds (schema.go attachDeclaredAnnotations)", "openapi:not", 1},
+		{"a second validation-only keyword added beside it", "openapi:dependentSchemas", 1},
+		{"combined if/then/else entry keeps the schema's attribution (GitHub #534)", "openapi:if-then-else", 0},
+		{"dialect keyword the overlay adds", "openapi:$id", 1},
+		{"unknown schema keyword the overlay adds (accumulate.go PreserveUnknownKeywords)", "openapi:frobnicate", 1},
+		{"property extension (schema.go fillPropertyAnnotations)", "openapi:x-prop", 1},
+		{"false allOf branch (compose.go applyFalseBranches)", "openapi:allOf/1", 1},
+		{"validation-only oneOf beside a model (schema.go preserveBranchSets)", "openapi:oneOf", 1},
+		{"operation extension (operations.go applyOperationAnnotations)", "openapi:x-op", 1},
+		{"operation unknown key (operations.go applyOperationAnnotations)", "openapi:opBogus", 1},
+		{"externalDocs unknown key (operations.go applyOperationAnnotations)", "openapi:externalDocs/edBogus", 1},
+		{"response unknown key (operations.go preserveResponseExtras)", "openapi:bogus", 1},
+		{"response extension (operations.go preserveResponseExtras)", "openapi:x-resp", 1},
+		{"media type unknown key (content.go lowerContent)", "openapi:mediaBogus", 1},
+		{"header unknown key (content.go applyHeaderAnnotations)", "openapi:headerBogus", 1},
+		{"example unknown key (content.go appendPluralExample)", "openapi:exBogus", 1},
+		{"request body unknown key (content.go lowerRequestBody)", "openapi:rbBogus", 1},
+		{"encoding unknown key (content.go encodingUnmodeled)", "openapi:encoding/file/encBogus", 1},
+		{"parameter unknown key (params.go fillParamDetail)", "openapi:paramBogus", 1},
+		{"parameter schema extension (params.go fillParamSchemaAnnotations)", "openapi:x-ps", 1},
+		{"security scheme extension (auth.go applySchemeAnnotations)", "openapi:x-scheme", 1},
+		{"security scheme unknown key (auth.go lowerSecurityScheme)", "openapi:schemeBogus", 1},
+		{"field the scheme's type leaves unread (auth.go preserveUnreadFields)", "openapi:bearerFormat", 1},
+		{"OAuth flows extension (auth.go applySchemeAnnotations)", "openapi:flows/x-flows", 1},
+		{"OAuth flows unknown key (auth.go applySchemeAnnotations)", "openapi:flows/flowsBogus", 1},
+		{"OAuth flow extension (auth.go applyFlowAnnotations)", "openapi:x-flow", 1},
+		{"OAuth flow unknown key (auth.go applyFlowAnnotations)", "openapi:flowBogus", 1},
+		{"document info extension (meta.go documentExtensions)", "openapi:info/x-info", 1},
+		{"document info unknown key (meta.go documentUnknownKeys)", "openapi:info/infoBogus", 1},
+		{"server extension (meta.go lowerServer)", "openapi:x-srv", 1},
+		{"server unknown key (meta.go lowerServer)", "openapi:srvBogus", 1},
+		{"server variable extension (meta.go serverVariables)", "openapi:x-var", 1},
+		{"server variable unknown key (meta.go serverVariables)", "openapi:varBogus", 1},
+		{"unmounted path item's servers (operations.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
+		{"unmounted path item's own extension (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
+		{"unmounted path item's undeclared key (operations.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entry := entryKeyed(t, entries, tc.key)
+			assert.Equal(t, tc.want, entry.Provenance.Source, tc.key)
+		})
+	}
+
+	byCodeAndPointer := diagnosticsByCodeAndPointer(diags)
+	for _, tc := range []struct {
+		name    string
+		code    string
+		pointer string
+		want    int
+	}{
+		{"dialect keyword diagnostic", diag.DegradedConstruct, "/components/schemas/Pet/$id", 1},
+		{"unknown schema keyword diagnostic", diag.UnknownSchemaKeyword, "/components/schemas/Pet/frobnicate", 1},
+		{"response unknown key diagnostic", diag.UnknownObjectKey, "/paths/~1pets/get/responses/200/bogus", 1},
+		{"media type unknown key diagnostic", diag.UnknownObjectKey,
+			"/paths/~1pets/get/responses/200/content/application~1json/mediaBogus", 1},
+		{"parameter unknown key diagnostic", diag.UnknownObjectKey,
+			"/paths/~1pets/get/parameters/0/paramBogus", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			list := byCodeAndPointer[diagKey{tc.code, tc.pointer}]
+			require.Len(t, list, 1)
+			assert.Equal(t, tc.want, list[0].Provenance.Source)
+		})
+	}
+
+	t.Run("validation-only announcements stay at the enclosing schema", func(t *testing.T) {
+		// not, if/then/else and dependentSchemas each announce once, all
+		// located at the schema declaration rather than at their own
+		// keyword — the enclosing-object rule — even though the overlay
+		// added every keyword they announce.
+		validationOnly := byCodeAndPointer[diagKey{diag.ValidationOnlyKeyword, "/components/schemas/Pet"}]
+		require.Len(t, validationOnly, 3)
+		for _, d := range validationOnly {
+			assert.Equal(t, 0, d.Provenance.Source, "%s", d.Message)
+		}
+	})
+
+	t.Run("both diagnostics an unmounted path item draws name the overlay", func(t *testing.T) {
+		// Before the fix, onNearestNode stamped the mount point's carrier
+		// with the raw source index while the diagnostic beside it, built
+		// through the lowering context, correctly named the overlay — so
+		// the servers-kept note and the no-operation warning disagreed
+		// about which document drew an entirely overlay-introduced path
+		// item.
+		unmounted := byCodeAndPointer[diagKey{diag.DegradedConstruct, "/paths/~1empty"}]
+		require.Len(t, unmounted, 2)
+		for _, d := range unmounted {
+			assert.Equal(t, 1, d.Provenance.Source, "%s", d.Message)
+		}
+	})
+}
+
+// TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet covers the
+// call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
+// exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
+// which only a 3.0 document reads as a modifier: for a component schema
+// (schema.go schemaConstraints) and for a parameter's schema (params.go
+// fillParamSchema). And a oneOf that will not render is reported rather than
+// kept (schema.go preserveBranchSets), which is an error a clean fixture cannot
+// carry.
+func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.0.3
+info: {title: t, version: "1"}
+paths:
+  /n:
+    get:
+      operationId: getN
+      parameters:
+        - name: lo
+          in: query
+          schema: {type: number}
+      responses:
+        '200': {description: ok}
+components:
+  schemas:
+    Num: {type: number}
+    Str: {type: string}
+`
+	const patch = `overlay: 1.0.0
+info: {title: o, version: "1"}
+actions:
+  - target: $.components.schemas.Num
+    update:
+      exclusiveMinimum: true
+  - target: $.paths['/n'].get.parameters[0].schema
+    update:
+      exclusiveMaximum: true
+  - target: $.components.schemas.Str
+    update:
+      oneOf: [{enum: [.nan]}]
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+	for _, d := range diags {
+		assert.NotEqual(t, diag.OverlayAction, d.Code, "every action must land: %+v", d)
+	}
+
+	entries := unmodeledEntriesByPath(doc)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
+		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
+		"a component schema's kept modifier (schema.go schemaConstraints)")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
+		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
+		"a parameter schema's kept modifier (params.go fillParamSchema)")
+
+	unkept := diagnosticsByCodeAndPointer(diags)[diagKey{diag.UnpreservableConstruct, "/components/schemas/Str/oneOf"}]
+	require.Len(t, unkept, 1, "the oneOf that will not render is reported: %+v", diags)
+	assert.Equal(t, 1, unkept[0].Provenance.Source,
+		"a branch set the overlay added is reported as the overlay's (schema.go preserveBranchSets)")
 }

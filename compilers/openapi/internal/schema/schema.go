@@ -177,7 +177,7 @@ func schemaConstraints(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer 
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.SrcIndex)
+	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, StampConstraintDiags(c, diags, pointer)
 }
@@ -494,7 +494,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason 
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		raw, err := annotation.RawFromNode(annotation.RawPropertyNode(s, kw))
 		if err != nil {
-			diags = append(diags, annotation.UnpreservableDiag("openapi:"+kw, pointer+ids.Ptr(kw), c.SrcIndex, err))
+			diags = append(diags, annotation.UnpreservableDiag("openapi:"+kw, c.ProvenanceAt(pointer+ids.Ptr(kw)), err))
 			continue
 		}
 		if reason == ir.ReasonValidationOnly {
@@ -1253,7 +1253,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	if LoweredToOwnNode(ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.SrcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {
@@ -1347,7 +1347,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.SrcIndex)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt)
 
 	common := td.Common()
 	common.Docs = a.Docs
