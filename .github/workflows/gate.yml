@@ -49,6 +49,8 @@ jobs:
         run: make coverage-count
       - name: test (race detector, exactly 100% coverage)
         run: make coverage
+      - name: fuzz retry rule
+        run: make fuzz-retry
       - name: fuzz
         id: fuzz
         run: make fuzz
