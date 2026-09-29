@@ -226,7 +226,7 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 func keep(p *ir.Unmodeled, root *yaml.Node, key string, locate Locator, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
 	entry, at := "openapi:"+scoped(scope, key), locate(owner+ids.Ptr(key))
 	if taken, occupied := (*p)[entry]; occupied {
-		return []ir.Diagnostic{occupiedEntryDiag(entry, at, jsontext.Pointer(taken.Provenance.Pointer))}
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}
 	node := RawChildNode(root, key)
 	if node == nil {
@@ -256,7 +256,7 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 			continue
 		}
 		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
-			e.Provenance.Pointer == string(owner+ids.Ptr(key)) {
+			e.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)

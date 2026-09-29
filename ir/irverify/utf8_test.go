@@ -1,6 +1,7 @@
 package irverify_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"testing"
 	"unicode/utf8"
@@ -33,11 +34,11 @@ type utf8Carrier struct {
 
 // utf8Carriers covers the four carriers GitHub #507 named — a type's registry
 // key and its own ID, a documentation string, a typed string value, the
-// document's own title — and adds a diagnostic's message and provenance
-// pointer, an Unmodeled key, each Naming channel, and an alias. Each plant
-// function builds a document that verifies clean apart from the one string
-// under test — reusing validDoc, modelNamed and friends is what keeps that true
-// without restating it per row.
+// document's own title — and adds a diagnostic's message and its provenance
+// pointer and node, an Unmodeled key, each Naming channel, and an alias. Each
+// plant function builds a document that verifies clean apart from the one
+// string under test — reusing validDoc, modelNamed and friends is what keeps
+// that true without restating it per row.
 func utf8Carriers() []utf8Carrier {
 	return []utf8Carrier{
 		{
@@ -101,14 +102,31 @@ func utf8Carriers() []utf8Carrier {
 			name: "a diagnostic's provenance pointer",
 			plant: func(s string) (*ir.Document, []string) {
 				doc := validDoc()
+				pointer := jsontext.Pointer("/components/schemas/" + s)
 				doc.Diagnostics = []ir.Diagnostic{
-					ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "message", ir.Provenance{Pointer: s}),
+					ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "message", ir.Provenance{Pointer: pointer}),
 				}
 				return doc, []string{"doc.Diagnostics[0].Provenance.Pointer"}
 			},
 			// NewDiagnostic sanitizes Message, not Provenance: a validator-derived
 			// pointer reaches the document exactly as handed to it (GitHub #520).
-			repair: "/components/schemas/Foo",
+			// The pointer is otherwise well-formed, so the empty others also pins
+			// that ir/provenance-pointer-malformed leaves these bytes to this rule.
+			repair: "Foo",
+		},
+		{
+			name: "a diagnostic's provenance node",
+			plant: func(s string) (*ir.Document, []string) {
+				doc := validDoc()
+				doc.Diagnostics = []ir.Diagnostic{
+					ir.NewDiagnostic(ir.SeverityError, "ir/dangling-type-ref", "message",
+						ir.Provenance{Source: ir.NoSource, Node: s}),
+				}
+				return doc, []string{"doc.Diagnostics[0].Provenance.Node"}
+			},
+			// A pass spells its node from the walk, map keys included, and nothing
+			// sanitizes it on the way in.
+			repair: "t/x/Model",
 		},
 		{
 			name: "an Unmodeled map key",

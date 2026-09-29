@@ -350,41 +350,95 @@ func TestSourcePath_Cases(t *testing.T) {
 	}
 }
 
+// TestRenderDiagnostics_WithAndWithoutSourcePath is the table over every shape
+// location renders: each of the three locators alone, the precedence between
+// them, a source with none of them, and a source index that resolves to no
+// file, as every index does in a refused compile, which returns no document
+// (see location's doc comment). Whole lines are asserted, not fragments: the
+// location is what varies between rows, and a containment check on the
+// message alone would pass for a line that rendered the location wrongly or
+// fabricated one.
 func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 	t.Parallel()
-	res := &engine.Result{
-		Document: &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}},
-		Diagnostics: []ir.Diagnostic{
-			{
-				Severity:   ir.SeverityError,
-				Code:       "openapi/bad",
-				Message:    "resolved location",
-				Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
-			},
-			{
-				Severity:   ir.SeverityWarning,
-				Code:       "ir/dangling",
-				Message:    "no source file",
-				Provenance: ir.Provenance{Source: 99, Pointer: "type:abc"},
-			},
-			{
-				Severity:   ir.SeverityError,
-				Code:       "engine/unrecognized-format",
-				Message:    "no position at all",
-				Provenance: ir.Provenance{Source: ir.NoSource},
-			},
+	doc := &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}}
+
+	tests := []struct {
+		name string
+		prov ir.Provenance
+		want string
+	}{
+		{
+			name: "pointer",
+			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
+			want: "error openapi/bad spec.yaml#/paths/~1x: m\n",
+		},
+		{
+			name: "root: a source with no locator prints the bare path, not a trailing #",
+			prov: ir.Provenance{Source: 0},
+			want: "error openapi/bad spec.yaml: m\n",
+		},
+		{
+			name: "position",
+			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}},
+			want: "error openapi/bad spec.yaml:5:1: m\n",
+		},
+		{
+			name: "the first line is a position like any other",
+			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
+			want: "error openapi/bad spec.yaml:1:1: m\n",
+		},
+		{
+			name: "line only: the producer knows no column",
+			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5}},
+			want: "error openapi/bad spec.yaml:5: m\n",
+		},
+		{
+			name: "pointer and position together: the pointer wins",
+			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5, Column: 1}},
+			want: "error openapi/bad spec.yaml#/paths/~1x: m\n",
+		},
+		{
+			name: "a node beside a source: the file is printed, not the node",
+			prov: ir.Provenance{Source: 0, Node: "op/x"},
+			want: "error openapi/bad spec.yaml: m\n",
+		},
+		{
+			name: "NoSource with a node prints the node bare",
+			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
+			want: "error openapi/bad op/x: m\n",
+		},
+		{
+			name: "an unresolvable source with a position prints the position bare",
+			prov: ir.Provenance{Source: 99, Position: ir.Position{Line: 9, Column: 7}},
+			want: "error openapi/bad 9:7: m\n",
+		},
+		{
+			name: "an unresolvable source with a pointer prints the pointer bare",
+			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x"},
+			want: "error openapi/bad /paths/~1x: m\n",
+		},
+		{
+			name: "nothing at all prints no location",
+			prov: ir.Provenance{Source: ir.NoSource},
+			want: "error openapi/bad: m\n",
 		},
 	}
-	var buf bytes.Buffer
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			res := &engine.Result{
+				Document: doc,
+				Diagnostics: []ir.Diagnostic{
+					{Severity: ir.SeverityError, Code: "openapi/bad", Message: "m", Provenance: tt.prov},
+				},
+			}
+			var buf bytes.Buffer
 
-	renderDiagnostics(&buf, res)
+			renderDiagnostics(&buf, res)
 
-	// Whole lines, not fragments: the location is what varies between these three
-	// forms, and a containment check on the message alone passes for a line that
-	// renders the location wrongly or fabricates one.
-	assert.Equal(t, "error openapi/bad spec.yaml#/paths/~1x: resolved location\n"+
-		"warning ir/dangling type:abc: no source file\n"+
-		"error engine/unrecognized-format: no position at all\n", buf.String())
+			assert.Equal(t, tt.want, buf.String())
+		})
+	}
 }
 
 // TestEncodeDocument_ErrorPaths pins that both output forms tell the same two

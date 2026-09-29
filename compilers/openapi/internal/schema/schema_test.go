@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"sort"
@@ -118,7 +119,7 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	assert.Contains(t, string(raw.Value), "required")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
-	assert.Equal(t, "/components/schemas/Thing/oneOf", raw.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Thing/oneOf"), raw.Provenance.Pointer)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
 		"the union is reported with §4.7's keyword family; got %+v", diags)
 }
@@ -152,7 +153,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
 		"boolean branches declare no shape, so the union is validation-only (ir-design §4.7)")
-	assert.Equal(t, "/components/schemas/Flag/oneOf", raw.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Flag/oneOf"), raw.Provenance.Pointer)
 }
 
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
@@ -300,7 +301,7 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
 	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
 		"an open tuple is lowered to a weaker fixed-arity shape, not left homeless (ir-design §4.8)")
-	assert.Equal(t, "/components/schemas/Tup/items", residue.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Tup/items"), residue.Provenance.Pointer)
 	assert.True(t, hasDegradedDiag(diags, "open tuple"),
 		"the degradation is reported, not silent; got %+v", diags)
 }
@@ -376,7 +377,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	for key, want := range wantPointer {
 		entry, ok := m.Unmodeled[key]
 		require.True(t, ok, "keyword %s preserved", key)
-		assert.Equal(t, want, entry.Provenance.Pointer, "entry provenance for %s", key)
+		assert.Equal(t, jsontext.Pointer(want), entry.Provenance.Pointer, "entry provenance for %s", key)
 	}
 	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo), 5)
 }
@@ -538,14 +539,14 @@ func TestModel_ValidationOnlyKeywordPreserved(t *testing.T) {
 	require.True(t, ok, "not-keyword must be preserved verbatim")
 	assert.JSONEq(t, `{"required":["b"]}`, string(raw.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason)
-	assert.Equal(t, "/components/schemas/S/not", raw.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/not"), raw.Provenance.Pointer,
 		"the entry locates the keyword, not the schema that carried it")
 	found := false
 	for _, d := range diags {
 		if d.Code == diag.ValidationOnlyKeyword {
 			found = true
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
-			assert.Equal(t, "/components/schemas/S", d.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), d.Provenance.Pointer,
 				"the diagnostic still reports against the declaring schema")
 		}
 	}
@@ -580,7 +581,7 @@ func TestFillPropertyDetail_UnconvertibleExampleDiagnosed(t *testing.T) {
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/components/schemas/S/properties/n/example", d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/properties/n/example"), d.Provenance.Pointer)
 	assert.Contains(t, d.Message, "example:")
 }
 
@@ -711,7 +712,7 @@ func TestModel_SchemaExtensionPreserved(t *testing.T) {
 	require.True(t, ok)
 	assert.JSONEq(t, "100", string(raw.Value))
 	assert.Equal(t, ir.ReasonVendorExtension, raw.Reason)
-	assert.Equal(t, "/components/schemas/S/x-rate-limit", raw.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/x-rate-limit"), raw.Provenance.Pointer,
 		"an entry locates the construct itself, not the node that carries it")
 }
 
@@ -1802,7 +1803,7 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
 	assert.NotContains(t, d.Message, "allOf branches",
 		"the redeclaration site is a co-declared property, not an allOf branch")
-	assert.Equal(t, "/components/schemas/Along/properties/id", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/properties/id"), d.Provenance.Pointer,
 		"the diagnostic's own site is the co-declared property, not an allOf branch")
 }
 
@@ -2692,7 +2693,7 @@ func assertResidueKeptAndAnnounced(t *testing.T, p ir.Unmodeled, diags []ir.Diag
 
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
-			strings.HasSuffix(d.Provenance.Pointer, "/"+keyword) {
+			strings.HasSuffix(string(d.Provenance.Pointer), "/"+keyword) {
 			return
 		}
 	}
@@ -3156,7 +3157,7 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			require.True(t, ok, "%s must be kept verbatim under Unmodeled", tc.key)
 			assert.JSONEq(t, tc.wantJSON, string(entry.Value))
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-			openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+			openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 		})
 	}
 }
@@ -3175,7 +3176,7 @@ func TestContentVocabulary_KeptOnACarrierWithNoNode(t *testing.T) {
 	entry, ok := p.Unmodeled["openapi:contentMediaType"]
 	require.True(t, ok, "the carrier is the only home when the schema hoisted no node")
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+	openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
@@ -3381,7 +3382,7 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
 			require.True(t, ok, "an irreducible $dynamicRef is kept verbatim, not dropped")
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assertDiagContains(t, diags, entry.Provenance.Pointer, tc.wantWhy)
+			assertDiagContains(t, diags, string(entry.Provenance.Pointer), tc.wantWhy)
 		})
 	}
 }
@@ -3570,7 +3571,7 @@ func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 		entry, ok := td.Common().Unmodeled["openapi:"+keyword]
 		require.True(t, ok, "%s must be kept verbatim", keyword)
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
-		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 	}
 	assert.NotContains(t, td.Common().Unmodeled, "openapi:$comment",
 		"2020-12 §8.3 forbids presenting $comment, so it is dropped rather than kept")
@@ -3582,7 +3583,7 @@ func TestDialectKeywords_KeptOutOfScope(t *testing.T) {
 func assertDiagContains(t *testing.T, diags []ir.Diagnostic, pointer, substr string) {
 	t.Helper()
 	for _, d := range diags {
-		if d.Provenance.Pointer == pointer && strings.Contains(d.Message, substr) {
+		if d.Provenance.Pointer == jsontext.Pointer(pointer) && strings.Contains(d.Message, substr) {
 			return
 		}
 	}
@@ -3611,7 +3612,7 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
 			require.True(t, ok, "a malformed $dynamicRef is kept verbatim, not dropped")
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assertDiagContains(t, diags, entry.Provenance.Pointer, "not a reference string")
+			assertDiagContains(t, diags, string(entry.Provenance.Pointer), "not a reference string")
 		})
 	}
 }
@@ -3647,7 +3648,7 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	assert.Empty(t, out, "nothing is appended when the value does not convert")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-	assert.Equal(t, "/p/examples/n", diags[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
 // TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
@@ -3797,7 +3798,7 @@ func TestUnionSiblings_UnpreservableIsReportedNotClaimed(t *testing.T) {
 	var at []string
 	for _, d := range diags {
 		if d.Code == diag.UnpreservableConstruct {
-			at = append(at, d.Provenance.Pointer)
+			at = append(at, string(d.Provenance.Pointer))
 		}
 	}
 	assert.Contains(t, at, "/components/schemas/S/oneOf",
@@ -3910,7 +3911,7 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 			require.True(t, ok, "%s is kept verbatim; got %v", tc.skipped, td.Common().Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, tc.raw, string(entry.Value))
-			assert.Equal(t, "/components/schemas/S/"+tc.skipped, entry.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.skipped), entry.Provenance.Pointer,
 				"routable to where it was written")
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
@@ -4322,7 +4323,7 @@ func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T)
 			require.True(t, ok, "%s is kept on the carrier that read it; got %v", tc.wantKept, tc.unmod)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, "true", string(entry.Value))
-			assert.Equal(t, tc.at, entry.Provenance.Pointer, "located at the keyword itself")
+			assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer, "located at the keyword itself")
 			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, tc.carrier), 1,
 				"and reported once, at the schema that read it: %+v", diags)
 		})
@@ -4334,7 +4335,7 @@ func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T)
 func diagsAtPointer(diags []ir.Diagnostic, code, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == pointer {
+		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			out = append(out, d)
 		}
 	}

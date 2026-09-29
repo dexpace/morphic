@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"encoding/json/jsontext"
 	"slices"
 	"strings"
 	"testing"
@@ -405,7 +406,7 @@ components:
 			d, ok := firstDiagAt(diags, diag.IncompleteSecurityScheme)
 			require.True(t, ok, "the refusal is reported: %+v", diags)
 			assert.Equal(t, ir.SeverityError, d.Severity)
-			assert.Equal(t, "/components/securitySchemes/ghost", d.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), d.Provenance.Pointer,
 				"reported at the entry, not at the requirement that names it")
 			assert.Contains(t, d.Message, `"ghost"`, "the report names the entry")
 		})
@@ -540,7 +541,7 @@ components:
 				field := strings.TrimPrefix(key, "openapi:")
 				assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled[key].Reason,
 					"%s was lowered to a weaker shape, not left unmodelled for want of a field", key)
-				assert.Equal(t, "/components/securitySchemes/s/"+field, s.Unmodeled[key].Provenance.Pointer,
+				assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/"+field), s.Unmodeled[key].Provenance.Pointer,
 					"the entry locates the field itself, not the scheme that carried it")
 			}
 		})
@@ -592,7 +593,7 @@ func messagesAt(diags []ir.Diagnostic, code string) []string {
 func messagesAtPointer(diags []ir.Diagnostic, pointer string) []string {
 	var out []string
 	for _, d := range diags {
-		if d.Provenance.Pointer == pointer {
+		if d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			out = append(out, d.Message)
 		}
 	}
@@ -605,7 +606,7 @@ func sortedPointersAt(diags []ir.Diagnostic, code string) []string {
 	var out []string
 	for _, d := range diags {
 		if d.Code == code {
-			out = append(out, d.Provenance.Pointer)
+			out = append(out, string(d.Provenance.Pointer))
 		}
 	}
 	slices.Sort(out)
@@ -618,7 +619,7 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 	out := make(map[string]ir.Operation)
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
-			out[op.Provenance.Pointer] = op
+			out[string(op.Provenance.Pointer)] = op
 		}
 	}
 	return out
@@ -696,12 +697,12 @@ components:
 	for _, name := range []string{"alias", "target"} {
 		s, ok := doc.Auth[ids.Auth(name)]
 		require.True(t, ok, "%s interns", name)
-		assert.Equal(t, "/components/securitySchemes/"+name, s.Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer("/components/securitySchemes/"+name), s.Provenance.Pointer,
 			"the scheme is named where this document names it")
-		assert.Equal(t, declared+"/bearerFormat",
+		assert.Equal(t, jsontext.Pointer(declared+"/bearerFormat"),
 			s.Unmodeled["openapi:bearerFormat"].Provenance.Pointer,
 			"the kept field is located where it is written")
-		assert.Equal(t, declared+"/x-note", s.Unmodeled["openapi:x-note"].Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer(declared+"/x-note"), s.Unmodeled["openapi:x-note"].Provenance.Pointer,
 			"and so is the extension beside it")
 	}
 	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/alias"),
@@ -734,7 +735,7 @@ components:
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	require.Len(t, messagesAtPointer(diags, "/components/securitySchemes/s/name"), 1,
 		"reported at the field exactly once, and not also announced as kept: %+v", diags)
-	assert.Equal(t, "/components/securitySchemes/s/name", d.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s/name"), d.Provenance.Pointer)
 }
 
 // unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
@@ -854,7 +855,7 @@ paths: {}
 	assert.Empty(t, doc.Auth, "no scheme is declared at all")
 	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
-	assert.Equal(t, "/security/0", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/security/0"), d.Provenance.Pointer,
 		"points at the requirement that named the missing scheme, not a nonexistent components entry")
 }
 
@@ -887,7 +888,7 @@ components:
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError))
 	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
-	assert.Equal(t, "/security/1", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/security/1"), d.Provenance.Pointer,
 		"the pointer names the broken option's own index, not the list or a constant 0")
 }
 
@@ -915,7 +916,7 @@ paths:
 	assert.Nil(t, op.Auth, "the operation's sole option is broken; it now inherits the service default")
 	d, ok := firstDiagAt(diags, diag.UnresolvedRef)
 	require.True(t, ok, "an unresolved-ref diagnostic: %+v", diags)
-	assert.Equal(t, "/paths/~1x/get/security/0", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/paths/~1x/get/security/0"), d.Provenance.Pointer,
 		"points at the operation's own requirement, not a nonexistent components entry")
 }
 

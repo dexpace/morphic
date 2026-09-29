@@ -1,6 +1,7 @@
 package openapi_test
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
@@ -129,7 +130,7 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 
 	introduced := propertyProvenance(t, doc, "Pet", "tag")
 	assert.Equal(t, 1, introduced.Source, "the overlay introduced this property")
-	assert.Equal(t, "/components/schemas/Pet/properties/tag", introduced.Pointer)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Pet/properties/tag"), introduced.Pointer)
 
 	declared := propertyProvenance(t, doc, "Pet", "name")
 	assert.Equal(t, 0, declared.Source, "the spec declared this one")
@@ -196,7 +197,7 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 func TestCompile_OverlayPreservesSourceLineNumbers(t *testing.T) {
 	t.Parallel()
 	// A response object spelled as a string: a validation finding sited by
-	// line:col, several lines below the info block the overlay grows.
+	// position, several lines below the info block the overlay grows.
 	const spec = `openapi: 3.1.0
 info:
   title: Pets
@@ -212,16 +213,16 @@ actions:
   - target: $.info
     update: {description: added above the finding}
 `
-	sited := func(opts openapi.Options) []string {
+	sited := func(opts openapi.Options) []ir.Diagnostic {
 		doc, diags, err := openapi.New().Compile(t.Context(),
 			[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
 			compilers.Options{FormatOptions: opts})
 		require.NoError(t, err)
 		require.NotNil(t, doc)
-		var out []string
+		var out []ir.Diagnostic
 		for _, d := range diags {
-			if d.Provenance.Pointer != "" {
-				out = append(out, d.Code+" @ "+d.Provenance.Pointer)
+			if d.Provenance.Position != (ir.Position{}) {
+				out = append(out, d)
 			}
 		}
 		require.NotEmpty(t, out, "the fixture must produce a sited diagnostic to compare")
@@ -570,7 +571,10 @@ func entryKeyed(t *testing.T, entries map[string]ir.UnmodeledEntry, key string) 
 // unique in these fixtures except at an unmounted path item, whose servers-kept
 // note and no-operation warning share both, so diagnosticsByCodeAndPointer
 // keeps every diagnostic found at a key instead of only the last.
-type diagKey struct{ code, pointer string }
+type diagKey struct {
+	code    string
+	pointer jsontext.Pointer
+}
 
 // diagnosticsByCodeAndPointer groups diags by diagKey, in the order Compile
 // returned them.
@@ -671,7 +675,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		code    string
-		pointer string
+		pointer jsontext.Pointer
 		want    int
 	}{
 		{"dialect keyword diagnostic", diag.DegradedConstruct, "/components/schemas/Pet/$id", 1},
@@ -829,7 +833,7 @@ func TestCompile_OverlayAddingAConflictingOperationIDIsAnError(t *testing.T) {
 	conflict := found[diag.ConflictingOperationID][0]
 	assert.Equal(t, ir.SeverityError, conflict.Severity)
 	assert.Equal(t, 1, conflict.Provenance.Source, "attributed to the overlay that wrote the second declaration")
-	assert.Equal(t, "/paths/~1z/get", conflict.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1z/get"), conflict.Provenance.Pointer)
 	assert.Empty(t, found[diag.DuplicateOperationID], "nothing is mounted twice")
 }
 
@@ -875,7 +879,8 @@ actions:
 func TestCompile_OverlayWritingAnIDTwiceIsAConflictNotARemount(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, overlay, at string
+		name, overlay string
+		at            jsontext.Pointer
 	}{
 		{name: "a copy of a path item", overlay: copyPetsPathIntoZ, at: "/paths/~1z/get"},
 		{name: "an update applied to two paths", overlay: addPostToEveryPath, at: "/paths/~1z/post"},

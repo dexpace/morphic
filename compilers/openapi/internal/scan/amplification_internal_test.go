@@ -27,7 +27,7 @@ func TestAliasAmplification_BombFixtureIsRefused(t *testing.T) {
 	require.NotEmpty(t, diags, "an amplifying document must be diagnosed")
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.NotEmpty(t, diags[0].Provenance.Pointer, "line:col provenance")
+	assert.NotZero(t, diags[0].Provenance.Position, "position provenance")
 }
 
 const bigDocSchemaCount = 2000
@@ -223,7 +223,7 @@ func TestAliasAmplification_SurplusBoundIsExact(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, d.Code)
 	assert.Equal(t, fmt.Sprintf("YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
 		added, raw, added-1), d.Message)
-	assert.NotEmpty(t, d.Provenance.Pointer, "the refusal points at the node that crossed")
+	assert.NotZero(t, d.Provenance.Position, "the refusal points at the node that crossed")
 }
 
 // TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget pins the

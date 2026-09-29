@@ -21,7 +21,7 @@ import (
 // ptrAt is the provenance a declaration at pointer carries. MergeProperty reads
 // the position off the property rather than taking it alongside, so a test that
 // merges one has to say where it was written.
-func ptrAt(pointer string) ir.Provenance { return ir.Provenance{Pointer: pointer} }
+func ptrAt(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} }
 
 // unread is the source of a redeclaration the merge has no reason to keep: it
 // fails the test if rendered, which is how a case asserts that nothing of the
@@ -44,7 +44,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: string(pointer)}, format, args...))
+			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded

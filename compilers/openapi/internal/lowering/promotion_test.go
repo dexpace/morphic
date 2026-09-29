@@ -1,6 +1,7 @@
 package lowering_test
 
 import (
+	"encoding/json/jsontext"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -161,7 +162,7 @@ func TestPromoteDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
 			assert.Equal(t, "openapi/degraded-construct", diags[0].Code)
-			assert.Equal(t, "/components/schemas/S", diags[0].Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), diags[0].Provenance.Pointer,
 				"the report names the extension rather than the node holding it")
 			assert.Equal(t, ir.Deprecation{}, dep)
 			assert.Empty(t, prov.Inferred)

@@ -889,7 +889,7 @@ func bodyModelPointer(ts *compile.Types, body ir.TypeID) (jsontext.Pointer, bool
 		}
 		switch t := td.(type) {
 		case *ir.Model:
-			return jsontext.Pointer(t.Provenance.Pointer), true
+			return t.Provenance.Pointer, true
 		case *ir.Scalar:
 			if t.Base == nil {
 				return "", false

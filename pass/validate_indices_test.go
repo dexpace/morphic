@@ -51,7 +51,7 @@ func TestValidate_ServerIndexOutOfRange(t *testing.T) {
 			found := withCode(pass.Validate(doc), "ir/server-index-out-of-range")
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
-			assert.Equal(t, tc.where, found[0].Provenance.Pointer)
+			assert.Equal(t, tc.where, found[0].Provenance.Node)
 			assert.Equal(t, tc.message, found[0].Message,
 				"the message names the offending index, where it sits, and what it failed to address")
 		})
@@ -134,7 +134,7 @@ func TestValidate_ResponseIndexOutOfRange(t *testing.T) {
 			found := withCode(pass.Validate(opWithSuccessStatus(tc.status)), "ir/response-index-out-of-range")
 			require.Len(t, found, 1, "exactly the planted index must be out of range")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
-			assert.Equal(t, tc.where, found[0].Provenance.Pointer)
+			assert.Equal(t, tc.where, found[0].Provenance.Node)
 			assert.Equal(t, tc.message, found[0].Message,
 				"the message names the offending index, where it sits, and what it failed to address")
 		})

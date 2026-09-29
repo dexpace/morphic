@@ -121,14 +121,14 @@ func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, pat
 		return vs // nothing was recorded to disagree with
 	}
 	idPath, _ := ir.IDPath(kind, id)
-	want := strings.TrimPrefix(prov.Pointer, ir.IDSeparator)
+	want := strings.TrimPrefix(string(prov.Pointer), ir.IDSeparator)
 	if idPath == want {
 		return vs
 	}
 	return append(vs, Violation{
 		Code: "ir/id-provenance-disagreement",
 		Message: "id " + id + " carries path " + idPath +
-			", which is not the source pointer " + prov.Pointer + " it records",
+			", which is not the source pointer " + string(prov.Pointer) + " it records",
 		Path: path,
 	})
 }

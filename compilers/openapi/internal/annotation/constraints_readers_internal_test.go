@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -400,7 +401,10 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 
 	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
 	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
-	for _, want := range []struct{ key, pointer string }{
+	for _, want := range []struct {
+		key     string
+		pointer jsontext.Pointer
+	}{
 		{"openapi:exclusiveMinimum", "/p/exclusiveMinimum"},
 		{"openapi:exclusiveMaximum", "/p/exclusiveMaximum"},
 	} {

@@ -643,11 +643,12 @@ func TestJudge_ReportsEveryDeclarationAndMountButTheFirst(t *testing.T) {
 	require.Len(t, diags, 2, "one remount and one second declaration: %+v", diags)
 	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, "/paths/~1b/get", diags[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), diags[0].Provenance.Pointer)
 	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "the warning names the mount it shares a declaration with")
 	assert.Equal(t, diag.ConflictingOperationID, diags[1].Code)
 	assert.Equal(t, ir.SeverityError, diags[1].Severity)
-	assert.Equal(t, "/components/pathItems/S/get", diags[1].Provenance.Pointer, "the error is where the repeat is written")
+	assert.Equal(t, jsontext.Pointer("/components/pathItems/S/get"), diags[1].Provenance.Pointer,
+		"the error is where the repeat is written")
 	assert.Contains(t, diags[1].Message, "/paths/~1a/get", "and names where the first declaration is")
 }
 
