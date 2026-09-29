@@ -2,6 +2,7 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -171,6 +172,9 @@ paths:
     bogusUse: use
     parameters:
       - {name: useParam, in: query, schema: {type: string}}
+    put:
+      operationId: usePut
+      responses: {"200": {description: OK}}
   /b:
     get:
       operationId: getB
@@ -180,33 +184,39 @@ paths:
 // TestPathItemRefSiblings_ItemConstructsReachEveryOperation pins that what the
 // use site writes beside the $ref reaches the IR on every operation mounted at
 // that path, each under its own pointer, exactly as a path item's own
-// constructs do.
+// constructs do: the referenced item's operation is asserted beside the one
+// written next to the reference.
 func TestPathItemRefSiblings_ItemConstructsReachEveryOperation(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefItemSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	getA := opByPath(t, doc, "GET", "/a")
-	entry, ok := getA.Unmodeled["openapi:servers"]
-	require.True(t, ok, "the use site's servers are kept")
-	assert.JSONEq(t, `[{"url":"https://use.example"}]`, string(entry.Value))
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/servers"), entry.Provenance.Pointer)
+	mounted := []ir.Operation{
+		opByPath(t, doc, "GET", "/a"),        // the referent's, mounted at this path
+		openapitest.FindOp(t, doc, "usePut"), // the use site's own
+	}
+	for _, op := range mounted {
+		entry, ok := op.Unmodeled["openapi:servers"]
+		require.True(t, ok, "%s keeps the use site's servers", op.Name.Source)
+		assert.JSONEq(t, `[{"url":"https://use.example"}]`, string(entry.Value))
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/servers"), entry.Provenance.Pointer)
 
-	ext, ok := getA.Unmodeled["openapi:pathItem/x-beside"]
-	require.True(t, ok, "the use site's x-* is kept")
-	assert.JSONEq(t, `"use"`, string(ext.Value))
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/x-beside"), ext.Provenance.Pointer)
+		ext, ok := op.Unmodeled["openapi:pathItem/x-beside"]
+		require.True(t, ok, "%s keeps the use site's x-*", op.Name.Source)
+		assert.JSONEq(t, `"use"`, string(ext.Value))
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/x-beside"), ext.Provenance.Pointer)
 
-	unknown, ok := getA.Unmodeled["openapi:pathItem/bogusUse"]
-	require.True(t, ok, "the use site's undeclared key is kept")
-	assert.JSONEq(t, `"use"`, string(unknown.Value))
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/bogusUse"), unknown.Provenance.Pointer)
+		unknown, ok := op.Unmodeled["openapi:pathItem/bogusUse"]
+		require.True(t, ok, "%s keeps the use site's undeclared key", op.Name.Source)
+		assert.JSONEq(t, `"use"`, string(unknown.Value))
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/bogusUse"), unknown.Provenance.Pointer)
+
+		require.Len(t, op.Params, 1, "%s merges the use site's item parameter", op.Name.Source)
+		assert.Equal(t, "useParam", op.Params[0].Name.Source)
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), op.Params[0].Provenance.Pointer)
+	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/paths/~1a/bogusUse"),
 		"and the census names it where it was written")
-
-	require.Len(t, getA.Params, 1, "the use site's item parameter merges into the operation")
-	assert.Equal(t, "useParam", getA.Params[0].Name.Source)
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), getA.Params[0].Provenance.Pointer)
 }
 
 // TestPathItemRefSiblings_ReferenceKindsResolve pins that a reference written
@@ -474,4 +484,92 @@ func TestPathItemRefSiblings_UnmountedCallbackKeepsSiblings(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
 		"/paths/~1p/post/callbacks/onEvent/"+expr),
 		"the preservation is announced at the use site's own pointer")
+}
+
+// pathItemRefOpIDSpec has the operation written beside the $ref repeat the
+// referent's operationId, which is two declarations of one id rather than one
+// declaration mounted twice (GitHub #502).
+const pathItemRefOpIDSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    get:
+      operationId: sameId
+      responses: {"200": {description: OK}}
+  /b:
+    get:
+      operationId: sameId
+      responses: {"200": {description: OK}}
+`
+
+// TestPathItemRefSiblings_RepeatedOpIDIsAConflict pins which of the two
+// operationId findings a repeated id reaches: the sibling's operation is a
+// declaration of its own, so repeating the referent's id is the document writing
+// the id twice, not one declaration mounted twice.
+func TestPathItemRefSiblings_RepeatedOpIDIsAConflict(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, pathItemRefOpIDSpec)
+
+	assert.True(t, openapitest.HasDiag(diags, diag.ConflictingOperationID),
+		"two declarations writing one id is a conflict")
+	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID),
+		"and not a remount: the sibling operation is not the referent's declaration")
+}
+
+// pathItemRefCollisionReversedSpec is pathItemRefCollisionSpec with the two
+// paths declared the other way round, for the two-order diff.
+const pathItemRefCollisionReversedSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b:
+    summary: ref summary
+    description: ref description
+    servers: [{url: https://ref.example}]
+    x-shared: ref
+    bogusBoth: {responses: {"200": {description: REF}}}
+    parameters:
+      - {name: dup, in: query, schema: {type: string}}
+    get:
+      operationId: refGet
+      responses: {"200": {description: OK}}
+  /a:
+    $ref: '#/paths/~1b'
+    summary: use summary
+    description: use description
+    servers: [{url: https://use.example}]
+    x-shared: use
+    bogusBoth: {responses: {"200": {description: USE}}}
+    parameters:
+      - {name: dup, in: query, schema: {type: string}}
+    get:
+      operationId: useGet
+      responses: {"200": {description: OK}}
+`
+
+// TestPathItemRefSiblings_CollisionIsOrderIndependent pins that what a colliding
+// mount reports depends on the document and not on the order its two paths were
+// declared in: the two fixtures differ only in that order, so the findings must
+// be the same set of (code, pointer) pairs.
+func TestPathItemRefSiblings_CollisionIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	_, forward := parseFull(t, pathItemRefCollisionSpec)
+	_, reversed := parseFull(t, pathItemRefCollisionReversedSpec)
+
+	assert.Equal(t, collisionFindings(t, forward), collisionFindings(t, reversed),
+		"a collision is a property of the document, not of the order it was written in")
+}
+
+// collisionFindings returns the colliding constructs' findings as sorted
+// "code pointer" strings, which is what must not depend on declaration order.
+func collisionFindings(t *testing.T, diags []ir.Diagnostic) []string {
+	t.Helper()
+	var out []string
+	for _, d := range diags {
+		if d.Code == diag.PathItemRefCollision {
+			out = append(out, d.Code+" "+string(d.Provenance.Pointer))
+		}
+	}
+	slices.Sort(out)
+	return out
 }
