@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: Target, version: "1"}
+paths: {}
+components:
+  parameters:
+    ExtSibling:
+      name: extSibling
+      in: query
+      schema: {type: string}
