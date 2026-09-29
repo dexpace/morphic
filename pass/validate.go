@@ -799,8 +799,11 @@ func checkBoundMessages(doc *ir.Document, op ir.Operation) []ir.Diagnostic {
 // index is appended to.
 //
 // A channel that resolves nowhere is left alone: there is no set to compare
-// against, and ir/dangling-channel-ref already reports it, so a second diagnostic
-// here would restate a defect rather than add a claim.
+// against. One that names no declared channel is ir/dangling-channel-ref
+// already (checkDanglingRefs), so a second diagnostic here would restate a
+// defect rather than add a claim. One that names none at all is reported by
+// irverify alone, as ir/empty-channel-ref: this pass does not report an empty
+// channel yet (GitHub #575).
 func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 	channel ir.ChannelID, used []ir.MessageID, at string) []ir.Diagnostic {
 	ch, declared := doc.Channels[channel]
