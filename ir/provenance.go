@@ -5,10 +5,11 @@ import (
 	"strings"
 )
 
-// NoSource is the Source value for a node that came from no input file at all.
-// An IR pass reporting on the document it was handed has no source to name, and
-// every other index — 0 included — names a file the document actually loaded,
-// which would make a renderer fabricate a location for the finding.
+// NoSource is the Source value for a node that addresses no input file. An IR
+// pass reporting on the document it was handed has no source to name, and a
+// shared primitive, reached by kind from every source, has no one source to
+// name. Every other index — 0 included — names a file the document actually
+// loaded, which would make a renderer fabricate a location.
 //
 // It is the only out-of-table Source value the IR declares: irverify accepts it
 // and reports every other index that addresses no declared source, so a producer
@@ -29,7 +30,8 @@ type Provenance struct {
 	Source int `json:"source"`
 	// Pointer is the RFC 6901 pointer to the construct inside Source. Empty
 	// locates nothing finer than the source itself: it is the pointer to the
-	// whole document, and what a node with no single place in it records.
+	// whole document, so a node with no single place in any source, such as a
+	// shared primitive, is on NoSource rather than at the root of one.
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
 	// Position is where the construct starts inside Source, for a finding made
 	// before the construct has a pointer — on a raw node, or in a part of the

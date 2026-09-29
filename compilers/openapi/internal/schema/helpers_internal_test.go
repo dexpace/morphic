@@ -67,7 +67,7 @@ type lowerer struct {
 // entry points below build on it, so a field added to lowerer cannot reach one
 // of them and miss the other.
 func lowererOver(ctx lowering.Ctx) *lowerer {
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
 		out:   &ir.Document{Types: types.Registry()},

@@ -171,6 +171,10 @@ either collides with the primitive of that kind or squats the name of the next o
 holds both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document,
 whatever produced it.
 
+Having no source position, a primitive names no source either: its `Provenance.Source` is
+`NoSource` (§13). An index beside the empty pointer would say that file's whole document declared a
+node every source reaches by kind. `irverify` holds no producer to this so far (#590).
+
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
@@ -1993,7 +1997,8 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
-reusing one would make a renderer fabricate a location. `NoSource` is therefore the **only**
+reusing one would make a renderer fabricate a location. A shared primitive has no one file to name
+either, since every source reaches it by kind (§3.1). `NoSource` is therefore the **only**
 out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.

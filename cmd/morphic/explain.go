@@ -55,13 +55,18 @@ func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, point
 // A nil entry is skipped rather than dereferenced: a malformed registry is what
 // pass.Validate and irverify exist to report, and explain must not be the thing
 // that crashes on one.
+//
+// A node is at pointer by the rule a diagnostic is, stampedAt's, since an empty
+// Pointer is not always the root's: a shared primitive records one on NoSource,
+// and naming it at the root would say the whole document declared it
+// (GitHub #528).
 func nodeAtPointer(doc *ir.Document, pointer jsontext.Pointer) (ir.TypeID, ir.TypeDef, bool) {
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
 		if td == nil {
 			continue
 		}
-		if td.Common().Provenance.Pointer == pointer {
+		if stampedAt(td.Common().Provenance, pointer) {
 			return id, td, true
 		}
 	}
@@ -111,11 +116,11 @@ func diagnosticsAt(diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnos
 	return out
 }
 
-// stampedAt reports whether prov locates a finding at pointer in a source. A
-// finding on NoSource, an IR pass's, is in no source at all. A position-located
-// finding records no pointer, and its empty Pointer is not the whole
-// document's: the position locates it finer, and matching it at the root would
-// list every such finding there.
+// stampedAt reports whether prov locates a node or finding at pointer in a
+// source. A shared primitive and an IR pass's finding sit on NoSource, in no
+// source at all. One located by position records no pointer, and its empty
+// Pointer is not the whole document's: the position locates it finer, and
+// matching it at the root would put every such one there.
 func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 	if prov.Pointer != pointer || prov.Source == ir.NoSource {
 		return false

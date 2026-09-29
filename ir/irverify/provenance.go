@@ -89,7 +89,7 @@ func appendLocatorViolations(vs []Violation, prov reflect.Value, src int, path s
 // sources.
 //
 // ir.NoSource is in range everywhere: it is the declared way to say the node
-// came from no input file, which is what every diagnostic an IR pass emits about
+// addresses no input file, which is what every diagnostic an IR pass emits about
 // the document itself carries, and engine.Run folds those into
 // Document.Diagnostics. Holding them to the source table would make a document
 // less valid the more spec problems the validator found in it. No other negative

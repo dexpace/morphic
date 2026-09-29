@@ -343,7 +343,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			left, seen := tc.live, 0
 
 			doc, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
-				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes(0))
+				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
