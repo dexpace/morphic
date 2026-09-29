@@ -46,8 +46,18 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // cannot tell from never being written. That test's doc comment says which
 // weaknesses are structural; the point of the file is that nothing about the
 // corpus's reach is claimed here by hand.
+//
+// It is deliberately *not* parallel, the one test in this package that is not,
+// because it writes the corpus directory. Its subtests are parallel and, under
+// -update, each one writes its golden into testdata/conformance/openapi; the
+// scheduler only waits for a test's parallel subtests before that test itself
+// finishes, so a sequential parent is what makes those writes complete before
+// any later test reads the directory. TestConformance_TableNamesEveryCorpusSpec
+// reads it and is declared after this test in this file; running the two
+// concurrently is the race that made a first -update run over a newly added spec
+// report the spec as having no golden while this test's subtest was still
+// writing it. Its comment carries the reader's half of the ordering.
 func TestConformance(t *testing.T) {
-	t.Parallel()
 	for _, tc := range conformanceCases() {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
@@ -71,8 +81,20 @@ func TestConformance(t *testing.T) {
 // (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
 // it looks covered; a row naming a deleted spec fails the other way. Comparing
 // sorted lists rather than sets also catches a spec named by two rows.
+//
+// This test is deliberately *not* parallel, and is declared after TestConformance
+// in this file, which is likewise not parallel. It reads the corpus directory,
+// and under -update TestConformance's parallel subtests write goldens into that
+// same directory: run concurrently with them — which is what t.Parallel gave
+// before this was fixed — corpusSpecNames reads a spec whose golden has not been
+// written yet as a spec with no golden, and this test reports "corpus specs and
+// goldens disagree" for a race rather than a defect. A newly added spec fails
+// that way on the first -update run and passes on the next, which is exactly the
+// kind of intermittency a reviewer should not have to diagnose. Both tests being
+// sequential orders the writer ahead of this reader by declaration order;
+// TestConformance's comment says why the writer is the one that cannot be
+// parallel, since only it writes.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
-	t.Parallel()
 	onDisk := corpusSpecNames(t)
 	cases := conformanceCases()
 	inTable := make([]string, 0, len(cases))
