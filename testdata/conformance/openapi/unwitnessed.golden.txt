@@ -205,7 +205,6 @@ TypeCommon.Availability
 TypeCommon.Instantiation
 TypeCommon.MediaTypeHint
 TypeCommon.Namespace
-TypeCommon.Sensitive
 TypeCommon.Tags
 TypeCommon.Usage
 TypeCommon.WireNameByFormat

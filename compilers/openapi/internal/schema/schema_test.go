@@ -4467,3 +4467,86 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 	assert.Empty(t, typeByName(doc, "Alias").Common().Unmodeled)
 	assert.Empty(t, propertyOf(t, doc, "Holder", "low").Unmodeled)
 }
+
+// TestRedactionFormat_HoistsASensitiveScalar pins what a `format: password`
+// schema position lowers to: a Scalar of its own, over the bare type's primitive,
+// carrying Sensitive (the IR's whole-type redaction field) and the source token
+// verbatim in Encoding.Name. The shared primitive cannot hold the fact — it is
+// interned once per kind and reused by every declaration of that type — so the
+// position hoists, exactly as byte and an unknown format do (GitHub #579).
+func TestRedactionFormat_HoistsASensitiveScalar(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Pw: {type: string, format: password}\n"+
+			"    Holder: {type: object, properties: {token: {type: string, format: password}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pw, ok := typeByName(doc, "Pw").(*ir.Scalar)
+	require.True(t, ok, "a component writing the format owns a Scalar")
+	assert.True(t, pw.Sensitive, "whole-type redaction")
+	require.NotNil(t, pw.Encoding)
+	assert.Equal(t, "password", pw.Encoding.Name, "the source token verbatim")
+	require.NotNil(t, pw.Base)
+	assert.Equal(t, ir.TypeID("t/prim/string"), pw.Base.Target, "over the bare type's primitive")
+
+	// The inline property position: the per-use carrier beside a node of its own.
+	token := propertyOf(t, doc, "Holder", "token")
+	assert.True(t, token.Secret, "the property carries the per-use form beside it")
+	assert.NotEqual(t, ir.TypeID("t/prim/string"), token.Type.Target,
+		"the position hoists rather than staying on the shared primitive")
+	sc, ok := doc.Types[token.Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.True(t, sc.Sensitive)
+}
+
+// TestRedactionFormat_PredicateIsTheFormatNotTheType pins that the arm keys on
+// `format` rather than on `string`: the same format on a non-string type states
+// the same redaction, and was otherwise lossless only by accident.
+func TestRedactionFormat_PredicateIsTheFormatNotTheType(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Secret: {type: integer, format: password}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	sc, ok := typeByName(doc, "Secret").(*ir.Scalar)
+	require.True(t, ok, "a non-string type writing the format still hoists")
+	assert.True(t, sc.Sensitive)
+	require.NotNil(t, sc.Encoding)
+	assert.Equal(t, "password", sc.Encoding.Name)
+	require.NotNil(t, sc.Base)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), sc.Base.Target, "over the bare type's own primitive")
+}
+
+// TestFillPropertyDetail_SecretFollowsTheReferent pins both sides of the $ref
+// read: a property referencing a redaction schema is secret at the use, and one
+// referencing a plain string component stays not secret.
+func TestFillPropertyDetail_SecretFollowsTheReferent(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Pw: {type: string, format: password}\n"+
+			"    Plain: {type: string}\n"+
+			"    Login: {type: object, properties: {secret: {$ref: '#/components/schemas/Pw'}, "+
+			"plain: {$ref: '#/components/schemas/Plain'}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.True(t, propertyOf(t, doc, "Login", "secret").Secret,
+		"the use site reads the referent's format")
+	assert.False(t, propertyOf(t, doc, "Login", "plain").Secret,
+		"a $ref to a plain component stays not secret")
+}
+
+// TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins invariant 3 for the
+// new hoist: the fact lands on the position's own node and never on
+// t/prim/string, which every other plain string declaration resolves to.
+func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Pw: {type: string, format: password}\n"+
+			"    Plain: {type: string}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.False(t, typeByName(doc, "Plain").Common().Sensitive)
+	shared, ok := doc.Types[ir.TypeID("t/prim/string")]
+	require.True(t, ok, "the shared string primitive is registered")
+	assert.False(t, shared.Common().Sensitive, "the shared primitive is never sensitive")
+}

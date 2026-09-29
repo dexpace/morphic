@@ -89,8 +89,8 @@ type TypeCommon struct {
 	// Tags are free-form labels (Smithy @tags, OpenAPI tag membership via policy);
 	// tag metadata lives once in Document.TagDefs.
 	Tags []string `json:"tags,omitempty"`
-	// Sensitive requests whole-type redaction (Smithy @sensitive on shapes);
-	// Property.Secret is the per-use form.
+	// Sensitive requests whole-type redaction (Smithy @sensitive on shapes,
+	// OpenAPI `format: password`); Property.Secret is the per-use form.
 	Sensitive bool `json:"sensitive"`
 	// Access is "" for public or "internal" for a type outside the exported SDK
 	// surface (protobuf editions export/local, TCGC @access(internal)).
