@@ -616,6 +616,27 @@ func keyName(n *yaml.Node) string {
 	return n.Value
 }
 
+// RawChildNodes is RawChildNode for every key of a mapping at once: each name
+// the mapping writes, to the node RawChildNode returns for it. A caller looking
+// up many keys of one large mapping reads its pairs once rather than once per
+// key. It is nil for a missing node and for one that is not a mapping.
+func RawChildNodes(root *yaml.Node) map[string]*yaml.Node {
+	if root == nil {
+		return nil
+	}
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root.Kind != yaml.MappingNode {
+		return nil
+	}
+	children := make(map[string]*yaml.Node, len(root.Content)/2)
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		children[keyName(root.Content[i])] = root.Content[i+1]
+	}
+	return children
+}
+
 // The readers below consume a Site the caller supplies rather than resolving
 // one themselves. Obtaining a referent is reference resolution — walk work —
 // and the two available resolutions are not interchangeable: Site.Referent is

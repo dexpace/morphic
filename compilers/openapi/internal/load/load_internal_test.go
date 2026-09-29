@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -64,6 +65,70 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "diagnostics should carry line:col provenance")
+}
+
+// TestLoad_OperationIDUniquenessIsTheCompilers pins compilerOwned's one member:
+// the library's own operationId-uniqueness finding never reaches a diagnostic,
+// at any severity, because the service lowering judges every claim itself once
+// it has seen them all (GitHub #502).
+//
+// The fixture is the alias form, which the library reads as a repeat, and the
+// test first confirms the library does raise its finding for it. Without that,
+// a library that stopped raising it would leave this passing with nothing
+// dropped. TestLoad_DuplicateParameterStillReported is the control: without it,
+// this would pass just as well if findings dropped every finding.
+func TestLoad_OperationIDUniquenessIsTheCompilers(t *testing.T) {
+	t.Parallel()
+	const aliasedOperationID = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`
+	// Load's own steps up to the finding, anchors released as Load releases them.
+	root, _, err := decodeStream([]byte(aliasedOperationID))
+	require.NoError(t, err)
+	releaseAnchors(root)
+	_, valErrs, err := unmarshal(t.Context(), []byte(aliasedOperationID), root)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(valErrs, func(e error) bool {
+		verr, ok := asValidationError(e)
+		return ok && verr.Rule == validation.RuleValidationOperationIdUnique
+	}), "the library raises its own finding for the fixture: %v", valErrs)
+
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(aliasedOperationID)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	code := diag.Validation + "/" + validation.RuleValidationOperationIdUnique
+	assert.False(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code }),
+		"the library's finding never reaches a diagnostic: %+v", diags)
+}
+
+// TestLoad_DuplicateParameterStillReported is the control for
+// TestLoad_OperationIDUniquenessIsTheCompilers: compilerOwned names one rule,
+// not every validation error the library raises inside an operation, so a
+// duplicated parameter, a defect the compiler has no rule of its own for, must
+// still surface.
+func TestLoad_DuplicateParameterStillReported(t *testing.T) {
+	t.Parallel()
+	const duplicateParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: q, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+		"a rule the compiler does not own must still surface: %+v", diags)
 }
 
 // TestLoad_ExternalRefResolutionErrors drives the resErrs branch of load: an

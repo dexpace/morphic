@@ -780,3 +780,120 @@ actions:
 	assert.Equal(t, 1, unkept[0].Provenance.Source,
 		"a branch set the overlay added is reported as the overlay's (schema.go preserveBranchSets)")
 }
+
+// addPathReusingTheBaseOperationID overlays a second path onto overlaySpec,
+// giving it the operationId the base already declares on /pets. The base
+// writes "listPets" once; this overlay writes a second declaration of it, so
+// the two must conflict rather than merely remount one declaration.
+//
+// The new path is named /z rather than the /b a hand-drawn example might reach
+// for. Declarations are ordered by the pointer each is written at, and /z sorts
+// after /pets where /b would sort before it, which would put the conflict on the
+// base's own /pets. /z is what pins it to the declaration the overlay wrote.
+const addPathReusingTheBaseOperationID = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.paths
+    update:
+      /z:
+        get:
+          operationId: listPets
+          responses:
+            '200': {description: ok}
+`
+
+// operationIDFindings returns the operationId diagnostics in diags, keyed by code.
+func operationIDFindings(diags []ir.Diagnostic) map[string][]ir.Diagnostic {
+	found := map[string][]ir.Diagnostic{}
+	for _, d := range diags {
+		if d.Code == diag.ConflictingOperationID || d.Code == diag.DuplicateOperationID {
+			found[d.Code] = append(found[d.Code], d)
+		}
+	}
+	return found
+}
+
+// TestCompile_OverlayAddingAConflictingOperationIDIsAnError pins where the
+// conflict lands when the overlay itself writes the second declaration: the
+// pointer the overlay introduced, attributed to the overlay's own source
+// index rather than the base spec's.
+func TestCompile_OverlayAddingAConflictingOperationIDIsAnError(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileWith(t, openapi.Options{
+		Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(addPathReusingTheBaseOperationID)},
+	})
+	require.NotNil(t, doc)
+
+	found := operationIDFindings(diags)
+	require.Len(t, found[diag.ConflictingOperationID], 1, "one second declaration of listPets: %+v", diags)
+	conflict := found[diag.ConflictingOperationID][0]
+	assert.Equal(t, ir.SeverityError, conflict.Severity)
+	assert.Equal(t, 1, conflict.Provenance.Source, "attributed to the overlay that wrote the second declaration")
+	assert.Equal(t, "/paths/~1z/get", conflict.Provenance.Pointer)
+	assert.Empty(t, found[diag.DuplicateOperationID], "nothing is mounted twice")
+}
+
+// copyPetsPathIntoZ models an Overlay 1.1 `copy` action reusing /pets'
+// operationId under a new path. copy merges its source into whatever the
+// target already selects rather than minting the key itself, so the first
+// action makes an empty mapping at /z for the second to merge into; /z is
+// named for the same ordering reason addPathReusingTheBaseOperationID is.
+const copyPetsPathIntoZ = `overlay: 1.1.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.paths
+    update:
+      /z: {}
+  - target: $.paths['/z']
+    copy: $.paths['/pets']
+`
+
+// addPostToEveryPath adds a path, then gives every path, the base's and its
+// own, a post carrying one operationId: one action writing the id at two
+// targets.
+const addPostToEveryPath = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.paths
+    update:
+      /z: {}
+  - target: $.paths.*
+    update:
+      post:
+        operationId: createPet
+        responses:
+          '200': {description: ok}
+`
+
+// TestCompile_OverlayWritingAnIDTwiceIsAConflictNotARemount pins the two ways
+// an overlay writes one operation into several places against the alias
+// reading, which would take each for one declaration mounted twice. An
+// Overlay 1.1 `copy` and an `update` whose target selects several nodes both
+// clone what they write, so each place gets a node of its own as well as a
+// declaration pointer of its own. The overlay has written a second declaration
+// into the document it produces, the conflict a hand-written one would be.
+func TestCompile_OverlayWritingAnIDTwiceIsAConflictNotARemount(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, overlay, at string
+	}{
+		{name: "a copy of a path item", overlay: copyPetsPathIntoZ, at: "/paths/~1z/get"},
+		{name: "an update applied to two paths", overlay: addPostToEveryPath, at: "/paths/~1z/post"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileWith(t, openapi.Options{
+				Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tc.overlay)},
+			})
+			require.NotNil(t, doc)
+
+			found := operationIDFindings(diags)
+			require.Len(t, found[diag.ConflictingOperationID], 1, "a second declaration: %+v", diags)
+			conflict := found[diag.ConflictingOperationID][0]
+			assert.Equal(t, ir.SeverityError, conflict.Severity)
+			assert.Equal(t, 1, conflict.Provenance.Source, "attributed to the overlay that wrote it")
+			assert.Equal(t, tc.at, conflict.Provenance.Pointer)
+			assert.Empty(t, found[diag.DuplicateOperationID], "and not a remount of one declaration")
+		})
+	}
+}

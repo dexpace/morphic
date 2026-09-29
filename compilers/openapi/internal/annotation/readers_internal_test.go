@@ -721,6 +721,48 @@ func TestRawPropertyNode_NilSchemaReadsNothing(t *testing.T) {
 	assert.Nil(t, RawPropertyNode(s, "title"), "a keyword the schema did not write")
 }
 
+// TestRawChildNodes_AgreesWithRawChildNode holds the all-keys reader to the one
+// it batches, key by key: every name either reader answers for, a name merged
+// in through `<<`, and one the mapping never writes. The fixtures are the
+// spellings RawChildNode has a rule for: a key repeated through an alias, whose
+// last pair wins; a key written as an alias, found under the name it resolves
+// to; and a merge key, read as the pair it is rather than the pairs it names.
+func TestRawChildNodes_AgreesWithRawChildNode(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body string }{
+		{"repeated key", "anchor: &k dup\ndup: first\n*k : last\n"},
+		{"aliased key", "anchor: &k aliasedKey\n*k : found\n"},
+		{"merge key", "base: &b {title: merged}\n<<: *b\nown: 1\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.body), &doc))
+
+			children := RawChildNodes(&doc)
+
+			require.NotEmpty(t, children, "a document node is stepped through to its mapping")
+			keys := append([]string{"title", "absent"}, RawMappingKeys(&doc)...)
+			for key := range children {
+				keys = append(keys, key)
+			}
+			for _, key := range keys {
+				assert.True(t, RawChildNode(&doc, key) == children[key], "the two readers disagree on %q", key)
+			}
+		})
+	}
+}
+
+// TestRawChildNodes_ReadsOnlyAMapping is TestRawChildNode_ReadsOnlyAMappingChild
+// for the reader that batches it.
+func TestRawChildNodes_ReadsOnlyAMapping(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, RawChildNodes(nil))
+	assert.Nil(t, RawChildNodes(openapitest.YAMLNode(t, "[1, 2]")), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNodes(openapitest.YAMLNode(t, "plain")), "nor does a scalar")
+	assert.Nil(t, RawChildNodes(&yaml.Node{Kind: yaml.DocumentNode}), "nor an empty document")
+}
+
 // TestDeclaresAny_AsksTheRawNodes pins the gate's agreement with the recorders it
 // gates: it must answer from the same raw nodes they read, so a keyword one sees
 // and the other does not cannot arise.
