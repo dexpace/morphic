@@ -308,7 +308,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "string"
     }
@@ -382,7 +382,7 @@
     {
       "format": "openapi@3.1",
       "path": "path-item-ref-siblings.yaml",
-      "hash": "4c0ca5fde149cbd371ed00c94b1b262be80e66e66a1e06435a2df73bfb3bc97d"
+      "hash": "665b0c5b9e8265b58ecd58b0f7d8a2a2e17140c60a14f3fb5334b71dcf70b377"
     }
   ]
 }
