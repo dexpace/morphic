@@ -195,6 +195,44 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	}
 }
 
+// TestArrayItemsRequired_TheZeroContextReadsAsOptional completes the set the
+// readers above start: every one answers on a context with nothing in it, and
+// this one reaches through the document pointer like its neighbour, so it is
+// the other one that would panic instead.
+func TestArrayItemsRequired_TheZeroContextReadsAsOptional(t *testing.T) {
+	t.Parallel()
+	var c lowering.Ctx
+	assert.False(t, c.ArrayItemsRequired(),
+		"no document names no dialect, which falls back to the 2020-12 optional form")
+}
+
+// TestArrayItemsRequired_FollowsTheDialect pins which dialects require `items`
+// on an array schema. OpenAPI 3.0 states the array form through the keyword
+// alone, while 2020-12 (3.1 and 3.2) leaves it optional; a lowering that
+// reported the wrong way would either warn on every legal 3.1 array or stay
+// silent on the 3.0 defect this accessor exists to report.
+func TestArrayItemsRequired_FollowsTheDialect(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.0", want: true},
+		{version: "3.0.3", want: true},
+		{version: "3.1.0", want: false},
+		{version: "3.2.0", want: false},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.ArrayItemsRequired())
+		})
+	}
+}
+
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
 // reads, and that both come from the context rather than from a copy beside it:
 // the document's own path decides internal from external, and the declared set

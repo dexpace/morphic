@@ -287,6 +287,22 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 	return minor == "3.0"
 }
 
+// ArrayItemsRequired reports whether this document's dialect requires an array
+// schema to write `items`: true under OpenAPI 3.0, where the keyword is how the
+// array form is stated at all, and false under the 2020-12 dialect of 3.1 and
+// 3.2, where omitting it is legal and leaves an array with no constraint on its
+// elements. An unrecognized version defaults to false, the 2020-12 answer, for
+// the reason ExclusiveBoundIsBoolean beside it defaults to the numeric form.
+//
+// It reads the document version, which makes it a question about the context
+// rather than about any schema, and it is read through its accessor so a
+// context with no document answers like an unrecognized version rather than
+// panicking — which is how the other readers here behave on a zero value.
+func (c Ctx) ArrayItemsRequired() bool {
+	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
+	return minor == "3.0"
+}
+
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, and what it declares.
 //
