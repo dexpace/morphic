@@ -54,6 +54,69 @@ webhooks:
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
+}
+
+// TestWebhooks_BraceKeyIsTheEventName pins the shape the issue is about: a
+// webhooks-map key that looks like an RFC 6570 template is an event name, so it
+// lowers to WebhookName while URITemplate stays empty. Identity does not move —
+// the operation is still mounted and identified by its pointer — and neither
+// does the synthesized hint.
+//
+// The hint is the half a field rename could break in silence. The naming token
+// for a webhook is the map key; reading the (empty) uriTemplate instead would
+// drop the event name and redden the assertion below to "post".
+func TestWebhooks_BraceKeyIsTheEventName(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  "{tenant}.created":
+    post:
+      operationId: tenantCreated
+      responses: {"200": {description: ok}}
+`
+	svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := webhookOperation(t, svc)
+	assert.Equal(t, ir.OpID("op/openapi/webhooks/{tenant}.created/post"), op.ID,
+		"the mount pointer, not the event name, identifies the operation")
+	assert.Equal(t, "tenantCreated", op.Name.Source)
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "{tenant}.created", op.Bindings.HTTP[0].WebhookName)
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate)
+
+	// The same document without the operationId, where the naming hint is the
+	// only name the operation has.
+	specNoID := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  "{tenant}.created":
+    post:
+      responses: {"200": {description: ok}}
+`
+	svcNoID, diags := lowerServiceSpec(t, specNoID)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "post_tenant_created", webhookOperation(t, svcNoID).Name.Hint,
+		"the hint is method + webhook name, not method + the empty URI template")
+}
+
+// webhookOperation returns the one operation of svc's synthesized "webhooks"
+// group.
+func webhookOperation(t *testing.T, svc ir.Service) ir.Operation {
+	t.Helper()
+	var ops []ir.Operation
+	for _, g := range svc.Groups {
+		if g.Name.Hint == "webhooks" {
+			ops = append(ops, g.Operations...)
+		}
+	}
+	require.Len(t, ops, 1, "the service has exactly one webhook operation")
+	return ops[0]
 }
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {

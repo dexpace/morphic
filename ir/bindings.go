@@ -81,6 +81,14 @@ type HTTPBinding struct {
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
 	// IsWebhook marks an inbound webhook operation (OpenAPI 3.1 webhooks).
 	IsWebhook bool `json:"isWebhook"`
+	// WebhookName is the OpenAPI 3.1 webhooks-map key that declared the
+	// operation — the name of the event the provider will send. The key is kept
+	// verbatim, a declared fact like Operation.Tags or Naming.Source: it is not
+	// a neutral name channel and not an RFC 6570 template, so a `{tenant}` in it
+	// is part of an event name rather than a URI variable. Set exactly for an
+	// IsWebhook binding, which carries no URITemplate. An empty webhooks-map key
+	// is legal and leaves this field empty.
+	WebhookName string `json:"webhookName,omitempty"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.

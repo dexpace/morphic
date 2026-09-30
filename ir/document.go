@@ -58,7 +58,12 @@ package ir
 // only an RFC 6901 pointer; a line and column move to "position", and an IR
 // pass's location in the document itself moves to "node". A consumer pinned to
 // 0.5.0 knows neither new key and reads those findings as unlocated.
-const IRVersion = "0.6.0"
+//
+// 0.7.0 adds HTTPBinding.WebhookName, the OpenAPI 3.1 webhooks-map key that
+// declared an operation, and a webhook binding no longer writes URITemplate:
+// that key held the event name, which is not a template. A consumer pinned to
+// 0.6.0 finds the event name in no key it reads.
+const IRVersion = "0.7.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build. It is the predicate behind the compatibility policy in
