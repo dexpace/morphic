@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -90,7 +91,7 @@ func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violatio
 		}
 		vs = append(vs, Violation{
 			Code:    "ir/dangling-" + ir.RefNoun(s.idType) + "-ref",
-			Message: "reference " + s.id + " does not resolve in " + reg.Label,
+			Message: "reference " + strconv.Quote(s.id) + " does not resolve in " + reg.Label,
 			Path:    s.path,
 		})
 	}

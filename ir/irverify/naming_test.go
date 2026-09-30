@@ -405,10 +405,14 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 // Canonical and Hint each draw two further violations without any UTF-8 rule
 // at all — the replacement rune neither Go's ToLower nor isWordSequence can
 // treat as a plain lowercase word character, so ir/naming-cased and
-// ir/naming-not-words both fire (GitHub #400, out of scope here). Source draws
-// nothing else, which is what makes its fixture the one that pins the count as
-// well as the code: restoring the deleted naming-specific rule alongside
-// checkUTF8 would redden it by reporting the same defect twice.
+// ir/naming-not-words both fire. Those two quote the name (GitHub #400), so the
+// ill-formed byte reaches the report as the \xe9 escape and every message stays
+// valid UTF-8 rather than repeating the bytes raw. Source draws nothing else,
+// which is what makes its fixture the one that pins the count as well as the
+// code: restoring the deleted naming-specific rule alongside checkUTF8 would
+// redden it by reporting the same defect twice. Its own violation is
+// ir/invalid-utf8, which declines to quote anything, so it is the one message
+// here that carries no \xe9 — nothing in it repeats the bytes either.
 func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
@@ -438,6 +442,16 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 			require.NotNil(t, reported, "the encoding rule fires on %s", tc.channel)
 			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
+
+			for _, v := range got {
+				assert.True(t, utf8.ValidString(v.Message),
+					"%s: message %q is valid UTF-8", v.Code, v.Message)
+				if v.Code == "ir/invalid-utf8" {
+					continue // it quotes nothing, so there is no name to spell out
+				}
+				assert.Contains(t, v.Message, `\xe9`,
+					"%s: the quoted name carries the ill-formed byte as an escape", v.Code)
+			}
 		})
 	}
 }

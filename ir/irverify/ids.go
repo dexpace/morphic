@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -80,10 +81,10 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 // — checkIDs reports it malformed wherever it is used — so offering it as the
 // place the node belongs would send a reader to fix the wrong end.
 func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID, path string) Violation {
-	msg := "primitive of kind " + string(kind) + " is interned at " + string(id) +
-		" rather than the shared " + string(want)
+	msg := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
+		" rather than the shared " + strconv.Quote(string(want))
 	if kind == "" {
-		msg = "primitive at " + string(id) + " carries no kind, so no shared ID derives from it"
+		msg = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
 	}
 	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: path}
 }
@@ -102,7 +103,7 @@ func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path st
 	}
 	return append(vs, Violation{
 		Code: "ir/prim-space-reserved",
-		Message: "id " + string(id) + " addresses the reserved primitive space but names a " +
+		Message: "id " + strconv.Quote(string(id)) + " addresses the reserved primitive space but names a " +
 			string(kind),
 		Path: path,
 	})
@@ -113,7 +114,7 @@ func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, pat
 	if !ir.WellFormedID(kind, id) {
 		return append(vs, Violation{
 			Code:    "ir/id-malformed",
-			Message: "id " + id + " is not " + kind + "/<space>[/<path>]; every segment must be non-empty",
+			Message: "id " + strconv.Quote(id) + " is not " + kind + "/<space>[/<path>]; every segment must be non-empty",
 			Path:    path,
 		})
 	}
@@ -127,8 +128,8 @@ func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, pat
 	}
 	return append(vs, Violation{
 		Code: "ir/id-provenance-disagreement",
-		Message: "id " + id + " carries path " + idPath +
-			", which is not the source pointer " + string(prov.Pointer) + " it records",
+		Message: "id " + strconv.Quote(id) + " carries path " + strconv.Quote(idPath) +
+			", which is not the source pointer " + strconv.Quote(string(prov.Pointer)) + " it records",
 		Path: path,
 	})
 }
