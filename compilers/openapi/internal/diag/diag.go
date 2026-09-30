@@ -144,6 +144,31 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateServerName reports a name the document's own servers list
+	// declares more than once: a second entry whose Server.name repeats an
+	// earlier entry's. Both servers are kept — nothing is dropped or merged —
+	// but an emitter rendering one client per server, or a consumer keying by
+	// the name, cannot tell the two hosts apart, so the document is told.
+	//
+	// Error rather than a warning, which is the same call ConflictingOperationID
+	// makes one field over: the document writes one name twice, and `name` is the
+	// server's identity ("an optional unique string to refer to the host
+	// designated by the URL", OAS 3.2.1 §4.5.1), so honouring the declared names
+	// and staying unambiguous are not both possible. That is the shape this repo
+	// refuses, unlike the tolerated collisions it warns about: DuplicateStatusKey
+	// warns because two spellings of one key collapse under this compiler's own
+	// neutralization, and a URL-hint collision is the compiler's canonicalization
+	// rather than a claim the document made. A caller who wants only the report
+	// without the refusal has --fail-on warning.
+	//
+	// Only the document's servers list is checked, and only declared names are
+	// compared to one another. A name is a claim the document wrote; a hint
+	// derived from a URL template is not, so a hint colliding with another hint
+	// or with a declared name is unreported by design. A path-item or operation
+	// servers list is preserved raw under Unmodeled
+	// (operations.go applyPathServers / applyOperationServers) and builds no
+	// ir.Server, so nothing there can be reached by this code.
+	DuplicateServerName = "openapi/duplicate-server-name"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's
