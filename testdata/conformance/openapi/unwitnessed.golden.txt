@@ -146,7 +146,6 @@ ParamPath.Param
 ParamPath.Segments
 Parameter.Availability
 Parameter.ValueFrom
-Payload.Docs
 PropPath.In
 PropPath.Root
 PropPath.Segments

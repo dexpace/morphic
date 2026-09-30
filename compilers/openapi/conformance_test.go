@@ -238,6 +238,7 @@ func conformanceCases() []conformanceCase {
 		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
+		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3018,6 +3019,38 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, doc.License)
 	assert.Equal(t, ir.License{Name: "MIT", Identifier: "MIT"}, *doc.License,
 		"the 3.1 SPDX identifier is its own field, never folded into the name")
+}
+
+// assertRequestBodyDocs pins GitHub #609: a Request Body Object's `description`
+// describes the body rather than any media type inside it, so it reaches
+// Payload.Docs. Both spellings are covered — a body $ref'd from components and
+// one written inline — and the shared component is reached from two operations,
+// so the declaration-pointer path is exercised and one declaration is still one
+// type however many mounts read its docs.
+func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	created, ok := opByName(doc, "createOrder")
+	require.True(t, ok)
+	require.NotNil(t, created.Request)
+	require.NotNil(t, created.Request.Docs, "a $ref'd body keeps the component's description")
+	assert.Equal(t, "A shared order body.", created.Request.Docs.Description)
+
+	replaced, ok := opByName(doc, "replaceOrder")
+	require.True(t, ok)
+	require.NotNil(t, replaced.Request)
+	require.NotNil(t, replaced.Request.Docs, "the second mount reads the same declaration's docs")
+	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description)
+
+	shared := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	assert.Equal(t, shared, openapitest.BodyTarget(t, created.Request),
+		"a shared body interns at its component pointer (issue #107)")
+	assert.Equal(t, shared, openapitest.BodyTarget(t, replaced.Request),
+		"...once, whichever mount lowered it first")
+
+	draft, ok := opByName(doc, "saveDraft")
+	require.True(t, ok)
+	require.NotNil(t, draft.Request)
+	require.NotNil(t, draft.Request.Docs, "an inline body's own description reaches the payload too")
+	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description)
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

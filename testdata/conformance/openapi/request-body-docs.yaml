@@ -1,0 +1,35 @@
+openapi: 3.2.0
+info: {title: RequestBodyDocs, version: "1.0.0"}
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses:
+        "200": {description: ok}
+  /orders/{id}:
+    put:
+      operationId: replaceOrder
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses:
+        "200": {description: ok}
+  /drafts:
+    post:
+      operationId: saveDraft
+      requestBody:
+        description: A draft saved inline.
+        content:
+          application/json:
+            schema: {type: object, properties: {sku: {type: string}}}
+      responses:
+        "200": {description: ok}
+components:
+  requestBodies:
+    OrderBody:
+      description: A shared order body.
+      required: true
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}

@@ -1,0 +1,362 @@
+{
+  "irVersion": "0.6.0",
+  "name": "RequestBodyDocs",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "RequestBodyDocs",
+        "canonical": "request_body_docs"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1orders/post",
+              "name": {
+                "source": "createOrder",
+                "canonical": "create_order"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": true,
+                "docs": {
+                  "description": "A shared order body."
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/orders",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders~1{id}/put",
+              "name": {
+                "source": "replaceOrder",
+                "canonical": "replace_order"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders~1{id}/put/parameters/0"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": true,
+                "docs": {
+                  "description": "A shared order body."
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/orders/{id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "id",
+                        "location": "path",
+                        "wireName": "id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders~1{id}/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1drafts/post",
+              "name": {
+                "source": "saveDraft",
+                "canonical": "save_draft"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false,
+                "docs": {
+                  "description": "A draft saved inline."
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/drafts",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1drafts/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/requestBodies/OrderBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/requestBodies/OrderBody/content/application~1json/schema",
+      "name": {
+        "hint": "order_body"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/OrderBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku",
+          "name": {
+            "source": "sku",
+            "canonical": "sku"
+          },
+          "wireName": "sku",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/requestBodies/OrderBody/content/application~1json/schema/properties/sku"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1drafts/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "save_draft_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1drafts/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1drafts/post/requestBody/content/application~1json/schema/properties/sku",
+          "name": {
+            "source": "sku",
+            "canonical": "sku"
+          },
+          "wireName": "sku",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1drafts/post/requestBody/content/application~1json/schema/properties/sku"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "request-body-docs.yaml",
+      "hash": "0e053beb72ea04238b3cf843ecc2917bd0205d2830512cfb64bc2a8bb1f2ee67"
+    }
+  ]
+}

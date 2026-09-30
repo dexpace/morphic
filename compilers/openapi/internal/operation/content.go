@@ -755,6 +755,15 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if payload == nil {
 		return diags
 	}
+	// The body's own documentation describes the body rather than any media type
+	// inside it, and ir.Payload is where a request body's facts land. The parser
+	// models the field, so the unknown-key census never saw it either: a
+	// `description` here reached no field, no Unmodeled entry and no diagnostic
+	// (GitHub #609). Written only when declared, so a body that states none keeps
+	// Docs nil — the same three-state reading Required takes.
+	if desc := rb.GetDescription(); desc != "" {
+		payload.Docs = &ir.Docs{Description: desc}
+	}
 	required := rb.GetRequired()
 	payload.Required = &required
 	// soa.RequestBody exposes no GetExtensions at this library version, so the

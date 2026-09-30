@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -347,6 +348,125 @@ func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
 	require.NotNil(t, op.Responses[0].Payload)
 	assert.Nil(t, op.Responses[0].Payload.Required,
 		"a response body has no optionality to state")
+}
+
+// TestContent_RequestBodyDocsReachThePayload pins GitHub #609: a Request Body
+// Object's `description` describe the body, and ir.Payload is the node the
+// body's own facts land on, so it reaches Payload.Docs rather than no field at
+// all. The response's identical field is asserted here too, since #615 fills
+// that one from the raw node — the two must not be confused.
+func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /bodies:
+    post:
+      operationId: bodies
+      requestBody:
+        description: The thing to create.
+        content:
+          application/json: {schema: {type: object, properties: {n: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.NotNil(t, op.Request.Docs, "a declared body description has a home on the payload")
+	assert.Equal(t, "The thing to create.", op.Request.Docs.Description)
+}
+
+// TestContent_RequestBodyWithoutDocsLeavesItUnstated is the second arm: a body
+// that writes no description leaves Payload.Docs nil rather than an empty Docs,
+// which is what keeps every existing payload golden byte-identical.
+func TestContent_RequestBodyWithoutDocsLeavesItUnstated(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /bare:
+    post:
+      operationId: bare
+      requestBody:
+        content:
+          application/json: {schema: {type: object, properties: {n: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	assert.Nil(t, op.Request.Docs, "an unstated body description is absent, not empty")
+}
+
+// TestContent_ResponsePayloadStatesNoDocs pins the third state: a response
+// payload is not a request body, and Payload.Docs is left for the request-body
+// lowering, so a consumer reading a response body finds no docs invented for it.
+func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /read:
+    get:
+      operationId: read
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Responses, 1)
+	require.NotNil(t, op.Responses[0].Payload)
+	assert.Nil(t, op.Responses[0].Payload.Docs,
+		"only the request-body lowering writes payload docs")
+}
+
+// TestContent_RequestBodyDocsAreOrderIndependent is the hand-rolled two-order
+// diff for GitHub #609. The order-invariance oracle compares only the type
+// registry and the diagnostic set, and Payload.Docs is neither, so the swap is
+// made here: one components/requestBodies entry referenced by two operations,
+// declared in both orders. The docs are read from the component whichever mount
+// arrives first, and that shared body interns once at the component pointer, so
+// neither fact may move with the declaration order.
+func TestContent_RequestBodyDocsAreOrderIndependent(t *testing.T) {
+	t.Parallel()
+	const createOrder = `  /orders:
+    post:
+      operationId: createOrder
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses: {"200": {description: ok}}
+`
+	const replaceOrder = `  /orders/{id}:
+    put:
+      operationId: replaceOrder
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  requestBodies:
+    OrderBody:
+      description: A shared order body.
+      required: true
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"createOrder", "replaceOrder"} {
+			op := openapitest.FindOp(t, doc, name)
+			require.NotNil(t, op.Request, "%s: the body lowers", name)
+			require.NotNil(t, op.Request.Docs, "%s: the component's description reaches the payload", name)
+			out[name] = op.Request.Docs.Description + " " + string(openapitest.BodyTarget(t, op.Request))
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(createOrder+replaceOrder), projection(replaceOrder+createOrder)),
+		"the shared body's docs and identity must not depend on which mount lowered first")
 }
 
 func TestContent_ArrayMultipartPartMulti(t *testing.T) {
