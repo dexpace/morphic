@@ -114,6 +114,28 @@ func (o Origin) IndexAt(pointer jsontext.Pointer, fallback int) int {
 	return fallback
 }
 
+// IndexOf is IndexAt for a construct no single position addresses, recorded at
+// pointer and assembled from the positions in from: the index of the source that
+// supplied every one of them when one source did, and IndexAt's answer for
+// pointer otherwise, which is also the answer when from is empty.
+//
+// A construct the overlay wrote entirely is the overlay's, and one it only added
+// to stays with the document that declares it, as a mapping it merged into does
+// (GitHub #534).
+func (o Origin) IndexOf(pointer jsontext.Pointer, from []jsontext.Pointer, fallback int) int {
+	own := o.IndexAt(pointer, fallback)
+	if len(from) == 0 {
+		return own
+	}
+	index := o.IndexAt(from[0], fallback)
+	for _, p := range from[1:] {
+		if o.IndexAt(p, fallback) != index {
+			return own
+		}
+	}
+	return index
+}
+
 // At returns the provenance of a node the overlay introduced or rewrote — the
 // overlay's index and the JSON pointer of the position the node sits at, the
 // same answer IndexAt gives the lowering for that pointer — and false for any

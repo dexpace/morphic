@@ -320,6 +320,8 @@ func TestOrigin_ZeroValueAttributesNothing(t *testing.T) {
 
 	assert.False(t, zero.Applied())
 	assert.Equal(t, srcIndex, zero.IndexAt("/components/schemas/Pet", srcIndex))
+	assert.Equal(t, srcIndex, zero.IndexOf("/components/schemas/Pet",
+		[]jsontext.Pointer{"/components/schemas/Pet/if", "/components/schemas/Pet/then"}, srcIndex))
 	assert.Equal(t, ir.SourceInfo{}, zero.Source())
 	_, found := zero.At(&yaml.Node{Kind: yaml.ScalarNode})
 	assert.False(t, found, "no node is the overlay's when none was applied")
