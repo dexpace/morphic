@@ -264,6 +264,48 @@ const (
 	// there. The document is invalid either way — OpenAPI requires both fields —
 	// so this hides no later finding the loader's own refusal would not have.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
+	// OAuth2NoFlow reports a securitySchemes entry of type oauth2 whose flows
+	// object declares no flow at all — `flows` absent, `flows: {}`, or a flows
+	// object holding only keys this model does not name, which lower alike to an
+	// empty flow list. One rule covers every spelling, reported once, at the
+	// entry's own components/securitySchemes/<name> pointer (GitHub #646).
+	//
+	// The load phase cannot place this finding. `flows: {}` is structurally
+	// valid — every member of OAuthFlows is optional — so the loader has nothing
+	// to refuse there, and the spelling it does refuse, `flows` absent, it
+	// reports as validation-required-field carrying no pointer at all, which
+	// leaves an entry no requirement names sited nowhere. Every spelling reaches
+	// the same IR state: AuthKindOAuth2 with an empty flow list.
+	//
+	// The entry is reported, not refused, unlike IncompleteSecurityScheme beside
+	// it. #294 refused an entry naming no mechanism because ir.AuthKind has no
+	// value for "the document did not say which mechanism": interning would have
+	// asserted that the API is authenticated by nothing in particular. Here the
+	// IR states exactly what the document said — oauth2, with no flows — so
+	// nothing is misstated and nothing must be refused. Refusing would also
+	// delete text the entry declared (description, x-*, oauth2MetadataUrl) and
+	// collapse every requirement naming the scheme, for a document defect the IR
+	// can hold. Wire-level usability is not the line this compiler draws: an
+	// apiKey with no name and an openIdConnect with no URL intern just the same;
+	// the mechanism token is (fillSchemeKind), and that line stays where it is.
+	//
+	// Warning rather than error: the document lowers whole, and the shape is the
+	// same class as DisjointVisibility (exactly represented, unusable),
+	// EmptyEnum (every position reaching it is uncallable), ReservedHeaderName,
+	// InvalidMethodKey and InvalidLocationKeyword. An error would also stop
+	// harness.Check at the first error diagnostic and keep any fixture carrying
+	// the shape out of irverify — the repo's stated reason those five are
+	// warnings; --fail-on warning is the caller's lever.
+	//
+	// The metadata URL does not exempt the entry: the finding is that the flows
+	// object declares no flow, true whatever else the entry says, and the
+	// loader's requiredness rule is dialect-independent, firing for the absent
+	// spelling on 3.2 as well. The URL is preserved on the scheme either way.
+	//
+	// What is not reported here: a flow that is present but incomplete (missing
+	// tokenUrl, authorizationUrl or scopes), which is the loader's own finding;
+	// and an entry naming no mechanism at all, which draws its refusal alone.
+	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the name restates something the protocol layer already
 	// owns. The specification states the rule at three positions, and this code

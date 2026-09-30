@@ -40,7 +40,8 @@ import (
 // An entry that resolves to an object but names no mechanism is refused for the
 // same reason and reported the same way — see mechanismRefusalDiag. Those two
 // are the only entries reported as interning nothing; every other diagnostic
-// from here is about a scheme that did intern (see preserveUnreadFields).
+// from here is about a scheme that did intern (see preserveUnreadFields and
+// oauthNoFlowDiag).
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -132,7 +133,12 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	if !named {
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	diags = preserveUnreadFields(c, &scheme, ss, decl)
+	if scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 {
+		// Reported rather than refused — see oauthNoFlowDiag — and reported
+		// before the lines below, which is why those append into diags.
+		diags = append(diags, oauthNoFlowDiag(c, name, entry))
+	}
+	diags = append(diags, preserveUnreadFields(c, &scheme, ss, decl)...)
 	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
 	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
 	// defines for a securityScheme which this entry's own mechanism gives no
@@ -218,6 +224,26 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
 }
 
+// oauthNoFlowDiag reports an oauth2 entry whose lowered flow list is empty,
+// having declared no flow in any spelling fillSchemeKind reads.
+//
+// entry places it rather than decl: the finding is about the entry as this
+// document names it, and an alias and its target are two named schemes (issue
+// #107), each of which declares no flow of its own. It fires for every spelling
+// that lowers to that same empty list — `flows` absent, `flows: {}`, or a flows
+// object naming only keys this model does not name — because that empty list is
+// the whole of what the IR ends up holding, and nothing downstream can tell the
+// three apart.
+//
+// The design record is on diag.OAuth2NoFlow: why the loader cannot place this
+// finding, why the scheme is interned rather than refused, why warning rather
+// than error, and why oauth2MetadataUrl does not exempt the entry.
+func oauthNoFlowDiag(c lowering.Ctx, name string, entry jsontext.Pointer) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, entry,
+		"security scheme %q is an oauth2 scheme with no flow: "+
+			"no OAuth flow is interned for it, and an OAuth2 scheme states no token endpoint without one", name)
+}
+
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
 // An unrecognized type degrades to a custom scheme carrying the raw type, which
 // a later OpenAPI version's own type reaches as readily as a typo does.
@@ -238,6 +264,8 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 		return fillHTTPScheme(scheme, ss)
 	case soa.SecuritySchemeTypeOAuth2:
 		scheme.Kind = ir.AuthKindOAuth2
+		// An absent or empty flows object lowers to nil flows, which the caller
+		// reports (oauthNoFlowDiag).
 		scheme.Flows = oauthFlows(ss.GetFlows())
 		scheme.OAuth2MetadataURL = ss.GetOAuth2MetadataUrl()
 	case soa.SecuritySchemeTypeOpenIDConnect:
