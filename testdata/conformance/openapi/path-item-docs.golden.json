@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "PathItemDocs",
   "version": "1.0.0",
   "docs": {},
@@ -251,10 +251,10 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "petDeleted",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true
+                    "isWebhook": true,
+                    "webhookName": "petDeleted"
                   }
                 ]
               },

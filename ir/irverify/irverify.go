@@ -93,6 +93,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkUTF8,
 		checkValues,
 		checkEmptyRefs,
+		checkWebhookBindings,
 	}
 }
 

@@ -652,6 +652,9 @@ func TestWebhooks_PathItemRefResolved(t *testing.T) {
 	op := openapitest.FindOp(t, doc, "onPing")
 	require.NotEmpty(t, op.Bindings.HTTP)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "ping", op.Bindings.HTTP[0].WebhookName,
+		"a webhook reached through a $ref'd path item still names its event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate)
 }
 
 func TestGrouping_PathPrefixRootPath(t *testing.T) {
@@ -1117,6 +1120,11 @@ func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) 
 	require.Contains(t, ops, idA, "each webhook keeps its own mount identity")
 	require.Contains(t, ops, idB, "each webhook keeps its own mount identity")
 	assert.True(t, ops[idA].Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "onA", ops[idA].Bindings.HTTP[0].WebhookName,
+		"each mount names its own event")
+	assert.Equal(t, "onB", ops[idB].Bindings.HTTP[0].WebhookName)
+	assert.Empty(t, ops[idA].Bindings.HTTP[0].URITemplate)
+	assert.Empty(t, ops[idB].Bindings.HTTP[0].URITemplate)
 
 	require.Len(t, ops[idA].Params, 1)
 	require.Len(t, ops[idB].Params, 1)
@@ -2558,8 +2566,12 @@ func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
 			"%s binds the method key as the source spelled it", tc.op)
 	}
 
-	assert.True(t, openapitest.FindOp(t, doc, "flushHook").Bindings.HTTP[0].IsWebhook,
+	flushHook := openapitest.FindOp(t, doc, "flushHook")
+	assert.True(t, flushHook.Bindings.HTTP[0].IsWebhook,
 		"a webhook mount marks the binding whichever field declared the operation")
+	assert.Equal(t, "hooked", flushHook.Bindings.HTTP[0].WebhookName,
+		"the webhooks-map key names the event")
+	assert.Empty(t, flushHook.Bindings.HTTP[0].URITemplate)
 
 	// Nothing reachable only through a dropped operation reached the registry
 	// either: the request body's schema was not interned at all.
