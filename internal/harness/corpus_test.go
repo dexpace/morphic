@@ -28,6 +28,15 @@ import (
 //     listed here is that the default refuses to. Once external targets are
 //     loaded as sources rather than opened by the resolver (GitHub #74), they
 //     compile clean and come off this list.
+//   - resolve_main_path_item_sibling.yaml: a path item carrying a $ref plus
+//     siblings, whose sibling operation writes a parameter reference that leaves
+//     the document for resolve_target_path_item_sibling.yaml. Like the two above
+//     it, the compiler refuses to open the sibling document unless the caller
+//     sets AllowExternalRefs, and this sweep does not; the operation beside the
+//     $ref is read from raw nodes the loader never modelled, so only the
+//     sibling-path lowering can resolve it, and what is listed here is that the
+//     default reports it unresolved rather than dropping it (GitHub #577). The
+//     test that exercises the cross-document lowering opts in and passes.
 //   - cycle_self_ref.yaml, cycle_two_node_ref.yaml, their _sibling variants, and
 //     cycle_yaml_anchor.yaml: degenerate ref cycles that never reach a concrete
 //     schema node. The pre-parse detector reports cyclic-ref instead of letting
@@ -113,6 +122,7 @@ func knownInvalid() map[string]bool {
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):                true,
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):          true,
 		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"):    true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_path_item_sibling.yaml"):       true,
 		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):                       true,
 		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):               true,
 		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                   true,

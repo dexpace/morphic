@@ -1,0 +1,388 @@
+{
+  "irVersion": "0.6.0",
+  "name": "PathItemRefSiblings",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "PathItemRefSiblings",
+        "canonical": "path_item_ref_siblings"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "source": "getB",
+                "canonical": "get_b"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "beside",
+                    "canonical": "beside"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "OK"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "beside",
+                        "location": "query",
+                        "wireName": "beside",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/bogusBeside": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "BESIDE"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/bogusBeside"
+                  }
+                },
+                "openapi:pathItem/x-beside": {
+                  "reason": "vendor_extension",
+                  "value": "use",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/x-beside"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
+                "openapi:servers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://beside.example"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/servers"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1b/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1a/put",
+              "name": {
+                "source": "putA",
+                "canonical": "put_a"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "beside",
+                    "canonical": "beside"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "OK"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "beside",
+                        "location": "query",
+                        "wireName": "beside",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/bogusBeside": {
+                  "reason": "out_of_scope",
+                  "value": {
+                    "responses": {
+                      "200": {
+                        "description": "BESIDE"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/bogusBeside"
+                  }
+                },
+                "openapi:pathItem/x-beside": {
+                  "reason": "vendor_extension",
+                  "value": "use",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/x-beside"
+                  }
+                },
+                "openapi:pathItemSummary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
+                "openapi:servers": {
+                  "reason": "no_ir_home",
+                  "value": [
+                    {
+                      "url": "https://beside.example"
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/servers"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1b/get",
+              "name": {
+                "source": "getB",
+                "canonical": "get_b"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "OK"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/b",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1b/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"bogusBeside\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/bogusBeside"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/put"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/put"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/duplicate-operation-id",
+      "message": "operationId \"getB\" is also used by the operation at /paths/~1b/get: both mount one declaration, and OpenAPI requires the id to be unique across the API",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "path-item-ref-siblings.yaml",
+      "hash": "665b0c5b9e8265b58ecd58b0f7d8a2a2e17140c60a14f3fb5334b71dcf70b377"
+    }
+  ]
+}

@@ -234,6 +234,7 @@ func conformanceCases() []conformanceCase {
 		{"path-item-docs", assertPathItemDocs, []string{"docs-summary-description"}},
 		{"path-item-operations", assertPathItemOperations, []string{"http-binding"}},
 		{"path-item-anchored-key", assertPathItemAnchoredKey, nil},
+		{"path-item-ref-siblings", assertPathItemRefSiblings, nil},
 		{"deprecation", assertDeprecation, []string{"deprecation"}},
 		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
@@ -2806,6 +2807,78 @@ func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagno
 			diagsAt(diags, "openapi/unknown-object-key", tc.at),
 			"%s is announced once, at the key's own pointer, graded as any undeclared key", tc.key)
 	}
+}
+
+// assertPathItemRefSiblings pins what the fields a path item writes beside its
+// $ref lower to, and that the item the $ref names still mounts unchanged.
+//
+// The operation written beside the reference is a declaration of its own: it
+// mounts at the path's own pointers, and the item-level constructs written
+// beside it reach every operation mounted at that path — the referent's
+// included — which is why the summary is asserted on the referenced item's
+// operation as well as on the sibling's (GitHub #577).
+func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	sibling, ok := opByName(doc, "putA")
+	require.True(t, ok, "the operation written beside the $ref reaches the IR")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/put"), sibling.ID)
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), sibling.Provenance.Pointer,
+		"a sibling operation is declared where it is mounted, not at the item it references")
+	assert.Equal(t, []string{"PUT"}, methodsOf(sibling))
+
+	for _, tc := range []struct{ key, value, at string }{
+		{"openapi:pathItemSummary", `"written beside the ref"`, "/paths/~1a/summary"},
+		{"openapi:servers", `[{"url":"https://beside.example"}]`, "/paths/~1a/servers"},
+		{"openapi:pathItem/x-beside", `"use"`, "/paths/~1a/x-beside"},
+		{"openapi:pathItem/bogusBeside", `{"responses":{"200":{"description":"BESIDE"}}}`,
+			"/paths/~1a/bogusBeside"},
+	} {
+		entry := unmodeledEntry(t, sibling.Unmodeled, tc.key)
+		assert.JSONEq(t, tc.value, string(entry.Value), "%s keeps what the use site declared", tc.key)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
+	}
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1a/bogusBeside"),
+		"the use site's undeclared key is announced at its own pointer, as any other is")
+
+	require.Len(t, sibling.Params, 1, "the use site's item parameter merges into its operation")
+	assert.Equal(t, "beside", sibling.Params[0].Name.Source)
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), sibling.Params[0].Provenance.Pointer)
+
+	// The referenced item's own operation keeps mounting at both paths, and the
+	// constructs written beside the reference reach it too.
+	atA := opByID(t, doc, "op/openapi/paths/~1a/get")
+	assert.Equal(t, "getB", atA.Name.Source)
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer)
+	assert.Contains(t, atA.Unmodeled, "openapi:pathItemSummary")
+	atB := opByID(t, doc, "op/openapi/paths/~1b/get")
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atB.Provenance.Pointer)
+	assert.NotContains(t, atB.Unmodeled, "openapi:pathItemSummary",
+		"the referent's own path keeps only what it declares")
+}
+
+// methodsOf returns the wire methods an operation's HTTP bindings declare.
+func methodsOf(op ir.Operation) []string {
+	methods := make([]string, 0, len(op.Bindings.HTTP))
+	for _, b := range op.Bindings.HTTP {
+		methods = append(methods, b.Method)
+	}
+	return methods
+}
+
+// opByID returns the operation carrying id, which is what tells two mounts of
+// one $ref'd declaration apart where a source name cannot.
+func opByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
+	t.Helper()
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			if string(op.ID) == id {
+				return op
+			}
+		}
+	}
+	t.Fatalf("operation %s not found", id)
+	return ir.Operation{}
 }
 
 // assertPathItemDocs pins that a path item's own documentation survives at every

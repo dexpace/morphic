@@ -96,6 +96,15 @@ type Ctx struct {
 	// keeps it scoped to the subtree that copy is threaded through.
 	namesByReference bool
 
+	// allowExternalRefs is the reference-resolution policy the compile was
+	// given, carried so a lowering that resolves a reference of its own — the
+	// fields a path item's use site writes beside its $ref, which the loader
+	// never models and so never resolves — reaches outside the document exactly
+	// when the loader would. Unexported and read through AllowExternalRefs, for
+	// the reason the fields above are: the zero value has to be the loader's
+	// own default, which is to refuse.
+	allowExternalRefs bool
+
 	// auth is the document's declared security schemes, keyed by the IDs a
 	// requirement names. It is unexported, and read through a predicate rather
 	// than handed back, for the reason schemas is.
@@ -242,6 +251,23 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	}
 	return c.NamingByReference()
 }
+
+// WithExternalRefs returns a copy of c carrying the reference-resolution policy
+// the compile was given.
+//
+// A copy rather than a fresh context, and the same shape as WithAuth and
+// NamingByReference: the document, its identity and index, and the declared-name
+// index all have to survive the extension.
+func (c Ctx) WithExternalRefs(allow bool) Ctx {
+	c.allowExternalRefs = allow
+	return c
+}
+
+// AllowExternalRefs reports whether reference resolution may leave this
+// document. It is the loader's own policy read back, so a reference resolved at
+// a later lowering is refused on exactly the compiles the loader would have
+// refused it on.
+func (c Ctx) AllowExternalRefs() bool { return c.allowExternalRefs }
 
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.
