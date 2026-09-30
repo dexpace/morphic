@@ -375,6 +375,30 @@ const (
 	// are reported; a caller who wants the document refused over it has
 	// --fail-on warning for that.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// InvalidPathKey reports a Paths Object key that is not a path: a key that
+	// omits the leading "/", one that carries a "?", or one whose characters a
+	// URI path does not admit. The Patterned Fields rule states the first defect
+	// in one sentence at every version — "The field name MUST begin with a
+	// forward slash (`/`)" (3.0.3 §4.7.8.1, 3.1.0 §4.8.8.1, 3.2.0 §4.8.1) — so
+	// this is not version-gated. The second is RFC 3986 §3.4's: the query is not
+	// part of the path, and OpenAPI gives query data Parameter Objects with
+	// `in: query` instead. The third is RFC 3986 §3.3's pchar set (unreserved,
+	// pct-encoded, sub-delims, ":" and "@") plus "/" for the separators and "{}"
+	// for OpenAPI path templating.
+	//
+	// Warning rather than error, for the reason InvalidStatusKey beside it is
+	// one: the key still lowers — its uriTemplate, its name hint and its group
+	// all keep the spelling the document wrote (invariant 2) — so refusing here
+	// would be a refusal this compiler does not perform, and harness.Check stops
+	// at the first error diagnostic, which would hide every later finding in the
+	// same spec.
+	//
+	// A key carrying "#" is deliberately silent. That fragment is GitHub #602's:
+	// it will be stripped, set a SharedRoute, regroup its operations and be
+	// reported there. A warning from this code says the key is lowered as
+	// written, which #602 makes false, and one key does not need two reports at
+	// one pointer.
+	InvalidPathKey = "openapi/invalid-path-key"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

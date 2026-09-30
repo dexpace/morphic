@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -198,6 +199,137 @@ func TestResponses_ValidStatusKeysAreNotReported(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.False(t, openapitest.HasDiag(diags, diag.InvalidStatusKey),
 		"every key here names a status; got %+v", diags)
+}
+
+// pathKeySpec wraps one Paths Object key in a minimal document. The key is
+// Go-quoted rather than written raw, so a key carrying a space, a control byte
+// or a quote is still the single YAML scalar the table means.
+func pathKeySpec(key string) string { return pathKeySpecVer("3.1.0", key) }
+
+// pathKeySpecVer is pathKeySpec under a chosen OpenAPI version.
+func pathKeySpecVer(version, key string) string {
+	return openapitest.PathsSpecVer(version, fmt.Sprintf(
+		"  %s:\n    get:\n      operationId: op\n      responses: {\"200\": {description: ok}}\n",
+		strconv.Quote(key)))
+}
+
+// TestPathKeys_MalformedAreReported is GitHub #641 at the lowering level: a
+// Paths Object key that is not a path used to lower in silence, so a typo
+// reached uriTemplate and the group name as though it were a route. One warning
+// now names the key, every defect it carries, and says the key is not rewritten
+// — and the key still lowers verbatim, which is what makes a warning the honest
+// severity (see diag.InvalidPathKey).
+func TestPathKeys_MalformedAreReported(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		key   string
+		parts []string
+	}{
+		{
+			name:  "missing slash, space and query together",
+			key:   "a/b c?x",
+			parts: []string{`"a/b c?x"`, `missing leading "/"`, `carries a query ("?")`, `contains ' '`},
+		},
+		{name: "no leading slash", key: "widgets", parts: []string{`"widgets"`, `missing leading "/"`}},
+		{name: "empty key", key: "", parts: []string{`missing leading "/"`}},
+		{name: "space", key: "/a b", parts: []string{`contains ' '`}},
+		{name: "control character", key: "/a\tb", parts: []string{`contains '\t'`}},
+		{name: "delete", key: "/a\x7fb", parts: []string{`contains '\x7f'`}},
+		{name: "bracket", key: "/a[b", parts: []string{`contains '['`}},
+		{name: "query", key: "/a?x=1", parts: []string{`carries a query ("?")`}},
+		{name: "percent before non-hex", key: "/a/%zz", parts: []string{`begins no percent-encoded triplet`}},
+		{name: "bare percent", key: "/a/%", parts: []string{`begins no percent-encoded triplet`}},
+		{name: "one digit after percent", key: "/a/%2", parts: []string{`begins no percent-encoded triplet`}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, pathKeySpec(tc.key))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning,
+				string(ids.Ptr("paths", tc.key)))
+			for _, part := range tc.parts {
+				assert.Contains(t, msg, part, "the message names the defect")
+			}
+			assert.Contains(t, msg, "the key is lowered as written",
+				"the message closes by stating the key is not rewritten")
+			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InvalidPathKey, ir.SeverityWarning),
+				"one diagnostic per key, not per defect")
+
+			assert.Equal(t, tc.key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate,
+				"the malformed key still reaches the IR verbatim")
+		})
+	}
+}
+
+// TestPathKeys_ValidAreNotReported is the overreach guard: a rule that rejected
+// anything unusual would satisfy the test above while warning on paths that are
+// entirely correct — including the ones this compiler is most likely to be handed.
+func TestPathKeys_ValidAreNotReported(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{"/a/b", "/", "/a/{id}", "/a/%20", "/a/~b", "/a/é"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, pathKeySpec(key))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey),
+				"%q is a path; got %+v", key, diags)
+			assert.Equal(t, key, openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
+		})
+	}
+}
+
+// TestPathKeys_MalformedUnderEveryVersion pins that the rule is not version-gated:
+// 3.0.3 §4.7.8.1, 3.1.0 §4.8.8.1 and 3.2.0 §4.8.1 state the same sentence, so the
+// warning cannot be read off c.Source.Format.
+func TestPathKeys_MalformedUnderEveryVersion(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			_, _, diags := lowerServiceSpec(t, pathKeySpecVer(version, "a/b c?x"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, "/paths/a~1b c?x")
+		})
+	}
+}
+
+// TestPathKeys_FragmentIsSilentForNow pins the deliberate silence on a "#"
+// fragment. GitHub #602 will strip the fragment, set SharedRoute, regroup the
+// operations and report the key itself, and a warning here saying the key is
+// lowered as written would be false the moment it lands — so this code stays
+// quiet and #602 owns the finding.
+func TestPathKeys_FragmentIsSilentForNow(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, pathKeySpec("/a#frag"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey),
+		"the fragment is #602's to report; got %+v", diags)
+	assert.Equal(t, "/a#frag", openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
+}
+
+// TestPathKeys_WebhookKeysAreNotPaths pins the other half of the exemption a
+// webhook key needs: it is a name, not a path, so "newPet" is not a missing
+// slash. lowerWebhooks shares pathOperations with lowerPaths but never calls
+// pathKeyDiags, and this is what keeps that from drifting.
+func TestPathKeys_WebhookKeysAreNotPaths(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  newPet:
+    post:
+      operationId: newPet
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.InvalidPathKey),
+		"a webhook key is a name, not a path; got %+v", diags)
+	assert.Equal(t, "newPet", openapitest.FirstOp(t, svc).Bindings.HTTP[0].URITemplate)
 }
 
 // TestResponses_ErrorHeadersAreStructural pins the header half of GitHub #422.
