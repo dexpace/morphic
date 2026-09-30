@@ -277,8 +277,9 @@ func TestMapT_PopulatedRoundTrip(t *testing.T) {
 func TestTuple_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.Tuple{
-		TypeCommon: populatedTypeCommon("t/tuple/Pair"),
-		Elems:      []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/int32"}},
+		TypeCommon:  populatedTypeCommon("t/tuple/Pair"),
+		Elems:       []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/int32"}},
+		Constraints: populatedConstraints(),
 	}
 	assertTypeDefRoundTrip(t, want)
 }

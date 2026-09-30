@@ -77,20 +77,23 @@ components:
     AllOfWithObjectType: {allOf: [{$ref: '#/components/schemas/RefTargetObj'}], type: object}
     ConstWithFormat: {const: 5, type: integer, format: int32}
     ConstWithBound: {const: ab, type: string, maxLength: 1}
-    # A collection bound is carried by ir.List.Constraints and by nothing else:
-    # listConstraints is its only reader and only an array lowering calls it, so
-    # an object keeps it here, and so does the Tuple prefixItems hoists, which
-    # has no Constraints field at all. Both reached the IR in no form until the
-    # bounds joined the census.
+    # A collection bound is carried by ir.List.Constraints and by
+    # ir.Tuple.Constraints and by nothing else: collectionConstraints is its only
+    # reader, called by lowerArray and buildTuple, so an object keeps it here —
+    # while a Tuple does not. Both reached the IR in no form until the bounds
+    # joined the census, and a Tuple kept them beside itself until it gained the
+    # field.
     ItemsBoundOnObject:
       type: object
       properties: {f: {type: string}}
       minItems: 3
+    # Closed, so that nothing but the bound's home can make it keep anything.
     ItemsBoundOnTuple:
       type: array
       prefixItems: [{type: string}]
+      items: false
       maxItems: 2
-    # Its control: the node that does carry them keeps no entry.
+    # Their control: the nodes that do carry them keep no entry.
     ItemsBoundOnArray:
       type: array
       items: {type: string}
