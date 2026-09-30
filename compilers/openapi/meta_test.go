@@ -199,3 +199,205 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 }
+
+// dupServerNameMessage is the message every reported row expects. It pins all
+// three parts the diagnostic must carry: the repeated name, the pointer of the
+// first entry that claimed it, and that nothing was dropped.
+const dupServerNameMessage = `server name "prod" is also declared by the server at /servers/0/name; ` +
+	`both are kept, and the name identifies two hosts`
+
+// TestDuplicateServerName_EveryRepeatIsReported is the reported half of the
+// rule: a name the document's own servers list declares more than once is an
+// error, once per repeat rather than once per name, sited at the repeat's own
+// name key and naming the first entry that claimed it. Both servers still lower
+// with the name the document wrote: nothing is dropped and nothing is merged.
+func TestDuplicateServerName_EveryRepeatIsReported(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		spec    string
+		want    []string // the pointer of each repeat, in source order
+		servers []string // each lowered server's declared name
+	}{
+		{
+			name: "the issue's repro: two entries declaring one name",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://prod.example.com
+    name: prod
+  - url: https://prod-mirror.example.com
+    name: prod
+paths: {}
+`,
+			want:    []string{"/servers/1/name"},
+			servers: []string{"prod", "prod"},
+		},
+		{
+			name: "three entries sharing one name: one report per repeat",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
+    name: prod
+  - url: https://c.example.com
+    name: prod
+paths: {}
+`,
+			want:    []string{"/servers/1/name", "/servers/2/name"},
+			servers: []string{"prod", "prod", "prod"},
+		},
+		{
+			name: "one declaration mounted twice by a YAML alias",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - &s
+    url: https://prod.example.com
+    name: prod
+  - *s
+paths: {}
+`,
+			want:    []string{"/servers/1/name"},
+			servers: []string{"prod", "prod"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, tc.spec)
+
+			assert.Equal(t, len(tc.want),
+				openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityError),
+				"one diagnostic per repeat, not one per name: %+v", diags)
+			var got []string
+			for _, d := range diags {
+				if d.Code == diag.DuplicateServerName {
+					got = append(got, string(d.Provenance.Pointer))
+				}
+			}
+			assert.Equal(t, tc.want, got, "each repeat sits at its own name key, in source order")
+			for _, ptr := range tc.want {
+				assert.Equal(t, dupServerNameMessage,
+					openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityError, ptr),
+					"%s names the repeated name and the first claimant's key", ptr)
+			}
+
+			names := make([]string, 0, len(doc.Servers))
+			for _, s := range doc.Servers {
+				names = append(names, s.Name.Source)
+			}
+			assert.Equal(t, tc.servers, names, "every server lowered, each with the name the document wrote")
+		})
+	}
+}
+
+// TestDuplicateServerName_NilEntryKeepsSourceIndices pins the rule against a
+// list the parser cannot produce: a nil entry between the claimant and the
+// repeat. The pointers must carry the *source* indices, so the repeat at index 2
+// names the claimant at index 1 rather than the first surviving server. The
+// document is hand-built for the same reason TestLowerServers_NilEntrySkipped's
+// is: a nil entry never reaches lowering through the parser.
+func TestDuplicateServerName_NilEntryKeepsSourceIndices(t *testing.T) {
+	t.Parallel()
+	prod := "prod"
+	doc := &soa.OpenAPI{Servers: []*soa.Server{
+		nil,
+		{URL: "https://prod.example.com", Name: &prod},
+		{URL: "https://prod-mirror.example.com", Name: &prod},
+	}}
+
+	got, diags := lowerServers(lowering.Ctx{Doc: doc})
+
+	require.Len(t, got, 2, "the nil entry is skipped and both real servers still lower")
+	assert.Equal(t, []string{"prod", "prod"}, []string{got[0].Name.Source, got[1].Name.Source})
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityError),
+		"one report at the repeat: %+v", diags)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateServerName, "/servers/2/name"),
+		"the repeat sits at its source index: %+v", diags)
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityError, "/servers/2/name"),
+		"/servers/1/name", "and names the first claimant at its source index")
+}
+
+// TestDuplicateServerName_NotReported is the tolerated half: the collisions the
+// rule deliberately ignores. Declared names are compared only to other declared
+// names, so a hint colliding with a hint, a declared name equal to another
+// entry's hint, and two empty names are all silent — none of them is a name the
+// document declared twice.
+func TestDuplicateServerName_NotReported(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec string
+		// hintsCollide requires both lowered names to carry the same non-empty
+		// hint, so the row pins the hint boundary only if the hints really do
+		// collide rather than by passing vacuously.
+		hintsCollide bool
+	}{
+		{
+			name: "distinct declared names",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://prod.example.com
+    name: prod
+  - url: https://staging.example.com
+    name: staging
+paths: {}
+`,
+		},
+		{
+			name: "two unnamed servers whose URL hints collide",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://api.example.com/v1
+  - url: https://api.example.com/v-1
+paths: {}
+`,
+			hintsCollide: true,
+		},
+		{
+			name: "a declared name equal to another entry's hint",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://api.example.com/v1
+  - url: https://other.example.com
+    name: https_api_example_com_v_1
+paths: {}
+`,
+		},
+		{
+			name: "an empty name is not a name",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://a.example.com
+    name: ""
+  - url: https://b.example.com
+    name: ""
+paths: {}
+`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, tc.spec)
+
+			assert.False(t, openapitest.HasDiag(diags, diag.DuplicateServerName),
+				"nothing is reported: %+v", diags)
+			if !tc.hintsCollide {
+				return
+			}
+			require.Len(t, doc.Servers, 2)
+			assert.NotEmpty(t, doc.Servers[0].Name.Hint, "the row is about hints, so the names must be hints")
+			assert.Equal(t, doc.Servers[0].Name.Hint, doc.Servers[1].Name.Hint,
+				"and they must really collide, or the row asserts nothing")
+		})
+	}
+}
