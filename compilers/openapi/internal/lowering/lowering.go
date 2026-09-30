@@ -287,6 +287,23 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 	return minor == "3.0"
 }
 
+// Is32 reports whether this document speaks OpenAPI 3.2, the version that added
+// the tag hierarchy, Response.summary, xml nodeType, components/mediaTypes and
+// the nested encoding fields.
+//
+// It exists because each of those is a key the bundled parser's model names no
+// field for, so the compiler reads it off the raw node and the census has to be
+// told the key was read. One answer, asked once here, is what keeps the reader
+// and the census from disagreeing about which keys those are (GitHub #615).
+//
+// A document whose version is unrecognized answers false, as ExclusiveBoundIsBoolean
+// does for its own question: the raw-node readers are refused rather than let to
+// run on a dialect nobody has said anything about.
+func (c Ctx) Is32() bool {
+	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
+	return minor == "3.2"
+}
+
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, and what it declares.
 //

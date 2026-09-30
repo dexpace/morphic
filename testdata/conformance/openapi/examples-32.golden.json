@@ -1,0 +1,306 @@
+{
+  "irVersion": "0.6.0",
+  "name": "Examples32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Examples32",
+        "canonical": "examples_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "source": "list",
+                "canonical": "list"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "limit",
+                    "canonical": "limit"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "name": "five",
+                      "summary": "Five",
+                      "value": {
+                        "kind": "number",
+                        "num": "5"
+                      }
+                    }
+                  ],
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "name": "five",
+                            "summary": "Five",
+                            "value": {
+                              "kind": "number",
+                              "num": "5"
+                            }
+                          },
+                          {
+                            "name": "one",
+                            "summary": "One",
+                            "value": {
+                              "kind": "number",
+                              "num": "1"
+                            }
+                          },
+                          {
+                            "name": "serial",
+                            "summary": "Serial",
+                            "unmodeled": {
+                              "openapi:serializedValue": {
+                                "reason": "no_ir_home",
+                                "value": "\"5\"",
+                                "provenance": {
+                                  "source": 0,
+                                  "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1a/get/responses/200/headers/X-Rate",
+                      "name": {
+                        "source": "X-Rate",
+                        "canonical": "x_rate"
+                      },
+                      "wireName": "X-Rate",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "examples": [
+                        {
+                          "name": "serial",
+                          "summary": "Serial",
+                          "unmodeled": {
+                            "openapi:serializedValue": {
+                              "reason": "no_ir_home",
+                              "value": "\"7\"",
+                              "provenance": {
+                                "source": 0,
+                                "pointer": "/paths/~1a/get/responses/200/headers/X-Rate/examples/serial/serializedValue"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1a/get/responses/200/headers/X-Rate"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "limit",
+                        "location": "query",
+                        "wireName": "limit",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1a/get/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1a/get/responses/200/content/application~1json/schema/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "serializedValue has no ir.Example home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/responses/200/headers/X-Rate/examples/serial/serializedValue"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "serializedValue has no ir.Example home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "examples-32.yaml",
+      "hash": "4dad93a2a77ab678d5b7a6aa67123e3341a5fa5aef8540d1243c3ee03ca80c11"
+    }
+  ]
+}

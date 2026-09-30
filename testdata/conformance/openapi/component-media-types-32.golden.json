@@ -1,0 +1,296 @@
+{
+  "irVersion": "0.6.0",
+  "name": "ComponentMediaTypes32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ComponentMediaTypes32",
+        "canonical": "component_media_types_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "listEvents",
+                "canonical": "list_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Event",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "id",
+                                  "value": {
+                                    "kind": "string",
+                                    "str": "e1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        "unmodeled": {
+                          "openapi:x-note": {
+                            "reason": "vendor_extension",
+                            "value": "from the component",
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1events/get/responses/200/content/application~1json/x-note"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1events~1{id}/get",
+              "name": {
+                "source": "getEvent",
+                "canonical": "get_event"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1events~1{id}/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Event",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "id",
+                                  "value": {
+                                    "kind": "string",
+                                    "str": "e1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        "unmodeled": {
+                          "openapi:x-note": {
+                            "reason": "vendor_extension",
+                            "value": "from the component",
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1events~1{id}/get/responses/200/content/application~1json/x-note"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events/{id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "id",
+                        "location": "path",
+                        "wireName": "id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events~1{id}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Event": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Event",
+      "name": {
+        "source": "Event",
+        "canonical": "event"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Event"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Event/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Event/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "component-media-types-32.yaml",
+      "hash": "34ac8518fca6017ef0b50f600a9f966ab58dfa33e990cc23784dc207be0c9529"
+    }
+  ]
+}

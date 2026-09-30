@@ -1,0 +1,33 @@
+openapi: 3.2.0
+info: {title: UnreferencedComponents, version: "1.0.0"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        # One reference, to one component: that entry lowers as it always did,
+        # and every entry beside it that nothing names is kept verbatim.
+        "200": {$ref: '#/components/responses/Used'}
+components:
+  responses:
+    Used: {description: reached from the paths}
+    Unused: {description: nothing names this one}
+  parameters:
+    Unused: {name: unused, in: query, schema: {type: string}}
+  examples:
+    Unused: {summary: Unused, value: 1}
+  requestBodies:
+    Unused: {content: {application/json: {schema: {type: string}}}}
+  headers:
+    Unused: {schema: {type: string}}
+  links:
+    Unused: {operationId: getA}
+  callbacks:
+    Unused:
+      '{$request.body#/url}':
+        post: {responses: {"200": {description: ok}}}
+  pathItems:
+    Unused:
+      get: {responses: {"200": {description: ok}}}
+  mediaTypes:
+    Unused: {schema: {type: string}}

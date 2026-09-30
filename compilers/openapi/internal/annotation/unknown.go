@@ -138,8 +138,37 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Po
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last.
 func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string) []ir.Diagnostic {
+	return UnknownKeysDecided(p, model, locate, owner, scope, nil)
+}
+
+// UnknownKeysDecided is UnknownKeysUnder for an object one of whose keys a
+// reader has already read raw: `decided` names those keys, and the census leaves
+// them alone rather than reporting a key the document does define as undefined.
+//
+// It is the 3.2 half of GitHub #615's mechanism. The bundled parser's model names
+// no field for a Response Object's `summary`, a Components Object's `mediaTypes`
+// or an XML object's `nodeType` — the fields OpenAPI 3.2 added — so each is read
+// off the raw node by a reader of its own, and the census has to be told or it
+// would report the key as undefined on a document that defines it.
+//
+// `decided` must be empty below 3.2: the same key on a 3.1 document is a
+// misspelling rather than a field the dialect added, and the warning is what
+// says so.
+func UnknownKeysDecided(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string, decided []string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return UnknownKeysNamed(p, keys, root, locate, owner, scope)
+	return census(p, keys, root, locate, owner, scope, objectKeyClass(decided))
+}
+
+// objectKeyClass grades a key the OpenAPI object it is written on does not
+// define, with the keys a reader has already taken raw left out.
+func objectKeyClass(decided []string) keyClass {
+	return keyClass{
+		code:     diag.UnknownObjectKey,
+		severity: ir.SeverityWarning,
+		skip:     decided,
+		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
+			"x- extension; kept verbatim under Unmodeled",
+	}
 }
 
 // UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no census
@@ -159,12 +188,7 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	locate Locator, owner jsontext.Pointer, scope string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, locate, owner, scope, keyClass{
-		code:     diag.UnknownObjectKey,
-		severity: ir.SeverityWarning,
-		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
-			"x- extension; kept verbatim under Unmodeled",
-	})
+	return census(p, keys, root, locate, owner, scope, objectKeyClass(nil))
 }
 
 // keyClass is how a key the model does not name is graded: which diagnostic

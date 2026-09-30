@@ -1,0 +1,530 @@
+{
+  "irVersion": "0.6.0",
+  "name": "RefSiteDocs",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "RefSiteDocs",
+        "canonical": "ref_site_docs"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1widgets/get",
+              "name": {
+                "source": "listWidgets",
+                "canonical": "list_widgets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "limit",
+                    "canonical": "limit"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {
+                    "summary": "Page size",
+                    "description": "How many widgets to return."
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Limit"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/requestBodies/WidgetBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false,
+                "docs": {
+                  "description": "The widget to create."
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Listing/content/application~1json/schema",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "summary": "One page",
+                            "description": "A single page of results.",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "items",
+                                  "value": {
+                                    "kind": "list"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/components/responses/Listing/headers/X-Rate-Unit",
+                      "name": {
+                        "source": "X-Rate-Unit",
+                        "canonical": "x_rate_unit"
+                      },
+                      "wireName": "X-Rate-Unit",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {
+                        "description": "The unit a rate limit is stated in."
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Listing/headers/X-Rate-Unit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "The listing, as this operation returns it."
+                  }
+                }
+              ],
+              "errors": [
+                {
+                  "name": {
+                    "hint": "404"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 404,
+                        "to": 404
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {
+                    "description": "No such widget."
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/widgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "limit",
+                        "location": "query",
+                        "wireName": "limit",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1widgets/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1gadgets/get",
+              "name": {
+                "source": "listGadgets",
+                "canonical": "list_gadgets"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "limit",
+                    "canonical": "limit"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {
+                    "description": "How many gadgets to return."
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/parameters/Limit"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/Listing/content/application~1json/schema",
+                          "nullable": false
+                        },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "summary": "One page",
+                            "description": "A single page of results.",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "items",
+                                  "value": {
+                                    "kind": "list"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/components/responses/Listing/headers/X-Rate-Unit",
+                      "name": {
+                        "source": "X-Rate-Unit",
+                        "canonical": "x_rate_unit"
+                      },
+                      "wireName": "X-Rate-Unit",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {
+                        "description": "The unit a rate limit is stated in."
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Listing/headers/X-Rate-Unit"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "A page of results."
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/gadgets",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "limit",
+                        "location": "query",
+                        "wireName": "limit",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1gadgets/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/ApiKey"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/requestBodies/WidgetBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/requestBodies/WidgetBody/content/application~1json/schema",
+      "name": {
+        "hint": "widget_body"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/WidgetBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/requestBodies/WidgetBody/content/application~1json/schema/properties/sku",
+          "name": {
+            "source": "sku",
+            "canonical": "sku"
+          },
+          "wireName": "sku",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/requestBodies/WidgetBody/content/application~1json/schema/properties/sku"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Listing/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Listing/content/application~1json/schema",
+      "name": {
+        "hint": "listing"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listing/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Listing/content/application~1json/schema/properties/items",
+          "name": {
+            "source": "items",
+            "canonical": "items"
+          },
+          "wireName": "items",
+          "type": {
+            "target": "t/anon/components/responses/Listing/content/application~1json/schema/properties/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Listing/content/application~1json/schema/properties/items"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Listing/content/application~1json/schema/properties/items": {
+      "kind": "list",
+      "id": "t/anon/components/responses/Listing/content/application~1json/schema/properties/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listing/content/application~1json/schema/properties/items"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/ApiKey": {
+      "id": "auth/openapi/components/securitySchemes/ApiKey",
+      "name": {
+        "source": "ApiKey",
+        "canonical": "api_key"
+      },
+      "kind": "apiKey",
+      "docs": {
+        "description": "The key this API expects."
+      },
+      "in": "header",
+      "keyName": "X-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/ApiKey"
+      }
+    },
+    "auth/openapi/components/securitySchemes/BaseKey": {
+      "id": "auth/openapi/components/securitySchemes/BaseKey",
+      "name": {
+        "source": "BaseKey",
+        "canonical": "base_key"
+      },
+      "kind": "apiKey",
+      "docs": {
+        "description": "The declaration's own scheme description."
+      },
+      "in": "header",
+      "keyName": "X-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/BaseKey"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "ref-site-docs.yaml",
+      "hash": "be0edf60ca69b8ceba7a6b778853aa1d6de6f40f173d0cb9dc92558120e3ac4f"
+    }
+  ]
+}

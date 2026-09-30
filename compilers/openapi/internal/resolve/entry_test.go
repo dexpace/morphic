@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
@@ -301,4 +302,50 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 		"the fixture must be brittle, or this asserts nothing")
 
 	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
+}
+
+// TestRefDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold every
+// reference-site docs lowering calls: a summary or description written beside a
+// $ref wins field by field over the declaration's, and an entry that writes
+// neither leaves both values standing. A hand-built Reference is enough here —
+// the fold reads only the two getters, and the fixture proves which one wins
+// rather than that the parser presents one.
+func TestRefDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	summary, description := "use-site summary", "use-site description"
+	declared := ir.Docs{Summary: "declared summary", Description: "declared description"}
+
+	for _, tc := range []struct {
+		name string
+		ref  *soa.ReferencedParameter
+		want ir.Docs
+	}{
+		{
+			name: "both siblings win",
+			ref:  &soa.ReferencedParameter{Summary: &summary, Description: &description},
+			want: ir.Docs{Summary: "use-site summary", Description: "use-site description"},
+		},
+		{
+			// The parser fills these two only for an entry that really is a $ref
+			// (Reference.Populate), so an inline entry arrives with both nil.
+			name: "an inline entry writes neither",
+			ref:  &soa.ReferencedParameter{},
+			want: declared,
+		},
+		{
+			name: "a description alone leaves the declaration's summary standing",
+			ref:  &soa.ReferencedParameter{Description: &description},
+			want: ir.Docs{Summary: "declared summary", Description: "use-site description"},
+		},
+		{
+			name: "a nil wrapper reports nothing",
+			ref:  nil,
+			want: declared,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, cmp.Diff(tc.want, resolve.RefDocs(tc.ref, declared)))
+		})
+	}
 }

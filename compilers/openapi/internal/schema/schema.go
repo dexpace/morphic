@@ -1253,7 +1253,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	if LoweredToOwnNode(ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt, c.Is32())
 
 	p.Docs = a.Docs
 	if a.Deprecated {
@@ -1347,7 +1347,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt, c.Is32())
 
 	common := td.Common()
 	common.Docs = a.Docs

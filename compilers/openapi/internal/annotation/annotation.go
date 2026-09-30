@@ -674,7 +674,12 @@ type Set struct {
 	Unmodeled  ir.Unmodeled
 }
 
-// Read reads every site-local annotation at st.
+// Read reads every site-local annotation at st. reads32 reports that the
+// document speaks OpenAPI 3.2, whose XML object adds a `nodeType` the bundled
+// parser's model names no field for and this reader takes off the raw node
+// (GitHub #615). It is a parameter rather than a lookup because this package may
+// not import the lowering or the loader — its archtest allowlist is ir, diag,
+// ids, value and the format libraries — so the caller answers.
 //
 // This is the single call site the decomposition exists for. Not because it
 // merges duplicate readers — the docs readers are genuinely distinct and stay
@@ -683,7 +688,7 @@ type Set struct {
 // previously made it separately and disagreed: one passed a referent, one passed
 // nil because a declaration has none, and one passed nil because it never
 // resolved the referent it had.
-func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnostic) {
+func Read(st Site, pointer jsontext.Pointer, locate Locator, reads32 bool) (Set, []ir.Diagnostic) {
 	var out Set
 
 	referent := st.Referent
@@ -694,12 +699,15 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 	FillCarrierDocs(&out.Docs, st.Node, referent)
 	out.Deprecated = EffectiveDeprecated(st.Node, referent)
 	out.XML = XMLHints(st.Node.GetXML())
+	if reads32 {
+		applyNodeType(out.XML, st.Node)
+	}
 
 	examples, exDiags := schemaExamplesAt(st.Node, pointer, locate)
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), locate, pointer)
-	sub, subDiags := subObjectKeys(st.Node, pointer, locate)
+	sub, subDiags := subObjectKeys(st.Node, pointer, locate, reads32)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, locate)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
@@ -710,6 +718,24 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 
 	out.Unmodeled = MergeUnmodeled(MergeUnmodeled(ext, sub), kept)
 	return out, diags
+}
+
+// applyNodeType fills the 3.2 nodeType an XML object declares, read off the raw
+// node because the parser's XML model has no field for it (GitHub #615).
+// ir.XMLHints.NodeType already exists and its GoDoc already names the version.
+//
+// A schema declaring no xml object has no XMLHints to fill — nodeType is written
+// inside the xml object, so there is no position it could have been declared at.
+// A declared nodeType wins over the attribute flag: 3.2 replaces `attribute:
+// true` with `nodeType: attribute`, so a document writing both has stated the
+// newer field, and the reader that took it last makes that the value.
+func applyNodeType(h *ir.XMLHints, s *oas3.Schema) {
+	if h == nil {
+		return
+	}
+	if node := RawChildNode(RawPropertyNode(s, "xml"), "nodeType"); node != nil {
+		h.NodeType = node.Value
+	}
 }
 
 // subObjectKeys collects what the sub-objects of a schema declare that reaches
@@ -725,15 +751,20 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 // even though these hang off a schema: the JSON Schema rule that an unrecognized
 // keyword is legal governs the schema itself, and these three are OpenAPI
 // objects that the schema vocabulary says nothing about.
-func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
+//
+// reads32 names the one key a 3.2 document defines that this reader has already
+// taken raw — the XML object's `nodeType` — so the census leaves it alone there
+// and keeps warning about it below 3.2 (GitHub #615).
+func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, reads32 bool) (ir.Unmodeled, []ir.Diagnostic) {
 	subs := []struct {
 		keyword string
 		obj     any
 		ext     *extensions.Extensions
+		decided []string
 	}{
-		{"xml", s.GetXML(), s.GetXML().GetExtensions()},
-		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions()},
-		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions()},
+		{"xml", s.GetXML(), s.GetXML().GetExtensions(), nodeTypeKey(reads32)},
+		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions(), nil},
+		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions(), nil},
 	}
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
@@ -742,9 +773,19 @@ func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir
 		ext, extDiags := ExtensionsUnder(sub.ext, locate, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysUnder(&out, sub.obj, locate, owner, sub.keyword)...)
+		diags = append(diags, UnknownKeysDecided(&out, sub.obj, locate, owner, sub.keyword, sub.decided)...)
 	}
 	return out, diags
+}
+
+// nodeTypeKey names the XML object's 3.2 `nodeType` for the census, and nothing
+// below 3.2: the key is a misspelling there rather than a field the dialect
+// added, and the warning is what says so.
+func nodeTypeKey(reads32 bool) []string {
+	if !reads32 {
+		return nil
+	}
+	return []string{"nodeType"}
 }
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim

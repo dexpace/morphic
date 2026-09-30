@@ -199,3 +199,27 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 }
+
+// TestRetainUnreferencedComponents_EntryWithNoNameIsNotKept covers the guard on
+// the entry pointer: a components entry whose key is the empty string is passed
+// over rather than kept at an "openapi:components/<section>/" key that names no
+// entry of that document (GitHub #616). retainUnreferencedComponents carries the
+// why.
+func TestRetainUnreferencedComponents_EntryWithNoNameIsNotKept(t *testing.T) {
+	t.Parallel()
+	l, loadDiags := loweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    "": {description: nameless}
+    Orphan: {description: nothing references this}
+`)
+	require.Empty(t, loadDiags)
+
+	kept, diags := retainUnreferencedComponents(l.ctx)
+
+	require.Len(t, kept, 1, "only the named entry has a key to be kept under: got %v", kept)
+	assert.Contains(t, kept, "openapi:components/responses/Orphan")
+	assert.Empty(t, diags)
+}

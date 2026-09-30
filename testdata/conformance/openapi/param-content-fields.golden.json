@@ -1,0 +1,368 @@
+{
+  "irVersion": "0.6.0",
+  "name": "ParamContentFields",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamContentFields",
+        "canonical": "param_content_fields"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1search/get",
+              "name": {
+                "source": "search",
+                "canonical": "search"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "filter",
+                    "canonical": "filter"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1search/get/parameters/0/content/application~1json/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "examples": [
+                    {
+                      "name": "one",
+                      "summary": "One kind",
+                      "value": {
+                        "kind": "object",
+                        "object": [
+                          {
+                            "name": "kind",
+                            "value": {
+                              "kind": "string",
+                              "str": "a"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "unmodeled": {
+                    "openapi:content/application~1json/itemSchema": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "type": "string"
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1search/get/parameters/0/content/application~1json/itemSchema"
+                      }
+                    },
+                    "openapi:content/application~1json/x-note": {
+                      "reason": "vendor_extension",
+                      "value": "note",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1search/get/parameters/0/content/application~1json/x-note"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/0"
+                  }
+                },
+                {
+                  "name": {
+                    "source": "plain",
+                    "canonical": "plain"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1search/get/parameters/1"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1search/get/responses/200/headers/X-Search",
+                      "name": {
+                        "source": "X-Search",
+                        "canonical": "x_search"
+                      },
+                      "wireName": "X-Search",
+                      "type": {
+                        "target": "t/anon/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "mediaType": "application/json"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "examples": [
+                        {
+                          "name": "hit",
+                          "summary": "One hit",
+                          "value": {
+                            "kind": "object",
+                            "object": [
+                              {
+                                "name": "hits",
+                                "value": {
+                                  "kind": "number",
+                                  "num": "1"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:content/application~1json/x-hdr": {
+                          "reason": "vendor_extension",
+                          "value": "hdr",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/x-hdr"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1search/get/responses/200/headers/X-Search"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/search",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "filter",
+                        "location": "query",
+                        "wireName": "filter",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "contentType": "application/json"
+                      },
+                      {
+                        "param": "plain",
+                        "location": "query",
+                        "wireName": "plain",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1search/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1search/get/parameters/0/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1search/get/parameters/0/content/application~1json/schema",
+      "name": {
+        "hint": "filter"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/get/parameters/0/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1search/get/parameters/0/content/application~1json/schema/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1search/get/parameters/0/content/application~1json/schema/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema",
+      "name": {
+        "hint": "x_search"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema/properties/hits",
+          "name": {
+            "source": "hits",
+            "canonical": "hits"
+          },
+          "wireName": "hits",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1search/get/responses/200/headers/X-Search/content/application~1json/schema/properties/hits"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "parameter content media type itemSchema has no ir.Parameter home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1search/get/parameters/0/content/application~1json/itemSchema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "param-content-fields.yaml",
+      "hash": "cdbaec86d358a9611dfe3a87d88981d5495aea6d46b683f6ee9e4e47aec84c2c"
+    }
+  ]
+}

@@ -128,7 +128,6 @@ Operation.Pagination
 Operation.ParameterVisibility
 Operation.ReturnTypeVisibility
 OperationGroup.Availability
-OperationGroup.Groups
 OperationGroup.Resource
 OperationGroup.Unmodeled
 Pagination.FirstLink

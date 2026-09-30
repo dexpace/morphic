@@ -2,9 +2,12 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -347,6 +350,125 @@ func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
 	require.NotNil(t, op.Responses[0].Payload)
 	assert.Nil(t, op.Responses[0].Payload.Required,
 		"a response body has no optionality to state")
+}
+
+// TestContent_RequestBodyDocsReachThePayload pins GitHub #609: a Request Body
+// Object's `description` describe the body, and ir.Payload is the node the
+// body's own facts land on, so it reaches Payload.Docs rather than no field at
+// all. The response's identical field is asserted here too, since #615 fills
+// that one from the raw node — the two must not be confused.
+func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /bodies:
+    post:
+      operationId: bodies
+      requestBody:
+        description: The thing to create.
+        content:
+          application/json: {schema: {type: object, properties: {n: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.NotNil(t, op.Request.Docs, "a declared body description has a home on the payload")
+	assert.Equal(t, "The thing to create.", op.Request.Docs.Description)
+}
+
+// TestContent_RequestBodyWithoutDocsLeavesItUnstated is the second arm: a body
+// that writes no description leaves Payload.Docs nil rather than an empty Docs,
+// which is what keeps every existing payload golden byte-identical.
+func TestContent_RequestBodyWithoutDocsLeavesItUnstated(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /bare:
+    post:
+      operationId: bare
+      requestBody:
+        content:
+          application/json: {schema: {type: object, properties: {n: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	assert.Nil(t, op.Request.Docs, "an unstated body description is absent, not empty")
+}
+
+// TestContent_ResponsePayloadStatesNoDocs pins the third state: a response
+// payload is not a request body, and Payload.Docs is left for the request-body
+// lowering, so a consumer reading a response body finds no docs invented for it.
+func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /read:
+    get:
+      operationId: read
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Responses, 1)
+	require.NotNil(t, op.Responses[0].Payload)
+	assert.Nil(t, op.Responses[0].Payload.Docs,
+		"only the request-body lowering writes payload docs")
+}
+
+// TestContent_RequestBodyDocsAreOrderIndependent is the hand-rolled two-order
+// diff for GitHub #609. The order-invariance oracle compares only the type
+// registry and the diagnostic set, and Payload.Docs is neither, so the swap is
+// made here: one components/requestBodies entry referenced by two operations,
+// declared in both orders. The docs are read from the component whichever mount
+// arrives first, and that shared body interns once at the component pointer, so
+// neither fact may move with the declaration order.
+func TestContent_RequestBodyDocsAreOrderIndependent(t *testing.T) {
+	t.Parallel()
+	const createOrder = `  /orders:
+    post:
+      operationId: createOrder
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses: {"200": {description: ok}}
+`
+	const replaceOrder = `  /orders/{id}:
+    put:
+      operationId: replaceOrder
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody: {$ref: '#/components/requestBodies/OrderBody'}
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  requestBodies:
+    OrderBody:
+      description: A shared order body.
+      required: true
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"createOrder", "replaceOrder"} {
+			op := openapitest.FindOp(t, doc, name)
+			require.NotNil(t, op.Request, "%s: the body lowers", name)
+			require.NotNil(t, op.Request.Docs, "%s: the component's description reaches the payload", name)
+			out[name] = op.Request.Docs.Description + " " + string(openapitest.BodyTarget(t, op.Request))
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(createOrder+replaceOrder), projection(replaceOrder+createOrder)),
+		"the shared body's docs and identity must not depend on which mount lowered first")
 }
 
 func TestContent_ArrayMultipartPartMulti(t *testing.T) {
@@ -1886,4 +2008,337 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
 	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/responses/200/headers/X-H/schema")
+}
+
+// TestHeaders_RefSiteDocsOverrideTheDeclaration pins the header half of GitHub
+// #610: a header entry written as a Reference Object keeps the pair it writes
+// beside the $ref, overriding the declaration's own description.
+func TestHeaders_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate:
+              $ref: '#/components/headers/Rate'
+              summary: HS
+              description: HD
+components:
+  headers:
+    Rate: {description: declared, schema: {type: integer}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, openapitest.FirstOp(t, svc).Responses, 1)
+	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "HS", header.Docs.Summary)
+	assert.Equal(t, "HD", header.Docs.Description)
+}
+
+// TestExamples_RefSiteDocsOverrideTheDeclaration pins the example half of GitHub
+// #610: an entry written as a Reference Object carries its summary and
+// description beside the $ref, and they override the Example Object's own pair.
+func TestExamples_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                one:
+                  $ref: '#/components/examples/Sample'
+                  summary: ES
+                  description: ED
+components:
+  examples:
+    Sample: {summary: declared summary, description: declared description, value: {n: x}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	payload := openapitest.FirstOp(t, svc).Responses[0].Payload
+	require.NotNil(t, payload)
+	require.Len(t, payload.Contents[0].Examples, 1)
+	example := payload.Contents[0].Examples[0]
+	assert.Equal(t, "ES", example.Summary)
+	assert.Equal(t, "ED", example.Description)
+}
+
+// TestContent_RequestBodyRefSiteDocsOverrideTheDeclaration pins the request-body
+// half of GitHub #610: a body entry written as a Reference Object keeps the
+// description beside its $ref, which wins over the declaration's.
+func TestContent_RequestBodyRefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody: {$ref: '#/components/requestBodies/Body', description: the use site}
+      responses: {"200": {description: ok}}
+components:
+  requestBodies:
+    Body:
+      description: declared
+      content:
+        application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.NotNil(t, op.Request.Docs)
+	assert.Equal(t, "the use site", op.Request.Docs.Description)
+}
+
+// TestParamContent_MediaTypeFieldsReachTheParameter pins GitHub #611 at the
+// parameter position: electing a `content` entry used to read only the media
+// type's schema, so the object's example/examples, its x-*, its undeclared keys
+// and the parser-modelled fields no ir.Parameter holds vanished with no field,
+// no Unmodeled entry and no diagnostic.
+func TestParamContent_MediaTypeFieldsReachTheParameter(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /search:
+    get:
+      operationId: search
+      parameters:
+        - name: filter
+          in: query
+          content:
+            application/json:
+              schema: {type: object, properties: {kind: {type: string}}}
+              examples:
+                one: {summary: One, value: {kind: a}}
+              itemSchema: {type: string}
+              x-note: note
+              bogus: B
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	param := op.Params[0]
+
+	require.Len(t, param.Examples, 1, "the media type's own examples reach the parameter")
+	assert.Equal(t, "one", param.Examples[0].Name)
+	assert.Equal(t, "One", param.Examples[0].Summary)
+	require.NotNil(t, param.Examples[0].Value)
+
+	key := func(name string) string { return "openapi:content/application~1json/" + name }
+	assert.Equal(t, ir.ReasonVendorExtension, param.Unmodeled[key("x-note")].Reason,
+		"the media type's x-* survives under the content entry's own scope; got %v",
+		slices.Sorted(maps.Keys(param.Unmodeled)))
+	assert.Equal(t, ir.ReasonNoIRHome, param.Unmodeled[key("itemSchema")].Reason,
+		"a parser-modelled field with no ir.Parameter home is kept verbatim rather than dropped")
+	assert.Equal(t, ir.ReasonOutOfScope, param.Unmodeled[key("bogus")].Reason,
+		"an undefined key keeps today's grading")
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
+}
+
+// TestHeaderContent_MediaTypeFieldsReachTheProperty is the header half of GitHub
+// #611: the same one-field read is what dropped a content-style header's media
+// type fields, so the same fix reaches them on the Property.
+func TestHeaderContent_MediaTypeFieldsReachTheProperty(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /reports:
+    get:
+      operationId: getReport
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Report:
+              content:
+                application/json:
+                  schema: {type: object, properties: {hits: {type: integer}}}
+                  examples:
+                    hit: {summary: One hit, value: {hits: 1}}
+                  itemSchema: {type: string}
+                  x-hdr: hdr
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+
+	require.Len(t, header.Examples, 1, "the media type's own examples reach the header")
+	assert.Equal(t, "hit", header.Examples[0].Name)
+	assert.Equal(t, "One hit", header.Examples[0].Summary)
+	key := func(name string) string { return "openapi:content/application~1json/" + name }
+	assert.Equal(t, ir.ReasonVendorExtension, header.Unmodeled[key("x-hdr")].Reason)
+	assert.Equal(t, ir.ReasonNoIRHome, header.Unmodeled[key("itemSchema")].Reason)
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1reports/get/responses/200/headers/X-Report/content/application~1json/itemSchema")
+}
+
+// TestParamAndHeaderSchema_NeverRecordContentFields is the passed-over case: the
+// schema spelling elects no media type, so nothing content-scoped can appear on
+// the carrier and no info is reported.
+func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /plain:
+    get:
+      operationId: plain
+      parameters:
+        - {name: filter, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Plain: {schema: {type: string}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	for key := range op.Params[0].Unmodeled {
+		assert.NotContains(t, key, "openapi:content/", "the schema spelling elects no media type")
+	}
+	assert.Empty(t, op.Params[0].Examples)
+	require.Len(t, op.Responses[0].Headers, 1)
+	for key := range op.Responses[0].Headers[0].Unmodeled {
+		assert.NotContains(t, key, "openapi:content/")
+	}
+	assert.Empty(t, op.Responses[0].Headers[0].Examples)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "content media type",
+			"nothing was passed over, so nothing is announced")
+	}
+}
+
+// TestExamples_DataValueReachesTheValue pins GitHub #612's first half: the 3.2
+// dataValue carries the example's data, and ir.Example.Value is its home, so it
+// lowers exactly as `value` does rather than being dropped with a warning that
+// claimed it declared neither value nor externalValue.
+func TestExamples_DataValueReachesTheValue(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                five: {summary: Five, dataValue: 5}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 1, "a dataValue example is kept, not dropped")
+	assert.Equal(t, "five", examples[0].Name)
+	assert.Equal(t, "Five", examples[0].Summary)
+	require.NotNil(t, examples[0].Value, "dataValue lands on Example.Value")
+	assert.Equal(t, ir.ValueNumber, examples[0].Value.Kind)
+	assert.Equal(t, ir.BigVal("5"), examples[0].Value.Num)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "neither value nor externalValue",
+			"a dataValue declares an example, so nothing is announced as empty")
+	}
+}
+
+// TestExamples_SerializedValueIsKeptVerbatim pins GitHub #612's second half: a
+// 3.2 serializedValue is a single-format spelling ir.Example has no field for, so
+// the entry survives with the raw node under Unmodeled and one info — the entry
+// is not dropped, and it is not announced as empty either.
+func TestExamples_SerializedValueIsKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                serial: {summary: Serial, serializedValue: '"5"'}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 1, "the entry is kept rather than dropped")
+	assert.Equal(t, "serial", examples[0].Name)
+	assert.Nil(t, examples[0].Value, "serializedValue is not read into Value")
+	raw, ok := examples[0].Unmodeled["openapi:serializedValue"]
+	require.True(t, ok, "the serialized spelling is kept verbatim")
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
+	assert.JSONEq(t, `"\"5\""`, string(raw.Value), "the source text is kept as written")
+
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "neither value nor externalValue",
+			"the entry declares a serializedValue, so it is not announced as empty")
+	}
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+}
+
+// TestEncoding_NestedEncodingsAreKeptFor32Only pins GitHub #615's nested
+// Encoding fields: 3.2 gives an Encoding Object an encoding map and the
+// positional prefix/item encodings, ir.PartEncoding has no field for any of
+// them, and the bundled model does not name them either — so they used to draw
+// three unknown-object-key warnings and reach no entry. Each is now kept
+// verbatim under the part's own scope with one info, and below 3.2 the warnings
+// stay.
+func TestEncoding_NestedEncodingsAreKeptFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                note: {type: string}
+            encoding:
+              note:
+                contentType: text/plain
+                prefixEncoding: [{contentType: text/plain}]
+      responses: {"200": {description: ok}}
+`
+	_, svc32, diags32 := lowerServiceSpec(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	content := openapitest.FirstOp(t, svc32).Request.Contents[0]
+	kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]
+	require.True(t, ok, "the nested prefixEncoding is kept under the part's own scope; got %v",
+		slices.Sorted(maps.Keys(content.Unmodeled)))
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	openapitest.AssertInfoDiagAt(t, diags32,
+		"/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding")
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
+		"3.2 defines the keys this reader took, so the census must leave them alone")
+
+	_, _, diags31 := lowerServiceSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the same key is a misspelling and the warning is owed")
 }

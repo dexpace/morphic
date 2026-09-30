@@ -131,6 +131,14 @@ func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
 	return kind, name, true
 }
 
+// MediaTypesKind is the components section OpenAPI 3.2 added for reusable Media
+// Type Objects. The bundled parser's Components model names no field for it, so
+// it is the one kind ComponentEntry answers for that the loader leaves to the
+// compiler; the resolver that reads such a `$ref` and the components census that
+// must stop reporting the section are both spelled from here, since the two
+// disagreeing would make one document compile two ways (GitHub #615).
+const MediaTypesKind = "mediaTypes"
+
 // componentsRoot is the pointer every component entry sits two tokens beneath.
 const componentsRoot jsontext.Pointer = "/components"
 

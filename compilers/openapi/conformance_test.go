@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -238,6 +239,16 @@ func conformanceCases() []conformanceCase {
 		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
+		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
+		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
+		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
+		{"examples-32", assertExamples32, []string{"examples"}},
+		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
+		{"response-summary-32", assertResponseSummary32, []string{"docs-summary-description"}},
+		{"component-media-types-32", assertComponentMediaTypes32, []string{"multi-content"}},
+		{"xml-nodetype-32", assertXMLNodeType32, nil},
+		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
+		{"unreferenced-components", assertUnreferencedComponents, nil},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3018,6 +3029,322 @@ func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, doc.License)
 	assert.Equal(t, ir.License{Name: "MIT", Identifier: "MIT"}, *doc.License,
 		"the 3.1 SPDX identifier is its own field, never folded into the name")
+}
+
+// assertRequestBodyDocs pins GitHub #609: a Request Body Object's `description`
+// describes the body rather than any media type inside it, so it reaches
+// Payload.Docs. Both spellings are covered — a body $ref'd from components and
+// one written inline — and the shared component is reached from two operations,
+// so the declaration-pointer path is exercised and one declaration is still one
+// type however many mounts read its docs.
+func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	created, ok := opByName(doc, "createOrder")
+	require.True(t, ok)
+	require.NotNil(t, created.Request)
+	require.NotNil(t, created.Request.Docs, "a $ref'd body keeps the component's description")
+	assert.Equal(t, "A shared order body.", created.Request.Docs.Description)
+
+	replaced, ok := opByName(doc, "replaceOrder")
+	require.True(t, ok)
+	require.NotNil(t, replaced.Request)
+	require.NotNil(t, replaced.Request.Docs, "the second mount reads the same declaration's docs")
+	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description)
+
+	shared := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
+	assert.Equal(t, shared, openapitest.BodyTarget(t, created.Request),
+		"a shared body interns at its component pointer (issue #107)")
+	assert.Equal(t, shared, openapitest.BodyTarget(t, replaced.Request),
+		"...once, whichever mount lowered it first")
+
+	draft, ok := opByName(doc, "saveDraft")
+	require.True(t, ok)
+	require.NotNil(t, draft.Request)
+	require.NotNil(t, draft.Request.Docs, "an inline body's own description reaches the payload too")
+	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description)
+}
+
+// assertRefSiteDocs pins GitHub #610 across every site the fold reaches, in one
+// document: a Reference Object may write `summary` and `description` beside its
+// `$ref`, and OpenAPI says they override the referenced object's. Nothing read
+// them, so a mount's own documentation was silently replaced by the
+// declaration's. The one component referenced from two operations with
+// different overrides also pins the other half: each mount keeps its own and
+// neither mutates the declaration.
+func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	widgets, ok := opByName(doc, "listWidgets")
+	require.True(t, ok)
+	gadgets, ok := opByName(doc, "listGadgets")
+	require.True(t, ok)
+
+	// parameters — the two-mount case: the first writes both siblings, the second
+	// only a description, and the declaration's own description is overridden by
+	// both rather than surviving on either.
+	widgetLimit, ok := paramByName(widgets, "limit")
+	require.True(t, ok)
+	assert.Equal(t, "Page size", widgetLimit.Docs.Summary)
+	assert.Equal(t, "How many widgets to return.", widgetLimit.Docs.Description)
+	gadgetLimit, ok := paramByName(gadgets, "limit")
+	require.True(t, ok)
+	assert.Empty(t, gadgetLimit.Docs.Summary, "the second mount writes no summary, so none is invented")
+	assert.Equal(t, "How many gadgets to return.", gadgetLimit.Docs.Description)
+
+	// responses — one mount overrides the description, the other keeps the
+	// declaration's, so neither mutates it.
+	require.Len(t, widgets.Responses, 1)
+	assert.Equal(t, "The listing, as this operation returns it.", widgets.Responses[0].Docs.Description)
+	require.Len(t, gadgets.Responses, 1)
+	assert.Equal(t, "A page of results.", gadgets.Responses[0].Docs.Description,
+		"a mount with no siblings leaves the declaration's description alone")
+
+	// error cases are responses too, and reach the same shared lowering.
+	require.Len(t, widgets.Errors, 1)
+	assert.Equal(t, "No such widget.", widgets.Errors[0].Docs.Description)
+
+	// headers
+	require.Len(t, widgets.Responses[0].Headers, 1)
+	assert.Equal(t, "The unit a rate limit is stated in.", widgets.Responses[0].Headers[0].Docs.Description)
+
+	// examples — the siblings override the Example Object's own pair.
+	require.NotNil(t, widgets.Responses[0].Payload)
+	require.Len(t, widgets.Responses[0].Payload.Contents[0].Examples, 1)
+	example := widgets.Responses[0].Payload.Contents[0].Examples[0]
+	assert.Equal(t, "One page", example.Summary)
+	assert.Equal(t, "A single page of results.", example.Description)
+
+	// request bodies
+	require.NotNil(t, widgets.Request)
+	require.NotNil(t, widgets.Request.Docs)
+	assert.Equal(t, "The widget to create.", widgets.Request.Docs.Description)
+
+	// security schemes — the aliasing entry takes its own description, and the
+	// declaration it names keeps its own.
+	require.Len(t, doc.Auth, 2)
+	byName := map[string]string{}
+	for _, scheme := range doc.Auth {
+		byName[scheme.Name.Source] = scheme.Docs.Description
+	}
+	assert.Equal(t, "The key this API expects.", byName["ApiKey"])
+	assert.Equal(t, "The declaration's own scheme description.", byName["BaseKey"],
+		"the aliasing entry's siblings do not reach the declaration")
+}
+
+// assertParamContentFields pins GitHub #611: electing a parameter's or header's
+// `content` spelling reads the whole Media Type Object rather than only its
+// schema, so the object's examples reach the carrier and what the carrier has no
+// home for is kept verbatim under the content entry's own scope. The schema
+// spelling beside them elects no media type and records none of it.
+func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "search")
+	require.True(t, ok)
+
+	filter, ok := paramByName(op, "filter")
+	require.True(t, ok)
+	require.Len(t, filter.Examples, 1, "the media type's examples reach the parameter")
+	assert.Equal(t, "one", filter.Examples[0].Name)
+	assert.Equal(t, "One kind", filter.Examples[0].Summary)
+
+	const scope = "openapi:content/application~1json/"
+	assert.Equal(t, ir.ReasonVendorExtension, filter.Unmodeled[scope+"x-note"].Reason)
+	assert.Equal(t, ir.ReasonNoIRHome, filter.Unmodeled[scope+"itemSchema"].Reason,
+		"a parser-modelled field with no ir.Parameter home is kept rather than dropped")
+
+	plain, ok := paramByName(op, "plain")
+	require.True(t, ok)
+	assert.Empty(t, plain.Examples, "the schema spelling elects no media type to take examples from")
+	assert.Empty(t, plain.Unmodeled, "nor any content-scoped entry")
+
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	header := op.Responses[0].Headers[0]
+	require.Len(t, header.Examples, 1, "the header's content media type contributes its examples too")
+	assert.Equal(t, "hit", header.Examples[0].Name)
+	assert.Equal(t, ir.ReasonVendorExtension, header.Unmodeled[scope+"x-hdr"].Reason)
+
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
+}
+
+// assertExamples32 pins GitHub #612 at every site the issue names: the 3.2
+// dataValue lowers like `value` — including through a components/examples $ref —
+// and the 3.2 serializedValue keeps the entry with the raw node under Unmodeled
+// rather than dropping it with a warning that claimed it declared neither value
+// nor externalValue.
+func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "list")
+	require.True(t, ok)
+
+	// parameters
+	limit, ok := paramByName(op, "limit")
+	require.True(t, ok)
+	require.Len(t, limit.Examples, 1)
+	require.NotNil(t, limit.Examples[0].Value, "a parameter's dataValue reaches Example.Value")
+	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Num)
+
+	// headers
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	headerExample := op.Responses[0].Headers[0].Examples
+	require.Len(t, headerExample, 1)
+	assert.Equal(t, ir.ReasonNoIRHome, headerExample[0].Unmodeled["openapi:serializedValue"].Reason,
+		"a header's serializedValue keeps the entry verbatim")
+
+	// content, and through it components/examples
+	examples := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 3)
+	byName := map[string]ir.Example{}
+	for _, e := range examples {
+		byName[e.Name] = e
+	}
+	require.NotNil(t, byName["five"].Value)
+	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Num)
+	require.NotNil(t, byName["one"].Value, "a $ref'd components/examples entry lowers its dataValue")
+	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Num)
+	assert.Equal(t, ir.ReasonNoIRHome, byName["serial"].Unmodeled["openapi:serializedValue"].Reason)
+	assert.Nil(t, byName["serial"].Value)
+
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+}
+
+// assertTagsGrouping32 is the 3.2 counterpart of assertTagsGrouping, and the
+// first case in the corpus to witness OperationGroup.Groups: a tag declaring a
+// parent nests its group under that parent's, an operation's non-navigational
+// tag does not become the group it is filed under, and the declared 3.2 tag
+// metadata reaches the registry verbatim.
+func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.TagDefs, 3)
+	require.Equal(t, "books", doc.TagDefs[0].Name, "TagDefs keep the document's declaration order")
+	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
+	assert.Equal(t, "nav", doc.TagDefs[0].Kind)
+	assert.Equal(t, "nav", doc.TagDefs[1].Kind)
+	assert.Equal(t, "badge", doc.TagDefs[2].Kind, "the non-navigational kind is recorded, not interpreted")
+	assert.Empty(t, doc.TagDefs[2].Parent)
+
+	require.Len(t, doc.Services, 1)
+	svc := doc.Services[0]
+	require.Len(t, svc.Groups, 1, "the child nests rather than becoming a second top-level group")
+	catalog := svc.Groups[0]
+	assert.Equal(t, "catalog", catalog.Name.Source)
+	assert.Equal(t, "Everything the library holds", catalog.Docs.Description,
+		"an ancestor no operation reaches still carries its declared docs")
+	require.Len(t, catalog.Operations, 1)
+	assert.Equal(t, "showCatalog", catalog.Operations[0].Name.Source)
+
+	require.Len(t, catalog.Groups, 1)
+	books := catalog.Groups[0]
+	assert.Equal(t, "books", books.Name.Source)
+	assert.Equal(t, "Book operations", books.Docs.Description)
+	require.Len(t, books.Operations, 1)
+	listBooks := books.Operations[0]
+	assert.Equal(t, "listBooks", listBooks.Name.Source)
+	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
+		"tag membership keeps every tag the operation named, badge included")
+}
+
+// assertResponseSummary32 pins GitHub #615's Response.summary: the 3.2 field
+// reaches Docs.Summary on both status classes, because it is read in the one
+// shared lowering both use, and the document draws no unknown-key warning for a
+// key its dialect defines.
+func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "deleteItem")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	assert.Equal(t, "The item was deleted", op.Responses[0].Docs.Summary)
+	assert.Equal(t, "The long form of the same fact.", op.Responses[0].Docs.Description)
+
+	require.Len(t, op.Errors, 1)
+	assert.Equal(t, "No such item", op.Errors[0].Docs.Summary,
+		"an error case is lowered by the same function, so it reads the field too")
+	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/paths/~1items~1{id}/delete/responses/204/summary"),
+		"a key 3.2 defines is not an undefined key")
+}
+
+// assertComponentMediaTypes32 pins GitHub #615's components/mediaTypes: a content
+// entry written as a `$ref` into that section lowers to what the component
+// declares — its schema, its examples and its extensions — rather than to the
+// top type with the reference kept beside it, and two operations referring to
+// one entry both get it.
+func assertComponentMediaTypes32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"listEvents", "getEvent"} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok)
+		content := op.Responses[0].Payload.Contents[0]
+		assert.Equal(t, "application/json", content.MediaType)
+		assert.Equal(t, namedID("Event"), content.Type.Target,
+			"%s: the referenced media type's schema is what lowers", name)
+		require.Len(t, content.Examples, 1, "%s: the component's own examples come with it", name)
+		assert.Equal(t, "one", content.Examples[0].Name)
+		assert.Contains(t, content.Unmodeled, "openapi:x-note",
+			"%s: and its extensions", name)
+		assert.NotContains(t, content.Unmodeled, "openapi:$ref",
+			"%s: a resolved reference is not also kept as an undefined key", name)
+	}
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+	assert.Empty(t, doc.Unmodeled, "the whole components/mediaTypes map is no longer kept as one entry")
+}
+
+// assertXMLNodeType32 pins GitHub #615's xml.nodeType: ir.XMLHints.NodeType
+// already existed and its GoDoc already named the version, so the fix is the
+// wiring, and the dialect's key is no longer reported as undefined.
+func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	report, ok := doc.Types[namedID("Report")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(report, "id")
+	require.True(t, ok)
+	require.NotNil(t, id.XML)
+	assert.Equal(t, "attribute", id.XML.NodeType)
+
+	body, ok := propByWire(report, "body")
+	require.True(t, ok)
+	require.NotNil(t, body.XML)
+	assert.Equal(t, "text", body.XML.NodeType)
+	assert.True(t, body.XML.Wrapped, "the object's other fields still lower as they did")
+
+	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
+		"a key 3.2 defines is not an undefined key")
+}
+
+// assertNestedEncoding32 pins GitHub #615's nested Encoding fields: each is kept
+// verbatim under the part's own scope with one info, rather than drawing an
+// unknown-object-key warning and reaching no entry at all.
+func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	require.NotNil(t, op.Request)
+	content := op.Request.Contents[0]
+	for _, keyword := range []string{"encoding", "prefixEncoding"} {
+		entry, ok := content.Unmodeled["openapi:encoding/note/"+keyword]
+		require.True(t, ok, "%s is kept verbatim; got %v", keyword, slices.Sorted(maps.Keys(content.Unmodeled)))
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	}
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
+		"3.2 defines these keys, so the census must leave them alone")
+}
+
+// assertUnreferencedComponents pins GitHub #616: every component entry no
+// reference reaches is kept verbatim on the document, under the section and name
+// it was declared with, while the one entry the paths do name lowers as it
+// always did. No matrix row: the case is a preservation claim.
+func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, section := range []string{
+		"responses", "parameters", "examples", "requestBodies",
+		"headers", "links", "callbacks", "pathItems", "mediaTypes",
+	} {
+		key := "openapi:components/" + section + "/Unused"
+		entry, ok := doc.Unmodeled[key]
+		require.True(t, ok, "%s is kept verbatim; got %v", section, slices.Sorted(maps.Keys(doc.Unmodeled)))
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.Equal(t, "/components/"+section+"/Unused", string(entry.Provenance.Pointer),
+			"the entry is located at its own declaration, not at the carrier holding it")
+	}
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/Used",
+		"an entry a reference reaches is lowered, not also kept verbatim")
+
+	op, ok := opByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	assert.Equal(t, "reached from the paths", op.Responses[0].Docs.Description)
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
