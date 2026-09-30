@@ -4,7 +4,9 @@
 // own: it lowers nothing and reports nothing on its own behalf. What it owns is
 // the answer to "what is being lowered, and what does the document say about
 // itself" — the parsed document, the identity of the source, the indexes derived
-// from it once at entry, and the two constructors that stamp provenance.
+// from it once at entry, and the two constructors that stamp provenance. It
+// also owns the one normalization of a media type — NormalizeMediaType — that
+// every classification of one reads, so no walk has to spell the rule again.
 //
 // It is a package because the schema walk and the operation walk both need those
 // answers and neither may reach the other (micro-compiler-design §5.1). Keeping

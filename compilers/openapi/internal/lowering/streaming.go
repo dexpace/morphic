@@ -1,7 +1,5 @@
 package lowering
 
-import "strings"
-
 // StreamingMediaTypeHeuristic is the name Provenance.Inferred carries on an
 // operation whose streaming was read out of a media type rather than declared.
 // It is a constant because the marker is what an auditor greps for, and a
@@ -47,7 +45,7 @@ func DefaultStreamingMediaTypes() []string {
 // DeclaresSchema is: handing back the set would make it writable through a copy
 // of the context.
 func (c Ctx) MediaTypeStreams(mediaType string) bool {
-	return c.streaming[normalizeMediaType(mediaType)]
+	return c.streaming[NormalizeMediaType(mediaType)]
 }
 
 // streamingSet normalizes a policy into the set MediaTypeStreams answers from,
@@ -63,18 +61,9 @@ func streamingSet(p StreamingMedia) map[string]bool {
 	}
 	set := make(map[string]bool, len(types))
 	for _, mt := range types {
-		if normalized := normalizeMediaType(mt); normalized != "" {
+		if normalized := NormalizeMediaType(mt); normalized != "" {
 			set[normalized] = true
 		}
 	}
 	return set
-}
-
-// normalizeMediaType reduces a media type to the form the policy compares:
-// lowercased, with any parameters dropped.
-func normalizeMediaType(mediaType string) string {
-	if i := strings.IndexByte(mediaType, ';'); i >= 0 {
-		mediaType = mediaType[:i]
-	}
-	return strings.ToLower(strings.TrimSpace(mediaType))
 }

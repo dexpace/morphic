@@ -812,6 +812,7 @@ func splitContentTypes(raw string) []string {
 // isFormContent reports whether a media type is multipart or url-encoded form
 // content, whose parts carry per-property encoding.
 func isFormContent(mt string) bool {
+	mt = lowering.NormalizeMediaType(mt)
 	return strings.HasPrefix(mt, "multipart/") || mt == "application/x-www-form-urlencoded"
 }
 
@@ -820,7 +821,7 @@ func isFormContent(mt string) bool {
 func isBinaryBody(mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	s := schemaOf(js)
 	if s == nil {
-		return mt == "application/octet-stream"
+		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
 	return schemaIsBinary(s)
 }

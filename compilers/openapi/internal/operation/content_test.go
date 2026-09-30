@@ -73,6 +73,49 @@ func TestContent_MultipartPartEncoding(t *testing.T) {
 	assert.True(t, fileEnc.Filename)
 }
 
+// TestContent_MixedCaseFormContentKeepsEncoding drives the form arm of
+// lowerContent's switch with spellings RFC 6838 §4.2 treats as identical to
+// multipart/form-data: classification is case- and parameter-insensitive, while
+// the IR keeps the declared spelling (#603).
+func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		mt   string
+	}{
+		{"mixed case", "Multipart/Form-Data"},
+		{"mixed case with parameters", "Multipart/Form-Data; charset=utf-8"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          "` + tc.mt + `":
+            schema:
+              type: object
+              properties:
+                meta: {type: object, properties: {k: {type: string}}}
+            encoding:
+              meta:
+                contentType: application/json
+      responses: {"200": {description: ok}}
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
+			metaProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody", "content", tc.mt, "schema", "properties", "meta"))
+			enc, ok := content.Encoding[metaProp]
+			require.True(t, ok, "encoding keyed by the part property's PropID; got keys %v", content.Encoding)
+			assert.Equal(t, []string{"application/json"}, enc.ContentTypes)
+		})
+	}
+}
+
 func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /raw:
@@ -94,6 +137,42 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	require.NotNil(t, content.File, "binary body lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+}
+
+// TestContent_MixedCaseOctetStreamBodyIsFile drives the binary arm with
+// spellings RFC 6838 §4.2 treats as identical to application/octet-stream: the
+// body without a schema is a file, and FileInfo.ContentTypes keeps the declared
+// spelling (#603).
+func TestContent_MixedCaseOctetStreamBodyIsFile(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		mt   string
+	}{
+		{"mixed case", "Application/Octet-Stream"},
+		{"mixed case with parameters", "Application/Octet-Stream; charset=utf-8"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        required: true
+        content:
+          "` + tc.mt + `": {}
+      responses: {"200": {description: ok}}
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			require.NotNil(t, content.File, "an octet-stream body with no schema is a file body")
+			assert.False(t, content.File.IsText)
+			assert.Equal(t, []string{tc.mt}, content.File.ContentTypes, "the declared spelling is what the IR records")
+			assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+		})
+	}
 }
 
 func TestContent_BinaryRefBodyDetectedAsFile(t *testing.T) {
