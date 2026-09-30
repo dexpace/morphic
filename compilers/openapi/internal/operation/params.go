@@ -125,6 +125,14 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (§14).
+//
+// A schema writing `format: password` reaches this parameter's type node like any
+// other format that hoists one: a Scalar carrying Sensitive and Encoding.Name.
+// Nothing on ir.Parameter records the fact — the struct has no redaction field —
+// so the schema node is the only carrier at this position, and a $ref to a
+// redaction component resolves to that component's node, which already carries
+// it. GitHub #578 owns the parameter-level carrier; this position deliberately
+// does not duplicate the fact with a spelling #578 would then have to retire.
 func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) []ir.Diagnostic {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr)
 	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)

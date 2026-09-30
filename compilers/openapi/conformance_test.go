@@ -46,8 +46,18 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // cannot tell from never being written. That test's doc comment says which
 // weaknesses are structural; the point of the file is that nothing about the
 // corpus's reach is claimed here by hand.
+//
+// It is deliberately *not* parallel, the one test in this package that is not,
+// because it writes the corpus directory. Its subtests are parallel and, under
+// -update, each one writes its golden into testdata/conformance/openapi; the
+// scheduler only waits for a test's parallel subtests before that test itself
+// finishes, so a sequential parent is what makes those writes complete before
+// any later test reads the directory. TestConformance_TableNamesEveryCorpusSpec
+// reads it and is declared after this test in this file; running the two
+// concurrently is the race that made a first -update run over a newly added spec
+// report the spec as having no golden while this test's subtest was still
+// writing it. Its comment carries the reader's half of the ordering.
 func TestConformance(t *testing.T) {
-	t.Parallel()
 	for _, tc := range conformanceCases() {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
@@ -71,8 +81,20 @@ func TestConformance(t *testing.T) {
 // (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
 // it looks covered; a row naming a deleted spec fails the other way. Comparing
 // sorted lists rather than sets also catches a spec named by two rows.
+//
+// This test is deliberately *not* parallel, and is declared after TestConformance
+// in this file, which is likewise not parallel. It reads the corpus directory,
+// and under -update TestConformance's parallel subtests write goldens into that
+// same directory: run concurrently with them — which is what t.Parallel gave
+// before this was fixed — corpusSpecNames reads a spec whose golden has not been
+// written yet as a spec with no golden, and this test reports "corpus specs and
+// goldens disagree" for a race rather than a defect. A newly added spec fails
+// that way on the first -update run and passes on the next, which is exactly the
+// kind of intermittency a reviewer should not have to diagnose. Both tests being
+// sequential orders the writer ahead of this reader by declaration order;
+// TestConformance's comment says why the writer is the one that cannot be
+// parallel, since only it writes.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
-	t.Parallel()
 	onDisk := corpusSpecNames(t)
 	cases := conformanceCases()
 	inTable := make([]string, 0, len(cases))
@@ -193,6 +215,7 @@ func conformanceCases() []conformanceCase {
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
 		{"empty-enum", assertEmptyEnum, nil},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
+		{"secret-format", assertSecretFormat, []string{"custom-scalars"}},
 		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
 		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
 		{"xml-hints", assertXMLHints, nil},
@@ -1190,11 +1213,115 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, sc.Constraints.MinLength)
 	assert.Equal(t, int64(4), *sc.Constraints.MinLength)
 
-	// format: password is a redaction request about a use of the value, so it
-	// lands on the property rather than on the shared encoding node.
+	// format: password is a redaction request about how the value is handled, so
+	// it hoists a Scalar of its own carrying Sensitive and the verbatim spelling,
+	// and the property that writes it keeps Property.Secret beside that node.
 	token, ok := propByWire(h, "token")
 	require.True(t, ok)
-	assert.True(t, token.Secret)
+	assert.True(t, token.Secret, "the property that writes it is secret at the use")
+	secret, ok := doc.Types[token.Type.Target].(*ir.Scalar)
+	require.True(t, ok, "password no longer stays on the shared primitive")
+	assert.True(t, secret.Sensitive, "whole-type redaction")
+	require.NotNil(t, secret.Encoding)
+	assert.Equal(t, "password", secret.Encoding.Name, "the source token verbatim")
+	require.NotNil(t, secret.Base)
+	assert.Equal(t, ir.TypeID("t/prim/string"), secret.Base.Target, "over the bare type's primitive")
+}
+
+// assertSecretFormat pins where a `format: password` position's fact lands: a
+// Scalar of its own carrying Sensitive and the verbatim spelling at every schema
+// position, and Property.Secret beside it wherever a property or a header is the
+// carrier. It reads the nodes rather than the golden's bytes, so a node that
+// moved to another position while keeping the same fields still fails
+// (GitHub #579).
+func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	// The named component every reference resolves to.
+	requireSecretScalar(t, doc, namedID("Pw"), "component schema")
+
+	login, ok := doc.Types[namedID("Login")].(*ir.Model)
+	require.True(t, ok, "Login is a model")
+
+	// Inline property: Property.Secret beside the hoisted node.
+	inline, ok := propByWire(login, "inline")
+	require.True(t, ok)
+	assert.True(t, inline.Secret, "the inline property is secret")
+	requireSecretScalar(t, doc, inline.Type.Target, "inline property schema")
+
+	// Property via $ref: Secret from the referent, which carries the node.
+	viaRef, ok := propByWire(login, "viaRef")
+	require.True(t, ok)
+	assert.True(t, viaRef.Secret, "a $ref to a redaction schema is secret at the use")
+	assert.Equal(t, namedID("Pw"), viaRef.Type.Target, "it resolves to the component")
+
+	// Array items.
+	arr, ok := propByWire(login, "arr")
+	require.True(t, ok)
+	list, ok := doc.Types[arr.Type.Target].(*ir.List)
+	require.True(t, ok, "arr hoists a list")
+	requireSecretScalar(t, doc, list.Elem.Target, "array items")
+
+	// additionalProperties and patternProperties.
+	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
+	require.True(t, ok, "Bag is a model")
+	require.NotNil(t, bag.AdditionalProps)
+	requireSecretScalar(t, doc, bag.AdditionalProps.Value.Target, "additionalProperties")
+	require.Len(t, bag.AdditionalProps.Patterns, 1)
+	requireSecretScalar(t, doc, bag.AdditionalProps.Patterns[0].Value.Target, "patternProperties")
+
+	// prefixItems.
+	pair, ok := doc.Types[namedID("Pair")].(*ir.Tuple)
+	require.True(t, ok, "prefixItems hoists a tuple")
+	require.Len(t, pair.Elems, 1)
+	requireSecretScalar(t, doc, pair.Elems[0].Target, "prefixItems")
+
+	op, ok := opByName(doc, "login")
+	require.True(t, ok)
+
+	// A header parameter's schema, inline, and a query parameter's, via $ref.
+	token, ok := paramByName(op, "X-Token")
+	require.True(t, ok)
+	requireSecretScalar(t, doc, token.Type.Target, "header parameter schema")
+	key, ok := paramByName(op, "api_key")
+	require.True(t, ok)
+	assert.Equal(t, namedID("Pw"), key.Type.Target, "the query parameter resolves to the component")
+
+	// Request and response content schemas.
+	requireSecretScalar(t, doc, openapitest.BodyTarget(t, op.Request), "request content schema")
+	require.Len(t, op.Responses, 1)
+	requireSecretScalar(t, doc, openapitest.BodyTarget(t, op.Responses[0].Payload), "response content schema")
+
+	// A response header: Property.Secret beside the node.
+	require.Len(t, op.Responses[0].Headers, 1)
+	header := op.Responses[0].Headers[0]
+	assert.True(t, header.Secret, "the response header is secret")
+	requireSecretScalar(t, doc, header.Type.Target, "response header schema")
+
+	// The guard: a bare string still targets the shared primitive, which stays
+	// not sensitive — the redaction must never leak onto the node every
+	// declaration of the type shares (invariant 3).
+	plain, ok := propByWire(login, "plain")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), plain.Type.Target,
+		"a plain string keeps the shared primitive")
+	assert.False(t, plain.Secret, "and asks for no redaction")
+	prim, ok := doc.Types[ir.TypeID("t/prim/string")]
+	require.True(t, ok, "the shared string primitive is registered")
+	assert.False(t, prim.Common().Sensitive, "the shared primitive is never sensitive")
+}
+
+// requireSecretScalar requires the node at id to be the Scalar a
+// `format: password` position hoists, over the bare type's own primitive.
+func requireSecretScalar(t *testing.T, doc *ir.Document, id ir.TypeID, position string) {
+	t.Helper()
+	node, ok := doc.Types[id]
+	require.True(t, ok, "%s: nothing is interned at %s", position, id)
+	sc, ok := node.(*ir.Scalar)
+	require.True(t, ok, "%s: the position hoists a Scalar of its own", position)
+	assert.True(t, sc.Sensitive, "%s: whole-type redaction", position)
+	require.NotNil(t, sc.Encoding, "%s: the format reaches Encoding", position)
+	assert.Equal(t, "password", sc.Encoding.Name, "%s: the source token verbatim", position)
+	require.NotNil(t, sc.Base, "%s: a base to ride", position)
+	assert.Equal(t, ir.TypeID("t/prim/string"), sc.Base.Target, "%s: over the bare type's primitive", position)
 }
 
 // assertXMLHints covers the XML wire shape, whose hints attach at two carriers

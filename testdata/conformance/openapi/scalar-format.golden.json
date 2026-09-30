@@ -42,6 +42,27 @@
         "name": "hex-color"
       }
     },
+    "t/anon/components/schemas/Holder/properties/token": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/token",
+      "name": {
+        "hint": "token"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/token"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "password"
+      }
+    },
     "t/openapi/components/schemas/Holder": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Holder",
@@ -96,7 +117,7 @@
           },
           "wireName": "token",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/Holder/properties/token",
             "nullable": false
           },
           "required": false,

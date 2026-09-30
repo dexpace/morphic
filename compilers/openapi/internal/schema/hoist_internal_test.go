@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,4 +98,27 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	assert.True(t, ok)
 	assert.Empty(t, diags, "a hit reports nothing")
 	assert.Equal(t, id, td.Common().ID)
+}
+
+// TestFormatTable_EveryRowDistinguishesTheBareType pins the invariant the
+// `string/password` row broke (GitHub #579): a (type, format) key may only map
+// to a primitive kind the pairing itself distinguishes, because a row mapping to
+// the kind the bare type selects makes the pairing unreadable — the position
+// resolves to the shared primitive and nothing anywhere records the format. A
+// format whose kind does not differ must be absent from the table and hoist a
+// node instead, as byte, password and an unknown format do.
+func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
+	t.Parallel()
+	for key, prim := range formatTable {
+		typ, _, paired := strings.Cut(key, "/")
+		if !paired {
+			continue // the bare type's own row, which no format selects
+		}
+		bare, ok := formatTable[typ]
+		require.True(t, ok, "row %q names a type with no row of its own", key)
+		assert.NotEqual(t, bare, prim,
+			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
+				"reaches no field once the position resolves to the shared primitive; "+
+				"a format whose kind does not differ must hoist a node instead", key, prim, typ)
+	}
 }

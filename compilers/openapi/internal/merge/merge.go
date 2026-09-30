@@ -341,6 +341,14 @@ const maxTypeResolveDepth = 64
 // (GitHub #424); the diagnostic stays on the narrower predicate, because
 // "dropped" and "contradictory" are different claims.
 //
+// A target that differs only because one declaration hoisted a node for a format
+// is the standing case: `{type: string, format: password}` resolves to a Scalar
+// of its own while a bare `{type: string}` stays on the shared primitive, so the
+// two no longer compare like-for-like and the format declaration is dropped —
+// silently, since typesConflict does not fire when both sides still name a
+// string. GitHub #446 owns the format-narrowing question, whether a pairing
+// narrower than the bare type is a conflict at all.
+//
 // A type conflict is genuinely unsatisfiable; a
 // constraint conflict is usually satisfiable alone, but the merge can't
 // represent the true intersection and may keep the looser bound
