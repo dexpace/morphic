@@ -207,6 +207,31 @@ func TestPayload_RequiredIsTriState(t *testing.T) {
 	}
 }
 
+// TestPayload_DocsIsTriState pins Payload.Docs' three states, which is why it
+// is a pointer rather than a value: nil is "this position states no docs" and
+// must stay an absent key, so a response or message payload golden does not gain
+// a docs:{} the source never declared. omitzero, not omitempty, keeps the
+// distinct present-but-empty state on the wire.
+func TestPayload_DocsIsTriState(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		in   *ir.Docs
+		want string
+	}{
+		{"unstated", nil, `{}`},
+		{"documented", &ir.Docs{Description: "the body"}, `{"docs":{"description":"the body"}}`},
+		{"present but empty", &ir.Docs{}, `{"docs":{}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := ir.Payload{Docs: tc.in}
+			assertZeroValueShape(t, payload, tc.want)
+			assertRoundTrip(t, payload)
+		})
+	}
+}
+
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
 // no omitempty, every other field is optional — and that a fully populated
 // Content — item schema for sequential streaming, per-part encodings, and

@@ -68,7 +68,7 @@ type Document struct {
                                        // referenced by identity from operations and replies (AsyncAPI 3)
     Auth        map[AuthID]AuthScheme  // auth scheme registry
     Servers     []Server               // endpoint templates
-    TagDefs     []TagDef               // tag metadata registry: {Name, Docs}; tag *membership* stays
+    TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag *membership* stays
                                        // []string on the tagged nodes (OpenAPI/AsyncAPI tag objects)
     Versions    []string               // ordered version labels when availability metadata is used
     Unmodeled   Unmodeled
@@ -78,7 +78,13 @@ type Document struct {
 
 type Contact struct { Name, URL, Email string }
 type License struct { Name, Identifier, URL string }
-type TagDef  struct { Name string; Docs Docs }
+type TagDef  struct {
+    Name   string
+    Docs   Docs
+    Parent string                 // nested-tag parent (OpenAPI 3.2 tag parent), as declared; "" = top-level
+    Kind   string                 // tag role recorded verbatim (OpenAPI 3.2 tag kind); interpretation is
+                                  // grouping policy (§7.1), never read here
+}
 ```
 
 A `Document` is self-contained: no node references anything outside it.
@@ -1252,6 +1258,13 @@ type Payload struct {
                                   // Response and message payloads leave it nil — only a request
                                   // body can be omitted — and pass/validate reports one set
                                   // anywhere else (ir/payload-required-outside-request)
+                                  // Docs is the payload's own documentation (a Request Body Object's
+                                  // summary and description describe the body, not any media type
+                                  // inside it). Pointer like Required, so nil is a third state: this
+                                  // position states no docs. A request body sets it today; a message
+                                  // payload may later, which is why no pass rule forbids it outside a
+                                  // request
+    Docs      *Docs
     Unmodeled  Unmodeled
 }
 

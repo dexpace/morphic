@@ -146,6 +146,7 @@ ParamPath.Param
 ParamPath.Segments
 Parameter.Availability
 Parameter.ValueFrom
+Payload.Docs
 PropPath.In
 PropPath.Root
 PropPath.Segments
@@ -196,6 +197,8 @@ Service.Servers
 Service.Version
 StreamDetail.Initial
 StreamDetail.RequiresLength
+TagDef.Kind
+TagDef.Parent
 TemplateArg.Type
 TemplateArg.Value
 TemplateInstantiation.Args
