@@ -443,7 +443,8 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
-	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
+	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
+		"header", "ir.Property")
 	// name is this entry's map key, which names the shared node after this mount
 	// when the header is declared under another response (GitHub #433).
 	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
@@ -466,6 +467,11 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
 	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
+	// The media type object's own examples are more specific than the schema's,
+	// which FillPropertyDetail has just recorded, so they are applied after it.
+	if len(elected.examples) > 0 {
+		p.Examples = elected.examples
+	}
 	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
 	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
 }
@@ -498,15 +504,68 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	return diags
 }
 
+// contentOnlyFields are the Media Type Object fields the IR models at a body's
+// content position and gives a parameter or header no home for: the 3.2
+// sequential-media fields, and the multipart per-part encoding block. The
+// position lowers to one ir.Parameter or ir.Property holding one type and no
+// item or encoding fields, so each of these is kept verbatim instead of dropped
+// — the same one-field read electTypeSpelling used to make, widened from the
+// media type's schema to the whole object (GitHub #611).
+var contentOnlyFields = []string{"itemSchema", "itemEncoding", "prefixEncoding", "encoding"}
+
+// contentEntryFields returns everything a Media Type Object declares at a
+// parameter's or header's elected `content` position beyond the one type that
+// position lowers: its example/examples, its x-* and undeclared keys, and the
+// fields contentOnlyFields names.
+//
+// Nothing read any of them, so a document writing `{content: {application/json:
+// {schema, example, x-note}}}` lost the example and the extension with no field,
+// no Unmodeled entry and no diagnostic — and a parser-modelled field like
+// itemSchema produced no census warning either, so it vanished in silence twice
+// over (GitHub #611). scope is the content entry's own path, so several media
+// types — and the enclosing object's own entries — cannot collide on one key.
+//
+// carrier and home name the position in the one info per content-only field,
+// which is a gap the IR can close by growing the field: ReasonNoIRHome rather
+// than a boundary.
+func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer,
+	scope, carrier, home string,
+) ([]ir.Example, ir.Unmodeled, []ir.Diagnostic) {
+	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
+	var unmodeled ir.Unmodeled
+	ext, extDiags := schema.ExtensionsIn(c, media.GetExtensions(), mediaPtr, scope)
+	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
+	diags = append(diags, extDiags...)
+	for _, keyword := range contentOnlyFields {
+		at := mediaPtr + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, &unmodeled,
+			"openapi:"+scope+"/"+ids.Scope(keyword),
+			annotation.RawChildNode(media.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
+			carrier, keyword, home))
+	}
+	// Last, so the keys the readers above kept are already recorded and the census
+	// leaves them alone: it answers only for what nothing read.
+	return examples, unmodeled,
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope)...)
+}
+
 // typeSpelling is how a parameter or header stated its type: the schema node,
 // the pointer that node sits at, the media type serializing it — empty for the
-// `schema` spelling — and whatever the election passed over, for the carrier at
-// this position to merge onto its own Unmodeled.
+// `schema` spelling — the examples a content-style entry declares, and whatever
+// the election passed over, for the carrier at this position to merge onto its
+// own Unmodeled.
 type typeSpelling struct {
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
 	mediaType string
 	unmodeled ir.Unmodeled
+	examples  []ir.Example
 }
 
 // electTypeSpelling picks the spelling a parameter or header states its type
@@ -544,16 +603,23 @@ type typeSpelling struct {
 // below it (GitHub #139). One order now governs both (GitHub #320).
 func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
+	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
 	// singleContentEntry takes it and reports a document that declares more,
 	// rather than dropping the extras in silence (GitHub #139).
 	mt, media, ok, diags := singleContentEntry(c, content, at)
 	if ok {
+		mediaPtr := at + ids.Ptr("content", mt)
+		scope := ids.Scope("content", mt)
+		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
+		diags = append(diags, residueDiags...)
 		elected := typeSpelling{
 			js:        media.GetSchema(),
-			pointer:   at + ids.Ptr("content", mt, "schema"),
+			pointer:   mediaPtr + ids.Ptr("schema"),
 			mediaType: mt,
+			unmodeled: residue,
+			examples:  examples,
 		}
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags

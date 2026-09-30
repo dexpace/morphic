@@ -240,6 +240,7 @@ func conformanceCases() []conformanceCase {
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
 		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
 		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
+		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3117,6 +3118,42 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "The key this API expects.", byName["ApiKey"])
 	assert.Equal(t, "The declaration's own scheme description.", byName["BaseKey"],
 		"the aliasing entry's siblings do not reach the declaration")
+}
+
+// assertParamContentFields pins GitHub #611: electing a parameter's or header's
+// `content` spelling reads the whole Media Type Object rather than only its
+// schema, so the object's examples reach the carrier and what the carrier has no
+// home for is kept verbatim under the content entry's own scope. The schema
+// spelling beside them elects no media type and records none of it.
+func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "search")
+	require.True(t, ok)
+
+	filter, ok := paramByName(op, "filter")
+	require.True(t, ok)
+	require.Len(t, filter.Examples, 1, "the media type's examples reach the parameter")
+	assert.Equal(t, "one", filter.Examples[0].Name)
+	assert.Equal(t, "One kind", filter.Examples[0].Summary)
+
+	const scope = "openapi:content/application~1json/"
+	assert.Equal(t, ir.ReasonVendorExtension, filter.Unmodeled[scope+"x-note"].Reason)
+	assert.Equal(t, ir.ReasonNoIRHome, filter.Unmodeled[scope+"itemSchema"].Reason,
+		"a parser-modelled field with no ir.Parameter home is kept rather than dropped")
+
+	plain, ok := paramByName(op, "plain")
+	require.True(t, ok)
+	assert.Empty(t, plain.Examples, "the schema spelling elects no media type to take examples from")
+	assert.Empty(t, plain.Unmodeled, "nor any content-scoped entry")
+
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	header := op.Responses[0].Headers[0]
+	require.Len(t, header.Examples, 1, "the header's content media type contributes its examples too")
+	assert.Equal(t, "hit", header.Examples[0].Name)
+	assert.Equal(t, ir.ReasonVendorExtension, header.Unmodeled[scope+"x-hdr"].Reason)
+
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

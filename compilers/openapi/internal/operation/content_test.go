@@ -2,6 +2,8 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -2101,4 +2103,124 @@ components:
 	require.NotNil(t, op.Request)
 	require.NotNil(t, op.Request.Docs)
 	assert.Equal(t, "the use site", op.Request.Docs.Description)
+}
+
+// TestParamContent_MediaTypeFieldsReachTheParameter pins GitHub #611 at the
+// parameter position: electing a `content` entry used to read only the media
+// type's schema, so the object's example/examples, its x-*, its undeclared keys
+// and the parser-modelled fields no ir.Parameter holds vanished with no field,
+// no Unmodeled entry and no diagnostic.
+func TestParamContent_MediaTypeFieldsReachTheParameter(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /search:
+    get:
+      operationId: search
+      parameters:
+        - name: filter
+          in: query
+          content:
+            application/json:
+              schema: {type: object, properties: {kind: {type: string}}}
+              examples:
+                one: {summary: One, value: {kind: a}}
+              itemSchema: {type: string}
+              x-note: note
+              bogus: B
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	param := op.Params[0]
+
+	require.Len(t, param.Examples, 1, "the media type's own examples reach the parameter")
+	assert.Equal(t, "one", param.Examples[0].Name)
+	assert.Equal(t, "One", param.Examples[0].Summary)
+	require.NotNil(t, param.Examples[0].Value)
+
+	key := func(name string) string { return "openapi:content/application~1json/" + name }
+	assert.Equal(t, ir.ReasonVendorExtension, param.Unmodeled[key("x-note")].Reason,
+		"the media type's x-* survives under the content entry's own scope; got %v",
+		slices.Sorted(maps.Keys(param.Unmodeled)))
+	assert.Equal(t, ir.ReasonNoIRHome, param.Unmodeled[key("itemSchema")].Reason,
+		"a parser-modelled field with no ir.Parameter home is kept verbatim rather than dropped")
+	assert.Equal(t, ir.ReasonOutOfScope, param.Unmodeled[key("bogus")].Reason,
+		"an undefined key keeps today's grading")
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
+}
+
+// TestHeaderContent_MediaTypeFieldsReachTheProperty is the header half of GitHub
+// #611: the same one-field read is what dropped a content-style header's media
+// type fields, so the same fix reaches them on the Property.
+func TestHeaderContent_MediaTypeFieldsReachTheProperty(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /reports:
+    get:
+      operationId: getReport
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Report:
+              content:
+                application/json:
+                  schema: {type: object, properties: {hits: {type: integer}}}
+                  examples:
+                    hit: {summary: One hit, value: {hits: 1}}
+                  itemSchema: {type: string}
+                  x-hdr: hdr
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+
+	require.Len(t, header.Examples, 1, "the media type's own examples reach the header")
+	assert.Equal(t, "hit", header.Examples[0].Name)
+	assert.Equal(t, "One hit", header.Examples[0].Summary)
+	key := func(name string) string { return "openapi:content/application~1json/" + name }
+	assert.Equal(t, ir.ReasonVendorExtension, header.Unmodeled[key("x-hdr")].Reason)
+	assert.Equal(t, ir.ReasonNoIRHome, header.Unmodeled[key("itemSchema")].Reason)
+	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1reports/get/responses/200/headers/X-Report/content/application~1json/itemSchema")
+}
+
+// TestParamAndHeaderSchema_NeverRecordContentFields is the passed-over case: the
+// schema spelling elects no media type, so nothing content-scoped can appear on
+// the carrier and no info is reported.
+func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /plain:
+    get:
+      operationId: plain
+      parameters:
+        - {name: filter, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Plain: {schema: {type: string}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	for key := range op.Params[0].Unmodeled {
+		assert.NotContains(t, key, "openapi:content/", "the schema spelling elects no media type")
+	}
+	assert.Empty(t, op.Params[0].Examples)
+	require.Len(t, op.Responses[0].Headers, 1)
+	for key := range op.Responses[0].Headers[0].Unmodeled {
+		assert.NotContains(t, key, "openapi:content/")
+	}
+	assert.Empty(t, op.Responses[0].Headers[0].Examples)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "content media type",
+			"nothing was passed over, so nothing is announced")
+	}
 }
