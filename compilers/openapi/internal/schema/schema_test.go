@@ -284,26 +284,158 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
-func TestLower_TupleWithTrailingItems(t *testing.T) {
+// tupleTail is one expected Unmodeled entry: the raw payload, the reason and the
+// pointer locating the construct.
+type tupleTail struct {
+	raw     string
+	reason  ir.UnmodeledReason
+	pointer jsontext.Pointer
+}
+
+// TestLower_TupleTail pins the three states a prefixItems tuple's tail can be in,
+// the entry each writes, and the collection bounds beside them.
+//
+// The tail past the positional head is decided from `items` and `unevaluatedItems`
+// alone, and each state is a separate claim about what lies beyond Elems:
+//
+//   - open, no `items` written — 2020-12 reads an absent `items` as the empty
+//     schema `true`, so the effective tail is open, and the entry states that as
+//     the literal `true`. It is located at the tuple schema's own pointer because
+//     no /items node exists, and that pointer is what tells it apart from a
+//     written `items: true`.
+//   - open, `items: true` or a schema — kept verbatim at its own /items pointer,
+//     where the source wrote it.
+//   - closed, `items: false` — nothing is kept and nothing is reported, because
+//     the positional head already states exactly that.
+//
+// A tail `unevaluatedItems` alone closes or types is left to the §4.7 keeper,
+// which holds the keyword verbatim under Unmodeled["openapi:unevaluated"]: that
+// raw value *is* the tail, so no absent-`items` entry is synthesized beside it and
+// no open-tuple info is emitted (ir-design §4.8).
+//
+// Whatever the tail, the bounds the whole instance declared reach
+// Tuple.Constraints — the field the tuple's minItems/maxItems/uniqueItems now
+// live in rather than Unmodeled.
+func TestLower_TupleTail(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    Tup:
-      type: array
-      prefixItems: [{type: string}, {type: integer}]
-      items: {type: boolean}
-`)
-	doc, diags := lowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
-	require.True(t, ok)
-	require.Len(t, tup.Elems, 2)
-	residue, hasResidue := tup.Unmodeled["openapi:items-after-prefix"]
-	require.True(t, hasResidue, "trailing items preserved raw")
-	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
-	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
-		"an open tuple is lowered to a weaker fixed-arity shape, not left homeless (ir-design §4.8)")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Tup/items"), residue.Provenance.Pointer)
-	assert.True(t, hasDegradedDiag(diags, "open tuple"),
-		"the degradation is reported, not silent; got %+v", diags)
+	i64 := func(v int64) *int64 { return &v }
+	for _, tc := range []struct {
+		name    string
+		body    string
+		elems   int
+		consts  *ir.Constraints
+		tail    map[string]tupleTail
+		wantMsg bool
+	}{
+		{
+			name:    "absent items is open and states the effective tail",
+			body:    "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n",
+			elems:   2,
+			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
+			wantMsg: true,
+		},
+		{
+			name:    "items true is open at its own node",
+			body:    "      type: array\n      prefixItems: [{type: string}]\n      items: true\n",
+			elems:   1,
+			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup/items"}},
+			wantMsg: true,
+		},
+		{
+			name:  "items false is closed, and the head already says so",
+			body:  "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n      items: false\n",
+			elems: 2,
+		},
+		{
+			name:    "a typed tail is kept verbatim where it stands",
+			body:    "      type: array\n      prefixItems: [{type: string}]\n      items: {type: boolean}\n",
+			elems:   1,
+			tail:    map[string]tupleTail{tailKey: {`{"type":"boolean"}`, ir.ReasonDegradedLowering, "/components/schemas/Tup/items"}},
+			wantMsg: true,
+		},
+		{
+			name:   "closed with the head pinned from below",
+			body:   "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n      items: false\n      minItems: 2\n",
+			elems:  2,
+			consts: &ir.Constraints{MinItems: i64(2)},
+		},
+		{
+			name:    "an upper bound alone leaves the tail open",
+			body:    "      type: array\n      prefixItems: [{type: string}]\n      maxItems: 1\n",
+			elems:   1,
+			consts:  &ir.Constraints{MaxItems: i64(1)},
+			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
+			wantMsg: true,
+		},
+		{
+			name:    "a lower bound alone leaves the tail open",
+			body:    "      type: array\n      prefixItems: [{type: string}]\n      minItems: 3\n",
+			elems:   1,
+			consts:  &ir.Constraints{MinItems: i64(3)},
+			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
+			wantMsg: true,
+		},
+		{
+			name:   "closed with every bound",
+			body:   "      type: array\n      prefixItems: [{type: string}]\n      items: false\n      minItems: 3\n      maxItems: 1\n      uniqueItems: true\n",
+			elems:  1,
+			consts: &ir.Constraints{MinItems: i64(3), MaxItems: i64(1), UniqueItems: true},
+		},
+		{
+			name:  "unevaluatedItems alone holds the tail, so nothing is synthesized",
+			body:  "      type: array\n      prefixItems: [{type: string}]\n      unevaluatedItems: false\n",
+			elems: 1,
+			tail: map[string]tupleTail{
+				"openapi:unevaluated": {`{"unevaluatedItems":false}`, ir.ReasonValidationOnly, "/components/schemas/Tup"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Tup:\n"+tc.body))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
+			require.True(t, ok, "prefixItems hoists a Tuple")
+			assert.Len(t, tup.Elems, tc.elems, "the positional head is the prefixItems list")
+			assert.Equal(t, tc.consts, tup.Constraints, "the instance's bounds reach Tuple.Constraints")
+
+			assert.Equal(t, len(tc.tail), len(tup.Unmodeled), "kept exactly: %v", unmodeledKeys(tup.Unmodeled))
+			for key, want := range tc.tail {
+				entry := unmodeledEntry(t, tup.Unmodeled, key)
+				assert.Equal(t, want.reason, entry.Reason)
+				assert.JSONEq(t, want.raw, string(entry.Value))
+				assert.Equal(t, want.pointer, entry.Provenance.Pointer)
+			}
+
+			wantInfo := 0
+			if tc.wantMsg {
+				wantInfo = 1
+			}
+			atTuple := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Tup")
+			assert.Len(t, atTuple, wantInfo,
+				"the open tuple is announced exactly when a tail entry was kept; got %+v", diags)
+			for _, d := range atTuple {
+				assert.Equal(t, ir.SeverityInfo, d.Severity, "the degradation is info, not a warning")
+			}
+			if tc.wantMsg {
+				assert.True(t, hasDegradedDiag(diags, "open tuple"),
+					"the degradation says the tuple is open; got %+v", diags)
+			}
+		})
+	}
+}
+
+// tailKey is the Unmodeled key every open prefixItems tuple keeps its tail under,
+// whatever the tail came from.
+const tailKey = "openapi:items-after-prefix"
+
+// unmodeledEntry returns the Unmodeled entry at key, failing when absent.
+func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry {
+	t.Helper()
+	entry, ok := p[key]
+	require.True(t, ok, "%q kept verbatim; kept instead: %v", key, unmodeledKeys(p))
+	return entry
 }
 
 // hasDegradedDiag reports whether diags carries a degraded-construct info
@@ -4310,14 +4442,17 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindLiteral, []string{"openapi:type"}},
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
 			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
-		// A collection bound is homed by ir.List.Constraints and by nothing else.
-		// listConstraints is its only reader and only lowerArray calls it, so an
-		// object keeps it here; so does a Tuple, which has no Constraints field at
-		// all. Both reached the IR in no form before they joined the census.
+		// A collection bound is homed by ir.List.Constraints and
+		// ir.Tuple.Constraints and by nothing else. collectionConstraints is its
+		// only reader, called by lowerArray and buildTuple, so an object keeps it
+		// here — while a Tuple does not. The tuple row is its control, closed with
+		// `items: false` so that nothing but the bound's home can make it keep
+		// anything: the bound reached Tuple.Constraints, so the census records
+		// nothing and reports nothing.
 		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
 			ir.KindModel, []string{"openapi:minItems"}},
-		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
-			ir.KindTuple, []string{"openapi:maxItems"}},
+		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], items: false, maxItems: 2}",
+			ir.KindTuple, nil},
 		// A Scalar rather than the shared Primitive the type alone would reach:
 		// the entry needs a node this pointer owns, so the census hoists the alias
 		// that carries it.
@@ -4509,12 +4644,12 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	}
 }
 
-// TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead pins the
-// reason the census asks what filled a Constraints field rather than which kinds
-// have one. An ir.List has the field, but lowerArray fills it from
-// listConstraints — collection bounds only — so a string bound written on an
-// array reaches nothing however full the field looks.
-func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testing.T) {
+// TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead pins
+// the reason the census asks what filled a Constraints field rather than which
+// kinds have one. An ir.List has the field, but lowerArray fills it from
+// collectionConstraints — collection bounds only — so a string bound written on
+// an array reaches nothing however full the field looks.
+func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, keywordCensusSpec(
 		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
@@ -4525,7 +4660,7 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testin
 	require.NotNil(t, l.Constraints)
 	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
 	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
-		"and only the bound listConstraints does not read is kept")
+		"and only the bound collectionConstraints does not read is kept")
 }
 
 // TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold runs the same

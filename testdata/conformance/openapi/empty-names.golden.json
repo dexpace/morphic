@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "Empty Names",
   "version": "1.0.0",
   "docs": {},
@@ -412,6 +412,16 @@
       "anonymous": true,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:items-after-prefix": {
+          "reason": "degraded_lowering",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tuple/properties/"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tuple/properties/"
@@ -1058,6 +1068,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Mixed/properties/"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the tail past prefixItems is an open tuple; lowered as a positional head of fixed length with the tail kept under Unmodeled[\"openapi:items-after-prefix\"]",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tuple/properties/"
       }
     },
     {

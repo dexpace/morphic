@@ -58,7 +58,21 @@ package ir
 // only an RFC 6901 pointer; a line and column move to "position", and an IR
 // pass's location in the document itself moves to "node". A consumer pinned to
 // 0.5.0 knows neither new key and reads those findings as unlocated.
-const IRVersion = "0.6.0"
+//
+// 0.7.0 gives a tuple its collection bounds and makes its tail explicit:
+//
+//   - Tuple gains Constraints, the field List already carried, so minItems,
+//     maxItems and uniqueItems move off Unmodeled and onto Tuple.Constraints. A
+//     consumer pinned to 0.6.0 that read those bounds out of "unmodeled" now
+//     finds nothing there.
+//   - An untailed prefixItems keeps its open tail under Unmodeled: a source
+//     writing no items at all is kept as the literal true at the tuple's own
+//     pointer, since 2020-12 reads an absent items as the empty schema. A typed
+//     tail stays where it was, under the same key. A Tuple's tail is therefore
+//     closed exactly when it carries no openapi:items-after-prefix entry, and
+//     open — unconstrained when the entry is true, typed when it is a schema —
+//     when it carries one.
+const IRVersion = "0.7.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build. It is the predicate behind the compatibility policy in
