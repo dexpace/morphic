@@ -1,0 +1,36 @@
+{
+  "irVersion": "0.6.0",
+  "name": "SelfURI",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SelfURI",
+        "canonical": "self_uri"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "self-uri.yaml",
+      "hash": "6b1506edc448d71f2854e463e9448ed9a52d1a6ce3c124ce8f218f2a8b09fb7c",
+      "selfURI": "https://example.com/api/openapi.yaml"
+    }
+  ]
+}

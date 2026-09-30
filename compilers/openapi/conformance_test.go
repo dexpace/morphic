@@ -238,6 +238,7 @@ func conformanceCases() []conformanceCase {
 		{"extension-promotion", assertExtensionPromotion, []string{"deprecation", "open-enums"}},
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
+		{"self-uri", assertSelfURI, nil},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -2990,6 +2991,24 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	require.Len(t, headers[0].Examples, 1)
 	require.NotNil(t, headers[0].Examples[0].Value)
 	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
+}
+
+// assertSelfURI pins that a document's declared self-assigned URI arrives on the
+// source entry rather than on any lowered node: `$self` is a fact about one input
+// file, so it is read back off Sources[0] beside the format that file was parsed
+// as.
+//
+// The golden is the byte-exact proof that the key reaches the document's JSON —
+// this assertion says what reading it back means, and cannot tell an absent key
+// from an empty one. rows is empty because the matrix's rows are API
+// capabilities: a document's self-assigned URI is source identity, no row
+// receives it, and inventing one would make the matrix describe the corpus
+// instead of the source formats.
+func assertSelfURI(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	t.Helper()
+	require.Len(t, doc.Sources, 1)
+	assert.Equal(t, "openapi@3.2", doc.Sources[0].Format)
+	assert.Equal(t, "https://example.com/api/openapi.yaml", doc.Sources[0].SelfURI)
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
