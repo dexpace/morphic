@@ -217,6 +217,7 @@ func conformanceCases() []conformanceCase {
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
 		{"param-querystring", assertParamQuerystring, nil},
 		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords, nil},
+		{"param-allowreserved-locations", assertParamAllowReservedLocations, nil},
 		{"param-xml-residue", assertParamXMLResidue, nil},
 		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
 		{"header-content-schema", assertHeaderContentSchema, nil},
@@ -1923,7 +1924,7 @@ func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "/items/{id}", hb.URITemplate)
 }
 
-func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "search")
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
@@ -1940,6 +1941,12 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, byParam["path"].AllowReserved,
 		"reserved characters passing through unescaped is a wire fact, not a style")
 	assert.False(t, q.AllowReserved, "and the default is to escape them")
+
+	// "path" is a query parameter in this 3.1 document, the one location the
+	// keyword belongs to before 3.2 — so a declaration of it, which the
+	// assertion above pins, is not the off-query case the warning reports.
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
+		"a 3.1 query declaration of allowReserved stays silent")
 
 	assertAllowEmptyValueKept(t, op)
 
@@ -2277,6 +2284,48 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 		"parameter field allowReserved is not allowed for in=querystring; lowered as declared",
 		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
 			"/paths/~1b/get/parameters/0/allowReserved"))
+}
+
+// assertParamAllowReservedLocations pins the before-3.2 half of
+// diag.InvalidLocationKeyword: OpenAPI 3.0/3.1 apply allowReserved to in: query
+// alone, so a path, header or cookie declaration is reported at the keyword's
+// own pointer while a query declaration — the location the keyword belongs to —
+// stays silent. Every declared value still lowers as declared, and only the
+// three off-query declarations are reported, in source order.
+func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "report")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+	byParam := map[string]ir.HTTPParamBinding{}
+	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+		byParam[pb.Param] = pb
+	}
+	require.Len(t, byParam, 4, "every declared parameter binds exactly once")
+
+	assert.True(t, byParam["id"].AllowReserved, "a path declaration still lowers as declared")
+	assert.True(t, byParam["X-Trace"].AllowReserved, "a header declaration still lowers as declared")
+	assert.False(t, byParam["session"].AllowReserved, "a declared false is kept as false")
+	assert.True(t, byParam["q"].AllowReserved, "a query declaration lowers as declared")
+
+	// One warning per off-query declaration, in source order, each at the
+	// keyword's own coordinate — and none for the query control.
+	const message = "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared"
+	var warned []string
+	for _, d := range diags {
+		if d.Code == diag.InvalidLocationKeyword && d.Severity == ir.SeverityWarning {
+			warned = append(warned, string(d.Provenance.Pointer))
+		}
+	}
+	pointers := []string{
+		"/paths/~1reports~1{id}/get/parameters/0/allowReserved",
+		"/paths/~1reports~1{id}/get/parameters/1/allowReserved",
+		"/paths/~1reports~1{id}/get/parameters/2/allowReserved",
+	}
+	assert.Equal(t, pointers, warned, "one warning per off-query declaration, in source order")
+	for _, pointer := range pointers {
+		assert.Equal(t, message,
+			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning, pointer))
+	}
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a

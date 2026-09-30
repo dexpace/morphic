@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: ParamAllowReservedLocations, version: "1.0.0"}
+paths:
+  # Before OpenAPI 3.2 the keyword applies to in: query alone, so a declaration
+  # at path, header or cookie is one the dialect has no use for. The compiler
+  # still lowers each value as declared — dropping content the document states
+  # is an emitter's call, not a compiler's — but reports it at the keyword's own
+  # pointer. The three off-query declarations below are what it reports; the
+  # query parameter beside them is the location the keyword belongs to, and is
+  # the control that keeps the warning tracking the location rather than the
+  # keyword's presence alone.
+  /reports/{id}:
+    get:
+      operationId: report
+      parameters:
+        - {name: id, in: path, required: true, allowReserved: true, schema: {type: string}}
+        - {name: X-Trace, in: header, allowReserved: true, schema: {type: string}}
+        - {name: session, in: cookie, allowReserved: false, schema: {type: string}}
+        - {name: q, in: query, allowReserved: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok

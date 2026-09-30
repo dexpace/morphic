@@ -66,6 +66,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
+	diags = append(diags, allowReservedLocationDiag(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
 }
 
@@ -94,6 +95,36 @@ func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Paramete
 			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
 	}
 	return diags
+}
+
+// allowReservedLocationDiag reports allowReserved declared at a parameter
+// location the document's dialect does not apply it to. Before OpenAPI 3.2 the
+// keyword belongs to in: query alone; a path, header or cookie declaration is
+// one the dialect has no use for, so it is reported at the keyword's own
+// coordinate and then lowered as declared. 3.2 widened the keyword to every
+// location, so nothing is reported there.
+//
+// Presence rather than truth is what fires: a declared allowReserved: false is
+// as out of place as true, matching querystringKeywordDiags and the
+// allowEmptyValue discipline. in: querystring is deliberately outside the set —
+// the parser admits that location in any version (GitHub #408 covers its
+// keywords), so reporting here as well would put two invalid-location-keyword
+// warnings at one pointer.
+//
+// See diag.InvalidLocationKeyword for why this is a warning, and for why the
+// value still lowers as declared.
+func allowReservedLocationDiag(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
+	if p.AllowReserved == nil || !c.AllowReservedIsQueryOnly() {
+		return nil
+	}
+	switch in {
+	case soa.ParameterInPath, soa.ParameterInHeader, soa.ParameterInCookie:
+	default:
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
+		pptr+ids.Ptr("allowReserved"),
+		"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared")}
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
