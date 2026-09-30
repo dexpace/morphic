@@ -128,7 +128,6 @@ Operation.Pagination
 Operation.ParameterVisibility
 Operation.ReturnTypeVisibility
 OperationGroup.Availability
-OperationGroup.Groups
 OperationGroup.Resource
 OperationGroup.Unmodeled
 Pagination.FirstLink
@@ -196,8 +195,6 @@ Service.Servers
 Service.Version
 StreamDetail.Initial
 StreamDetail.RequiresLength
-TagDef.Kind
-TagDef.Parent
 TemplateArg.Type
 TemplateArg.Value
 TemplateInstantiation.Args

@@ -242,6 +242,7 @@ func conformanceCases() []conformanceCase {
 		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
 		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
 		{"examples-32", assertExamples32, []string{"examples"}},
+		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3197,6 +3198,41 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	openapitest.AssertInfoDiagAt(t, diags,
 		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+}
+
+// assertTagsGrouping32 is the 3.2 counterpart of assertTagsGrouping, and the
+// first case in the corpus to witness OperationGroup.Groups: a tag declaring a
+// parent nests its group under that parent's, an operation's non-navigational
+// tag does not become the group it is filed under, and the declared 3.2 tag
+// metadata reaches the registry verbatim.
+func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.TagDefs, 3)
+	require.Equal(t, "books", doc.TagDefs[0].Name, "TagDefs keep the document's declaration order")
+	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
+	assert.Equal(t, "nav", doc.TagDefs[0].Kind)
+	assert.Equal(t, "nav", doc.TagDefs[1].Kind)
+	assert.Equal(t, "badge", doc.TagDefs[2].Kind, "the non-navigational kind is recorded, not interpreted")
+	assert.Empty(t, doc.TagDefs[2].Parent)
+
+	require.Len(t, doc.Services, 1)
+	svc := doc.Services[0]
+	require.Len(t, svc.Groups, 1, "the child nests rather than becoming a second top-level group")
+	catalog := svc.Groups[0]
+	assert.Equal(t, "catalog", catalog.Name.Source)
+	assert.Equal(t, "Everything the library holds", catalog.Docs.Description,
+		"an ancestor no operation reaches still carries its declared docs")
+	require.Len(t, catalog.Operations, 1)
+	assert.Equal(t, "showCatalog", catalog.Operations[0].Name.Source)
+
+	require.Len(t, catalog.Groups, 1)
+	books := catalog.Groups[0]
+	assert.Equal(t, "books", books.Name.Source)
+	assert.Equal(t, "Book operations", books.Docs.Description)
+	require.Len(t, books.Operations, 1)
+	listBooks := books.Operations[0]
+	assert.Equal(t, "listBooks", listBooks.Name.Source)
+	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
+		"tag membership keeps every tag the operation named, badge included")
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

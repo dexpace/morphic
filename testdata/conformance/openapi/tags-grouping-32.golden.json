@@ -1,0 +1,176 @@
+{
+  "irVersion": "0.6.0",
+  "name": "TagsGrouping32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TagsGrouping32",
+        "canonical": "tags_grouping_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "source": "catalog",
+            "canonical": "catalog"
+          },
+          "docs": {
+            "description": "Everything the library holds"
+          },
+          "groups": [
+            {
+              "name": {
+                "source": "books",
+                "canonical": "books"
+              },
+              "docs": {
+                "description": "Book operations"
+              },
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1books/get",
+                  "name": {
+                    "source": "listBooks",
+                    "canonical": "list_books"
+                  },
+                  "docs": {},
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "tags": [
+                    "beta",
+                    "books"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/books",
+                        "sharedRoute": false,
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1books/get"
+                  }
+                }
+              ]
+            }
+          ],
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1catalog/get",
+              "name": {
+                "source": "showCatalog",
+                "canonical": "show_catalog"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "catalog"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/catalog",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1catalog/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "books",
+      "docs": {
+        "description": "Book operations"
+      },
+      "parent": "catalog",
+      "kind": "nav"
+    },
+    {
+      "name": "catalog",
+      "docs": {
+        "description": "Everything the library holds"
+      },
+      "kind": "nav"
+    },
+    {
+      "name": "beta",
+      "docs": {},
+      "kind": "badge"
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "tags-grouping-32.yaml",
+      "hash": "d7b49dca464a7224039a8ba79639d01fd137c71b64ae36de18b308bd455ee113"
+    }
+  ]
+}

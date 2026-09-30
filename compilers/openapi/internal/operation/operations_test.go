@@ -3022,3 +3022,326 @@ paths:
 	assert.Empty(t, cmp.Diff(projection(first+second), projection(second+first)),
 		"each mount keeps its own override whichever was lowered first")
 }
+
+// groupBySource returns the top-level group whose name source is name.
+func groupBySource(groups []ir.OperationGroup, name string) (ir.OperationGroup, bool) {
+	for _, g := range groups {
+		if g.Name.Source == name {
+			return g, true
+		}
+	}
+	return ir.OperationGroup{}, false
+}
+
+// TestGrouping_NonNavigationalTagIsSkipped pins GitHub #613's first half: an
+// operation's first tag may be a badge, which is not a section it belongs to, so
+// the group comes from the first *navigational* tag. The badge tag is declared
+// first in the operation's `tags` on purpose — the order that was wrong before
+// the fix, so reverting the skip groups under the badge and reddens this.
+func TestGrouping_NonNavigationalTagIsSkipped(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: books, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the badge tag contributes no group")
+	books, ok := groupBySource(svc.Groups, "books")
+	require.True(t, ok)
+	require.Len(t, books.Operations, 1)
+	assert.Equal(t, "listBooks", books.Operations[0].Name.Source)
+	_, badge := groupBySource(svc.Groups, "beta")
+	assert.False(t, badge, "a non-navigational tag never groups")
+}
+
+// TestGrouping_BadgeOnlyOperationFallsToDefault is the other arm: when every tag
+// an operation names is non-navigational there is no section to group it under,
+// and inventing one from a tag that does not group would be an inference.
+func TestGrouping_BadgeOnlyOperationFallsToDefault(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+paths:
+  /beta:
+    get:
+      operationId: betaOp
+      tags: [beta]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "default", svc.Groups[0].Name.Hint)
+	assert.Empty(t, svc.Groups[0].Name.Source)
+	require.Len(t, svc.Groups[0].Operations, 1)
+}
+
+// TestGrouping_NavigationalChildNestsUnderItsParent pins the tree: a group whose
+// tag declares a parent that is itself a navigational declared tag is nested
+// under that parent's group. The child is declared before the parent on purpose
+// — the parent chain must be built from the declarations rather than from the
+// order they arrive in.
+func TestGrouping_NavigationalChildNestsUnderItsParent(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, description: Everything, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the child is nested, not a second top-level group")
+	catalog := svc.Groups[0]
+	assert.Equal(t, "catalog", catalog.Name.Source)
+	assert.Empty(t, catalog.Operations, "the ancestor exists to hold its children")
+	require.Len(t, catalog.Groups, 1)
+	assert.Equal(t, "books", catalog.Groups[0].Name.Source)
+	require.Len(t, catalog.Groups[0].Operations, 1)
+	assert.Equal(t, "listBooks", catalog.Groups[0].Operations[0].Name.Source)
+}
+
+// TestGrouping_AncestorDeclaredAfterItsChildIsStillNested is the same tree with
+// the two declarations in the other order, so the nesting cannot depend on which
+// of them the document wrote first.
+func TestGrouping_AncestorDeclaredAfterItsChildIsStillNested(t *testing.T) {
+	t.Parallel()
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	assert.Empty(t, cmp.Diff(tree(childFirst), tree(parentFirst)),
+		"the group tree must not depend on the declaration order")
+}
+
+// TestGrouping_DanglingParentStaysTopLevel pins that a parent naming no declared
+// tag ends the walk: the group is top-level rather than nested under a group
+// invented for the missing name.
+func TestGrouping_DanglingParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: nope, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source, "the group is top-level")
+}
+
+// TestGrouping_NonNavigationalParentStaysTopLevel holds the parent side of the
+// kind rule: a parent that is declared but not navigational does not receive a
+// group, so its child stays top-level.
+func TestGrouping_NonNavigationalParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: beta, kind: nav}
+  - {name: beta, kind: badge}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_ParentCycleStaysFlat pins that a cycle among the declared parents
+// terminates and keeps every operation reachable: the walk stops at the cycle,
+// and neither member of it nests under the other.
+func TestGrouping_ParentCycleStaysFlat(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: a, parent: b, kind: nav}
+  - {name: b, parent: a, kind: nav}
+paths:
+  /a:
+    get:
+      operationId: opA
+      tags: [a]
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: opB
+      tags: [b]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	assert.True(t, openapitest.HasDiag(diags, "openapi/validation/validation-circular-reference"),
+		"the parser reports the cycle; the lowering only has to terminate")
+	require.Len(t, svc.Groups, 2, "both groups stay top-level rather than nesting on a cycle")
+	for _, g := range svc.Groups {
+		assert.Empty(t, g.Groups)
+		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
+	}
+}
+
+// TestGrouping_UndeclaredTagIsNavigational pins that a tag an operation uses
+// without declaring has no kind to read, so it groups exactly as every 3.0 and
+// 3.1 tag does and stays top-level.
+func TestGrouping_UndeclaredTagIsNavigational(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: x
+      tags: [adHoc]
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "adHoc", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_SameNameDeclaredTwiceIsDeterministic pins that two declarations
+// of one tag name resolve the same way whichever order the operations that name
+// them are lowered in: the first declaration wins, so a second one declaring a
+// different parent cannot move the group midway through the walk.
+func TestGrouping_SameNameDeclaredTwiceIsDeterministic(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the first declaration wins for both the kind and the parent")
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestTagDefs_RecordParentAndKind pins GitHub #613's second half: the declared
+// tag registry keeps the 3.2 parent and kind verbatim, and neither is invented
+// for a tag that declares none.
+func TestTagDefs_RecordParentAndKind(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: beta, kind: badge}
+  - {name: plain}
+paths: {}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, doc.TagDefs, 3)
+	assert.Equal(t, ir.TagDef{Name: "books", Docs: ir.Docs{}, Parent: "catalog", Kind: "nav"}, doc.TagDefs[0])
+	assert.Equal(t, "badge", doc.TagDefs[1].Kind)
+	assert.Empty(t, doc.TagDefs[1].Parent)
+	assert.Empty(t, doc.TagDefs[2].Parent, "a tag declaring neither keeps both empty")
+	assert.Empty(t, doc.TagDefs[2].Kind)
+}
+
+// TestGrouping_TreeIsIndependentOfDeclarationOrder is the two-order diff for
+// GitHub #613. The group tree is neither the type registry nor a diagnostic, so
+// the in-package order-invariance oracle does not see it. Both documents declare
+// the same tags and the same operations; only the order of the `tags` list and
+// of the badge tag within one operation's `tags` differs, and the tree — nesting,
+// sibling order and operations — must be identical.
+func TestGrouping_TreeIsIndependentOfDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+  /catalog:
+    get:
+      operationId: showCatalog
+      tags: [catalog]
+      responses: {"200": {description: ok}}
+`
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+  - {name: beta, kind: badge}
+` + paths
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+` + paths
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	got := tree(childFirst)
+	assert.Empty(t, cmp.Diff(tree(parentFirst), got), "the group tree must not depend on declaration order")
+	require.Len(t, got, 1, "catalog is the only top-level group")
+	require.Len(t, got[0].Groups, 1)
+	assert.Equal(t, "books", got[0].Groups[0].Name.Source)
+	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
+}

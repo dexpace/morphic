@@ -1186,6 +1186,23 @@ OpenAPI compilers build groups from tags (policy-controllable: tag-based vs path
 TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
 (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
 
+**How a tag builds a group.** Two facts decide it, and both are declared rather than inferred.
+The group comes from the operation's first *navigational* tag, not simply its first: OpenAPI 3.2
+gives a tag a `kind`, and the only kind that groups is the registry's navigational value (`nav`),
+with a tag that declares no kind — every 3.0 and 3.1 tag — navigational too. Any other declared
+kind is skipped, whether or not the registry names it; reading a section out of an unregistered
+string would be an inference (invariant 6), and no diagnostic is reported because the document
+loses nothing — `TagDef.Kind` records the kind verbatim and `Operation.Tags` keeps every
+membership. An operation whose every tag is non-navigational falls to the same default group an
+operation with no tags reaches, rather than being filed under a tag that does not group.
+
+A tag's declared `parent` (3.2) nests its group under the parent's, one level per declared
+ancestor, so `Service.Groups` reads as the section tree the document describes. A parent that is
+not itself a declared navigational tag ends the walk there — the group stays top-level, and the
+parser's own report of a missing or circular parent is left to stand. Group and sibling order stay
+first-seen from the operations, with a missing ancestor created immediately before its first
+descendant, so a document that declares no parents groups exactly as it did before.
+
 ### 7.2 Operation — the protocol-neutral core
 
 ```go

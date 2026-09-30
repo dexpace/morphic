@@ -156,6 +156,10 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 
 // lowerTagDefs registers the document's declared tag metadata into TagDefs; tag
 // membership itself stays as []string on each tagged operation.
+//
+// Parent and Kind are recorded as declared (OpenAPI 3.2's tag hierarchy and tag
+// role, both dropped until GitHub #613). Reading a role out of Kind is grouping
+// policy rather than a property of the document, so it is not interpreted here.
 func lowerTagDefs(c lowering.Ctx) []ir.TagDef {
 	tags := c.Doc.GetTags()
 	if len(tags) == 0 {
@@ -166,7 +170,12 @@ func lowerTagDefs(c lowering.Ctx) []ir.TagDef {
 		if t == nil {
 			continue
 		}
-		defs = append(defs, ir.TagDef{Name: t.GetName(), Docs: tagDocsFrom(t)})
+		defs = append(defs, ir.TagDef{
+			Name:   t.GetName(),
+			Docs:   tagDocsFrom(t),
+			Parent: t.GetParent(),
+			Kind:   t.GetKind(),
+		})
 	}
 	return defs
 }
@@ -213,20 +222,22 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
 	for _, po := range pathOperations(pi) {
-		key, name, docs, inferred := groupFor(c, po.src, path)
+		target := groupFor(c, po.src, path)
 		ptrs := opPointers{mount: pathPtr + po.seg, decl: declPtr + po.seg}
 		opCtx := opContext{
 			method:        po.method,
 			uriTemplate:   path,
 			withCallbacks: true,
-			inferred:      inferred,
+			inferred:      target.inferred,
 			ptrs:          ptrs,
 			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 		}
 		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
+		grp := groups.place(target, func(tag string) ir.OperationGroup {
+			return ir.OperationGroup{Name: compile.NamingFor(tag), Docs: tagDocs(c, tag)}
+		})
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
 		mounted++
@@ -291,17 +302,124 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 // groupFor resolves the group an operation belongs to under the active strategy.
 // lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
 // declared tags is a declared fact and leaves it empty.
-func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
+//
+// The tag it picks is the operation's first *navigational* tag rather than its
+// first tag: OpenAPI 3.2 gives a tag a `kind`, and a tag that declares one this
+// compiler does not know is not a section an operation belongs to. An operation
+// whose every tag is non-navigational falls to the default group rather than
+// being grouped under a badge — inventing a section from a tag that does not
+// group is an inference no policy asked for (GitHub #613).
+func groupFor(c lowering.Ctx, src *soa.Operation, path string) groupTarget {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
+		return groupTarget{key: "seg:" + seg, name: compile.NamingFor(seg), inferred: "group-path-prefix"}
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
-		return "default", compile.NamingHint("default"), ir.Docs{}, ""
+		return groupTarget{key: "default", name: compile.NamingHint("default")}
 	}
-	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
+	declared := declaredTags(c.Doc.GetTags())
+	for _, name := range tags {
+		if t := declared[name]; t != nil && !navigational(t.GetKind()) {
+			continue
+		}
+		return groupTarget{
+			key:   "tag:" + name,
+			chain: tagChain(declared, name),
+			name:  compile.NamingFor(name),
+			docs:  tagDocs(c, name),
+		}
+	}
+	return groupTarget{key: "default", name: compile.NamingHint("default")}
+}
+
+// groupTarget is where an operation's group comes from: the key it is filed
+// under, the declared tag chain it nests under (root-first and ending with the
+// operation's own tag, empty for a group the compiler synthesizes), and the
+// naming and docs of the operation's own level.
+type groupTarget struct {
+	key      string
+	chain    []string
+	name     ir.Naming
+	docs     ir.Docs
+	inferred string
+}
+
+// navigationalKind is the OpenAPI 3.2 tag kind that groups operations into
+// sections. It is the registry's only navigational value; any other declared
+// kind is skipped.
+const navigationalKind = "nav"
+
+// navigational reports whether a declared tag kind groups operations into
+// sections. A tag that declares no kind is navigational — every 3.0 and 3.1 tag,
+// and every tag a document uses without declaring it at all.
+//
+// Any other declared kind is not, whether or not this compiler's registry names
+// it. Reading a section out of an unregistered string is exactly the inference
+// invariant 6 forbids, and the grouping is policy besides: no diagnostic is
+// reported, because the TagDef still records the kind verbatim and
+// Operation.Tags keeps every membership, so nothing about the document is lost.
+func navigational(kind string) bool {
+	return kind == "" || kind == navigationalKind
+}
+
+// declaredTags indexes a document's declared tags by name, first declaration
+// winning. Two tags sharing a name are one group however many times they are
+// declared, and which of them supplies the kind and parent must not depend on
+// the order operations are lowered in.
+func declaredTags(tags []*soa.Tag) map[string]*soa.Tag {
+	out := make(map[string]*soa.Tag, len(tags))
+	for _, t := range tags {
+		if t == nil {
+			continue
+		}
+		if _, seen := out[t.GetName()]; !seen {
+			out[t.GetName()] = t
+		}
+	}
+	return out
+}
+
+// tagChain returns the chain of declared tags an operation's tag nests under,
+// root-first and ending with tag itself. A parent that is not a declared
+// navigational tag ends the walk there, and so does a cycle among the declared
+// parents: the parser reports a missing parent and a circular one, and this
+// lowering takes no position on either — it only declines to build a tree the
+// document does not describe.
+//
+// The walk is bounded by the declared tag count, since no chain can be longer
+// than the tags that spell it; the seen set is what stops a cycle first.
+func tagChain(declared map[string]*soa.Tag, tag string) []string {
+	chain := []string{tag}
+	seen := map[string]bool{tag: true}
+	cur := tag
+	for range len(declared) + 1 {
+		t := declared[cur]
+		if t == nil {
+			break
+		}
+		parent := t.GetParent()
+		if parent == "" {
+			break
+		}
+		if seen[parent] {
+			// A cycle among the declared parents: the document does not describe a
+			// tree, so this tag stays where it is rather than nesting under one of
+			// its own descendants. Returning the tag alone is what keeps the
+			// recorded parent edges acyclic whichever tag the walk starts from —
+			// the other member of the cycle reaches the same answer from its side.
+			return []string{tag}
+		}
+		ancestor := declared[parent]
+		if ancestor == nil || !navigational(ancestor.GetKind()) {
+			break
+		}
+		seen[parent] = true
+		chain = append(chain, parent)
+		cur = parent
+	}
+	slices.Reverse(chain)
+	return chain
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
@@ -1301,15 +1419,19 @@ func firstPathSegment(path string) string {
 
 // serviceGroups accumulates operation groups keyed by a namespaced key while
 // preserving first-seen insertion order, so a group's operations gather across
-// paths without reordering the groups themselves.
+// paths without reordering the groups themselves. A group a declared tag nests
+// under (OpenAPI 3.2 tag parent) is recorded in parentOf and attached to its
+// parent by finalize, so the accumulated groups read as the tree the document
+// declares.
 type serviceGroups struct {
-	order []string
-	byKey map[string]*ir.OperationGroup
+	order    []string
+	byKey    map[string]*ir.OperationGroup
+	parentOf map[string]string
 }
 
 // newServiceGroups returns an empty group accumulator.
 func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup)}
+	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup), parentOf: make(map[string]string)}
 }
 
 // group returns the group for key, creating it via mk on first sight and
@@ -1323,11 +1445,66 @@ func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.Opera
 	return g.byKey[key]
 }
 
-// finalize returns the accumulated groups in insertion order.
+// place returns the group an operation's target names, creating it on first
+// sight. A target naming a tag chain also creates every ancestor no operation
+// has reached yet, so a parent a document declares exists even when only its
+// children carry operations.
+func (g *serviceGroups) place(t groupTarget, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
+	if len(t.chain) == 0 {
+		return g.group(t.key, func() ir.OperationGroup { return ir.OperationGroup{Name: t.name, Docs: t.docs} })
+	}
+	return g.tagGroup(t.chain, mk)
+}
+
+// tagGroup returns the group for the innermost tag of chain, creating each level
+// via mk on first sight and recording what each nests under. chain is root-first,
+// so a missing ancestor is appended to the insertion order immediately before its
+// first descendant — which is what keeps every flat golden's group order exactly
+// as it was.
+func (g *serviceGroups) tagGroup(chain []string, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
+	var parent string
+	var leaf *ir.OperationGroup
+	for _, tag := range chain {
+		key := "tag:" + tag
+		grp, ok := g.byKey[key]
+		if !ok {
+			grp = new(mk(tag))
+			g.byKey[key] = grp
+			g.order = append(g.order, key)
+			if parent != "" {
+				g.parentOf[key] = parent
+			}
+		}
+		parent, leaf = key, grp
+	}
+	return leaf
+}
+
+// finalize returns the accumulated groups in insertion order, each carrying the
+// groups nested under it, and only a group with no parent at the top level.
+//
+// The tree is assembled in reverse insertion order and without recursion. A
+// parent always precedes its child in the order — tagGroup appends a missing
+// ancestor immediately before its first descendant, and an ancestor that already
+// exists was appended earlier — so one reverse pass attaches every child to a
+// parent that is not itself read until its own turn. Prepending a child to its
+// parent's slice is what makes siblings read in insertion order too.
 func (g *serviceGroups) finalize() []ir.OperationGroup {
+	for i := len(g.order) - 1; i >= 0; i-- {
+		key := g.order[i]
+		parent, nested := g.parentOf[key]
+		if !nested {
+			continue
+		}
+		pg := g.byKey[parent]
+		pg.Groups = append([]ir.OperationGroup{*g.byKey[key]}, pg.Groups...)
+	}
 	out := make([]ir.OperationGroup, 0, len(g.order))
-	for _, k := range g.order {
-		out = append(out, *g.byKey[k])
+	for _, key := range g.order {
+		if _, nested := g.parentOf[key]; nested {
+			continue
+		}
+		out = append(out, *g.byKey[key])
 	}
 	return out
 }
