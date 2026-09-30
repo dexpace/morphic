@@ -41,12 +41,17 @@ type Naming struct {
 	// one:
 	//
 	//   - every entry names something, since one with nothing visible in it
-	//     matches nothing;
+	//     matches nothing (ir/naming-alias-blank);
 	//   - every entry decodes, since a document holding ill-formed UTF-8
-	//     cannot be encoded at all;
+	//     cannot be encoded at all (the shared byte rule, ir/invalid-utf8);
 	//   - no entry repeats another, or the entity's own Source, since either
 	//     admits no name that was not already admitted — so a producer that
-	//     wrote one built the list wrong.
+	//     wrote one built the list wrong (ir/naming-alias-duplicate,
+	//     ir/naming-alias-redundant);
+	//   - no entry is claimed by another type in the registry, since one alias
+	//     is what a reader resolves against exactly one entity
+	//     (ir/naming-alias-shared, scoped to TypeCommon.Name — see
+	//     irverify.checkAliasClaims).
 	//
 	// That such an entry is inert is also why a source declaring one is
 	// recorded once, with a Diagnostic naming it, rather than carried through:

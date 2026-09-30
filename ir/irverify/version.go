@@ -1,6 +1,8 @@
 package irverify
 
 import (
+	"strconv"
+
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -40,7 +42,7 @@ func checkVersion(doc *ir.Document) []Violation {
 	if !ir.CompatibleVersion(doc.IRVersion) {
 		return []Violation{{
 			Code:    "ir/ir-version-incompatible",
-			Message: "document declares irVersion " + doc.IRVersion + "; this build reads only " + ir.IRVersion,
+			Message: "document declares irVersion " + strconv.Quote(doc.IRVersion) + "; this build reads only " + ir.IRVersion,
 			Path:    versionPath,
 		}}
 	}
