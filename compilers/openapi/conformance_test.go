@@ -248,6 +248,7 @@ func conformanceCases() []conformanceCase {
 		{"component-media-types-32", assertComponentMediaTypes32, []string{"multi-content"}},
 		{"xml-nodetype-32", assertXMLNodeType32, nil},
 		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
+		{"unreferenced-components", assertUnreferencedComponents, nil},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3318,6 +3319,32 @@ func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
 		"3.2 defines these keys, so the census must leave them alone")
+}
+
+// assertUnreferencedComponents pins GitHub #616: every component entry no
+// reference reaches is kept verbatim on the document, under the section and name
+// it was declared with, while the one entry the paths do name lowers as it
+// always did. No matrix row: the case is a preservation claim.
+func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, section := range []string{
+		"responses", "parameters", "examples", "requestBodies",
+		"headers", "links", "callbacks", "pathItems", "mediaTypes",
+	} {
+		key := "openapi:components/" + section + "/Unused"
+		entry, ok := doc.Unmodeled[key]
+		require.True(t, ok, "%s is kept verbatim; got %v", section, slices.Sorted(maps.Keys(doc.Unmodeled)))
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+		assert.Equal(t, "/components/"+section+"/Unused", string(entry.Provenance.Pointer),
+			"the entry is located at its own declaration, not at the carrier holding it")
+	}
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/Used",
+		"an entry a reference reaches is lowered, not also kept verbatim")
+
+	op, ok := opByName(doc, "getA")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	assert.Equal(t, "reached from the paths", op.Responses[0].Docs.Description)
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

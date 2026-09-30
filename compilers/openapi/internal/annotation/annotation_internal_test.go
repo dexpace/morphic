@@ -208,3 +208,51 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "invalid UTF-8")
 }
+
+// TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key of a 3.2
+// document this reader takes off the raw node: the library's XML model has no
+// field for `nodeType`, so a reader that consulted the model alone would drop
+// a declaration the document makes (GitHub #615). The census is told the key
+// was read, which is why the same fixture read as 3.1 warns below instead.
+func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+
+	require.NotNil(t, got.XML)
+	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
+	assert.Equal(t, "attribute", got.XML.NodeType)
+	assert.Empty(t, diags, "a key the dialect defines is not announced as undefined")
+}
+
+// TestRead_NodeTypeBelow32IsCensused is the other side of the gate: below 3.2
+// the key is a misspelling rather than a field the dialect added, so nothing is
+// read into the IR and the census owes the warning.
+func TestRead_NodeTypeBelow32IsCensused(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), false)
+
+	require.NotNil(t, got.XML)
+	assert.Empty(t, got.XML.NodeType, "3.1 defines no nodeType, so no field is filled")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/xml/nodeType"), diags[0].Provenance.Pointer,
+		"the warning names the key's own position")
+}
+
+// TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers applyNodeType's first
+// branch. `nodeType` is written inside the xml object, so a schema declaring no
+// xml object has no position the key could sit at — and no hints to carry it.
+func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+
+	assert.Nil(t, got.XML)
+	assert.Empty(t, diags)
+}

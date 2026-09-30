@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentreach"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -38,6 +39,59 @@ type docMeta struct {
 	Unmodeled      ir.Unmodeled
 }
 
+// retainedComponentSections returns the components sections nothing lowers
+// unless a `$ref` reaches them. None of them has a registry: components/schemas
+// is walked by the schema lowering and components/securitySchemes by the auth
+// lowering, both unconditionally, while these eight are reached only where a
+// reference finds an entry — so an entry no reference names would reach no node,
+// no Unmodeled entry and no diagnostic at all (GitHub #616).
+//
+// components/mediaTypes joins them only from 3.2, the version that defines the
+// section. Below it the key is one the dialect does not define, and the
+// components census already keeps the whole map verbatim under
+// openapi:components/mediaTypes.
+func retainedComponentSections(c lowering.Ctx) []string {
+	sections := []string{
+		"responses", "parameters", "examples", "requestBodies",
+		"headers", "links", "callbacks", "pathItems",
+	}
+	if c.Is32() {
+		sections = append(sections, ids.MediaTypesKind)
+	}
+	return sections
+}
+
+// retainUnreferencedComponents keeps every component entry no reference reaches
+// verbatim on the document, under openapi:components/<section>/<name> with
+// ReasonNoIRHome and no diagnostic.
+//
+// Keeping rather than dropping is invariant 2's default and the only lossless
+// answer: the entry is a declaration the document makes, and nothing about this
+// compiler's lowering says a consumer may not want it. The rule is the one
+// already recorded for a response's links map, generalized to every section with
+// no registry. ReasonNoIRHome rather than a boundary, because each of these is a
+// promotion candidate: a later reader that finds a use for one lowers it where it
+// stands.
+func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+	entries := componentreach.Unreferenced(c.Doc.GetRootNode(), retainedComponentSections(c))
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, entry := range entries {
+		kind, name, ok := ids.ComponentEntry(entry.Pointer)
+		if !ok {
+			continue
+		}
+		_, keptDiags := annotation.PreserveNodeInto(&out,
+			"openapi:components/"+ids.Scope(kind, name), entry.Node, ir.ReasonNoIRHome,
+			c.ProvenanceAt(entry.Pointer))
+		diags = append(diags, keptDiags...)
+	}
+	return out, diags
+}
+
 // lowerMeta lowers the document-level metadata that is not part of the type or
 // service graph: info, servers, and the extensions of every object around them
 // that lowers to no node of its own (ir-design §10, §12).
@@ -46,6 +100,10 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 
 	ext, diags := documentExtensions(c)
 	m.Unmodeled = ext
+
+	retained, retainDiags := retainUnreferencedComponents(c)
+	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
+	diags = append(diags, retainDiags...)
 
 	servers, serverDiags := lowerServers(c)
 	m.Servers = servers

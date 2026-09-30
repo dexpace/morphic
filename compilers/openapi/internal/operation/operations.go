@@ -1101,10 +1101,11 @@ func responseDecidedKeys(c lowering.Ctx) []string {
 // A Link Object inside that map gets no entry and no census of its own, which is
 // the decision already recorded for its extensions. This compiler lowers no Link
 // Object anywhere: a response's links survive only as the verbatim node above,
-// and a components/links entry nothing references is dropped whole, so a keyed
-// entry at one of the two positions would be the only trace of a construct the
-// IR does not model — while duplicating, for the response position alone, a
-// value the node above already carries.
+// and a components/links entry nothing references is kept by the document-level
+// rule (retainUnreferencedComponents), which supersedes the "dropped whole" this
+// comment used to record — one rule for every component section with no
+// registry, so a keyed entry at one position cannot be the only trace of a
+// construct the IR does not model (GitHub #616).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))

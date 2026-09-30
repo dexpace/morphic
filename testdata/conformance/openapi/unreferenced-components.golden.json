@@ -1,0 +1,209 @@
+{
+  "irVersion": "0.6.0",
+  "name": "UnreferencedComponents",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnreferencedComponents",
+        "canonical": "unreferenced_components"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "source": "getA",
+                "canonical": "get_a"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "reached from the paths"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "unmodeled": {
+    "openapi:components/callbacks/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "{$request.body#/url}": {
+          "post": {
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/callbacks/Unused"
+      }
+    },
+    "openapi:components/examples/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "summary": "Unused",
+        "value": 1
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/examples/Unused"
+      }
+    },
+    "openapi:components/headers/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/headers/Unused"
+      }
+    },
+    "openapi:components/links/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "operationId": "getA"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/links/Unused"
+      }
+    },
+    "openapi:components/mediaTypes/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes/Unused"
+      }
+    },
+    "openapi:components/parameters/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "in": "query",
+        "name": "unused",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Unused"
+      }
+    },
+    "openapi:components/pathItems/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "get": {
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems/Unused"
+      }
+    },
+    "openapi:components/requestBodies/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/Unused"
+      }
+    },
+    "openapi:components/responses/Unused": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "nothing names this one"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Unused"
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "unreferenced-components.yaml",
+      "hash": "1535bb473a125d15a6ef62549b20deae6aa2ad857a3816ff4e02a5d0d32b9ca3"
+    }
+  ]
+}

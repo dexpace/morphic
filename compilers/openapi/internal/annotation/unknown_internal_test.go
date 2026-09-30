@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -284,6 +285,27 @@ func TestUnknownKeysIn_ModelWithNoCensusRecordsNothing(t *testing.T) {
 			assert.Empty(t, diags)
 		})
 	}
+}
+
+// TestUnknownKeysNamed_DelegatesTheSameGrading covers the object census's other
+// entry point: an object whose model keeps no key list of its own — a Path
+// Item's leftovers, in practice — so the caller names the keys the model does
+// not define and this reader grades them exactly as the modelled path does.
+func TestUnknownKeysNamed_DelegatesTheSameGrading(t *testing.T) {
+	t.Parallel()
+	root := parsedMapping(t, "get: {}\nnotAKey: 3\n")
+
+	var got ir.Unmodeled
+	diags := UnknownKeysNamed(&got, []string{"notAKey"}, root, sourced(0), "/paths/~1p", "")
+
+	require.Len(t, got, 1, "got %v", got)
+	entry := got["openapi:notAKey"]
+	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+	assert.Equal(t, ir.RawValue("3"), entry.Value)
+	assert.Equal(t, ir.Provenance{Pointer: "/paths/~1p/notAKey"}, entry.Provenance)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 }
 
 // fakeObject is a parsed model standing in for the library's, so the census can

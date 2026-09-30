@@ -3346,6 +3346,56 @@ tags:
 	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
 }
 
+// TestContent_MediaTypesRefIsOrderIndependent is the two-order diff for GitHub
+// #615. The entry a content `$ref` resolves through is read by pointer off the
+// raw tree, and the type registry it lowers into is not a diagnostic, so the
+// order-invariance oracle does not cover this pair: both documents below declare
+// the same components and the same path, and only the order of the two top-level
+// blocks differs. The contents, and the registry identity they carry, must be
+// identical.
+func TestContent_MediaTypesRefIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	const header = `openapi: 3.2.0
+info: {title: T, version: "1"}
+`
+	const paths = `paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
+`
+	const components = `components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Json:
+      schema: {$ref: '#/components/schemas/N'}
+      examples:
+        one: {value: {k: 1}}
+`
+	lower := func(spec string) ([]ir.Content, []ir.Diagnostic) {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		op := openapitest.FirstOp(t, svc)
+		require.NotNil(t, op.Responses[0].Payload)
+		return op.Responses[0].Payload.Contents, diags
+	}
+	componentFirst, firstDiags := lower(header + components + paths)
+	componentLast, lastDiags := lower(header + paths + components)
+
+	assert.Empty(t, cmp.Diff(componentFirst, componentLast),
+		"where the media type is declared must not change what the content lowers to")
+	assert.Empty(t, cmp.Diff(firstDiags, lastDiags), "nor may the diagnostic list depend on it")
+	require.Len(t, componentFirst, 1)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), componentFirst[0].Type.Target,
+		"the reference resolved, so the two orders above compared a resolved content")
+}
+
 // TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
 // 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
 // dialect does not define, so it keeps warning rather than being silently
@@ -3497,8 +3547,9 @@ components:
 
 // TestContent_MediaTypesRefFailuresLowerAsWritten covers every target the
 // resolver refuses: an entry the document does not declare, an external
-// document, a pointer naming another section, and an entry that is not an
-// object. Each keeps the `$ref` verbatim and reports one unresolved-ref.
+// document, a pointer naming another section, an entry that is not an object,
+// and an entry that is itself another `$ref` (the one-hop reading). Each keeps
+// the `$ref` verbatim and reports one unresolved-ref.
 func TestContent_MediaTypesRefFailuresLowerAsWritten(t *testing.T) {
 	t.Parallel()
 	refs := map[string]string{
@@ -3506,6 +3557,7 @@ func TestContent_MediaTypesRefFailuresLowerAsWritten(t *testing.T) {
 		"another document":               "other.yaml#/components/mediaTypes/Json",
 		"another section":                "#/components/schemas/N",
 		"an entry that is not an object": "#/components/mediaTypes/Scalar",
+		"a chained $ref":                 "#/components/mediaTypes/Chained",
 	}
 	for name, ref := range refs {
 		t.Run(name, func(t *testing.T) {
@@ -3526,6 +3578,7 @@ components:
     N: {type: string}
   mediaTypes:
     Scalar: hello
+    Chained: {$ref: '#/components/mediaTypes/Scalar'}
 `)
 			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
 			content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]

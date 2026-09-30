@@ -16,6 +16,7 @@ package operation
 import (
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"slices"
 	"strings"
 
@@ -47,9 +48,6 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	var diags []ir.Diagnostic
 	payload := &ir.Payload{}
 	for mt, media := range content.All() {
-		if media == nil {
-			continue
-		}
 		entry, fromRef, entryDiags := contentEntry(c, media, pointer+ids.Ptr("content", mt))
 		diags = append(diags, entryDiags...)
 		if entry == nil {
@@ -79,7 +77,14 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 // another `$ref` — leaves the original entry to lower as it did before, so the
 // `$ref` is censused and kept verbatim, with one `openapi/unresolved-ref`
 // diagnostic saying what was wrong (GitHub #615).
+//
+// A nil entry names nothing: a content map the parser left an empty value for
+// contributes no content, and the caller's loop passes over it on the entry the
+// one answer returns.
 func contentEntry(c lowering.Ctx, media *soa.MediaType, entryPtr jsontext.Pointer) (*soa.MediaType, bool, []ir.Diagnostic) {
+	if media == nil {
+		return nil, false, nil
+	}
 	ref, isRef := rawRefOf(media)
 	if !isRef || !c.Is32() {
 		return media, false, nil
@@ -112,11 +117,12 @@ func resolveMediaTypeRef(c lowering.Ctx, ref string) (*soa.MediaType, bool, stri
 	}
 	var out soa.MediaType
 	errs, err := marshaller.UnmarshalNode(context.Background(), "", node, &out)
-	if err != nil {
-		return nil, false, "could not be read as a media type object"
-	}
-	if len(errs) > 0 {
-		return nil, false, "is not a media type object: " + diag.OneLine(errs[0])
+	// Unmarshalling reports a node it cannot read as a Media Type Object on errs,
+	// and its own failures on err. Joining the two keeps both handled without a
+	// branch no document can reach — every node a document can write comes back
+	// as a validation error on the first — and errors.Join drops the nil one.
+	if problems := errors.Join(append(errs, err)...); problems != nil {
+		return nil, false, "is not a media type object: " + diag.OneLine(problems)
 	}
 	if _, chained := rawRefOf(&out); chained {
 		// A one-hop reading, deliberately: the shapes are one entry, and following a
