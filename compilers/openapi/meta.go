@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -217,6 +218,10 @@ func infoDocs(c lowering.Ctx, info *soa.Info) ir.Docs {
 // template, description, and templated variables (ir-design §10). It returns nil
 // rather than an empty slice when every entry was skipped, so a document
 // declaring no usable server leaves the field unset.
+//
+// A declared name one entry repeats from another is reported and nothing else
+// changes: both servers still lower, each with the name the document wrote
+// (duplicateServerNameDiags).
 func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
@@ -231,10 +236,49 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 		diags = append(diags, serverDiags...)
 		out = append(out, one)
 	}
+	diags = append(diags, duplicateServerNameDiags(c, servers)...)
 	if len(out) == 0 {
 		return nil, diags
 	}
 	return out, diags
+}
+
+// duplicateServerNameDiags reports every server in the document's own servers
+// list whose declared name a lower-indexed server already claimed, one
+// diagnostic per repeat rather than one per name: the first entry claiming the
+// name is the one each message names, and each repeat is sited at its own name
+// key.
+//
+// Only declared names are compared, and a nil entry or an empty name claims
+// nothing. A name derived from a URL template is not a claim the document made
+// (serverName), so hints are never compared — not to each other, and not to a
+// declared name.
+//
+// The map is a lookup consulted as the list is walked in source order and never
+// iterated, so neither map order nor anything but the entry a repeat names can
+// reach a diagnostic.
+func duplicateServerNameDiags(c lowering.Ctx, servers []*soa.Server) []ir.Diagnostic {
+	claimed := make(map[string]jsontext.Pointer, len(servers))
+	var diags []ir.Diagnostic
+	for i, s := range servers {
+		if s == nil {
+			continue
+		}
+		name := s.GetName()
+		if name == "" {
+			continue
+		}
+		ptr := ids.Ptr("servers", strconv.Itoa(i), "name")
+		first, seen := claimed[name]
+		if !seen {
+			claimed[name] = ptr
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityError, diag.DuplicateServerName, ptr,
+			"server name %q is also declared by the server at %s; both are kept, and the name identifies two hosts",
+			name, first))
+	}
+	return diags
 }
 
 // lowerServer lowers one server, named by serverName, keeping its x-* on the
@@ -265,10 +309,12 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 // where transcribing is not, and it keeps what the omitted part distinguished:
 // one host serving /v1 and /v2 is two servers.
 //
-// Distinct servers can still collide, since canonicalizing drops every non-word
-// character and ".../v1" and ".../v-1" reduce to one word sequence. That is the
-// collision "red" and "Red" already produce between two enum members, and
-// uniquifying it is an emitter's job.
+// Distinct servers can still collide on a hint, since canonicalizing drops every
+// non-word character and ".../v1" and ".../v-1" reduce to one word sequence. That
+// is the collision "red" and "Red" already produce between two enum members, and
+// uniquifying a hint is an emitter's job. A declared name is not a hint and is not
+// tolerated this way: two entries writing one name are an error the document
+// drew, not a collision this compiler made (duplicateServerNameDiags).
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)
