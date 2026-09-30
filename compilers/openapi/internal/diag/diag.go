@@ -354,18 +354,26 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports a serialization keyword OpenAPI 3.2 forbids
-	// at the parameter location that declares it: explode or allowReserved at
-	// in: querystring, where the location binds the whole query string from the
-	// parameter's content and states its serialization through the media type
-	// alone, leaving nothing for either keyword to qualify.
+	// InvalidLocationKeyword reports a serialization keyword declared at a
+	// parameter location the document's dialect does not apply it to, reported
+	// at the keyword's own coordinate. Two rules share the code.
 	//
-	// The bundled parser enforces this rule for style at that location but not
-	// for its two neighbours (GitHub #408), so this compiler reports the gap
-	// itself rather than relying on a validation finding that never arrives. The
-	// value still lowers as declared: dropping content the document states is an
-	// emitter's call, not a compiler's (invariant 2), the same choice already
-	// made for style at this position.
+	// OpenAPI 3.2 forbids explode or allowReserved at in: querystring, where the
+	// location binds the whole query string from the parameter's content and
+	// states its serialization through the media type alone, leaving nothing for
+	// either keyword to qualify.
+	//
+	// Before 3.2, allowReserved is confined the other way: it applies to in:
+	// query alone, so a declaration at path, header or cookie is one the dialect
+	// has no use for. 3.2 applies the keyword at every location, so the same
+	// declaration is silent there.
+	//
+	// The bundled parser enforces the querystring rule for style at that location
+	// but not for its two neighbours (GitHub #408), so this compiler reports the
+	// gap itself rather than relying on a validation finding that never arrives.
+	// The value still lowers as declared under both rules: dropping content the
+	// document states is an emitter's call, not a compiler's (invariant 2), the
+	// same choice already made for style at this position.
 	//
 	// Warning, not the error style gets: style's finding is the parser's own
 	// refusal-class validation, raised before this compiler ever sees the

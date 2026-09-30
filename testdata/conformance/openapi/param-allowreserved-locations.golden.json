@@ -1,0 +1,231 @@
+{
+  "irVersion": "0.6.0",
+  "name": "ParamAllowReservedLocations",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ParamAllowReservedLocations",
+        "canonical": "param_allow_reserved_locations"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1reports~1{id}/get",
+              "name": {
+                "source": "report",
+                "canonical": "report"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1{id}/get/parameters/0"
+                  }
+                },
+                {
+                  "name": {
+                    "source": "X-Trace",
+                    "canonical": "x_trace"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1{id}/get/parameters/1"
+                  }
+                },
+                {
+                  "name": {
+                    "source": "session",
+                    "canonical": "session"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1{id}/get/parameters/2"
+                  }
+                },
+                {
+                  "name": {
+                    "source": "q",
+                    "canonical": "q"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1reports~1{id}/get/parameters/3"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/reports/{id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "id",
+                        "location": "path",
+                        "wireName": "id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": true
+                      },
+                      {
+                        "param": "X-Trace",
+                        "location": "header",
+                        "wireName": "X-Trace",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": true
+                      },
+                      {
+                        "param": "session",
+                        "location": "cookie",
+                        "wireName": "session",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      },
+                      {
+                        "param": "q",
+                        "location": "query",
+                        "wireName": "q",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": true
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1reports~1{id}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports~1{id}/get/parameters/0/allowReserved"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports~1{id}/get/parameters/1/allowReserved"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/invalid-location-keyword",
+      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1reports~1{id}/get/parameters/2/allowReserved"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "param-allowreserved-locations.yaml",
+      "hash": "0088d7961d58f888729d63477b25fe4228f03af30526448acfddfe98b6545d53"
+    }
+  ]
+}
