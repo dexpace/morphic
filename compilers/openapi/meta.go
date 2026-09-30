@@ -82,6 +82,11 @@ func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic
 	for _, entry := range entries {
 		kind, name, ok := ids.ComponentEntry(entry.Pointer)
 		if !ok {
+			// The name is empty. OpenAPI's component-name rule
+			// (^[a-zA-Z0-9._-]+$) makes such a key invalid, so
+			// ids.ComponentEntry refuses it, and an Unmodeled key with an
+			// empty name segment names no entry of that document. This is
+			// the one unreferenced entry the rule above does not retain.
 			continue
 		}
 		_, keptDiags := annotation.PreserveNodeInto(&out,

@@ -201,10 +201,10 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 }
 
 // TestRetainUnreferencedComponents_EntryWithNoNameIsNotKept covers the guard on
-// the entry pointer: a components entry whose key is the empty string has no
-// name to key a verbatim entry under, so it is passed over rather than kept at
-// an "openapi:components/<section>/" key that names no entry of that document
-// (GitHub #616).
+// the entry pointer: a components entry whose key is the empty string is passed
+// over rather than kept at an "openapi:components/<section>/" key that names no
+// entry of that document (GitHub #616). retainUnreferencedComponents carries the
+// why.
 func TestRetainUnreferencedComponents_EntryWithNoNameIsNotKept(t *testing.T) {
 	t.Parallel()
 	l, loadDiags := loweredFor(t, `openapi: 3.1.0

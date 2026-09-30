@@ -1959,7 +1959,9 @@ finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmod
 diagnostic — and a declaration the document makes disappears in silence. Every component section
 with no registry is therefore kept whole: each entry is preserved verbatim at
 `Document.Unmodeled["openapi:components/<section>/<name>"]` under `ReasonNoIRHome`, at the entry's
-own pointer, with no diagnostic. The sections are `responses`, `parameters`, `examples`,
+own pointer, with no diagnostic — the one exception being an entry whose key is the empty string
+(invalid under OpenAPI's component-name rule), which has no name to key under and is passed over.
+The sections are `responses`, `parameters`, `examples`,
 `requestBodies`, `headers`, `links`, `callbacks`, `pathItems` and 3.2's `mediaTypes`;
 `components/schemas` and `components/securitySchemes` are lowered unconditionally and are not in the
 set.
