@@ -7,6 +7,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -243,6 +244,10 @@ func conformanceCases() []conformanceCase {
 		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
 		{"examples-32", assertExamples32, []string{"examples"}},
 		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
+		{"response-summary-32", assertResponseSummary32, []string{"docs-summary-description"}},
+		{"component-media-types-32", assertComponentMediaTypes32, []string{"multi-content"}},
+		{"xml-nodetype-32", assertXMLNodeType32, nil},
+		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3233,6 +3238,86 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "listBooks", listBooks.Name.Source)
 	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
 		"tag membership keeps every tag the operation named, badge included")
+}
+
+// assertResponseSummary32 pins GitHub #615's Response.summary: the 3.2 field
+// reaches Docs.Summary on both status classes, because it is read in the one
+// shared lowering both use, and the document draws no unknown-key warning for a
+// key its dialect defines.
+func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "deleteItem")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	assert.Equal(t, "The item was deleted", op.Responses[0].Docs.Summary)
+	assert.Equal(t, "The long form of the same fact.", op.Responses[0].Docs.Description)
+
+	require.Len(t, op.Errors, 1)
+	assert.Equal(t, "No such item", op.Errors[0].Docs.Summary,
+		"an error case is lowered by the same function, so it reads the field too")
+	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/paths/~1items~1{id}/delete/responses/204/summary"),
+		"a key 3.2 defines is not an undefined key")
+}
+
+// assertComponentMediaTypes32 pins GitHub #615's components/mediaTypes: a content
+// entry written as a `$ref` into that section lowers to what the component
+// declares — its schema, its examples and its extensions — rather than to the
+// top type with the reference kept beside it, and two operations referring to
+// one entry both get it.
+func assertComponentMediaTypes32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"listEvents", "getEvent"} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok)
+		content := op.Responses[0].Payload.Contents[0]
+		assert.Equal(t, "application/json", content.MediaType)
+		assert.Equal(t, namedID("Event"), content.Type.Target,
+			"%s: the referenced media type's schema is what lowers", name)
+		require.Len(t, content.Examples, 1, "%s: the component's own examples come with it", name)
+		assert.Equal(t, "one", content.Examples[0].Name)
+		assert.Contains(t, content.Unmodeled, "openapi:x-note",
+			"%s: and its extensions", name)
+		assert.NotContains(t, content.Unmodeled, "openapi:$ref",
+			"%s: a resolved reference is not also kept as an undefined key", name)
+	}
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+	assert.Empty(t, doc.Unmodeled, "the whole components/mediaTypes map is no longer kept as one entry")
+}
+
+// assertXMLNodeType32 pins GitHub #615's xml.nodeType: ir.XMLHints.NodeType
+// already existed and its GoDoc already named the version, so the fix is the
+// wiring, and the dialect's key is no longer reported as undefined.
+func assertXMLNodeType32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	report, ok := doc.Types[namedID("Report")].(*ir.Model)
+	require.True(t, ok)
+	id, ok := propByWire(report, "id")
+	require.True(t, ok)
+	require.NotNil(t, id.XML)
+	assert.Equal(t, "attribute", id.XML.NodeType)
+
+	body, ok := propByWire(report, "body")
+	require.True(t, ok)
+	require.NotNil(t, body.XML)
+	assert.Equal(t, "text", body.XML.NodeType)
+	assert.True(t, body.XML.Wrapped, "the object's other fields still lower as they did")
+
+	assert.Empty(t, diagsAt(diags, diag.UnknownObjectKey, "/components/schemas/Report/properties/id/xml/nodeType"),
+		"a key 3.2 defines is not an undefined key")
+}
+
+// assertNestedEncoding32 pins GitHub #615's nested Encoding fields: each is kept
+// verbatim under the part's own scope with one info, rather than drawing an
+// unknown-object-key warning and reaching no entry at all.
+func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	require.NotNil(t, op.Request)
+	content := op.Request.Contents[0]
+	for _, keyword := range []string{"encoding", "prefixEncoding"} {
+		entry, ok := content.Unmodeled["openapi:encoding/note/"+keyword]
+		require.True(t, ok, "%s is kept verbatim; got %v", keyword, slices.Sorted(maps.Keys(content.Unmodeled)))
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+	}
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
+		"3.2 defines these keys, so the census must leave them alone")
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

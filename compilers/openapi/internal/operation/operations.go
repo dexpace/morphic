@@ -1049,9 +1049,39 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 		name:    responseName(code),
 		payload: payload,
 		headers: headers,
-		docs:    resolve.RefDocs(ref, ir.Docs{Description: r.GetDescription()}),
+		docs:    resolve.RefDocs(ref, responseDocs(c, r)),
 	}
 	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr)...)
+}
+
+// responseDocs builds a Response Object's docs: its description, and — for
+// OpenAPI 3.2 — the `summary` the version added, which the bundled parser's
+// model names no field for and nothing read (GitHub #615). It is read off the
+// raw node, at the declaration, so the census must be told the key was taken
+// (preserveResponseExtras).
+//
+// The use-site fold in resolve.RefDocs is applied by the caller, last, so a
+// summary or description written beside a `$ref` still wins over the
+// declaration's own — 3.2's field is no different from the version's others.
+func responseDocs(c lowering.Ctx, r *soa.Response) ir.Docs {
+	docs := ir.Docs{Description: r.GetDescription()}
+	if !c.Is32() {
+		return docs
+	}
+	if node := annotation.RawChildNode(r.GetRootNode(), "summary"); node != nil {
+		docs.Summary = node.Value
+	}
+	return docs
+}
+
+// responseDecidedKeys names the Response Object keys a reader takes raw for this
+// document, which the census must leave alone. It is empty below 3.2, where
+// `summary` is a key the dialect does not define and the warning is owed.
+func responseDecidedKeys(c lowering.Ctx) []string {
+	if !c.Is32() {
+		return nil
+	}
+	return []string{"summary"}
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
@@ -1081,7 +1111,8 @@ func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rp
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr)...)
+	return append(diags, annotation.UnknownKeysDecided(p, r, c.ProvenanceAt, rptr, "",
+		responseDecidedKeys(c))...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no

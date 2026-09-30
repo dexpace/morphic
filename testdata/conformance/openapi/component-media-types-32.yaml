@@ -1,0 +1,35 @@
+openapi: 3.2.0
+info: {title: ComponentMediaTypes32, version: "1.0.0"}
+paths:
+  /events:
+    get:
+      operationId: listEvents
+      responses:
+        "200":
+          description: ok
+          content:
+            # A content entry may reference a reusable Media Type Object; the
+            # bundled parser has no model for components/mediaTypes, so the entry
+            # is resolved from the raw node.
+            application/json: {$ref: '#/components/mediaTypes/Event'}
+  /events/{id}:
+    get:
+      operationId: getEvent
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Event'}
+components:
+  schemas:
+    Event:
+      type: object
+      properties: {id: {type: string}}
+  mediaTypes:
+    Event:
+      schema: {$ref: '#/components/schemas/Event'}
+      examples:
+        one: {value: {id: e1}}
+      x-note: from the component

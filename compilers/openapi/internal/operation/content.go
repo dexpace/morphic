@@ -14,11 +14,13 @@
 package operation
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	yaml "gopkg.in/yaml.v3"
@@ -48,7 +50,12 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		if media == nil {
 			continue
 		}
-		one, contentDiags := lowerContent(c, ts, anchors, mt, media, pointer, hint)
+		entry, fromRef, entryDiags := contentEntry(c, media, pointer+ids.Ptr("content", mt))
+		diags = append(diags, entryDiags...)
+		if entry == nil {
+			continue
+		}
+		one, contentDiags := lowerContent(c, ts, anchors, mt, entry, pointer, hint, fromRef)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -58,9 +65,99 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	return payload, diags
 }
 
+// contentEntry returns the Media Type Object a content-map entry names: the
+// entry itself, or the components/mediaTypes object a 3.2 `$ref` entry
+// addresses.
+//
+// ok reports that the entry was reached through a `$ref`, which is what tells
+// the caller two things: the resolved object is what lowers, and the `$ref` key
+// itself has been read, so the census must leave it alone — a document that
+// defines the reference is not a document with a key its object does not define.
+//
+// A target this compiler cannot resolve — an external document, a pointer that
+// names no mediaTypes entry, nothing at all there, or an entry that is itself
+// another `$ref` — leaves the original entry to lower as it did before, so the
+// `$ref` is censused and kept verbatim, with one `openapi/unresolved-ref`
+// diagnostic saying what was wrong (GitHub #615).
+func contentEntry(c lowering.Ctx, media *soa.MediaType, entryPtr jsontext.Pointer) (*soa.MediaType, bool, []ir.Diagnostic) {
+	ref, isRef := rawRefOf(media)
+	if !isRef || !c.Is32() {
+		return media, false, nil
+	}
+	resolved, ok, message := resolveMediaTypeRef(c, ref)
+	if !ok {
+		return media, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entryPtr,
+			"media type $ref %q %s; the entry lowers as written with the reference kept verbatim",
+			ref, message)}
+	}
+	return resolved, true, nil
+}
+
+// resolveMediaTypeRef reads the components/mediaTypes object a `$ref` names and
+// unmarshals it into a Media Type Object. It reports a message naming what went
+// wrong rather than returning an error, because every failure lands in the same
+// diagnostic the caller builds.
+func resolveMediaTypeRef(c lowering.Ctx, ref string) (*soa.MediaType, bool, string) {
+	ptr, internal := c.RefScope().InternalPointer(ref)
+	if !internal {
+		return nil, false, "does not resolve inside this document"
+	}
+	kind, name, ok := ids.ComponentEntry(ptr)
+	if !ok || kind != ids.MediaTypesKind {
+		return nil, false, "does not name a components/" + ids.MediaTypesKind + " entry"
+	}
+	node := rawComponentNode(c.Doc.GetRootNode(), kind, name)
+	if node == nil {
+		return nil, false, "names an entry this document does not declare"
+	}
+	var out soa.MediaType
+	errs, err := marshaller.UnmarshalNode(context.Background(), "", node, &out)
+	if err != nil {
+		return nil, false, "could not be read as a media type object"
+	}
+	if len(errs) > 0 {
+		return nil, false, "is not a media type object: " + diag.OneLine(errs[0])
+	}
+	if _, chained := rawRefOf(&out); chained {
+		// A one-hop reading, deliberately: the shapes are one entry, and following a
+		// chain would need the resolver state a standalone node does not carry.
+		return nil, false, "names an entry that is itself a $ref, which is not followed"
+	}
+	return &out, true, ""
+}
+
+// rawRefOf returns the `$ref` string a raw object writes, and whether it wrote
+// one. Both a content entry and a components/mediaTypes entry are read this way:
+// the library's Media Type model has no Reference wrapper, so a `$ref` reaches
+// the compiler as a key the model does not define.
+func rawRefOf(media *soa.MediaType) (string, bool) {
+	node := annotation.RawChildNode(media.GetRootNode(), "$ref")
+	if node == nil || node.Value == "" {
+		return "", false
+	}
+	return node.Value, true
+}
+
+// rawComponentNode returns the raw node of a /components/<kind>/<name> entry.
+func rawComponentNode(root *yaml.Node, kind, name string) *yaml.Node {
+	components := annotation.RawChildNode(root, "components")
+	return annotation.RawChildNode(annotation.RawChildNode(components, kind), name)
+}
+
+// contentDecidedKeys names the content-entry keys a reader has already taken for
+// this document, which the census must leave alone. An entry resolved from a
+// `$ref` has had its `$ref` read; an entry that was not resolved has not, and
+// the warning is owed.
+func contentDecidedKeys(fromRef bool) []string {
+	if !fromRef {
+		return nil
+	}
+	return []string{"$ref"}
+}
+
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
-func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mt string, media *soa.MediaType, pointer jsontext.Pointer, hint string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mt string, media *soa.MediaType, pointer jsontext.Pointer, hint string, fromRef bool) (ir.Content, []ir.Diagnostic) {
 	mediaPtr := pointer + ids.Ptr("content", mt)
 	mediaType, diags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
 	content := ir.Content{
@@ -91,7 +188,8 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
+		annotation.UnknownKeysDecided(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, "",
+			contentDecidedKeys(fromRef))...)
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -378,10 +476,49 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
 	}
+	diags = append(diags, nestedEncodings(c, &out, enc, encPtr, scope)...)
 	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)
 	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.ProvenanceAt, encPtr, scope)...)
+}
+
+// nestedEncodingFields are the OpenAPI 3.2 Encoding Object fields that carry a
+// nested Encoding Object: the object's own encoding map, the positional prefix
+// encodings, and the item encoding governing what follows them. This compiler
+// lowers an Encoding Object to ir.PartEncoding, which has no encoding fields of
+// its own, so each reaches the IR in no modelled form.
+var nestedEncodingFields = []string{"encoding", "prefixEncoding", "itemEncoding"}
+
+// nestedEncodings keeps the nested Encoding Objects a 3.2 document writes,
+// verbatim under the same scope the part's own entries ride on, one info each
+// (GitHub #615). Recording them at the key and pointer the census itself uses is
+// what suppresses the `unknown-object-key` warning a 3.2 document used to draw
+// three of, without suppressing anything below 3.2 — where these keys are
+// misspellings and the warning is owed.
+//
+// ReasonNoIRHome rather than a boundary: PartEncoding could grow the fields, and
+// the entries are the promotion path. Nothing is lowered from them, because a
+// nested encoding describes a part inside a part and this compiler has no shape
+// for it — keeping the source is lossless and takes no position on how it would
+// lower.
+func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) []ir.Diagnostic {
+	if !c.Is32() {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, keyword := range nestedEncodingFields {
+		at := encPtr + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, out, "openapi:"+scope+"/"+ids.Scope(keyword),
+			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"encoding %s has no ir.PartEncoding home; kept verbatim under Unmodeled", keyword))
+	}
+	return diags
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each

@@ -24,7 +24,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0))
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0), false)
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -40,7 +40,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0))
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0), false)
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -54,7 +54,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0))
+	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0), false)
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)

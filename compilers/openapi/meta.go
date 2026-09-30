@@ -69,17 +69,30 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(sites))
 	for _, site := range sites {
 		diags = append(diags,
-			annotation.UnknownKeysUnder(p, site.model, c.ProvenanceAt, site.owner, site.scope)...)
+			annotation.UnknownKeysDecided(p, site.model, c.ProvenanceAt, site.owner, site.scope, site.decided)...)
 	}
 	return diags
 }
 
 // unknownSite is one object's census: what it keys under on the carrier holding
-// it, the object's own source pointer, and the parsed object itself.
+// it, the object's own source pointer, the parsed object itself, and the keys a
+// reader has already taken raw for this document.
 type unknownSite struct {
-	scope string
-	owner jsontext.Pointer
-	model any
+	scope   string
+	owner   jsontext.Pointer
+	model   any
+	decided []string
+}
+
+// componentsDecidedKeys names the Components Object keys a reader takes raw for
+// this document: OpenAPI 3.2's `mediaTypes`, whose entries are resolved where a
+// content entry references one rather than kept as a whole map (GitHub #615).
+// Below 3.2 the key is undefined and the warning is owed.
+func componentsDecidedKeys(c lowering.Ctx) []string {
+	if !c.Is32() {
+		return nil
+	}
+	return []string{ids.MediaTypesKind}
 }
 
 // rootUnknownSites returns the census sites a document has exactly one of. The
@@ -96,12 +109,12 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
 	return []unknownSite{
-		{"", "", c.Doc},
-		{"info", infoPtr, info},
-		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
-		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
-		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
-		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
+		{"", "", c.Doc, nil},
+		{"info", infoPtr, info, nil},
+		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact(), nil},
+		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense(), nil},
+		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs(), nil},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents(), componentsDecidedKeys(c)},
 	}
 }
 
@@ -123,8 +136,8 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 		index := strconv.Itoa(i)
 		ptr := ids.Ptr("tags", index)
 		out = append(out,
-			unknownSite{"tags/" + index, ptr, t},
-			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
+			unknownSite{"tags/" + index, ptr, t, nil},
+			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs(), nil})
 	}
 	return out
 }

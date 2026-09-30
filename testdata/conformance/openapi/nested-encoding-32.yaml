@@ -1,0 +1,23 @@
+openapi: 3.2.0
+info: {title: NestedEncoding32, version: "1.0.0"}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                note: {type: string}
+            encoding:
+              # 3.2 lets an Encoding Object carry a nested encoding map and the
+              # positional prefix/item encodings; ir.PartEncoding has no field
+              # for any of them.
+              note:
+                contentType: text/plain
+                encoding:
+                  inner: {contentType: text/plain}
+                prefixEncoding: [{contentType: text/plain}]
+      responses: {"200": {description: ok}}

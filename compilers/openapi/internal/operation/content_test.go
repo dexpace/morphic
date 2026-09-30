@@ -2300,3 +2300,45 @@ paths:
 	openapitest.AssertInfoDiagAt(t, diags,
 		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
 }
+
+// TestEncoding_NestedEncodingsAreKeptFor32Only pins GitHub #615's nested
+// Encoding fields: 3.2 gives an Encoding Object an encoding map and the
+// positional prefix/item encodings, ir.PartEncoding has no field for any of
+// them, and the bundled model does not name them either — so they used to draw
+// three unknown-object-key warnings and reach no entry. Each is now kept
+// verbatim under the part's own scope with one info, and below 3.2 the warnings
+// stay.
+func TestEncoding_NestedEncodingsAreKeptFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                note: {type: string}
+            encoding:
+              note:
+                contentType: text/plain
+                prefixEncoding: [{contentType: text/plain}]
+      responses: {"200": {description: ok}}
+`
+	_, svc32, diags32 := lowerServiceSpec(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	content := openapitest.FirstOp(t, svc32).Request.Contents[0]
+	kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]
+	require.True(t, ok, "the nested prefixEncoding is kept under the part's own scope; got %v",
+		slices.Sorted(maps.Keys(content.Unmodeled)))
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	openapitest.AssertInfoDiagAt(t, diags32,
+		"/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding")
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
+		"3.2 defines the keys this reader took, so the census must leave them alone")
+
+	_, _, diags31 := lowerServiceSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the same key is a misspelling and the warning is owed")
+}

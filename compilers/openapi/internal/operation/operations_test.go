@@ -3345,3 +3345,194 @@ tags:
 	assert.Equal(t, "books", got[0].Groups[0].Name.Source)
 	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
 }
+
+// TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
+// 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
+// dialect does not define, so it keeps warning rather than being silently
+// suppressed.
+func TestResponses_SummaryIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `  /a:
+    get:
+      operationId: a
+      responses:
+        "204":
+          summary: The item was deleted
+          description: Long form.
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	resp32 := openapitest.FindOp(t, doc32, "a").Responses[0]
+	assert.Equal(t, "The item was deleted", resp32.Docs.Summary)
+	assert.Equal(t, "Long form.", resp32.Docs.Description)
+	assert.NotContains(t, resp32.Unmodeled, "openapi:summary",
+		"a key the dialect defines is read, not also kept verbatim")
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
+		"3.2 defines the key, so the census must not call it undefined")
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the key is undefined and the warning is owed")
+	resp31 := openapitest.FindOp(t, doc31, "a").Responses[0]
+	assert.Empty(t, resp31.Docs.Summary, "nothing is invented for a version without the field")
+	assert.Contains(t, resp31.Unmodeled, "openapi:summary")
+}
+
+// TestResponses_SummaryUseSiteBeatsTheDeclaration holds the 3.2 field to the
+// same precedence the rest of a response's docs take: a summary written beside
+// the $ref describes this mount, so it wins over the declaration's own.
+func TestResponses_SummaryUseSiteBeatsTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', summary: As a sees it}
+components:
+  responses:
+    Ok:
+      summary: As declared
+      description: ok
+      content:
+        application/json: {schema: {type: string}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "As a sees it", openapitest.FindOp(t, doc, "a").Responses[0].Docs.Summary)
+}
+
+// TestXML_NodeTypeIsReadFor32Only pins the 3.2 XML nodeType: ir.XMLHints.NodeType
+// already existed and its GoDoc already named the version, so this is the wiring
+// — and below 3.2 the key keeps the warning it always drew.
+func TestXML_NodeTypeIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `    S:
+      type: object
+      properties:
+        n:
+          type: string
+          xml: {nodeType: text}
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	model, ok := doc32.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop, ok := propByWireTest(model, "n")
+	require.True(t, ok)
+	require.NotNil(t, prop.XML)
+	assert.Equal(t, "text", prop.XML.NodeType)
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey))
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the XML object defines no nodeType and the warning is owed")
+	model31, ok := doc31.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop31, ok := propByWireTest(model31, "n")
+	require.True(t, ok)
+	require.NotNil(t, prop31.XML)
+	assert.Empty(t, prop31.XML.NodeType)
+}
+
+// propByWireTest returns the property of m with the given wire name.
+func propByWireTest(m *ir.Model, wire string) (ir.Property, bool) {
+	for _, p := range m.Properties {
+		if p.WireName == wire {
+			return p, true
+		}
+	}
+	return ir.Property{}, false
+}
+
+// TestContent_MediaTypesRefIsResolved pins the 3.2 components/mediaTypes path:
+// a content entry written as a `$ref` into that section is read off the raw node
+// and lowered through the ordinary media-type lowering, so the body is what the
+// component declares rather than the top type with the reference kept beside it.
+func TestContent_MediaTypesRefIsResolved(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
+components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Json:
+      schema: {$ref: '#/components/schemas/N'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), content.Type.Target,
+		"the referenced media type's schema is what lowers, and its own $ref still resolves")
+	assert.NotContains(t, content.Unmodeled, "openapi:$ref",
+		"a reference this compiler resolved is not also kept as an undefined key")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+}
+
+// TestContent_MediaTypesRefFailuresLowerAsWritten covers every target the
+// resolver refuses: an entry the document does not declare, an external
+// document, a pointer naming another section, and an entry that is not an
+// object. Each keeps the `$ref` verbatim and reports one unresolved-ref.
+func TestContent_MediaTypesRefFailuresLowerAsWritten(t *testing.T) {
+	t.Parallel()
+	refs := map[string]string{
+		"an undeclared entry":            "#/components/mediaTypes/Missing",
+		"another document":               "other.yaml#/components/mediaTypes/Json",
+		"another section":                "#/components/schemas/N",
+		"an entry that is not an object": "#/components/mediaTypes/Scalar",
+	}
+	for name, ref := range refs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '`+ref+`'}
+components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Scalar: hello
+`)
+			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+			content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
+			assert.Equal(t, ir.TypeID("t/prim/any"), content.Type.Target,
+				"an unresolvable reference drops the position to the top type")
+			assert.Contains(t, content.Unmodeled, "openapi:$ref",
+				"...with the reference itself kept verbatim")
+		})
+	}
+}

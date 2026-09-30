@@ -1939,6 +1939,21 @@ rather than the field's own polarity. A document that writes `x-extensible-enum`
 would be a compiler reading a member list out of an extension, not a promotion, so the entry is
 left for a consumer that wants to.
 
+**A dialect's own field the parser does not model.** A source revision may add a field the bundled
+parser's model names no member for; OpenAPI 3.2's `Response.summary`, `components/mediaTypes`, XML
+`nodeType` and the nested Encoding fields are the live set. Such a field is read off the raw node by
+a reader of its own, and the object census is *told* which keys that reader took: the census grades a
+key by the parser's model, so left alone it reports a field the document defines as an undefined key.
+The suppression is version-gated in both directions — it is passed only for a document whose dialect
+defines the key, so the same key on an older document keeps the `openapi/unknown-object-key` warning
+it has always drawn, where it is a misspelling rather than a field.
+
+Where a reading still has no IR home, the key is preserved under `ReasonNoIRHome` at the key and
+pointer the census itself uses, which is what makes preservation and suppression one statement
+rather than two: the census answers only for what nothing read. A reading with an IR home — `summary`
+into `Docs.Summary`, `nodeType` into `XMLHints.NodeType` — is not also kept verbatim, because one
+declaration gets one structural home (§12.1).
+
 ### 12.1 One structural home per declaration
 
 Documentation, deprecation, XML hints, examples, vendor extensions, validation-only keywords and
