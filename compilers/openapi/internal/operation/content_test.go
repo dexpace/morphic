@@ -2224,3 +2224,79 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
 			"nothing was passed over, so nothing is announced")
 	}
 }
+
+// TestExamples_DataValueReachesTheValue pins GitHub #612's first half: the 3.2
+// dataValue carries the example's data, and ir.Example.Value is its home, so it
+// lowers exactly as `value` does rather than being dropped with a warning that
+// claimed it declared neither value nor externalValue.
+func TestExamples_DataValueReachesTheValue(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                five: {summary: Five, dataValue: 5}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 1, "a dataValue example is kept, not dropped")
+	assert.Equal(t, "five", examples[0].Name)
+	assert.Equal(t, "Five", examples[0].Summary)
+	require.NotNil(t, examples[0].Value, "dataValue lands on Example.Value")
+	assert.Equal(t, ir.ValueNumber, examples[0].Value.Kind)
+	assert.Equal(t, ir.BigVal("5"), examples[0].Value.Num)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "neither value nor externalValue",
+			"a dataValue declares an example, so nothing is announced as empty")
+	}
+}
+
+// TestExamples_SerializedValueIsKeptVerbatim pins GitHub #612's second half: a
+// 3.2 serializedValue is a single-format spelling ir.Example has no field for, so
+// the entry survives with the raw node under Unmodeled and one info — the entry
+// is not dropped, and it is not announced as empty either.
+func TestExamples_SerializedValueIsKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                serial: {summary: Serial, serializedValue: '"5"'}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 1, "the entry is kept rather than dropped")
+	assert.Equal(t, "serial", examples[0].Name)
+	assert.Nil(t, examples[0].Value, "serializedValue is not read into Value")
+	raw, ok := examples[0].Unmodeled["openapi:serializedValue"]
+	require.True(t, ok, "the serialized spelling is kept verbatim")
+	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
+	assert.JSONEq(t, `"\"5\""`, string(raw.Value), "the source text is kept as written")
+
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "neither value nor externalValue",
+			"the entry declares a serializedValue, so it is not announced as empty")
+	}
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+}

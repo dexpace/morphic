@@ -241,6 +241,7 @@ func conformanceCases() []conformanceCase {
 		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
 		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
 		{"param-content-fields", assertParamContentFields, []string{"multi-content"}},
+		{"examples-32", assertExamples32, []string{"examples"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3154,6 +3155,48 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 
 	openapitest.AssertInfoDiagAt(t, diags,
 		"/paths/~1search/get/parameters/0/content/application~1json/itemSchema")
+}
+
+// assertExamples32 pins GitHub #612 at every site the issue names: the 3.2
+// dataValue lowers like `value` — including through a components/examples $ref —
+// and the 3.2 serializedValue keeps the entry with the raw node under Unmodeled
+// rather than dropping it with a warning that claimed it declared neither value
+// nor externalValue.
+func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "list")
+	require.True(t, ok)
+
+	// parameters
+	limit, ok := paramByName(op, "limit")
+	require.True(t, ok)
+	require.Len(t, limit.Examples, 1)
+	require.NotNil(t, limit.Examples[0].Value, "a parameter's dataValue reaches Example.Value")
+	assert.Equal(t, ir.BigVal("5"), limit.Examples[0].Value.Num)
+
+	// headers
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	headerExample := op.Responses[0].Headers[0].Examples
+	require.Len(t, headerExample, 1)
+	assert.Equal(t, ir.ReasonNoIRHome, headerExample[0].Unmodeled["openapi:serializedValue"].Reason,
+		"a header's serializedValue keeps the entry verbatim")
+
+	// content, and through it components/examples
+	examples := op.Responses[0].Payload.Contents[0].Examples
+	require.Len(t, examples, 3)
+	byName := map[string]ir.Example{}
+	for _, e := range examples {
+		byName[e.Name] = e
+	}
+	require.NotNil(t, byName["five"].Value)
+	assert.Equal(t, ir.BigVal("5"), byName["five"].Value.Num)
+	require.NotNil(t, byName["one"].Value, "a $ref'd components/examples entry lowers its dataValue")
+	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Num)
+	assert.Equal(t, ir.ReasonNoIRHome, byName["serial"].Unmodeled["openapi:serializedValue"].Reason)
+	assert.Nil(t, byName["serial"].Value)
+
+	openapitest.AssertInfoDiagAt(t, diags,
+		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
