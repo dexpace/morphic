@@ -1,0 +1,29 @@
+# GitHub #519 under /paths: a pure $ref position's own declaration interns
+# nothing there either, and positionHint cannot replay the enclosing hint
+# under /paths at all — it comes from an operationId or a response, which the
+# pointer does not record. Declaring /b before /a is the order that exposed
+# it: /b's declaration reaches the position and interns nothing, so there was
+# nothing for it to rename once /a's reference hoisted a node under its own
+# guess at the $ref's target ("t") instead of "response_item".
+openapi: 3.1.0
+info: {title: Pointer Hint Pure Ref Under Paths, version: "1"}
+paths:
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {type: array, items: {$ref: '#/components/schemas/T'}}}
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/items', description: x}}
+components:
+  schemas:
+    T: {type: object, properties: {t: {type: string}}}

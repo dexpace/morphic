@@ -338,6 +338,31 @@ func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	assert.Equal(t, "a_item", hintAt(t, types))
 }
 
+// TestTypes_ReferenceAfterADeclarationTakesItsRecordedName is
+// InternProvisional's other branch: a declaration can reach a coordinate before
+// any node exists there — a $ref it resolves straight to its target, a body
+// that reduces to a shared primitive — so there is nothing yet to rename. The
+// hint it gave is recorded instead, and a reference that later interns the
+// coordinate takes it rather than marking the node provisional (GitHub #519).
+func TestTypes_ReferenceAfterADeclarationTakesItsRecordedName(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+
+	types.NameFromDeclaration(provisionalPointer, "Declared Name")
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("placeholder")
+	})
+	assert.Equal(t, compile.NamingHint("Declared Name").Hint, hintAt(t, types),
+		"the reference's node takes the hint the declaration already recorded")
+
+	// The node is not provisional — there was no placeholder for the declaration
+	// to arrive and replace — so a further declaration at the same coordinate
+	// cannot rename it either, the same guard TestTypes_DeclarationReplacesAProvisionalName
+	// pins for the ref-first order.
+	types.NameFromDeclaration(provisionalPointer, "something_else")
+	assert.Equal(t, compile.NamingHint("Declared Name").Hint, hintAt(t, types))
+}
+
 // TestTypes_NameFromDeclarationNeutralizesTheHint pins that a replacement writes
 // the field the way interning writes it. NamingHint neutralizes on the way in, so
 // a raw hint here would leave the node holding the caller's spelling — and the
@@ -388,13 +413,19 @@ func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 	assert.Equal(t, "a_item", hintAt(t, types))
 }
 
-// TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate covers the ordinary
-// case: every declaration calls this at its own coordinate, and almost none of
-// them are replacing anything.
-func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
+// TestTypes_NameFromDeclarationInternsNothingAtAnUninternedCoordinate covers the
+// ordinary case: every declaration calls this at its own coordinate, and almost
+// none of them are replacing anything. The hint it records there is read only by
+// a reference interning the coordinate later
+// (TestTypes_ReferenceAfterADeclarationTakesItsRecordedName); the call itself
+// puts no node there and reports nothing.
+func TestTypes_NameFromDeclarationInternsNothingAtAnUninternedCoordinate(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 	require.NotPanics(t, func() { types.NameFromDeclaration("/nothing/here", "x") })
+	_, ok := types.NodeAt("/nothing/here")
+	assert.False(t, ok, "recording a hint interns no node")
+	assert.Zero(t, types.Len())
 	assert.Empty(t, types.Violations())
 }
 

@@ -1,11 +1,14 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/base64"
 	"encoding/json/jsontext"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
@@ -1068,7 +1071,7 @@ func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
 	// set but empty (IsReference() false) suggests no name.
 	if b != nil && b.IsReference() {
-		if name := refHint(b.GetRef().String()); name != "" {
+		if name := targetHint(b); name != "" {
 			return name
 		}
 	}
@@ -1116,25 +1119,63 @@ func isDecimalIndex(s string) bool {
 	return true
 }
 
-// refHint returns the name a $ref suggests for its target: the last token of the
-// pointer its fragment spells, decoded at both layers a $ref encodes it in —
-// percent-decoding for the URI, RFC 6901 unescaping for the pointer — so
-// `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
-// declared under (GitHub #505). A reference whose fragment is no pointer — a
-// whole-document URI, a $anchor, a fragment that decodes to bytes that are not
-// UTF-8 (GitHub #520) — suggests what follows its last '/', as written.
+// maxTargetHintHops bounds targetHint's walk along composition branches that
+// hold a $ref. A cycle of them inside the document never reaches it, since the
+// cycle scan refuses one before lowering; the cap is what bounds any other. An
+// acyclic chain longer than the cap is legal, though no real document writes
+// one: past it the walk keeps the name it has reached, so a union variant
+// naming the chain's first branch can be named apart from the node it holds.
+const maxTargetHintHops = 64
+
+// targetHint returns the name a $ref suggests for its target: the hint of the
+// node the reference resolves to, so a union variant and an allOf branch are
+// named as the type they hold is (GitHub #521).
 //
-// For a component the last token is its name. For a position deeper in a schema
-// it is a keyword or an ordinal, unlike the hint the target itself carries
-// (GitHub #521).
+// Each position on the way is read the way subSchemaHint names the node there
+// (ownHint). A composition branch holding a $ref takes its target's name, so
+// the walk moves on to that target, keeping the last name the chain spells. The
+// pointer is decoded at both layers a $ref encodes it in — percent-decoding for
+// the URI (resolve.FragmentPointer), RFC 6901 unescaping for the pointer — so
+// `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
+// declared under (GitHub #505). A reference whose fragment spells no pointer
+// ends the walk with the name its text suggests (refHint).
+//
+// A position a path's operation or response names is the exception: the
+// pointer does not spell that name, so a variant naming the position keeps
+// ownHint's guess, which the declaration replaces on the node itself
+// (GitHub #729).
+func targetHint(b *oas3.JSONSchema[oas3.Referenceable]) string {
+	hint := ""
+	for range maxTargetHintHops {
+		ref := b.GetRef().String()
+		pointer, ok := resolve.FragmentPointer(ref)
+		if !ok {
+			return cmp.Or(refHint(ref), hint)
+		}
+		decl := annotation.DeclaredSchema(b)
+		own, follow := ownHint(decl, pointer)
+		hint = cmp.Or(own, hint)
+		if !follow {
+			return hint
+		}
+		b = decl
+	}
+	return hint
+}
+
+// refHint returns the name a reference suggests when its fragment spells no
+// pointer — a whole-document URI, a $anchor, a fragment that decodes to bytes
+// that are not UTF-8 (GitHub #520): what follows its last '/', percent-decoded
+// when that decodes to UTF-8, so `./Fish%2DTank.yaml` suggests "Fish-Tank.yaml".
 func refHint(ref string) string {
-	if pointer, ok := resolve.FragmentPointer(ref); ok {
-		return pointer.LastToken()
+	name := ref
+	if _, after, ok := strings.CutLast(ref, "/"); ok {
+		name = after
 	}
-	if _, name, ok := strings.CutLast(ref, "/"); ok {
-		return name
+	if decoded, err := url.PathUnescape(name); err == nil && utf8.ValidString(decoded) {
+		return decoded
 	}
-	return ref
+	return name
 }
 
 // lowerDiscriminator lowers a schema's discriminator. Each mapping entry
