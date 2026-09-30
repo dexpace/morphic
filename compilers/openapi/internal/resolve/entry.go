@@ -4,6 +4,8 @@ import (
 	"encoding/json/jsontext"
 
 	"github.com/speakeasy-api/openapi/references"
+
+	"github.com/dexpace/morphic/ir"
 )
 
 // Referenced is the method set every soa "Referenced*" alias exposes: it
@@ -41,6 +43,40 @@ func Object[T, S any, R interface {
 	// fallback stays explicit rather than coupling this compiler to that
 	// undocumented nil-tolerance.
 	return ref.GetResolvedObject()
+}
+
+// SiblingDocs is the method set a speakeasy Reference wrapper exposes for the
+// summary and description a document may write beside a `$ref`: every
+// Referenced* alias is Reference[T, V, C], whose Populate reads these two only
+// when the entry actually holds a reference, so an inline entry reports both
+// empty whatever the object itself declares.
+//
+// It is exported because the sites that fold the pair over a declaration's docs
+// are a layer up, and one of them passes the wrapper into a shared lowering
+// rather than applying the fold itself.
+type SiblingDocs interface {
+	GetSummary() string
+	GetDescription() string
+}
+
+// RefDocs folds the summary and description written beside a `$ref` over the
+// docs the resolved declaration carries, field by field: a sibling the entry
+// writes wins because it describes *this* use of the declaration, and one it
+// omits leaves the declaration's value in place. OpenAPI says such a sibling has
+// "no effect" where the referenced object type does not allow one, but the IR
+// has a docs field at every position this is applied at and dropping a declared
+// sibling in silence is the defect the fold exists to fix (ir-design §12.2).
+//
+// The getters are nil-receiver tolerant, so an inline entry — whose wrapper
+// carries no siblings at all — needs no guard and reports nothing.
+func RefDocs(ref SiblingDocs, docs ir.Docs) ir.Docs {
+	if summary := ref.GetSummary(); summary != "" {
+		docs.Summary = summary
+	}
+	if description := ref.GetDescription(); description != "" {
+		docs.Description = description
+	}
+	return docs
 }
 
 // maxRefChain bounds how many $ref hops ObjectAt follows to a declaration

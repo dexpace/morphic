@@ -1967,6 +1967,18 @@ another — a `description` beside the `$ref` says what *this* input is, replaci
 the two can never both be true at once, and any consumer reading both would need this precedence
 rule anyway. Applying it once, in the compiler, is what keeps every carrier alike.
 
+**A Reference Object's own siblings are the annotations of the use site.** OpenAPI lets the entry
+that writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use*
+of the referenced object rather than the object. Where the IR has a docs field at the position — a
+parameter, a response or error case, a header, an example, a request body, a security scheme — both
+are read off the entry and folded over the declaration's docs field by field, a sibling the entry
+writes winning and one it omits leaving the declaration's value standing. The fold applies at every
+version whose parser presents the siblings, which is all of them: the Reference Object's wrapper is
+version-independent, and dropping a declared sibling in silence is the defect the rule fixes. It is
+a documented departure from OpenAPI's clause that such a sibling has "no effect" where the
+referenced object type does not allow one: the IR has a docs field at each of these positions,
+keeping it loses nothing, and the alternative is the silent loss the clause permitted.
+
 **Constraints do not merge, and are never copied to a use site.** Bounds *conjoin*: `maxLength: 64` on the
 referent and `maxLength: 100` beside the `$ref` are both in force, and the admitted value is the
 narrower of the two. There is no precedence to apply — merging with use-site precedence would

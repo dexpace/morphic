@@ -38,6 +38,11 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		}
 		param, binding, paramDiags := lowerParameter(c, ts, anchors, p, pptr)
 		diags = append(diags, paramDiags...)
+		// A Reference Object may write summary and description beside its $ref, and
+		// they describe this use of the declaration rather than the declaration —
+		// so they win over what the target's own object produced, field by field.
+		// The parser presents the siblings and nothing read them (GitHub #610).
+		param.Docs = resolve.RefDocs(sp.ref, param.Docs)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}

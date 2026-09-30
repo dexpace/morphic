@@ -1,0 +1,73 @@
+openapi: 3.2.0
+info: {title: RefSiteDocs, version: "1.0.0"}
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      parameters:
+        - {$ref: '#/components/parameters/Limit', summary: Page size, description: How many widgets to return.}
+      requestBody: {$ref: '#/components/requestBodies/WidgetBody', description: The widget to create.}
+      responses:
+        "200":
+          $ref: '#/components/responses/Listing'
+          description: The listing, as this operation returns it.
+        "404":
+          $ref: '#/components/responses/Missing'
+          description: No such widget.
+  /gadgets:
+    get:
+      operationId: listGadgets
+      parameters:
+        - {$ref: '#/components/parameters/Limit', description: How many gadgets to return.}
+      responses:
+        "200": {$ref: '#/components/responses/Listing'}
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: The declaration's own description.
+      schema: {type: integer}
+  requestBodies:
+    WidgetBody:
+      description: The declaration's own body description.
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}
+  responses:
+    Listing:
+      description: A page of results.
+      headers:
+        X-Rate-Unit:
+          $ref: '#/components/headers/RateUnit'
+          description: The unit a rate limit is stated in.
+      content:
+        application/json:
+          schema: {type: object, properties: {items: {type: array, items: {type: string}}}}
+          examples:
+            one:
+              $ref: '#/components/examples/Page'
+              summary: One page
+              description: A single page of results.
+    Missing:
+      description: Nothing there.
+  headers:
+    RateUnit:
+      description: The declaration's own header description.
+      schema: {type: string}
+  examples:
+    Page:
+      summary: Declared summary
+      description: Declared description
+      value: {items: []}
+  securitySchemes:
+    BaseKey:
+      description: The declaration's own scheme description.
+      type: apiKey
+      in: header
+      name: X-Key
+    ApiKey:
+      $ref: '#/components/securitySchemes/BaseKey'
+      description: The key this API expects.
+security:
+  - ApiKey: []

@@ -2930,3 +2930,95 @@ components:
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
 	}
 }
+
+// TestResponses_RefSiteDocsOverrideTheDeclaration pins the response half of
+// GitHub #610 at both status classes, and the per-mount rule: one component
+// mounted three times — a success with a sibling description, an error with a
+// different one, and a success with none — must give each mount its own docs
+// and leave the declaration's description for the mount that writes none.
+func TestResponses_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', description: as a returns it}
+  /b:
+    get:
+      operationId: b
+      responses:
+        "404": {$ref: '#/components/responses/Ok', description: as b fails}
+  /c:
+    get:
+      operationId: c
+      responses:
+        "200": {$ref: '#/components/responses/Ok'}
+components:
+  responses:
+    Ok:
+      description: declared
+      content:
+        application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	a := openapitest.FindOp(t, doc, "a")
+	require.Len(t, a.Responses, 1)
+	assert.Equal(t, "as a returns it", a.Responses[0].Docs.Description)
+
+	b := openapitest.FindOp(t, doc, "b")
+	require.Len(t, b.Errors, 1)
+	assert.Equal(t, "as b fails", b.Errors[0].Docs.Description,
+		"an error case is lowered by the same shared function, so it folds too")
+
+	c := openapitest.FindOp(t, doc, "c")
+	require.Len(t, c.Responses, 1)
+	assert.Equal(t, "declared", c.Responses[0].Docs.Description,
+		"a mount with no siblings keeps the declaration's description")
+}
+
+// TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder is the hand-rolled two-order
+// diff for GitHub #610. A use-site summary or description is neither part of the
+// type registry nor a diagnostic, so the in-package order-invariance oracle does
+// not reach it. One component referenced by two operations with different
+// overrides, declared in both orders, must give each mount its own docs.
+func TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const first = `  /a:
+    get:
+      operationId: a
+      parameters: [{$ref: '#/components/parameters/Limit', description: from a}]
+      responses: {"200": {description: ok}}
+`
+	const second = `  /b:
+    get:
+      operationId: b
+      parameters: [{$ref: '#/components/parameters/Limit', description: from b}]
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  parameters:
+    Limit: {name: limit, in: query, description: declared, schema: {type: integer}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"a", "b"} {
+			p, ok := paramBySource(openapitest.FindOp(t, doc, name), "limit")
+			require.True(t, ok)
+			out[name] = p.Docs.Description
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(first+second), projection(second+first)),
+		"each mount keeps its own override whichever was lowered first")
+}

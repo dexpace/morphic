@@ -64,6 +64,10 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		if !ok {
 			continue
 		}
+		// A securitySchemes entry written as a Reference Object keeps the summary
+		// and description written beside its $ref, which describe this entry rather
+		// than the declaration it names (GitHub #610).
+		scheme.Docs = resolve.RefDocs(rs, scheme.Docs)
 		out[ids.Auth(name)] = scheme
 	}
 	if len(out) == 0 {

@@ -403,6 +403,10 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
+		// A header entry written as a Reference Object keeps its own summary and
+		// description: they describe this entry rather than the header declaration
+		// it names (GitHub #610).
+		p.Docs = resolve.RefDocs(rh, p.Docs)
 		out = append(out, p)
 	}
 	return out, diags
@@ -685,10 +689,14 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	}
 	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.ProvenanceAt, decl)...)
+	// An entry written as a Reference Object carries its summary and description
+	// beside the $ref, and they override the declaration's; the fold reads the two
+	// through the same helper the other positions use (GitHub #610).
+	docs := resolve.RefDocs(re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
-		Summary:     ex.GetSummary(),
-		Description: ex.GetDescription(),
+		Summary:     docs.Summary,
+		Description: docs.Description,
 		ExternalURL: ex.GetExternalValue(),
 		Unmodeled:   ext,
 	}
@@ -759,10 +767,13 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	// inside it, and ir.Payload is where a request body's facts land. The parser
 	// models the field, so the unknown-key census never saw it either: a
 	// `description` here reached no field, no Unmodeled entry and no diagnostic
-	// (GitHub #609). Written only when declared, so a body that states none keeps
-	// Docs nil — the same three-state reading Required takes.
-	if desc := rb.GetDescription(); desc != "" {
-		payload.Docs = &ir.Docs{Description: desc}
+	// (GitHub #609). A summary or description written beside a `$ref` to the body
+	// overrides the declaration's, through the same fold every other position uses
+	// (GitHub #610). Written only when something landed, so a body stating neither
+	// keeps Docs nil — the same three-state reading Required takes.
+	bodyDocs := resolve.RefDocs(src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	if bodyDocs.Summary != "" || bodyDocs.Description != "" {
+		payload.Docs = &bodyDocs
 	}
 	required := rb.GetRequired()
 	payload.Required = &required

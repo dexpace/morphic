@@ -239,6 +239,7 @@ func conformanceCases() []conformanceCase {
 		{"examples", assertExamples, []string{"examples"}},
 		{"docs-summary-desc", assertDocsSummaryDesc, []string{"docs-summary-description"}},
 		{"request-body-docs", assertRequestBodyDocs, []string{"docs-summary-description"}},
+		{"ref-site-docs", assertRefSiteDocs, []string{"docs-summary-description", "named-objects"}},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3051,6 +3052,71 @@ func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, draft.Request)
 	require.NotNil(t, draft.Request.Docs, "an inline body's own description reaches the payload too")
 	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description)
+}
+
+// assertRefSiteDocs pins GitHub #610 across every site the fold reaches, in one
+// document: a Reference Object may write `summary` and `description` beside its
+// `$ref`, and OpenAPI says they override the referenced object's. Nothing read
+// them, so a mount's own documentation was silently replaced by the
+// declaration's. The one component referenced from two operations with
+// different overrides also pins the other half: each mount keeps its own and
+// neither mutates the declaration.
+func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	widgets, ok := opByName(doc, "listWidgets")
+	require.True(t, ok)
+	gadgets, ok := opByName(doc, "listGadgets")
+	require.True(t, ok)
+
+	// parameters — the two-mount case: the first writes both siblings, the second
+	// only a description, and the declaration's own description is overridden by
+	// both rather than surviving on either.
+	widgetLimit, ok := paramByName(widgets, "limit")
+	require.True(t, ok)
+	assert.Equal(t, "Page size", widgetLimit.Docs.Summary)
+	assert.Equal(t, "How many widgets to return.", widgetLimit.Docs.Description)
+	gadgetLimit, ok := paramByName(gadgets, "limit")
+	require.True(t, ok)
+	assert.Empty(t, gadgetLimit.Docs.Summary, "the second mount writes no summary, so none is invented")
+	assert.Equal(t, "How many gadgets to return.", gadgetLimit.Docs.Description)
+
+	// responses — one mount overrides the description, the other keeps the
+	// declaration's, so neither mutates it.
+	require.Len(t, widgets.Responses, 1)
+	assert.Equal(t, "The listing, as this operation returns it.", widgets.Responses[0].Docs.Description)
+	require.Len(t, gadgets.Responses, 1)
+	assert.Equal(t, "A page of results.", gadgets.Responses[0].Docs.Description,
+		"a mount with no siblings leaves the declaration's description alone")
+
+	// error cases are responses too, and reach the same shared lowering.
+	require.Len(t, widgets.Errors, 1)
+	assert.Equal(t, "No such widget.", widgets.Errors[0].Docs.Description)
+
+	// headers
+	require.Len(t, widgets.Responses[0].Headers, 1)
+	assert.Equal(t, "The unit a rate limit is stated in.", widgets.Responses[0].Headers[0].Docs.Description)
+
+	// examples — the siblings override the Example Object's own pair.
+	require.NotNil(t, widgets.Responses[0].Payload)
+	require.Len(t, widgets.Responses[0].Payload.Contents[0].Examples, 1)
+	example := widgets.Responses[0].Payload.Contents[0].Examples[0]
+	assert.Equal(t, "One page", example.Summary)
+	assert.Equal(t, "A single page of results.", example.Description)
+
+	// request bodies
+	require.NotNil(t, widgets.Request)
+	require.NotNil(t, widgets.Request.Docs)
+	assert.Equal(t, "The widget to create.", widgets.Request.Docs.Description)
+
+	// security schemes — the aliasing entry takes its own description, and the
+	// declaration it names keeps its own.
+	require.Len(t, doc.Auth, 2)
+	byName := map[string]string{}
+	for _, scheme := range doc.Auth {
+		byName[scheme.Name.Source] = scheme.Docs.Description
+	}
+	assert.Equal(t, "The key this API expects.", byName["ApiKey"])
+	assert.Equal(t, "The declaration's own scheme description.", byName["BaseKey"],
+		"the aliasing entry's siblings do not reach the declaration")
 }
 
 func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -2007,3 +2007,98 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
 	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/responses/200/headers/X-H/schema")
 }
+
+// TestHeaders_RefSiteDocsOverrideTheDeclaration pins the header half of GitHub
+// #610: a header entry written as a Reference Object keeps the pair it writes
+// beside the $ref, overriding the declaration's own description.
+func TestHeaders_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate:
+              $ref: '#/components/headers/Rate'
+              summary: HS
+              description: HD
+components:
+  headers:
+    Rate: {description: declared, schema: {type: integer}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, openapitest.FirstOp(t, svc).Responses, 1)
+	header := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "HS", header.Docs.Summary)
+	assert.Equal(t, "HD", header.Docs.Description)
+}
+
+// TestExamples_RefSiteDocsOverrideTheDeclaration pins the example half of GitHub
+// #610: an entry written as a Reference Object carries its summary and
+// description beside the $ref, and they override the Example Object's own pair.
+func TestExamples_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                one:
+                  $ref: '#/components/examples/Sample'
+                  summary: ES
+                  description: ED
+components:
+  examples:
+    Sample: {summary: declared summary, description: declared description, value: {n: x}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	payload := openapitest.FirstOp(t, svc).Responses[0].Payload
+	require.NotNil(t, payload)
+	require.Len(t, payload.Contents[0].Examples, 1)
+	example := payload.Contents[0].Examples[0]
+	assert.Equal(t, "ES", example.Summary)
+	assert.Equal(t, "ED", example.Description)
+}
+
+// TestContent_RequestBodyRefSiteDocsOverrideTheDeclaration pins the request-body
+// half of GitHub #610: a body entry written as a Reference Object keeps the
+// description beside its $ref, which wins over the declaration's.
+func TestContent_RequestBodyRefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: a
+      requestBody: {$ref: '#/components/requestBodies/Body', description: the use site}
+      responses: {"200": {description: ok}}
+components:
+  requestBodies:
+    Body:
+      description: declared
+      content:
+        application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.NotNil(t, op.Request)
+	require.NotNil(t, op.Request.Docs)
+	assert.Equal(t, "the use site", op.Request.Docs.Description)
+}

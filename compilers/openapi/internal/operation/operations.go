@@ -837,18 +837,18 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, code, rng, rptr)
+			ec, ecDiags := lowerErrorCase(c, ts, anchors, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
 			errs = append(errs, ec)
 		} else {
-			resp, respDiags := lowerResponse(c, ts, anchors, r, code, statusConditions(rng, named), rptr)
+			resp, respDiags := lowerResponse(c, ts, anchors, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
 			responses = append(responses, resp)
 		}
 	}
 	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def != nil {
-		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr)
+		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr, resps.GetDefault())
 		diags = append(diags, ecDiags...)
 		errs = append(errs, ec)
 	}
@@ -878,9 +878,11 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 // payload (all media types), headers, docs, and any raw links preserved for
 // later promotion. code is the responses-map key the response is declared under
 // and conds is what that key resolved to, which is nothing at all when it named
-// no status (see statusConditions).
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer) (ir.Response, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
+// no status (see statusConditions). ref is the entry the document wrote there,
+// which carries the summary and description a Reference Object may put beside
+// its $ref.
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref resolve.SiblingDocs) (ir.Response, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
 		Conditions: conds,
@@ -915,7 +917,13 @@ type responseParts struct {
 // whatever fallback the first mount passed — so two fallbacks, "response" here
 // and "error" there, renamed the type on a reordering of two paths. One
 // fallback, passed from one place, cannot.
-func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer) (responseParts, []ir.Diagnostic) {
+//
+// The use-site docs fold belongs here rather than at either caller for the same
+// reason: a Reference Object's summary and description describe this mount and
+// override the declaration's, and they have to do so identically whichever
+// status class read the entry (GitHub #610). ref is the entry the document wrote
+// at this position, whose siblings Populate fills only when it really is a $ref.
+func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer, ref resolve.SiblingDocs) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
 	diags = append(diags, payloadDiags...)
@@ -923,7 +931,7 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 		name:    responseName(code),
 		payload: payload,
 		headers: headers,
-		docs:    ir.Docs{Description: r.GetDescription()},
+		docs:    resolve.RefDocs(ref, ir.Docs{Description: r.GetDescription()}),
 	}
 	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr)...)
 }
@@ -997,9 +1005,11 @@ func responseName(code string) ir.Naming {
 //
 // code is the responses-map key it was declared under, which is the only record
 // of how the source spelled a status its range cannot state — "4XX" and
-// "default" both, though only the second reaches the IR unchanged.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer) (ir.ErrorCase, []ir.Diagnostic) {
-	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
+// "default" both, though only the second reaches the IR unchanged. ref is the
+// document's entry at this position, carrying any Reference Object siblings the
+// shared lowerResponseParts folds over the declaration's docs.
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref resolve.SiblingDocs) (ir.ErrorCase, []ir.Diagnostic) {
+	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{rng}},
