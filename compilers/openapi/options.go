@@ -105,7 +105,11 @@ type Options struct {
 	// A document a reference names this way is held to the same budgets and
 	// pre-parse refusals as the source, and is refused as that reference's
 	// failure the moment it crosses one. One whose pre-parse scan cannot finish
-	// is refused as well, where the source only draws a warning.
+	// is refused as well, where the source only draws a warning. What a
+	// reference reaches in it is validated as the source's own objects are,
+	// charged against the node and alias budgets below in its own right — a
+	// reference into a large document costs what validating that much of the
+	// source would.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
