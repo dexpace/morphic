@@ -183,7 +183,7 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
 	ts := compile.NewTypes()
-	// A node lives at the pointer-derived ID without a byPointer entry: internedID
+	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
 	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})

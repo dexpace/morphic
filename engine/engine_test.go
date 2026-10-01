@@ -146,16 +146,14 @@ func TestEngine_RunMissingFile(t *testing.T) {
 }
 
 // TestEngine_RunDetectionProblemsAreDiagnostics covers every way a source can
-// defeat detection. None of them is an I/O failure or a programmer error, so
-// none may leave Run as a Go error: a caller that maps Go errors to "you invoked
-// me wrong" — which the CLI does — would report a spec it read and understood
-// well enough to name the problem in as a misuse of itself.
+// defeat detection. None is an I/O failure or a programmer error, so none may
+// leave Run as a Go error.
 //
 // The three rows are three different answers. A Swagger document is recognized
-// and unserved, so the format it declared survives into the Result. Bytes that
-// declare no key at all are nobody's, and no compiler has anything to say. Bytes
-// that declare an OpenAPI key and will not parse are the OpenAPI compiler's own,
-// and it — not the engine, which parses nothing — reports the parse error.
+// and unserved, so its declared format survives into the Result. Bytes that
+// declare no key at all are nobody's, and no compiler has anything to say.
+// Bytes that declare an OpenAPI key and will not parse are the OpenAPI
+// compiler's own, and it, not the engine, reports the parse error.
 func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -192,11 +190,6 @@ func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 // nothing cannot be built. There is no way to add a compiler to a built engine,
 // so the alternative is one that reports every source it is handed as
 // unrecognized — blaming the document for a misconfiguration of the caller.
-//
-// An earlier note here asked that this precondition not be added, on the grounds
-// that an empty engine was the only way to reach Run's nothing-recognized
-// branch. Detection belongs to the compilers now, so an ordinary source none of
-// them claims reaches that branch with a full registry; the tests above do it.
 func TestNewWith_RefusesAnEmptyCompilerSet(t *testing.T) {
 	t.Parallel()
 
@@ -256,8 +249,8 @@ func TestNewWith_RegisterError(t *testing.T) {
 
 // TestNewWith_NilCompiler passes the nil second so the reported position proves
 // the index is the argument's own and not a constant. Reaching the assertions at
-// all is the point: a nil compiler used to segfault inside the registry, which
-// is a panic escaping two packages rather than an error the caller can handle.
+// all is the point: a nil compiler must come back as an error the caller can
+// handle, not a panic escaping the registry.
 func TestNewWith_NilCompiler(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(collidingCompiler{}, nil)
@@ -333,15 +326,14 @@ func (c splitDiagCompiler) Compile(context.Context, []compilers.Source, compiler
 }
 
 // TestEngine_RunKeepsDiagnosticsFromEitherChannel pins that neither diagnostic
-// channel is dropped in favour of the other. Three of these six rows lost a
-// finding before this was fixed — an error-severity one, in silence, on a
-// different combination of channel and validate mode each time.
+// channel is dropped in favour of the other, for each channel layout with and
+// without the validate pass.
 //
-// The returned-only row with the validate pass enabled — the default — is the
-// worst of them, and the reason the modes are a loop rather than a single case.
-// Assigning Document.Diagnostics over the returned list emptied the Result the
-// CLI gates its exit code on, so turning validation on *removed* findings and
-// the tool exited 0 on a spec its compiler had refused outright.
+// The returned-only row with validation on, the default, is the worst case and
+// the reason the modes are a loop: assigning Document.Diagnostics over the
+// returned list would empty the Result the CLI gates its exit code on, so
+// enabling validation would remove findings and the tool would exit 0 on a spec
+// its compiler had refused outright.
 func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 	t.Parallel()
 	want := ir.Diagnostic{
@@ -680,16 +672,14 @@ func TestEngine_RunOnAnUnbuiltEngine(t *testing.T) {
 	}
 }
 
-// TestEngine_RunDiagnosticsAreOneLineEach pins the rendering contract the README
-// states — one diagnostic per line — across the ways a source can fail, rather
-// than at the one site where a multi-line message was first noticed.
+// TestEngine_RunDiagnosticsAreOneLineEach pins the README's rendering contract,
+// one diagnostic per line, across the ways a source can fail.
 //
 // A message carrying a newline splits one report into several, and every line
 // after the first has no severity, code or location: a reader takes it for
-// another finding, and a wrapper parsing stderr takes it for a malformed one.
-// Both libraries reported through here write multi-line errors, so the sites
-// that embed one are where this keeps breaking; the inputs below reach the
-// detection, parse, overlay and validation paths in turn.
+// another finding, a wrapper parsing stderr for a malformed one. Both libraries
+// reported through here write multi-line errors, so the inputs reach the
+// detection, parse, overlay and validation paths, where one gets embedded.
 func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 	t.Parallel()
 	const okSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"

@@ -1,17 +1,14 @@
 // Package scan refuses a source document before any of it is lowered.
 //
-// The refusals share a phase and a subject. A reference cycle that never reaches
-// a concrete schema recurses without bound inside the resolver. A reference whose
-// pointer passes through a reference already being resolved deadlocks it, since
-// the resolver holds that reference's own lock across the pointer walk. A YAML
-// alias fan-out that expands to far more nodes than the document declares
-// exhausts memory inside the parser. Each reads the raw text through nodeview,
-// and each runs before the document is handed to either.
+// Three shapes would otherwise crash, hang or exhaust memory in the resolver or
+// parser: a reference cycle that never reaches a concrete schema; a reference
+// whose pointer passes through a reference being resolved, which deadlocks on
+// that reference's own lock; and a YAML alias fan-out expanding to more nodes
+// than the document declares. Each is read from the raw text through nodeview,
+// before either library sees it.
 //
-// What the tree says about itself — its size, and whether an alias points back
-// at one of its own ancestors — is not rederived here. The caller supplies a
-// sourceindex.Index built over the same tree, so the questions that need only a
-// walk are answered once for every refusal that asks them.
+// The caller supplies a sourceindex.Index over the same tree, so its size and
+// alias-to-ancestor answers are not rederived.
 package scan
 
 import (
@@ -91,36 +88,16 @@ func InSource(srcIndex int) Locator {
 	}
 }
 
-// Cycles scans an indexed source tree for degenerate reference structures that
-// would otherwise crash, hang or exhaust memory in the third-party parser and
-// resolver (GitHub #12, GitHub #27, speakeasy-api/openapi#231), before
-// soa.Unmarshal ever runs. It reports as error diagnostics: a recursive YAML
-// anchor, a pure-$ref cycle (a chain of schema $refs that never reaches a node
-// without one), a reference whose pointer resolves through a reference already
-// being resolved, alias amplification (a billion-laughs expansion), and aliases
-// adding more nodes than the surplus budget allows (see aliasAmplification).
-// The scan runs under recoverCycleScan so a detector bug degrades to "no cycle
-// found" rather than aborting.
+// Cycles refuses, before parsing, structures that crash, hang or exhaust memory
+// in the parser or resolver (GitHub #12, #27, speakeasy-api/openapi#231): a
+// recursive anchor, a $ref cycle, a pointer re-entering its own chain, and
+// alias amplification past the ratio or the surplus budget (zero for none). An
+// incomplete scan yields a diag.CycleScanFailed warning.
 //
-// The index is the caller's, built over the tree that will reach the parser: an
-// overlay can graft a $ref cycle onto a document that had none, so a patched
-// tree is re-indexed and re-scanned rather than trusted to the bytes that
-// reached the overlay. The caller must not hand over a truncated index — every
-// answer in one is partial, and the alias-expansion allowance derived from a
-// partial node count would refuse documents on a bound they never crossed.
-//
-// Nothing bounds alias expansion ahead of this scan, so the weigher it runs is
-// the refusal and not a backstop to one. yaml.v3's excessive-aliasing guard
-// counts expansions during a decode into a Go value; the decode that produced
-// this tree targets a yaml.Node, which holds an alias as one node pointing at
-// its anchor, so nothing is expanded there and the guard never fires — the
-// bomb fixture decodes into a node tree without error (GitHub #479). The
-// expansion happens in the parser this runs ahead of, which follows aliases as
-// it builds the model.
-//
-// surplus is the caller's alias budget: how many nodes aliasing may add beyond
-// the document's own, or zero for no budget. See aliasAmplification for how it
-// sits beside the ratio rule, which holds whatever the budget.
+// The index must cover the tree that will reach the parser, since an overlay
+// can graft a cycle onto a clean document, and must not be truncated: a partial
+// count refuses documents wrongly. yaml.v3's alias guard never fires on a
+// yaml.Node decode, so nothing else bounds expansion (GitHub #479).
 func Cycles(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		return scanIndex(locate, idx, surplus)
@@ -144,26 +121,15 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 }
 
 // Aliases refuses a YAML document whose aliases expand without end or far past
-// its own size — the two refusals Cycles makes that are about YAML rather than
-// OpenAPI, for a document that is not an OpenAPI one.
+// its own size, the two refusals Cycles makes that concern YAML rather than
+// OpenAPI. It serves overlays, whose applier follows aliases while cloning an
+// update: an anchor naming its own ancestor would recurse until the stack ran
+// out, which no recover converts, and an alias bomb would expand until memory
+// did (GitHub #489). $ref chains are skipped; nothing resolves them in an
+// overlay.
 //
-// An overlay is that document. The library applying one copies each update by
-// cloning it, and its clone follows an alias into what the alias names, so an
-// anchor naming one of its own ancestors recursed until the stack ran out — a
-// fatal error, which no recover converts — and an alias bomb expanded until
-// memory did (GitHub #489). Both are shapes the source has been refused for
-// since GitHub #12 and #27, on the same tree shape, the same ratio and the
-// same alias budget, so the overlay is held to exactly those.
-//
-// It leaves out the $ref chains Cycles follows. Those are what an OpenAPI
-// resolver does with a document; nothing resolves an overlay's references, and
-// reading its update values as components would find cycles in text no parser
-// will ever follow.
-//
-// The index is the caller's, built over the whole document rather than any one
-// value in it: an anchor may sit outside the value that names it, and a cycle
-// through it is visible as an alias to an ancestor only from the root. surplus
-// is the alias budget, as in Cycles.
+// The index must cover the whole document: an alias to an ancestor is visible
+// only from the root. surplus is the alias budget.
 func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	return recoverCycleScan(locate, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(locate, idx); ok {
@@ -225,18 +191,14 @@ func anchorName(alias *yaml.Node) string {
 }
 
 // refCycles reports the first degenerate chain among the collected references:
-// one followed until it revisits a node already on it, without ever reaching a
-// node that carries no top-level $ref (which terminates the chain, matching
-// where speakeasy stops resolving).
+// one followed until it revisits a node on it without reaching a node with no
+// top-level $ref, where speakeasy stops resolving. Schema positions are refused
+// on that alone; reference-object positions are judged by outsideCycle.
 //
-// Schema positions are refused on that alone. Reference-object positions carry
-// a second rule and one exemption, both of which turn on what the resolver can
-// see rather than on where the pointer points — see outsideCycle.
-//
-// If the mapping view hit nodeview.MergeDepthLimit, it returns a diag.CycleScanFailed
-// warning instead of a clean nil: truncation only ever drops pairs, so a cycle
-// found despite it is still real, but a clean result only means "no cycle found
-// in what could be expanded."
+// If the mapping view hit nodeview.MergeDepthLimit it returns a
+// diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
+// pairs, so a cycle found despite it is real, but a clean result means only
+// that none was found in what could be expanded.
 func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
@@ -259,25 +221,17 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	return nil
 }
 
-// outsideCycle reports the first degenerate chain among the reference objects
-// that live outside any schema — a path item, a response, a parameter. Two rules
-// apply, and they are split on what speakeasy's resolver can see rather than on
-// where the pointer points.
+// outsideCycle reports the first degenerate chain among reference objects
+// outside any schema that speakeasy's resolver cannot report itself.
 //
-// Its cycle guard tracks *completed* hops: resolveObjectWithTracking appends a
-// reference to its chain only after Reference.resolve returns, then compares the
-// next one against that chain. So a cycle whose every hop resolves to a whole
-// node is caught there, and for the all-components spelling
-// ('#/components/responses/A' -> '.../B' -> '.../A') its message names the chain
-// and is the better one to keep. A hop that names a node by document position
-// ('#/paths/~1a', '#/webhooks/onA') is not caught, so chainCycles is refused
-// here once the chain has left components.
+// The resolver's cycle guard tracks completed hops: resolveObjectWithTracking
+// extends its chain only after Reference.resolve returns. Whole-node hops under
+// components are caught there, with a better message. A hop naming a node by
+// document position ('#/paths/~1a') is not, so chainCycles is refused here once
+// the chain has left components.
 //
-// A hop that passes *through* a reference never completes at all: the pointer
-// walk read-locks a reference whose resolve already holds its write lock, and
-// the process deadlocks before the tracker is consulted. Nothing upstream can
-// report that, and the components spelling deadlocks exactly like the
-// document-position one, so chainReenters is refused whatever it names.
+// A hop passing through a reference deadlocks before the tracker runs (see
+// chainReenters), so that verdict is refused whatever the pointer names.
 func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, bool) {
 	for _, start := range s.outside {
 		verdict, leftComponents := s.followRefChain(root, start)
@@ -354,19 +308,15 @@ type refTask struct {
 	role walkRole
 }
 
-// refScan holds the state of one pure-$ref cycle search: the resolver-faithful
-// view of the source tree, the worklist and per-role visited sets of the
-// collection walk, the collected pure-$ref nodes, and the chain walk's memo of
-// nodes already proven to terminate.
+// refScan holds the state of one pure-$ref cycle search, over a
+// resolver-faithful view of the source tree.
 //
-// The collection walk is iterative rather than recursive. Aliases make one node
-// reachable from many parents, so the walk needs memoization or a chained-alias
-// document goes exponential in chain length — trading a crash for a hang. But
-// memoization and a recursion depth cap are unsound together: a node first
-// reached near the cap has its descent truncated, then gets skipped when a
-// shallower path reaches it again, silently dropping refs. Going iterative
-// removes the cap: push() enqueues each (node, role) pair at most once, so the
-// loop runs at most roleCount times the number of tree nodes.
+// The collection walk is iterative. Aliases make a node reachable from many
+// parents, so it needs memoization against exponential time, but memoization
+// and a recursion depth cap are unsound together: a node first reached near the
+// cap is truncated, then skipped from a shallower path, dropping refs. Without
+// a cap, push enqueues each (node, role) pair once, so the loop runs at most
+// roleCount times the node count.
 type refScan struct {
 	view  *nodeview.View
 	stack []refTask
@@ -510,21 +460,18 @@ func (s *refScan) visitSchemaList(n *yaml.Node) {
 	s.pushReversed(n.Content, roleSchema)
 }
 
-// followRefChain follows pure-$ref edges from start and reports whether the
-// chain loops back onto itself without reaching a node that has no top-level
-// $ref. It stops on such a node, a dangling ref, or a node already on the
-// current chain; the on-path set and depth cap bound it against any structure.
+// followRefChain follows pure-$ref edges from start and returns how the chain
+// ends (see chainVerdict). The on-path set and maxCycleDepth bound it.
 //
-// leftComponents reports whether any edge it followed named a node outside the
-// components section, which is what tells a cycle speakeasy's resolver refuses
-// from one it faults on (outsideCycle). It is only meaningful alongside
-// cyclic=true: a chain that terminates was never a candidate either way, and
-// the s.safe short-circuit can return before the whole chain is walked.
+// leftComponents reports whether any followed edge named a node outside
+// components, which separates a cycle speakeasy's resolver refuses from one it
+// faults on (outsideCycle). It is meaningful only with chainCycles: a
+// terminating chain is no candidate, and the s.safe short-circuit can end a
+// walk early.
 //
-// s.safe memoizes nodes already proven to reach a $ref-free node, so the scan
-// stays linear in the number of collected refs instead of re-walking shared
-// tails. A node on a cycle is never marked safe, so memoization can't hide a
-// real cycle.
+// s.safe memoizes nodes proven to reach a $ref-free node, keeping the scan
+// linear in the collected refs. A node on a cycle is never marked safe, so
+// memoization cannot hide one.
 func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
 	onPath := make(map[*yaml.Node]bool)
 	var path []*yaml.Node
@@ -597,17 +544,15 @@ func (s *refScan) traverse(root *yaml.Node, ref jsontext.Pointer, onPath map[*ya
 }
 
 // markSafe records every node on a proven chain-terminating path so a later
-// chain that reaches one stops immediately instead of re-walking it.
+// chain that reaches one stops instead of re-walking it.
 //
-// It declines when a hop passed through a reference. Re-entrancy is a property
-// of a pointer and the chain reading it, not of a node alone, so a chain proved
-// terminating from one start says nothing about a chain that reaches it by
-// another route — memoizing it there would make the refusal depend on which
-// declaration order the walk happened to take. A hop that passes through no
-// reference can never re-enter one whichever chain follows it, which is every
-// hop in a real document: pointers pass through mappings like `components` and
-// `schemas`, never through a $ref node. So the memo stays in force exactly where
-// it earns its keep, and lapses only on the shapes it cannot answer for.
+// It declines when a hop passed through a reference. Re-entrancy belongs to a
+// pointer and the chain reading it, not to a node, so a chain proved
+// terminating from one start says nothing about one reaching it by another
+// route, and memoizing it would make the refusal depend on declaration order.
+// A hop through no reference can never re-enter one, which is every hop in a
+// real document: pointers pass through mappings like `components`, not $ref
+// nodes.
 func (s *refScan) markSafe(path []*yaml.Node, memoizable bool) {
 	if !memoizable {
 		return
@@ -625,22 +570,14 @@ func cyclicDiag(locate Locator, n *yaml.Node, format string, args ...any) ir.Dia
 
 // maxAliasAmplification bounds how many times larger a document's alias-
 // expanded form may be than the document as parsed. An alias-free document
-// expands to exactly its own node count, so a large spec is never refused by
-// this rule; what crosses it is a few hundred bytes standing in, through
-// nested aliases, for a structure vastly larger — the billion-laughs shape
-// that exhausts memory inside soa.Unmarshal (GitHub #27).
+// expands to exactly its own size, so a large spec is never refused by it; what
+// crosses it is the billion-laughs shape that exhausts memory inside
+// soa.Unmarshal (GitHub #27).
 //
-// Calibrated against 1,693 real OpenAPI and Swagger specs (1,491 from
-// APIs.guru, 199 hand-authored anchor-using ones, plus GitHub's, Stripe's and
-// Kubernetes' flagship specs), whose highest ratio is 3.728. 128 leaves a 34x
-// margin — wide on purpose: a `<<` merge chain inflates this ratio far past
-// its cost, since merged pairs are deduplicated by key rather than turned into
-// objects (a 200-level chain measures ratio 67 while compiling in 16 MiB).
-//
-// It is a constant and not a budget because it describes a shape rather than
-// an amount of memory: nothing an author writes on purpose expands to more
-// than a hundred times itself, so a caller has nothing to want more of. The
-// amount is the caller's, as the surplus budget aliasAmplification takes.
+// The highest ratio among 1,693 real specs is 3.728, so 128 leaves a 34x
+// margin, wide on purpose: a `<<` merge chain inflates the ratio far past its
+// cost (a 200-level chain measures 67 and compiles in 16 MiB). It is a limit on
+// a shape, not a budget; the amount is the caller's surplus.
 const maxAliasAmplification = 128
 
 // minExpandedNodes is the expansion granted regardless of source size, so a
@@ -650,30 +587,18 @@ const maxAliasAmplification = 128
 // carry surpluses in the low hundreds, nowhere near this floor.
 const minExpandedNodes = 1 << 15 // 32768
 
-// aliasAmplification reports whether root's alias-substituted form would
-// contain more nodes than the document may expand to, and if so returns an
-// error diagnostic anchored at the innermost node that crossed — the one the
-// post-order walk finishes first, and a useful place to point the author.
+// aliasAmplification reports whether root's alias-substituted form exceeds what
+// the document may expand to, with an error diagnostic at the innermost node
+// that crossed. raw is the document's own node count.
 //
-// Two bounds apply, and a document must clear both, because each bounds a
-// shape the other cannot. The ratio (maxAliasAmplification, floored at
-// minExpandedNodes) catches nested, compounding aliasing. surplus — the nodes
-// aliasing may add beyond raw, zero for no bound — catches one anchor repeated
-// without limit in a flat list, whose ratio converges to the anchor's own size
-// and stops growing while memory keeps climbing with the repetitions.
+// Two bounds apply. The ratio (maxAliasAmplification, floored at
+// minExpandedNodes) catches compounding aliasing, as diag.AliasAmplification
+// whatever the budget. surplus, the nodes aliasing may add beyond raw (zero for
+// no bound), catches one anchor repeated in a flat list, whose ratio stops
+// growing while memory climbs, as diag.BudgetExceeded.
 //
-// Which one a document crossed decides the code. Past the ratio it is
-// diag.AliasAmplification, a bomb whatever budget the caller set; inside the
-// ratio and past only the surplus it is diag.BudgetExceeded, a document that is
-// really that large once expanded, which a caller with the memory may admit.
-//
-// raw is the document's own node count, which the source index already
-// established; the expansion is weighed against it rather than re-deriving it.
-//
-// Callers must run this only after a recursive YAML anchor has been refused:
-// that is what makes the alias graph a DAG and this walk's termination provable
-// without a cap of its own. See scanIndex for the ordering, and
-// aliasWeigher.pushChildren for the defensive guard kept anyway.
+// Run it only after a recursive anchor is refused, which makes the alias graph
+// a DAG and the walk terminate (see scanIndex).
 func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
@@ -741,20 +666,15 @@ type weighFrame struct {
 }
 
 // aliasWeigher computes expandedWeight(n) for every node reachable from a
-// root, stopping the instant one node's weight exceeds its allowance: nil
-// weighs 0, an alias node weighs whatever its target weighs (an alias stands
-// in for a copy of its target, not a reference to it), and every other node
-// weighs 1 plus the weight of its own Content.
+// root, stopping once one node's weight exceeds its allowance. A nil node
+// weighs 0, an alias weighs what its target weighs, and any other node weighs 1
+// plus the weight of its Content.
 //
-// That count is what soa.Unmarshal actually pays, not an estimate of it.
-// speakeasy v1.24.0's yml.ResolveAlias returns the one shared *yaml.Node per
-// alias, but nothing in marshaller/ or jsonschema/ memoizes on that pointer,
-// so unmarshalModel builds a fresh model subtree for every path reaching a
-// node — one object per path, which is exactly what this walk counts. It is
-// exact for alias substitution and an over-count, the safe direction, for `<<`
-// merge keys, whose pairs are deduplicated by key rather than turned into
-// objects. A dependency bump should re-check that, as nodeview.IsMergeKey's comment in
-// cycles.go does for the resolver behavior it depends on.
+// That is what soa.Unmarshal pays: speakeasy v1.24.0 memoizes nothing on the
+// shared *yaml.Node an alias resolves to, so it builds a model subtree per path
+// reaching a node. The count is exact for aliases and an over-count, the safe
+// side, for `<<` merge keys, whose pairs are deduplicated. Re-check it on a
+// dependency bump, as nodeview.IsMergeKey does.
 type aliasWeigher struct {
 	allowance int64
 	ceiling   int64
@@ -782,16 +702,15 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 	}
 }
 
-// weigh computes expandedWeight for every node reachable from root and
-// returns the first node (in post-order) whose weight exceeds w.allowance,
-// or nil if none does. Post-order is what makes the returned node the
-// innermost amplifier: a node's weight is finished, and checked, before any
-// of its ancestors' — so the walk exits at the smallest structure already
-// known to be too large, rather than only at the document root.
+// weigh computes expandedWeight for every node reachable from root. It returns
+// the first node, in post-order, whose weight exceeds w.allowance and true, or
+// nil and false if none does. Post-order makes that node the innermost
+// amplifier: a node is weighed before its ancestors, so the walk stops at the
+// smallest structure already too large.
 //
-// Each distinct node enters the stack at most once: pushChildren skips a node
-// whose weight is already known or that is already in flight, so the stack is
-// bounded by the number of distinct nodes reachable from root.
+// Each distinct node enters the stack at most once, because pushChildren skips
+// one whose weight is known or that is in flight, so the stack is bounded by
+// the distinct nodes reachable from root.
 func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
 	if root == nil {
 		return nil, false

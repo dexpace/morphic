@@ -88,18 +88,16 @@ func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc))
 }
 
-// TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation plants the primitive IDs
-// nothing else in Verify has an opinion about. Each is well-shaped, keyed by its
-// own node ID, and records no pointer to disagree with — so before this check
-// every one of them passed clean (GitHub #73).
+// TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation plants primitive IDs no
+// other check judges: each is well-shaped, keyed by its own node ID, and
+// records no pointer to disagree with (GitHub #73).
 //
-// The rows are the two ways the agreement breaks. The first two put a shared
-// leaf in a format's own space, so the same type lowered from two formats stops
-// being the same type — and the second is the shape that looks right, a private
-// space merely spelled "prim". The rest keep the shared space but carry a path
-// that is not the node's kind: another kind, no path at all, or the kind
-// re-cased. Those contradict themselves, and no consumer switching on either the
-// ID or the kind can resolve which one to believe.
+// The rows break the agreement two ways. The first two put a shared leaf in a
+// format's own space, so one type lowered from two formats stops being one
+// type; the second looks right, a private space merely spelled "prim". The rest
+// keep the shared space with a path that is not the node's kind (another kind,
+// none, or re-cased), which contradicts itself: no consumer can tell which to
+// believe.
 func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -180,15 +178,14 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 }
 
 // TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind is the control for both
-// checks above: a document holding every primitive at the ID its kind derives,
-// beside ordinary types in a format's own space, reports nothing. Without it a
-// check that fired on everything would pass both tables and read as proof.
+// checks above: every primitive at the ID its kind derives, beside ordinary
+// types in a format's own space, reports nothing. Without it a check that fired
+// on everything would pass both tables.
 //
-// The two models are chosen against the implementation that would be wrong in
-// the easy way. "prim" appears in one as a path segment and in the other inside
-// a name, and neither is in the reserved space — which only reading the space
-// segment can tell. Matching the ID as a substring passes both tables above and
-// fails here.
+// "prim" appears in one model as a path segment and in the other inside a name,
+// and neither is in the reserved space, which only reading the space segment
+// can tell. Matching the ID as a substring passes both tables above and fails
+// here.
 func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}

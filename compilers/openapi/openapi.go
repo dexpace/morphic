@@ -88,17 +88,16 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 }
 
 // run drives the four-phase pipeline over one loaded document (architecture
-// §2.1). Order matters: named component schemas first, so refs from operations
-// find interned IDs; then security schemes, so requirements reference registered
-// IDs; then the service walk; then document metadata. It assembles and returns
-// the Document.
+// §2.1) and assembles the Document. Order matters: named component schemas
+// first, so refs from operations find interned IDs; then security schemes, so
+// requirements reference registered IDs; then the service walk; then document
+// metadata.
 //
-// It reports cancellation as a Go error rather than a diagnostic, and it is the
-// one thing here that is not a spec problem: nothing about the document is wrong,
-// the caller stopped asking. The document is dropped with it — the two walks
-// that honour ctx stop mid-registry, so what is left references types that were
-// never interned — and the diagnostics gathered before the stop are returned, so
-// a caller who cancels on a deadline still sees what the compile had found.
+// It reports cancellation as a Go error, not a diagnostic: nothing about the
+// document is wrong, the caller stopped asking. The document is dropped with it,
+// since the two walks that honour ctx stop mid-registry and what is left
+// references types never interned, but the diagnostics gathered before the stop
+// are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below

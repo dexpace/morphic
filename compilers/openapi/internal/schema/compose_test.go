@@ -860,18 +860,13 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 
 // TestAllOf_NullabilityFollowsTheConjuncts pins that a composition over a
 // null-admitting conjunct reads as nullable at every usage naming it, and that
-// the bit is derived from the conjuncts rather than asserted.
+// the bit is derived from the conjuncts rather than asserted. A composition
+// declares no nullability of its own and Model.Base carries no Nullable bit, so
+// the null would otherwise be recorded nowhere (GitHub #279).
 //
-// A composition declares no nullability of its own, so asking the composing
-// schema alone answered "no" — and Model.Base carries no Nullable bit either,
-// which left `allOf: [{$ref: T}]` over a nullable T with no record of the null
-// anywhere and no diagnostic saying so. Against a model target there is not even
-// a second hop to recover it from (GitHub #279).
-//
-// WrapPlain and WrapBoth are the halves that keep the rule from being "a
-// conjunction is nullable": a conjunct declaring `type: object` forbids null,
-// and one forbidding conjunct decides the conjunction however many of its
-// siblings admit it.
+// WrapPlain and WrapBoth keep the rule from being "a conjunction is nullable":
+// a conjunct declaring `type: object` forbids null, and one forbidding conjunct
+// decides the conjunction however many of its siblings admit it.
 func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    NullableName: {type: [string, "null"]}
@@ -927,16 +922,13 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 // TestDistributedUnion_VariantCarriesTheBranchNullability pins that a union
 // distributed across its branches answers what the plain union over the same
-// branches does. The distributed variant is a synthesized model, and the TypeRef
-// naming it was built with no Nullable bit at all — so the branch's null was
-// dropped whatever the branch said, with one info diagnostic that says nothing
-// about it.
+// branches does: the TypeRef naming each synthesized variant model carries the
+// branch's Nullable bit, unless the body's own type forbids null.
 //
-// The two distributed rows differ only in the enclosing `type: object`, which is
-// the whole point: the variant is the body conjoined with the branch, so the
-// body's own type keyword decides as much as the branch does. A fix that copied
-// the branch's bit unconditionally passes the untyped row and fails the typed
-// one.
+// The two distributed rows differ only in the enclosing `type: object`, because
+// the variant is the body conjoined with the branch, so the body's own type
+// keyword decides as much as the branch does. Copying the branch's bit
+// unconditionally passes the untyped row and fails the typed one.
 func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    NullableModel:
@@ -1159,16 +1151,13 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 		"the base's own mapping resolves the same inline subtype the tag was read from")
 }
 
-// TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub #505:
-// a name holding a character a pointer escapes reaches the IR decoded wherever
-// it is read off a pointer's last token. That is the implicit discriminatorValue,
-// read off the subtype's own pointer and sent on the wire, the hints a union
-// variant and a branch alias read off the $ref they hold, and the hint a $defs
-// entry takes from its own key. Read raw, those carried the escapes: Cat~1Dog on
-// the wire, cat_1_dog, fish_2_d_tank and a_1_b as names.
-//
-// A $defs entry that is itself a $ref is named by its key as well, not by its
-// target, as a property holding one is (GitHub #519).
+// TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub
+// #505: a name holding a character a pointer escapes reaches the IR decoded
+// wherever it is read off a pointer's last token: the implicit
+// discriminatorValue sent on the wire, the hints a union variant and a branch
+// alias read off the $ref they hold, and the hint a $defs entry takes from its
+// own key. A $defs entry that is itself a $ref is named by its key too, not by
+// its target (GitHub #519).
 func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -1245,15 +1234,11 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 
 // TestUnionVariant_IsNamedAsTheNodeItHolds pins GitHub #521: a union variant
 // naming a $ref is named as the type it holds, not the pointer's own ordinal
-// or keyword. Choice/oneOf/0 targets X's own inline first branch directly;
-// Choice/oneOf/1 targets a plain structural position (A's items); Choice's
-// remaining two variants and Z's only variant all target a branch that is
-// itself a $ref, so naming them chases that $ref on to its own target
-// (targetHint): X/oneOf/1 takes two hops to reach Y's items (the branch
-// itself, then its own $ref), and Z/oneOf/0 one more on top of that — three in
-// all, so a hop cap below three fails that row. Before #521 was fixed,
-// Choice's four variants read 0, items, 1 and 0: the pointer's own ordinal or
-// keyword.
+// or keyword. Choice/oneOf/0 targets X's inline first branch and Choice/oneOf/1
+// a plain structural position (A's items). The other variants target a branch
+// that is itself a $ref, so naming them chases it on to its own target
+// (targetHint): Choice/oneOf/2 and Z/oneOf/0 take two hops to reach Y's items,
+// and Choice/oneOf/3 three, so a hop cap below three fails that row.
 func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Choice: {oneOf: [{$ref: '#/components/schemas/X/oneOf/0'}, {$ref: '#/components/schemas/A/items'},
@@ -1541,14 +1526,12 @@ func enumPropertySpec(version, schema string) string {
 // TestEnum_NullMemberNormalizesToNullable pins ir-design §3.3 for the canonical
 // spelling of a nullable enum: on a schema that admits null in its own right,
 // the `null` member is stripped and carried by the enclosing reference's
-// Nullable bit, leaving a closed Enum of the scalar members. It used to make the
-// whole enum degrade to a union of three literals, losing its enum-ness (GitHub
-// #44).
+// Nullable bit, leaving a closed Enum of the scalar members (GitHub #44).
 //
-// The leading-null rows are not duplicates of the trailing-null ones. Member
-// kinds were reconciled against the member at index 0, so a `null` written first
-// fixed the kind to one no scalar member could then match; the rows differ only
-// in where the null sits, which is the whole question.
+// The leading-null rows are not duplicates of the trailing-null ones: member
+// kinds were reconciled against the member at index 0, so a leading `null`
+// fixed a kind no scalar member could match. The rows differ only in where the
+// null sits.
 func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	t.Parallel()
 	const enumID = ir.TypeID("t/anon/components/schemas/S/properties/p")
@@ -1647,21 +1630,17 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	}
 }
 
-// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member set
-// the normalization must not touch still lowers to a union of literals, with its
-// info diagnostic and every member preserved.
+// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member
+// set the normalization must not touch still lowers to a union of literals,
+// with its info diagnostic and every member preserved.
 //
-// The last two rows decide how far the rule reaches. A schema whose type keyword
-// excludes null conjoins the two, so its `null` member admits nothing and
-// normalizing would widen the declared type — that row must stay non-nullable
-// however the predicate is widened elsewhere; and an all-null set has no member
-// left to build an Enum from.
+// The last two rows bound the rule: a type keyword excluding null conjoins with
+// the enum, so its `null` member admits nothing and normalizing would widen the
+// declared type; an all-null set has no member left to build an Enum from.
 //
-// wantNullable is asserted beside the variants because the two answers have to
-// agree: a set that keeps its null as a Literal variant *and* reads as nullable
-// states one fact twice, which is tolerable, but a set whose null the fallback
-// keeps while the reference denies it would be a position an emitter cannot
-// generate.
+// wantNullable is asserted beside the variants because the two must agree: a
+// fallback keeping the null while the reference denies it leaves a position an
+// emitter cannot generate.
 func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
@@ -1745,21 +1724,14 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 }
 
 // TestEnum_EmptyMemberListMatchesNoValue pins what `enum: []` lowers to. It is
-// legal JSON Schema and it matches no instance, so the position it is written at
-// accepts nothing — the narrowest statement a schema can make.
+// legal JSON Schema and matches no instance, so the position it is written at
+// accepts nothing: a closed Enum with no member, reported once (GitHub #278).
 //
-// It used to make the widest one instead. The family election read the keyword
-// off `len(enum) > 0`, which cannot tell an empty member list from an absent
-// one, so the enum was neither lowered nor recorded and the position widened to
-// whatever its siblings admitted: the top type where nothing else was written,
-// the declared type where something was. Both channels were silent — no
-// diagnostic, nothing under Unmodeled (GitHub #278).
-//
-// The rows are the positions the keyword can sit at, because the widening
-// followed the siblings rather than the enum: a type keyword, a property set, a
-// composition, a nullable type array. The last row is the control — a populated
-// enum must keep lowering exactly as it did, so a fix reaching every enum rather
-// than the empty one fails here.
+// The rows are the positions the keyword can sit at, since what the position
+// admits otherwise depends on its siblings: a type keyword, a property set, a
+// composition, a nullable type array. The last row is the control: a populated
+// enum must lower as before, so a fix reaching every enum rather than the empty
+// one fails here.
 func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -1843,16 +1815,15 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 }
 
 // TestEnum_EmptyMemberListIsAUnionSibling pins the same keyword at the one
-// position that reads it through a different predicate. A oneOf/anyOf can be the
-// whole type only when nothing structural is written beside it, and an empty
-// enum is a value set like any other — so the union conjoins with a set holding
-// no member, and lowering the union alone would state the opposite of what the
-// source says.
+// position that reads it through a different predicate. A oneOf/anyOf can be
+// the whole type only when nothing structural is written beside it, and an
+// empty enum is a value set like any other, so the union conjoins with a set
+// holding no member and lowering the union alone would state the opposite of
+// the source.
 //
-// declaresShape and composesAsModel each spelled the same `len(enum) > 0` test
-// as the family election did, which is why this is a second case rather than a
-// second row: the first reaches lower()'s dispatch and this one does not reach
-// it at all.
+// It is a second case rather than a second row because declaresShape and
+// composesAsModel test the keyword themselves, through enumWritten, and a union
+// reaches lower()'s dispatch only through them.
 func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -2460,15 +2431,11 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 	_ = diags
 }
 
-// TestAllOf_BoolBranchSkippedInCompositionRequired covers compositionRequired's
-// `bs == nil` guard: an allOf branch can itself be a bare boolean schema
-// (`true`/`false`), not just a $ref to one (as above) or an inline object. For
-// such a branch, b.GetSchema() returns nil — it is the JSONSchema either-value's
-// Left half, populated only for an object branch, never for a bool one — so
-// without the guard, reading bs.GetRequired() would nil-deref on a real spec
-// that composes a bare boolean into an allOf. This pins that the guard makes
-// the bool branch inert rather than crashing, while the sibling object branch's
-// own property and its own required both still lower normally.
+// TestAllOf_BoolBranchSkippedInCompositionRequired covers an allOf branch that
+// is a bare boolean schema (`true` or `false`) rather than a $ref or an inline
+// object, so b.GetSchema() returns nil for it. It pins that the bool branch
+// contributes no required names, while the sibling object branch's property and
+// required still lower normally.
 func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Thing:
@@ -2674,20 +2641,15 @@ func comboDiscriminatedSpec(baseFirst bool) string {
 	return openapitest.ComponentSpec(rest + base)
 }
 
-// TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property the
-// pointer collision broke, over the whole compiled document rather than one
-// node: the same components in two declaration orders compile to the same IR.
-// Each case permutes a different site the distribution shares with something
-// outside it — an outside $ref aimed at either union branch, and the
-// discriminated base the variants take their tag from.
+// TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property over
+// the whole compiled document: the same components in two declaration orders
+// compile to the same IR. Each case permutes a site the distribution shares
+// with something outside it: an outside $ref aimed at either union branch, and
+// the discriminated base the variants take their tag from.
 //
-// Comparing whole documents covers the diagnostic list as well as the registry,
-// which is why these cases permute only components that emit none: diagnostics
-// are appended in traversal order, so a document whose two orders diagnose the
-// same facts still lists them in two orders. The registry is then compared a
-// second time with nothing excluded at all, because these shapes settle their
-// name hints identically both ways and orderInvariantIR's Hint exclusion would
-// otherwise hide a regression there.
+// These cases permute only components that emit no diagnostics, since
+// diagnostics are appended in traversal order and so differ in order even when
+// they match. The registry is also compared on its own, with nothing excluded.
 func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2738,8 +2700,8 @@ func branchAliasSpec(kind string, hostFirst bool) string {
 // depends on declaration order — silently, since either spelling is a valid hint
 // and no check compares them.
 //
-// Hints are compared here rather than excluded (orderInvariantIR drops them for
-// shapes that legitimately settle two ways): the hint *is* what differed.
+// The registry is compared on its own, name hints included: the hint *is* what
+// differed.
 func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"allOf", "oneOf", "anyOf"} {
@@ -3024,20 +2986,13 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"each declined shape is reported once; got %+v", diags)
 }
 
-// TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that keeping
-// a union verbatim does not cost the position the value constraints written
-// beside it. The alias exists so the union attaches to a node this pointer owns
-// rather than to the shared primitive the body reduced to, and owning a node is
-// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
-// the bounds — so this alias has to carry them itself, as every other hoist here
-// does (GitHub #343).
-//
-// Both reasons that keep a union hoist the same alias, and anyOf rides the same
-// path as oneOf, so each is covered. The last case pins what reading the bounds
-// also produces: the co-declared-bound reconciliation reports at a position
-// nothing used to read, and the keyword it cannot home is kept on the node the
-// bounds landed on. The key set is asserted whole — carrying the constraints
-// without that keyword leaves the diagnostic naming an entry the node lacks.
+// TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that
+// keeping a union verbatim does not cost the position the value constraints
+// written beside it. The alias holding the union owns the pointer, so
+// hoistDeclarationHome does not hoist the alias that would carry the bounds,
+// and this alias must carry them itself (GitHub #343). Both reasons that keep a
+// union hoist the same alias, and anyOf takes the same path as oneOf. The last
+// case pins that a co-declared bound pair adds nothing beside the union.
 func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	three := int64(3)
@@ -3178,17 +3133,14 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 
 // TestUnionCombinators_KeepingIsOrderIndependent states the property over the
 // whole document: declining the collapse gives this position a Union of its own
-// and turns its branches into ordinary union branches, so an outside $ref naming
-// one of them must reach the same IR whichever of the two is declared first.
+// and makes its branches ordinary union branches, so an outside $ref naming one
+// of them must reach the same IR whichever is declared first.
 //
-// The branch writes a description on purpose, and the guard below is what keeps
-// that load-bearing. A bare `{type: string}` branch resolves through the union to
-// the shared primitive, so the outside $ref is the only lowering that ever hoists
-// a node at the branch pointer: the node is still *there*, which is why asserting
-// its presence proves nothing — one lowering put it there and no hint ever had to
-// agree with another. Pinning the union's own variant to that node is what puts
-// both lowerings on the pointer, which is the state where only the first to
-// arrive interns it (branchHint, subSchemaHint, #181).
+// The branch writes a description deliberately. A bare `{type: string}` branch
+// resolves through the union to the shared primitive, so the outside $ref alone
+// hoists a node at the branch pointer and no hint ever has to agree with
+// another. Pinning the union's own variant to that node puts both lowerings on
+// the pointer (branchHint, subSchemaHint, #181).
 func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	host := `    S:

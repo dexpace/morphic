@@ -29,37 +29,26 @@ import (
 // Locator returns the provenance to record for the position at a pointer: the
 // pointer, and the index of the input document that supplied what sits there.
 //
-// It is a parameter rather than a source index because the index is a property
-// of the position, not of the compile. An overlay supplies some positions of the
-// document it patches, and a reader stamping one index on everything it found
-// credited the patched document with the overlay's additions (GitHub #522). The
-// compiler passes lowering.Ctx.ProvenanceAt, which knows what the overlay
-// introduced; this package sits below that context and cannot ask it directly.
+// The index belongs to the position, not to the compile: an overlay supplies
+// some positions of the document it patches (GitHub #522). The compiler passes
+// lowering.Ctx.ProvenanceAt, which knows what the overlay introduced; this
+// package sits below that context and cannot ask it directly.
 //
 // from is for a record no single position addresses, and names the positions it
 // was assembled from (see lowering.Ctx.ProvenanceAt).
 type Locator func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance
 
 // RawFromNode converts a YAML node to the canonical JSON an Unmodeled entry
-// holds.
+// holds. An absent node yields (nil, nil): no construct was there. One that
+// cannot be represented yields an error, so no caller announces a preservation
+// that never happened (GitHub #144).
 //
-// Its three outcomes are deliberately distinct, because collapsing the first two
-// into one nil return is what let a diagnostic announce a preservation that never
-// happened (GitHub #144): an absent node yields (nil, nil) — there was no
-// construct here — while a node that cannot be represented yields an error.
+// Conversion fails on a non-string or repeated mapping key, .nan or .inf, a
+// scalar whose text does not satisfy its tag, invalid UTF-8, and an alias that
+// cycles or expands past the node budget. A tag yaml.v3 leaves untyped is kept.
 //
-// A node fails to convert when it names something JSON cannot: a mapping key
-// that is not a string, a key written twice, .nan or .inf, a scalar whose tag
-// promises a type its text does not hold, or text that is not valid UTF-8. The
-// walk's own bounds refuse two shapes more — an alias that cycles, and one that
-// expands past its node budget. A tag yaml.v3 assigns no type to is not a
-// failure: its scalar keeps its text.
-//
-// The conversion walks the node tree rather than decoding it into `any` and
-// re-marshalling, because that decode rounds every numeric literal through
-// float64: it silently rewrote a 23-digit extension value and flattened
-// 1.000000000000000000001 to 1, in the one channel whose whole promise is
-// verbatim preservation (GitHub #32).
+// It walks the node tree, not a decode into `any`, which rounds numeric
+// literals through float64 (GitHub #32).
 func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
@@ -78,29 +67,18 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 }
 
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
-// (ir-design §5.2): readOnly is present in every response lifecycle
-// (read/delete/query) and absent only from requests; writeOnly is create+update.
-// It reports separately whether both flags were in force, which no lifecycle
-// satisfies.
+// (ir-design §5.2): readOnly is present in every response lifecycle and absent
+// only from requests; writeOnly is create+update. The bool reports both flags
+// in force, which no lifecycle satisfies. It is not a diagnostic because this
+// reader has no provenance of its own.
 //
-// Each flag is resolved on its own, use-site over referent, so a position that
-// writes one of them settles that flag and leaves the other to resolve from the
-// referent — the uniform §14 merge, not a composite annotation one node wins
-// outright.
+// Each flag resolves on its own, use-site over referent (the uniform §14
+// merge).
 //
-// Both in force is contradictory but legal: JSON Schema 2020-12 says readOnly
-// means the value is not writable and writeOnly that it is not readable, and
-// forbids neither beside the other. Read as sets, they leave nothing — the
-// property is admitted by no lifecycle, which Visibility{None: true} states
-// exactly. That is what merge.mergeVisibility already answers when the same
-// pairing is spread over two allOf branches, so the two spellings of one
-// contradiction no longer disagree (GitHub #276). Guarding readOnly first and
-// returning is what made them disagree, and it discarded the second flag with
-// no diagnostic in either channel.
-//
-// The bool rather than a diagnostic: this reader has no provenance of its own,
-// and the caller that has one is the caller that knows which carrier it is
-// filling.
+// Both in force is contradictory but legal: JSON Schema forbids neither beside
+// the other. Read as sets they leave nothing, which Visibility{None: true}
+// states, as merge.mergeVisibility answers for the pair spread over two allOf
+// branches (GitHub #276).
 func EffectiveVisibility(ref, tgt *oas3.Schema) (ir.Visibility, bool) {
 	readOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.ReadOnly })
 	writeOnly := pickFlag(ref, tgt, func(s *oas3.Schema) *bool { return s.WriteOnly })
@@ -153,21 +131,13 @@ func FillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 // FillCarrierDocs fills the ir.Property or ir.Parameter carrying a position
 // with the documentation effective there: the $ref referent's title,
 // description and externalDocs first, then the use-site's over them, field by
-// field. A carrier therefore ends up with documentation the position itself
-// need not have written — a bare `$ref` reads all three from the referent,
-// which keeps its own copy on its node.
+// field. A bare `$ref` therefore reads all three from the referent.
 //
 // Both halves are deliberate. The use-site half is the only home a keyword
-// written *at* the position has once the body reduced to a shared node
-// (GitHub #116): dropping it there loses it outright. The referent half is
-// ir-design §14 — ref-target annotations merge onto the referencing
-// Property/Parameter with use-site precedence, applied uniformly — and it is how
-// every other field this compiler reads through a $ref already behaves
-// (fillPropertyDefault, EffectiveVisibility, EffectiveDeprecated).
-//
-// Uniform is the load-bearing word: description alone inheriting, while title
-// and externalDocs stop at the position, is the ad-hoc per-keyword patching §14
-// names as the counterexample to avoid.
+// written at the position has once the body reduced to a shared node (GitHub
+// #116). The referent half is ir-design §14: ref-target annotations merge onto
+// the referencing Property/Parameter with use-site precedence, uniformly,
+// constraints excepted, while the referent keeps its own copy on its node.
 func FillCarrierDocs(d *ir.Docs, ref, tgt *oas3.Schema) {
 	if tgt != nil {
 		FillTypeDocs(d, tgt)
@@ -213,23 +183,16 @@ func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.P
 }
 
 // ExtensionsUnder is ExtensionsFrom with every entry keyed beneath scope, for
-// the objects whose extensions have no Unmodeled map of their own to land on.
+// objects whose extensions have no Unmodeled map of their own.
 //
-// Most OpenAPI objects lower to an IR node that carries one, and those pass an
-// empty scope. The rest ride on the nearest node that does — an info object's on
-// the document, an encoding's on the content, a path item's on each of its
-// operations — and several of them can reach the same map, where "openapi:x-id"
-// from two objects is one key and the surviving entry would depend on which
-// lowering ran last. scope names which object wrote them: the source path from
-// the carrier down to it, or the object's own keyword where it is not beneath
-// the carrier at all.
+// Those objects ride on the nearest node that has one, where "openapi:x-id"
+// from two objects would be one key, so scope names the writer: the source path
+// from the carrier down to it, or its own keyword where it is not beneath the
+// carrier.
 //
-// No two keys can collide: every scope segment is a literal that never begins
-// with "x-" and every extension name always does, so the first "x-" segment is
-// where the scope ends and the name begins, and one key cannot be spelled by two
-// (scope, owner) pairs. That same gap holds against the non-extension keys a
-// carrier already holds under these scopes, such as the
-// "openapi:encoding/<part>/allowReserved" written beside an encoding's x-*.
+// Keys cannot collide: a scope segment never begins with "x-" and an extension
+// name always does, so the first "x-" segment ends the scope. The same gap
+// separates them from non-extension keys under these scopes.
 func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
@@ -435,7 +398,7 @@ const (
 	HomeOwnNode Home = iota
 	// HomeCarrier marks a position whose caller carries an ir.Property or
 	// ir.Parameter that holds the declaration's annotations itself
-	// (fillPropertyDetail, fillParamSchema): a model property, a response or
+	// (FillPropertyDetail, fillParamSchema): a model property, a response or
 	// part header, an operation parameter. Hoisting there would give one
 	// declaration two homes.
 	HomeCarrier
@@ -449,18 +412,12 @@ type Kind int
 // and Referent — set only for a reference site — is the schema exactly one
 // hop away, never the end of a $ref chain.
 //
-// The split lets an annotation be read from where it was written rather than
-// wherever the $ref resolves to, with a fallback to Referent for annotations
-// meant to inherit from the target. Only Node has a production reader: a
-// declaration's annotations bind the position they are written at
-// (attachDeclaredAnnotations), and a component that aliases another keeps the
-// target's own annotations reachable through its Base rather than copying
-// them. Kind and Referent are for a reader that does want to inherit.
-// fillPropertyDetail (schema.go) instead falls back via refTargetSchema,
-// which follows a $ref chain to its end (GetResolvedSchema) rather than one
-// hop (GetReferenceResolutionInfo, what Referent uses). The two are not
-// interchangeable: swapping one for the other would silently change
-// property-default and description semantics on a ref-to-ref chain.
+// Production reads only Node from a Site At builds: a declaration's annotations
+// bind the position they are written at (attachDeclaredAnnotations), and a
+// component that aliases another keeps the target's annotations reachable
+// through its Base. A reader that inherits, FillPropertyDetail (schema.go) or
+// fillParamSchema, builds its own Site with Referent from resolve.TargetSchema,
+// which follows the chain to its end; the two differ on a ref-to-ref chain.
 type Site struct {
 	Kind Kind
 	Node *oas3.Schema
@@ -469,18 +426,15 @@ type Site struct {
 	Referent *oas3.Schema
 }
 
-// At builds the site for js. A $ref position resolves Referent exactly
-// one hop through DeclaredSchema, never the full chain — see Site and
-// DeclaredSchema for why that distinction matters.
+// At builds the site for js. A $ref position resolves Referent exactly one hop
+// through DeclaredSchema, never the full chain (see Site).
 //
-// A schema whose $ref pointer is present but empty ({$ref: ""}) is not a
-// reference site: an empty ref resolves nowhere, so IsReference is false and
-// it is classified as a declaration like any other schema body. That is what
-// keeps Referent's nil guarantee true: a reference site's $ref was genuinely
+// A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a
+// reference site: an empty ref resolves nowhere, so IsReference is false. That
+// keeps Referent's nil guarantee: a reference site's $ref was genuinely
 // attempted, so an unresolved target is the only reason Referent is nil.
 //
-// At trusts its caller that js is genuinely the schema at the position
-// being modeled; nothing here can cross-check that from js alone.
+// At trusts its caller that js is the schema at the position being modeled.
 func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
 	s := Site{Kind: Declaration, Node: SchemaOf(js)}
 	if js == nil || js.IsBool() {
@@ -534,14 +488,14 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 }
 
 // RawChildNode returns the raw YAML value node of a mapping child keyed by the
-// on-wire name, unwrapping a document node first; nil when absent. It reads exact
-// literals the high-level model does not preserve (links, servers, content maps).
+// on-wire name, unwrapping a document node first; nil when absent. It reads
+// exact literals the high-level model does not preserve (links, servers,
+// content maps).
 //
-// The last pair spelling the key wins, which is the pair the parser reads:
-// marshaller skips every occurrence of a repeated key but the last. Returning
-// the first instead described a mapping by a value nothing else in the compiler
-// uses — reachable once a key can be spelled two ways, since an explicit pair
-// and an aliased one are one key to the parser and two nodes here.
+// The last pair spelling the key wins, as for the parser, which skips every
+// earlier occurrence. An explicit pair and an aliased one are one key to the
+// parser and two nodes here, so the first would describe a mapping by a value
+// nothing else in the compiler uses.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -562,38 +516,16 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 }
 
 // RawMappingKeys returns the on-wire names a raw mapping writes, each once, in
-// the order first written, unwrapping a document node first; nil for a node
-// that is not a mapping, and for a mapping that writes no key. It reads the
-// same mapping RawChildNode does and spells each key the way RawChildNode looks
-// one up, so every name it returns is one RawChildNode can find a value for.
+// first-written order, unwrapping a document node first; nil for a node that is
+// not a mapping or writes no key. Each name resolves through RawChildNode.
 //
-// It exists for the object whose parsed model does not present every key the
-// mapping wrote. A Path Item Object's unmarshaller folds a key it does not
-// recognize into the item's operations map, which the census reads — but skips
-// a key whose value carries a YAML anchor before that fold, so the raw mapping
-// is the only place such a key is written at all (speakeasy-api/openapi
-// v1.24.1, GitHub #412). What the parsed model dropped can only be recovered
-// from what the source wrote. The source document's anchors are cleared before
-// its model is built (load.releaseAnchors, GitHub #459), and a document loaded
-// through an external reference is held to the same clearing before the
-// resolver builds from it (GitHub #501), so the skip reaches only a path item
-// in a document the resolver parsed itself because it missed that prepared
-// tree — one fetched under a URL whose spelling net/url does not reproduce
-// (GitHub #538).
+// It exists for objects whose parsed model omits keys the source wrote: a Path
+// Item Object's unmarshaller skips a key whose value carries a YAML anchor
+// (speakeasy-api/openapi v1.24.1, GitHub #412, #538).
 //
-// A `<<` merge key is not a key the mapping writes: it names other mappings
-// whose pairs the parser reads in, and those pairs are what the model holds —
-// unless a merged-in value is itself anchored in a document the resolver
-// parsed itself because it missed the prepared tree (GitHub #538), when the
-// library's skip drops it too and neither reading sees it; only a
-// merge-expanded view can, which is GitHub #395's to close. It is left out
-// here for the same reason the raw-JSON converter expands it rather than
-// encoding it. Like every raw-node reader in this package, this reads the
-// mapping's own pairs and not the merged-in ones, which is #395.
-//
-// A key repeated in the mapping is one key to the parser and is returned once,
-// because a census that named it twice would find its own first entry occupied
-// on the second pass and report a collision the document does not contain.
+// A `<<` merge key is left out and the pairs it merges in are not read (GitHub
+// #395). A repeated key is returned once, so a census does not report a
+// collision the document lacks.
 func RawMappingKeys(root *yaml.Node) []string {
 	if root == nil {
 		return nil
@@ -716,19 +648,18 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 	return out, diags
 }
 
-// subObjectKeys collects what the sub-objects of a schema declare that reaches
-// no IR field — the x-* they carry and the keys the specification defines for
-// none of them — over its xml, its discriminator and its externalDocs.
+// subObjectKeys collects what a schema's xml, discriminator and externalDocs
+// declare that reaches no IR field: the x-* they carry and the keys the
+// specification defines for none of them.
 //
-// Each is an OpenAPI object with its own closed key set, and none of
-// ir.XMLHints, ir.Discriminator or ir.Link holds an Unmodeled map, so the
-// entries ride on the node the schema itself lowers to; the keyword each was
-// written under is what keeps three objects' entries apart on that one map.
+// None of ir.XMLHints, ir.Discriminator or ir.Link holds an Unmodeled map, so
+// the entries ride on the node the schema lowers to, and the keyword each was
+// written under keeps the three objects' entries apart.
 //
-// The census is graded as an OpenAPI object's rather than as a schema keyword's,
-// even though these hang off a schema: the JSON Schema rule that an unrecognized
-// keyword is legal governs the schema itself, and these three are OpenAPI
-// objects that the schema vocabulary says nothing about.
+// The census is graded as an OpenAPI object's, not as a schema keyword's: JSON
+// Schema's rule that an unrecognized keyword is legal governs the schema
+// itself, and these three are OpenAPI objects its vocabulary says nothing
+// about.
 func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
 	subs := []struct {
 		keyword string

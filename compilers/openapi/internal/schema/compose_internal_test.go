@@ -33,16 +33,13 @@ func TestPropIDByName_NotFound(t *testing.T) {
 }
 
 // TestTargetHint_Shapes pins what a reference suggests from its text alone:
-// each row is a reference nothing resolved, so the walk reads the pointer and
-// never the schema behind it. A fragment that spells a pointer is decoded at
-// both layers (GitHub #505) and named as the node there is — by positionHint
-// beneath /components/schemas, so a branch or a structural position is
-// suggested as the node it holds rather than by its ordinal or its keyword
-// (GitHub #521), and elsewhere by a branch's positional hint or the pointer's
-// last token. A reference whose fragment spells no pointer, one that is not
-// UTF-8 among them (GitHub #520), is named by the text after its last '/',
-// percent-decoded when that decodes to valid UTF-8 and kept as written
-// otherwise.
+// each row is unresolved, so the walk reads the pointer, never the schema
+// behind it. A fragment spelling a pointer is decoded at both layers (GitHub
+// #505) and named by positionHint beneath /components/schemas, so a branch or
+// structural position is suggested as the node it holds (GitHub #521);
+// elsewhere by a branch's positional hint or the pointer's last token. Any
+// other fragment (non-UTF-8 included, GitHub #520) is named by the text after
+// its last '/', percent-decoded when that is valid UTF-8, else as written.
 func TestTargetHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -85,16 +82,15 @@ func TestTargetHint_Shapes(t *testing.T) {
 	}
 }
 
-// TestTargetHint_FollowsABranchToItsTarget builds the resolution info
-// oas3.NewReferencedScheme exists to attach, rather than driving a full
-// compile, so it can pin where targetHint's walk goes on and where it stops. A
-// reference to a composition branch that holds a $ref of its own (at, holding
-// to) is named after that branch's target (GitHub #521), inside a component or
-// not; a component or a document path there ends the walk on the second hop. A
-// target that names nothing leaves the branch's own name standing. A reference
-// to any other position holding a $ref is named for the position: as its
-// declaration names it beneath a component, and by the pointer's last token
-// elsewhere, which only guesses at the declaration's name (GitHub #729).
+// TestTargetHint_FollowsABranchToItsTarget attaches resolution info with
+// oas3.NewReferencedScheme instead of driving a compile, to pin where
+// targetHint's walk goes on and where it stops. A reference to a composition
+// branch holding a $ref (at, holding to) is named after that branch's target
+// (GitHub #521), inside a component or not, and the walk ends at a component or
+// document path; a target that names nothing leaves the branch's own name. Any
+// other position holding a $ref is named for the position: as its declaration
+// names it beneath a component, by the pointer's last token elsewhere
+// (GitHub #729).
 func TestTargetHint_FollowsABranchToItsTarget(t *testing.T) {
 	t.Parallel()
 	const under = "#/paths/~1x/get/responses/200/content/application~1json/schema"
@@ -427,18 +423,14 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 }
 
 // TestPositionHint_Shapes pins the left-to-right walk from a component down:
-// each step either recomposes the enclosing hint by role — items,
-// additionalProperties, contentSchema, a patternProperties entry, a
-// prefixItems slot, a composition branch — or, for a keyed map (properties,
-// $defs, definitions, dependentSchemas, dependencies), takes the key itself.
-// The keyed-map rows are why a key is never read as a keyword: a property, a
-// patternProperties entry or a $defs entry literally spelled "items" is the
-// key "items", not the items keyword, and the walk only reaches the role for
-// an "items" it meets as a keyword token in its own right (GitHub #518). The
-// branch rows are the same agreement for a composition's ordinal, which names
-// "variant_0", never "0". The walk answers only at or beneath a component
-// schema, where the pointer alone determines every enclosing hint; elsewhere —
-// under /paths, or under a component that is not a schema — it declines.
+// each step either recomposes the enclosing hint by role (items,
+// additionalProperties, contentSchema, a patternProperties entry, a prefixItems
+// slot, a composition branch) or, for a keyed map (properties, $defs,
+// definitions, dependentSchemas, dependencies), takes the key itself. A key is
+// never read as a keyword: a property spelled "items" is the key, and only an
+// "items" met as a keyword token gets the role (GitHub #518). A branch ordinal
+// names "variant_0", never "0". The walk answers only at or beneath a component
+// schema; elsewhere it declines.
 func TestPositionHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -89,23 +89,19 @@ type Options struct {
 	// The zero value is the default mapping, on; a caller who wants extensions
 	// kept verbatim and nothing more disables it.
 	Promotions ExtensionPromotions `json:"promotions"`
-	// AllowExternalRefs lets reference resolution leave the source document —
-	// reading files off disk and fetching http(s) URLs. Off by default, because
-	// compilers.Source is the whole input ("the caller loads bytes so compilation
-	// stays pure and reentrant") and a spec is untrusted data whose $refs would
-	// otherwise name any readable file or reachable host. A $ref leaving the
-	// document is reported unresolved instead of followed.
+	// AllowExternalRefs lets resolution leave the source document, reading
+	// files and fetching http(s) URLs. Off by default, since a spec is
+	// untrusted and its $refs could name any file or host, a $ref leaving the
+	// document is reported unresolved.
 	//
-	// Turning it on departs from that contract knowingly, and buys less than it
-	// looks: resolution reads relative to the process working directory, so the
-	// same bytes compile differently in two directories, and the resolved content
-	// still does not reach lowering — Sources records one entry either way
-	// (GitHub #74 carries the multi-file work).
+	// Turning it on makes output depend on the filesystem and network, and
+	// buys little: references resolve against Source.Path's directory (the
+	// working directory when Path is empty), and resolved content still does
+	// not reach lowering (GitHub #74).
 	//
-	// A document a reference names this way is held to the same budgets and
-	// pre-parse refusals as the source, and is refused as that reference's
-	// failure the moment it crosses one. One whose pre-parse scan cannot finish
-	// is refused as well, where the source only draws a warning.
+	// A referenced document fails the reference naming it when it crosses the
+	// source's budgets or pre-parse refusals, or its scan cannot finish, where
+	// the source only warns.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
@@ -142,47 +138,37 @@ const (
 	// might reasonably inline (IATA airport codes, BCP-47 language subtags, both
 	// under 10,000 entries).
 	//
-	// An enum is the one construct whose IR cost per source node is
-	// disproportionate: every member becomes an ir.EnumMember with a canonical
-	// word sequence of its own, and a heterogeneous one becomes a hoisted Literal
-	// type plus a union variant per member. That is the amplification GitHub #75
-	// reports: one 1,000,000-member enum turning 10 MB of source into 2.6 GB of
-	// peak RSS, on a document well inside the node budget above — which is why
-	// that budget does not cover this one. An enum at this budget compiles in
-	// under 200 MB.
+	// An enum's IR cost per source node is disproportionate: every member becomes
+	// an ir.EnumMember, and a heterogeneous enum adds a hoisted Literal type and a
+	// union variant per member. One 1,000,000-member enum turned 10 MB of source
+	// into 2.6 GB of peak RSS while well inside the node budget above (GitHub #75).
+	// An enum at this budget compiles in under 200 MB.
 	DefaultMaxEnumMembers = 1 << 16
-	// DefaultMaxAliasSurplus is the alias budget: 262,144 nodes that YAML aliases
-	// may add to a document beyond its own. It is measured against a different
-	// corpus from the budgets above, because those three descriptions barely
-	// alias: 1,693 real OpenAPI and Swagger specs (1,491 from APIs.guru, 199
-	// hand-authored ones chosen for their anchors, and the three above), whose
-	// largest surplus is 15,727 nodes — a 16.7x margin.
+	// DefaultMaxAliasSurplus is the alias budget: 262,144 nodes that YAML
+	// aliases may add to a document beyond its own. The three descriptions
+	// above barely alias, so it is measured against 1,693 real OpenAPI and
+	// Swagger specs, those three among them and 199 chosen for their anchors,
+	// whose largest surplus is 15,727 nodes: a 16.7x margin.
 	//
-	// It is the bound that sets how much memory an alias-heavy document can cost,
-	// since the parser builds a fresh subtree for every path through an alias.
-	// Padding a document's own size lifts every relative bound out of the way,
-	// and this one is not relative: at 1<<20 a purpose-built 93 KiB document was
-	// measured peaking at 4.4 GiB; at this default the largest still accepted
+	// It bounds the memory an alias-heavy document can cost, since the parser
+	// builds a fresh subtree for every path through an alias, and, unlike a
+	// relative bound, padding cannot lift it: at 1<<20 a purpose-built 93 KiB
+	// document peaked at 4.4 GiB; at this default the largest one accepted
 	// peaks at 1.65 GiB.
 	DefaultMaxAliasSurplus = 1 << 18
 )
 
-// Limits bounds the size and cardinality of one compile, so that an input which
-// is legal but pathologically large is refused with a diagnostic rather than
-// left to exhaust the host (GitHub #75).
+// Limits bounds the size and cardinality of one compile, so a legal but
+// pathologically large input is refused with a diagnostic rather than left to
+// exhaust the host (GitHub #75).
 //
-// It is policy rather than semantics (architecture principle 6): what counts as
-// pathological depends on the machine doing the compiling, so every budget here
-// is the caller's to set. In each field zero takes the documented default and a
-// negative value means unbounded — that budget refuses nothing, which is the
-// escape hatch for a caller who has measured their own input and their own
-// machine. A field says so where a constant beside its budget still applies.
+// It is policy, not semantics (architecture principle 6): what counts as
+// pathological depends on the machine, so each budget is the caller's. Zero
+// takes the documented default and a negative value means unbounded, except
+// where a field says a constant beside its budget still applies.
 //
-// These are budgets on the size of the input. They are not the only bounds the
-// compiler enforces: schema nesting depth, how many times its own size a
-// document's aliases expand it to, reference-chain length and several walk node
-// counts are each bounded by a constant beside the code that walks them, because
-// none of those describes something a caller could legitimately want more of.
+// Other bounds, such as schema nesting depth, are constants beside the code that
+// walks them: no caller could legitimately want more.
 type Limits struct {
 	// MaxSourceBytes bounds one source document's size in bytes, checked before
 	// it is parsed. It binds the same way on a document an external reference
@@ -197,21 +183,17 @@ type Limits struct {
 	// as the top type with an error diagnostic naming the budget; the rest of the
 	// document still lowers.
 	MaxEnumMembers int `json:"maxEnumMembers,omitzero"`
-	// MaxAliasSurplus bounds the nodes YAML aliases may add to one source
-	// document, or to its overlay, beyond the document's own: what the document
-	// costs once every alias stands in for a copy of what it names, less what it
-	// costs as written. A document with no alias adds nothing, so this never
-	// refuses one for its size. A source past it is refused before the typed
-	// model is built from it, where that cost would be paid, and an overlay
-	// before it is applied. A document an external reference names is held to
-	// it the same way, before the resolver builds from that document either.
+	// MaxAliasSurplus bounds the nodes YAML aliases may add to a source
+	// document or its overlay: its cost with every alias expanded, less its
+	// cost as written. A source past it is refused before the model is built,
+	// an overlay before it is applied, an external document before the
+	// resolver builds from it.
 	//
-	// Turning it off does not turn off alias refusal. A document whose aliases
-	// expand it past both 128 times its own size and 32,768 nodes is refused
-	// whatever this says, as openapi/alias-amplification rather than
-	// openapi/budget-exceeded, because that is the shape of a bomb rather than of
-	// a large document. What is left unbounded is how far a document within that
-	// ratio may expand, so its cost is at most that multiple of its own size.
+	// Turning it off leaves alias refusal on: a document expanding past both
+	// 128 times its own size and 32,768 nodes is refused anyway, as
+	// openapi/alias-amplification, not openapi/budget-exceeded, so only
+	// expansion up to the larger of the two goes unchecked. A document without
+	// aliases adds nothing, so this never refuses it.
 	MaxAliasSurplus int `json:"maxAliasSurplus,omitzero"`
 }
 
@@ -244,20 +226,17 @@ func bounded(limit int) int {
 	return limit
 }
 
-// Overlay is one pre-read OpenAPI Overlay document (the Overlay Specification's
-// own format, applied with JSONPath selectors) and how strictly to apply it.
+// Overlay is one pre-read OpenAPI Overlay document and how strictly to apply it.
 //
-// The document arrives as bytes, like the spec itself, because a compiler
-// performs no file I/O — reading it is the caller's job, which is what keeps
-// compilation pure and reentrant. A programmatic caller sets this through
-// engine.RunOptions.FormatOptions, which the engine forwards verbatim; a caller
-// who has only text names the file with the "overlay" setting and the reader in
-// compilers.OptionSet loads it, so the read is still the caller's.
+// The document arrives as bytes, like the spec, because a compiler performs no
+// file I/O. A programmatic caller sets this through
+// engine.RunOptions.FormatOptions; a caller with only text names the file with
+// the "overlay" setting and the reader in compilers.OptionSet loads it.
 //
 // An applied overlay becomes a second entry in Document.Sources, and every
 // position it introduced or rewrote names that entry as its Provenance.Source.
-// The positions it left alone keep the source's own line and column, because the
-// overlay is applied to the parsed node tree rather than to re-serialised bytes.
+// Positions it left alone keep the source's line and column, since the overlay
+// applies to the parsed tree, not to re-serialised bytes.
 type Overlay struct {
 	// Path names the overlay document. It is recorded as the overlay's
 	// SourceInfo path and never opened.

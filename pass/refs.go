@@ -35,17 +35,14 @@ type refSite struct {
 // accepts, sorted by location, and reports whether the depth cap truncated the
 // walk.
 //
-// The traversal is ir.WalkValues, which this pass and ir/irverify share so that
-// one document has one walk: the same bound, cycle guard, order and path
-// spelling, and a reference-bearing field added to the IR covered by both the
-// moment it exists. The integer-index checks in validate.go stay rooted at a
-// stable ID rather than at doc — those diagnostics are read by a spec author,
-// for whom an ID outlives a position.
+// The traversal is ir.WalkValues, shared with ir/irverify so that one document
+// has one walk: the same bound, cycle guard, order and path spelling. The
+// integer-index checks in validate.go stay rooted at a stable ID rather than
+// doc, since a spec author reads those and an ID outlives a position.
 //
-// The sort alone does not make the result deterministic (invariant 7). Sorting
-// reorders a site set; it cannot repair one whose *membership* varies, which is
-// what a randomized traversal of an aliased value graph produces — hence the
-// ordered map walk ir.WalkValues performs.
+// Determinism (invariant 7) rests on the ordered map walk: sorting cannot
+// repair a site set whose membership varies under a randomized walk of an
+// aliased graph.
 func collectRefs(root any, path string, isRef func(reflect.Type) bool) ([]refSite, bool) {
 	return collectWalk(root, path, isRef, nil)
 }
@@ -83,14 +80,14 @@ func collectTypeIDs(root any, path string) ([]refSite, bool) {
 
 // collectPropIDs returns every ir.PropID reference reachable from root together
 // with the set of PropIDs the same traversal saw declared, on an ir.Property.
-// Both halves come from the value graph, so a PropID-carrying field or a new
-// Property-bearing list is covered the moment it exists.
+// Both halves come from the value graph, so a new PropID-carrying field or
+// Property-bearing list is covered at once.
 //
 // A PropID reached as a map key is left out. The one PropID-keyed map the IR
-// declares is Content.Encoding, and checkEncodingKeys resolves those keys against
-// the properties of the model the content names — a tighter claim about the same
-// defect. Reporting both would give one defect two locations and two codes, which
-// the package doc rules out.
+// declares is Content.Encoding, and checkEncodingKeys resolves those keys
+// against the properties of the model the content names, a tighter claim about
+// the same defect. Reporting both would give one defect two codes, which the
+// package doc rules out.
 func collectPropIDs(root any, path string) ([]refSite, map[ir.PropID]bool) {
 	declared := map[ir.PropID]bool{}
 	sites, _ := collectWalk(root, path,

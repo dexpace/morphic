@@ -154,17 +154,14 @@ func TestStatusRange_NamesAStatus(t *testing.T) {
 	}
 }
 
-// TestStatusRange_NamesNoStatus is the half that used to be silent. Every key
-// here reached {0,0} or a range OpenAPI cannot declare, with no diagnostic and
-// no way for a consumer to tell the result from a declared default (GitHub
-// #262).
+// TestStatusRange_NamesNoStatus pins that every key here is reported as naming
+// no status, not read as {0,0} or a range OpenAPI cannot declare, which a
+// consumer could not tell from a declared default (GitHub #262).
 //
-// The zero range beside the false is asserted because it is load-bearing, not
-// because it is obvious: lowerResponses routes on isErrorRange without
-// re-testing ok, so a false paired with anything from 400 up would send a key
-// that names no status to lowerErrorCase, which would classify a fault from a
-// range nothing derived and drop the key entirely — ErrorCase holds no naming.
-// This is what holds that pairing.
+// The zero range beside the false is load-bearing: lowerResponses routes on
+// isErrorRange without re-testing ok, so a false paired with a range from 400
+// up would send a key naming no status to lowerErrorCase, which would classify
+// a fault from a range nothing derived and assert a status the key never named.
 func TestStatusRange_NamesNoStatus(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{
@@ -351,29 +348,16 @@ func httpMethodsNames() []string {
 }
 
 // TestHTTPMethods_AgreesWithLibraryVocabulary holds httpMethods to
-// soa.IsStandardMethod, mirroring the shape of the schema package's 2020-12
-// vocabulary tests (internal/schema/schema_test.go's vocabularyCases): one
-// table enumerating the vocabulary, checked against the library predicate that
-// is meant to track it.
+// soa.IsStandardMethod: they must agree on every name either holds an opinion
+// about. If the library learns a method before this compiler does,
+// undeclaredPathItemKeys grades the key as declared, so no field lowers it and
+// no diagnostic reports it (GitHub #413); this turns that disagreement into a
+// build failure.
 //
-// The two vocabularies answer different questions — httpMethods says what this
-// compiler lowers, IsStandardMethod says what the specification defines — but
-// httpMethods is meant to be a subset of what the library recognizes, so the
-// two must agree on every name either one holds an opinion about. If the
-// library learns a method before this compiler does, IsStandardMethod turns
-// true for it while httpMethods stays silent: undeclaredPathItemKeys then
-// grades the key as declared, so no field lowers it and no diagnostic reports
-// it. That silent drop is GitHub #413; this test turns the disagreement that
-// causes it into a build failure instead.
-//
-// The library exports no list IsStandardMethod is built from — it is the
-// unexported standardHttpMethods in
-// github.com/speakeasy-api/openapi/openapi@v1.24.1's paths.go — so this probes
-// with an explicit candidate set instead: every method RFC 9110 §9.3 defines
-// (GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE), plus QUERY and
-// PATCH, plus every name httpMethods itself declares, each checked in both
-// letter cases since IsStandardMethod compares case-sensitively against
-// lowercase constants and a case mismatch would otherwise hide a real gap.
+// The library exports no list to compare against, so this probes a candidate
+// set: the methods RFC 9110 §9.3 defines, plus QUERY and PATCH, plus every name
+// httpMethods declares, each in both letter cases because IsStandardMethod
+// compares case-sensitively and a mismatch would hide a real gap.
 func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	t.Parallel()
 
@@ -407,17 +391,15 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	}
 }
 
-// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags of
-// the library's Path Item core model, the way the ir package holds its
-// hand-written kind lists to the kinds the sources declare. The list decides
-// which raw keys the census leaves alone as declared fields, so a field the
-// library adds and this list does not name would be announced as a key the
-// document was not permitted to write — and one this list names and the library
-// has dropped would be a key the census never looks at.
+// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags
+// of the library's Path Item core model. The list decides which raw keys the
+// census leaves alone as declared fields, so a field the library adds and the
+// list lacks would be announced as a key the document was not permitted to
+// write, and one the list names and the library dropped would escape the
+// census.
 //
-// The extensions field is the one tag left out: it is spelled "extensions" in
-// the tag and reached by x- prefix in the document, which pathItemDeclares tests
-// for on its own.
+// The extensions field is left out: its tag is "extensions", but the document
+// reaches it by x- prefix, which pathItemDeclares tests for on its own.
 func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 	t.Parallel()
 	var declared []string
@@ -434,23 +416,16 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 		"pathItemFields must name every keyed field of core.PathItem, once each, in its order (-model +listed)")
 }
 
-// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared is the control the
-// raw reading needs: the library skips every anchored value on a path item, a
-// declared field's included, so the raw mapping presents each declared key
-// exactly as it presents an undeclared one and only the vocabulary tells them
-// apart. Each class of declared key is written with an anchored value here, and
-// the census must report none of them.
+// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared pins that declared
+// keys written with anchored values are not reported as undeclared. The library
+// skips every anchored value on a path item, so the raw mapping presents a
+// declared key as it presents an undeclared one, and only the vocabulary tells
+// them apart.
 //
-// The item is unmarshalled through the library directly, as the resolver
-// unmarshals a document it parses itself because it missed the prepared tree —
-// one fetched under a URL whose spelling net/url does not reproduce (GitHub
-// #538). The source document's own anchors are cleared before its model is
-// built (GitHub #459), and a document loaded through an external reference is
-// held to the same clearing (GitHub #501), so this is the path the census's
-// raw reading still serves. The anchored `get` is not lowered there — the same
-// skip unmounts it — and that is a loss of its own, outside what a census of
-// undeclared keys can answer; what is pinned here is only that it is not
-// misreported as a key the specification does not define.
+// The item is unmarshalled through the library directly, as the resolver does
+// for a document it parses itself (GitHub #538); source anchors are cleared
+// first (GitHub #459, #501), so that is the path the raw reading still serves.
+// The anchored `get` is not lowered there, a loss this census cannot answer.
 func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	pi := pathItemOf(t, `

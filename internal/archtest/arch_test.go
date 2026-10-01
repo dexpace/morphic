@@ -24,16 +24,15 @@ const module = "github.com/dexpace/morphic"
 const subtreeSuffix = "/..."
 
 // rules maps a directory (relative to repo root) to its allowed non-stdlib
-// imports; test files are exempt. The walk starts only at keyed directories and
-// recurses into their subtrees, so an unkeyed subdirectory nested under a keyed
-// one is still audited, under the ancestor's allowlist.
+// imports; test files are exempt. An unkeyed subdirectory is audited under its
+// nearest keyed ancestor's allowlist.
 //
-// An entry is one exact import path, or a subtree when it ends in "/...".
-// The distinction is what makes "compilers never import each other" expressible:
-// compilers/openapi may import the contract package and the shared framework
-// package, and each is named in its own right, so no sibling compiler rides in
-// beside them. Prefer the exact form — a subtree entry is for an external module
-// whose package layout is not ours to enumerate.
+// An entry is one exact import path, or a subtree when it ends in "/...". The
+// distinction makes "compilers never import each other" expressible:
+// compilers/openapi names the contract and framework packages individually, so
+// no sibling compiler rides in. Prefer the exact form; a subtree suits an
+// external module whose layout is not ours to enumerate, or a compiler's own
+// internal tree.
 var rules = map[string][]string{
 	"ir":          {},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},

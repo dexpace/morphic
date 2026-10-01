@@ -82,14 +82,11 @@ var anchoredEntries = []struct{ name, paths string }{
 }
 
 // TestCompile_AnAnchoredEntryCompilesAsItsUnanchoredTwin pins GitHub #459 at
-// every model the parser folds into a map. The parser skipped such an entry
-// when its value carried an anchor, taking it for an alias definition, and the
-// entry reached the IR in no form and with no diagnostic: a whole path item, an
-// operation, a response, a callback, or a security requirement — which came
-// back empty, and an empty requirement is the one that admits a caller with no
-// credentials at all. An anchor names a node for an alias to reuse and says
-// nothing about the node itself, so a document and its unanchored twin are one
-// document, and they must compile to one IR.
+// every model the parser folds into a map: a path item, operation, response,
+// callback or security requirement. The parser once skipped an entry whose
+// value carried an anchor, taking it for an alias definition, so the entry
+// reached the IR in no form and with no diagnostic. An anchor only names a
+// node for reuse, so a document and its unanchored twin must compile to one IR.
 func TestCompile_AnAnchoredEntryCompilesAsItsUnanchoredTwin(t *testing.T) {
 	t.Parallel()
 	for _, tc := range anchoredEntries {
@@ -207,15 +204,10 @@ func compileBesideExpectingErrors(t *testing.T, ext, root string) []ir.Diagnosti
 }
 
 // TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused pins GitHub #536.
-// The skip that let #501 drop an anchored entry in silence also kept the
-// parser off a recursive anchor there; releasing the name removes that skip,
-// so a folded entry whose anchor recurses would build its model without end.
-// A recursive anchor elsewhere in an external document — a self-referencing
-// schema — ran a compile out of memory for the same reason before external
-// documents were held to the refusals. Both are refused instead, as the failure
-// of the reference that named the document, and the compile returns either
-// way: that it returns at all, under a timeout, is what this test exists to
-// prove, not only the diagnostic.
+// A recursive anchor in an external document, on a folded entry or in a
+// self-referencing schema, would build its model without end. Both are refused
+// as the failure of the reference that named the document. That the compile
+// returns at all, not only the diagnostic, is what the test proves.
 func TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, ext, root string }{
