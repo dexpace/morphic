@@ -25,21 +25,17 @@ func noSourceDiagnostics(doc *ir.Document) int {
 }
 
 // TestVerify_EngineOutput runs the committed corpus through the whole pipeline
-// and verifies what comes out of it.
+// and verifies what comes out.
 //
-// TestVerify_Corpus already sweeps compiler output. What the engine adds is
-// pass.Validate's diagnostics, which engine.Run folds into Document.Diagnostics,
-// and those carry ir.NoSource — so this is the only population that exercises
-// the sentinel end to end. A verifier that held those diagnostics to the source
-// table would report one violation per validation finding, making a document
-// less valid the more spec problems the validator found in it; that is a
-// property of the pipeline's own output, which no hand-built fixture can stand
-// in for.
+// What the engine adds over TestVerify_Corpus is pass.Validate's diagnostics,
+// which engine.Run folds into Document.Diagnostics and which carry ir.NoSource,
+// so this is the only population that exercises the sentinel end to end. A
+// verifier that held them to the source table would report a violation per
+// validation finding.
 //
-// The sentinel count is the load-bearing assertion. Only one corpus spec drives
-// the validate pass to a finding today, so without it a corpus that stopped
-// producing diagnostics — or a pipeline that stopped folding them in — would
-// leave this sweep verifying nothing it exists for, and still passing.
+// The sentinel count is the load-bearing assertion: without it a corpus that
+// stopped producing diagnostics, or a pipeline that stopped folding them in,
+// would leave the test verifying nothing it exists for and still passing.
 func TestVerify_EngineOutput(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New()

@@ -13,142 +13,124 @@ import (
 
 // knownInvalid lists the fixtures under testdata/ that a correct compiler
 // reports an error diagnostic on under this sweep's default options, so the
-// "must be OK" sweep excludes them. An error on these is intended behavior, not
-// a compiler bug. Each was read to confirm it before being listed here:
-//
-//   - resolve_target_invalid.yaml: a response with no description and a header
-//     whose required is the string "notabool" — two schema violations.
-//   - resolve_main_external.yaml: $refs the malformed target above across files;
-//     the compiler does no file I/O, so it's an unresolved-ref error.
-//   - resolve_main_external_valid.yaml and resolve_main_alias_external_valid.yaml:
-//     well-formed, and the only entries here that are not malformed at all. Both
-//     $ref a sibling document, which the compiler refuses to open unless the
-//     caller sets AllowExternalRefs, and this sweep does not (GitHub #31). The
-//     tests that exercise their cross-document lowering opt in and pass; what is
-//     listed here is that the default refuses to. Once external targets are
-//     loaded as sources rather than opened by the resolver (GitHub #74), they
-//     compile clean and come off this list.
-//   - cycle_self_ref.yaml, cycle_two_node_ref.yaml, their _sibling variants, and
-//     cycle_yaml_anchor.yaml: degenerate ref cycles that never reach a concrete
-//     schema node. The pre-parse detector reports cyclic-ref instead of letting
-//     the parser stack-overflow (GitHub #12).
-//   - cycle_alias_ref_value.yaml, cycle_content_schema.yaml, cycle_alias_ref_key.yaml,
-//     cycle_merge_key_ref.yaml, and cycle_alias_schema_node.yaml: the same
-//     degenerate cycle reached via an alias-valued $ref, a $ref nested under
-//     contentSchema, an alias-valued $ref key, a `<<` merge key, and an
-//     alias-valued schema node — five shapes the raw yaml.Node scan previously
-//     missed (GitHub #26).
-//   - cycle_alias_dual_position.yaml: one anchored pure-$ref node reused in two
-//     schema positions (once as a "properties" value, once as a schema in its
-//     own right). The ref-collection walk previously shared one visited-node
-//     set across both positions, so visiting the node in one silently skipped
-//     the other (GitHub #26 follow-up).
-//   - cycle_duplicate_key.yaml: a schema map declaring the same key twice, only
-//     the second declaration cyclic. The resolver works from the last
-//     declaration (matching Speakeasy), but the scan read the mapping
-//     first-key-wins and reported the document clean.
-//   - cycle_path_item_mutual.yaml, cycle_path_item_self.yaml,
-//     cycle_webhook_mutual.yaml, cycle_response_via_path.yaml, and
-//     cycle_path_item_via_component.yaml: reference-object cycles spelled by
-//     document position ('#/paths/~1a', '#/webhooks/onA') rather than through
-//     components. Speakeasy guards the components spelling and faults on these,
-//     so the pre-parse scan refuses them too.
-//   - cycle_path_item_prefix_self.yaml, cycle_path_item_prefix_sibling.yaml,
-//     cycle_path_item_prefix_chain.yaml, cycle_component_path_item_prefix.yaml,
-//     and cycle_webhook_prefix_self.yaml: a $ref whose pointer passes *through*
-//     a reference already being resolved. Speakeasy resolves a reference while
-//     holding its own write lock and read-locks every reference the pointer walk
-//     traverses, so re-entering one deadlocks the process on a non-reentrant
-//     RWMutex — and inside a hop that never completes, so its own cycle guard
-//     never runs. Unlike the cycles above, the components spelling deadlocks
-//     too, so all spellings are refused.
-//   - cycle_path_item_empty_segment.yaml: the same re-entrant prefix spelled with
-//     a trailing separator. The empty reference token it ends in names the key ""
-//     under the path item, so the resolver descends through the reference it is
-//     already resolving; a pointer walk that dropped the token read it as
-//     stopping there and let it past.
-//   - cycle_pointer_whitespace_self.yaml: the same self-reference, visible only
-//     once the pointer is normalized the way the resolver normalizes it.
-//     Speakeasy trims whitespace around the pointer half of a $ref, so
-//     '#/paths/~1a ' names /a there; a scan reading the raw value called it
-//     dangling and let a stack-overflowing self-reference through.
-//   - amplification_alias_bomb.yaml: a 10-level x 10-way YAML alias fan-out
-//     ("billion laughs"). Every alias's target is acyclic, so neither the
-//     anchor nor $ref cycle detector catches it, and unguarded it exhausts
-//     memory inside soa.Unmarshal before ResolveAllReferences ever runs
-//     (GitHub #27). The pre-parse scan measures the alias-expanded node count
-//     and refuses it outright.
-//   - tagged_mapping_request_body.yaml: a request body written as a mapping
-//     carrying a local YAML tag (`!content:`). The parser builds a request body
-//     through a reference, and on a mapping whose tag is not !!map it leaves
-//     the model unbuilt and nil-dereferences it — on a goroutine of its own,
-//     where the loader's recover cannot reach — so the pre-parse scan refuses
-//     the tag before the parser sees it (GitHub #474). Before that refusal this
-//     fixture killed the sweep's process rather than producing a result.
-//   - stream_two_documents.yaml: a YAML stream of two OpenAPI documents. The
-//     first is lowered — an OpenAPI document is one YAML document — and the
-//     second reaches the IR in no form, which is reported as an error rather
-//     than dropped in silence as it used to be (GitHub #387).
-//   - dangling/openapi/f04, f05, f06, f08, f09, f13: discriminator mappings whose
-//     target is undeclared, external, or a sub-schema, dropped with an
-//     unresolved-ref error rather than written as a dangling TypeID (GitHub #14).
-//   - dangling/openapi/f12-refs.yaml: a same-file self-reference spelled with the
-//     m.yaml basename; swept under its own filename the doc part no longer
-//     matches, so the loader reports the external m.yaml it cannot open
-//     (GitHub #14).
-//   - dangling/openapi/f30-protocol-surface.yaml: a security requirement naming a
-//     scheme with no components.securitySchemes declaration, dropped with an
-//     unresolved-ref error rather than a dangling AuthID (GitHub #14).
-//   - dangling/openapi/f32-ref-noncanonical-escape.yaml: a $ref whose pointer
-//     escapes non-canonically (a raw '~' for a component named "A~B"). The
-//     compiler resolves it to the interned node, but the loader still reports
-//     the malformed JSON pointer as an unresolved-ref error first (GitHub #14).
-//
-// The remaining dangling reproducers (f07, f10, f11, f28, f31) intern their
-// targets and compile clean, so they're deliberately absent — the rot-guard
-// below fails any listed fixture that turns out to compile OK.
+// "must be OK" sweep excludes them. Each was read to confirm the error is
+// intended behavior, not a compiler bug; its reason sits beside the entry.
+// TestHarness_InRepoCorpus fails a listed fixture that is missing or compiles
+// clean.
 func knownInvalid() map[string]bool {
 	return map[string]bool{
-		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"):               true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"):                true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"):    true,
-		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):                       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):               true,
-		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):                   true,
-		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"):           true,
-		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):                    true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_value.yaml"):                true,
-		filepath.FromSlash("../../testdata/openapi/cycle_content_schema.yaml"):                 true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_key.yaml"):                  true,
-		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):                  true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"):              true,
-		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"):            true,
-		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"):                  true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):               true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):                 true,
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):                 true,
-		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):              true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):         true,
-		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"):     true,
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):            true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"):        true,
-		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"):             true,
-		filepath.FromSlash("../../testdata/openapi/tagged_mapping_request_body.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/stream_two_documents.yaml"):                 true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):             true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"):           true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"):           true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"):           true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"):           true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"):                    true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"):                    true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"):        true,
+		// A response with no description and a header whose required is the
+		// string "notabool": two schema violations.
+		filepath.FromSlash("../../testdata/openapi/resolve_target_invalid.yaml"): true,
+		// $refs the malformed target above across files, and external refs are
+		// refused by default, so it is an unresolved-ref error.
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external.yaml"): true,
+		// Well-formed, unlike every other entry here. Both $ref a sibling
+		// document, which the compiler opens only under AllowExternalRefs; the
+		// sweep leaves it off (#31). Tests of their cross-document lowering opt
+		// in. They compile clean, and come off this list, once external targets
+		// load as sources (#74).
+		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):       true,
+		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"): true,
+		// Degenerate ref cycles that never reach a concrete schema node. The
+		// pre-parse detector reports cyclic-ref instead of letting the parser
+		// stack-overflow (#12).
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref.yaml"):             true,
+		filepath.FromSlash("../../testdata/openapi/cycle_self_ref_sibling.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_two_node_ref_sibling.yaml"): true,
+		filepath.FromSlash("../../testdata/openapi/cycle_yaml_anchor.yaml"):          true,
+		// The same degenerate cycle reached via an alias-valued $ref, a $ref
+		// under contentSchema, an alias-valued $ref key, a `<<` merge key, and
+		// an alias-valued schema node: five shapes the yaml.Node scan must
+		// follow (#26).
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_value.yaml"):   true,
+		filepath.FromSlash("../../testdata/openapi/cycle_content_schema.yaml"):    true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_ref_key.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_merge_key_ref.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_schema_node.yaml"): true,
+		// A degenerate cycle through one anchored pure-$ref node, reused as a
+		// "properties" value and as a schema in its own right. The
+		// ref-collection walk keeps a visited set per position, so visiting the
+		// node in one does not skip the other (#26).
+		filepath.FromSlash("../../testdata/openapi/cycle_alias_dual_position.yaml"): true,
+		// A schema map declaring one key twice, only the second declaration
+		// cyclic. The resolver works from the last declaration, so the scan
+		// must read the mapping last-key-wins too.
+		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): true,
+		// Reference-object cycles spelled by document position ('#/paths/~1a',
+		// '#/webhooks/onA') rather than through components. Speakeasy guards
+		// the components spelling and faults on these, so the pre-parse scan
+		// refuses them too.
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):        true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):       true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"): true,
+		// A $ref whose pointer passes *through* a reference already being
+		// resolved. Speakeasy resolves a reference holding its own write lock
+		// and read-locks every reference the pointer walk traverses, so
+		// re-entering one deadlocks on a non-reentrant RWMutex before the hop
+		// completes and its own cycle guard can run. Unlike the cycles above,
+		// the components spelling deadlocks too, so all spellings are refused.
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):      true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):   true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):     true,
+		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"): true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):        true,
+		// The same re-entrant prefix spelled with a trailing separator. The
+		// empty token it ends in names the key "" under the path item, so the
+		// resolver descends through the reference it is already resolving; a
+		// pointer walk that dropped the token would let it past.
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"): true,
+		// The same self-reference, visible only once the pointer is normalized
+		// as the resolver does. Speakeasy trims whitespace around a $ref's
+		// pointer, so '#/paths/~1a ' names /a there; a scan of the raw value
+		// would call it dangling and miss the cycle.
+		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"): true,
+		// A 10-level x 10-way YAML alias fan-out ("billion laughs"). Every
+		// alias target is acyclic, so neither the anchor nor the $ref cycle
+		// detector catches it, and unguarded it exhausts memory inside
+		// soa.Unmarshal before ResolveAllReferences runs (#27). The pre-parse
+		// scan measures the alias-expanded node count and refuses it.
+		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"): true,
+		// A request body written as a mapping with a local YAML tag
+		// (`!content:`). On a mapping not tagged !!map the parser leaves the
+		// request-body model unbuilt and nil-dereferences it on a goroutine the
+		// loader's recover cannot reach, so the pre-parse scan refuses the tag
+		// first (#474).
+		filepath.FromSlash("../../testdata/openapi/tagged_mapping_request_body.yaml"): true,
+		// A YAML stream of two OpenAPI documents. The first is lowered, since
+		// an OpenAPI document is one YAML document; the second reaches the IR
+		// in no form, so it is reported as an error rather than dropped
+		// silently (#387).
+		filepath.FromSlash("../../testdata/openapi/stream_two_documents.yaml"): true,
+		// Discriminator mappings whose target is undeclared, external, or a
+		// sub-schema, dropped with an unresolved-ref error rather than written
+		// as a dangling TypeID (#14).
+		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):   true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"): true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"): true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"): true,
+		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"): true,
+		// A same-file self-reference spelled with the m.yaml basename. Swept
+		// under its own filename the document part no longer matches, so it
+		// reads as an external reference, which the default options refuse
+		// (#14).
+		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"): true,
+		// A discriminator mapping onto a sub-schema, dropped as above (#14).
+		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"): true,
+		// A security requirement naming a scheme with no
+		// components.securitySchemes declaration, dropped with an
+		// unresolved-ref error rather than a dangling AuthID (#14).
+		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"): true,
+		// A $ref whose pointer escapes non-canonically (a raw '~' for a
+		// component named "A~B"). The compiler resolves it to the interned
+		// node, but the loader reports the malformed JSON pointer as an
+		// unresolved-ref error first (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
+		// The other dangling reproducers (f07, f10, f11, f28, f31) intern
+		// their targets and compile clean, so they are absent.
 	}
 }
 

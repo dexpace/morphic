@@ -1180,20 +1180,16 @@ func TestSchema_RefNullableAcrossSpellings(t *testing.T) {
 
 // TestSchema_NullabilityAgreesAcrossEnumSpellings pins that a value set and a
 // type keyword conjoin, and that both ways of writing the same conjunction get
-// the same answer.
+// the same answer (GitHub #288).
 //
 // `{type: [string, "null"], enum: [red, green]}` and
-// `{enum: [red, green], oneOf: [{type: string}, {type: "null"}]}` say one thing:
-// null is in the type space and out of the value space, so the position does not
-// admit it. The type-array spelling used to read the type keyword alone and call
-// the position nullable while the oneOf spelling read the enum and called it
-// not — two answers for one constraint in a single document (GitHub #288).
+// `{enum: [red, green], oneOf: [{type: string}, {type: "null"}]}` say one
+// thing: null is in the type space and out of the value space, so the position
+// does not admit it.
 //
-// Both members of a pair are written into one document on purpose: "the same
-// schema, two spellings" is then a property of one compile rather than of two
-// runs that could differ for unrelated reasons. The admitting pair is here for
-// the same reason the excluding one is — a predicate hardcoded either way fails
-// exactly one of them.
+// Both members of a pair share one document so "the same schema, two spellings"
+// is a property of one compile. The admitting pair is there because a predicate
+// hardcoded either way fails exactly one of the two.
 func TestSchema_NullabilityAgreesAcrossEnumSpellings(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -2189,21 +2185,15 @@ func stolenPositions() []stolenPosition {
 }
 
 // TestInlinePosition_HintIsTheSameInBothOrders pins the spelling each inline
-// position takes, rather than only that the two orders agree (GitHub #353).
+// position takes, not only that the two orders agree (GitHub #353): agreement
+// alone is satisfied by both namers producing the weaker name. The table says
+// which won, the structural spelling composed from the enclosing node's hint
+// and the position's role.
 //
-// Agreement alone is satisfied by both namers producing the weaker name, so the
-// table is what says which one won: the structural spelling, composed from the
-// enclosing node's hint and the position's role. The outside $ref used to name
-// these after the keyword holding them ("items"), the pattern text ("^x") or the
-// slot ordinal ("0") — none of which distinguish the position from the same
-// position on any other schema.
-//
-// A row with no refAt aims the outside $ref at the node it asserts, and such a
-// row cannot see a role missing from structuralRoles: the declaration renames
-// that very node in either order (#372), so both spellings agree on it whatever
-// the reference called it. The collision surfaces one level below, where the
-// subtree keeps the reference's name. A row meant to guard a role therefore
-// aims the reference above the node it asserts, per refAt.
+// A row with no refAt aims the outside $ref at the node it asserts, and cannot
+// see a role missing from structuralRoles: the declaration renames that node in
+// either order (#372). The collision surfaces one level below, so a row meant
+// to guard a role aims the reference above the node it asserts, per refAt.
 func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2344,23 +2334,18 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 }
 
 // TestPureRefPosition_IsNamedByItsDeclarationInBothOrders is GitHub #519: a
-// pure $ref position — one that interns nothing from its own declaration,
-// unlike the structural positions TestInlinePosition_HintIsTheSameInBothOrders
-// covers — has nothing for the declaration to rename when the declaration
-// lowers first, so a later reference used to hoist a node there under its own
-// guess at the $ref's target and that guess stuck.
+// pure $ref position interns nothing from its own declaration, unlike the
+// structural positions TestInlinePosition_HintIsTheSameInBothOrders covers, so
+// when the declaration lowers first it has nothing to rename and a later
+// reference's guess would stick.
 //
-// Two things now hold each row, and either alone keeps it green: the reference
-// names the position as the declaration does — for where it is, or after its
-// target in the branch row — and a reference arriving after the declaration
-// takes the hint the declaration recorded. Only the second reaches under
-// /paths, which is where TestPureRefPosition_UnderPathsIsNamedByItsDeclaration
-// holds it.
+// Either of two things keeps each row green: the reference names the position
+// as the declaration does, or a reference arriving later takes the hint the
+// declaration recorded. Only the second reaches under /paths
+// (TestPureRefPosition_UnderPathsIsNamedByItsDeclaration).
 //
-// T gives every row something to point the $ref at; it is a plain object, so
-// the last row's branch is unambiguously named after it ("t") rather than
-// after its position, which is the one row where that is correct instead of
-// the bug (GitHub #521: a $ref branch is named after its target).
+// T is a plain object, so the last row's branch is named after it ("t"), the
+// one row where that is correct (GitHub #521).
 func TestPureRefPosition_IsNamedByItsDeclarationInBothOrders(t *testing.T) {
 	t.Parallel()
 	const tDecl = "    T: {type: object, properties: {t: {type: string}}}\n"
@@ -2451,17 +2436,15 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 		"and the other order was already correct, from the declaration replacing the reference's guess")
 }
 
-// TestInlinePosition_OutsideRefDoesNotMoveTheHome is the regression for the
-// second half of the pointer collision. A $ref naming an inline position hoists
-// that position's home before the position itself is reached, and the position
-// then took the shared node its body reduced to instead — so the annotations
-// stayed on a node only the outside reference could see, and `items` resolved to
-// the bare primitive. Which of the two lowered first decided it, the
-// declaration-order dependence ir-design §4.3 rules out.
+// TestInlinePosition_OutsideRefDoesNotMoveTheHome pins that a $ref naming an
+// inline position does not change what the component lowers to. Such a $ref
+// hoists the position's home before the position is reached, and the position
+// must not then take the shared node its body reduced to, which would leave the
+// annotations on a node only the outside reference sees and resolve `items` to
+// the bare primitive: a declaration-order dependence ir-design §4.3 rules out.
 //
-// The strongest statement of the rule is the first assertion: what a component
-// lowers to cannot depend on whether some unrelated schema elsewhere points at
-// one of its inner pointers.
+// The first assertion is the strongest statement of the rule: the lowering
+// cannot depend on whether an unrelated schema points at an inner pointer.
 func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 	t.Parallel()
 	for _, pos := range stolenPositions() {
@@ -2489,17 +2472,14 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 }
 
 // orderInvariantIR compares two whole IR documents, minus what differs by
-// construction when the same components are declared in two orders.
+// construction when the same components are declared in two orders:
+// SourceInfo.Hash digests the source bytes, which are what is permuted.
 //
-// SourceInfo.Hash digests the source bytes, which are the thing being permuted.
-//
-// Naming.Hint used to be excluded too, and no longer is. The hint a node hoisted
-// at a pointer carries is minted by whichever namer reaches the pointer first —
-// the enclosing declaration's context or an outside $ref's pointer walk —
-// because intern keeps the first name it is given, so the two had to agree and
-// did not. They now do at every position either can reach (GitHub #181, #281,
-// #353), which is what lets the field be compared: the tests permuting those
-// positions are the regression only while nothing here hides the difference.
+// Naming.Hint is deliberately not excluded. The namers that can reach a pointer
+// (the enclosing declaration and an outside $ref's pointer walk) agree at every
+// position either can reach (GitHub #181, #281, #353), so the tests permuting
+// those positions catch a regression only while nothing here hides the
+// difference.
 func orderInvariantIR() []cmp.Option {
 	return []cmp.Option{
 		cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
@@ -3070,28 +3050,18 @@ func vocabularyAnnotation() []vocabCase {
 	}
 }
 
-// TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12 keyword
-// twice with different values, and once more with the keyword omitted, then
-// requires all three IR documents to differ. A keyword the compiler neither
-// lowers nor keeps verbatim produces an identical document, which is exactly the
-// silent drop GitHub #125 catalogued by hand — so this fails on the next one
-// instead of waiting for a reader to notice.
+// TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12
+// keyword with two values and once omitted, and requires all three IR documents
+// to differ. A keyword the compiler neither lowers nor keeps verbatim yields an
+// identical document, the silent drop of GitHub #125.
 //
-// What the two values buy is the difference between noticing a keyword and
-// carrying it. A keyword whose mere presence reshapes the IR — hoisting a node,
-// switching a lowering — moves the document without its value going anywhere,
-// and a control-versus-written comparison alone cannot tell the two apart. Two
-// values that produce one document say the value was read and discarded.
+// Two values are needed because a keyword whose mere presence reshapes the IR
+// moves the document even if its value is discarded. One pair per keyword is a
+// floor on what reaches the IR, not an inventory.
 //
-// What it does not claim: that every spelling of a keyword survives. It compares
-// one pair of values per keyword, so a lowering that carried one value and
-// dropped another would still pass. It is a floor on what reaches the IR, not an
-// inventory of it.
-//
-// The excluded rows are the inverse assertion: each states why nothing carries
-// the keyword, and the test holds them to producing no difference at all, so a
-// keyword that starts being carried has to move its justification rather than
-// keep it.
+// Each excluded row states why nothing carries its keyword and is held to
+// producing no difference, so a newly carried keyword must move its
+// justification.
 func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range vocabularyCases() {
@@ -3558,27 +3528,16 @@ func mergeBoundOrderSpec(pFirst bool) string {
 
 // TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant pins that which schema
 // lowered first cannot decide whether the other sees the $id above it, nor
-// whether the compiler reports stopping at its merge bound.
+// whether the compiler reports stopping at its merge bound. Both come from a
+// nodeview.View, whose merge-expansion memo records the depth an entry is good
+// for (GitHub #402, #404).
 //
-// Both answers come from a nodeview.View, and a view memoizes a mapping's merge
-// expansion. Served without regard to the depth a later read reached the node
-// at, a memo filled by a shallow read answered a read that a fresh view would
-// have truncated, so what the view reported depended on which schema it read
-// first (GitHub #404). The resource-boundary walk built a view per call to stay
-// clear of that, and the cycle pre-scan, which shares one across its walk,
-// reported its bound in one order only (GitHub #402). The memo now records the
-// depth an entry is good for, and this holds both sites to it: the verdict
-// lands in the registry, the bound report in the diagnostics.
+// The order-invariance oracle cannot ask this: the construct needs YAML
+// anchors, and reverseMappings declines to permute a document whose aliases it
+// would lift above their anchors.
 //
-// The order-invariance oracle cannot ask this. The construct needs YAML anchors,
-// and reverseMappings declines to permute a document whose aliases the reversal
-// would lift above their anchors, so the sweep returns ok whichever way the
-// walk answers — which is what earns this a two-order diff of its own.
-//
-// It asserts the two orders agree rather than which verdict they agree on: a
-// chain past the bound expands to nothing, so the $id is invisible and both
-// currently miss the boundary (GitHub #401). Fixing that changes the shared
-// answer, not this test.
+// It asserts the orders agree, not which verdict: a chain past the bound
+// expands to nothing, so both currently miss the boundary (GitHub #401).
 func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	t.Parallel()
 	first, diags := parseFull(t, mergeBoundOrderSpec(true))
@@ -4137,24 +4096,16 @@ func unmodeledKeys(p ir.Unmodeled) []string {
 }
 
 // TestRefSiteKeywords_KeptAtEveryPosition covers the census the $ref path never
-// ran (GitHub #283).
+// ran (GitHub #283). A keyword beside a `$ref` is conjoined with it, and the
+// alias over the target has no property set, member set, value or encoding to
+// hold it, so each must be kept verbatim.
 //
-// In JSON Schema 2020-12 — and so in OpenAPI 3.1 — `$ref` is an ordinary keyword
-// and what stands beside it is conjoined with it. The position lowers to an alias
-// over the target, which has no property set, no member set, no value and no
-// encoding of its own, so each of these keywords reached no IR field at all: no
-// field, no Unmodeled entry and no diagnostic either.
+// Every row runs at a component (annotation.HomeOwnNode, kept on the alias it
+// hoists) and at a property (annotation.HomeCarrier, kept on itself), which
+// take different paths.
 //
-// Every row is checked at both positions, because they take different paths: a
-// component is an annotation.HomeOwnNode position and keeps the keyword on the
-// alias it hoists, a property is an annotation.HomeCarrier one and keeps it on
-// itself, and only the first of the two ran any census at all.
-//
-// allOf joins the table for a different reason than the rest (GitHub #406): a
-// $ref site never elects a composition family, so allOf beside one is never
-// skipped by recordSkippedFamilies the way it is at a body position — it
-// reaches the alias only because refSiteUnhomedKeywords adds it to this
-// site's own census.
+// allOf is here for another reason (GitHub #406): a $ref site elects no
+// composition family, so only refSiteUnhomedKeywords carries it to the alias.
 func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ keyword, sibling, target, raw string }{
@@ -4282,17 +4233,15 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 }
 
 // TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
-// the winning lowering never reads (GitHub #268).
+// the winning lowering never reads (GitHub #268). lower() elects one keyword
+// family per position, and what the elected form has no field for must be kept:
+// a Model has no type token, a Literal no encoding or Constraints, none of
+// which a keyword list shows, only the node that was built, which is what the
+// census asks.
 //
-// lower() elects one keyword family per position; what the elected form has no
-// field for was dropped, because the census that ran was a fixed list of shape
-// applicators. A Model has no type token, a Literal has no encoding and no
-// Constraints, and none of that is visible from a keyword list — only from the
-// node that was built, which is what the census asks now.
-//
-// The kept set is asserted whole, so a census that keeps too much fails here as
-// loudly as one that keeps too little; the `type: object` row is the case that
-// makes that matter, since a Model does restate it and nothing may be recorded.
+// The kept set is asserted whole, so a census that keeps too much fails as
+// loudly as one that keeps too little; the `type: object` row matters because a
+// Model restates it and nothing may be recorded.
 func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

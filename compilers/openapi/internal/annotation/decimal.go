@@ -9,20 +9,16 @@ import (
 )
 
 // BigValEqual reports whether two numeric literals denote the same value, so
-// that one magnitude spelled two ways — 10, 10.0, 1e1 — is one value rather
-// than two.
+// that one magnitude spelled two ways — 10, 10.0, 1e1 — is one value.
 //
-// It reads each literal rather than materializing it, and that is what makes it
-// total. A rational will not build 1e1000001 at all, so a comparison resting on
-// one has to answer that pair some other way, and the only answer left is their
-// text — which calls 1e1000001 and 10e1000000 two values and reports a
-// disagreement between a bound and itself.
+// It reads each literal rather than materializing it, which is what makes it
+// total: a rational will not build 1e1000001, and comparing text would call
+// 1e1000001 and 10e1000000 two values.
 //
-// Identical text is the one pair that needs no reading: a literal denotes one
-// value whatever grammar it belongs to. That is also the whole answer for a pair
-// outside the decimal grammar, where two differing spellings are reported
-// unequal rather than guessed at. No BigVal is outside that grammar today, and
-// TestBigValGrammarStaysWithinTheDecimalReading is what holds that true.
+// Identical text needs no reading. It is also the whole answer for a pair
+// outside the decimal grammar, where differing spellings are reported unequal
+// rather than guessed at. No BigVal is outside it today;
+// TestBigValGrammarStaysWithinTheDecimalReading holds that true.
 func BigValEqual(a, b ir.BigVal) bool {
 	if a == b {
 		return true
@@ -35,17 +31,15 @@ func BigValEqual(a, b ir.BigVal) bool {
 	return compareDecimalBounds(aDec, bDec) == 0
 }
 
-// decimalBound is a numeric literal split into the three pieces an exact
-// comparison needs: its sign, its significant digits with the point removed and
-// the leading zeros stripped, and the power of ten the first of those digits
-// carries. digits is empty exactly when the value is zero, which is what makes
-// "0", "-0.0" and "0e9" one value here rather than several.
+// decimalBound is a numeric literal split into the pieces an exact comparison
+// needs: its sign, its significant digits with the point removed and leading
+// zeros stripped, and the power of ten the first of those digits carries.
+// digits is empty exactly when the value is zero, so "0", "-0.0" and "0e9" are
+// one value.
 //
-// The split is what keeps the comparison total. Reading a bound as a number
-// instead means materializing it, and 1e1000001 — legal in a spec, and kept
-// intact by ir.NewBigVal — is a magnitude math/big will not build as a rational
-// at all. Nothing about ordering two bounds needs those digits anyway: the
-// exponent alone separates them.
+// The split keeps the comparison total: 1e1000001 is legal in a spec and kept
+// intact by ir.NewBigVal, but math/big will not build it as a rational, and the
+// exponent alone separates such bounds.
 type decimalBound struct {
 	neg    bool
 	digits string
@@ -57,15 +51,12 @@ type decimalBound struct {
 // decimalBound.
 //
 // It reports false for a literal outside that grammar rather than guessing:
-// reading the digits out of one and ordering what is left would put a bound the
-// source never wrote into the IR — "1p4" is 16, and a comparison that took the
-// 1 would keep the wrong bound while reporting an ordering it never made.
+// reading the digits out of "1p4" (which is 16) and ordering the rest would
+// keep a bound the source never wrote.
 //
 // No bound a schema produces is outside it today, since they all come through
-// ir.NewBigVal and its grammar is the narrower of the two;
-// TestBigValGrammarStaysWithinTheDecimalReading is what holds that true. This
-// stays fallible because the two grammars live in different packages and have
-// already moved apart once.
+// ir.NewBigVal, whose grammar is the narrower. It stays fallible because the
+// two grammars live in different packages and have already moved apart once.
 func parseDecimalBound(v ir.BigVal) (decimalBound, bool) {
 	unsigned, neg := strings.CutPrefix(v.String(), "-")
 

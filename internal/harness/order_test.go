@@ -345,17 +345,13 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 }
 
 // TestOrderInvariant_ReachesTheCorpus is the reachability guard. The oracle
-// declines silently on a source it cannot permute, so a rewrite that started
-// refusing everything would leave the corpus sweep green while checking nothing
-// — the same shape as a verifier wired into CI that never meets its input.
+// declines silently on a source it cannot permute, so a rewrite that refused
+// everything would leave the corpus sweep green while checking nothing.
 //
-// It asserts the oracle actually asked its question of most of the corpus, not
-// merely that it ran.
-//
-// Both arms are guarded, because either can go quiet on its own. The rewrite
-// declines a source it cannot faithfully permute, and the baseline declines one
-// whose re-encoding will not compile — a skip with no diagnostic behind it, so
-// nothing else would notice it spreading.
+// It asserts the oracle asked its question of every conformance spec, not
+// merely that it ran, and guards both arms: the rewrite declines a source it
+// cannot faithfully permute, and the baseline one whose re-encoding will not
+// compile, a skip with no diagnostic behind it.
 func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 	t.Parallel()
 	const dir = "../../testdata/conformance/openapi"

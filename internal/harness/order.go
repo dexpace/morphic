@@ -19,36 +19,18 @@ import (
 // depth.
 const maxReverseDepth = 512
 
-// orderInvariant compiles a source twice — once with its mappings as declared,
-// once with every mapping's entry order reversed — and reports what the
-// permutation changed beyond source order.
+// orderInvariant compiles a source twice, once with its mappings as declared
+// and once with every mapping's entry order reversed, and reports what the
+// permutation changed beyond source order. Sequences are not reversed: their
+// order is semantic.
 //
-// It is the general form of the two-order diff CLAUDE.md prescribes.
-// `deterministic`, next to it, looks like this and is a different property: it
-// recompiles the *same bytes*, proving same-input-same-output. Only permuted
-// input catches a lowering whose result depends on which declaration reached a
-// pointer first — the shape of the pointer collisions in #108 and #112, which
-// produce no diagnostic in either order and leave pass/validate clean on both.
-//
-// Both arms are compiled from the encoder's output rather than one from the
-// source and one from the rewrite. The encoder does not preserve every spelling
-// — a flow-style implicit null comes back carrying an empty string — and
-// comparing against the source would read that rewriting as a lowering that
-// depends on order. Passing both sides through it leaves declaration order as
-// the only difference between them, which is the question being asked.
-//
-// The limits belong here so the oracle is not over-trusted. Reversing a mapping
-// is meaning-preserving only while its keys are distinct: duplicate keys resolve
-// to the last declaration (#95), so reversing changes which one wins and the two
-// compiles legitimately differ. Such a source is excluded rather than reported,
-// as is one whose permutation no longer parses — see reverseMappings — and one
-// whose re-encoding will not compile, which leaves nothing faithful to compare
-// against. Sequences are left alone throughout: allOf precedence, oneOf variant
-// order and prefixItems positions are all semantic, and reversing them would
-// change the document's meaning rather than only its spelling.
-//
-// And it proves order-independence only for the constructs its input contains,
-// which is why it runs over the corpus rather than over one hand-written spec.
+// Unlike `deterministic`, which recompiles the same bytes, permuted input
+// catches a lowering that depends on which declaration reached a pointer
+// first (#108, #112). Both arms compile the encoder's output (see
+// reencodeMappings). A source whose reversal changes its meaning, or whose
+// re-encoding does not compile, is excluded rather than reported. It proves
+// order-independence only for the constructs its input contains, so it runs
+// over the corpus.
 func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool) {
 	baseline, ok := reencodeMappings(data)
 	if !ok {
@@ -79,25 +61,17 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
-// untouched.
+// untouched: the type registry and the diagnostics.
 //
-// The type registry is the whole of it. It is ID-keyed rather than ordered, so a
-// permutation that changes nothing about identity changes nothing about it at
-// all — while every way an interning collision shows up is a difference in it:
-// a node minted at the wrong pointer, a hint kept from whichever lowering
-// arrived first, a body that lost what a second declaration wrote.
+// The registry is ID-keyed, so a permutation alone leaves it unchanged, while
+// every interning collision shows up as a difference in it: a node minted at
+// the wrong pointer, a hint kept from whichever lowering arrived first, a body
+// that lost what a second declaration wrote. Operations, responses and content
+// types follow source order (invariant #7), so are not compared.
 //
-// The rest of the document is deliberately not compared. Operations, responses
-// and content types are all held in source order by invariant #7, so they
-// reorder with the source by design; a diff over them would report the
-// permutation working rather than a defect.
-//
-// The same is true of the three collections *inside* a type that a mapping
-// declares — properties, pattern properties and named examples — so those are
-// ordered by identity before comparing rather than left to reorder. Sorting
-// rather than ignoring is what keeps the contents in the comparison: a property
-// that changed shape between the two orders still differs after both sides are
-// sorted, while one that merely moved does not.
+// Properties, pattern properties and named examples inside a type are sorted
+// by identity, not ignored: a changed property still differs, a moved one does
+// not.
 func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
 	if a, b := len(first.Types), len(second.Types); a != b {
 		return fmt.Sprintf("permuted source interns %d types against %d", b, a), false
@@ -112,26 +86,16 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 }
 
 // diagnosticSet renders diagnostics as a sorted multiset of what was reported
-// and where, so two orders of one document are compared on their findings rather
-// than on the order they were appended in — that follows traversal order, which
-// a permutation changes by design.
+// and where, so two orders of one document compare on their findings rather
+// than on append order, which follows traversal order.
 //
-// The registry comparison above does not subsume this. A collision can leave the
-// registry identical in both orders and still change what the compiler says
-// about the document: reinstating the pointer collision this oracle exists for
-// interns the same nine types either way while reporting two facts in one order
-// against four in the other.
+// The registry comparison does not subsume this: a collision can leave the
+// registry identical yet change what the compiler reports.
 //
-// The message text is deliberately not compared. Some messages enumerate a set
-// of source keywords and list them as the author wrote them — the unmerged-branch
-// residue names "type, maxLength" for one spelling and "maxLength, type" for its
-// reverse — which is invariant #7's source ordering reaching the message rather
-// than a lowering that depends on order. Severity, code, source, pointer and
-// node identify the finding without that.
-//
-// A source position is left out for the same reason: a permutation moves a
-// construct to a different line by design. Whether the finding has one stays
-// in, so a permutation that changes how a finding is located still shows.
+// Message text is not compared: some messages list source keywords in the
+// author's order ("type, maxLength" against "maxLength, type"), which is
+// invariant #7 reaching the message. Source position is left out because a
+// permutation moves constructs by design; whether a finding has one stays in.
 func diagnosticSet(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
@@ -165,7 +129,8 @@ func renderExample(e ir.Example) string {
 // reencodeMappings returns src parsed and re-encoded with its entry order
 // intact: the same normalization reverseMappings applies, minus the permutation.
 // It is what the permuted source is compared against, so a spelling the encoder
-// rewrites changes both sides alike.
+// rewrites (a flow-style implicit null comes back as an empty string) changes
+// both sides alike.
 func reencodeMappings(src []byte) ([]byte, bool) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(src, &root); err != nil {

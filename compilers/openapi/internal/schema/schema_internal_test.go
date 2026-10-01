@@ -254,18 +254,17 @@ func TestDeclaresResourceIDAbove_WithoutARawTree(t *testing.T) {
 		"a document with no raw tree declares no resource anywhere")
 }
 
-// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which empty
-// segments the path walk may drop. Splitting a pointer on '/' produces one
-// leading empty segment that no reference token stands behind; every later one
-// is the token naming the key "", which is how a schema literally named "" is
-// addressed. Dropping those stopped the walk above the position and read the
-// $id of the components/schemas map instead of the schema's own.
+// TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact pins which
+// empty segments the path walk may drop. Splitting a pointer on '/' yields one
+// leading empty segment no reference token stands behind; every later one names
+// the key "", which is how a schema literally named "" is addressed. Dropping
+// those would read the $id of the components/schemas map instead of the
+// schema's own.
 //
-// The document root carries a member named "" of its own, carrying an $id. It is
-// what makes the two rootward cases discriminating rather than decorative: the
-// empty pointer names the root and must not reach it, while "/" is precisely how
-// ids.Ptr spells that member and must. Without the $id there, "stopped at the
-// root" and "descended and fell off the tree" are the same false.
+// The document root carries a member named "" with an $id, which makes the two
+// rootward cases discriminating: the empty pointer names the root and must not
+// reach it, while "/" is how ids.Ptr spells that member and must. Without the
+// $id both read false.
 func TestDeclaresResourceIDAbove_EmptySegmentIsATokenNotAnArtifact(t *testing.T) {
 	t.Parallel()
 	l, diags := loweredFor(t, `openapi: 3.1.0
@@ -590,13 +589,11 @@ func TestConjunctNullVerdict_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 // the function exists for: a component pointer has a body, and a pointer into
 // that same component does not.
 //
-// The fixture declares an empty-named component beside the real one, and that is
-// the whole point of it. A deeper pointer's component name comes back empty, so
-// with the guard removed the lookup asks for "" — and against a document that
-// declares no such name it misses, hands back nil, and the misclassification
-// looks exactly like the right answer. That masking is why this function read as
-// covered while nothing held it to anything (#202). Declaring "" is what makes
-// the wrong answer visible: it is a name like any other here.
+// The fixture declares an empty-named component beside the real one, which
+// makes the guard observable. A deeper pointer's component name comes back
+// empty, so without the guard the lookup asks for "" and, in a document
+// declaring no such name, misses and returns nil, which looks exactly like the
+// right answer (#202).
 func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 	t.Parallel()
 	l, diags := loweredFor(t, openapitest.ComponentSpec(
@@ -633,16 +630,14 @@ func TestComponentSchemaAt_OnlyATopLevelComponentPointerHasABody(t *testing.T) {
 }
 
 // TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed pins every way the
-// chain walk can stop, which is the half of #202's "why it matters" that is
-// about the verdict: a wrong one either expands what it should refuse or
-// refuses what it should expand.
+// chain walk can stop, since a wrong verdict either expands what it should
+// refuse or refuses what it should expand (#202).
 //
-// A hop needs three things — a component at the pointer, a $dynamicRef written
-// on it, and exactly one site declaring the anchor it names. Anything else ends
-// the chain, and a chain that ends is a chain with no cycle in it, which
-// expands. That is the direction sites already errs in. Reaching for a site when
-// there is not exactly one would either pick an arbitrary branch, reporting a
-// cycle the document does not have, or index an empty slice.
+// A hop needs a component at the pointer, a $dynamicRef written on it, and
+// exactly one site declaring the anchor it names. Anything else ends the chain,
+// and a chain that ends has no cycle and expands, which is the direction sites
+// already errs in. Hopping on any other count would pick an arbitrary branch,
+// reporting a cycle the document does not have, or index an empty slice.
 func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

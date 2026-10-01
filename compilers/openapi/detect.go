@@ -37,42 +37,18 @@ type sniffProbe struct {
 	Swagger string
 }
 
-// Detect implements compilers.Compiler. It reports the dialect src declares,
-// keyed by the major.minor prefix of the version string.
+// Detect implements compilers.Compiler. It reports the dialect src declares by
+// its version's major.minor prefix, naming swagger@2.0 too, which it does not
+// serve, so the caller can say unsupported rather than unreadable. The path is
+// not consulted.
 //
-// It names swagger@2.0 as well, which this compiler does not serve: a Swagger
-// document is recognizably an API spec, and reporting it as one lets the caller
-// say the format is unsupported rather than that the file is unreadable. The
-// path is not consulted — an OpenAPI document is what it declares itself to be,
-// under any extension.
+// Recognition parses all of src, whatever its format, and hands the parse to
+// Compile in Recognition.Parsed. The byte budget bounds that cost: a source
+// past it is declined unread with Compile's own refusal.
 //
-// Bytes the probe cannot read are declined silently unless they declare a
-// version under one of the discriminating keys, in which case the reader's
-// complaint is reported: a source that says `openapi: 3.1.0` and will not read
-// is this compiler's own and broken, which nothing else is in a position to
-// say. Bytes that declare no version are another format's, and a YAML parser's
-// complaint about them describes only the parser that was wrong to be asked.
-// That holds whether they parse or not: a key with prose beside it is what
-// Markdown writes at column 0 (declaredVersions for a document that parses,
-// declaresProbeKey for one that does not), and a mapping under it is another
-// tool's configuration section. What tells either from a declaration is the one
-// word after the colon.
-//
-// The parse a recognition carries is the one Compile lowers. Recognizing a
-// source means reading what it declares, which means parsing it, and the
-// compile that follows would otherwise parse the same bytes again. Every
-// source within the byte budget is parsed whole, one this compiler goes on to
-// refuse or another format's alike: the budget is what bounds that cost, not
-// a second reader that answers for large sources by reading less of them.
-//
-// A source past the byte budget in opts is declined before any of it is read,
-// with the refusal Compile would give it. The budget exists to bound reading
-// the source, and detection is a read of it, so the one a caller set holds here
-// as it does in the compile. It is reported rather than silent because it is
-// the reason nothing took the source, whatever its format: saying no compiler
-// recognized it would send the caller to look at the document rather than at
-// the budget. A registry reads it only when no compiler takes the source, so it
-// costs another format's compiler nothing.
+// Unreadable bytes are declined silently unless they declare a version under a
+// discriminating key (declaresProbeKey); then the parser's complaint is
+// reported, since that source is this compiler's own and broken.
 func (*Compiler) Detect(src compilers.Source, opts compilers.Options) (compilers.Recognition, []ir.Diagnostic, bool) {
 	// NoSource, not source 0: detection runs before any document exists, so
 	// there is no source table for a provenance to index into.
@@ -122,30 +98,16 @@ func recognized(name, version string, parsed *load.Parsed) compilers.Recognition
 	}
 }
 
-// declaresProbeKey reports whether data declares a version under one of the
-// discriminating keys, written where a document declares one. It is what
-// separates a source of this compiler's own from one of another format that was
-// never its business, and it is asked once: after the probe could not read the
-// source, where "not YAML" alone says only what a Protobuf or Smithy source
-// would also say. It reads the bytes once, linearly, and the bytes it reads are
-// within the caller's budget, since nothing past it is read at all.
+// declaresProbeKey reports whether data declares a version under a
+// discriminating key. Detect asks only once the probe cannot read the source,
+// where "not YAML" alone fits a Protobuf or Smithy source too, and only within
+// its byte budget.
 //
-// Where a document declares its version, the two styles answer by different
-// structure: column 0 in block style, the root mapping's own entries in flow
-// style. Neither reading may be widened to "the name occurs somewhere followed
-// by a colon", because other formats nest a key of that name, and reporting
-// their bytes under this compiler's parse error is the one thing detection must
-// never do.
-//
-// The version is what makes the claim, as it is for a source that parses
-// (declaredVersions): prose beside the key is a README or a changelog, and a
-// mapping under it is another tool's configuration section. Neither is an
-// OpenAPI document that failed to read, and saying so would send the caller to
-// fix a file that was never a spec (GitHub #497). The price is a spec broken on
-// its own version line, `openapi: [3.1.0`, which declares no version to read and
-// is reported as unrecognized rather than as unreadable. What cannot be told
-// apart at all is a README that quotes a spec in a code block: its lines are a
-// spec's, and it is claimed like one.
+// Neither reading may widen to "the name occurs before a colon": other formats
+// nest such a key and must not get this compiler's parse error. The version
+// makes the claim (GitHub #497), so a spec broken on its version line,
+// `openapi: [3.1.0`, is unrecognized rather than unreadable, and a README
+// quoting a spec in a code block is claimed like one.
 func declaresProbeKey(data []byte) bool {
 	data = trimBOM(data)
 	return declaresBlockKey(data, "openapi") || declaresBlockKey(data, "swagger") ||
@@ -153,21 +115,14 @@ func declaresProbeKey(data []byte) bool {
 }
 
 // declaresBlockKey reports whether data writes key bare at the start of a line
-// with a version beside it. Column 0 is where a top-level key goes in block
-// style and nowhere else: a key nested under another is indented past it, and a
-// block scalar's content is indented past its own key.
+// with a version beside it. Column 0 is where block style puts a top-level key;
+// nested keys and block scalar content are indented.
 //
-// Only the bare spelling is read here, because the quoted one is how flow style
-// writes every key and flow structure is what scopes it — declaresFlowKey has
-// it. A block document that quotes its top-level key is therefore not seen, and
-// is declined in silence rather than claimed; that is the direction to be wrong
-// in, and the spelling is rare enough that widening column 0 to admit the shape
-// JSON writes at every depth would cost far more than it buys.
-//
-// The line is read by the YAML parser rather than by hand, alone: the document
-// around it did not parse, but the line that declares a version is usually
-// whole, and the parser is what knows how a value is quoted and where a comment
-// begins.
+// Only the bare spelling is read: a quoted key is flow style's, scoped by
+// declaresFlowKey. A block document that quotes its top-level key is declined
+// in silence, the safe direction to be wrong, since admitting quoted keys at
+// column 0 would take in what JSON writes at every depth. The line is parsed
+// alone, since the document around it did not parse.
 func declaresBlockKey(data []byte, key string) bool {
 	prefix := []byte(key + ":")
 	read := 0
@@ -207,20 +162,15 @@ func lineDeclaresVersion(line []byte, key string) bool {
 	return err == nil && isVersion(version)
 }
 
-// declaresFlowKey reports whether data opens a flow mapping — the shape JSON
-// writes — that names one of the discriminating keys among its own entries.
+// declaresFlowKey reports whether data opens a flow mapping, the shape JSON
+// writes, that names one of the discriminating keys among its own entries.
 //
-// Nesting depth is what makes the answer top-level, and it is the half a plain
-// search for `"openapi":` gets wrong: a quoted name followed by a colon reads as
-// a key wherever it sits, and other formats nest one. A source that opens no
-// mapping at all — a JSON array, say — declares nothing here for the same
-// reason: whatever it names, it does not name it as its own root key.
+// Nesting depth is what makes the answer top-level: a plain search for
+// `"openapi":` matches wherever it sits, and other formats nest one. A source
+// that opens no mapping, a JSON array say, declares nothing.
 //
-// It is a lexer, not a parser: it tracks quoted strings and nesting, and reads
-// one value — the one after a root key it names. It has to answer on bytes that
-// will not parse, which is the case it exists for — a document broken before
-// the key that names it — so there is no tree to ask instead. A nested string is
-// stepped over by flowString alone.
+// It is a lexer, not a parser, because it exists for bytes that will not parse:
+// there is no tree to ask.
 func declaresFlowKey(data []byte) bool {
 	i := skipNodeProperties(data, skipSpaceAndComments(data, 0))
 	if i == len(data) || data[i] != '{' {
@@ -353,20 +303,15 @@ func versionAfterColon(data []byte, i int) bool {
 	return isVersion(string(data[i:end]))
 }
 
-// sniff reads the discriminating keys out of data, and returns the zero probe
-// and the parser's error for anything it cannot read. Whether that error is
-// worth reporting is Detect's question, not this one's: here it is only the
-// record of what happened.
+// sniff reads the discriminating keys out of data. For anything it cannot read
+// it returns the zero probe and the parser's error; whether that error is
+// worth reporting is Detect's question.
 //
-// The document is decoded whole and exactly, which is the only way to tell one
-// that declares nothing from one that will not parse, and the parse is the one
-// the compile goes on to lower rather than a second reading beside it. A second
-// reading is what detection used to have past 64 KiB — a byte scan standing in
-// for the parse on large documents — and it cost what two readings of one
-// document always cost: a table holding them to one answer, a written reason
-// for every shape they differed on, and each change to document structure
-// made twice (GitHub #486). What bounds the parse is the caller's byte budget,
-// which Detect checks before this is reached.
+// The document is decoded whole and exactly, the only way to tell one that
+// declares nothing from one that will not parse. The parse is the one the
+// compile lowers, not a second reading beside it that would have to be kept in
+// agreement with it (GitHub #486). The caller's byte budget, which Detect
+// checks first, bounds it.
 func sniff(data []byte) (sniffProbe, *load.Parsed, error) {
 	probe, parsed, err := decodeYAML(data)
 	return declaredVersions(probe), parsed, err
@@ -387,17 +332,12 @@ func declaredVersions(probe sniffProbe) sniffProbe {
 	return probe
 }
 
-// isVersion reports whether value reads as a version rather than as prose: one
-// word, beginning with a digit. That admits the three shapes majorMinor is
-// written for — "3.1.0", "3.1", a bare "4" — and the ones load goes on to
-// refuse by name, "3.1.0-rc1" or "3x", and nothing that a sentence is.
-//
-// The suffixes are admitted on purpose. A document writing one is this
-// compiler's own and wrong, and the precise complaint — which version, and why
-// it is not served — is load's and the validator's to make; declining here
-// hands the same file to the engine's generic "unrecognized format" instead.
-// What the guard exists to keep out is another format's prose beside the word,
-// and prose has a space in it.
+// isVersion reports whether value reads as a version rather than prose: one
+// word, beginning with a digit. That admits every shape majorMinor is written
+// for, and suffixed ones such as "3.1.0-rc1" on purpose: a document writing one
+// is this compiler's own and wrong, and the precise complaint is load's to
+// make, where declining here would give the engine's generic "unrecognized
+// format". Prose has a space in it, and that is what the guard keeps out.
 func isVersion(value string) bool {
 	if value == "" || value[0] < '0' || value[0] > '9' {
 		return false
@@ -425,15 +365,12 @@ func trimBOM(data []byte) []byte {
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
 // document.
 //
-// The document is parsed and its root mapping read; it is never decoded into
-// sniffProbe. That is the whole of the fix for a 32 KB source producing a 1.2 GB
-// diagnostic: yaml.v3 compares every pair of a mapping's keys before it reads
-// any of them, so a mapping repeating one key n times raises n(n-1)/2 errors —
-// 21 million of them for the 6,553-line case — and then abandons the mapping, so
-// the probe came back empty as well as expensive. Reading the two keys off the
-// parsed tree is linear, and answers for a document whose keys repeat exactly as
-// for one whose keys do not. The parser this compiler goes on to use reports
-// those repeats itself, once each and sited, which is where a reader wants them.
+// The document is parsed and its root mapping read, never decoded into
+// sniffProbe: yaml.v3 compares every pair of a mapping's keys before reading
+// any, so a mapping repeating one key n times raises n(n-1)/2 errors and then
+// abandons the mapping, leaving the probe empty as well as expensive. Reading
+// the keys off the tree is linear and answers the same for repeated keys,
+// which the compile's own parse reports once each, sited.
 func decodeYAML(data []byte) (sniffProbe, *load.Parsed, error) {
 	parsed, err := load.Decode(data)
 	if err != nil {
@@ -471,28 +408,14 @@ func documentRoot(doc *yaml.Node) *yaml.Node {
 // probeFromMapping reads the probe keys off a root mapping, following its merge
 // keys for a key the mapping does not write itself.
 //
-// A key written directly wins over one merged in, which is the precedence YAML
-// gives a merge. A key written twice takes its last spelling, which is what the
-// parser this compiler goes on to use takes: detection names the dialect that
-// routes the source, load records the one it read, and a document must not get
-// two answers. Neither rule could be had before, since the decoder this replaces
-// refused any mapping that repeated a key at all.
+// A key written directly wins over one merged in, per YAML. A key written twice
+// takes its last spelling, as the compile's parser does, so detection and load
+// never disagree.
 //
-// depth is the merge chain still allowed. It is the bound on this recursion,
-// checked before every descent, and the recursion is otherwise over a parsed
-// tree of finite size.
-//
-// seen is the bound depth is not. Depth limits how far a chain is followed and
-// says nothing about how wide it is: a mapping may merge one anchor k times,
-// and each of those merges walked that anchor's own k merges, so the cost was
-// the product rather than the sum — 115ms for a 4,000-key document against
-// 13ms for a 1,000-key one, four times the input for nine times the work, and
-// rising (GitHub #487). Entering each node once collapses that to the node
-// count the caller has already parsed and paid for.
-//
-// The answer does not move. fillFrom keeps the first contribution, and a node
-// entered twice yields the same probe both times, so the visit that is skipped
-// could only re-supply what the first one already gave.
+// depth bounds the recursion. seen bounds the width depth does not: without it,
+// one anchor merged k times walks its own k merges each time, a product rather
+// than a sum (GitHub #487). Skipping a node already entered changes no answer:
+// fillFrom keeps the first contribution.
 func probeFromMapping(root *yaml.Node, depth int, seen map[*yaml.Node]bool) (sniffProbe, error) {
 	probe, merges, err := probeFromEntries(root)
 	if err != nil || depth <= 0 {

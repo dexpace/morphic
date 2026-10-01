@@ -490,14 +490,13 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 
 // TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model
 // build's other failure exit: the library refuses a document node that does not
-// wrap exactly one root, and that refusal is a Go error rather than a validation
-// finding about the spec.
+// wrap exactly one root, and that refusal is a Go error rather than a
+// validation finding about the spec.
 //
-// The node is built rather than decoded because yaml.v3 wraps exactly one root
-// in every tree it produces. What can hand this function another shape is an
-// overlay, which mutates the tree between the decode and the build — so the
-// branch is the compiler's to handle even though no source text reaches it
-// today, and building the node is the only way to hold it to that.
+// The node is built rather than decoded because yaml.v3 always wraps exactly
+// one root. An overlay mutates the tree between the decode and the build and
+// could hand over another shape, so the branch is the compiler's to handle, and
+// only a built node reaches it.
 func TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{

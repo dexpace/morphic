@@ -1,16 +1,11 @@
 // This file is a package-level suite, not a per-source-file test: it reads
-// docs/ir-spec-matrix.md and measures the whole committed corpus against it, so
-// it pairs with no single source file.
+// docs/ir-spec-matrix.md and measures the whole committed corpus against it.
 //
-// The table reader below is format-agnostic and lives in one compiler's test
-// package, which is the wrong altitude for it the moment a second compiler needs
-// a second column. It is here rather than in internal/testspec because
-// compilers/openapi is not allowed to reach outside the pipeline — archtest's
-// allowlist for it is ir, compilers, compilers/compile and its own internal/*
-// — and archtest skips _test.go files, so importing testspec from here would
-// pass by way of a blind spot rather than by the rule. Whoever adds the Swagger
-// column moves it to a home both compilers can reach, and will have two callers
-// to shape the API with.
+// The table reader is format-agnostic, so it belongs where a second compiler
+// can reach it. It sits here because archtest's allowlist for compilers/openapi
+// excludes internal/testspec, and archtest skips _test.go files, so importing
+// it from here would pass by way of a blind spot rather than by the rule.
+// Whoever adds the Swagger column moves it to a home both compilers can reach.
 package openapi_test // external test package — exercises only the public API
 
 import (
@@ -70,16 +65,11 @@ type matrixRow struct {
 // the document: every row has a key, the keys are unique, and every format cell
 // opens with one of the legend's three markers.
 //
-// The marker check is what makes the coverage test below trustworthy. An
-// unmarked cell is neither expressible nor absent, so a row whose marker was
-// lost in an edit would drop out of the corpus contract without failing
-// anything — the silent direction of the failure, which is why it is rejected
-// here rather than defaulted.
-//
-// It sweeps every format column, not only the one this compiler answers to. The
-// legend is the document's, the next compiler reads the next column, and a
-// contract enforced for one column of nine says nothing about the eight a
-// reviewer would assume it covered.
+// An unmarked cell is neither expressible nor absent, so a row whose marker was
+// lost in an edit would silently drop out of the corpus contract; it is
+// rejected here rather than defaulted. The check covers every format column,
+// not only this compiler's: the legend is the document's, and the next
+// compiler reads the next column.
 func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 	t.Parallel()
 	rows := readMatrixRows(t)
@@ -102,15 +92,11 @@ func TestMatrix_RowsCarryUniqueSlugKeys(t *testing.T) {
 // "key<tab>capability". Regenerate with
 // `go test ./compilers/openapi -run TestMatrix -update`.
 //
-// Nothing else binds a key to the row it labels. Every other test here asks only
-// whether a key is *declared*, so an insert or delete that shifts the Key column
-// against the Capability column by one leaves them all green while each corpus
-// spec silently witnesses its neighbour's capability.
-//
-// It is also what makes the document's own promise — keys are append-only, and
-// renaming one fails a test — true for rows no Go file names. Those are exactly
-// the rows the next compiler will be first to bind to, and without a snapshot
-// every one of them is freely renameable today.
+// Nothing else binds a key to the row it labels: an insert or delete that
+// shifts the Key column against the Capability column leaves every other test
+// green while each corpus spec witnesses its neighbour's capability. The
+// snapshot also makes the document's promise that keys are append-only, and
+// that renaming one fails a test, true for rows no Go file names.
 func TestMatrix_KeysStayPinnedToTheirCapabilities(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
@@ -120,24 +106,16 @@ func TestMatrix_KeysStayPinnedToTheirCapabilities(t *testing.T) {
 	compareTextGolden(t, matrixRowsGolden, b.String())
 }
 
-// TestConformance_EveryExpressibleMatrixRowIsWitnessed is the corpus contract
-// CLAUDE.md and docs/architecture.md state in prose — "one minimal spec per
-// ir-spec-matrix.md row per format that can express it" — as something that can
-// disagree with the tree.
+// TestConformance_EveryExpressibleMatrixRowIsWitnessed turns the corpus
+// contract of docs/architecture.md, one minimal spec per matrix row per format
+// that can express it, into something that can disagree with the tree. It runs
+// row → spec; TestConformance_TableNamesEveryCorpusSpec runs spec → row.
 //
-// It runs row → spec. The reverse direction, spec → row, is
-// TestConformance_TableNamesEveryCorpusSpec's: between them, a spec cannot be
-// added without a table row and a row cannot be added to the matrix without
-// either a witnessing spec or a written reason there is none yet.
-//
-// What it cannot check is that a spec naming a row exercises that capability;
-// that claim is read by a reviewer, and docs/architecture.md says so rather than
-// promising otherwise.
-//
-// A row OpenAPI cannot express must have neither a witness nor an excuse. Both
-// directions catch the matrix and the corpus disagreeing: a witness means one of
-// the two is wrong about the source format, and an excuse describes a gap that
-// cannot exist, which nothing else would ever retire.
+// An expressible row needs a witnessing spec or an entry in
+// matrixRowsUncovered. A row OpenAPI cannot express must have neither: a
+// witness means the matrix or the corpus is wrong about the source format, and
+// an excuse describes a gap nothing would ever retire. Whether a spec naming a
+// row really exercises it is judged by reading, not checked.
 func TestConformance_EveryExpressibleMatrixRowIsWitnessed(t *testing.T) {
 	t.Parallel()
 	witnesses := matrixRowWitnesses(t)
@@ -193,18 +171,13 @@ func TestConformance_MatrixRowNamesResolve(t *testing.T) {
 }
 
 // matrixRowsUncovered names every OpenAPI-expressible matrix row the corpus does
-// not witness, each with the reason it has none. Closing a gap means deleting
-// its line here and naming the row from a case: a row that is both listed and
-// witnessed fails, so the list cannot outlive the gap it describes.
+// not witness, each with the reason it has none. A row both listed and
+// witnessed fails, so closing a gap means deleting its line and naming the row
+// from a case.
 //
-// Each reason names the blocker as it stands today *and* what retires it, which
-// is the part that keeps this list from silently becoming permanent. Nothing
-// here can tell a stale reason from a live one: two of these used to point at an
-// IR that could not hold the capability yet, long after ir.LongRunning and
-// ir.Idempotency began modelling theirs, and a reader chasing one was sent to
-// wait on a change that had already landed. A reason with no retirement
-// condition is the same failure written the other way round — it describes a gap
-// that reads as closable and is not.
+// Each reason must name the blocker and what retires it. Nothing here can tell
+// a stale reason from a live one, and a reason with no retirement condition
+// reads as closable when it is not.
 func matrixRowsUncovered() map[string]string {
 	return map[string]string{
 		"pagination": "OpenAPI states it only through links and x-*, and this compiler keeps both " +
@@ -288,24 +261,14 @@ func readMatrixRows(t *testing.T) []matrixRow {
 // matrixTableLines returns the keyed capability table: its header, its
 // delimiter row and every row under it, each trimmed.
 //
-// It finds the table by that delimiter row rather than by a leading pipe,
-// because GFM does not require one — `Key | Capability | ...` with no outer
-// pipes is the same table to every renderer, and a reader keyed on "|" at the
-// start of a line cannot see it. That blindness cost twice over: a second keyed
-// table written without outer pipes escaped the "exactly one" guard and every
-// check in this file, and dropping the outer pipes from the table's *last* row
-// removed it from the contract while the row count still balanced, because the
-// line stopped being counted on both sides at once.
+// It finds the table by its delimiter row, not a leading pipe: GFM does not
+// require one, and a reader keyed on "|" misses a table or last row written
+// without outer pipes. Prose has no delimiter row, so counting them makes
+// "exactly one table" true however a second is spelled. Fenced blocks are
+// skipped.
 //
-// Every markdown table has a delimiter row and prose does not, so counting them
-// is what makes "exactly one table" true however a second one is spelled.
-// Fenced blocks are skipped so the document may hold a table as an example.
-//
-// A line outside the table is reported only when it splits into exactly as many
-// cells as the header. That is what a row that fell out of the table looks like,
-// and it is what prose does not: a sentence naming the `|` character is not a
-// stray row, and reporting it would make an ordinary edit fail four tests in a
-// compiler package with nothing to say about why.
+// A line outside the table is reported only when it splits into as many cells
+// as the header, as a fallen-out row does and prose naming `|` does not.
 func matrixTableLines(t *testing.T) []string {
 	t.Helper()
 	data, err := os.ReadFile(matrixPath)

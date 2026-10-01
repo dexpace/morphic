@@ -15,15 +15,14 @@ import (
 
 // RunOptions configures a single pipeline run.
 //
-// Compiler options arrive by one of two channels. FormatOptions is the
-// programmatic one: a value of the compiler's own options type, forwarded
-// verbatim as compilers.Options.FormatOptions by a caller that imports the
-// compiler. CompilerOptions is the textual one, for a caller — the CLI — that
-// does not: each compiler decodes the settings into its own options type
-// itself. Every compiler asked to recognize the spec decodes them, since they
-// bound that read too, and only the one that takes the spec is held to them:
-// settings it cannot decode are an error, and settings another cannot are that
-// other's defaults. See compilers.Registry.Detect.
+// Compiler options arrive by one of two channels, never both. FormatOptions is
+// a value of the compiler's own options type, forwarded as
+// compilers.Options.FormatOptions by a caller that imports it. CompilerOptions
+// is textual, for a caller (the CLI) that does not: each compiler decodes it
+// into its own type. Every compiler asked to recognize the spec decodes it, as
+// the settings bound that read too, but only the one that takes the spec is
+// held to the result: its failure is an error, another's falls back to that
+// compiler's defaults. See compilers.Registry.Detect.
 type RunOptions struct {
 	FormatOptions   any               `json:"formatOptions,omitzero"`
 	CompilerOptions map[string]string `json:"compilerOptions,omitempty"`
@@ -51,17 +50,16 @@ type Result struct {
 // Engine orchestrates the detect → compiler → passes pipeline over a registry
 // of compilers.
 //
-// An Engine is safe for concurrent use by multiple goroutines, and concurrent
-// runs over one spec yield identical documents rather than merely uncorrupted
-// ones. Run builds a fresh compilers.Source per call, so the working state a
-// compiler leaves on one (Source.Parsed) is never shared between runs — which
-// is what keeps that guarantee true now that detection hands its parse on. NewWith finishes writing the registry before the Engine exists and Run
-// only reads it; Run keeps nothing between calls. The rest of the guarantee is
-// compilers.Compiler's purity requirement — a compiler holding package-level
-// mutable state would break it, which is why that requirement is part of the
-// contract and not advice. TestEngine_ConcurrentRunSharesOneEngine pins both
-// properties: the second on every run, the first only under -race, which the
-// gate's coverage step passes.
+// An Engine is safe for concurrent use, and concurrent runs over one spec yield
+// identical documents, not merely uncorrupted ones. Run builds a fresh
+// compilers.Source per call, so the state a compiler leaves on one
+// (Source.Parsed) is never shared between runs. NewWith finishes the registry
+// before the Engine exists, and Run only reads it. The rest is
+// compilers.Compiler's purity: a compiler holding package-level mutable state
+// would break both.
+//
+// TestEngine_ConcurrentRunSharesOneEngine pins both properties: the second on
+// every run, the first only under -race, which the coverage gate uses.
 type Engine struct {
 	registry *compilers.Registry
 }
@@ -75,21 +73,12 @@ func New() (*Engine, error) {
 // NewWith registers the given compilers into a fresh registry and wraps it in
 // an Engine, for tests and embedders that need a custom compiler set. A nil
 // compiler and a register failure (a compiler reporting no formats, or two
-// compilers claiming the same format) alike surface as a Go error rather than a
-// panic, and the error names the argument position so a caller passing several
-// compilers can tell which one was rejected.
+// claiming the same format) surface as a Go error rather than a panic, naming
+// the argument position.
 //
-// An empty set is refused. There is no way to add a compiler to a built engine,
-// so an engine with none can never compile anything, and every source handed to
-// it would come back reported as unrecognized — blaming the document for a
-// misconfiguration of the caller. Refusing here puts the error at the mistake.
-//
-// This reverses a note that once stood here, that an empty set had to stay legal
-// because it was the only way to reach Run's nothing-recognized branch. That was
-// true while the engine sniffed formats itself and named one for every parseable
-// spec. Detection belongs to the compilers now, so a source none of them claims
-// reaches that branch with a full registry, and the coverage the note protected
-// no longer depends on being able to build an engine that cannot work.
+// An empty set is refused. A built engine cannot gain a compiler, so one with
+// none could compile nothing and would report every source as unrecognized,
+// blaming the document for the caller's misconfiguration.
 func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 	if len(fronts) == 0 {
 		return nil, errors.New("engine: no compilers; an engine with none can compile nothing")
@@ -105,19 +94,14 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 }
 
 // Run executes the pipeline for the spec at specPath: read the file, ask the
-// registered compilers which of them recognizes it, dispatch to that one, and —
-// unless disabled — append the validate pass's diagnostics.
+// registered compilers which recognizes it, dispatch to that one, and unless
+// disabled append the validate pass's diagnostics.
 //
-// The Go error return is reserved for I/O and programmer errors: the file could
-// not be read, or a compiler failed in a way its own contract calls an error.
-// Everything wrong with the spec itself comes back as a diagnostic in the
-// Result, a source no compiler can lower included. A caller that treats a Go
-// error as "the pipeline was invoked wrongly" therefore stays correct, which is
-// what lets the CLI keep its usage exit code for actual misuse.
-//
-// Calls on one Engine may overlap. They share only the read-only registry, and
-// each call owns the document it returns — which is what makes appending the
-// validate pass's diagnostics into that document safe.
+// A Go error is reserved for I/O and programmer errors: an unreadable file, or
+// a compiler failing in a way its contract calls an error. Everything wrong
+// with the spec itself, a source no compiler can lower included, is a
+// diagnostic in the Result, so a caller can treat a Go error as misuse, as the
+// CLI does. Calls may overlap; each owns the document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting
@@ -180,15 +164,12 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 
 // undetected reports a source no registered compiler will take. None of the
 // three cases is an I/O failure or a programmer error, so none may leave Run as
-// a Go error: a caller that maps Go errors to "you invoked me wrong" — which the
-// CLI does — would report a spec it read as a misuse of itself.
+// a Go error, which the CLI would report as misuse of itself.
 //
-// A named format means a compiler read the source and named one this build does
-// not carry: a Swagger 2.0 document, say, whose shape morphic understands and
-// does not yet compile. Otherwise nothing recognized the bytes, and the only
-// account of why is whatever the compilers that declined chose to give —
-// preferred over the engine's own, because the engine parses nothing and can
-// say no more than that nobody claimed it.
+// A named format means a compiler recognized the source but this build does not
+// carry the format, as with Swagger 2.0. Otherwise nothing recognized the
+// bytes, and the declining compilers' own account of why is preferred, since
+// the engine parses nothing and can say only that nobody claimed it.
 func (e *Engine) undetected(format compilers.SourceFormat, declined []ir.Diagnostic) []ir.Diagnostic {
 	if format.Name != "" {
 		return []ir.Diagnostic{specProblem(codeNoCompilerForFormat,

@@ -49,51 +49,29 @@ func (r Registry) Has(id string) bool {
 
 // Registries maps each ID type to the [Registry] that declares those IDs.
 //
-// A value's Go type is what makes it a reference: a [ChannelID]-typed field is a
-// reference into Document.Channels wherever it sits — a node's own ID included,
-// which resolves against its own entry — so no field has to be listed here and
-// none can be forgotten.
+// A value's Go type is what makes it a reference: a [ChannelID]-typed field
+// references Document.Channels wherever it sits, a node's own ID included, so
+// no field has to be listed and none can be forgotten.
 //
-// Type-driven coverage is not total, and what it misses is a category rather
-// than a stray field. A reference carried as an integer index into a slice is an
-// int like any other, and reflection has nothing to key on; [PropID] names a
-// position inside a model rather than an entry in a document-level map. Both
-// classes are resolved by hand where they are checked.
-//
-// Not every ID class Document declares references to has a map on Document at
-// all: an [Operation] is declared in the Service→OperationGroup tree and a
-// [Service] in a slice. [Registries.WithDeclarations] covers those.
+// Type-driven coverage is not total. An integer index into a slice has nothing
+// to key on, and [PropID] names a position inside a model; both are resolved
+// by hand where checked. An [Operation] and a [Service] live in a tree and a
+// slice, so [Registries.WithDeclarations] covers them.
 type Registries map[reflect.Type]Registry
 
 // WithDeclarations returns r extended with a registry for every ID class
-// Document holds no map for, filled from the nodes in decls that declare one, so
-// a reference whose class has no map still resolves — against the nodes that
-// declare it.
+// Document holds no map for, filled from decls, so a reference to such a class
+// resolves (#50).
 //
-// An OpID and a ServiceID reference resolved against nothing before this, in
-// both of Morphic's checkers, because both are driven by the map fields
-// [DocumentRegistries] reads and neither class has one (GitHub #50).
+// The classes come from [idClasses], not from decls, so a class no node
+// declares is still reported for.
 //
-// Which classes are answered for comes from [idClasses] — the IR's type graph —
-// and not from decls, which is the same distinction [DocumentRegistries] draws
-// between a document's shape and its contents. A class *no* node declares is
-// exactly the case a reference to it must still be reported for: a document with
-// no operation at all still carries OpID references, from ResourceInfo.Lifecycle
-// and its siblings, and a class set read off the declarations would leave those
-// resolving against nothing again.
+// A class r covers with a map keeps that map, since a derived one could only
+// disagree. A declaration-derived registry r carries is replaced, so this call
+// never mutates another's result.
 //
-// A class r covers with a map keeps that map. The map is what a consumer looks an
-// ID up in, and irverify holds every entry to being keyed by its own node's ID, so
-// a second answer derived here could only disagree with the first. A
-// declaration-derived registry r already carries is replaced rather than added to:
-// r is another call's result, and writing into the set it handed out would make
-// this call mutate that one.
-//
-// [PropID] is left out. A property is a position inside its model rather than a
-// document-level identity, and the checks that resolve one — against the
-// properties a document declares, and against the parts of the model a content
-// names — are tighter claims made where the root is known. Adding a document-wide
-// answer here would report one defect twice, under two codes.
+// [PropID] is left out: its checks are tighter where the model is known, and a
+// document-wide answer would report one defect twice.
 func (r Registries) WithDeclarations(decls []IDDeclaration) Registries {
 	out := make(Registries, len(r))
 	maps.Copy(out, r)
@@ -114,12 +92,8 @@ func (r Registries) WithDeclarations(decls []IDDeclaration) Registries {
 }
 
 // idClasses returns every class of ID a node of a [Document] can declare as its
-// own, derived from the IR's type graph rather than from any one document.
-//
-// Deriving it from the shape is what makes the answer independent of the
-// contents: a class nothing in this document declares still has to resolve
-// references, and reading the class set off the declarations would report those
-// references silently as no reference at all.
+// own, derived from the IR's type graph rather than from any one document, so a
+// class nothing in this document declares still has to resolve references.
 //
 // The walk is over reflect.Type, so the finite set of types the package declares
 // bounds it: each is expanded once. [TypeDef] is an interface and a type walk
@@ -188,31 +162,17 @@ type IDDeclaration struct {
 	Path string
 }
 
-// DeclaredIDs returns every identity the nodes of doc declare — the ID a node
-// carries for itself — in walk order, and reports whether the bounded walk was
-// cut short.
+// DeclaredIDs returns every identity the nodes of doc declare, in walk order,
+// and reports whether the bounded walk was cut short.
 //
-// A node's own ID is what a reference to it resolves against, and reading those
-// declarations off the value graph rather than a list of carriers covers a new
-// ID-bearing node the moment it exists. It answers the two questions
-// [DocumentRegistries] cannot: which IDs a class declares when Document holds no
-// map for it, and whether one ID is declared twice — which no map key can
-// express, since a map has one entry per key however many nodes claim it.
+// Reading declarations off the value graph covers a new ID-bearing node the
+// moment it exists. It answers what [DocumentRegistries] cannot: which IDs a
+// class declares when Document holds no map for it, and whether one ID is
+// declared twice, which a map key cannot express.
 //
-// Only a struct declaring the field itself counts. Every type node embeds
-// [TypeCommon] and so promotes its ID, and counting promoted fields would reach
-// each of them twice: a document with nothing wrong with it would read as one
-// where every type ID is declared twice.
-//
-// An empty ID declares no identity and is skipped: nothing can reference one, and
-// treating several nodes that carry one as duplicates of each other would name
-// the wrong defect.
-//
-// Whether the empty ID is itself reported is a separate claim, and one this
-// derivation does not make. A class Document keys a map by is covered by the key
-// — an empty or disagreeing one is what irverify.checkRegistryKeys reads — and a
-// class with no key, an Operation, a Service or a Property, is covered by
-// irverify.checkDeclaredIDs walking for what this drops.
+// An empty ID is skipped, since nothing can reference one and several nodes
+// carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
+// job for a map-keyed class and irverify.checkDeclaredIDs's for the rest.
 func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 	var decls []IDDeclaration
 	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {
@@ -230,11 +190,10 @@ func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 // declaredID returns the identity v declares for itself: the value of a field
 // named ID that v's own type declares and that is a named string type.
 //
-// The three ways that can fail read as one test because they are one question —
-// whether this struct declares an identity of its own. A promoted field is not
-// its own declaration: len(f.Index) is 1 only for a field the struct declares
-// directly, and a field named ID that is not a named string type settles no
-// class of reference.
+// A promoted field is not its own declaration: len(f.Index) is 1 only for a
+// field the struct declares directly. Every type node embeds [TypeCommon] and
+// so promotes its ID, and counting that too would declare each type ID twice. A
+// field named ID that is not a named string type settles no class of reference.
 func declaredID(v reflect.Value) (id string, class reflect.Type, declares bool) {
 	f, isDeclared := v.Type().FieldByName(idFieldName)
 	if !isDeclared || len(f.Index) != 1 || !namedString(f.Type) {
@@ -251,12 +210,11 @@ func declaredID(v reflect.Value) (id string, class reflect.Type, declares bool) 
 // that is a map keyed by a named string type is an ID-keyed registry, and its key
 // type names the reference class it resolves. Deriving them covers a registry
 // added to Document the moment it exists, where a hand-written list would drift.
-// Document.Unmodeled is the counterexample: keyed by plain string, it keys on a
-// source construct's name rather than an identity, and is no registry.
+// Document.Unmodeled, keyed by plain string, names a source construct rather
+// than an identity and is no registry.
 //
-// A nil doc declares nothing, which is the answer a report-only caller wants:
-// every reference then resolves against no registry and is reported, rather than
-// the call panicking on the way to saying so.
+// A nil doc declares nothing: every reference then resolves against no registry
+// and is reported, rather than the call panicking.
 func DocumentRegistries(doc *Document) Registries {
 	out := Registries{}
 	if doc == nil {

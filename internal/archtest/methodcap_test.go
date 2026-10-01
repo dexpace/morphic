@@ -16,24 +16,14 @@ import (
 )
 
 // maxMethodsPerType caps how many methods one type may carry inside compilers/.
+// It sits above the widest legitimate type, leaving that type room to grow; the
+// god object it exists for reached 159. A failure prompts asking what the type
+// has started doing, not raising the number.
 //
-// It is calibrated against the finished shape, which is why it lands after the
-// restructuring rather than before it: the widest type in the tree is
-// compile.Types at 14, so this leaves the largest legitimate type room to grow
-// by half again. The type it exists for reached 159.
-//
-// A failure is a prompt to ask what the type has started doing, not to raise the
-// number. Nothing arrives at 21 methods by adding one concern.
-//
-// It counts methods *declared* on a type, not the type's method set: a type that
-// embeds another does not inherit its count. That is the dimension the failure
-// actually grew in — 159 methods written across 11 files, one at a time — and it
-// is what an AST rule can measure without a type checker. It also means the cap
-// can be satisfied by embedding, which is the refactoring it exists to prompt
-// rather than a way around it: two types each under the cap, each with a
-// coherent set, is the outcome. A type reaching for that to stay under the
-// number rather than to say something is visible in review in a way that one
-// more method on one more struct never was.
+// It counts methods declared on a type, not its method set, so embedding does
+// not inherit a count; an AST rule can measure that without a type checker.
+// Satisfying the cap by embedding is the refactoring it prompts, not a way
+// around it: two coherent types, each under it.
 const maxMethodsPerType = 20
 
 // TestMethodsPerType_StayUnderTheCap measures the dimension the god object grew

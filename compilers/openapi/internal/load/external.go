@@ -19,49 +19,28 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// external is what the resolver reads a document through when a reference
-// leaves the source and Options.AllowExternalRefs lets it. It stands in for the
-// file system and the HTTP client the resolver would otherwise use, reading the
-// bytes they would, and prepares the tree those bytes parse to as Load prepares
-// the source's: the same budgets and pre-parse refusals, then the anchors
-// released (see releaseAnchors).
+// external is what the resolver reads a document through when
+// Options.AllowExternalRefs lets a reference leave the source. It stands in for
+// the resolver's file system and HTTP client, and prepares each tree as Load
+// does the source's: the same budgets and pre-parse refusals, then
+// releaseAnchors.
 //
-// The prepared tree is stored where the resolver looks for a parsed document
-// before it parses the bytes itself, under the key it looks it up by, so the
-// model is built from that tree. Without it the resolver parsed an external
-// document itself, and the parser skipped every anchored entry the model folds
-// into a map there — an operation, a response, a security requirement — with
-// no diagnostic (GitHub #501).
-//
-// Releasing the anchors is only safe behind the refusals. The skip had also
-// kept the parser out of a recursive anchor on such an entry, and a folded one
-// sends the model build into recursion without end, as a recursive anchor
-// anywhere else in an external document already did (GitHub #536): it is
-// refused instead.
-//
-// A file is stored under the path the resolver opens, which is its key. A
-// response is stored under its request's URL, which is the resolver's key for
-// every URL spelled as net/url spells it. The client sees only the request, so
-// an absolute $ref URL spelled otherwise — an upper-case scheme, an empty port —
-// misses, and the resolver parses that document itself (GitHub #538).
-//
-// Each verdict is kept for the compile. The resolver keeps a document only
-// once it has built something from it, and asks for it again on every reference
-// until then: every reference into a refused one, and every one into a document
-// whose earlier references built nothing. A refused document fails again
-// unread: reading, parsing and scanning it per reference would multiply the
-// cost its budgets bound. A prepared one is read again, as the default reader
-// would read it, and judged again only if its bytes changed: while they are the
-// same its tree still stands where the resolver looks, but the resolver parses
-// what it reads itself wherever it misses that tree (GitHub #538), so changed
-// bytes must not reach it unjudged.
+// The tree is stored where the resolver looks for a parsed document, so the
+// model builds from it, not from the resolver's own parse, which silently skips
+// anchored entries the model folds into a map (GitHub #501). Anchors are
+// released only behind the refusals: they reject the recursive anchor that
+// would loop the model build (GitHub #536).
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
-	// judged holds each document's verdict by the key it was read under: the
-	// error it was refused with, or the digest of the bytes it was prepared
-	// from. It is shared by every copy of the reader, and safe for concurrent
-	// use, which nothing in the resolver's interfaces rules out.
+	// judged holds each document's verdict by the key it was read under:
+	// the error it was refused with, or the digest of the bytes it was
+	// prepared from. The resolver asks again on every reference until it
+	// has built something from a document, so a refused one fails again
+	// unread, and a prepared one is judged again only if its bytes changed:
+	// the resolver parses what it reads itself wherever it misses the
+	// stored tree. Shared by every copy of the reader and safe for
+	// concurrent use.
 	judged *sync.Map
 }
 
@@ -94,6 +73,10 @@ func (e external) Open(name string) (fs.File, error) {
 // of a successful response under the request's URL. A URL refused once fails
 // again without being fetched. Any other outcome is the resolver's to report,
 // as it was.
+//
+// The resolver looks a document up by its URL as net/url spells it, and the
+// client sees only the request, so an absolute $ref spelled otherwise misses
+// and the resolver parses that document itself (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
 	if err := e.refusal(key); err != nil {
@@ -111,16 +94,14 @@ func (e external) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// prepare reads an external document from r, no further than one byte past
-// the byte budget, and stores the tree it parses to under key once the source's
+// prepare reads an external document from r, no further than one byte past the
+// byte budget, and stores the tree it parses to under key once the source's
 // refusals have passed it. It returns the bytes read, which the resolver still
-// reads and caches as it would have. The bytes a document under key was
-// prepared from before are not parsed again: the tree the resolver looks up is
-// the one stored then.
+// reads and caches as it would have. Bytes already prepared under key are not
+// parsed again: the tree stored then still stands.
 //
-// Bytes that will not parse are handed over unprepared: the resolver parses
-// them with the parser this uses and refuses them with its own reason, as it
-// does an overlay's.
+// Bytes that will not parse are handed over unprepared, and the resolver
+// refuses them with its own reason.
 func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 	// One byte past the budget tells a document over it from one at it. At
 	// math.MaxInt no document can pass the budget, and that byte would overflow.

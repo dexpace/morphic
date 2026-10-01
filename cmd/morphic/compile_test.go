@@ -44,15 +44,12 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 }
 
 // TestRun_SpecProblemsExitOne covers the classes of bad spec the pipeline
-// rejects before a compiler ever runs. Every one of them is a problem with the
-// file the user named, so every one is exit 1 with a coded diagnostic — the same
-// answer a bad `$ref` inside a spec the compiler does accept already gets.
+// rejects before a compiler ever runs. Each is a problem with the file the user
+// named, so each is exit 1 with a coded diagnostic, as a bad `$ref` inside an
+// accepted spec already is.
 //
-// Exit 2 is reserved for a misuse of the CLI and for I/O that failed, so a CI
-// wrapper can tell "your spec is broken" from "you invoked morphic wrong". A
-// spec the tool read and understood well enough to name the problem in is
-// neither of those, and reporting it as one made the compiler's own
-// openapi/unsupported-version diagnostic unreachable from the shipped binary.
+// Exit 2 is reserved for CLI misuse and failed I/O, so a CI wrapper can tell
+// "your spec is broken" from "you invoked morphic wrong".
 func TestRun_SpecProblemsExitOne(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
