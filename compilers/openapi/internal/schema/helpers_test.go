@@ -84,6 +84,20 @@ func lowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return l.out, append(diags, l.diags.List()...)
 }
 
+// lowerSpecOnly is lowerSpec without the load phase's diagnostics mixed in. A
+// $ref the lowering cannot follow is reported both by the load phase, which
+// resolves it and names the reason, and by the lowering itself, at the same
+// pointer but without one (compilers/openapi's withoutRereported drops the
+// second once both reach the compiler). A test that wants to pin what the
+// lowering itself reports — not what a full compile does with the two reports
+// after deduplication — needs the lowering's diagnostics on their own.
+func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	l, _ := loweredFor(t, src)
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
+	return l.out, l.diags.List()
+}
+
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {

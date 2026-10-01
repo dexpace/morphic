@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"net/http"
@@ -253,9 +254,10 @@ func TestCompile_ARecursiveAnchorInAnExternalDocumentIsRefused(t *testing.T) {
 }
 
 // TestCompile_ARefusedExternalDocumentIsFetchedOnce pins that refusing an
-// external document costs one fetch of it, however many references name it.
-// The resolver keeps a document only once it has built something from it, so
-// it asks for a refused one again on every reference.
+// external document costs one fetch of it, however many references name it,
+// while each of them still reports the refusal at its own $ref. The resolver
+// keeps a document only once it has built something from it, so it asks for a
+// refused one again on every reference.
 func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 	t.Parallel()
 	const budget = 1 << 10
@@ -275,13 +277,14 @@ func TestCompile_ARefusedExternalDocumentIsFetchedOnce(t *testing.T) {
 		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxSourceBytes: budget}}})
 
 	require.NoError(t, err)
-	refused := 0
+	var refusedAt []jsontext.Pointer
 	for _, d := range diags {
 		if strings.Contains(d.Message, fmt.Sprintf("refused: it is past the %d-byte budget", budget)) {
-			refused++
+			refusedAt = append(refusedAt, d.Provenance.Pointer)
 		}
 	}
-	assert.Equal(t, 1, refused, "the refusal is reported: %+v", diags)
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/R1", "/components/schemas/R2", "/components/schemas/R3"},
+		refusedAt, "the refusal is reported at each reference: %+v", diags)
 	assert.Equal(t, int32(1), fetches.Load(), "and the document fetched once, for three references")
 }
 
