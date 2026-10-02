@@ -432,7 +432,9 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
 	// name is this entry's map key, which names the shared node after this mount
-	// when the header is declared under another response (GitHub #433).
+	// when the header is declared under another response (GitHub #433). A
+	// component header has no owning response, so a schema's $ref into it leaves
+	// the subtree named by that reference (GitHub #747).
 	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
 		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
@@ -709,7 +711,9 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	// requestBodyHint spells this operation's ID, which names the shared node
 	// after this mount when the body is declared under another operation. Marking
 	// the lowering lets that operation's own pass replace the placeholder, in
-	// whichever order the two run (GitHub #433).
+	// whichever order the two run (GitHub #433). A component body has no owning
+	// operation, so a schema's $ref into it leaves the subtree named by that
+	// reference (GitHub #747).
 	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
 		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {

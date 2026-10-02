@@ -31,6 +31,9 @@ type Types struct {
 	// declared holds the hint a declaration gave each coordinate it reached
 	// without finding a placeholder there. See NameFromDeclaration.
 	declared map[string]string
+	// byReference holds the coordinates whose node a reference built and the
+	// declaration that owns them has not rebuilt yet. See InternDeclared.
+	byReference map[string]bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -61,6 +64,7 @@ func NewTypes() *Types {
 
 		provisional: make(map[string]bool),
 		declared:    make(map[string]string),
+		byReference: make(map[string]bool),
 	}
 }
 
@@ -143,13 +147,13 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 }
 
 // InternProvisional is Intern for a lowering that reached pointer through a
-// reference naming it rather than through the declaration that owns it, and
-// records that the node's name is a placeholder.
+// reference rather than the declaration that owns it, and records that the
+// node's name is a placeholder.
 //
-// The declaration and a reference can each arrive first at a coordinate inside
-// another declaration's body, and Intern builds for the first. The node is the
-// same either way, but the declaration names it better, so NameFromDeclaration
-// replaces the name once the declaration arrives.
+// Either can arrive first at a coordinate inside another declaration's body,
+// and Intern builds for the first. The declaration names it better, so
+// NameFromDeclaration replaces the name and InternDeclared rebuilds the node
+// when it arrives.
 //
 // An interned coordinate is not marked: its name may be settled. One the
 // declaration reached before any node existed takes the declared hint instead
@@ -165,7 +169,42 @@ func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.
 		return interned
 	}
 	t.provisional[pointer] = true
+	t.byReference[pointer] = true
 	return interned
+}
+
+// InternDeclared is Intern for the declaration that owns pointer. Where a
+// reference built the node first, it builds it again under the same ID.
+//
+// Renaming only that node would leave the nodes the reference interned beneath
+// it named from its guess, which a pointer under /paths cannot replay (GitHub
+// #529). The build lowers the same schema at the same pointers, so each one
+// takes the declaration's name. It replaces what the reference built, not what
+// it reported (GitHub #750).
+//
+// A coordinate is rebuilt once. A build yielding nothing is refused, keeping
+// the reference's node so IDs other nodes hold still resolve.
+func (t *Types) InternDeclared(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
+	if !t.byReference[pointer] {
+		return t.Intern(pointer, id, build)
+	}
+	delete(t.byReference, pointer)
+	existing := t.byPointer[pointer]
+	if existing != id {
+		t.refuse("rebuild rejected: %q is interned as %q, not %q", pointer, existing, id)
+		return existing
+	}
+	if build == nil {
+		t.refuse("rebuild rejected: nil build for id=%q at %q", id, pointer)
+		return existing
+	}
+	td := build()
+	if ir.IsNilTypeDef(td) {
+		t.refuse("rebuild rejected: build returned a nil type definition for id=%q at %q", id, pointer)
+		return existing
+	}
+	t.reg[id] = td
+	return id
 }
 
 // NameFromDeclaration gives the node at pointer its declaration's hint,

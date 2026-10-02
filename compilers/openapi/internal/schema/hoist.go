@@ -12,7 +12,10 @@ import (
 
 // maxSchemaDepth caps schema-lowering recursion (styleguide bounded-recursion
 // rule). Interning by pointer is what terminates recursive and diamond schemas;
-// this bound only guards pathologically deep inline nesting.
+// this bound only guards pathologically deep inline nesting. It counts from where
+// a lowering enters, so a $ref and its target's declaration reach it at different
+// coordinates, and the declaration's rebuild leaves what the reference built past
+// it (GitHub #748).
 const maxSchemaDepth = 256
 
 // TopLevelDepth is the nesting a schema position outside the walk starts at.
@@ -50,10 +53,12 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hin
 		// declaration that owns it arrives (GitHub #372).
 		return ts.InternProvisional(string(pointer), id, mint)
 	}
-	interned := ts.Intern(string(pointer), id, mint)
-	// The declaration reaching its own coordinate. On a first visit this is the
-	// name the node was just built with; on a later one it is what replaces a
-	// placeholder a reference left here.
+	// The declaration reaching its own coordinate. A reference that got here
+	// first built the node and everything beneath it under its own names, so the
+	// declaration builds it again rather than taking the reference's (GitHub #529).
+	interned := ts.InternDeclared(string(pointer), id, mint)
+	// On a first visit or after a rebuild the node already has this name; only
+	// where a rebuild was refused is there a reference's placeholder to replace.
 	ts.NameFromDeclaration(string(pointer), hint)
 	return interned
 }

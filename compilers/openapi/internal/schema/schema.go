@@ -94,6 +94,9 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // A pointer with no node wrote none, because declaresPositionScoped hoists a
 // node for any that it wrote.
 func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
+	// A $ref aimed at a carrier's own schema reaches here as HomeOwnNode. When the
+	// declaration then rebuilds that node, what this records goes with it but the
+	// report stays (GitHub #750).
 	if home != annotation.HomeOwnNode || s == nil {
 		return nil
 	}
