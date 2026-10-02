@@ -46,7 +46,7 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 // TestRun_SpecProblemsExitOne covers the classes of bad spec the pipeline
 // rejects before a compiler ever runs. Each is a problem with the file the user
 // named, so each is exit 1 with a coded diagnostic, as a bad `$ref` inside an
-// accepted spec already is.
+// accepted spec already is, located at that file although no document names it.
 //
 // Exit 2 is reserved for CLI misuse and failed I/O, so a CI wrapper can tell
 // "your spec is broken" from "you invoked morphic wrong".
@@ -71,7 +71,8 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			code := run([]string{"compile", spec}, &stdout, &stderr)
 
 			assert.Equal(t, 1, code, "stderr: %s", stderr.String())
-			assert.Contains(t, stderr.String(), tt.code)
+			assert.Contains(t, stderr.String(), tt.code+" "+spec+": ",
+				"the bare path: the finding is about the file as a whole")
 			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
 			assert.NotContains(t, stderr.String(), "usage:",
 				"a bad spec is not a misuse of the CLI, so no usage block")

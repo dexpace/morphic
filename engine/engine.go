@@ -41,9 +41,14 @@ var errOptionChannels = errors.New(
 //
 // Diagnostics is the whole list for the run. When Document is non-nil it holds
 // the same values, so a caller reading either channel sees every finding.
+//
+// Sources is what each Provenance.Source in Diagnostics indexes, NoSource
+// aside, on every path: the Document's table, the refusing compiler's, or the
+// spec alone when no compiler claimed it.
 type Result struct {
 	Document    *ir.Document           `json:"document,omitzero"`
 	Diagnostics []ir.Diagnostic        `json:"diagnostics,omitempty"`
+	Sources     []ir.SourceInfo        `json:"sources,omitempty"`
 	Format      compilers.SourceFormat `json:"format"`
 }
 
@@ -137,19 +142,24 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	}
 	format := det.Recognition.Format
 	if !ok {
-		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined)}, nil
+		// Detection is handed the one source, which is the whole table its
+		// findings and the engine's own can index.
+		return &Result{Format: format, Diagnostics: e.undetected(format, det.Declined),
+			Sources: []ir.SourceInfo{{Path: specPath}}}, nil
 	}
 	// What detection parsed to recognize the source is what the compile lowers,
 	// so the source carries it forward rather than being read twice. The
 	// registry has already dropped it unless the compiler about to be asked is
 	// the one that made it.
 	source.Parsed = det.Recognition.Parsed
-	doc, diags, err := det.Compiler.Compile(ctx, []compilers.Source{source}, det.Options)
+	sources := []compilers.Source{source}
+	doc, diags, err := det.Compiler.Compile(ctx, sources, det.Options)
 	if err != nil {
 		return nil, fmt.Errorf("engine: parse %q: %w", specPath, err)
 	}
 	if doc == nil {
-		return &Result{Diagnostics: diags, Format: format}, nil
+		return &Result{Diagnostics: diags, Format: format,
+			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
 	}
 	if !opts.SkipValidate {
 		diags = append(diags, pass.Validate(doc)...)
@@ -159,7 +169,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	// diff, caches, emitters). Merging rather than picking one is what keeps a
 	// finding its compiler put on only one of them — see mergeDiagnostics.
 	doc.Diagnostics = mergeDiagnostics(doc.Diagnostics, diags)
-	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Format: format}, nil
+	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
 }
 
 // undetected reports a source no registered compiler will take. None of the

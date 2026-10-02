@@ -277,7 +277,7 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 func renderDiagnostics(w io.Writer, res *engine.Result) {
 	for _, d := range res.Diagnostics {
 		emitf(w, "%s %s%s: %s\n",
-			d.Severity, d.Code, location(res.Document, d.Provenance), d.Message)
+			d.Severity, d.Code, location(res.Sources, d.Provenance), d.Message)
 	}
 }
 
@@ -287,11 +287,11 @@ func renderDiagnostics(w io.Writer, res *engine.Result) {
 // as a whole, and the bare node for an IR-space node. A finding with several
 // locators is spelled by the first of them in that order.
 //
-// A locator whose source names no file is spelled without a path, as when a
-// refused compile returns no document. A diagnostic raised before any document
-// existed carries no locator, and prints nothing.
-func location(doc *ir.Document, prov ir.Provenance) string {
-	path := sourcePath(doc, prov.Source)
+// sources is the run's table, which a refused compile has too. A locator whose
+// index names no entry in it is spelled without a path, and a finding naming
+// neither a source nor a node prints nothing rather than a guess.
+func location(sources []ir.SourceInfo, prov ir.Provenance) string {
+	path := sourcePath(sources, prov.Source)
 	switch {
 	case prov.Pointer != "":
 		return " " + onPath(path, "#", string(prov.Pointer))
@@ -325,12 +325,12 @@ func positionText(p ir.Position) string {
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning
-// "" when the document or index is unavailable.
-func sourcePath(doc *ir.Document, source int) string {
-	if doc == nil || source < 0 || source >= len(doc.Sources) {
+// "" when the index addresses no entry of sources.
+func sourcePath(sources []ir.SourceInfo, source int) string {
+	if source < 0 || source >= len(sources) {
 		return ""
 	}
-	return doc.Sources[source].Path
+	return sources[source].Path
 }
 
 // exitCodeFor returns 1 when any diagnostic is at or above the failOn severity,

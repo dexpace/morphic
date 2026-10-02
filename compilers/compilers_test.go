@@ -45,6 +45,8 @@ func (s *stubCompiler) Detect(src compilers.Source, opts compilers.Options) (com
 
 func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (s *stubCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+
 func (s *stubCompiler) Compile(_ context.Context, _ []compilers.Source, _ compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return &ir.Document{IRVersion: ir.IRVersion}, nil, nil
 }
@@ -228,7 +230,7 @@ func TestRegistry_DetectSkipsCompilersThatDecline(t *testing.T) {
 func TestRegistry_DetectCarriesWhatDecliningCompilersSaid(t *testing.T) {
 	t.Parallel()
 	said := ir.NewDiagnostic(ir.SeverityError, "alpha/broken", "malformed alpha",
-		ir.Provenance{Source: ir.NoSource})
+		ir.Provenance{Source: 0})
 	reg := compilers.NewRegistry()
 	require.NoError(t, reg.Register(&stubCompiler{
 		formats:  []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
@@ -253,7 +255,7 @@ func TestRegistry_DetectDropsDeclinesOnceClaimed(t *testing.T) {
 		formats: []compilers.SourceFormat{{Name: "alpha", Version: "1"}},
 		marker:  "alpha",
 		declines: []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "alpha/broken", "malformed alpha",
-			ir.Provenance{Source: ir.NoSource})},
+			ir.Provenance{Source: 0})},
 	}))
 	require.NoError(t, reg.Register(&stubCompiler{
 		formats: []compilers.SourceFormat{{Name: "beta", Version: "2"}},
