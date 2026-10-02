@@ -519,13 +519,13 @@ func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 // first-written order, unwrapping a document node first; nil for a node that is
 // not a mapping or writes no key. Each name resolves through RawChildNode.
 //
-// It exists for objects whose parsed model omits keys the source wrote: a Path
-// Item Object's unmarshaller skips a key whose value carries a YAML anchor
-// (speakeasy-api/openapi v1.24.1, GitHub #412, #538).
+// It exists for a Path Item Object, whose unmarshaller skips a key with an
+// anchored value (GitHub #412). Anchors are cleared first (GitHub #459, #501,
+// #538), so it is needed only past #538's hop bound.
 //
-// A `<<` merge key is left out and the pairs it merges in are not read (GitHub
-// #395). A repeated key is returned once, so a census does not report a
-// collision the document lacks.
+// A `<<` merge key is left out and its merged pairs are not read (GitHub #395).
+// A repeated key is returned once, so a census does not report a collision the
+// document lacks.
 func RawMappingKeys(root *yaml.Node) []string {
 	if root == nil {
 		return nil

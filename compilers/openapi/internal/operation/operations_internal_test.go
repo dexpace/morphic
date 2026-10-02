@@ -422,10 +422,10 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 // declared key as it presents an undeclared one, and only the vocabulary tells
 // them apart.
 //
-// The item is unmarshalled through the library directly, as the resolver does
-// for a document it parses itself (GitHub #538); source anchors are cleared
-// first (GitHub #459, #501), so that is the path the raw reading still serves.
-// The anchored `get` is not lowered there, a loss this census cannot answer.
+// The item is unmarshalled through the library directly, the one way left to
+// reach this shape: anchors are cleared before any model is built (GitHub #459,
+// #501, #538). The anchored `get` is not lowered there, a loss this census
+// cannot answer.
 func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	pi := pathItemOf(t, `
