@@ -641,36 +641,42 @@ func breadthMergeDoc(k int) []byte {
 }
 
 // TestProbeFromMapping_EntersEachNodeOnce pins the mechanism that bounds the
-// walk, deterministically and without a clock: the set it carries records what
-// it has entered, and holds no more entries than the tree has nodes.
+// walk, without a clock: the set records each anchored mapping the walk enters,
+// and a mapping already in it is not entered again.
 //
-// It is the half a timing test cannot state plainly, and the half that survives
-// if timing ever has to be distrusted. The test beside it measures the property
-// this produces.
+// Re-entry cannot show in the finished set, which only re-marks keys it already
+// holds. So each case seeds one anchor as already entered; a real walk would
+// have read the version through it on the first visit, so seeded, the version
+// must go unread.
 func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(breadthMergeDoc(64), &root))
 	content := documentRoot(&root)
+	anchors := map[string]*yaml.Node{}
+	for _, child := range content.Content {
+		if child.Anchor != "" {
+			anchors[child.Anchor] = child
+		}
+	}
+	require.Len(t, anchors, 2, "the document anchors the two mappings the walk enters")
 
 	seen := map[*yaml.Node]bool{}
 	probe, err := probeFromMapping(content, maxMergeDepth, seen)
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.0", probe.OpenAPI, "the version is still read")
-
-	assert.NotEmpty(t, seen, "the walk records what it entered")
-	assert.LessOrEqual(t, len(seen), treeNodes(content),
-		"and enters no more nodes than the tree holds, however many merge keys name them")
-}
-
-// treeNodes counts the nodes reachable from n, for a bound stated in the
-// document's own terms rather than in a number that would have to be maintained.
-func treeNodes(n *yaml.Node) int {
-	count := 1
-	for _, child := range n.Content {
-		count += treeNodes(child)
+	for _, name := range []string{"a0", "a1"} {
+		assert.True(t, seen[anchors[name]], "the walk records %s once it has entered it", name)
 	}
-	return count
+
+	for _, name := range []string{"a0", "a1"} {
+		t.Run("seeded "+name, func(t *testing.T) {
+			seeded := map[*yaml.Node]bool{anchors[name]: true}
+			got, err := probeFromMapping(content, maxMergeDepth, seeded)
+			require.NoError(t, err)
+			assert.Empty(t, got.OpenAPI, "a mapping already entered is not entered again")
+		})
+	}
 }
 
 // TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
@@ -679,10 +685,10 @@ func treeNodes(n *yaml.Node) int {
 // naming it.
 //
 // It times the walk, not a compile, because parsing costs many times as much
-// and would bury the walk's defect. The assertion is a ratio: doubling the
-// merge keys doubles a linear walk and quadruples a quadratic one, and the
-// allowance of three sits between. Each size is the fastest of several
-// walks, alternated, so a burst of load cannot hit one size alone.
+// and would bury the walk's defect. The assertion is a ratio: four times the
+// merge keys cost a linear walk four times as much and a quadratic one
+// sixteen, so the allowance is eight. Each size is the fastest of several
+// alternated walks, so a burst of load cannot hit one size.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	tree := func(k int) *yaml.Node {
 		var root yaml.Node
@@ -698,7 +704,7 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
 		return elapsed
 	}
-	small, large := tree(8000), tree(16000)
+	small, large := tree(4000), tree(16000)
 
 	// One walk of each first, so neither minimum is the cold one.
 	walk(small)
@@ -709,8 +715,8 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		bestLarge = min(bestLarge, walk(large))
 	}
 
-	assert.Less(t, bestLarge, 3*bestSmall,
-		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
+	assert.Less(t, bestLarge, 8*bestSmall,
+		"four times the merge keys must not cost eight times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
 
 // TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The
