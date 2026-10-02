@@ -679,10 +679,10 @@ func treeNodes(n *yaml.Node) int {
 // naming it.
 //
 // It times the walk, not a compile, because parsing costs many times as much
-// and would bury the walk's defect. The assertion is a ratio: doubling the
-// merge keys doubles a linear walk and quadruples a quadratic one, and the
-// allowance of three sits between. Each size is the fastest of several
-// walks, alternated, so a burst of load cannot hit one size alone.
+// and would bury the walk's defect. The assertion is a ratio: four times the
+// merge keys cost a linear walk four times as much and a quadratic one
+// sixteen, so the allowance is eight. Each size is the fastest of several
+// alternated walks, so a burst of load cannot hit one size.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	tree := func(k int) *yaml.Node {
 		var root yaml.Node
@@ -698,7 +698,7 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
 		return elapsed
 	}
-	small, large := tree(8000), tree(16000)
+	small, large := tree(4000), tree(16000)
 
 	// One walk of each first, so neither minimum is the cold one.
 	walk(small)
@@ -709,8 +709,8 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		bestLarge = min(bestLarge, walk(large))
 	}
 
-	assert.Less(t, bestLarge, 3*bestSmall,
-		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
+	assert.Less(t, bestLarge, 8*bestSmall,
+		"four times the merge keys must not cost eight times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
 
 // TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The
