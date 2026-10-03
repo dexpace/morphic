@@ -782,6 +782,67 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	}
 }
 
+// TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
+// names that the other tests do not, a header, request body, callback,
+// example, link and security scheme, each with a defect only its own Validate
+// finds. Each finding is reported at its $ref, under the rule and severity the
+// library gives it: the callback's is a warning.
+func TestResolve_EveryKindOfObjectIsValidated(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	root := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      requestBody: {$ref: './other.yaml#/components/requestBodies/B'}
+      callbacks: {cb: {$ref: './other.yaml#/components/callbacks/C'}}
+      responses:
+        "200":
+          description: ok
+          headers: {X: {$ref: './other.yaml#/components/headers/H'}}
+          links: {l: {$ref: './other.yaml#/components/links/L'}}
+          content: {application/json: {examples: {e: {$ref: './other.yaml#/components/examples/E'}}}}
+components:
+  securitySchemes:
+    s: {$ref: './other.yaml#/components/securitySchemes/S'}
+`
+	writeFiles(t, dir, map[string]string{"root.yaml": root, "other.yaml": `components:
+  headers:
+    H: {style: form, schema: {type: string}}
+  requestBodies:
+    B: {content: {application/json: {schema: {minLength: -1}}}}
+  callbacks:
+    C: {'{$bogus': {get: {responses: {"200": {description: ok}}}}}
+  examples:
+    E: {value: 1, externalValue: 'https://x.test/e'}
+  links:
+    L: {operationId: a, operationRef: '#/paths/~1a/get'}
+  securitySchemes:
+    S: {type: bogus}
+`})
+
+	_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{})
+
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Severity, d.Code))
+	}
+	want := []string{
+		"/components/securitySchemes/s error openapi/validation/validation-allowed-values",
+		"/paths/~1a/get/callbacks/cb warning openapi/validation/validation-invalid-format",
+		"/paths/~1a/get/requestBody error openapi/validation/validation-invalid-schema",
+		"/paths/~1a/get/responses/200/content/application~1json/examples/e error " +
+			"openapi/validation/validation-mutually-exclusive-fields",
+		"/paths/~1a/get/responses/200/headers/X error openapi/validation/validation-allowed-values",
+		"/paths/~1a/get/responses/200/links/l error openapi/validation/validation-mutually-exclusive-fields",
+	}
+	if d := cmp.Diff(want, got); d != "" {
+		t.Errorf("findings (-want +got):\n%s", d)
+	}
+}
+
 // TestResolve_AnObjectReachedTwiceIsReportedOnce covers the ways one node can
 // be reached more than once: two $refs to one component, a container reached
 // beside something inside it, at the lesser $ref and at the greater, and one
