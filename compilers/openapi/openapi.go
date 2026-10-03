@@ -91,13 +91,12 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // withoutRereported drops each lowering report of an unresolved reference that
 // the load phase already reported at the same position.
 //
-// The load phase resolves every reference and reports a failure at the $ref,
-// with the resolver's reason. The lowering reports a schema reference it could
-// not follow at that same pointer, without one — and also where the load phase
-// reported nothing, such as a reference the resolver followed into a document
-// the lowering cannot read (GitHub #74) — so only a report the load phase has
-// already made at that exact provenance is dropped. Kept, one failure would
-// read as two (GitHub #385).
+// The load phase reports a failure at the $ref, with the resolver's reason. The
+// lowering reports a schema or security-scheme $ref it could not follow at that
+// pointer, without one, and also where the load phase did not: a $ref into a
+// document the lowering cannot read (GitHub #74), or one a resolver panic kept
+// the load phase from reaching. So only a report the load phase made at that
+// exact provenance is dropped; kept, one failure would read as two (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {

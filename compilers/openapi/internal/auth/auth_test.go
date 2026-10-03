@@ -293,15 +293,15 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
-// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins that this
-// package reports none of the unresolvable entries below, through the compiler
-// rather than a hand-built node: a document can write these shapes.
+// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins how each
+// unresolvable entry below is reported, through the compiler rather than a
+// hand-built node: a document can write these shapes. None is named by a
+// requirement, so nothing downstream reports them.
 //
-// None is named by a requirement, so nothing downstream reports them either. A
-// $ref resolving to nothing is reported once, by the load phase, at the entry's
-// own pointer with the resolver's reason (GitHub #385). An entry not written as
-// an object already draws the loader's type-mismatch, which names the entry and
-// its fault.
+// A $ref resolving to nothing is reported once at the entry's own pointer: this
+// package and the load phase both report it there, and the compiler keeps the
+// load phase's, which carries the resolver's reason (GitHub #385). An entry not
+// written as an object already draws the loader's type-mismatch alone.
 func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -350,6 +350,33 @@ components:
 				"the load phase's own report, naming the reference as written")
 		})
 	}
+}
+
+// TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere pins
+// what this package's report of a broken $ref is for. A resolver panic ends the
+// load phase's walk at /components/responses/000, before it reaches the entry,
+// so the load phase reports nothing there; without this report the scheme the
+// document declares would be dropped with no diagnostic that sites it.
+func TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.0.3
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    "000": {$ref: '#/B'}
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing'}
+B: {$ref}
+`)
+	require.NotEmpty(t, messagesAtPointer(diags, "/components/responses/000"),
+		"the fixture reaches the resolver panic it exists for: %+v", diags)
+
+	assert.NotContains(t, doc.Auth, ids.Auth("ghost"))
+	got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+	require.Len(t, got, 1, "%+v", diags)
+	assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: `+
+		`"#/components/securitySchemes/Missing"`, got[0])
 }
 
 // TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
