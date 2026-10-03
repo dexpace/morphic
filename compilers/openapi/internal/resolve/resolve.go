@@ -51,10 +51,11 @@ type Scope struct {
 // way the resolver finds a $ref's target, and ok=false when the pointer
 // addresses no schema.
 //
-// It is for a reference that is only a string. A $ref carries its target's
-// declaration once the resolver has followed it, but a discriminator mapping
-// value is never resolved, so without this a mapping could name an inline
-// position only once some other lowering had interned it (GitHub #530).
+// It is for a reference that is only a string: a discriminator mapping value is
+// never resolved, so it carries no declaration of its own (GitHub #530). Raw
+// YAML under an extension key is no schema here, although the resolver parses
+// it when a $ref names it, so a mapping reaches such a position only once a
+// $ref has interned it (GitHub #757).
 func (s Scope) DeclaredAt(pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], bool) {
 	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {

@@ -1094,10 +1094,7 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 // TestAllOf_InlineSubtypeDiscriminatorValueFromMapping pins the path the #517
 // fix leaves untouched: a mapping entry can still name an inline subtype by
 // JSON reference, and mappingTagsFor — not subtypeDiscriminatorValue's
-// implicit-name fallback — is what gives it that tag. Kennel is declared before
-// Pet because mappingTargetID finds an inline target only once it is interned
-// (GitHub #530); the ordering is incidental to this fix and not what the test
-// pins.
+// implicit-name fallback — is what gives it that tag.
 func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Kennel:

@@ -1112,9 +1112,9 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 }
 
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
-// into TypeIDs, in source order. An entry that names no schema yields one error
-// diagnostic and is dropped — never a synthesized ID that nothing backs (issue
-// #14). An all-dropped mapping collapses to nil, preserving infer-by-name
+// into TypeIDs, in source order. An entry that does not resolve yields one
+// error diagnostic and is dropped — never a synthesized ID that nothing backs
+// (issue #14). An all-dropped mapping collapses to nil, preserving infer-by-name
 // semantics and a clean round-trip.
 func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
@@ -1141,7 +1141,8 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
-// dropping it with one diagnostic when it does not resolve to an interned schema.
+// dropping it with one diagnostic when it does not resolve, as
+// discriminatorMapping drops an entry.
 func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
@@ -1159,13 +1160,12 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a
 // defaultMapping's, to the ID of the schema it names, interning that schema as
 // a $ref to it would when nothing has yet: mappingTargetID first, then the
-// position the target's pointer addresses, hoisted by hoistSubSchema.
+// position DeclaredAt finds for the target's pointer, hoisted by hoistSubSchema.
 //
-// A mapping value is a reference in all but syntax, but the resolver never
-// follows it, so the position is found here. Hoisting it resolves the target to
-// the same pointer-derived ID in either declaration order (GitHub #530), and
-// the node it interns is named provisionally, as any reference's is, until its
-// declaration arrives.
+// The resolver never follows a mapping value, so the position is found here.
+// Hoisting it resolves the target to the same pointer-derived ID in either
+// declaration order (GitHub #530), naming the node provisionally until its
+// declaration arrives. It shares a $ref's limits, GitHub #749's crash included.
 func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, target string) (ir.TypeID, bool, []ir.Diagnostic) {
 	if id, ok := mappingTargetID(c, ts, target); ok {
 		return id, true, nil
@@ -1174,6 +1174,8 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", false, nil
 	}
+	// mappingTargetID resolved every declared component, so this one is
+	// dangling, not an inline position to hoist.
 	if _, _, handled := c.RefScope().ComponentRef(pointer); handled {
 		return "", false, nil
 	}
