@@ -94,17 +94,51 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 
+// TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder drives
+// the two readers that find a node by its coordinate after interning,
+// attachDeclaredAnnotations and recordDeclarationResidue, at a coordinate
+// whose build is still running. Both leave it alone, and the frame building
+// the node attaches the same declaration once its build returns (GitHub #749).
+func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, openapitest.ComponentSpec(
+		"    S: {type: object, description: kept, readOnly: true}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	decl, ok := l.ctx.Doc.Components.Schemas.Get("S")
+	require.True(t, ok)
+	s := decl.GetSchema()
+	const at = jsontext.Pointer("/components/schemas/S")
+
+	var annotated, residue []ir.Diagnostic
+	id := internNode(l.ctx, l.types, at, "s", func(cm ir.TypeCommon) ir.TypeDef {
+		annotated = attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at)
+		residue = recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode)
+		return &ir.Model{TypeCommon: cm}
+	})
+	assert.Empty(t, annotated, "a revisit mid-build attaches nothing")
+	assert.Empty(t, residue, "and records nothing")
+	td, ok := l.types.Node(id)
+	require.True(t, ok)
+	assert.Empty(t, td.Common().Docs.Description, "so the node the build returned holds none of it yet")
+
+	attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at)
+	assert.NotEmpty(t, recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode))
+	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
+	assert.Contains(t, td.Common().Unmodeled, "openapi:readOnly", "and records the residue")
+}
+
 // TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
-// break: a pointer owning an ID the registry never registered. Lowering records
-// the two together, so this state is a compiler bug — and the annotations it
-// would swallow are reported rather than lost.
+// break: an ID the registry never registered and is not building. That state is
+// a compiler bug — and the annotations it would swallow are reported rather
+// than lost.
 func TestAttachDeclaredAnnotations_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	// Reached through preserveUnionSiblings rather than attachDeclaredAnnotations:
-	// the latter takes its ID from the coordinate map, and compile.Types records a
-	// coordinate and its node together, so that caller can no longer present an ID
-	// the registry does not hold. This one is handed an ID by its caller.
+	// the latter takes its node from the coordinate map, where a coordinate
+	// without one is still being built and is left to its builder, so it cannot
+	// be handed an ID the registry does not hold. This one takes an ID from its
+	// caller.
 	diags := preserveUnionSiblings(l.ctx, l.types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
 	assertInternalInvariant(t, diags)
 }

@@ -1165,7 +1165,7 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // The resolver never follows a mapping value, so the position is found here.
 // Hoisting it resolves the target to the same pointer-derived ID in either
 // declaration order (GitHub #530), naming the node provisionally until its
-// declaration arrives. It shares a $ref's limits, GitHub #749's crash included.
+// declaration arrives.
 func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, target string) (ir.TypeID, bool, []ir.Diagnostic) {
 	if id, ok := mappingTargetID(c, ts, target); ok {
 		return id, true, nil

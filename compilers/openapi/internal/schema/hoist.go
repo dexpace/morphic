@@ -23,16 +23,21 @@ const maxSchemaDepth = 256
 // naming it keeps a bare 0 out of the call sites that only pass it through.
 const TopLevelDepth = 0
 
-// registeredNode returns the node interning registered under id, reporting a
-// broken invariant instead of dropping in silence when there is none.
-// compile.Types records a pointer's ID and its node together, so every ID
-// reached through its pointer map resolves; a miss is a compiler bug no source can provoke, and the
-// caller — which was about to attach docs, examples or preserved constructs to
-// that node — would otherwise discard them without a trace.
+// registeredNode returns the node interning registered under id, and ok=false
+// when there is none yet.
+//
+// A node the registry reports as Building is reached again only by a walk
+// running below the frame building it, and that frame finishes the node, this
+// declaration included, once its build returns (GitHub #749). Any other miss is a compiler bug no
+// source can provoke, so it is reported as one: the caller was about to attach
+// docs, examples or preserved constructs, which would otherwise vanish.
 func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) (ir.TypeDef, bool, []ir.Diagnostic) {
 	td, ok := ts.Node(id)
 	if ok {
 		return td, true, nil
+	}
+	if ts.Building(id) {
+		return nil, false, nil
 	}
 	return td, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
