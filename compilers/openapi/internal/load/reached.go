@@ -59,8 +59,8 @@ type targetKey struct {
 	kind reflect.Type
 }
 
-// validateReached validates, once, every object a resolved reference in doc
-// brings in from another document, and reports what that finds at a $ref that
+// validateReached validates every object a resolved reference in doc brings
+// in from another document, and reports each finding once, at a $ref that
 // reaches it (see reached).
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
 	opts Options,
