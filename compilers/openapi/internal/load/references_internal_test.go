@@ -321,29 +321,16 @@ func referencePairs(t *testing.T, doc *soa.OpenAPI) map[string]bool {
 	return out
 }
 
-// TestResolve_ResolvesWhatTheLibraryResolves is a drift test: resolveWith's
-// walk — item.Match(soa.Matcher{Any: ...}) plus the resolvable interface — must
-// reach exactly the references ResolveAllReferences reaches, kind for kind,
-// over every fixture the corpus has. ResolveAllReferences' own implementation
-// hand-enumerates a Matcher field per kind; Any sees every kind including one
-// added after this was written, so a match here says our set was never
-// narrower than the library's own.
+// TestResolve_ResolvesWhatTheLibraryResolves is a drift test: resolveWith must
+// resolve exactly the references ResolveAllReferences does, over every corpus
+// fixture. The library names a Matcher field per kind and resolveWith matches
+// Any, so a kind the library adds later must still agree here.
 //
-// External refs are disabled on both sides. Left at ResolveAllOptions' own
-// default — enabled, with no VirtualFS/HTTPClient override — the library reads
-// the real filesystem for the corpus's own external-ref fixtures and resolves
-// them, while resolveWith's Options{} leaves them off: a difference in I/O
-// policy, not in which references the two walks reach. Probed directly: with
-// the library's default left alone, resolve_main_external_valid.yaml's two
-// external parameters and responses come back resolved from the library and
-// refused from ours, which would fail this test for a reason that has nothing
-// to do with what it checks. Matching the policy on both sides removes that.
-//
-// "Parses" is read the way Load reads it: past the same pre-parse refusals
-// build runs (refusals), not a raw decode. Skipping that gate would hand a
-// cycle or alias-bomb fixture straight to a resolver with no cycle guard of its
-// own, which is exactly the deadlock and stack overflow corpus_test.go
-// documents those refusals as existing to prevent.
+// External references are off on both sides. The library's default reads the
+// real file system where resolveWith's Options{} refuses, a difference in I/O
+// policy rather than in which references either walk reaches. A fixture the
+// pre-parse refusals refuse is skipped: build never resolves one, and the
+// resolver has no guard of its own against the cycles they refuse.
 func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob("../../../../testdata/openapi/*.yaml")

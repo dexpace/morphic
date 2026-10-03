@@ -21,9 +21,10 @@ import (
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //
 // Every place that stamps it has to agree: the loader records it in the
-// SourceInfo, and the lowering stamps every Provenance it builds. Naming it says
-// they must, where a bare 0 written at each site only happens to. The type
-// registry does not stamp it: a shared primitive names no source (GitHub #528).
+// SourceInfo, the lowering stamps every Provenance it builds, and detection
+// names the source by it. Naming it says they must, where a bare 0 written at
+// each site only happens to. The type registry does not stamp it: a shared
+// primitive names no source (GitHub #528).
 //
 // A varying index arrives with the link pass, from Compile's caller.
 const rootSrcIndex = 0
@@ -114,18 +115,36 @@ func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	return out
 }
 
-// run drives the four-phase pipeline over one loaded document (architecture
-// §2.1). Order matters: named component schemas first, so refs from operations
-// find interned IDs; then security schemes, so requirements reference registered
-// IDs; then the service walk; then document metadata. It assembles and returns
-// the Document.
+// SourceTable implements compilers.Compiler: the source at rootSrcIndex, then
+// the overlay at overlaySrcIndex when the options name one. Compile takes
+// exactly one source, so the two indexes are the ones every provenance this
+// compiler builds uses.
 //
-// It reports cancellation as a Go error rather than a diagnostic, and it is the
-// one thing here that is not a spec problem: nothing about the document is wrong,
-// the caller stopped asking. The document is dropped with it — the two walks
-// that honour ctx stop mid-registry, so what is left references types that were
-// never interned — and the diagnostics gathered before the stop are returned, so
-// a caller who cancels on a deadline still sees what the compile had found.
+// The overlay is listed whenever it is named, not only when it applied: a
+// compile it refused reports at its index, and that refusal is the case this
+// table exists for.
+func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources)+1)
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	if o, err := optionsFrom(opts); err == nil && o.Overlay != nil {
+		table = append(table, ir.SourceInfo{Path: o.Overlay.Path})
+	}
+	return table
+}
+
+// run drives the four-phase pipeline over one loaded document (architecture
+// §2.1) and assembles the Document. Order matters: named component schemas
+// first, so refs from operations find interned IDs; then security schemes, so
+// requirements reference registered IDs; then the service walk; then document
+// metadata.
+//
+// It reports cancellation as a Go error, not a diagnostic: nothing about the
+// document is wrong, the caller stopped asking. The document is dropped with it,
+// since the two walks that honour ctx stop mid-registry and what is left
+// references types never interned, but the diagnostics gathered before the stop
+// are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
@@ -231,13 +250,10 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 
 // undecodable reports a source this compiler recognized and could not read.
 //
-// NoSource, not source 0: the parse that failed is the one that would have built
-// the document, so no document is returned and there is no source table for a
-// provenance to index into. A Source of 0 against the nil document engine.Run
-// hands on resolves to no path at all, so it would name nothing while claiming
-// to. The loader's own message carries the position instead, which is the half
-// of a location a reader can act on here.
+// It names the source even though no document is returned: SourceTable is the
+// table a refusal's diagnostics index. The loader's own message carries the
+// position, which the parse that failed never turned into a node.
 func undecodable(err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: rootSrcIndex},
 		"source cannot be read: %s", diag.OneLine(err))
 }

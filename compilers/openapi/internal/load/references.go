@@ -24,30 +24,15 @@ type resolvable interface {
 }
 
 // resolveWith resolves every reference in doc, reading external documents
-// through reader when one is given, and reports what each resolution found at
-// the $ref that produced it: a failure, the refusal of an external reference
-// included, and a finding in the object the reference names.
+// through reader when one is given, and reports each failure, and each finding
+// in the object a reference names, at the $ref that produced it (GitHub #385,
+// GitHub #537). It runs ResolveAllReferences' own walk, since that call says
+// neither which reference failed nor which one a finding came from.
 //
-// It drives the walk ResolveAllReferences runs, with the options it builds, one
-// reference at a time. The library's own call returns every failure joined
-// into one error and every finding in one list, neither saying which reference
-// it came from, so a failure could only be reported at the document root and a
-// finding only at its node's line and column — which, for a document an
-// external reference names, is a position in another file reported against
-// this one (GitHub #385, GitHub #537).
-//
-// A finding is reported at the reference too, with its own rule and severity,
-// and its message says where it is in the document the reference resolves to.
-// That document has no entry in Document.Sources (GitHub #74), so the $ref is
-// the one position in the IR's sources that can stand for it.
-//
-// A finding is about a node of the target, not about the reference, so it is
-// reported once, at the first $ref that reaches its node, however many reach
-// it — as the source's own findings are reported once per node. The library
-// leaves nothing to report for a second reference only when the target came
-// through its own fetch, which caches the object it built; a second resolution
-// handed the document ready-made (resolveExternal) builds it again for each
-// reference, so the findings are kept to one per node here (see unreported).
+// A finding's position is in the target document, which has no entry in
+// Document.Sources (GitHub #74), so it goes in the message. A finding is about a
+// node, not a reference, so it is reported once, at the first $ref reaching it
+// (see unreported).
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, reader *external,
 ) []ir.Diagnostic {
@@ -74,22 +59,15 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	return diags
 }
 
-// eachReference calls visit with every reference the walk reaches that is not
-// yet resolved, and the pointer that writes it, converting a panic from the
-// third-party walk or resolver into an error — the resolve-side counterpart to
-// unmarshal's barrier, needed because the resolver faults on shapes the parser
-// accepts (a $ref with no value nil-derefs while populating the resolved node).
+// eachReference calls visit with each reference the walk reaches that is not
+// yet resolved, and the pointer that writes it. The walk does not descend into
+// what a resolved reference names, so each is visited once, where it is written.
 //
-// The walk stops at the panic, as ResolveAllReferences did, because what the
-// library left half-built is not something to resolve further. site is the
-// reference being resolved when it panicked, or empty — the document root —
-// when the walk itself did.
-//
-// A reference is visited where the document writes it: the walk does not
-// descend into what a resolved reference names, so each is visited once. The
-// walk stops at the first error visit returns, which is reported at that
-// reference; resolve's visit returns none, and the stop is there so the error
-// Match hands back is handled rather than discarded, as in matchSchemas.
+// A panic from the third-party walk or resolver becomes an error, as a parser
+// panic does in unmarshal: the resolver faults on shapes the parser accepts,
+// such as a $ref with no value. It stops the walk, and site is the reference
+// being resolved, or the root when the walk itself panicked. An error visit
+// returns stops the walk too.
 func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, resolvable) error) (site jsontext.Pointer, err error) {
 	defer func() {
 		if r := recover(); r != nil {

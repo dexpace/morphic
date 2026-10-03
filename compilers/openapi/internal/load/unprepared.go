@@ -1,10 +1,13 @@
 package load
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/jsontext"
+	"io"
 	"iter"
 	"net/http"
+	"sync"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -17,77 +20,136 @@ import (
 
 // maxResolutionHops bounds how many documents one reference's resolution is
 // followed through (styleguide bounded-everything rule). The resolver refuses a
-// cycle, so a chain ends on its own; the bound is for an absurd one.
+// cycle, so a chain ends on its own; the bound is for an absurd one. A document
+// past it is neither recovered nor reported (GitHub #538).
 const maxResolutionHops = 32
 
 // externalReads is what the external-document readers of one compile have
-// prepared: each document's bytes and released tree, by the key each was
-// prepared under, and the set of those trees.
+// read: each prepared document's released tree, by the key it was prepared
+// under, the set of those trees, and every answer their requests got, by URL
+// and in order. It is safe for concurrent use, as the readers sharing it are.
 type externalReads struct {
-	data  map[string][]byte
-	trees map[string]*yaml.Node
-	mine  map[*yaml.Node]bool
+	mu       sync.Mutex
+	trees    map[string]*yaml.Node
+	mine     map[*yaml.Node]bool
+	answers  map[string][]answer
+	replayed map[string]int
 }
 
 // newExternalReads returns an empty record.
 func newExternalReads() *externalReads {
 	return &externalReads{
-		data:  map[string][]byte{},
-		trees: map[string]*yaml.Node{},
-		mine:  map[*yaml.Node]bool{},
+		trees:    map[string]*yaml.Node{},
+		mine:     map[*yaml.Node]bool{},
+		answers:  map[string][]answer{},
+		replayed: map[string]int{},
 	}
 }
 
-// record notes a document prepared under key.
-func (r *externalReads) record(key string, data []byte, tree *yaml.Node) {
-	r.data[key] = data
+// answer is how a request was answered: the error it failed with, or a status
+// and the body read for it.
+type answer struct {
+	status int
+	body   []byte
+	err    error
+}
+
+// response returns a as the client returned it: its error, or a response to req
+// with its status and body.
+func (a answer) response(req *http.Request) (*http.Response, error) {
+	if a.err != nil {
+		return nil, a.err
+	}
+	return &http.Response{StatusCode: a.status, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
+}
+
+// recordAnswer appends how a request for key was answered.
+func (r *externalReads) recordAnswer(key string, a answer) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.answers[key] = append(r.answers[key], a)
+}
+
+// nextAnswer returns the first answer for key not yet replayed, so the n-th
+// request replayed gets the n-th answer, or false once none is left. The
+// resolver sends one request at a time, in its walk's order, so a second
+// resolution asks in the order the first did.
+func (r *externalReads) nextAnswer(key string) (answer, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := r.replayed[key]
+	if n >= len(r.answers[key]) {
+		return answer{}, false
+	}
+	r.replayed[key] = n + 1
+	return r.answers[key][n], true
+}
+
+// recordTree notes a document prepared under key.
+func (r *externalReads) recordTree(key string, tree *yaml.Node) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.trees[key] = tree
 	r.mine[tree] = true
 }
 
-// preparedFor returns what was prepared for the document the resolver keys as
+// prepared reports whether tree is one this compile prepared.
+func (r *externalReads) prepared(tree *yaml.Node) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.mine[tree]
+}
+
+// preparedFor returns the tree prepared for the document the resolver keys as
 // used, or false for none. A file is keyed by the path the resolver opened,
 // which is used itself; a URL by the request built from used, which is what the
 // reader was handed.
-func (r *externalReads) preparedFor(used string) ([]byte, *yaml.Node, bool) {
+func (r *externalReads) preparedFor(used string) (*yaml.Node, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if tree, ok := r.trees[used]; ok {
-		return r.data[used], tree, true
+		return tree, true
 	}
 	req, err := http.NewRequest(http.MethodGet, used, nil)
 	if err != nil {
-		return nil, nil, false
+		return nil, false
 	}
-	key := req.URL.String()
-	tree, ok := r.trees[key]
-	return r.data[key], tree, ok
+	tree, ok := r.trees[req.URL.String()]
+	return tree, ok
 }
 
-// resolveExternal resolves doc's references with external documents read
-// through a reader that prepares them (see external), and recovers the entries
-// of any document the resolver parsed itself instead (GitHub #538).
+// handOver stores every prepared tree where the resolver of doc looks for one:
+// under the key it was prepared under, and, for each document in used, under
+// the key the resolver read it by.
 //
-// The reader stores each prepared tree under the key the request it is handed
-// spells, and the resolver looks a document up under the reference's own
-// absolute URL. net/url respells a URL many-to-one — an upper-case scheme, an
-// empty port — so for a $ref written that way the two keys differ: the resolver
-// found nothing, parsed the bytes itself, and skipped every anchored entry the
-// model folds into a map, with no diagnostic.
+// It stores no bytes. With a document's bytes cached the resolver skips its
+// request and may return an object cached for another reference, so the
+// second resolution would not resolve as the first did (GitHub #576's
+// self-reference shows it); the replayed request brings them instead.
+func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
+	r.mu.Lock()
+	for key, tree := range r.trees {
+		doc.StoreExternalDocumentInCache(key, tree)
+	}
+	r.mu.Unlock()
+	for _, u := range used {
+		if tree, ok := r.preparedFor(u.key); ok {
+			doc.StoreExternalDocumentInCache(u.key, tree)
+		}
+	}
+}
+
+// resolveExternal resolves doc's references through a preparing reader (see
+// external), and recovers the entries of a document the resolver parsed itself
+// (GitHub #538).
 //
-// The key the resolver used cannot be recovered from the request, but it can be
-// read back afterwards: each resolved reference records the document it read,
-// and the tree the resolver cached under that key is either one this compile
-// prepared or one it parsed itself. When one it parsed itself holds an anchor —
-// without one there is nothing its fold could skip — doc is rebuilt from the
-// same tree and resolved again, handed every document the first resolution read
-// under the exact key the resolver used. Nothing is read twice, and every
-// lookup finds a prepared tree.
-//
-// The second resolution reads no document the first did not. What the fold
-// skipped is an entry of a resolved object, and the walk that resolves the
-// references never descends into a resolved object, so recovering one reaches
-// no reference the first resolution left unfollowed. A document it still finds
-// unprepared would break that, and is reported as the compiler's own fault
-// rather than dropped in silence.
+// net/url respells a URL many-to-one, so a stored tree can miss the resolver's
+// key. Each resolved reference records the document it read; when one the
+// resolver parsed holds an anchor, doc is rebuilt and resolved again, handed
+// every prepared tree (see handOver) and the first pass's answers (see
+// external.replaying). It resolves as the first did but for those trees, which
+// the walk never descends into, so it reaches no new document; one found
+// unprepared is an internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
@@ -104,13 +166,9 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 		return nil, nil, err
 	}
 	again.InitCache()
-	for _, u := range used {
-		if data, tree, ok := read.preparedFor(u.key); ok {
-			again.StoreExternalDocumentInCache(u.key, tree)
-			again.StoreReferenceDocumentInCache(u.key, data)
-		}
-	}
+	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
+	reader.replaying = true
 	diags = resolveWith(ctx, at, again, path, opts, &reader)
 	return again, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
 }
@@ -153,7 +211,7 @@ func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocum
 		}
 		reported[m.key] = true
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
-			"internal: the resolver read %s itself after it was handed a prepared copy; "+
+			"internal: the second resolution read %s itself; "+
 				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
 	return diags
@@ -172,12 +230,9 @@ func documentsUsed(ctx context.Context, doc *soa.OpenAPI) []usedDocument {
 	return hopsUsed(soa.Walk(ctx, doc))
 }
 
-// hopsUsed is documentsUsed's walk, over items rather than a document directly,
-// so a test can fabricate a WalkItem whose Match reports an error —
-// matchSchemas (load.go) takes the same iter.Seq[soa.WalkItem] parameter for
-// the same reason, over the same library. Any's own callback below always
-// returns nil, so nothing through the real soa.Walk can reach that branch; a
-// fabricated item is the only way to.
+// hopsUsed is documentsUsed over walk items rather than a document, so a test
+// can reach its early return: Match returns only what its callback returns,
+// which here is always nil, so no real walk stops early.
 func hopsUsed(items iter.Seq[soa.WalkItem]) []usedDocument {
 	var used []usedDocument
 	for item := range items {
@@ -201,7 +256,7 @@ func unprepared(doc *soa.OpenAPI, read *externalReads, used []usedDocument) []us
 	for _, u := range used {
 		cached, ok := doc.GetCachedExternalDocument(u.key)
 		tree, isTree := cached.(*yaml.Node)
-		if !ok || !isTree || read.mine[tree] {
+		if !ok || !isTree || read.prepared(tree) {
 			continue
 		}
 		out = append(out, u)
@@ -232,15 +287,19 @@ func hopDocuments(model any) []string {
 	case *soa.ReferencedSecurityScheme:
 		return hops(r)
 	case *oas3.JSONSchema[oas3.Referenceable]:
-		return schemaHops(r)
+		return hops(r)
 	default:
 		return nil
 	}
 }
 
-// hops follows a resolved reference through each document its resolution read.
-// Every Referenced* alias is the library's Reference[T, V, C]; S names it the
-// way resolve.Referenced does, since the library's V constraint is internal.
+// hops follows a resolved reference through each document its resolution read,
+// by each hop's own resolution record. S is the reference's own type, a schema
+// or a Referenced* alias's Reference[T, V, C], named through S as
+// resolve.Referenced does because the library's V constraint is internal.
+//
+// A schema's GetReferenceChain would not do: it hangs off the target's parent,
+// which the last reference to resolve a shared target overwrites.
 func hops[S any, R interface {
 	*S
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
@@ -253,29 +312,6 @@ func hops[S any, R interface {
 		}
 		docs = append(docs, info.AbsoluteDocumentPath)
 		hop = info.Object
-	}
-	return docs
-}
-
-// schemaHops follows a resolved schema reference through each document its
-// resolution read, js's own first.
-//
-// GetReferenceChain, read off the fully resolved schema, already starts with js
-// itself — js is the chain's top-level entry by construction (GetTopLevelReference
-// says so) — so this walks the chain alone rather than prepending js.GetAbsRef()
-// to it: doing both read js's own document twice, once directly and once as
-// chain[0], for every resolved schema reference including an unchained one.
-func schemaHops(js *oas3.JSONSchema[oas3.Referenceable]) []string {
-	if !js.IsReference() || !js.IsResolved() {
-		return nil
-	}
-	chain := js.GetResolvedSchema().GetReferenceChain()
-	docs := make([]string, 0, min(len(chain), maxResolutionHops))
-	for _, e := range chain {
-		if len(docs) >= maxResolutionHops {
-			break
-		}
-		docs = append(docs, e.Schema.GetAbsRef().GetURI())
 	}
 	return docs
 }

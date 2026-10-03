@@ -12,34 +12,16 @@ import (
 const idFieldName = "ID"
 
 // checkDeclaredIDs asserts every node that declares an identity of its own
-// carries a non-empty one.
+// carries a non-empty one. An ID derives from the source pointer, so an empty
+// one is a compiler bug; it surfaces as a dangling reference at the referring
+// site, not as the missing declaration.
 //
-// An ID is derived from the source pointer of its defining occurrence, so an
-// empty one means a compiler minted nothing where it was supposed to mint an
-// identity — our bug, on the same reasoning as ir/duplicate-<noun>-id. What it
-// costs downstream is worse than the missing ID: every reference to the node
-// resolves against a registry that does not contain it, so the defect reads as a
-// dangling reference at the *referring* site rather than as the missing
-// declaration it is.
-//
-// Nothing else reaches it. checkRegistryKeys reports an empty ID from the
-// registry *key*, and only Types, Channels, Messages and Auth are maps; an
-// Operation is declared inside the Service→OperationGroup tree, a Service sits
-// in a slice, and a Property is a position inside its model, so none of the
-// three has a key for that rule to read. checkDuplicateIDs never sees one
-// either, because ir.DeclaredIDs drops an empty ID before the declaration list
-// is built — correctly, since nothing can reference one and treating several
-// nodes carrying one as duplicates of each other would name the wrong defect
-// (GitHub #289). The claim that a node meant to have an identity carries one is
-// separate, and this is where it is made.
-//
-// The classes checkRegistryKeys already covers are skipped, so one defect stays
-// one report rather than becoming two under the same code. Which those are is
-// read off Document's own shape through ir.DocumentRegistries rather than listed
-// here, so a registry added to Document moves its class across on its own.
-//
-// The code is the one the map-keyed classes already use — ir/empty-<noun>-id —
-// so one defect reads under one code whichever rule reports it.
+// Nothing else reaches these nodes. checkRegistryKeys reads an empty ID from
+// the registry key, but an Operation, Service or Property has no key, and
+// checkDuplicateIDs never sees one because ir.DeclaredIDs drops empty IDs
+// (GitHub #289). Classes checkRegistryKeys covers (see ir.DocumentRegistries)
+// are skipped so one defect gets one report, under the same ir/empty-<noun>-id
+// code.
 func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	keyed := ir.DocumentRegistries(doc)
 	var vs []Violation
@@ -68,23 +50,14 @@ func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 // declaredID returns the identity v declares for itself: the class of ID, its
 // value, and whether v declares one at all.
 //
-// It repeats the predicate ir.declaredID applies — a field named ID that v's own
-// type declares, of a named string type — because that function answers only for
-// the non-empty ones. Repeating it exactly is the point: the two have to agree on
-// what declares an identity, or this rule and ir.DeclaredIDs disagree about which
-// nodes exist.
+// It repeats the predicate ir.declaredID applies, a field named ID that v's own
+// type declares, of a named string type, because that function answers only for
+// non-empty IDs. The two must agree on what declares an identity. A promoted
+// field is not a declaration; every type node promotes TypeCommon.ID, but such
+// nodes are registry-keyed and skipped before it matters.
 //
-// A promoted field is not its own declaration. Every type node embeds TypeCommon
-// and so promotes its TypeID, which ir.DeclaredIDs would record a second time —
-// here such a node is skipped as registry-keyed before that matters, so the
-// clause is carried for fidelity with ir rather than for an effect of its own.
-//
-// Both narrowing clauses are pinned by TestDeclaredID_ClassifiesEachShape rather
-// than by the walk comparison beside it: no Document separates them, since every
-// promoted ID is registry-keyed and the IR declares no plain-string ID, so
-// dropping either leaves every fixture-driven test here green.
-// TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode holds the walk in step with
-// ir.DeclaredIDs; this holds the predicate.
+// No Document separates the two narrowing clauses, so only
+// TestDeclaredID_ClassifiesEachShape pins them.
 func declaredID(v reflect.Value) (class reflect.Type, id string, declares bool) {
 	f, isDeclared := v.Type().FieldByName(idFieldName)
 	if !isDeclared || len(f.Index) != 1 || !namedString(f.Type) {

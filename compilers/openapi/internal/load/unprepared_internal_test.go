@@ -44,17 +44,12 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
 }
 
-// resolveSpecWith is resolveSpec with a caller-supplied rebuild, for the tests
-// that need to observe or fail whether it is called.
-func resolveSpecWith(t *testing.T, spec, path string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
+// resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
+// the tests that need to observe or fail whether it is called.
+func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	data := []byte(spec)
-	root, _, err := decodeStream(data)
-	require.NoError(t, err)
-	releaseAnchors(root)
-	doc, _, err := unmarshal(t.Context(), data, root)
-	require.NoError(t, err)
-	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec), "root.yaml",
+		Options{AllowExternalRefs: true}, rebuild)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to
@@ -87,10 +82,16 @@ paths:
 // itself instead of this compiler's anchor-released copy.
 func assertRecovered(t *testing.T, doc *soa.OpenAPI) {
 	t.Helper()
-	ref, ok := doc.Paths.Get("/x")
-	require.True(t, ok, "/x is in the resolved document")
+	assertRecoveredAt(t, doc, "/x")
+}
+
+// assertRecoveredAt is assertRecovered for the path item at path.
+func assertRecoveredAt(t *testing.T, doc *soa.OpenAPI, path string) {
+	t.Helper()
+	ref, ok := doc.Paths.Get(path)
+	require.True(t, ok, "%s is in the resolved document", path)
 	item := ref.GetObject()
-	require.NotNil(t, item, "/x's reference resolved to a path item")
+	require.NotNil(t, item, "%s's reference resolved to a path item", path)
 	get := item.Get()
 	require.NotNil(t, get, "the anchored GET entry was folded, not skipped")
 	assert.Equal(t, "EXTGET", get.GetOperationID())
@@ -100,16 +101,14 @@ func assertRecovered(t *testing.T, doc *soa.OpenAPI) {
 }
 
 // respellings is the set of URL spellings net/url respells relative to how
-// http.NewRequest's caller wrote them, reproducing GitHub #538: the resolver's
-// own cache key is the reference's absolute URL as written, while this
-// compiler's reader stores the document it prepared under req.URL.String().
+// http.NewRequest's caller wrote them (GitHub #538): the resolver keys a
+// document by the reference's absolute URL as written, while the reader stores
+// it under req.URL.String().
 //
-// A literal space in the path ("/do c.yaml", served as "/do%20c.yaml") is
-// not in this table. Probed separately: url.Parse and http.NewRequest both
-// normalize a literal space and its %20 escape to the identical
-// "http://host/do%20c.yaml" request key, so the two spellings never produce
-// different cache keys through this library's own resolution path, and there is
-// nothing here for the recovery to be exercised against.
+// A literal space in the path is absent: url.Parse and http.NewRequest
+// normalize it and its %20 escape to one request key, so the two spellings
+// never produce different keys. An empty port is covered by TestPreparedFor,
+// since a test server cannot listen on the default port.
 var respellings = []struct {
 	name  string
 	spell func(canonical string) string
@@ -212,7 +211,7 @@ func TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt(t *testing.T) {
 		return nil, nil // unreachable: t.Fatal stops this goroutine first
 	}
 
-	doc, diags, err := resolveSpecWith(t, rootReferencing(url), "root.yaml", rebuild)
+	doc, diags, err := resolveSpecWith(t, rootReferencing(url), rebuild)
 
 	require.NoError(t, err)
 	assert.Empty(t, diags)
@@ -224,23 +223,219 @@ func TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt(t *testing.T) {
 	assert.Equal(t, int32(1), requests.Load())
 }
 
+// respelled returns url with its scheme spelled scheme, which net/url respells
+// back to "http" in the request built from it.
+func respelled(url, scheme string) string {
+	return scheme + "://" + strings.TrimPrefix(url, "http://")
+}
+
+// TestResolveExternal_TheSecondPassSendsNoRequestTheFirstMade pins that the
+// second pass is answered as the first pass's requests were, for the references
+// that failed in it: a failed status, a transport error, a refusal, and a
+// document without the fragment named each reach the server once and are
+// reported once. flaky.yaml would succeed if asked again, under a spelling the
+// resolver keys apart, so a second request would read it unprepared where the
+// first pass built nothing from it.
+func TestResolveExternal_TheSecondPassSendsNoRequestTheFirstMade(t *testing.T) {
+	t.Parallel()
+	var flaky, refused, unfound atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ext.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc("/flaky.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		if flaky.Add(1) == 1 {
+			http.Error(w, "busy", http.StatusServiceUnavailable)
+			return
+		}
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc("/refused.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		refused.Add(1)
+		_, err := w.Write([]byte("p: &a [*a]\n"))
+		assert.NoError(t, err)
+	})
+	mux.HandleFunc("/unfound.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		unfound.Add(1)
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	// A server of its own: the transport retries a request that fails on a
+	// reused connection, and the first one to a server never is.
+	var cut atomic.Int32
+	cutSrv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		cut.Add(1)
+		hj, ok := w.(http.Hijacker)
+		if !assert.True(t, ok) {
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.NoError(t, conn.Close())
+	})
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /x: {$ref: \"" + respelled(srv.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
+		"  /flaky: {$ref: \"" + respelled(srv.URL, "HTTP") + "/flaky.yaml#/paths/~1x\"}\n" +
+		"  /refused: {$ref: \"" + srv.URL + "/refused.yaml#/paths/~1x\"}\n" +
+		"  /unfound: {$ref: \"" + srv.URL + "/unfound.yaml#/paths/~1nowhere\"}\n" +
+		"  /cut: {$ref: \"" + cutSrv.URL + "/cut.yaml#/paths/~1x\"}\n"
+
+	doc, diags, err := resolveSpec(t, spec, "root.yaml")
+
+	require.NoError(t, err)
+	assertRecovered(t, doc)
+	codes := make([]string, len(diags))
+	for i, d := range diags {
+		codes[i] = d.Code
+	}
+	assert.Equal(t, []string{diag.UnresolvedRef, diag.UnresolvedRef, diag.UnresolvedRef, diag.UnresolvedRef}, codes,
+		"each failure once, and no internal fault for flaky.yaml")
+	assert.Equal(t, int32(1), flaky.Load(), "a failed status is replayed")
+	assert.Equal(t, int32(1), refused.Load(), "a refusal is replayed")
+	assert.Equal(t, int32(1), unfound.Load(), "a document's bytes are replayed")
+	assert.Equal(t, int32(1), cut.Load(), "a transport error is replayed")
+}
+
+// TestResolveExternal_TheSecondPassGetsTheFirstPassAnswersInOrder pins the
+// replay's order on one URL that fails one request. Spelled three ways, /a and
+// /c resolve under keys of their own and /b fails, as in the first pass;
+// spelled once, /a fails and /b resolves, as in the first pass. Answering a
+// failed request with a success would have it read the document unprepared, or
+// resolve what the first pass did not; answering every request with the
+// failure would fail a reference the first pass resolved.
+func TestResolveExternal_TheSecondPassGetsTheFirstPassAnswersInOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("three spellings", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int32
+		srv := newTestServer(t, failingHandler(t, 2, &requests))
+		spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+			"  /a: {$ref: \"" + respelled(srv.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
+			"  /b: {$ref: \"" + respelled(srv.URL, "Http") + "/ext.yaml#/paths/~1x\"}\n" +
+			"  /c: {$ref: \"" + respelled(srv.URL, "hTTP") + "/ext.yaml#/paths/~1x\"}\n"
+
+		doc, diags, err := resolveSpec(t, spec, "root.yaml")
+
+		require.NoError(t, err)
+		assertRecoveredAt(t, doc, "/a")
+		assertRecoveredAt(t, doc, "/c")
+		require.Len(t, diags, 1)
+		assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+		assert.Contains(t, diags[0].Message, "503")
+		assert.Equal(t, int32(3), requests.Load(), "the second pass sends nothing")
+	})
+
+	t.Run("one spelling", func(t *testing.T) {
+		t.Parallel()
+		var requests atomic.Int32
+		srv := newTestServer(t, failingHandler(t, 1, &requests))
+		trigger, _ := countingServer(t, anchoredExternalDoc)
+		spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+			"  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
+			"  /a: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n" +
+			"  /b: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n"
+
+		doc, diags, err := resolveSpec(t, spec, "root.yaml")
+
+		require.NoError(t, err)
+		assertRecoveredAt(t, doc, "/x")
+		assertRecoveredAt(t, doc, "/b")
+		require.Len(t, diags, 1, "/a fails as it did in the first pass")
+		assert.Contains(t, diags[0].Message, "503")
+		assert.Equal(t, int32(2), requests.Load(), "the second pass sends nothing")
+	})
+}
+
+// failingHandler serves anchoredExternalDoc to every request but the n-th,
+// which fails with 503, counting them in requests.
+func failingHandler(t *testing.T, n int32, requests *atomic.Int32) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) == n {
+			http.Error(w, "busy", http.StatusServiceUnavailable)
+			return
+		}
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	}
+}
+
+// TestResolveExternal_TheFirstPassSendsEveryRequest pins that only the second
+// pass replays: in the first, a reference whose document failed to arrive does
+// not fail the next reference to it, which asks again and resolves.
+func TestResolveExternal_TheFirstPassSendsEveryRequest(t *testing.T) {
+	t.Parallel()
+	var requests atomic.Int32
+	srv := newTestServer(t, failingHandler(t, 1, &requests))
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n" +
+		"  /b: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n"
+
+	doc, diags, err := resolveSpec(t, spec, "root.yaml")
+
+	require.NoError(t, err)
+	assertRecoveredAt(t, doc, "/b")
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "503")
+	assert.Equal(t, int32(2), requests.Load())
+}
+
+// TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid pins
+// that the hand-over leaves the resolver's own caching alone. ./self.yaml is
+// read as another document (GitHub #576), so /b mounts a copy of what /a does.
+// Had the second pass been handed the source's bytes, the resolver would have
+// returned /a's object for /b instead: whether some other $ref is respelled
+// would decide how /b resolves.
+func TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid(t *testing.T) {
+	t.Parallel()
+	trigger, _ := countingServer(t, anchoredExternalDoc)
+	for _, tc := range []struct {
+		name  string
+		other string
+	}{
+		{"alone", ""},
+		{"beside a respelled $ref", "  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + tc.other +
+				"  /a: {$ref: '#/components/pathItems/Shared'}\n" +
+				"  /b: {$ref: './self.yaml#/components/pathItems/Shared'}\n" +
+				"components:\n  pathItems:\n    Shared:\n" +
+				"      get: {operationId: dup, responses: {\"200\": {description: ok}}}\n"
+			dir := t.TempDir()
+			writeFile(t, dir, "self.yaml", spec)
+
+			doc, diags, err := resolveSpec(t, spec, filepath.Join(dir, "self.yaml"))
+
+			require.NoError(t, err)
+			assert.Empty(t, diags)
+			a, ok := doc.Paths.Get("/a")
+			require.True(t, ok)
+			b, ok := doc.Paths.Get("/b")
+			require.True(t, ok)
+			require.NotNil(t, a.GetObject())
+			require.NotNil(t, b.GetObject())
+			assert.NotSame(t, a.GetObject().GetRootNode(), b.GetObject().GetRootNode(),
+				"/b mounts the copy read from self.yaml, not /a's own declaration")
+		})
+	}
+}
+
 // TestResolveExternal_ARebuildErrorIsReturned pins that resolveExternal returns
 // a rebuild failure to its caller rather than swallowing it.
 //
-// It stops at resolveExternal's own boundary and does not chase the error into
-// Load's "rebuild source" wrap (compilers/openapi/internal/load/load.go, build):
-// build's rebuild closure re-unmarshals the exact same (ctx, src.Data, root)
-// its own first, already-successful unmarshal call used, and unmarshal is a
-// pure function of those three arguments (probed directly: the same input
-// unmarshaled twice always succeeds twice, and an already-canceled context
-// changes nothing — unmarshal never inspects ctx). So build's particular
-// rebuild closure cannot fail once its own first unmarshal has already
-// succeeded, which it must have for execution to reach resolve/rebuild at all;
-// only a hard error injected here, as resolveExternal's rebuild parameter
-// allows, can reach this branch. build's wrap itself —
-// fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err) — is read off
-// load.go rather than exercised, since there is no legitimate input that
-// reaches it.
+// Load's own rebuild cannot fail once its first unmarshal has succeeded:
+// unmarshal is a pure function of (ctx, data, root) and ignores ctx, so only an
+// injected error reaches this branch. Load's wrap of it is driven through the
+// rebuildDoc seam by TestLoad_ARebuildFailureIsWrappedAsRebuildSource.
 func TestResolveExternal_ARebuildErrorIsReturned(t *testing.T) {
 	t.Parallel()
 	srv, requests := countingServer(t, anchoredExternalDoc)
@@ -248,7 +443,7 @@ func TestResolveExternal_ARebuildErrorIsReturned(t *testing.T) {
 	sentinel := errors.New("rebuild boom")
 	rebuild := func() (*soa.OpenAPI, error) { return nil, sentinel }
 
-	doc, diags, err := resolveSpecWith(t, rootReferencing(url), "root.yaml", rebuild)
+	doc, diags, err := resolveSpecWith(t, rootReferencing(url), rebuild)
 
 	assert.Nil(t, doc)
 	assert.Nil(t, diags)
@@ -399,12 +594,9 @@ func TestLoad_RecoversARespelledExternalReference(t *testing.T) {
 	assert.Equal(t, int32(1), requests.Load())
 }
 
-// TestLoad_ARebuildFailureIsWrappedAsRebuildSource drives build's own wrap of a
-// rebuild failure — fmt.Errorf("openapi: rebuild source %d: %w", ...) — using
-// the rebuildDoc test seam, since unmarshal itself never fails on the second of
-// two identical calls (see TestResolveExternal_ARebuildErrorIsReturned's own
-// comment for why, and the seam's doc comment on Options.rebuildDoc for what
-// replaces it here).
+// TestLoad_ARebuildFailureIsWrappedAsRebuildSource drives build's wrap of a
+// rebuild failure through the rebuildDoc seam, since the real rebuild repeats an
+// unmarshal that already succeeded and cannot fail.
 func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 	t.Parallel()
 	srv, _ := countingServer(t, anchoredExternalDoc)
@@ -427,11 +619,11 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 	assert.Contains(t, err.Error(), "rebuild source 5")
 }
 
-// TestStillUnprepared is a unit test: the state it reports — a document still
-// unprepared after the recovery pass — is not reachable by feeding a document
-// through resolveExternal, since the second pass pre-stores every document the
-// first pass used (see resolveExternal's own doc comment for why that is
-// exhaustive). It is driven directly with fabricated usedDocuments instead.
+// TestStillUnprepared is a unit test of the report itself. No document makes
+// the second pass read one the first did not, since the resolver never follows
+// a reference inside a resolved object, so it is driven with fabricated
+// usedDocuments. The tests after it reach it through resolveExternal with a
+// rebuild that differs from the first model.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
 	at := pointerAt(3, overlay.Origin{})
@@ -454,6 +646,73 @@ func TestStillUnprepared(t *testing.T) {
 		"reported at the first reference that read it, not at the second one to the same key")
 	assert.Contains(t, diags[1].Message, "http://a/2.yaml")
 	assert.Equal(t, jsontext.Pointer("/paths/~1z"), diags[1].Provenance.Pointer)
+}
+
+// modelOf builds spec's model the way build does before resolving it.
+func modelOf(t *testing.T, spec string) *soa.OpenAPI {
+	t.Helper()
+	data := []byte(spec)
+	root, _, err := decodeStream(data)
+	require.NoError(t, err)
+	releaseAnchors(root)
+	doc, _, err := unmarshal(t.Context(), data, root)
+	require.NoError(t, err)
+	return doc
+}
+
+// secondPassSpecs returns the source resolveExternal is given, whose one path
+// reaches extURL, and a rebuild of it that also has /y reach otherURL: a
+// document the first pass never reads.
+func secondPassSpecs(t *testing.T, extURL, otherURL string) (string, func() (*soa.OpenAPI, error)) {
+	t.Helper()
+	second := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /x: {$ref: \"" + extURL + "#/paths/~1x\"}\n" +
+		"  /y: {$ref: \"" + otherURL + "#/paths/~1x\"}\n"
+	return rootReferencing(extURL), func() (*soa.OpenAPI, error) { return modelOf(t, second), nil }
+}
+
+// TestResolveExternal_ADocumentOnlyTheSecondPassReadsIsPrepared holds the second
+// pass's reader to the model it resolves: other.yaml is read for the first time
+// there, and its prepared tree must be stored where the rebuilt model looks, not
+// in the first model, or its anchored entries are skipped.
+func TestResolveExternal_ADocumentOnlyTheSecondPassReadsIsPrepared(t *testing.T) {
+	t.Parallel()
+	ext, extRequests := countingServer(t, anchoredExternalDoc)
+	other, otherRequests := countingServer(t, anchoredExternalDoc)
+	extURL := "HTTP://" + strings.TrimPrefix(ext.URL, "http://") + "/ext.yaml"
+	first, rebuild := secondPassSpecs(t, extURL, other.URL+"/other.yaml")
+
+	doc, diags, err := resolveSpecWith(t, first, rebuild)
+
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	assertRecoveredAt(t, doc, "/x")
+	assertRecoveredAt(t, doc, "/y")
+	assert.Equal(t, int32(1), extRequests.Load(), "ext.yaml is fetched once, in the first pass")
+	assert.Equal(t, int32(1), otherRequests.Load(), "other.yaml is fetched once, in the second")
+}
+
+// TestResolveExternal_ARespelledDocumentOnlyTheSecondPassReadsIsReported pins
+// that resolveExternal reports a document the second pass read unprepared,
+// rather than dropping its anchored entries in silence: other.yaml is respelled,
+// so the resolver misses the tree stored under its request's URL.
+func TestResolveExternal_ARespelledDocumentOnlyTheSecondPassReadsIsReported(t *testing.T) {
+	t.Parallel()
+	ext, _ := countingServer(t, anchoredExternalDoc)
+	other, _ := countingServer(t, anchoredExternalDoc)
+	extURL := "HTTP://" + strings.TrimPrefix(ext.URL, "http://") + "/ext.yaml"
+	otherURL := "HTTP://" + strings.TrimPrefix(other.URL, "http://") + "/other.yaml"
+	first, rebuild := secondPassSpecs(t, extURL, otherURL)
+
+	_, diags, err := resolveSpecWith(t, first, rebuild)
+
+	require.NoError(t, err)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
+	assert.Contains(t, diags[0].Message, otherURL)
+	assert.Equal(t, jsontext.Pointer("/paths/~1y"), diags[0].Provenance.Pointer,
+		"reported at the reference that read it")
 }
 
 // aliasKindsFixture carries one internal $ref of every Referenced* alias
@@ -517,13 +776,10 @@ components:
 // resolvedModels resolves doc and walks it, keeping the model Walk visits under
 // each alias kind hopDocuments switches on that is itself a $ref.
 //
-// Walk visits some kinds — a path item, a header, a link, a security scheme —
-// twice: once as the $ref this fixture wrote, and again as an inline wrapper
-// Walk synthesizes around the resolved content on its way to walking that
-// content's own fields (probed directly: IsReference is true on the first
-// sighting of each and false, with a nil GetReferenceResolutionInfo, on the
-// second). Keeping only the sighting that IsReference is what a fixture with
-// exactly one reference of each kind needs.
+// Walk visits a path item, header, link or security scheme twice: as the $ref
+// this fixture wrote, and as an inline wrapper around the resolved content,
+// where IsReference is false and GetReferenceResolutionInfo nil. Keeping the
+// sighting that IsReference suits a fixture with one reference of each kind.
 func resolvedModels(t *testing.T, doc *soa.OpenAPI) map[string]any {
 	t.Helper()
 	out := map[string]any{}
@@ -577,8 +833,9 @@ func resolvedModels(t *testing.T, doc *soa.OpenAPI) map[string]any {
 }
 
 // TestHopDocuments covers hopDocuments' dispatch: each Referenced* alias arm,
-// the schema arm (a direct external ref and a chain through two documents), and
-// the default arm for a model none of the cases name.
+// the schema arm (a direct reference, a chain through three documents, and a
+// chain whose target another reference shares), and the default arm for a
+// model none of the cases name.
 func TestHopDocuments(t *testing.T) {
 	t.Parallel()
 
@@ -606,29 +863,38 @@ func TestHopDocuments(t *testing.T) {
 	t.Run("a schema", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
-		writeFile(t, dir, "a.yaml", "openapi: 3.1.0\ninfo: {title: A, version: \"1\"}\npaths: {}\n"+
-			"components:\n  schemas:\n    A: {$ref: \"./b.yaml#/components/schemas/B\"}\n")
-		writeFile(t, dir, "b.yaml", "openapi: 3.1.0\ninfo: {title: B, version: \"1\"}\npaths: {}\n"+
-			"components:\n  schemas:\n    B: {type: string}\n")
-		bPath := filepath.Join(dir, "b.yaml")
-		aPath := filepath.Join(dir, "a.yaml")
-		rootPath := filepath.Join(dir, "root.yaml")
-		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
-			"components:\n  schemas:\n" +
+		const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"
+		writeFile(t, dir, "c.yaml", hdr+"    C: {$ref: \"./a.yaml#/components/schemas/A\"}\n")
+		writeFile(t, dir, "a.yaml", hdr+
+			"    A: {$ref: \"#/components/schemas/X\"}\n"+
+			"    A2: {$ref: \"#/components/schemas/X\"}\n"+
+			"    X: {$ref: \"./b.yaml#/components/schemas/B\"}\n")
+		writeFile(t, dir, "b.yaml", hdr+"    B: {type: string}\n")
+		aPath, bPath, cPath := filepath.Join(dir, "a.yaml"), filepath.Join(dir, "b.yaml"), filepath.Join(dir, "c.yaml")
+		// Shared reaches X after Chained does, which leaves X's parent on Shared's
+		// route: a chain read off the shared target would be Shared's.
+		root := hdr +
 			"    Direct: {$ref: \"" + bPath + "#/components/schemas/B\"}\n" +
-			"    Chained: {$ref: \"" + aPath + "#/components/schemas/A\"}\n"
+			"    Chained: {$ref: \"" + cPath + "#/components/schemas/C\"}\n" +
+			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n"
 
-		doc, diags, err := resolveSpec(t, root, rootPath)
+		doc, diags, err := resolveSpec(t, root, filepath.Join(dir, "root.yaml"))
 		require.NoError(t, err)
 		assert.Empty(t, diags)
 
-		direct, ok := doc.Components.Schemas.Get("Direct")
-		require.True(t, ok)
-		assert.Equal(t, []string{bPath}, schemaHops(direct), "a direct reference is one hop, not its document twice")
-
-		chained, ok := doc.Components.Schemas.Get("Chained")
-		require.True(t, ok)
-		assert.Equal(t, []string{aPath, bPath}, schemaHops(chained), "a chain visits each document once, in order")
+		for _, tc := range []struct {
+			name string
+			want []string
+			why  string
+		}{
+			{"Direct", []string{bPath}, "a direct reference is one hop, not its document twice"},
+			{"Chained", []string{cPath, aPath, aPath, bPath}, "every hop, its own first, though a later reference shares its target"},
+			{"Shared", []string{aPath, aPath, bPath}, "an internal hop names the document it was read in"},
+		} {
+			sch, ok := doc.Components.Schemas.Get(tc.name)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, hopDocuments(sch), "%s: %s", tc.name, tc.why)
+		}
 	})
 
 	t.Run("the default arm", func(t *testing.T) {
@@ -639,12 +905,9 @@ func TestHopDocuments(t *testing.T) {
 	})
 }
 
-// TestHopsUsed_StopsOnMatchError pins hopsUsed's own early return: a WalkItem
-// whose Match reports an error ends the walk with what was collected so far,
-// the same contract matchSchemas (load.go) is held to over the same library,
-// and for the same reason — Any's own callback in hopsUsed always returns nil,
-// so nothing the real soa.Walk produces can reach this branch; only a
-// fabricated WalkItem, as matchSchemas' own test uses, can.
+// TestHopsUsed_StopsOnMatchError pins hopsUsed's early return, which only a
+// fabricated WalkItem reaches: a Match error ends the walk with what was
+// collected so far.
 func TestHopsUsed_StopsOnMatchError(t *testing.T) {
 	t.Parallel()
 	visited := 0
@@ -665,34 +928,183 @@ func TestHopsUsed_StopsOnMatchError(t *testing.T) {
 	assert.Zero(t, visited, "the item after the failure is never reached")
 }
 
-// TestSchemaHops_BoundedAtMaxResolutionHops proves the bounded-everything cap:
-// a chain longer than maxResolutionHops is truncated to it rather than grown
-// without limit.
-func TestSchemaHops_BoundedAtMaxResolutionHops(t *testing.T) {
+// TestHopDocuments_StopsAtMaxResolutionHops proves the bounded-everything cap
+// on both kinds of chain hopDocuments follows: one of a document past
+// maxResolutionHops is cut at it rather than followed to its end.
+func TestHopDocuments_StopsAtMaxResolutionHops(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	const chainLen = maxResolutionHops + 8
-	for i := range chainLen {
-		body := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
-			"components:\n  schemas:\n    S: {type: string}\n"
-		if i < chainLen-1 {
-			next := filepath.Join(dir, fmt.Sprintf("f%d.yaml", i+1))
-			body = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
-				"components:\n  schemas:\n    S: {$ref: \"" + next + "#/components/schemas/S\"}\n"
-		}
-		writeFile(t, dir, fmt.Sprintf("f%d.yaml", i), body)
-	}
-	rootPath := filepath.Join(dir, "root.yaml")
-	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
-		"components:\n  schemas:\n    S: {$ref: \"" + filepath.Join(dir, "f0.yaml") + "#/components/schemas/S\"}\n"
+	const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+	for _, tc := range []struct {
+		name      string
+		end, link string // the last document's body, and every other's: %s is the next file
+		first     func(doc *soa.OpenAPI) any
+	}{
+		{
+			name: "a path item",
+			end:  hdr + "paths:\n  /x:\n    get: {operationId: end, responses: {\"200\": {description: ok}}}\n",
+			link: hdr + "paths:\n  /x: {$ref: \"%s#/paths/~1x\"}\n",
+			first: func(doc *soa.OpenAPI) any {
+				ref, _ := doc.Paths.Get("/x")
+				return ref
+			},
+		},
+		{
+			name: "a schema",
+			end:  hdr + "paths: {}\ncomponents:\n  schemas:\n    S: {type: string}\n",
+			link: hdr + "paths: {}\ncomponents:\n  schemas:\n    S: {$ref: \"%s#/components/schemas/S\"}\n",
+			first: func(doc *soa.OpenAPI) any {
+				sch, _ := doc.Components.Schemas.Get("S")
+				return sch
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			const chainLen = maxResolutionHops + 8
+			for i := range chainLen {
+				body := tc.end
+				if i < chainLen-1 {
+					body = fmt.Sprintf(tc.link, filepath.Join(dir, fmt.Sprintf("f%d.yaml", i+1)))
+				}
+				writeFile(t, dir, fmt.Sprintf("f%d.yaml", i), body)
+			}
+			root := fmt.Sprintf(tc.link, filepath.Join(dir, "f0.yaml"))
 
-	doc, diags, err := resolveSpec(t, root, rootPath)
+			doc, diags, err := resolveSpec(t, root, filepath.Join(dir, "root.yaml"))
+			require.NoError(t, err)
+			assert.Empty(t, diags)
+
+			first := tc.first(doc)
+			require.NotNil(t, first)
+			assert.Len(t, hopDocuments(first), maxResolutionHops,
+				"a %d-document chain is capped at %d hops", chainLen, maxResolutionHops)
+		})
+	}
+}
+
+// respelledChain resolves a root whose /x starts a chain of n documents served
+// over HTTP, each reached through an upper-case scheme and so missed by the
+// resolver. Only the last holds anchored entries, so only reaching it matters;
+// it returns /x's path item as resolved, and the diagnostics. With secondPass,
+// the root's /t also reaches an anchored document that way, which sets the
+// second pass off whatever the chain's length.
+func respelledChain(t *testing.T, n int, secondPass bool) (*soa.PathItem, []ir.Diagnostic) {
+	t.Helper()
+	var base string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/t.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	})
+	for i := range n {
+		mux.HandleFunc(fmt.Sprintf("/f%d.yaml", i), func(w http.ResponseWriter, _ *http.Request) {
+			body := anchoredExternalDoc
+			if i < n-1 {
+				next := fmt.Sprintf("HTTP://%s/f%d.yaml", strings.TrimPrefix(base, "http://"), i+1)
+				body = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+					"  /x: {$ref: \"" + next + "#/paths/~1x\"}\n"
+			}
+			_, err := w.Write([]byte(body))
+			assert.NoError(t, err)
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	base = srv.URL
+
+	root := rootReferencing(respelled(srv.URL, "HTTP") + "/f0.yaml")
+	if secondPass {
+		root += "  /t: {$ref: \"" + respelled(srv.URL, "HTTP") + "/t.yaml#/paths/~1x\"}\n"
+	}
+	doc, diags, err := resolveSpec(t, root, "root.yaml")
+	require.NoError(t, err)
+	ref, ok := doc.Paths.Get("/x")
+	require.True(t, ok)
+	require.NotNil(t, ref.GetObject())
+	return ref.GetObject(), diags
+}
+
+// TestResolveExternal_TheHopBoundIsWhereRecoveryEnds pins what the bound costs,
+// from both sides: the last document of a chain of maxResolutionHops is
+// recovered, and a chain one longer is not, with no report, because recovery
+// never learns the last document was read. A second pass another $ref sets off
+// resolves that one from its replayed bytes as the first pass did. The bound is
+// for an absurd chain; this keeps a change to what happens at it deliberate.
+func TestResolveExternal_TheHopBoundIsWhereRecoveryEnds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a chain at the bound is recovered", func(t *testing.T) {
+		t.Parallel()
+		item, diags := respelledChain(t, maxResolutionHops, false)
+
+		assert.Empty(t, diags)
+		require.NotNil(t, item.Get(), "the last document's anchored GET entry was folded")
+		require.NotNil(t, item.Put())
+	})
+
+	for _, tc := range []struct {
+		name       string
+		secondPass bool
+	}{
+		{"a chain one past it is not", false},
+		{"nor in a second pass another $ref sets off", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			item, diags := respelledChain(t, maxResolutionHops+1, tc.secondPass)
+
+			assert.Empty(t, diags, "nothing reports the entries that were skipped")
+			assert.Nil(t, item.Get(), "the last document is the resolver's own parse, which skips them")
+			assert.Nil(t, item.Put())
+		})
+	}
+}
+
+// TestResolveExternal_ACanonicalDocumentPastTheHopBoundStaysPrepared covers a
+// document no reference records: the last of a chain one document past
+// maxResolutionHops, spelled canonically. Its request is answered with the bytes
+// the first pass read, and the tree the first pass prepared is handed over
+// under the key it was prepared under, which is the resolver's, so its anchored
+// entries hold and nothing in the chain is fetched twice. ext.yaml is what sets
+// the second pass off.
+func TestResolveExternal_ACanonicalDocumentPastTheHopBoundStaysPrepared(t *testing.T) {
+	t.Parallel()
+	const n = maxResolutionHops + 1
+	var base string
+	var fetches [n]atomic.Int32
+	mux := http.NewServeMux()
+	for i := range n {
+		mux.HandleFunc(fmt.Sprintf("/f%d.yaml", i), func(w http.ResponseWriter, _ *http.Request) {
+			fetches[i].Add(1)
+			body := anchoredExternalDoc
+			if i < n-1 {
+				body = rootReferencing(fmt.Sprintf("%s/f%d.yaml", base, i+1))
+			}
+			_, err := w.Write([]byte(body))
+			assert.NoError(t, err)
+		})
+	}
+	mux.HandleFunc("/ext.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(anchoredExternalDoc))
+		assert.NoError(t, err)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	base = srv.URL
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /x: {$ref: \"" + respelled(srv.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
+		"  /chain: {$ref: \"" + srv.URL + "/f0.yaml#/paths/~1x\"}\n"
+
+	doc, diags, err := resolveSpec(t, spec, "root.yaml")
+
 	require.NoError(t, err)
 	assert.Empty(t, diags)
-
-	sch, ok := doc.Components.Schemas.Get("S")
-	require.True(t, ok)
-	assert.Len(t, schemaHops(sch), maxResolutionHops, "a %d-document chain is capped at %d hops", chainLen, maxResolutionHops)
+	assertRecoveredAt(t, doc, "/x")
+	assertRecoveredAt(t, doc, "/chain")
+	for i := range fetches {
+		assert.Equal(t, int32(1), fetches[i].Load(), "f%d.yaml is fetched once", i)
+	}
 }
 
 // writeFile writes content to name under dir, failing the test on error.
@@ -712,12 +1124,23 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads()
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.record("/tmp/doc.yaml", []byte("data"), tree)
+		r.recordTree("/tmp/doc.yaml", tree)
 
-		data, got, ok := r.preparedFor("/tmp/doc.yaml")
+		got, ok := r.preparedFor("/tmp/doc.yaml")
 
 		require.True(t, ok)
-		assert.Equal(t, []byte("data"), data)
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a file key http.NewRequest would respell", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads()
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		r.recordTree("dir/with space/doc.yaml", tree)
+
+		got, ok := r.preparedFor("dir/with space/doc.yaml")
+
+		require.True(t, ok, "the path is its own key; the request spelling %20 is not")
 		assert.Same(t, tree, got)
 	})
 
@@ -728,13 +1151,25 @@ func TestPreparedFor(t *testing.T) {
 		// The spelling external.Do actually stores under: the request's own URL.
 		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
 		require.NoError(t, err)
-		r.record(req.URL.String(), []byte("data"), tree)
+		r.recordTree(req.URL.String(), tree)
 
 		// The resolver's own, unnormalized key.
-		data, got, ok := r.preparedFor("HTTP://host/doc.yaml")
+		got, ok := r.preparedFor("HTTP://host/doc.yaml")
 
 		require.True(t, ok)
-		assert.Equal(t, []byte("data"), data)
+		assert.Same(t, tree, got)
+	})
+
+	t.Run("a URL key spelled with an empty port", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads()
+		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
+		// http.NewRequest drops the empty port, so external.Do stores it without one.
+		r.recordTree("http://host/doc.yaml", tree)
+
+		got, ok := r.preparedFor("http://host:/doc.yaml")
+
+		require.True(t, ok)
 		assert.Same(t, tree, got)
 	})
 
@@ -742,7 +1177,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads()
 
-		_, _, ok := r.preparedFor("http://host/\x00bad")
+		_, ok := r.preparedFor("http://host/\x00bad")
 
 		assert.False(t, ok)
 	})
@@ -751,7 +1186,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads()
 
-		_, _, ok := r.preparedFor("/no/such/file.yaml")
+		_, ok := r.preparedFor("/no/such/file.yaml")
 
 		assert.False(t, ok)
 	})
@@ -807,7 +1242,7 @@ func TestUnprepared(t *testing.T) {
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
 		read := newExternalReads()
-		read.record("k", []byte("data"), tree) // the same pointer: ours
+		read.recordTree("k", tree) // the same pointer: ours
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -836,4 +1271,60 @@ func TestUnprepared(t *testing.T) {
 
 		assert.Empty(t, got)
 	})
+}
+
+// TestExternalReads_ReplaysAnswersInOrder pins the replay's order: each key's
+// answers come back as they were recorded, one per request, and then none.
+func TestExternalReads_ReplaysAnswersInOrder(t *testing.T) {
+	t.Parallel()
+	r := newExternalReads()
+	gone := answer{status: http.StatusNotFound}
+	found := answer{status: http.StatusOK, body: []byte("doc")}
+	other := answer{err: errors.New("reset")}
+	r.recordAnswer("k", gone)
+	r.recordAnswer("k", found)
+	r.recordAnswer("other", other)
+
+	var got []answer
+	for {
+		a, ok := r.nextAnswer("k")
+		if !ok {
+			break
+		}
+		got = append(got, a)
+	}
+
+	assert.Equal(t, []answer{gone, found}, got)
+	a, ok := r.nextAnswer("other")
+	require.True(t, ok, "each key keeps its own place")
+	assert.Equal(t, other, a)
+}
+
+// TestExternalReads_IsSafeForConcurrentUse holds the record to what the readers
+// sharing it promise: the resolver's interfaces do not rule out concurrent
+// calls, and a write racing another is a fatal map fault that no recover can
+// catch. Under -race, unsynchronized access fails here.
+func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
+	t.Parallel()
+	r := newExternalReads()
+	for i := range 8 {
+		key := fmt.Sprintf("http://host/doc%d.yaml", i)
+		t.Run(fmt.Sprintf("doc%d", i), func(t *testing.T) {
+			t.Parallel()
+			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
+			doc := &soa.OpenAPI{}
+			doc.InitCache()
+			for range 100 {
+				r.recordTree(key, tree)
+				got, ok := r.preparedFor(key)
+				assert.True(t, ok)
+				assert.Same(t, tree, got)
+				assert.True(t, r.prepared(tree))
+				r.recordAnswer(key, answer{status: http.StatusOK, body: []byte(key)})
+				_, ok = r.nextAnswer(key)
+				assert.True(t, ok)
+				r.handOver(doc, nil)
+			}
+		})
+	}
 }

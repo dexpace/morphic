@@ -31,6 +31,9 @@ type Types struct {
 	// declared holds the hint a declaration gave each coordinate it reached
 	// without finding a placeholder there. See NameFromDeclaration.
 	declared map[string]string
+	// byReference holds the coordinates whose node a reference built and the
+	// declaration that owns them has not rebuilt yet. See InternDeclared.
+	byReference map[string]bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
@@ -61,24 +64,21 @@ func NewTypes() *Types {
 
 		provisional: make(map[string]bool),
 		declared:    make(map[string]string),
+		byReference: make(map[string]bool),
 	}
 }
 
 // claimID records which coordinate owns id, and refuses a second coordinate
 // claiming the same one.
 //
-// This is the other half of invariant 3, and neither half implies the other.
-// claimSpace catches a minted node landing where a source coordinate can reach
-// it; this catches a derivation that *collapses* two distinct coordinates onto
-// one ID — a broken pointer escape, a path segment dropped, a space that stopped
-// distinguishing what it was meant to.
+// This is the other half of invariant 3: claimSpace catches a minted node
+// landing where a source coordinate can reach it, and this catches a derivation
+// that collapses two distinct coordinates onto one ID, such as a broken pointer
+// escape or a dropped path segment.
 //
-// Nothing downstream can see it happen. Intern keys by coordinate, so both
-// pointers map cleanly and the second node simply overwrites the first in the
-// registry; the survivor is well-formed, carries its own provenance, and passes
-// every structural check — including the ID-to-provenance agreement, which the
-// loser is no longer present to fail. The count of interned types is the only
-// trace, and nothing knows what it should have been.
+// Nothing downstream sees it. Intern keys by coordinate, so the second node
+// silently overwrites the first, and the survivor is well-formed and passes
+// every structural check. Only the count of interned types shows it.
 func (t *Types) claimID(id ir.TypeID, pointer string) {
 	owner, claimed := t.byID[id]
 	if claimed && owner != pointer {
@@ -93,17 +93,12 @@ func (t *Types) claimID(id ir.TypeID, pointer string) {
 // nodes, and refuses the second one to arrive when they disagree.
 //
 // This is invariant 3's corollary made mechanical: a node a lowering mints must
-// occupy a namespace no source coordinate can produce. Sharing one leaves the two
-// racing for a single ID, and the winner is whichever declaration lowered first —
-// silently, because the document is well-formed either way. Reversing the branch
-// order of a colliding spec produces no diagnostic, irverify is clean, and
-// pass.Validate passes; only a golden diff shows it, and regenerating the golden
-// makes it green again.
+// occupy a namespace no source coordinate can produce. Sharing one makes the
+// two race for a single ID, won by whichever declaration lowered first; the
+// document is well-formed either way, so no check of one document sees it.
 //
-// The check is at the namespace rather than the ID because a minted ID that
-// happens not to collide today collides as soon as the source names one more
-// position — safety that rests on which paths a format's pointers cannot spell is
-// the reasoning the corollary exists to replace.
+// It checks the namespace rather than the ID because a minted ID that does not
+// collide today collides once the source names one more position.
 func (t *Types) claimSpace(id ir.TypeID, minted bool) {
 	space := spaceOf(id)
 	if space == "" {
@@ -121,7 +116,8 @@ func (t *Types) claimSpace(id ir.TypeID, minted bool) {
 //
 // The ID is recorded before build runs, which is what terminates recursive and
 // diamond schemas: a self-reference reached while building hits the map and
-// returns the ID rather than re-entering build.
+// returns the ID rather than re-entering build. Until build returns the node is
+// Building, and NodeAt has none to give.
 //
 // A second call for the same pointer returns the first ID and does not rebuild,
 // so a caller must not rely on build running — it is the interning table, not a
@@ -152,24 +148,17 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 }
 
 // InternProvisional is Intern for a lowering that reached pointer through a
-// reference naming it rather than through the declaration that owns it, and
-// records that the name the node is being given is a placeholder.
+// reference rather than the declaration that owns it, and records that the
+// node's name is a placeholder.
 //
-// A reference can name a coordinate inside another declaration's body, and both
-// lowerings reach it: the declaration through its own structure, the reference
-// through the pointer it spells. Intern calls build for whichever arrives first,
-// so the node's name used to be decided by declaration order — silently, since
-// either spelling is a valid name and nothing compared them.
+// Either can arrive first at a coordinate inside another declaration's body,
+// and Intern builds for the first. The declaration names it better, so
+// NameFromDeclaration replaces the name and InternDeclared rebuilds the node
+// when it arrives.
 //
-// Only the *name* is a question the declaration answers better; the node itself
-// is the same one either way. So the reference still builds it, and
-// NameFromDeclaration replaces the name when the declaration arrives — in
-// whichever order the two happen.
-//
-// A coordinate already interned is not marked: the declaration may have been
-// there first, and a name it settled is not a placeholder. Nor is a coordinate
-// the declaration reached before any node existed there: it named the position
-// then, and that name is what the node takes (GitHub #519).
+// An interned coordinate is not marked: its name may be settled. One the
+// declaration reached before any node existed takes the declared hint instead
+// (GitHub #519).
 func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
 	_, before := t.byPointer[pointer]
 	interned := t.Intern(pointer, id, build)
@@ -181,38 +170,67 @@ func (t *Types) InternProvisional(pointer string, id ir.TypeID, build func() ir.
 		return interned
 	}
 	t.provisional[pointer] = true
+	t.byReference[pointer] = true
 	return interned
 }
 
-// NameFromDeclaration gives the node at pointer the hint its declaration
-// derives, replacing a placeholder a reference left there first.
+// InternDeclared is Intern for the declaration that owns pointer. Where a
+// reference built the node first, it builds it again under the same ID.
 //
-// A coordinate not carrying a placeholder is every coordinate the declaration
-// reached first, and there the hint is recorded instead. A declaration can reach
-// a position and intern nothing there — a $ref it resolves straight to its
-// target, a body that reduces to a shared primitive — and a reference naming the
-// position later hoists the node the declaration never made. Without the record
-// that node kept the reference's name in one declaration order and took the
-// declaration's in the other (GitHub #519); InternProvisional reads it. Where the
-// declaration did intern a node the record is never read, since no reference
-// can intern that coordinate again.
+// Renaming only that node would leave the nodes the reference interned beneath
+// it named from its guess, which a pointer under /paths cannot replay (GitHub
+// #529). The build lowers the same schema at the same pointers, so each one
+// takes the declaration's name. It replaces what the reference built, not what
+// it reported (GitHub #750).
 //
-// A position has one declaration hint however many lowerings reach it as its
-// declaration — a body several operations mount is named from its component,
-// not from whichever mount lowered first (GitHub #433) — so a second call here
-// changes nothing: a node already there keeps its name, and the record takes the
-// same hint again.
+// A coordinate is rebuilt once. A build yielding nothing is refused, keeping
+// the reference's node so IDs other nodes hold still resolve.
+func (t *Types) InternDeclared(pointer string, id ir.TypeID, build func() ir.TypeDef) ir.TypeID {
+	if !t.byReference[pointer] {
+		return t.Intern(pointer, id, build)
+	}
+	delete(t.byReference, pointer)
+	existing := t.byPointer[pointer]
+	if existing != id {
+		t.refuse("rebuild rejected: %q is interned as %q, not %q", pointer, existing, id)
+		return existing
+	}
+	if build == nil {
+		t.refuse("rebuild rejected: nil build for id=%q at %q", id, pointer)
+		return existing
+	}
+	td := build()
+	if ir.IsNilTypeDef(td) {
+		t.refuse("rebuild rejected: build returned a nil type definition for id=%q at %q", id, pointer)
+		return existing
+	}
+	t.reg[id] = td
+	return id
+}
+
+// NameFromDeclaration gives the node at pointer its declaration's hint,
+// replacing a placeholder a reference left first.
+//
+// Without a placeholder the declaration came first, and the hint is recorded
+// for InternProvisional. A declaration may intern nothing at a position, such
+// as a $ref resolved straight to its target; a reference naming the position
+// later hoists a node the declaration never made, whose name would otherwise
+// depend on declaration order (GitHub #519).
+//
+// A position has one declaration hint however many lowerings reach it (GitHub
+// #433), so a second call is harmless: a named node keeps its name, and the
+// rewritten record is never read.
 func (t *Types) NameFromDeclaration(pointer, hint string) {
 	if !t.provisional[pointer] {
 		t.declared[pointer] = hint
 		return
 	}
 	delete(t.provisional, pointer)
-	// The coordinate resolves and its node is present: a coordinate is marked
-	// provisional only once Intern has recorded both, and Intern is what removes
-	// the pair again when a build yields nothing — so there is no state here in
-	// which one exists without the other, and a branch for one would be
-	// untestable (the reasoning NodeAt states).
+	// The coordinate resolves and its node is present: InternProvisional marks a
+	// coordinate only once its build has returned a node, and Intern is what
+	// removes the pair again when a build yields nothing — so there is no state
+	// here in which one exists without the other, and a branch for one would be
+	// untestable.
 	//
 	// Neutralized on the way in, because this writes the field NamingHint would
 	// have written and has to write it the same way. A raw hint here would leave
@@ -225,20 +243,15 @@ func (t *Types) NameFromDeclaration(pointer, hint string) {
 // Register records td under id without associating it with any source
 // coordinate.
 //
-// It exists for nodes a lowering mints rather than finds. A composed union
-// variant is the case: the coordinate it would occupy already denotes the branch
-// schema it was built from, so interning it there makes the two race for one
-// pointer — whichever lowered first wins it, and the result depends on
-// declaration order. Such nodes take a synthetic ID and no coordinate entry.
+// It exists for nodes a lowering mints rather than finds, such as a composed
+// union variant: its coordinate already denotes the branch schema it was built
+// from, so interning it there would race for one pointer. Such nodes take a
+// synthetic ID and no coordinate entry.
 //
-// Prefer Intern wherever the node does correspond to a source coordinate: that
-// is the path enforcing one node per coordinate, and the one that terminates
-// recursion. Register overwrites a colliding ID rather than deduplicating,
-// because a synthetic ID that collides is a bug in the minting scheme, not a
-// revisit.
-//
-// The namespace a minted node lands in is checked rather than assumed: see
-// claimSpace.
+// Prefer Intern for a node that has a source coordinate: it enforces one node
+// per coordinate and terminates recursion. Register overwrites a colliding ID,
+// since a synthetic collision is a minting bug, not a revisit. claimSpace
+// checks the namespace.
 func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	if id == "" {
 		t.refuse("register rejected: empty type id")
@@ -261,20 +274,20 @@ func (t *Types) Lookup(pointer string) (ir.TypeID, bool) {
 	return id, ok
 }
 
-// NodeAt returns the node interned at pointer.
+// NodeAt returns the node interned at pointer, and false when there is none:
+// nothing interned the coordinate, or its node is still Building.
 //
-// It exists so the two-step "resolve the coordinate, then fetch the node" cannot
-// be written with a gap between the steps. Intern records a coordinate and its
-// node together, so a coordinate that resolves always has a node — a caller
-// doing Lookup then Node has to write a branch for a state this type does not
-// produce, and an unreachable branch is worse than no branch: it cannot be
-// tested, and it suggests the state is possible.
+// It exists so "resolve the coordinate, then fetch the node" is one step with
+// one answer. While its build runs a coordinate resolves, which is what stops
+// recursion, but holds no node, so NodeAt reports false there rather than hand
+// back a nil node to write to (GitHub #749).
 func (t *Types) NodeAt(pointer string) (ir.TypeDef, bool) {
 	id, ok := t.byPointer[pointer]
 	if !ok {
 		return nil, false
 	}
-	return t.reg[id], true
+	td, built := t.reg[id]
+	return td, built
 }
 
 // Node returns the type definition registered under id, if any.
@@ -283,21 +296,33 @@ func (t *Types) Node(id ir.TypeID) (ir.TypeDef, bool) {
 	return td, ok
 }
 
+// Building reports whether Intern is still building the node id names: the ID
+// is claimed, so a revisit of its coordinate gets it back, but build has not
+// returned it a node.
+//
+// A walk reaches such a node again only from below the frame building it, and
+// that frame finishes the node once its build returns. A reader that finds no
+// node asks this to tell the two misses apart: one is that frame's work, the
+// other a node that will never exist.
+func (t *Types) Building(id ir.TypeID) bool {
+	if _, claimed := t.byID[id]; !claimed {
+		return false
+	}
+	_, built := t.reg[id]
+	return !built
+}
+
 // PrimRef interns the primitive of kind k on first use and returns a reference
 // to it. Primitives are leaves reached by kind rather than by position, so they
 // never enter the pointer-keyed table.
 //
-// The primitive's Provenance.Source is ir.NoSource, the IR's value for a node
-// that addresses no input file. One primitive is shared by every position of
-// its kind in every source, and an index beside the empty pointer would say
-// that file's whole document declared it (GitHub #528). irverify does not yet
-// hold other producers to this (GitHub #590).
+// Its Provenance.Source is ir.NoSource: one primitive is shared by every
+// position of its kind in every source, so no single file declared it (GitHub
+// #528). irverify does not yet hold other producers to this (GitHub #590).
 //
-// It writes the registry directly, claiming neither the ID nor the space: both
-// claims are about a coordinate owning an ID, and a primitive has no coordinate.
-// What that leaves unguarded here — another node landing in the prim space — is
-// caught at the document boundary by irverify's ir/prim-space-reserved, which
-// holds every producer rather than only a compile that went through this type.
+// It claims neither ID nor space, since both claims are about a coordinate
+// owning an ID. Another node landing in the prim space is caught, for every
+// producer, by irverify's ir/prim-space-reserved.
 func (t *Types) PrimRef(k ir.PrimKind) ir.TypeRef {
 	id := ir.PrimTypeID(k)
 	if _, ok := t.reg[id]; !ok {
