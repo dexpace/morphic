@@ -11,17 +11,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
-// with no lowerer, no parser and no document anywhere in the setup.
-//
-// This is the extraction's whole purpose. Reaching the conflict lattice
-// previously meant standing up a compiler and feeding it a spec that happened to
-// produce the pair of declarations under test; the registry dependency is narrow
-// enough to pass as a function, so the lattice can be driven directly.
 // ptrAt is the provenance a declaration at pointer carries. MergeProperty reads
 // the position off the property rather than taking it alongside, so a test that
 // merges one has to say where it was written.
-func ptrAt(pointer string) ir.Provenance { return ir.Provenance{Pointer: pointer} }
+func ptrAt(pointer jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: pointer} }
 
 // unread is the source of a redeclaration the merge has no reason to keep: it
 // fails the test if rendered, which is how a case asserts that nothing of the
@@ -39,12 +32,15 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
+// with no lowerer, parser or document in the setup, so the conflict lattice can
+// be driven directly.
 func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: string(pointer)}, format, args...))
+			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded

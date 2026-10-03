@@ -13,29 +13,18 @@ var (
 	operationType = reflect.TypeFor[ir.Operation]()
 )
 
-// checkIndices asserts every reference the IR carries as an integer index into a
-// slice addresses a declared entry: Service.Servers and Channel.Servers into
-// Document.Servers, and HTTPBinding.SuccessStatus's keys into the owning
-// operation's Responses.
+// checkIndices asserts every integer-index reference the IR carries addresses a
+// declared entry: Service.Servers and Channel.Servers into Document.Servers,
+// and HTTPBinding.SuccessStatus's keys into the owning operation's Responses.
 //
-// Nothing in an int's Go type marks it as a reference, so collectRefs cannot
-// reach these the way it reaches typed IDs — the carriers are named here
-// instead, and a new integer-index reference has to be named here too. This is
-// the one thing ir.DocumentRegistries cannot derive and so the one list left
-// written by hand. Provenance.Source, the third such index, has its own check in
-// provenance.go.
+// Nothing in an int's type marks it as a reference, so collectRefs cannot reach
+// these: the carriers are named here, and a new one must be too.
+// Provenance.Source is checked in provenance.go.
 //
-// Naming a carrier means reaching its fields by name, which the Go compiler
-// cannot check: renaming or retyping ir.Service.Servers leaves FieldByName
-// returning the zero reflect.Value, and the Len() below panics on it. The
-// guarantee this package makes — that Verify never crashes on a malformed
-// document — is unaffected, since no input can rename a field, but the coupling
-// is real and is guarded: indexCarrierFields (indices_test.go) fails the moment
-// one of these names or shapes drifts, and integerFields beside it fails when
-// the IR grows an integer field nobody has classified.
-//
-// The bool reports whether the bounded walk was cut short; Verify folds that
-// into the document's one ir/walk-truncated violation.
+// Reaching fields by name is unchecked by the compiler: a renamed
+// ir.Service.Servers would make the Len() below panic. indexCarrierFields fails
+// when a name or shape drifts, and integerFields fails when the IR grows an
+// integer field nobody has classified.
 func checkIndices(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	declared := len(doc.Servers)
 	var vs []Violation

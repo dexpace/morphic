@@ -357,15 +357,13 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 
 // TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard: the
 // exemption is recorded against one path, so it silences that node's own Naming
-// and no other. A checker that noted "an exempt node was seen" as a document-wide
-// flag instead passes every test that measures one node at a time, and goes
-// silent on the whole corpus.
+// and no other. A document-wide "an exempt node was seen" flag would pass every
+// test that measures one node at a time and silence the whole corpus.
 //
-// The sibling axis is what this can reach. The descendant axis — a nameless node
-// *inside* an exempt one — had ir.Response and its headers to measure it with,
-// and with ir.Primitive the only exemption left there is no such pair: nothing
-// under a primitive carries a Naming at all. Whoever adds the next exemption owns
-// that half again.
+// It reaches the sibling axis only. The descendant axis, a nameless node inside
+// an exempt one, has no pair to measure with while ir.Primitive is the only
+// exemption, since nothing under a primitive carries a Naming. Whoever adds the
+// next exemption owns that half again.
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
@@ -397,41 +395,43 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 }
 
 // TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
-// Naming shares. It is about the encoding rather than the spelling: ill-formed
-// bytes survive a marshal as the replacement rune, so a document carrying them
-// decodes to one that re-marshals differently and stops round-tripping.
+// Naming shares, checkUTF8's: it is about the encoding rather than the
+// spelling, and reports at the precise channel path (".Name.Source", not
+// ".Name").
 //
-// Canonical and Hint would each draw a violation without this rule — the
-// replacement rune is not a word character, so isWordSequence rejects it — but
-// one naming the wrong repair, since splitting on non-word characters is not
-// what fixes undecodable bytes. Source draws nothing at all without it. So the
-// assertion is that ir/naming-invalid-utf8 is among what is reported, not that
-// it is all of it.
-//
-// Only this rule's own message is held to quoting nothing. The content rules
-// beside it deliberately carry the spelling they object to, which puts the
-// ill-formed bytes in their message (GitHub #400) — a separate question from
-// whether the encoding rule fires.
+// Canonical and Hint each also draw ir/naming-cased and ir/naming-not-words,
+// since neither ToLower nor isWordSequence can treat the replacement rune as a
+// plain lowercase word character (GitHub #400, out of scope here). Source draws
+// nothing else, so its fixture pins the count as well as the code: reporting
+// the same defect twice would redden it.
 func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
 	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
 
-	for channel, n := range map[string]ir.Naming{
-		"source":    {Source: ill, Canonical: ir.CanonicalWords(ill)},
-		"canonical": {Canonical: ill},
-		"hint":      {Hint: ill},
+	for _, tc := range []struct {
+		channel   string
+		n         ir.Naming
+		path      string
+		wantTotal int
+	}{
+		{"source", ir.Naming{Source: ill, Canonical: ir.CanonicalWords(ill)}, "doc.Types[t/x/M].Name.Source", 1},
+		{"canonical", ir.Naming{Canonical: ill}, "doc.Types[t/x/M].Name.Canonical", 3},
+		{"hint", ir.Naming{Hint: ill}, "doc.Types[t/x/M].Name.Hint", 3},
 	} {
-		t.Run(channel, func(t *testing.T) {
+		t.Run(tc.channel, func(t *testing.T) {
 			t.Parallel()
+			got := irverify.Verify(modelNamed(tc.n))
+			require.Len(t, got, tc.wantTotal, "%s: %+v", tc.channel, got)
+
 			var reported *irverify.Violation
-			for _, v := range irverify.Verify(modelNamed(n)) {
-				if v.Code == "ir/naming-invalid-utf8" {
-					reported = &v
+			for i := range got {
+				if got[i].Code == "ir/invalid-utf8" {
+					reported = &got[i]
 				}
 			}
-			require.NotNil(t, reported, "the encoding rule fires on %s", channel)
-			assert.Equal(t, "doc.Types[t/x/M].Name", reported.Path)
+			require.NotNil(t, reported, "the encoding rule fires on %s", tc.channel)
+			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
 		})
 	}

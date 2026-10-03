@@ -16,8 +16,10 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -152,17 +154,14 @@ func TestStatusRange_NamesAStatus(t *testing.T) {
 	}
 }
 
-// TestStatusRange_NamesNoStatus is the half that used to be silent. Every key
-// here reached {0,0} or a range OpenAPI cannot declare, with no diagnostic and
-// no way for a consumer to tell the result from a declared default (GitHub
-// #262).
+// TestStatusRange_NamesNoStatus pins that every key here is reported as naming
+// no status, not read as {0,0} or a range OpenAPI cannot declare, which a
+// consumer could not tell from a declared default (GitHub #262).
 //
-// The zero range beside the false is asserted because it is load-bearing, not
-// because it is obvious: lowerResponses routes on isErrorRange without
-// re-testing ok, so a false paired with anything from 400 up would send a key
-// that names no status to lowerErrorCase, which would classify a fault from a
-// range nothing derived and drop the key entirely — ErrorCase holds no naming.
-// This is what holds that pairing.
+// The zero range beside the false is load-bearing: lowerResponses routes on
+// isErrorRange without re-testing ok, so a false paired with a range from 400
+// up would send a key naming no status to lowerErrorCase, which would classify
+// a fault from a range nothing derived and assert a status the key never named.
 func TestStatusRange_NamesNoStatus(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{
@@ -265,24 +264,6 @@ func TestParamKey_NilParameterIsNotAKey(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestCheckOperationIDUnique_ReportsTheSecondClaim pins what the check is for:
-// the first claim on an operationId is recorded silently and the second names
-// it. This used to cover a lazy map init instead, which is gone — the map is
-// the caller's and is allocated where the lowering starts.
-func TestCheckOperationIDUnique_ReportsTheSecondClaim(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(nil)
-	op := ir.Operation{Name: ir.Naming{Source: "dup"}}
-
-	assert.Empty(t, checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1a/get"),
-		"the first claim is recorded without a word")
-
-	diags := checkOperationIDUnique(l.ctx, l.operationIDs, op, "/paths/~1b/get")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
-	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "and it names the operation that claimed it first")
-}
-
 // TestFaultFor_ClassifiesAtTheClassBoundaries pins where one HTTP class ends and
 // the next begins, which no fixture reaches: the corpus uses 400, 404, 429 and
 // the 4XX/5XX wildcards, so both upper bounds are stated by the code and held by
@@ -367,29 +348,16 @@ func httpMethodsNames() []string {
 }
 
 // TestHTTPMethods_AgreesWithLibraryVocabulary holds httpMethods to
-// soa.IsStandardMethod, mirroring the shape of the schema package's 2020-12
-// vocabulary tests (internal/schema/schema_test.go's vocabularyCases): one
-// table enumerating the vocabulary, checked against the library predicate that
-// is meant to track it.
+// soa.IsStandardMethod: they must agree on every name either holds an opinion
+// about. If the library learns a method before this compiler does,
+// undeclaredPathItemKeys grades the key as declared, so no field lowers it and
+// no diagnostic reports it (GitHub #413); this turns that disagreement into a
+// build failure.
 //
-// The two vocabularies answer different questions — httpMethods says what this
-// compiler lowers, IsStandardMethod says what the specification defines — but
-// httpMethods is meant to be a subset of what the library recognizes, so the
-// two must agree on every name either one holds an opinion about. If the
-// library learns a method before this compiler does, IsStandardMethod turns
-// true for it while httpMethods stays silent: undeclaredPathItemKeys then
-// grades the key as declared, so no field lowers it and no diagnostic reports
-// it. That silent drop is GitHub #413; this test turns the disagreement that
-// causes it into a build failure instead.
-//
-// The library exports no list IsStandardMethod is built from — it is the
-// unexported standardHttpMethods in
-// github.com/speakeasy-api/openapi/openapi@v1.24.1's paths.go — so this probes
-// with an explicit candidate set instead: every method RFC 9110 §9.3 defines
-// (GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE), plus QUERY and
-// PATCH, plus every name httpMethods itself declares, each checked in both
-// letter cases since IsStandardMethod compares case-sensitively against
-// lowercase constants and a case mismatch would otherwise hide a real gap.
+// The library exports no list to compare against, so this probes a candidate
+// set: the methods RFC 9110 §9.3 defines, plus QUERY and PATCH, plus every name
+// httpMethods declares, each in both letter cases because IsStandardMethod
+// compares case-sensitively and a mismatch would hide a real gap.
 func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	t.Parallel()
 
@@ -423,17 +391,15 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	}
 }
 
-// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags of
-// the library's Path Item core model, the way the ir package holds its
-// hand-written kind lists to the kinds the sources declare. The list decides
-// which raw keys the census leaves alone as declared fields, so a field the
-// library adds and this list does not name would be announced as a key the
-// document was not permitted to write — and one this list names and the library
-// has dropped would be a key the census never looks at.
+// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags
+// of the library's Path Item core model. The list decides which raw keys the
+// census leaves alone as declared fields, so a field the library adds and the
+// list lacks would be announced as a key the document was not permitted to
+// write, and one the list names and the library dropped would escape the
+// census.
 //
-// The extensions field is the one tag left out: it is spelled "extensions" in
-// the tag and reached by x- prefix in the document, which pathItemDeclares tests
-// for on its own.
+// The extensions field is left out: its tag is "extensions", but the document
+// reaches it by x- prefix, which pathItemDeclares tests for on its own.
 func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 	t.Parallel()
 	var declared []string
@@ -450,20 +416,16 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 		"pathItemFields must name every keyed field of core.PathItem, once each, in its order (-model +listed)")
 }
 
-// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared is the control the
-// raw reading needs: the library skips every anchored value on a path item, a
-// declared field's included, so the raw mapping presents each declared key
-// exactly as it presents an undeclared one and only the vocabulary tells them
-// apart. Each class of declared key is written with an anchored value here, and
-// the census must report none of them.
+// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared pins that declared
+// keys written with anchored values are not reported as undeclared. The library
+// skips every anchored value on a path item, so the raw mapping presents a
+// declared key as it presents an undeclared one, and only the vocabulary tells
+// them apart.
 //
-// The item is unmarshalled through the library directly, as the resolver
-// unmarshals one it loads through an external reference: the source document's
-// own anchors are cleared before its model is built (GitHub #459), so this is
-// the path the census's raw reading still serves. The anchored `get` is not
-// lowered there — the same skip unmounts it — and that is a loss of its own,
-// outside what a census of undeclared keys can answer; what is pinned here is
-// only that it is not misreported as a key the specification does not define.
+// The item is unmarshalled through the library directly, the one way left to
+// reach this shape: anchors are cleared before any model is built (GitHub #459,
+// #501, #538). The anchored `get` is not lowered there, a loss this census
+// cannot answer.
 func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	pi := pathItemOf(t, `
@@ -492,4 +454,207 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	return pi
+}
+
+// writtenFixture's one operation is written at /paths/~1z/get and reused every
+// way a path can reuse it: /a aliases the path item, /m merges it in, /r
+// references it, and /o aliases the operation itself. /s is a sequence, which
+// no operation pointer passes through.
+const writtenFixture = `paths:
+  /z: &item
+    get: &op {operationId: dup}
+  /a: *item
+  /m:
+    <<: *item
+  /r: {$ref: '#/paths/~1z'}
+  /o:
+    get: *op
+  /s: [1, 2]
+`
+
+// writtenOp parses writtenFixture, returning its root and the node declaring
+// its one operation.
+func writtenOp(t *testing.T) (root, op *yaml.Node) {
+	t.Helper()
+	root = openapitest.YAMLNode(t, writtenFixture)
+	op = annotation.RawChildNode(annotation.RawChildNode(annotation.RawChildNode(root, "paths"), "/z"), "get")
+	require.NotNil(t, op, "the fixture writes its operation at /z")
+	return root, op
+}
+
+// TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt pins the walk declare
+// reads a declaration's place from: the pointer the text writes the operation
+// at holds it, and no pointer reaching it through an alias, a merge key or a
+// $ref does, which is what tells a declaration from its reuses.
+func TestWrittenTree_HoldsANodeOnlyWhereTheTextWritesIt(t *testing.T) {
+	t.Parallel()
+	root, op := writtenOp(t)
+	w := newWrittenTree(root)
+
+	assert.True(t, w.holds("/paths/~1z/get", op), "the text writes the operation at /z")
+	for _, reuse := range []jsontext.Pointer{"/paths/~1a/get", "/paths/~1m/get", "/paths/~1r/get", "/paths/~1o/get"} {
+		assert.False(t, w.holds(reuse, op), "%s reuses the operation rather than writing it", reuse)
+	}
+	assert.False(t, w.holds("/paths/~1s/0", op), "a walk reads mappings only")
+	assert.False(t, newWrittenTree(nil).holds("/paths/~1z/get", op), "a tree with no text holds nothing")
+
+	_, indexed := w.children[annotation.RawChildNode(root, "paths")]
+	assert.True(t, indexed, "the paths mapping is indexed for the walks after the first")
+}
+
+// TestDeclare_ReadsWhereADeclarationIsWritten pins how declare places one
+// declaration: at the pointer its text is at, with the mount there first, even
+// where a reuse's pointer sorts before it. A declaration written nowhere the
+// tree holds, as one in another document is, falls back to pointer order. Each
+// case runs its claims in both orders.
+func TestDeclare_ReadsWhereADeclarationIsWritten(t *testing.T) {
+	t.Parallel()
+	root, op := writtenOp(t)
+	for _, tc := range []struct {
+		name   string
+		claims []operationIDClaim
+		want   declaration
+	}{
+		{
+			name: "an alias site sorting first",
+			claims: []operationIDClaim{
+				{node: op, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+				{node: op, ptrs: opPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
+			},
+			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1z/get", "/paths/~1a/get"}},
+		},
+		{
+			name: "a ref sorting first",
+			claims: []operationIDClaim{
+				{node: op, ptrs: opPointers{mount: "/paths/~1r/get", decl: "/paths/~1z/get"}},
+				{node: op, ptrs: opPointers{mount: "/paths/~1z/get", decl: "/paths/~1z/get"}},
+			},
+			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1z/get", "/paths/~1r/get"}},
+		},
+		{
+			name: "written where no claim is mounted",
+			claims: []operationIDClaim{
+				{node: op, ptrs: opPointers{mount: "/paths/~1y/get", decl: "/paths/~1z/get"}},
+				{node: op, ptrs: opPointers{mount: "/paths/~1x/get", decl: "/paths/~1z/get"}},
+			},
+			want: declaration{at: "/paths/~1z/get", mounts: []jsontext.Pointer{"/paths/~1x/get", "/paths/~1y/get"}},
+		},
+		{
+			name: "written nowhere the tree holds",
+			claims: []operationIDClaim{
+				{node: op, ptrs: opPointers{mount: "/paths/~1y/get", decl: "/paths/~1y/get"}},
+				{node: op, ptrs: opPointers{mount: "/paths/~1x/get", decl: "/paths/~1x/get"}},
+			},
+			want: declaration{at: "/paths/~1x/get", mounts: []jsontext.Pointer{"/paths/~1x/get", "/paths/~1y/get"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reversed := slices.Clone(tc.claims)
+			slices.Reverse(reversed)
+			for _, claims := range [][]operationIDClaim{tc.claims, reversed} {
+				got := declare(claims, newWrittenTree(root))
+				assert.Empty(t, cmp.Diff(tc.want, got, cmp.AllowUnexported(declaration{})))
+			}
+		})
+	}
+}
+
+// TestByDeclaration_GroupsByNodeOrDeclarationPointer pins both ways claims
+// mount one declaration, and that grouping follows a chain of them: a shares a
+// node with b, and b a declaration pointer with c, so the three are one
+// declaration. The c-first order is the one that splits them when each claim
+// joins the first group it matches, and every order gives one answer.
+func TestByDeclaration_GroupsByNodeOrDeclarationPointer(t *testing.T) {
+	t.Parallel()
+	shared, copied, other := &yaml.Node{}, &yaml.Node{}, &yaml.Node{}
+	a := operationIDClaim{node: shared, ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}}
+	b := operationIDClaim{node: shared, ptrs: opPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}}
+	c := operationIDClaim{node: copied, ptrs: opPointers{mount: "/paths/~1c/get", decl: "/components/pathItems/S/get"}}
+	d := operationIDClaim{node: other, ptrs: opPointers{mount: "/paths/~1d/get", decl: "/paths/~1d/get"}}
+	want := [][]jsontext.Pointer{{"/paths/~1a/get", "/paths/~1b/get", "/paths/~1c/get"}, {"/paths/~1d/get"}}
+
+	for _, claims := range [][]operationIDClaim{{a, b, c, d}, {c, a, d, b}, {d, c, b, a}} {
+		var got [][]jsontext.Pointer
+		for _, group := range byDeclaration(claims) {
+			var mounts []jsontext.Pointer
+			for _, cl := range group {
+				mounts = append(mounts, cl.ptrs.mount)
+			}
+			slices.Sort(mounts)
+			got = append(got, mounts)
+		}
+		slices.SortFunc(got, func(x, y []jsontext.Pointer) int { return strings.Compare(string(x[0]), string(y[0])) })
+		assert.Empty(t, cmp.Diff(want, got))
+	}
+}
+
+// TestByDeclaration_ANilNodeGroupsByDeclarationPointerAlone pins the stricter
+// reading for a claim with no node: two such claims are one declaration only
+// at one declaration pointer, never through the missing node they share.
+func TestByDeclaration_ANilNodeGroupsByDeclarationPointerAlone(t *testing.T) {
+	t.Parallel()
+	apart := byDeclaration([]operationIDClaim{
+		{ptrs: opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"}},
+		{ptrs: opPointers{mount: "/paths/~1b/get", decl: "/paths/~1b/get"}},
+	})
+	assert.Len(t, apart, 2, "two claims with no node are two declarations")
+
+	together := byDeclaration([]operationIDClaim{
+		{ptrs: opPointers{mount: "/paths/~1a/get", decl: "/components/pathItems/S/get"}},
+		{ptrs: opPointers{mount: "/paths/~1b/get", decl: "/components/pathItems/S/get"}},
+	})
+	assert.Len(t, together, 1, "unless they resolve to one declaration pointer")
+}
+
+// TestJudge_ReportsEveryDeclarationAndMountButTheFirst pins the findings judge
+// makes of declarations already ordered: an error at each declaration but the
+// first, naming where the first is written, and a warning at each mount but a
+// declaration's first, naming that first mount.
+func TestJudge_ReportsEveryDeclarationAndMountButTheFirst(t *testing.T) {
+	t.Parallel()
+	diags := judge(newRawLowerer(nil).ctx, "dup", []declaration{
+		{at: "/paths/~1a/get", mounts: []jsontext.Pointer{"/paths/~1a/get", "/paths/~1b/get"}},
+		{at: "/components/pathItems/S/get", mounts: []jsontext.Pointer{"/paths/~1c/get"}},
+	})
+
+	require.Len(t, diags, 2, "one remount and one second declaration: %+v", diags)
+	assert.Equal(t, diag.DuplicateOperationID, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), diags[0].Provenance.Pointer)
+	assert.Contains(t, diags[0].Message, "/paths/~1a/get", "the warning names the mount it shares a declaration with")
+	assert.Equal(t, diag.ConflictingOperationID, diags[1].Code)
+	assert.Equal(t, ir.SeverityError, diags[1].Severity)
+	assert.Equal(t, jsontext.Pointer("/components/pathItems/S/get"), diags[1].Provenance.Pointer,
+		"the error is where the repeat is written")
+	assert.Contains(t, diags[1].Message, "/paths/~1a/get", "and names where the first declaration is")
+}
+
+// TestDeclaringNode_FollowsAnAliasOneHop pins what an operation alias needs:
+// `get: *op` builds the operation from the alias node, which declaringNode
+// follows to the mapping it names. A node that is not an alias, and a missing
+// one, are their own declaring node.
+func TestDeclaringNode_FollowsAnAliasOneHop(t *testing.T) {
+	t.Parallel()
+	root := openapitest.YAMLNode(t, "a: &op {operationId: x}\nb: *op\n")
+	anchored := annotation.RawChildNode(root, "a")
+	alias := annotation.RawChildNode(root, "b")
+	require.Equal(t, yaml.AliasNode, alias.Kind, "the fixture reuses the mapping through an alias")
+
+	assert.Same(t, anchored, declaringNode(alias))
+	assert.Same(t, anchored, declaringNode(anchored))
+	assert.Nil(t, declaringNode(nil))
+}
+
+// TestOperationIDClaims_AddSkipsAnEmptyOperationID pins add's guard: an
+// operation with no operationId claims nothing, because an emitter synthesizes
+// its name from the method and path rather than reading one that was never
+// declared.
+func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
+	t.Parallel()
+	claims := newOperationIDClaims()
+	claims.add(&soa.Operation{}, opPointers{mount: "/paths/~1a/get", decl: "/paths/~1a/get"})
+
+	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
+	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
 }

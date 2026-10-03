@@ -15,15 +15,13 @@ import (
 
 // aliasViolations returns everything Verify reports on a model named with
 // aliases. Its Source is "m", which no fixture below lists, so the
-// redundant-with-Source rule is out of the way of the ones being measured.
+// redundant-with-Source rule stays out of the way.
 //
-// Unfiltered on purpose. TestVerify_VerbatimAliasesAreClean is the one pinning
-// that no neutrality rule reaches an alias, so it has to be able to see
-// ir/naming-cased and ir/naming-not-words if some later change starts holding
-// aliases to Canonical's grammar; filtering to the alias codes would leave that
-// test unable to fail for the reason it exists. Nothing unrelated is in the way
-// either — TestVerify_NoAliasesIsClean asserts this exact document, with the
-// alias list empty, verifies empty.
+// Unfiltered on purpose: TestVerify_VerbatimAliasesAreClean must be able to see
+// ir/naming-cased and ir/naming-not-words if aliases are ever held to
+// Canonical's grammar, which filtering to the alias codes would hide. Nothing
+// unrelated is in the way, since TestVerify_NoAliasesIsClean asserts this
+// document verifies empty with no aliases.
 func aliasViolations(t *testing.T, aliases ...string) []irverify.Violation {
 	t.Helper()
 	return irverify.Verify(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
@@ -100,11 +98,14 @@ func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 	assert.Empty(t, aliasViolations(t, "\u2800"))
 }
 
-// TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares.
-// The bytes end in a multibyte sequence that never completes, and a Document
-// refuses to encode a string that is not UTF-8, so a document carrying one
-// cannot be marshaled. No other rule here would notice: read as runes, the
-// stray byte is the visible replacement rune, so the entry is not blank.
+// TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,
+// now checkUTF8's rather than the alias switch's own: the bytes end in a
+// multibyte sequence that never completes, and a Document refuses to encode a
+// string that is not UTF-8, so a document carrying one cannot be marshaled. No
+// alias rule fires beside it: read as runes, the stray byte is the visible
+// replacement rune, so the entry is not blank, and the switch's own case for
+// an ill-formed entry is empty — checkUTF8 reports it instead — which is why
+// this is exactly one violation rather than two.
 func TestVerify_IllFormedAliasIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
@@ -112,9 +113,32 @@ func TestVerify_IllFormedAliasIsAViolation(t *testing.T) {
 
 	got := aliasViolations(t, "ok", ill)
 	require.Len(t, got, 1)
-	assert.Equal(t, "ir/naming-invalid-utf8", got[0].Code)
+	assert.Equal(t, "ir/invalid-utf8", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[1]", got[0].Path)
 	assert.NotContains(t, got[0].Message, ill, "the report does not repeat the bad bytes")
+}
+
+// TestVerify_DuplicateIllFormedAliasIsNotFlaggedTwice holds the same
+// interaction one rule further than TestVerify_RepeatedBlankAliasReportsEachAsBlank
+// and TestVerify_RepeatedSourceAliasReportsEachAsRedundant do for their own
+// switch cases: an ill-formed alias never reaches seen, so a second occurrence
+// of the exact same bytes is not a repeat either, and checkUTF8 alone reports
+// each occurrence at its own index. Were the switch's empty case removed
+// instead of kept, the second occurrence would fall through to the duplicate
+// rule, which names the first occurrence by quoting it — putting the ill-formed
+// bytes into a message for the first time.
+func TestVerify_DuplicateIllFormedAliasIsNotFlaggedTwice(t *testing.T) {
+	t.Parallel()
+	ill := string([]byte{'c', 'a', 'f', 0xe9})
+	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
+
+	got := aliasViolations(t, ill, ill)
+	require.Len(t, got, 2, "one per occurrence, from checkUTF8 alone")
+	for i, v := range got {
+		assert.Equal(t, "ir/invalid-utf8", v.Code)
+		assert.Equal(t, fmt.Sprintf("doc.Types[t/x/M].Name.Aliases[%d]", i), v.Path)
+		assert.NotContains(t, v.Message, ill, "the report does not repeat the bad bytes")
+	}
 }
 
 // TestVerify_DuplicateAliasIsAViolation asserts both ends of the pair. The path
@@ -251,15 +275,11 @@ func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 // TestVerify_AliasPathIsSpelledAsTheWalkWould ties the hand-assembled violation
 // path to ir.WalkValues' own grammar.
 //
-// checkNaming prunes at ir.Naming — it holds no reference and no nested Naming
-// to descend into — so the walk never renders these paths itself and aliasPath
-// spells them by hand. That leaves two statements of one grammar with nothing
-// between them: were ir's slice-index rendering to change, every walk-produced
-// path in every other check would move while these codes alone kept the old
-// spelling, and no test would say so. This is that seam, so it reddens here.
-//
-// Past the single digits too, which is where a hand-built path and a formatted
-// one last agree.
+// checkNaming prunes at ir.Naming, so the walk never renders these paths and
+// aliasPath spells them by hand. Were ir's slice-index rendering to change,
+// every walk-produced path would move while these kept the old spelling, and
+// nothing else would say so. The fixture runs past the single digits, beyond
+// which a hand-built path and a formatted one can differ.
 func TestVerify_AliasPathIsSpelledAsTheWalkWould(t *testing.T) {
 	t.Parallel()
 	const size = 12

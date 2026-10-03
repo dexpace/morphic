@@ -33,15 +33,11 @@ type PropID string
 // says whose coordinates the path is in, and the path is the compiler's own
 // derivation from the defining occurrence.
 //
-// The vocabulary lives here rather than in any one compiler because every
-// consumer of a Document reads it — a diagnostic renderer, an IR diff, the
-// structural verifier — so a compiler with its own spelling breaks all of them.
-// compilers/compile owns the grammar that assembles an ID from these; what an ID
-// looks like is fixed here, which is what lets irverify hold every compiler to it
-// rather than only the one under test (GitHub #141).
-//
-// Channels and messages have no prefix yet: no compiler mints one, and inventing
-// a spelling before a compiler needs it would fix the wrong thing.
+// The vocabulary lives here because every consumer of a Document reads it, so a
+// compiler with its own spelling breaks all of them. compilers/compile owns the
+// grammar that assembles an ID from these; irverify holds every compiler to the
+// shape fixed here (GitHub #141). Channels and messages have no prefix yet: no
+// compiler mints one.
 const (
 	IDKindType    = "t"
 	IDKindOp      = "op"
@@ -78,8 +74,8 @@ func PrimTypeID(k PrimKind) TypeID {
 
 // WellFormedID reports whether id has the shape kind requires: the kind prefix,
 // a non-empty space, and an optional path, with no empty segment before the
-// path. A space with no path is an ID in its own right — the space names one
-// node — which is why the path is optional.
+// path. A space alone names one node and is an ID in its own right, so the path
+// is optional.
 //
 // Shape alone cannot catch every malformed ID. One that lost the separator
 // between its space and its path ("t/anonaddr") reads as a space named

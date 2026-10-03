@@ -43,8 +43,9 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 
 	origin, diags := applyWithin(1, &root, Options{Data: []byte(budgetOverlay)}, 2)
 
-	assert.False(t, origin.Applied(), "no position is attributed to the overlay")
-	assert.Equal(t, 9, origin.IndexAt("/info/description", 9), "not even one it did introduce")
+	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
+	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
+	assert.Equal(t, 9, origin.IndexAt("/info/description", 9), "no position is attributed to it, not even one it introduced")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayOriginIncomplete, diags[0].Code)
@@ -101,20 +102,16 @@ func TestSnapshot_RecordsEveryNodeAgainstItsValue(t *testing.T) {
 }
 
 // TestApplyWithin_RecoversALibraryPanic pins the no-panics-escape invariant on
-// the overlay side, the way the barriers around the parser and the resolver pin
-// it on theirs.
+// the overlay side, as the barriers around the parser and the resolver do on
+// theirs.
 //
-// A document node holding no root is the shape that provokes it: yamlpath
-// indexes the first child of what it is handed without checking there is one, so
-// the selector faults before any action is applied. The refusal must leave as a
-// diagnostic like every other overlay problem, and nothing may be attributed to
-// an overlay that never ran.
+// A document node holding no root provokes it: yamlpath indexes the first child
+// without checking there is one, so the selector faults before any action is
+// applied. The refusal must leave as a diagnostic like every other overlay
+// problem, and nothing may be attributed to an overlay that never ran.
 //
-// yaml.v3 does not produce this shape today — an empty source leaves a
-// zero-valued node, which the library tolerates — so the node is built rather
-// than decoded. That is what holds the barrier to its claim instead of resting
-// on a third-party parser continuing to avoid the input a third-party selector
-// cannot take.
+// yaml.v3 does not produce this shape today, so the node is built rather than
+// decoded, and the barrier does not rest on the parser continuing to avoid it.
 func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode}
@@ -169,10 +166,9 @@ func nodeAt(t *testing.T, root *yaml.Node, keys ...string) string {
 // failure that refuses rather than degrades.
 //
 // Running out of tree to walk says only that the document is past what this
-// package reads, which is what the attribution walks already say and already
-// degrade for. Running out of room to substitute says a graft was found and
-// could not be made safe, and a tree repaired in part is worse than either
-// outcome — so the compile refuses instead of passing it on.
+// package reads, which the attribution walks already degrade for. Running out
+// of room to substitute says a graft could not be made safe, and a tree
+// repaired in part is worse than either outcome, so the compile refuses.
 //
 // The budget is set between the two: large enough to walk this small source,
 // small enough that resolving the alias the overlay grafts runs past it.
@@ -268,4 +264,39 @@ func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
 	budget = maxNodes
 	assert.True(t, substituteGrafts(wide, map[*yaml.Node]bool{}, &budget),
 		"and the same tree fits a real one — the budget is what differed")
+}
+
+// TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition pins the rule for a
+// construct no single position addresses: the one source that supplied every
+// position it combines, else the answer for the position it is recorded at.
+// The fallback is neither the overlay's index nor zero, so an answer that
+// ignored it could not pass for the base document's.
+func TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition(t *testing.T) {
+	t.Parallel()
+	const base = 7
+	origin := Origin{index: 1, pointers: map[jsontext.Pointer]bool{
+		"/s/if": true, "/s/then": true, "/t": true, "/t/if": true,
+	}}
+	tests := []struct {
+		name    string
+		origin  Origin
+		pointer jsontext.Pointer
+		from    []jsontext.Pointer
+		want    int
+	}{
+		{name: "no positions is the pointer's own answer", origin: origin, pointer: "/t", want: 1},
+		{name: "no positions, base-owned pointer", origin: origin, pointer: "/s", want: base},
+		{name: "every position the overlay's", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/if", "/s/then"}, want: 1},
+		{name: "positions from both documents", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/if", "/s/else"}, want: base},
+		{name: "positions from both documents, the overlay's last", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/else", "/s/if"}, want: base},
+		{name: "every position the base's", origin: origin, pointer: "/s", from: []jsontext.Pointer{"/s/else"}, want: base},
+		{name: "an overlay-introduced declaring position", origin: origin, pointer: "/t", from: []jsontext.Pointer{"/t/if"}, want: 1},
+		{name: "no overlay applied", origin: Origin{}, pointer: "/s", from: []jsontext.Pointer{"/s/if"}, want: base},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.origin.IndexOf(tc.pointer, tc.from, base))
+		})
+	}
 }

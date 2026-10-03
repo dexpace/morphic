@@ -1,13 +1,17 @@
 # GitHub #518: an outside $ref naming a position inside another schema's body
 # used to guess that position's hint by reading the pointer from its tail and
-# recognizing a keyword by spelling alone, so a property, a patternProperties
-# entry, or the child of a oneOf branch shaped or spelled like a structural
-# keyword was misread as that keyword instead of its own position, and a
-# branch's ordinal stood in for the enclosing hint of what sits beneath it.
-# Declaring the Out* references before the schemas they name is the order
-# that exposed it: the reference interns the position, and everything beneath
-# it, first under its wrong guess, and nothing later corrects the subtree —
-# only the position's own node is fixed up by the declaration that follows.
+# recognizing a keyword by spelling alone, so a property or a patternProperties
+# entry keyed like a structural keyword was misread as that keyword, and a
+# oneOf branch's ordinal stood in for the enclosing hint of what sits beneath
+# the branch. Declaring the Out* references before the schemas they name is the
+# order that exposed it: the reference interns the position, and everything
+# beneath it, first under its wrong guess, and nothing later corrects the
+# subtree — only the position's own node is fixed up by the declaration that
+# follows.
+#
+# OutPrefixItemsKey is a control that neither order ever misnamed: a key
+# spelled prefixItems is never followed by a slot index, so the tail reading
+# had nothing to misread there.
 openapi: 3.1.0
 info: {title: Pointer Hint Keyword-Named Keys, version: "1"}
 paths: {}

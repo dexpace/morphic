@@ -76,6 +76,9 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		// either: GetURI trims and stops. A self-reference has to be spelled the way
 		// the file is named.
 		{name: "document half is not decoded", ref: "m%2Eyaml#/components/schemas/A", internal: false},
+		// No document key can spell a byte that is not UTF-8, so the fragment can
+		// never resolve (GitHub #520).
+		{name: "non-UTF-8 fragment", ref: "#/components/schemas/%FF", want: "", internal: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,6 +110,13 @@ func TestFragmentPointer_ReadsTheFragmentOfAnyDocument(t *testing.T) {
 		{name: "a bare # names the whole document, which is refused", ref: "#"},
 		{name: "no fragment at all", ref: "other.yaml"},
 		{name: "the empty ref", ref: ""},
+		{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F", want: "/", wantOK: true},
+		// No document key can spell bytes that are not UTF-8, whichever document
+		// the reference names, so both are refused rather than read as pointers
+		// carrying them (GitHub #520).
+		{name: "non-UTF-8 fragment refused", ref: "#/components/schemas/%FF"},
+		{name: "non-UTF-8 fragment refused in another document too", ref: "other.yaml#/components/schemas/%FF"},
+		{name: "overlong encoding is not UTF-8", ref: "#/a%C0%AF"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -164,7 +174,7 @@ func TestSameFile(t *testing.T) {
 
 func TestInternedID_ByPointerHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
 	id, ok := InternedID(ts, deepPointer)
@@ -174,8 +184,8 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
-	// A node lives at the pointer-derived ID without a byPointer entry: internedID
+	ts := compile.NewTypes()
+	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
 	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
@@ -187,7 +197,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 
 func TestInternedID_Miss(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	_, ok := InternedID(ts, deepPointer)
 	assert.False(t, ok, "an un-interned pointer does not resolve")
 }

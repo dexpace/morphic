@@ -93,7 +93,7 @@ func TestDetectCycles_Reproducers(t *testing.T) {
 			require.NotEmpty(t, diags, "degenerate cycle must be diagnosed")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.NotEmpty(t, diags[0].Provenance.Pointer, "line:col provenance")
+			assert.NotZero(t, diags[0].Provenance.Position, "position provenance")
 		})
 	}
 }
@@ -821,6 +821,78 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	}
 }
 
+// TestDetectCycles_AnchorFragmentIsNotWalked pins the fix for GitHub #523: a
+// fragment with no leading '/' names a $anchor, not a pointer, and the resolver
+// never walks it as one. Reading it as though '#x-s' were the pointer 'x-s' made
+// the scan walk it from the root as a key, refusing a document the resolver
+// never treats as a cycle.
+//
+// The pointer-spelled twin is the point of the pair. The anchor case fails if
+// the leading-'/' refusal is reverted; the pointer case fails if a fix refuses
+// the key rather than the anchor spelling, which would swallow this real cycle.
+func TestDetectCycles_AnchorFragmentIsNotWalked(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		src     string
+		isCycle bool
+	}{
+		{name: "anchor spelling names a $anchor, not a pointer", src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#x-s'
+components:
+  schemas:
+    A:
+      $ref: '#x-s'
+`},
+		{name: "the pointer spelling is a real cycle through the document root", isCycle: true, src: `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+x-s:
+  $ref: '#/x-s'
+components:
+  schemas:
+    A:
+      $ref: '#/x-s'
+`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			diags := scanBytes(t, []byte(tc.src))
+			if !tc.isCycle {
+				assert.Empty(t, diags, "'#x-s' names a $anchor, which the resolver's pointer walk never enters")
+				return
+			}
+			require.NotEmpty(t, diags, "'#/x-s' is a real pointer cycle through the document root")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
+// TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver pins why the scan reads
+// a fragment that is not UTF-8 as a pointer, although lowering refuses it
+// (GitHub #520). The resolver walks '#/paths/~1a/%FF' through /a before failing
+// on the last token, exactly as it walks '#/paths/~1a/t', so both re-enter the
+// reference being resolved and are refused alike. Refusing the fragment in the
+// scan's reader too would make the verdict turn on whether that token is UTF-8.
+func TestDetectCycles_NonUTF8PointerIsWalkedLikeTheResolver(t *testing.T) {
+	t.Parallel()
+	for _, token := range []string{"t", "%FF"} {
+		t.Run(token, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {$ref: '#/paths/~1a/" + token + "'}\n"
+			diags := scanBytes(t, []byte(src))
+			require.NotEmpty(t, diags, "the pointer passes through /a, the reference being resolved")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
+}
+
 // TestDetectCycles_AcceptsATreeWithNoCycle is the control the refusal cases
 // need: without it, a suite made only of refusals would pass on a scan that
 // refused everything handed to it.
@@ -830,16 +902,37 @@ func TestDetectCycles_AcceptsATreeWithNoCycle(t *testing.T) {
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
 }
 
-// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator:
-// a node is reported at its own line and column, and no node at all at the
-// source alone — never at a position fabricated from a nil.
+// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator: a
+// placed node is reported at its own line and column, a node the parser never
+// placed carries no position, and no node at all names the source alone —
+// never a position fabricated from a nil.
 func TestInSource_AnchorsANodeAndNamesTheSourceForNone(t *testing.T) {
 	t.Parallel()
 	locate := InSource(4)
 
-	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "12:7"},
-		locate(&yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7}))
-	assert.Equal(t, ir.Provenance{Source: 4}, locate(nil))
+	tests := map[string]struct {
+		node *yaml.Node
+		want ir.Provenance
+	}{
+		"a placed node reports its line and column": {
+			node: &yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7},
+			want: ir.Provenance{Source: 4, Position: ir.Position{Line: 12, Column: 7}},
+		},
+		"a node the parser never placed carries no position": {
+			node: &yaml.Node{},
+			want: ir.Provenance{Source: 4},
+		},
+		"no node names the source alone": {
+			node: nil,
+			want: ir.Provenance{Source: 4},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, locate(tt.node))
+		})
+	}
 }
 
 // TestCycles_AnchorsThroughTheLocator pins that a refusal takes its provenance

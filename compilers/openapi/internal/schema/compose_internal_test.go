@@ -3,6 +3,7 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"strconv"
+	"strings"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -31,15 +32,15 @@ func TestPropIDByName_NotFound(t *testing.T) {
 	assert.Equal(t, ir.PropID("p1"), id)
 }
 
-// TestRefHint_Shapes pins refHint's paths: positionHint's answer for a
-// fragment that spells a pointer, decoded at both layers a $ref encodes it in
-// (GitHub #505) — so a union variant or a branch position is suggested as the
-// node it holds, not its ordinal or its keyword (GitHub #521), whether at a
-// component schema or, by the same replay, anywhere else (GitHub #529) —
-// and, for a reference whose fragment is no pointer at all, the text after
-// the last '/', percent-decoded when that decodes to valid UTF-8 (GitHub
-// #520), kept as written otherwise.
-func TestRefHint_Shapes(t *testing.T) {
+// TestTargetHint_Shapes pins what a reference suggests from its text alone:
+// each row is unresolved, so the walk reads the pointer, never the schema
+// behind it. A fragment spelling a pointer is decoded at both layers (GitHub
+// #505) and named by positionHint, so a branch or structural position is
+// suggested as the node it holds (GitHub #521), whether at a component or
+// elsewhere (GitHub #529). Any other fragment (non-UTF-8 included, GitHub
+// #520) is named by the text after its last '/', percent-decoded when that is
+// valid UTF-8, else as written.
+func TestTargetHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -47,13 +48,9 @@ func TestRefHint_Shapes(t *testing.T) {
 		want string
 	}{
 		{name: "plain component", ref: "#/components/schemas/Pet", want: "Pet"},
-		{name: "no fragment at all", ref: "bare", want: "bare"},
 		{name: "RFC 6901 escape decodes", ref: "#/components/schemas/Cat~1Dog", want: "Cat/Dog"},
 		{name: "percent escape decodes", ref: "#/components/schemas/Fish%2DTank", want: "Fish-Tank"},
 		{name: "another document, still a pointer", ref: "other.yaml#/components/schemas/Foo", want: "Foo"},
-		{name: "another document, no fragment", ref: "other.yaml", want: "other.yaml"},
-		{name: "a document in a directory, no fragment", ref: "./schemas/Pet.yaml", want: "Pet.yaml"},
-		{name: "a $anchor is not a pointer", ref: "#anchor", want: "#anchor"},
 		{name: `a lone slash names the member keyed ""`, ref: "#/", want: ""},
 		{name: "a oneOf branch is suggested as the variant, not its ordinal",
 			ref: "#/components/schemas/X/oneOf/0", want: "variant_0"},
@@ -61,9 +58,16 @@ func TestRefHint_Shapes(t *testing.T) {
 			ref: "#/components/schemas/A/items", want: compile.SubHint("A", "item")},
 		{name: "a property whose key reads like a keyword is suggested by the key",
 			ref: "#/components/schemas/A/properties/items", want: "items"},
-		{name: "a pointer outside components is named by positionHint's replay, not its last token",
+		{name: "a branch outside components is suggested as the variant too",
+			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0", want: "variant_0"},
+		{name: "any other position outside components is named by positionHint's replay, not its last token",
 			ref: "#/paths/~1x/get/responses/200/content/application~1json/schema/items", want: compile.SubHint("schema", "item")},
-		{name: "a percent escape in a non-pointer fragment decodes",
+		{name: "no fragment at all", ref: "bare", want: "bare"},
+		{name: "another document, no fragment", ref: "other.yaml", want: "other.yaml"},
+		{name: "a document in a directory, no fragment", ref: "./schemas/Pet.yaml", want: "Pet.yaml"},
+		{name: "a $anchor is not a pointer", ref: "#anchor", want: "#anchor"},
+		{name: "a fragment that is not UTF-8 is not a pointer", ref: "#/components/schemas/%FF", want: "%FF"},
+		{name: "a percent escape in a reference with no fragment decodes",
 			ref: "./Fish%2DTank.yaml", want: "Fish-Tank.yaml"},
 		{name: "an invalid percent escape is kept as written",
 			ref: "./bad%ZZ.yaml", want: "bad%ZZ.yaml"},
@@ -73,78 +77,132 @@ func TestRefHint_Shapes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, refHint(tc.ref))
+			assert.Equal(t, tc.want, targetHint(oas3.NewJSONSchemaFromReference(references.Reference(tc.ref))))
 		})
 	}
 }
 
-// TestSubSchemaHint_Fallbacks covers subSchemaHint's remaining fallback, plus
-// one shape positionHint's total replay now settles by itself:
-//
-//   - A branch whose $ref does resolve, but to a target with no hint of its
-//     own — an empty-named component — falls back to the branch's own
-//     positional hint rather than the empty string targetHint found.
-//   - A branch under /paths is found the same way a component one is: since
-//     positionHint replays every pointer now (GitHub #529), the walk reaches
-//     the branch step itself, with no separate branchPointerHint check.
-//
-// Neither row a full compile reaches, since both need a schema shape a
-// declaration never itself produces.
-func TestSubSchemaHint_Fallbacks(t *testing.T) {
+// TestTargetHint_FollowsABranchToItsTarget attaches resolution info with
+// oas3.NewReferencedScheme instead of driving a compile, to pin where
+// targetHint's walk goes on and where it stops. A reference to a composition
+// branch holding a $ref (at, holding to) is named after that branch's target
+// (GitHub #521), inside a component or not; a target that names nothing leaves
+// the branch's own name. Any other position holding a $ref is named for the
+// position, as positionHint replays it: a guess under /paths that the
+// declaration replaces (GitHub #729).
+func TestTargetHint_FollowsABranchToItsTarget(t *testing.T) {
 	t.Parallel()
-
-	emptyTarget := oas3.NewJSONSchemaFromReference(references.Reference("#/components/schemas/"))
-	assert.Equal(t, "variant_0", subSchemaHint(emptyTarget, "/components/schemas/Host/oneOf/0"),
-		"the $ref resolves, but to a target with no hint of its own, so the branch keeps its own")
-
-	inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	assert.Equal(t, "variant_0",
-		subSchemaHint(inline, "/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0"),
-		"positionHint's replay finds the branch under /paths directly, with no separate fallback")
-}
-
-// TestReferencedBranch_Shapes pins the three ways referencedBranch declines to
-// continue targetHint's chain: a fragment that spells no pointer at all, a
-// pointer that resolves but does not address a composition branch, and a
-// branch position whose resolution this schema value does not carry — built
-// with oas3.NewJSONSchemaFromReference, which leaves no reference-resolution
-// info for annotation.DeclaredSchema to read (unlike oas3.NewReferencedScheme,
-// which TestTargetHint_FollowsAReferencedBranchToItsUltimateTarget uses below).
-func TestReferencedBranch_Shapes(t *testing.T) {
-	t.Parallel()
+	const under = "#/paths/~1x/get/responses/200/content/application~1json/schema"
 	tests := []struct {
 		name string
-		ref  string
+		at   string
+		to   string
+		want string
 	}{
-		{"a fragment that spells no pointer", "./other.yaml"},
-		{"a pointer to a component, not a branch position", "#/components/schemas/Foo"},
-		{"a branch position this schema value never resolved", "#/components/schemas/Foo/oneOf/0"},
+		{"a branch beneath a component", "#/components/schemas/X/oneOf/0", "#/components/schemas/Y", "Y"},
+		{"a branch elsewhere", under + "/oneOf/0", "#/components/schemas/Y", "Y"},
+		{"a branch holding a reference to another document", "#/components/schemas/X/oneOf/0",
+			"./Fish%2DTank.yaml", "Fish-Tank.yaml"},
+		{"a branch whose target names nothing", "#/components/schemas/X/oneOf/0", "#/components/schemas/", "variant_0"},
+		{"a branch whose other document names nothing", "#/components/schemas/X/oneOf/0", "./schemas/", "variant_0"},
+		{"any other position beneath a component", "#/components/schemas/X/items", "#/components/schemas/Y",
+			compile.SubHint("X", "item")},
+		{"any other position elsewhere", under + "/items", "#/components/schemas/Y", compile.SubHint("schema", "item")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			b := oas3.NewJSONSchemaFromReference(references.Reference(tc.ref))
-			next, ok := referencedBranch(b)
-			assert.False(t, ok)
-			assert.Nil(t, next)
+			to := references.Reference(tc.to)
+			target := oas3.NewJSONSchemaFromSchema[oas3.Concrete](&oas3.Schema{Ref: &to})
+			outer := oas3.NewReferencedScheme(t.Context(), references.Reference(tc.at), target)
+			assert.Equal(t, tc.want, targetHint(outer))
 		})
 	}
 }
 
-// TestTargetHint_FollowsAReferencedBranchToItsUltimateTarget builds the
-// resolution info oas3.NewReferencedScheme exists to attach, rather than
-// driving a full compile, so it can pin targetHint's loop continuation
-// directly: a branch position whose own $ref resolves to another $ref keeps
-// following the chain (GitHub #521), and the hint it suggests is the last
-// target the chain reaches — here a plain component, so the second hop ends
-// it — not the first branch's ordinal or pointer.
-func TestTargetHint_FollowsAReferencedBranchToItsUltimateTarget(t *testing.T) {
+// TestTargetHint_StopsAtTheHopCap pins maxTargetHintHops at its boundary,
+// through a compile because only the resolver attaches a resolution to every
+// branch of a long chain. Each branch holds a $ref to the next and the last to
+// T. A variant naming the first branch is named after T while the walk reaches
+// T within the cap, and keeps the last branch's name once it cannot. The node
+// that variant holds starts its own walk a hop further on, so it still reaches
+// T: past the cap the two are named apart, as the cap's doc says.
+func TestTargetHint_StopsAtTheHopCap(t *testing.T) {
 	t.Parallel()
-	hop2 := references.Reference("#/components/schemas/Y")
-	target := oas3.NewJSONSchemaFromSchema[oas3.Concrete](&oas3.Schema{Ref: &hop2})
-	outer := oas3.NewReferencedScheme(t.Context(), "#/components/schemas/X/oneOf/0", target)
+	for _, tc := range []struct {
+		name     string
+		branches int
+		variant  string
+	}{
+		{"T within reach", maxTargetHintHops - 1, "t"},
+		{"T one hop past the cap", maxTargetHintHops, "variant_0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var spec strings.Builder
+			spec.WriteString("    Choice: {oneOf: [{$ref: '#/components/schemas/S0/oneOf/0'}, {type: integer}]}\n")
+			for i := range tc.branches {
+				next := "#/components/schemas/T"
+				if i+1 < tc.branches {
+					next = "#/components/schemas/S" + strconv.Itoa(i+1) + "/oneOf/0"
+				}
+				spec.WriteString("    S" + strconv.Itoa(i) + ": {oneOf: [{$ref: '" + next + "'}, {type: integer}]}\n")
+			}
+			spec.WriteString("    T: {type: object, properties: {t: {type: string}}}\n")
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(spec.String()))
+			openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, "Y", targetHint(outer))
+			choice, ok := doc.Types[ids.ForPointer(ids.Ptr("components", "schemas", "Choice"))].(*ir.Union)
+			require.True(t, ok, "Choice should be a union")
+			variant := choice.Variants[0]
+			assert.Equal(t, tc.variant, variant.Name.Hint)
+			node, ok := doc.Types[variant.Type.Target]
+			require.True(t, ok, "the variant's target %s is interned", variant.Type.Target)
+			assert.Equal(t, "t", node.Common().Name.Hint, "the node the variant holds reaches T either way")
+		})
+	}
+}
+
+// TestSubSchemaHint_Shapes pins the name subSchemaHint gives a position, one
+// row per answer ownHint gives, each for a schema that is a $ref and for one
+// that is not. A branch holding a $ref takes its target's name, falling back to
+// its own when the target names nothing (an empty-named component); every other
+// position is named for where it is, whatever it holds: positionHint's name.
+//
+// The $ref rows resolve nothing, so a target is named from its pointer alone.
+func TestSubSchemaHint_Shapes(t *testing.T) {
+	t.Parallel()
+	const under = "/paths/~1x/get/responses/200/content/application~1json/schema"
+	ref := func(to string) *oas3.JSONSchema[oas3.Referenceable] {
+		return oas3.NewJSONSchemaFromReference(references.Reference(to))
+	}
+	inline := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	tests := []struct {
+		name    string
+		decl    *oas3.JSONSchema[oas3.Referenceable]
+		pointer jsontext.Pointer
+		want    string
+	}{
+		{"a position beneath a component, inline", inline, "/components/schemas/A/items", compile.SubHint("A", "item")},
+		{"a position beneath a component, holding a $ref", ref("#/components/schemas/T"),
+			"/components/schemas/A/items", compile.SubHint("A", "item")},
+		{"a branch beneath a component, inline", inline, "/components/schemas/A/oneOf/0", "variant_0"},
+		{"a branch beneath a component, holding a $ref", ref("#/components/schemas/T"),
+			"/components/schemas/A/oneOf/0", "T"},
+		{"a branch holding a $ref to a target that names nothing", ref("#/components/schemas/"),
+			"/components/schemas/A/oneOf/0", "variant_0"},
+		{"a branch elsewhere, inline", inline, under + "/oneOf/0", "variant_0"},
+		{"a branch elsewhere, holding a $ref", ref("#/components/schemas/T"), under + "/oneOf/0", "T"},
+		{"any other position elsewhere, inline", inline, under + "/items", compile.SubHint("schema", "item")},
+		{"any other position elsewhere, holding a $ref", ref("#/components/schemas/T"), under + "/items",
+			compile.SubHint("schema", "item")},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, subSchemaHint(tc.decl, tc.pointer))
+		})
+	}
 }
 
 func TestMappingTargetID(t *testing.T) {
@@ -357,15 +415,15 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 	}
 }
 
-// TestBranchPointerHint_Shapes pins which pointers name a composition branch.
+// TestPositionHint_BranchShapes pins which pointers name a composition branch.
 //
-// The parse decides whether hoistSubSchema answers what the composition would,
+// The walk decides whether hoistSubSchema answers what the composition would,
 // so a pointer it misreads either reintroduces the disagreement (GitHub #181) or
 // invents a variant hint for something that is not a branch. The rows that are
 // not branches matter as much as the rows that are: `oneOf` is a legal property
 // name, and a schema keyword taking numbered children is not necessarily a
 // composition.
-func TestBranchPointerHint_Shapes(t *testing.T) {
+func TestPositionHint_BranchShapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -386,6 +444,7 @@ func TestBranchPointerHint_Shapes(t *testing.T) {
 		{name: "a non-numeric child of a composition keyword", pointer: "/components/schemas/S/oneOf/x"},
 		{name: "a negative index is not a segment the compiler writes", pointer: "/components/schemas/S/oneOf/-1"},
 		{name: "an empty index", pointer: "/components/schemas/S/oneOf/"},
+		{name: "a branch outside components", pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/oneOf/0", want: "variant_0"},
 		{name: "a bare segment", pointer: "oneOf"},
 		{name: "the empty pointer", pointer: ""},
 	}
@@ -425,24 +484,14 @@ func TestBranchHint_AgreesWithThePointerWalk(t *testing.T) {
 }
 
 // TestPositionHint_Shapes pins the left-to-right walk down a schema: each step
-// either recomposes the enclosing hint by role — items, additionalProperties,
+// recomposes the enclosing hint by role (items, additionalProperties,
 // contentSchema, a patternProperties entry, a prefixItems slot, a composition
-// branch — or, for a keyed map (properties, $defs, definitions,
-// dependentSchemas, dependencies), takes the key itself. The keyed-map rows
-// are why a key is never read as a keyword: a property, a patternProperties
-// entry or a $defs entry literally spelled "items" is the key "items", not
-// the items keyword, and the walk only reaches the role for an "items" it
-// meets as a keyword token in its own right (GitHub #518). The branch rows
-// are the same agreement for a composition's ordinal, which names
-// "variant_0", never "0".
-//
-// Beneath /components/schemas the walk roots at the component, so the
-// pointer alone determines every enclosing hint exactly. Elsewhere it roots
-// at the pointer's first token instead and resets at every token it does not
-// know, so a position under /paths is named entirely by the steps inside its
-// own schema, with no memory of the operation or response that led there
-// (GitHub #529) — a placeholder for a position a declaration lowers, and the
-// name itself for one only a reference ever reaches.
+// branch) or, for a keyed map (properties, $defs, definitions,
+// dependentSchemas, dependencies), takes the key itself. A key is never read as
+// a keyword (GitHub #518), and a branch ordinal names "variant_0", never "0".
+// Beneath /components/schemas the walk roots at the component; elsewhere at the
+// pointer's first token, resetting at every token it does not know (GitHub
+// #529).
 func TestPositionHint_Shapes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -510,6 +559,16 @@ func TestPositionHint_Shapes(t *testing.T) {
 			want:    "items",
 		},
 		{
+			name:    "a definitions entry keyed items is not the items keyword",
+			pointer: "/components/schemas/Foo/definitions/items",
+			want:    "items",
+		},
+		{
+			name:    "a dependencies entry keyed items is not the items keyword",
+			pointer: "/components/schemas/Foo/dependencies/items",
+			want:    "items",
+		},
+		{
 			name:    "a contentSchema",
 			pointer: "/components/schemas/Foo/contentSchema",
 			want:    compile.SubHint("Foo", "content"),
@@ -550,6 +609,11 @@ func TestPositionHint_Shapes(t *testing.T) {
 			want:    "oneOf",
 		},
 		{
+			name:    "a non-numeric child of a composition keyword is not a branch",
+			pointer: "/components/schemas/Foo/oneOf/x",
+			want:    "x",
+		},
+		{
 			name:    "an unrecognised keyword is named after its own token, and what it holds hangs off that",
 			pointer: "/components/schemas/Foo/not/items",
 			want:    compile.SubHint("not", "item"),
@@ -565,8 +629,13 @@ func TestPositionHint_Shapes(t *testing.T) {
 			want:    "properties",
 		},
 		{
-			name:    "a position under /paths resets at every token the walk does not know, so items is named off schema's own hint, not the response or media type that led there",
+			name:    "a position under /paths resets at every token the walk does not know, so items is named off the schema's own hint, not the response or media type that led there",
 			pointer: "/paths/~1x/get/responses/200/content/application~1json/schema/items",
+			want:    compile.SubHint("schema", "item"),
+		},
+		{
+			name:    "a component that is not a schema replays the same way",
+			pointer: "/components/responses/R/content/application~1json/schema/items",
 			want:    compile.SubHint("schema", "item"),
 		},
 		{
@@ -575,7 +644,7 @@ func TestPositionHint_Shapes(t *testing.T) {
 			want:    compile.SubHint("", "item"),
 		},
 		{
-			name:    "the schemas map has too few tokens to root at a component, so it replays like any other pointer and is named by its last token",
+			name:    "the schemas map has too few tokens to root at a component, so it replays like any other pointer",
 			pointer: "/components/schemas",
 			want:    "schemas",
 		},

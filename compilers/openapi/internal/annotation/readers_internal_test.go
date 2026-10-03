@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -130,13 +131,11 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 // mapping of ir-design §5.2, the precedence a site holds over its referent, and
 // the answer for the pairing that admits nothing.
 //
-// Precedence is per flag: a site that writes readOnly settles readOnly for the
-// position and says nothing about writeOnly, which therefore still resolves
-// from the referent — the uniform §14 merge every other annotation here already
-// follows. So a site's readOnly does not cancel a referent's writeOnly; the two
-// are both in force, they admit disjoint lifecycle sets, and the position is
-// left visible in none. That case read as plain readOnly until GitHub #276,
-// when the flag arriving second was dropped without a word.
+// Precedence is per flag (the uniform §14 merge): a site's readOnly settles
+// readOnly only, so it does not cancel a referent's writeOnly. Both are in
+// force, admit disjoint lifecycle sets, and leave the position visible in none.
+// Until GitHub #276 that case read as plain readOnly, dropping the flag
+// arriving second.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
@@ -280,7 +279,7 @@ func TestExtensionsFrom_KeepsEachAndLocatesItAtItsOwnKey(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-a: 1\nx-b: {k: v}\n")
 
-	got, diags := ExtensionsFrom(s.GetExtensions(), 3, "/components/schemas/S")
+	got, diags := ExtensionsFrom(s.GetExtensions(), sourced(3), "/components/schemas/S")
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 2)
@@ -296,11 +295,11 @@ func TestExtensionsFrom_KeepsEachAndLocatesItAtItsOwnKey(t *testing.T) {
 // `unmodeled: {}` the source never wrote.
 func TestExtensionsFrom_NothingWrittenIsNotAnEmptyMap(t *testing.T) {
 	t.Parallel()
-	got, diags := ExtensionsFrom(nil, 0, "/x")
+	got, diags := ExtensionsFrom(nil, sourced(0), "/x")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, diags = ExtensionsFrom(schemaFromYAML(t, "type: string\n").GetExtensions(), 0, "/x")
+	got, diags = ExtensionsFrom(schemaFromYAML(t, "type: string\n").GetExtensions(), sourced(0), "/x")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 }
@@ -312,7 +311,7 @@ func TestExtensionsFrom_UnserializableIsWarnedNotKept(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
 
-	got, diags := ExtensionsFrom(s.GetExtensions(), 0, "/x")
+	got, diags := ExtensionsFrom(s.GetExtensions(), sourced(0), "/x")
 
 	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
 	require.Len(t, diags, 1)
@@ -328,13 +327,31 @@ func TestExtensionsUnder_KeysBeneathTheScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-a: 1\n")
 
-	got, diags := ExtensionsUnder(s.GetExtensions(), 2, "/info/contact", "info/contact")
+	got, diags := ExtensionsUnder(s.GetExtensions(), sourced(2), "/info/contact", "info/contact")
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
 	require.Contains(t, got, "openapi:info/contact/x-a")
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/info/contact/x-a"},
 		got["openapi:info/contact/x-a"].Provenance)
+}
+
+// TestExtensionsUnder_AttributesEachEntryAtItsOwnKey pins GitHub #522: an
+// overlay that rewrites one extension on an owner must not carry its
+// attribution onto a sibling extension the overlay never touched, since both
+// entries are located through the same owner pointer plus their own key.
+func TestExtensionsUnder_AttributesEachEntryAtItsOwnKey(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nx-a: 1\nx-b: 2\n")
+
+	got, diags := ExtensionsUnder(s.GetExtensions(), overlaid("/o/x-b"), "/o", "")
+
+	assert.Empty(t, diags)
+	require.Len(t, got, 2)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/o/x-a"}, got["openapi:x-a"].Provenance,
+		"the untouched sibling stays with the base")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/o/x-b"}, got["openapi:x-b"].Provenance,
+		"the overlaid entry names the overlay")
 }
 
 // TestExtensionsAt_FoldsEverySiteWithoutCollision is the reason the scope
@@ -345,7 +362,7 @@ func TestExtensionsAt_FoldsEverySiteWithoutCollision(t *testing.T) {
 	info := schemaFromYAML(t, "type: string\nx-a: 1\n")
 	license := schemaFromYAML(t, "type: string\nx-a: 2\n")
 
-	got, diags := ExtensionsAt(0,
+	got, diags := ExtensionsAt(sourced(0),
 		ExtensionSite{Scope: "info", Owner: "/info", Ext: info.GetExtensions()},
 		ExtensionSite{Scope: "info/license", Owner: "/info/license", Ext: license.GetExtensions()},
 		ExtensionSite{Scope: "components", Owner: "/components", Ext: nil},
@@ -365,7 +382,7 @@ func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
 	t.Parallel()
 	bad := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
 
-	got, diags := ExtensionsAt(0, ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
+	got, diags := ExtensionsAt(sourced(0), ExtensionSite{Scope: "info", Owner: "/info", Ext: bad.GetExtensions()})
 
 	assert.Nil(t, got, "nothing was kept, so there is no map to emit")
 	require.Len(t, diags, 1)
@@ -403,30 +420,42 @@ func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
 // TestCombinedRaw_JoinsOnlyWhatIsWritten pins the three combining readers. Each
 // keyword present goes into one object in the requested order, and a
 // combination with nothing written yields nothing rather than an empty object.
+// The keywords returned beside it are exactly the ones it holds, since those are
+// what the entry's provenance is asked about (GitHub #534).
 func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		body string
-		read func(*oas3.Schema) (ir.RawValue, error)
+		read func(*oas3.Schema) (ir.RawValue, []string, error)
 		want string
+		keys []string
 	}{
 		{
 			name: "every if/then/else arm", read: IfThenElseRaw,
 			body: "if: {type: string}\nthen: {maxLength: 2}\nelse: {type: integer}\n",
 			want: `{"if":{"type":"string"},"then":{"maxLength":2},"else":{"type":"integer"}}`,
+			keys: []string{"if", "then", "else"},
+		},
+		{
+			name: "only the arms written", read: IfThenElseRaw,
+			body: "if: {type: string}\nelse: {type: integer}\n",
+			want: `{"if":{"type":"string"},"else":{"type":"integer"}}`,
+			keys: []string{"if", "else"},
 		},
 		{name: "no arms at all", read: IfThenElseRaw, body: "type: string\n"},
 		{
 			name: "contains with both bounds", read: ContainsRaw,
 			body: "contains: {type: string}\nminContains: 1\nmaxContains: 3\n",
 			want: `{"contains":{"type":"string"},"minContains":1,"maxContains":3}`,
+			keys: []string{"contains", "minContains", "maxContains"},
 		},
 		{name: "no contains family", read: ContainsRaw, body: "type: array\n"},
 		{
 			name: "both unevaluated keywords", read: UnevaluatedRaw,
 			body: "unevaluatedProperties: {type: string}\nunevaluatedItems: {type: integer}\n",
 			want: `{"unevaluatedProperties":{"type":"string"},"unevaluatedItems":{"type":"integer"}}`,
+			keys: []string{"unevaluatedProperties", "unevaluatedItems"},
 		},
 		{
 			name: "a false unevaluatedProperties is a structural mode, not a keyword to keep",
@@ -437,8 +466,9 @@ func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := tc.read(schemaFromYAML(t, tc.body))
+			got, keys, err := tc.read(schemaFromYAML(t, tc.body))
 			require.NoError(t, err)
+			assert.Equal(t, tc.keys, keys, "the keywords combined, in the requested order")
 			if tc.want == "" {
 				assert.Nil(t, got, "nothing written yields no object")
 				return
@@ -451,24 +481,48 @@ func TestCombinedRaw_JoinsOnlyWhatIsWritten(t *testing.T) {
 // TestCombinedRaw_AnUnconvertibleMemberFailsTheWhole pins the rule presentMembers
 // exists for: an object labelled verbatim that silently omits one of its
 // keywords would restate GitHub #144 in miniature, so the combination errors
-// instead.
+// instead. The error names the first member that failed, and every keyword
+// written is still returned beside it, since the report that stands in for the
+// entry is attributed by them (GitHub #534).
 func TestCombinedRaw_AnUnconvertibleMemberFailsTheWhole(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		body string
-		read func(*oas3.Schema) (ir.RawValue, error)
+		name   string
+		body   string
+		read   func(*oas3.Schema) (ir.RawValue, []string, error)
+		failed string
+		keys   []string
 	}{
-		{name: "if/then/else", body: "if: {type: string}\nthen: {const: .nan}\n", read: IfThenElseRaw},
-		{name: "contains", body: "contains: {const: .nan}\nminContains: 1\n", read: ContainsRaw},
-		{name: "unevaluated", body: "unevaluatedProperties: {type: string}\nunevaluatedItems: {const: .nan}\n", read: UnevaluatedRaw},
+		{
+			name: "if/then/else", read: IfThenElseRaw,
+			body:   "if: {type: string}\nthen: {const: .nan}\n",
+			failed: "then", keys: []string{"if", "then"},
+		},
+		{
+			name: "contains, with a keyword written after the one that fails", read: ContainsRaw,
+			body:   "contains: {const: .nan}\nminContains: 1\n",
+			failed: "contains", keys: []string{"contains", "minContains"},
+		},
+		{
+			name: "unevaluated", read: UnevaluatedRaw,
+			body:   "unevaluatedProperties: {type: string}\nunevaluatedItems: {const: .nan}\n",
+			failed: "unevaluatedItems", keys: []string{"unevaluatedProperties", "unevaluatedItems"},
+		},
+		{
+			name: "two members that fail", read: IfThenElseRaw,
+			body:   "if: {const: .nan}\nelse: {const: .inf}\n",
+			failed: "if", keys: []string{"if", "else"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := tc.read(schemaFromYAML(t, tc.body))
+			got, keys, err := tc.read(schemaFromYAML(t, tc.body))
 			require.Error(t, err, "the whole combination fails rather than dropping a member")
 			assert.Nil(t, got)
+			assert.True(t, strings.HasPrefix(err.Error(), tc.failed+": "),
+				"the error names the first member that failed: %v", err)
+			assert.Equal(t, tc.keys, keys, "every keyword written, whether or not it converted")
 		})
 	}
 }
@@ -576,24 +630,14 @@ func TestRawMappingKeys_ReadsOnlyAMapping(t *testing.T) {
 }
 
 // TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
-// reader and nodeview's, which is the reason the two exist side by side: what a
-// keyword is preserved *as* is what the source spelled at it, while what a
-// pointer or a $ref *resolves to* is what the parser will see.
+// reader and nodeview's, which is why both exist: what a keyword is preserved
+// *as* is what the source spelled, while what a pointer or $ref *resolves to*
+// is what the parser will see.
 //
-// Two of the cases are ways the trees diverge, and each is a keyword this
-// package would preserve verbatim. Answering a raw read through the view would
-// silently rewrite both — a merged keyword would appear at a schema that never
-// wrote it, and an alias would be replaced by its target.
-//
-// The third is here because it stopped being one. A repeated key used to resolve
-// to opposite ends, and GitHub #356 made the raw read take the last pair as the
-// parser does, on the grounds that returning the first described a mapping by a
-// value nothing else in the compiler uses. It is asserted rather than dropped so
-// that the agreement is pinned: a reader drifting back to first-wins is a change
-// worth failing on, not a detail to rediscover.
-//
-// It reaches across packages because that is where the mistake would be made:
-// nothing inside either reader can see that the other answers differently.
+// Answering a raw read through the view would make a merged keyword appear at a
+// schema that never wrote it and replace an alias by its target; the first two
+// cases pin those divergences. The third pins an agreement: since GitHub #356
+// both take the last pair of a repeated key, as the parser does.
 func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
 	t.Parallel()
 
@@ -661,17 +705,13 @@ func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
 	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
 }
 
-// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair the
-// parser reads: marshaller skips every occurrence of a repeated key but the
-// last, so returning the first would describe the mapping by a value nothing
-// else in the compiler uses.
+// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair
+// the parser reads, which is the last of a repeated key.
 //
-// Spelled with an alias, because that is how the case is reachable from a parsed
-// document — yaml.v3 refuses a key written twice when it decodes into a typed
-// value, as the model parse does, so a plainly repeated key faults the document
-// before any reader sees it. Decoding into a *yaml.Node, which is how a fixture
-// builds a tree directly, accepts one; an explicit pair and an aliased one are
-// two nodes here and one key to the parser either way.
+// The repeat is spelled with an alias because yaml.v3 refuses a plainly
+// repeated key when decoding into a typed value, as the model parse does. An
+// explicit pair and an aliased one are two nodes here and one key to the
+// parser.
 func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, want string }{
@@ -703,6 +743,48 @@ func TestRawPropertyNode_NilSchemaReadsNothing(t *testing.T) {
 	assert.Nil(t, RawPropertyNode(s, "title"), "a keyword the schema did not write")
 }
 
+// TestRawChildNodes_AgreesWithRawChildNode holds the all-keys reader to the one
+// it batches, key by key: every name either reader answers for, a name merged
+// in through `<<`, and one the mapping never writes. The fixtures are the
+// spellings RawChildNode has a rule for: a key repeated through an alias, whose
+// last pair wins; a key written as an alias, found under the name it resolves
+// to; and a merge key, read as the pair it is rather than the pairs it names.
+func TestRawChildNodes_AgreesWithRawChildNode(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body string }{
+		{"repeated key", "anchor: &k dup\ndup: first\n*k : last\n"},
+		{"aliased key", "anchor: &k aliasedKey\n*k : found\n"},
+		{"merge key", "base: &b {title: merged}\n<<: *b\nown: 1\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var doc yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.body), &doc))
+
+			children := RawChildNodes(&doc)
+
+			require.NotEmpty(t, children, "a document node is stepped through to its mapping")
+			keys := append([]string{"title", "absent"}, RawMappingKeys(&doc)...)
+			for key := range children {
+				keys = append(keys, key)
+			}
+			for _, key := range keys {
+				assert.True(t, RawChildNode(&doc, key) == children[key], "the two readers disagree on %q", key)
+			}
+		})
+	}
+}
+
+// TestRawChildNodes_ReadsOnlyAMapping is TestRawChildNode_ReadsOnlyAMappingChild
+// for the reader that batches it.
+func TestRawChildNodes_ReadsOnlyAMapping(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, RawChildNodes(nil))
+	assert.Nil(t, RawChildNodes(openapitest.YAMLNode(t, "[1, 2]")), "a sequence has no keyed children")
+	assert.Nil(t, RawChildNodes(openapitest.YAMLNode(t, "plain")), "nor does a scalar")
+	assert.Nil(t, RawChildNodes(&yaml.Node{Kind: yaml.DocumentNode}), "nor an empty document")
+}
+
 // TestDeclaresAny_AsksTheRawNodes pins the gate's agreement with the recorders it
 // gates: it must answer from the same raw nodes they read, so a keyword one sees
 // and the other does not cannot arise.
@@ -719,13 +801,13 @@ func TestDeclaresAny_AsksTheRawNodes(t *testing.T) {
 func TestPreserveInto_RecordsOnlyRealBytes(t *testing.T) {
 	t.Parallel()
 	var p ir.Unmodeled
-	PreserveInto(&p, "openapi:x", nil, ir.ReasonOutOfScope, "/x", 0)
+	PreserveInto(&p, "openapi:x", nil, ir.ReasonOutOfScope, sourced(0)("/x"))
 	assert.Nil(t, p, "an absent payload allocates nothing")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, "/x", 0)
+	PreserveInto(&p, "openapi:x", ir.RawValue(""), ir.ReasonOutOfScope, sourced(0)("/x"))
 	assert.Nil(t, p, "nor does an empty one")
 
-	PreserveInto(&p, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, "/x", 7)
+	PreserveInto(&p, "openapi:x", ir.RawValue("1"), ir.ReasonOutOfScope, sourced(7)("/x"))
 	assert.Equal(t, ir.Unmodeled{"openapi:x": {
 		Reason: ir.ReasonOutOfScope, Value: ir.RawValue("1"),
 		Provenance: ir.Provenance{Source: 7, Pointer: "/x"},
@@ -740,18 +822,18 @@ func TestPreserveNodeInto_ReportsWhichOfThreeOutcomesHappened(t *testing.T) {
 	t.Parallel()
 	var p ir.Unmodeled
 
-	kept, diags := PreserveNodeInto(&p, "openapi:x", nil, ir.ReasonNoIRHome, "/x", 0)
+	kept, diags := PreserveNodeInto(&p, "openapi:x", nil, ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.False(t, kept)
 	assert.Empty(t, diags)
 	assert.Nil(t, p)
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, ".nan"), ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.False(t, kept)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Nil(t, p, "an unconvertible node writes no entry")
 
-	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, "/x", 0)
+	kept, diags = PreserveNodeInto(&p, "openapi:x", openapitest.YAMLNode(t, "{a: 1}"), ir.ReasonNoIRHome, sourced(0)("/x"))
 	assert.True(t, kept)
 	assert.Empty(t, diags)
 	assert.JSONEq(t, `{"a":1}`, string(p["openapi:x"].Value))
@@ -765,7 +847,7 @@ func TestUnpreservableDiag_IsAnErrorNotADegradation(t *testing.T) {
 	_, err := RawFromNode(openapitest.YAMLNode(t, ".nan"))
 	require.Error(t, err)
 
-	got := UnpreservableDiag("openapi:not", "/components/schemas/S/not", 2, err)
+	got := UnpreservableDiag("openapi:not", sourced(2)("/components/schemas/S/not"), err)
 
 	assert.Equal(t, ir.SeverityError, got.Severity)
 	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/S/not"}, got.Provenance)
@@ -786,7 +868,7 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		"contains: {type: string}\nminContains: 1\n"+
 		"unevaluatedProperties: {type: string}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", 0)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
 
 	for _, key := range []string{
 		"openapi:not", "openapi:if-then-else", "openapi:dependentSchemas",
@@ -808,13 +890,117 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\ncontains: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", 0)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
 
 	assert.NotContains(t, got, "openapi:not")
 	assert.NotContains(t, got, "openapi:contains")
 	require.GreaterOrEqual(t, len(diags), 2)
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityError, d.Severity, "an unconvertible keyword is an error")
+	}
+}
+
+// TestValidationOnlyAt_AttributesTheEntryAtItsKeyword pins GitHub #522's
+// enclosing-object rule from the other side: the kept entry is located at the
+// keyword itself and names the overlay that rewrote it, while the
+// announcement is located at the schema and stays with the base, because it
+// reports on the schema declaring a validation-only keyword rather than on the
+// keyword's own text.
+func TestValidationOnlyAt_AttributesTheEntryAtItsKeyword(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\nnot: {type: integer}\n")
+
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"))
+
+	entry, ok := got["openapi:not"]
+	require.True(t, ok)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, entry.Provenance,
+		"the kept entry names the overlay that rewrote the keyword")
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, diags[0].Provenance,
+		"the announcement is located at the schema and stays with the base")
+}
+
+// TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer is the
+// failure half of the test above: a keyword the overlay rewrote into something
+// that will not render is reported instead of kept, and the report is located
+// at the keyword, so it names the overlay.
+func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\n")
+
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"))
+
+	assert.NotContains(t, got, "openapi:not", "a keyword that will not render is not kept")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, diags[0].Provenance)
+}
+
+// TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords pins GitHub #534:
+// a combined entry — if/then/else, contains, unevaluated — has no position of
+// its own, so it is attributed by asking the Locator about exactly the
+// keywords it combines, rather than about the schema alone. A single-keyword
+// entry, and the note announcing each entry, ask about nothing but the position
+// they are located at.
+func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\n"+
+		"not: {type: integer}\n"+
+		"if: {required: [name]}\nthen: {required: [tag]}\n"+
+		"contains: {type: string}\nminContains: 1\n"+
+		"unevaluatedProperties: false\nunevaluatedItems: {type: string}\n")
+	var calls []recordedCall
+
+	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+
+	assert.ElementsMatch(t, []recordedCall{
+		{pointer: "/S/not"},
+		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},              // not the absent else
+		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}}, // not the absent maxContains
+		{pointer: "/S", from: []jsontext.Pointer{"/S/unevaluatedItems"}},           // a false unevaluatedProperties is a structural mode
+		// and one note per entry, each at the schema
+		{pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"},
+	}, calls)
+
+	// recording answers source 1 only when asked with from, so each source shows
+	// which question its record's provenance came from.
+	for key, want := range map[string]int{
+		"openapi:not": 0, "openapi:if-then-else": 1, "openapi:contains": 1, "openapi:unevaluated": 1,
+	} {
+		entry, ok := got[key]
+		require.True(t, ok, "%s is kept", key)
+		assert.Equal(t, want, entry.Provenance.Source, key)
+	}
+	require.Len(t, diags, 4, "one announcement per entry kept")
+	for _, d := range diags {
+		assert.Equal(t, 0, d.Provenance.Source, "a note is asked about the schema alone: %s", d.Message)
+	}
+}
+
+// TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords is the
+// failure half of the test above: a combined entry that will not render is
+// reported instead of kept, and the report is attributed as the entry would have
+// been, by every keyword written, the one that failed to convert included.
+func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\n"+
+		"if: {required: [name]}\nthen: {const: .nan}\n"+
+		"contains: {const: .nan}\nminContains: 1\n")
+	var calls []recordedCall
+
+	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+
+	assert.Empty(t, got, "an entry that will not render is not kept")
+	assert.ElementsMatch(t, []recordedCall{
+		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},
+		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}},
+	}, calls)
+	require.Len(t, diags, 2)
+	for _, d := range diags {
+		assert.Equal(t, ir.SeverityError, d.Severity, "%s", d.Message)
+		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S"}, d.Provenance, "%s", d.Message)
 	}
 }
 
@@ -825,7 +1011,7 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nexample: one\nexamples: [two, three]\n")
 
-	got, diags := schemaExamplesAt(s, "/components/schemas/S", 0)
+	got, diags := schemaExamplesAt(s, "/components/schemas/S", sourced(0))
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 3)
@@ -833,4 +1019,19 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 		require.NotNil(t, got[i].Value)
 		assert.Equal(t, want, got[i].Value.Str, "example %d", i)
 	}
+}
+
+// TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer pins
+// GitHub #522 on the warning route: an overlay that rewrites `example` into
+// something unconvertible is named by the diagnostic reporting the failure,
+// because the diagnostic is located at the example's own pointer.
+func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: number\nexample: .nan\n")
+
+	got, diags := schemaExamplesAt(s, "/S", overlaid("/S/example"))
+
+	assert.Empty(t, got, "an unconvertible example yields no value")
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/example"}, diags[0].Provenance)
 }

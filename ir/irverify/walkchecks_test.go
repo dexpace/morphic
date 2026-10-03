@@ -66,17 +66,15 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 	assert.Equal(t, 1, truncations)
 }
 
-// TestWalkChecks_NoWalkDropsItsTruncationFlag is the drift guard on the list
-// itself, and it makes two claims that together leave a walk nowhere to drop the
-// flag. A function that calls ir.WalkValues must hand a bool back to its caller,
-// so the flag cannot die at the walk site; and a function shaped like a walking
-// check must be in walkChecks, so it cannot be wired into Verify by a path that
-// never folds the flag into a report.
+// TestWalkChecks_NoWalkDropsItsTruncationFlag guards walkChecks against drift
+// with two claims that leave a walk nowhere to drop the flag. A function that
+// calls ir.WalkValues must return a bool, so the flag cannot die at the walk
+// site; and a function shaped like a walking check must be in walkChecks, so no
+// path wires it into Verify without folding its flag into a report.
 //
-// The two populations overlap without coinciding: checkReferentialIntegrity
-// reaches the walk through collectRefs, so it is a check that does not itself
-// call ir.WalkValues, and collectRefs is a walker that is no check. Each claim is
-// therefore asked of the functions it applies to rather than of one list.
+// The populations overlap without coinciding (checkReferentialIntegrity walks
+// through collectRefs, a walker that is no check), so each claim is asked of
+// the functions it applies to rather than of one list.
 func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 	t.Parallel()
 	listed := map[string]bool{}
@@ -104,9 +102,13 @@ func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 }
 
 // checkName is a walkChecks entry's function name, without its package path.
+// A name with no dot is returned whole.
 func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) string {
 	full := runtime.FuncForPC(reflect.ValueOf(check).Pointer()).Name()
-	return full[strings.LastIndex(full, ".")+1:]
+	if _, after, ok := strings.CutLast(full, "."); ok {
+		return after
+	}
+	return full
 }
 
 // last returns the final element of ss, or "" when ss is empty.

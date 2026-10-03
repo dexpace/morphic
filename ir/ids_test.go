@@ -83,13 +83,10 @@ func TestPropID_UsableAsMapKey(t *testing.T) {
 // are the ways a derivation can go wrong: a missing kind, a missing space, a
 // missing separator, an empty segment.
 //
-// "t/anonaddr" is in the well-formed set deliberately. It is the malformed ID
-// GitHub #141 reported — the separator between space and path went missing — and
-// it is well-formed by shape, because a space with no path is legal and
-// "anonaddr" is a space like any other. Recording it here states the limit
-// rather than leaving a reader to assume shape catches everything; what catches
-// it is the ID agreeing with the pointer it was derived from, which irverify
-// checks.
+// "t/anonaddr" is well-formed by shape on purpose. It is the malformed ID of
+// #141, whose space/path separator went missing, but a space with no path is
+// legal. Recording it states the limit of shape: what catches it is the ID
+// agreeing with the pointer it was derived from, which irverify checks.
 func TestWellFormedID_Shape(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

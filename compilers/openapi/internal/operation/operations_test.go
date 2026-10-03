@@ -2,17 +2,24 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -85,16 +92,14 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
-// It declares none — it keys responses by status code — so Response.Name carries
-// the hint ir-design §7.2 calls for there, derived from the key the response is
-// filed under. Every response used to reach the IR with all three name channels
-// empty, leaving an emitter naming a per-response result type nothing to build
-// one from (GitHub #259).
+// It declares no name and keys responses by status code, so Response.Name
+// carries the hint ir-design §7.2 calls for, derived from that key; without it
+// an emitter has nothing to name a per-response result type from (GitHub #259).
 //
-// The error half of the same map is named the same way and by the same
-// function (GitHub #422), which is what "404" and "default" below assert: the
-// spelling a wildcard or catch-all key was written under is recorded nowhere
-// else, since StatusRange renders both {500,599} and {0,0} with no trace of it.
+// The error half of the map is named the same way, by the same function (GitHub
+// #422), as "404" and "default" assert: the spelling of a wildcard or catch-all
+// key is recorded nowhere else, since StatusRange renders {500,599} and {0,0}
+// without it.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -319,7 +324,7 @@ func TestParameters_PathItemSharedAcrossOperationsInternsOnce(t *testing.T) {
 
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok, "the shared schema is registered under the path item's own pointer")
-	assert.Equal(t, "/paths/~1pets~1{petId}/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1pets~1{petId}/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 
 	_, fabricatedGet := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/get/parameters/0/schema")]
 	_, fabricatedDelete := doc.Types[ir.TypeID("t/anon/paths/~1pets~1{petId}/delete/parameters/1/schema")]
@@ -397,7 +402,7 @@ webhooks:
 	assert.Equal(t, wantID, op.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
-	assert.Equal(t, "/webhooks/petEvent/parameters/0/schema", typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/webhooks/petEvent/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 }
 
 // TestParameters_CallbackPathItemParameterPointer covers the same merge
@@ -431,7 +436,7 @@ func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {
 	assert.Equal(t, wantID, cbOp.Params[0].Type.Target)
 	typeDef, ok := doc.Types[wantID]
 	require.True(t, ok)
-	assert.Equal(t, wantPointer, typeDef.Common().Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(wantPointer), typeDef.Common().Provenance.Pointer)
 }
 
 // TestParameters_ShadowedPathItemParamUsesOperationPointer covers the other
@@ -806,17 +811,11 @@ components:
           responses: {"200": {description: ok}}
 `
 
-// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the fix's core
-// scenario for a referenced callback (issue #107): two parent operations
-// $ref'ing one #/components/callbacks/Shared must keep distinct callback
-// operation identities per parent while the callback's own request schema
-// interns once, at the shared component's own pointer.
 // TestCallbacks_NameWithSlashKeepsItsOwnKey is the encoding case's twin: the
-// callback scope is "callbacks/<name>" and the name is a map key the document
-// chooses, so a "/" in it read as a separator and two callbacks spelled one key
-// between them on the HTTP binding. Both sites take their scope from ids.Scope
-// for that reason, and each needs its own case — the fix was applied at one and
-// would have been just as easy to leave standing at the other.
+// callback scope is "callbacks/<name>" and the name is a document-chosen map
+// key, so a "/" in it must not read as a separator and merge two callbacks into
+// one key on the HTTP binding. Both sites take their scope from ids.Scope, and
+// each needs its own case, since a fix at one can leave the other standing.
 func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -845,6 +844,11 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
 }
 
+// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the core scenario
+// for a referenced callback (issue #107): two parent operations $ref'ing one
+// #/components/callbacks/Shared must keep distinct callback operation
+// identities per parent while the callback's own request schema interns once,
+// at the shared component's own pointer.
 func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedCallbackSpec)
@@ -981,11 +985,11 @@ func TestProvenance_EveryPointerResolvesInSource(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(provenanceSpec), &root))
-	check := func(kind, name, pointer string) int {
+	check := func(kind, name string, pointer jsontext.Pointer) int {
 		if pointer == "" {
 			return 0
 		}
-		assert.True(t, pointerResolves(&root, pointer),
+		assert.True(t, pointerResolves(&root, string(pointer)),
 			"%s %s: pointer %q does not resolve in source", kind, name, pointer)
 		return 1
 	}
@@ -1282,25 +1286,24 @@ components:
           schema: {type: object}
 `
 
-// TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
-// lowering a referenced component at its declaration: both operations reach the
-// same request body — whose scalar schema carries a `required` the lowered node
-// has no field for — and the same error response, whose header declares an
-// `explode` ir.Property has no field for, so each defect has one pointer and one
-// message. Reported per use site they would arrive as byte-identical copies —
-// nothing a reader could act on twice — and a component shared by twenty
-// operations would repeat each line twenty times.
+// TestDiag_SharedDeclarationReportsEachDefectOnce pins that lowering a
+// referenced component at its declaration reports each defect once. Both
+// operations reach the same request body, whose scalar schema carries a
+// `required` the lowered node has no field for, and the same error response,
+// whose header declares an `explode` ir.Property has no field for. Reported per
+// use site, a component shared by twenty operations would repeat each line
+// twenty times.
 //
-// The second defect sits on an error response's header on purpose: those reach
-// lowerHeaders only since GitHub #422, so the case covers the shared-declaration
-// rule on the path that gained them rather than on the success side alone.
+// The second defect sits on an error response's header on purpose, so the case
+// covers the shared-declaration rule on the path GitHub #422 added, not only on
+// the success side.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
 
 	seen := map[string]int{}
 	for _, d := range diags {
-		seen[string(d.Severity)+"|"+d.Code+"|"+d.Provenance.Pointer+"|"+d.Message]++
+		seen[string(d.Severity)+"|"+d.Code+"|"+string(d.Provenance.Pointer)+"|"+d.Message]++
 	}
 	for key, n := range seen {
 		assert.Equal(t, 1, n, "one defect, one diagnostic: %s", key)
@@ -1369,7 +1372,7 @@ func TestOperations_DuplicateOperationIDReported(t *testing.T) {
 		"the second claim is reported once, not both claims")
 	for _, d := range diags {
 		if d.Code == diag.DuplicateOperationID {
-			assert.Equal(t, "/paths/~1b/get", d.Provenance.Pointer, "reported at the mount that collided")
+			assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), d.Provenance.Pointer, "reported at the mount that collided")
 			assert.Contains(t, d.Message, "/paths/~1a/get", "and names the mount that claimed it first")
 		}
 	}
@@ -1388,6 +1391,537 @@ func TestOperations_DistinctOperationIDsClean(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
+}
+
+// renderOperationIDDiags renders each operationId diagnostic in diags as
+// "severity code pointer", sorted. Pinning the three together in one string is
+// what shows a table row's severity, code and location cannot drift apart, and
+// including the library's own rule's code alongside the compiler's two is what
+// shows it never appears — compilerOwned drops its finding in the loader
+// before a diagnostic is ever built from it.
+func renderOperationIDDiags(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		switch d.Code {
+		case diag.DuplicateOperationID, diag.ConflictingOperationID, diag.Validation + "/" + validation.RuleValidationOperationIdUnique:
+			out = append(out, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestOperations_OperationIDUniqueness is the end-to-end table over operationId
+// reuse. One declaration mounted more than once, by $ref, YAML alias or merge
+// key, warns at every mount but the one it is written at, else the first by
+// pointer. A second declaration writing the same id is an error where it is
+// written, against a path, callback, webhook or component alike.
+//
+// Several rows name their paths so the mount a declaration is written at sorts
+// after the one reusing it; pointer order alone would warn at the declaration
+// there and anchor a conflict at an alias that writes no id.
+func TestOperations_OperationIDUniqueness(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		spec string
+		want []string
+	}{
+		{
+			name: "two refs mount one component declaration twice",
+			spec: duplicateOperationIDSpec,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a ref to a path mounts its declaration twice (GitHub #502)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: "#/paths/~1b"}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/get"},
+		},
+		{
+			name: "a path-item alias mounts one declaration twice (GitHub #502)",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a path-item alias sorting before its anchor is the mount warned",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /z: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /a: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/get"},
+		},
+		{
+			name: "two path declarations genuinely repeat the id",
+			spec: openapitest.PathsSpec(`  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "an operation alias mounts one declaration twice across paths",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: &op
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    get: *op
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "an operation alias sorting before its anchor is the mount warned",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /z:
+    get: &op
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /a:
+    get: *op
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/get"},
+		},
+		{
+			name: "an operation alias mounts one declaration twice across methods",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: &op
+      operationId: dup
+      responses: {"200": {description: ok}}
+    put: *op
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/put"},
+		},
+		{
+			name: "a merge key mounts one declaration twice",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    <<: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a merge key sorting before its anchor is the mount warned",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /z: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /a:
+    <<: *item
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1a/get"},
+		},
+		{
+			// The pair /b writes itself overrides the one the merge key names, so
+			// /b declares an operation of its own that repeats the id.
+			name: "an operation overriding the one a merge key names is a second declaration",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    <<: *item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a two-deep ref chain mounts one declaration twice",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/paths/~1a'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a callback operation genuinely repeats a path operation's id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b:
+    post:
+      operationId: parent
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post: {operationId: dup, responses: {"200": {description: ok}}}
+      responses: {"200": {description: ok}}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1b/post/callbacks/onEvent/{$request.body#~1url}/post",
+			},
+		},
+		{
+			name: "a webhook genuinely repeats a path operation's id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+webhooks:
+  hook:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /webhooks/hook/post"},
+		},
+		{
+			name: "a webhook reusing a path item by ref mounts its declaration twice",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+webhooks:
+  hook: {$ref: '#/paths/~1a'}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /webhooks/hook/post"},
+		},
+		{
+			name: "two webhooks genuinely repeat one id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /webhooks/h2/post"},
+		},
+		{
+			name: "an alias between two components mounts one declaration twice",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/One'}
+  /b: {$ref: '#/components/pathItems/Two'}
+components:
+  pathItems:
+    One: &shared
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+    Two: *shared
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "two components each ref'd once genuinely repeat the id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/One'}
+  /b: {$ref: '#/components/pathItems/Two'}
+components:
+  pathItems:
+    One:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+    Two:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /components/pathItems/Two/get"},
+		},
+		{
+			name: "an alias remount and a genuine repeat both name one id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+  /c:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1c/get",
+				"warning openapi/duplicate-operation-id /paths/~1b/get",
+			},
+		},
+		{
+			// /z writes the second declaration and /b only aliases it, so the
+			// conflict belongs at /z even though /b sorts first of the two.
+			name: "a repeat is reported where it is written, not at an alias of it",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /z: &item
+    get:
+      operationId: dup
+      responses: {"200": {description: ok}}
+  /b: *item
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1z/get",
+				"warning openapi/duplicate-operation-id /paths/~1b/get",
+			},
+		},
+		{
+			// Both parents $ref one callback component, so its operation is one
+			// declaration the two of them mount, not a declaration of each.
+			name: "a callback ref'd from two parent operations mounts one declaration twice",
+			spec: sharedCallbackSpec,
+			want: []string{
+				"warning openapi/duplicate-operation-id /paths/~1d/post/callbacks/onEvent/{$request.body#~1url}/post",
+			},
+		},
+		{
+			// /b declares get and put sharing one id, and /a mounts both again by
+			// referencing /b whole. get and put are two declarations, so besides
+			// the remount they conflict with each other: an error where put writes
+			// the id, and a warning at each of /a's mounts, where the reuse is.
+			name: "a ref'd item declaring get and put that share an id",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+    put: {operationId: dup, responses: {"200": {description: ok}}}
+  /a: {$ref: '#/paths/~1b'}
+`,
+			want: []string{
+				"error openapi/conflicting-operation-id /paths/~1b/put",
+				"warning openapi/duplicate-operation-id /paths/~1a/get",
+				"warning openapi/duplicate-operation-id /paths/~1a/put",
+			},
+		},
+		{
+			name: "an additionalOperations entry genuinely repeats a method's id",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+    additionalOperations:
+      COPY: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			want: []string{"error openapi/conflicting-operation-id /paths/~1a/get"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := parseFull(t, tc.spec)
+			assert.Empty(t, cmp.Diff(tc.want, renderOperationIDDiags(diags)))
+		})
+	}
+}
+
+// TestOperations_SelfReferencesByFileName pins the reuse a reference naming
+// this document by its file name makes. The compiler reads it as internal, so
+// its claim has the plain reference's pointer, but the resolver returns a
+// re-parsed copy, so node identity alone would report an error naming one
+// pointer twice.
+//
+// The last case is a self-reference the compiler does not read as one, since
+// its document part carries a directory (GitHub #576). It stays a conflict
+// until that is fixed, which turns the row red.
+//
+// AllowExternalRefs is needed because the resolver counts a document part as
+// leaving the document.
+func TestOperations_SelfReferencesByFileName(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		paths string
+		want  []string
+	}{
+		{
+			name: "two spellings of one component",
+			paths: `  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: 'self.yaml#/components/pathItems/Shared'}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a path and a self-reference to it",
+			paths: `  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /b: {$ref: 'self.yaml#/paths/~1a'}
+`,
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
+		},
+		{
+			name: "a self-reference through a directory, read as another document (GitHub #576)",
+			paths: `  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: './self.yaml#/components/pathItems/Shared'}
+`,
+			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + tc.paths + `components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`
+			path := filepath.Join(t.TempDir(), "self.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
+
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: path, Data: []byte(spec)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+			assert.Empty(t, cmp.Diff(tc.want, renderOperationIDDiags(diags)))
+		})
+	}
+}
+
+// TestOperations_OperationIDFindingsIgnoreDeclarationOrder is the two-order
+// half of the table above: harness.Check stops at the first error diagnostic,
+// so its order-invariance oracle never reaches conflicting-operation-id, and a
+// hand-written case is the only thing that can pin it. Each pair declares the
+// same document with two of its entries swapped, the first in an order the
+// check this replaced got wrong: it reported whichever claim was lowered
+// second, so a document and its reverse named different operations.
+func TestOperations_OperationIDFindingsIgnoreDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		first, then string
+	}{
+		{
+			name: "two genuinely repeated path operations",
+			first: openapitest.PathsSpec(`  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+			then: openapitest.PathsSpec(`  /a:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`),
+		},
+		{
+			name: "two webhooks genuinely repeating one id",
+			first: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			then: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  h1:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+  h2:
+    post: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+		},
+		{
+			name: "a ref remounting one component at two paths",
+			first: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b: {$ref: '#/components/pathItems/Shared'}
+  /a: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			then: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/Shared'}
+  /b: {$ref: '#/components/pathItems/Shared'}
+components:
+  pathItems:
+    Shared:
+      get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+		},
+		{
+			name: "a ref remounting the path it names",
+			first: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/paths/~1b'}
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+`,
+			then: `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b:
+    get: {operationId: dup, responses: {"200": {description: ok}}}
+  /a: {$ref: '#/paths/~1b'}
+`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, firstDiags := parseFull(t, tc.first)
+			_, thenDiags := parseFull(t, tc.then)
+			first := renderOperationIDDiags(firstDiags)
+			require.NotEmpty(t, first, "the case reports something to compare")
+			assert.Empty(t, cmp.Diff(first, renderOperationIDDiags(thenDiags)))
+		})
+	}
 }
 
 // TestOperation_UnserializableExtensionStillWarns pins the operation's half of
@@ -1569,32 +2103,20 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, `[{"url":"`+tc.url+`"}]`, string(entry.Value),
 			"%s keeps the list its own path item declared", tc.op)
-		assert.Equal(t, tc.kept, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.kept), entry.Provenance.Pointer)
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the degradation as the paths route already did", tc.op)
 	}
 }
 
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
-// each of the three path items a document can declare, valued with the route it
-// sits on so an entry recovered from the wrong item cannot pass for the right
-// one.
+// each of the three path items a document can declare, valued with its route so
+// an entry recovered from the wrong item cannot pass for the right one.
 //
-// The value is a whole operation because that is what the position accepts:
-// the library folds a key it does not recognize into the item's operations map
-// and unmarshals it as an Operation, so a scalar there is a validation error
-// rather than a key with a value to keep. It is also the case that used to be
-// lost in silence — a well-formed operation under an undefined key raised no
-// finding at all.
-//
-// Each item writes a second such key whose value carries a YAML anchor. That one
-// never reaches the operations map — the library skips an anchored value before
-// folding it — so it is read off the raw mapping instead (GitHub #412), and the
-// raw reading has to reach every route exactly as the map reading does. The two
-// forms part company on a scalar: `bogus: 1` is folded and draws the library's
-// type-mismatch error, while `bogus: &a 1` bypasses the fold and is kept
-// verbatim with the warning alone. That divergence is the lossless outcome, not
-// a gap to close by rejecting the anchored one.
+// Each value is an operation, because the library folds an unrecognized key
+// into the item's operations map as one. Each item also writes a second such
+// key whose value carries a YAML anchor, which must be kept and reported as the
+// plain one is, on every route (GitHub #412, #459).
 const pathItemUnknownKeySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -1648,23 +2170,20 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 		assert.JSONEq(t, `{"responses":{"200":{"description":"`+tc.marker+`"}}}`, string(entry.Value),
 			"%s keeps the value its own path item declared", tc.op)
-		assert.Equal(t, tc.at, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, tc.at),
 			"%s announces the key at the key's own pointer", tc.op)
 	}
 }
 
-// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422.
-// ir.ErrorCase held one bare TypeRef and no media type, so a 404 declaring only
-// application/problem+json reached the IR indistinguishable from one declaring
-// application/json, and a 400 declaring both kept the first schema and lost the
-// second entirely — the whole map going verbatim to Unmodeled in either case.
-// Both now lower to ErrorCase.Payload.Contents, one entry per media type, the
-// same shape and by the same function as a success response's.
+// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422:
+// an error response lowers to ErrorCase.Payload.Contents, one entry per media
+// type, in the same shape and by the same function as a success response's. A
+// 404 declaring only application/problem+json must be distinguishable from one
+// declaring application/json, and a 400 declaring both must keep both schemas.
 //
-// The 409 is the control: an error declaring no content at all still gets no
-// payload, so a Contents entry marks a declaration rather than appearing on
-// every error case.
+// The 409 is the control: an error declaring no content still gets no payload,
+// so a Contents entry marks a declaration rather than appearing on every case.
 func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
@@ -1757,20 +2276,15 @@ webhooks:
 `
 
 // TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
-// the servers pair, on every route that lowers an operation. OpenAPI says an
-// Operation Object's servers override the Path Item Object's, but only the path
-// item's were read: a document declaring both kept the superseded list and
-// dropped the effective one outright, so an emitter reading openapi:servers
-// would route to a host the operation had replaced — and nothing reported it.
+// the servers pair, on every route that lowers an operation. An Operation
+// Object's servers override the Path Item Object's, so both lists must be kept:
+// keeping only the path item's would send an emitter to a host the operation
+// had replaced, with nothing reporting it.
 //
-// All three routes are asserted because the path-item half of this same pair was
-// missing on two of its three, and preserving from lowerOperation is what is
-// claimed to make that unrepeatable. A single-route case cannot see a fix that
-// skips the other two, which is the whole shape of GitHub #39 item 2.
-//
-// The two levels are asserted under separate keys because they are two
-// declarations at two pointers. One key for both would make the surviving list
-// depend on which lowering ran last, which no single-order test could see.
+// All three routes are asserted because a single-route case cannot see a fix
+// that skips the other two (GitHub #39). The two levels sit under separate keys
+// because they are two declarations at two pointers; one key would make the
+// surviving list depend on which lowering ran last.
 func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
@@ -1799,12 +2313,12 @@ func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 		assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
 		assert.JSONEq(t, `[{"url":"`+tc.own+`"}]`, string(own.Value),
 			"%s keeps its own list, not its path item's", tc.op)
-		assert.Equal(t, tc.ownAt, own.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(tc.ownAt), own.Provenance.Pointer)
 
 		inherited, ok := op.Unmodeled["openapi:servers"]
 		require.True(t, ok, "%s keeps its path item's list beside it, not replaced by it", tc.op)
 		assert.JSONEq(t, `[{"url":"`+tc.inherited+`"}]`, string(inherited.Value))
-		assert.Equal(t, tc.inheritedAt, inherited.Provenance.Pointer,
+		assert.Equal(t, jsontext.Pointer(tc.inheritedAt), inherited.Provenance.Pointer,
 			"each entry keeps the coordinate of the object that declared it")
 
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
@@ -1921,7 +2435,7 @@ func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 			assert.JSONEq(t, `"`+tc.text+` `+field.keyword+`"`, string(entry.Value),
 				"%s keeps the text its own path item declared", tc.op)
-			assert.Equal(t, tc.kept+"/"+field.keyword, entry.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer(tc.kept+"/"+field.keyword), entry.Provenance.Pointer)
 		}
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
 			"%s reports the path item's documentation as kept rather than lowered", tc.op)
@@ -2144,7 +2658,7 @@ paths:
 	var at []string
 	for _, d := range diags {
 		if strings.Contains(d.Message, "path-item servers kept under Unmodeled") {
-			at = append(at, d.Provenance.Pointer)
+			at = append(at, string(d.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/paths/~1a", "/paths/~1b"}, at,
@@ -2178,15 +2692,11 @@ paths:
 	}
 }
 
-// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's half
-// of the orphan branch, and the one it was missing.
-//
-// A callback expression maps to a Path Item Object like any other, so an
-// expression whose item mounts no operation reached applyPathItem through
-// nothing and lost everything it wrote — the same mechanism as the paths and
-// webhooks walks, on the route that had no branch for it. That is the shape
-// GitHub #39 already cost this compiler twice, which is why the entry point is
-// shared and why this asserts the third route rather than assuming it.
+// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's
+// half of the orphan branch: a callback expression is a Path Item Object like
+// any other, so an item that mounts no operation must still keep what it wrote,
+// as on the paths and webhooks walks (GitHub #39). The entry point is shared,
+// and this asserts the third route rather than assuming it.
 //
 // The parent's HTTP binding is the carrier: a callback lowers to no node holding
 // an Unmodeled map, and the binding is where the Callback Object's own
@@ -2218,7 +2728,7 @@ paths:
 	for _, d := range diags {
 		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
 			announced++
-			assert.Equal(t, "/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}",
+			assert.Equal(t, jsontext.Pointer("/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"),
 				d.Provenance.Pointer, "announced at the expression whose item mounts nothing")
 		}
 	}
@@ -2300,7 +2810,7 @@ func TestResponses_ACollisionIsReportedTheSameInEitherOrder(t *testing.T) {
 	reversed := diagsFor(mixed + lower + upper)
 	require.Len(t, asWritten, 1, "three keys on one range are one collision; got %v", asWritten)
 	assert.Equal(t, asWritten, reversed, "the report must not depend on which key was written first")
-	assert.Equal(t, "/paths/~1w/get/responses", asWritten[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/paths/~1w/get/responses"), asWritten[0].Provenance.Pointer)
 	assert.Contains(t, asWritten[0].Message, `"4XX", "4Xx", "4xx"`, "every colliding key, in sorted order")
 }
 
@@ -2383,7 +2893,7 @@ components:
 		assert.Contains(t, msg, `"wat"`, "the message names the key that could not be read")
 	}
 	for _, d := range diags {
-		assert.NotEqual(t, "/components/responses/NF", d.Provenance.Pointer,
+		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), d.Provenance.Pointer,
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
 	}
 }

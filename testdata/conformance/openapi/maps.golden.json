@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.5.0",
+  "irVersion": "0.6.0",
   "name": "Maps",
   "version": "1.0.0",
   "docs": {},
@@ -178,7 +178,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "any"
     },
@@ -190,7 +190,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "integer"
     },
@@ -202,7 +202,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "string"
     }

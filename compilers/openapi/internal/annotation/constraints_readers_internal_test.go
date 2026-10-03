@@ -1,6 +1,7 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nminimum: 1\nmaximum: 9\nmultipleOf: 3\n"+
 		"minLength: 2\nmaxLength: 8\npattern: '^a'\nminProperties: 1\nmaxProperties: 4\n")
 
-	got, _, diags := Constraints(s, false, "/p", 0)
+	got, _, diags := Constraints(s, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -67,11 +68,11 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 // wrote.
 func TestConstraints_NothingDeclaredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), false, "/p", 0)
+	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
-	got, _, diags = Constraints(nil, false, "/p", 0)
+	got, _, diags = Constraints(nil, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Nil(t, diags)
 }
@@ -83,7 +84,7 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\nminimum: 9007199254740993\nmaximum: 0.30000000000000004\n")
 
-	got, _, diags := Constraints(s, false, "/p", 0)
+	got, _, diags := Constraints(s, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -100,7 +101,7 @@ func TestNumericBounds_AMalformedLiteralIsReportedNotDropped(t *testing.T) {
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
 		t.Run(keyword, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), false, "/p", 0)
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), false, "/p", sourced(0))
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -143,7 +144,7 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", 0)
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
 
 			require.Empty(t, diags)
 			require.NotNil(t, got)
@@ -179,7 +180,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", 0)
+			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), tc.exclusiveBoolean, "/p", sourced(0))
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -198,7 +199,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsReported(t *testing.T) {
 // has the same way to fail as minimum and maximum do.
 func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), false, "/p", 0)
+	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), false, "/p", sourced(0))
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.NumericPrecision, diags[0].Code)
@@ -207,20 +208,16 @@ func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 }
 
 // TestConstraints_CoDeclaredBoundsBothReachAField pins the 2020-12 rule that a
-// side's two keywords are independent and conjunctive: each is a restriction the
-// source wrote, ir.Constraints has a field for each, and neither is chosen over
-// the other.
+// side's two keywords are independent and conjunctive: ir.Constraints has a
+// field for each, and neither is chosen over the other.
 //
-// The rows come in pairs that swap which keyword is the tighter while leaving
-// the same two magnitudes on the side. One slot per side answers both rows of a
-// pair with the tighter bound alone, so a consumer diffing two revisions of a
-// spec across such a swap saw a change of a different kind than the one that
-// happened — and a revision that moved only the looser keyword read as no change
-// at all (GitHub #425). Two fields answer them differently, which is what these
-// pairs are here to hold.
+// The rows come in pairs that swap which keyword is the tighter while keeping
+// the same two magnitudes. One slot per side would answer both rows of a pair
+// with the tighter bound alone, so a swap would diff as a different kind of
+// change, and a revision moving only the looser keyword as none (GitHub #425).
 //
-// Nothing is kept verbatim and nothing is reported: with both keywords in the
-// document there is no residue to keep and no degradation to announce.
+// Nothing is kept verbatim or reported: with both keywords present there is no
+// residue and no degradation.
 func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -275,7 +272,7 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), false, "/p", 3)
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), false, "/p", sourced(3))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -296,7 +293,7 @@ func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t,
 		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n"),
-		false, "/p", 0)
+		false, "/p", sourced(0))
 
 	require.NotNil(t, got)
 	want := ir.Constraints{
@@ -323,7 +320,7 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), false, "/p", 0)
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), false, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			assert.Empty(t, diags)
@@ -333,17 +330,14 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 }
 
 // TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound pins the 3.0 arm. There
-// exclusiveMinimum is not a bound but a boolean modifying the minimum beside it,
-// so "minimum: 10, exclusiveMinimum: true" is "x > 10" — which ir.Constraints
-// spells as ExclusiveMin, not as Min plus something. The literal therefore moves
-// into the exclusive field and the inclusive one is left empty: the 2020-12
-// spelling of the same restriction, so a 3.0 document and its 3.1 translation
-// lower to the same constraints rather than to two documents that diff.
+// exclusiveMinimum is a boolean modifying the minimum beside it, so "minimum:
+// 10, exclusiveMinimum: true" is "x > 10", which ir.Constraints spells as
+// ExclusiveMin. The literal moves into the exclusive field and the inclusive
+// one is left empty, so a 3.0 document and its 3.1 translation lower alike.
 //
-// The maximum stays inclusive in the second case for the reason the first case
-// cannot cover: flagging the wrong side is symmetric when both sides declare the
-// modifier, so only a schema exclusive on one side can tell a crossed-over read
-// from a correct one.
+// The second case is exclusive on one side only: flagging the wrong side is
+// symmetric when both sides declare the modifier, so only it can tell a
+// crossed-over read from a correct one.
 func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -370,7 +364,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), true, "/p", 0)
+			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), true, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -384,23 +378,23 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 
 // TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported pins the 3.0
 // modifier that modifies nothing. Draft-4 requires minimum wherever
-// exclusiveMinimum appears, so the schema is invalid and there is no bound for
-// the IR to make exclusive — but the loader hands these two keywords to Morphic
-// unchecked, so dropping it here would lose a declared keyword with nothing
-// said. It is kept verbatim at its own pointer and reported instead.
+// exclusiveMinimum appears, but the loader hands the keywords over unchecked,
+// so dropping one would lose a declared keyword silently. It is kept verbatim
+// at its own pointer and reported instead.
 //
-// Both sides are declared at once because one boundResidue serves both calls to
-// applyExclusive: were it to write the map rather than add to it, the surviving
-// entry would be whichever side ran second, silently, since a schema writing
-// both modifiers is exactly as valid (which is to say not) as one writing either.
+// Both sides are declared because they share one boundResidue: a schema leaving
+// residue on each must keep both entries.
 func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), true, "/p", 3)
+		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), true, "/p", sourced(3))
 
 	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
 	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
-	for _, want := range []struct{ key, pointer string }{
+	for _, want := range []struct {
+		key     string
+		pointer jsontext.Pointer
+	}{
 		{"openapi:exclusiveMinimum", "/p/exclusiveMinimum"},
 		{"openapi:exclusiveMaximum", "/p/exclusiveMaximum"},
 	} {
@@ -421,6 +415,21 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 	assert.Contains(t, diags[1].Message, "exclusiveMaximum is true with no maximum beside it")
 }
 
+// TestConstraints_AttributesAKeptModifierAtItsKeyword pins GitHub #522: a 3.0
+// exclusiveMinimum modifier kept as residue (because no minimum stands beside
+// it to make exclusive) is located at its own keyword, so an overlay that
+// rewrote just that keyword is who the kept entry names.
+func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
+	t.Parallel()
+	_, kept, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMinimum: true\n"),
+		true, "/p", overlaid("/p/exclusiveMinimum"))
+
+	entry, ok := kept["openapi:exclusiveMinimum"]
+	require.True(t, ok)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/p/exclusiveMinimum"}, entry.Provenance)
+	require.Len(t, diags, 1, "the orphaned modifier is still reported")
+}
+
 // TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne pins the difference
 // between a minimum nobody wrote and one that would not read. numericBounds
 // leaves the parsed slot nil in both cases, so a modifier reading only the slot
@@ -431,7 +440,7 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), true, "/p", 3)
+		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), true, "/p", sourced(3))
 
 	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
 	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")

@@ -16,21 +16,16 @@ import (
 // unreachableKeyDiag reports a key the census named whose value the raw mapping
 // does not present, so nothing of it reached the IR.
 //
-// It is a key the document does write. The parser reads a mapping through its
-// `<<` merge keys, so a key merged in from an anchored mapping is reported here
-// while the mapping this reads holds no pair for it; resolving that needs the
-// merge-expanded view (internal/nodeview), which every raw-node reader in this
-// package lacks and which is a mechanism of its own to thread through — see
-// GitHub #395. Announced rather than passed over in the meantime, since a key
-// that reaches the IR in no form at all is the loss this census exists to end.
+// The document does write the key: the parser reads a mapping through its `<<`
+// merge keys, so a key merged in from an anchored mapping is reported here
+// while the mapping this reads holds no pair for it. Resolving that needs the
+// merge-expanded view (internal/nodeview), which no raw-node reader here has
+// (GitHub #395).
 //
-// Warning rather than the error UnpreservableDiag gives a value that cannot be
-// rendered: a document merging keys is legal input and still lowers, and an
-// error would both refuse it under the default --fail-on and stop harness.Check
-// before the invariant checks run.
-func unreachableKeyDiag(entry string, at jsontext.Pointer, srcIndex int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)},
+// A warning, not the error UnpreservableDiag gives: merging keys is legal input
+// that still lowers, and an error would refuse it under the default --fail-on.
+func unreachableKeyDiag(entry string, at ir.Provenance) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyUnreachable, at,
 		"%s is written at a key the source mapping does not present directly, most likely "+
 			"merged in through a `<<`; it is represented in the IR in no form at all", entry)
 }
@@ -38,76 +33,57 @@ func unreachableKeyDiag(entry string, at jsontext.Pointer, srcIndex int) ir.Diag
 // occupiedEntryDiag reports a key whose Unmodeled entry is already held by a
 // construct written somewhere else, so this one reached the IR in no form.
 //
-// The carriers that hold more than one object's entries are where this happens:
-// an ir.Parameter's map carries the parameter's own keys and everything its
-// schema had no home for, both unscoped, so a parameter writing a key its schema
-// also writes as a keyword spells one entry between them. Which of the two
-// survives is decided by lowering order rather than by the document — see
-// GitHub #396, which is the namespace this census cannot settle on its own,
-// since the entries it would collide with are three other mechanisms' and moving
-// either side moves keys they already publish.
-func occupiedEntryDiag(entry string, at, held jsontext.Pointer, srcIndex int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)},
+// This happens on carriers holding more than one object's entries: an
+// ir.Parameter's map carries the parameter's own keys and everything its schema
+// had no home for, both unscoped, so a key written by both spells one entry.
+// Which survives is decided by lowering order, not by the document. This census
+// cannot settle that alone, because moving either side moves keys other
+// mechanisms already publish (GitHub #396).
+func occupiedEntryDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken, at,
 		"%s is already held by the construct at %q, so this key is represented in the IR in "+
 			"no form at all", entry, held)
 }
 
-// MaxUnknownKeys bounds how many keys one object contributes to the IR.
+// MaxUnknownKeys bounds how many keys one object contributes to the IR. It sits
+// far above what a document writes by accident, so an object reaching it is
+// generated or hostile. Keys past it are announced under diag.UnknownKeyBudget.
 //
-// The key set is the document's to choose the size of, and every collection in
-// this compiler is bounded, so this one is too. It sits far above what a
-// document writes by accident, so an object reaching it is generated or hostile
-// rather than merely sloppy, and what it discards is announced under
-// diag.UnknownKeyBudget rather than dropped in silence.
-//
-// It bounds the keys this census answers for, not the keys the object wrote: one
-// another reader already kept is filtered out before the bound applies, since
-// spending a slot on an entry that is in the document either way would drop a key
-// that is not. A key that is counted but proves unreachable still spends its slot
-// — reachability costs the same lookup as keeping it, so a bound that excluded
-// those would have to do the work twice to decide what it bounds.
-//
-// It bounds the diagnostics too, at one per key plus the budget's own, which is
-// what keeps an object whose every key is unreachable from reporting without end.
+// It bounds the keys the census answers for, not the keys written: one another
+// reader already kept is filtered out first, since a slot spent on an entry
+// present either way would drop one that is not. An unreachable key still
+// spends its slot: finding that out costs the lookup keeping it does.
+// Diagnostics are one per key plus the budget's own.
 const MaxUnknownKeys = 64
 
-// DecidedKeywords are the JSON Schema keywords the library's schema model names
-// no field for and this compiler has already decided about, so the census must
-// not claim them as unread. Each decision is recorded where it was made, and the
-// schema walk's 2020-12 vocabulary test fails if one starts being carried:
+// DecidedKeywords are the JSON Schema keywords the schema model names no field
+// for and this compiler has already decided about, so the census must not claim
+// them as unread. The schema walk's 2020-12 vocabulary test fails if one starts
+// being carried:
 //
-//   - $comment — 2020-12 §8.3 forbids presenting it to end users, so no SDK
-//     emitter may see it. Dropped on purpose.
-//   - $dynamicAnchor — read by the anchor index as a reference target, which is
-//     what lets a $dynamicRef expand; declaring one says nothing about the shape.
-//   - $dynamicRef — carried by the dynamic-reference lowering, which either
-//     expands it into the position's type or keeps it under a reason of its own.
-//     An entry beside an expanded one would tell a consumer the compiler ignored
-//     a reference it had in fact resolved.
-//
-// The other 2020-12 keywords with no field of their own — $vocabulary and
-// dependentRequired — need no entry here. Their readers write to the same map,
-// so the census finds them already recorded and leaves them alone.
+//   - $comment: 2020-12 §8.3 forbids presenting it to end users, so it is
+//     dropped on purpose.
+//   - $dynamicAnchor: read by the anchor index as a reference target, so a
+//     $dynamicRef can expand.
+//   - $dynamicRef: carried by the dynamic-reference lowering, which expands it
+//     or keeps it under its own reason. A census entry beside an expanded one
+//     would say a resolved reference was ignored.
 var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 
-// UnknownKeywordsIn records on p the keywords s writes that no field of the JSON
-// Schema model names, and announces each.
+// UnknownKeywordsIn records on p the keywords s writes that no field of the
+// JSON Schema model names, and announces each.
 //
 // OpenAPI 3.1 schemas are JSON Schema 2020-12, where an unrecognized keyword is
-// legal input: the specification requires an implementation to ignore what it
-// does not recognize and allows such a keyword to carry meaning for other
-// tooling. So this reports a decision rather than a fault, and is graded
-// accordingly — see diag.UnknownSchemaKeyword.
+// legal input that an implementation must ignore. So this reports a decision,
+// not a fault (see diag.UnknownSchemaKeyword for the grading).
 //
-// It keeps only what no other reader kept, which is why it runs after all of
-// them: `$vocabulary` and `dependentRequired` have no field in the model either
-// and are read straight off the raw node by readers with more to say about them,
-// so the census finds those already recorded and leaves them alone. A keyword no
-// reader leaves a trace of needs naming in DecidedKeywords instead.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, srcIndex int) []ir.Diagnostic {
+// It keeps only what no other reader kept, so it runs after all of them:
+// `$vocabulary` and `dependentRequired` have no model field and are read off
+// the raw node by readers with more to say. A keyword no reader leaves a trace
+// of needs naming in DecidedKeywords.
+func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
 	keys, root := undeclaredKeys(s)
-	return census(p, keys, root, srcIndex, pointer, "", keyClass{
+	return census(p, keys, root, locate, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		skip:     DecidedKeywords,
@@ -118,17 +94,15 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer
 
 // UnknownKeysIn records on p the keys an OpenAPI object writes that the
 // specification neither defines nor admits as an extension, for an object
-// lowering to a node with an Unmodeled map of its own. owner is the object's own
+// lowering to a node with an Unmodeled map of its own. owner is the object's
 // source pointer.
 //
-// Unlike its schema neighbour this reports a fault: OpenAPI gives each of its
-// objects a closed key set and requires every extension to be prefixed x-, so a
-// key that is neither is nothing the document is permitted to write — in
-// practice a misspelling of the field beside it. It is kept all the same,
-// because invariant 2 does not bend for invalid input, and a misspelt key is the
-// one a reader most needs to find.
-func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner jsontext.Pointer) []ir.Diagnostic {
-	return UnknownKeysUnder(p, model, srcIndex, owner, "")
+// Unlike its schema neighbour this reports a fault: OpenAPI gives each object a
+// closed key set and requires extensions to be prefixed x-, so such a key is
+// usually a misspelling. It is kept all the same, because the IR is lossless
+// even for invalid input, and a misspelt key is the one most worth finding.
+func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer) []ir.Diagnostic {
+	return UnknownKeysUnder(p, model, locate, owner, "")
 }
 
 // UnknownKeysUnder is UnknownKeysIn with every entry keyed beneath scope, for
@@ -139,29 +113,25 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, srcIndex int, owner jsontext.Poin
 // the object. Several objects reach one map, where "openapi:status" from two of
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last.
-func UnknownKeysUnder(p *ir.Unmodeled, model any, srcIndex int, owner jsontext.Pointer, scope string) []ir.Diagnostic {
+func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return UnknownKeysNamed(p, keys, root, srcIndex, owner, scope)
+	return UnknownKeysNamed(p, keys, root, locate, owner, scope)
 }
 
-// UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no census
-// of its own, so the caller names the keys and hands over the mapping node they
-// were written on.
+// UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no
+// census of its own, so the caller names the keys and hands over the mapping
+// node they were written on.
 //
 // One object needs it: a Path Item Object, whose core model embeds the map of
-// its operations. The unmarshaller folds a key it does not recognize into that
-// embedded map rather than recording it as undeclared, so the object's own
-// census is empty however much the document wrote (speakeasy-api/openapi
-// v1.24.1). Its leftovers are still an undeclared key of the path item, graded as
-// one — same code, same severity, same reason — because which reader found them
-// is not a property of the source.
-//
-// It delegates rather than duplicating the grading, so the two can only be
-// announced alike.
+// its operations. The unmarshaller folds an unrecognized key into that map
+// rather than recording it as undeclared, so the object's census is empty
+// however much the document wrote (speakeasy-api/openapi v1.24.1). Its
+// leftovers are graded as any undeclared key is, because UnknownKeysUnder
+// delegates here.
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	srcIndex int, owner jsontext.Pointer, scope string,
+	locate Locator, owner jsontext.Pointer, scope string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, srcIndex, owner, scope, keyClass{
+	return census(p, keys, root, locate, owner, scope, keyClass{
 		code:     diag.UnknownObjectKey,
 		severity: ir.SeverityWarning,
 		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
@@ -172,12 +142,12 @@ func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 // keyClass is how a key the model does not name is graded: which diagnostic
 // announces it, and at what severity.
 //
-// The reason is not part of it. Both classes carry ReasonOutOfScope, because
-// that is a property of the construct rather than of the document: no IR node is
-// coming for a key the format does not define, nor for one a schema dialect
-// defines and this compiler does not model, so an emitter policy layer is the
-// only consumer either has. Which of the two a key is says something about the
-// source, and the diagnostic channel is where this compiler says that.
+// The reason is not part of it. Both classes carry ReasonOutOfScope, a property
+// of the construct rather than of the document: no IR node is coming for a key
+// the format does not define, nor for one a schema dialect defines and this
+// compiler does not model, so only an emitter policy layer consumes either.
+// Which of the two a key is says something about the source, which the
+// diagnostic channel reports.
 type keyClass struct {
 	code     string
 	severity ir.Severity
@@ -188,22 +158,14 @@ type keyClass struct {
 // census records on p every key in keys, read off the mapping node root they
 // were written on, each under its own key beneath scope.
 //
-// It sorts, and on a copy. Neither source of keys hands over the order the
-// document wrote them in: a core model's census is filled by a parallel walk of
-// the mapping under a mutex, and a path item's leftovers are what a filter left
-// of a map. Both slices belong to the model they came from, so sorting one in
-// place would reorder it under its owner; an unsorted read would order this
-// compiler's diagnostics by something the source does not decide, which
-// invariant 7 forbids.
+// It sorts a copy: neither source of keys yields document order, and sorting in
+// place would reorder the slice under its owner (invariant 7).
 //
-// A key p already holds for this very construct is left alone and not announced:
-// the census is the complement of everything the compiler read, not only of what
-// the model names, and a reader with a reason of its own for a keyword has
-// already said it better. Those are filtered before the bound applies — see
-// MaxUnknownKeys. An entry held for a construct written elsewhere is a collision
-// rather than a keyword already handled, and keep reports it.
+// A key p already holds for this very construct is left alone and unannounced,
+// since the reader that recorded it said it better (see unrecorded). That
+// happens before the bound applies (see MaxUnknownKeys).
 func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	srcIndex int, owner jsontext.Pointer, scope string, cl keyClass,
+	locate Locator, owner jsontext.Pointer, scope string, cl keyClass,
 ) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil // the common case: most objects write no key their model misses
@@ -214,44 +176,41 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	}
 	var diags []ir.Diagnostic
 	if len(fresh) > MaxUnknownKeys {
-		diags = append(diags, budgetDiag(len(fresh), owner, srcIndex))
+		diags = append(diags, budgetDiag(len(fresh), locate(owner)))
 		fresh = fresh[:MaxUnknownKeys]
 	}
 	for _, key := range fresh {
-		diags = append(diags, keep(p, root, key, srcIndex, owner, scope, cl)...)
+		diags = append(diags, keep(p, root, key, locate, owner, scope, cl)...)
 	}
 	return diags
 }
 
 // keep writes one key's value under its entry and announces it, or says why it
 // could not.
-func keep(p *ir.Unmodeled, root *yaml.Node, key string, srcIndex int, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
-	entry, at := "openapi:"+scoped(scope, key), owner+ids.Ptr(key)
+func keep(p *ir.Unmodeled, root *yaml.Node, key string, locate Locator, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
+	entry, at := "openapi:"+scoped(scope, key), locate(owner+ids.Ptr(key))
 	if taken, occupied := (*p)[entry]; occupied {
-		return []ir.Diagnostic{occupiedEntryDiag(entry, at, jsontext.Pointer(taken.Provenance.Pointer), srcIndex)}
+		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}
 	node := RawChildNode(root, key)
 	if node == nil {
-		return []ir.Diagnostic{unreachableKeyDiag(entry, at, srcIndex)}
+		return []ir.Diagnostic{unreachableKeyDiag(entry, at)}
 	}
-	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at, srcIndex)
+	kept, diags := PreserveNodeInto(p, entry, node, ir.ReasonOutOfScope, at)
 	if !kept {
 		return diags
 	}
-	return append(diags, diag.Newf(cl.severity, cl.code,
-		ir.Provenance{Source: srcIndex, Pointer: string(at)}, cl.message, key))
+	return append(diags, diag.Newf(cl.severity, cl.code, at, cl.message, key))
 }
 
-// unrecorded returns the keys this census has to answer for: the ones cl has not
-// decided about, less the ones a reader already recorded for the very construct
-// this census would record.
+// unrecorded returns the keys this census has to answer for: those not in skip,
+// less those a reader already recorded for the very construct.
 //
-// Sameness is the entry's provenance, not the entry's presence. A reader with
-// more to say about a keyword writes it at the pointer the census would use —
-// `$vocabulary` and `dependentRequired` on a schema's own map — and there the
-// census has nothing to add. An entry pointing somewhere else is a different
-// construct that happens to spell the same key, which is a collision rather than
-// a keyword already handled, and keep reports it.
+// Sameness is the entry's provenance, not its presence. A reader with more to
+// say about a keyword writes it at the pointer the census would use
+// (`$vocabulary` and `dependentRequired` on a schema's own map), so the census
+// has nothing to add. An entry pointing elsewhere is a different construct
+// spelling the same key, a collision that keep reports.
 func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope string, skip []string) []string {
 	out := make([]string, 0, len(keys))
 	for _, key := range keys {
@@ -259,7 +218,7 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 			continue
 		}
 		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
-			e.Provenance.Pointer == string(owner+ids.Ptr(key)) {
+			e.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)
@@ -270,12 +229,10 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 // scoped spells one entry's key on the carrier holding it.
 //
 // The key is escaped as one segment while scope is a path of literals already
-// spelled that way, which is what stops a key holding a "/" from reading as a
-// scope of its own: a root key spelled "info/contact/slack" would otherwise be
-// the very entry the contact object's own "slack" keys under, and the second
-// site to reach the carrier would find the first already there and drop its key
-// without a word. ids.Scope records that rule for the scopes a document chooses
-// the segments of; a key the document chose every character of needs it too.
+// spelled that way, so a key holding a "/" cannot read as a scope of its own: a
+// root key spelled "info/contact/slack" would otherwise be the very entry the
+// contact object's own "slack" keys under, and the second site to reach the
+// carrier would drop its key without a word. ids.Scope records the rule.
 func scoped(scope, key string) string {
 	if scope == "" {
 		return ids.Scope(key)
@@ -284,9 +241,8 @@ func scoped(scope, key string) string {
 }
 
 // budgetDiag reports the keys past MaxUnknownKeys, which reach the IR in no form.
-func budgetDiag(total int, owner jsontext.Pointer, srcIndex int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyBudget,
-		ir.Provenance{Source: srcIndex, Pointer: string(owner)},
+func budgetDiag(total int, owner ir.Provenance) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyBudget, owner,
 		"object writes %d keys its model names no field for and no other reader kept, past the "+
 			"%d this compiler keeps; the rest are represented in the IR in no form at all",
 		total, MaxUnknownKeys)
@@ -308,22 +264,15 @@ type parsedObject interface {
 type unknownReporter interface{ GetUnknownProperties() []string }
 
 // undeclaredKeys returns the keys model's source object wrote that its model
-// names no field for, and the mapping node they were written on. The order is
-// the library's; census is what puts it in one the source decides.
+// names no field for, with the mapping node they were written on, in the
+// library's order (census sorts them). A model with no census, or a typed nil,
+// yields nothing.
 //
-// A model reporting no census yields nothing rather than panicking. The receiver
-// may be a typed nil — an absent object is what the getters return for one the
-// document omitted — and a promoted method on one of those dereferences it.
-//
-// An empty census is not evidence the object wrote no undeclared key. A core
-// model whose own shape is a sequenced map — Paths, Responses, Callback and Path
-// Item — folds an unrecognized key into that map instead of recording it, so it
-// reports nothing however much the document wrote. For the first three that is
-// the right answer, because every key under them is a legitimate entry and there
-// is nothing undeclared to find. For a Path Item it is not, and its keys are read
-// off the folded map and handed to UnknownKeysNamed instead. A fifth object
-// growing that shape would go quiet here the same way, and the census would look
-// like it had run.
+// An empty census does not prove nothing is undeclared: a core model shaped as
+// a sequenced map folds an unrecognized key into that map and reports nothing.
+// That is right for Paths, Responses and Callback, whose every key is a
+// legitimate entry. A Path Item's keys go to UnknownKeysNamed instead, and
+// another such object would go quiet here.
 func undeclaredKeys(model any) ([]string, *yaml.Node) {
 	v := reflect.ValueOf(model)
 	if v.Kind() == reflect.Pointer && v.IsNil() {

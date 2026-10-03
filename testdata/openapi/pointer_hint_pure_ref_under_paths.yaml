@@ -1,6 +1,6 @@
 # GitHub #519 under /paths: a pure $ref position's own declaration interns
 # nothing there either, and positionHint cannot replay the enclosing hint
-# under /paths at all — it comes from an operationId or a response, which the
+# under /paths — it comes from an operationId or a response, which the
 # pointer does not record. Declaring /b before /a is the order that exposed
 # it: /b's declaration reaches the position and interns nothing, so there was
 # nothing for it to rename once /a's reference hoisted a node under its own

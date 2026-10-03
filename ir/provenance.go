@@ -1,11 +1,15 @@
 package ir
 
-import "strings"
+import (
+	"encoding/json/jsontext"
+	"strings"
+)
 
-// NoSource is the Source value for a node that came from no input file at all.
-// An IR pass reporting on the document it was handed has no source to name, and
-// every other index — 0 included — names a file the document actually loaded,
-// which would make a renderer fabricate a location for the finding.
+// NoSource is the Source value for a node that addresses no input file. An IR
+// pass reporting on the document it was handed has no source to name, and a
+// shared primitive, reached by kind from every source, has no one source to
+// name. Every other index — 0 included — names an input file that was actually
+// read, which would make a renderer fabricate a location.
 //
 // It is the only out-of-table Source value the IR declares: irverify accepts it
 // and reports every other index that addresses no declared source, so a producer
@@ -15,19 +19,40 @@ const NoSource = -1
 // Provenance records where a node came from and whether it was declared or
 // inferred (ir-design §13). Everything heuristic is auditable; everything
 // broken is reportable with an exact source location.
+//
+// Each kind of locator has a field of its own, because a consumer holding one
+// cannot tell which kind it is from its spelling: a renderer printed a line and
+// column as a pointer fragment (GitHub #509), and no check could hold a pointer
+// to RFC 6901 while the same field admitted the other two (GitHub #511).
 type Provenance struct {
-	// Source indexes into Document.Sources, or is NoSource for a node that
-	// addresses no input file. Nothing else is in range.
+	// Source indexes into Document.Sources, or for a refused compile's finding
+	// into the table that document would have carried (ir-design §13), or is
+	// NoSource for a node that addresses no input file. Nothing else is in range.
 	Source int `json:"source"`
-	// Pointer locates the construct: a JSON pointer or line:col into Source for
-	// anything read from a file, or an IR-space location — a stable ID, or a path
-	// through the document's own fields — for a finding an IR pass made about the
-	// document rather than about a source. Spelling is the producer's; nothing
-	// parses this.
-	Pointer string `json:"pointer,omitempty"`
+	// Pointer is the RFC 6901 pointer to the construct inside Source. Empty
+	// locates nothing finer than the source itself: it is the pointer to the
+	// whole document, so a node with no single place in any source, such as a
+	// shared primitive, is on NoSource rather than at the root of one.
+	Pointer jsontext.Pointer `json:"pointer,omitempty"`
+	// Position is where the construct starts inside Source, for a finding made
+	// before the construct has a pointer — on a raw node, or in a part of the
+	// source no pointer reaches.
+	Position Position `json:"position,omitzero"`
+	// Node locates a finding in the IR rather than in a source: a stable ID, or a
+	// path through the document's own fields, for what an IR pass reports about
+	// the document it was handed. Spelling is the producer's; nothing parses it.
+	Node string `json:"node,omitempty"`
 	// Inferred is "" for declared facts; otherwise it names the heuristic that
 	// produced this node (e.g. "pagination-name-match").
 	Inferred string `json:"inferred,omitempty"`
+}
+
+// Position is a 1-based line and column inside a source. The zero value is no
+// position, and a zero Column is a line whose column the producer does not
+// know.
+type Position struct {
+	Line   int `json:"line"`
+	Column int `json:"column,omitzero"`
 }
 
 // Severity classifies a Diagnostic. The engine decides what is fatal.
@@ -54,9 +79,9 @@ type Diagnostic struct {
 // the enclosing Document can be written at all: a third-party validator can
 // emit a truncated multibyte rune in its error text, and a Document refuses to
 // encode a string that is not UTF-8 rather than rewrite it to U+FFFD. irverify's
-// ir/diagnostic-invalid-utf8 check flags any message that still reaches a
-// Document ill-formed; strings.ToValidUTF8 doesn't allocate when message is
-// already valid, so the common path costs one scan.
+// ir/invalid-utf8 check flags any message that still reaches a Document
+// ill-formed; strings.ToValidUTF8 doesn't allocate when message is already
+// valid, so the common path costs one scan.
 func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnostic {
 	return Diagnostic{
 		Severity:   sev,

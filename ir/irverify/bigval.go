@@ -12,29 +12,17 @@ var (
 	bigValPtrType = reflect.TypeFor[*ir.BigVal]()
 )
 
-// checkBigVals asserts every numeric literal the document carries is what
-// ir.BigVal promises: a decimal literal that reads back as a JSON number, in the
-// canonical form ir.NewBigVal produces.
+// checkBigVals asserts every numeric literal reads back as a JSON number, in
+// the canonical form ir.NewBigVal produces.
 //
-// This is the same hazard checkRawPayloads covers for the other verbatim-text
-// carrier, and it has the same shape: the text is copied wherever the value
-// goes, and the grammar it must satisfy is enforced only at construction.
-// ir.BigVal is a defined string type, so ir.BigVal(raw) compiles and skips
-// ir.NewBigVal entirely, and — unlike the sealed TypeDef sum — it carries no
-// UnmarshalJSONFrom, so a document decoded from JSON never meets the
-// constructor at all (GitHub #282). Round-tripping is not the safety net
-// here: the value is carried faithfully precisely because it is a string.
+// ir.BigVal is a defined string type, so ir.BigVal(raw) skips ir.NewBigVal, and
+// with no UnmarshalJSONFrom a decoded document never meets the constructor
+// (GitHub #282). A round trip cannot catch it: a string is carried faithfully.
 //
-// The two codes are separate because they name different repairs. A value the
-// constructor rejects is not a number at all; a value it accepts but rewrites is
-// a number spelled a way JSON does not admit — a leading "+", a redundant
-// leading zero, a bare leading dot — which a consumer splicing the text into
-// generated source or into JSON emits as invalid output.
-//
-// Reaching the literals through the walk rather than a list of carriers is what
-// makes this complete: Constraints.Min, Max and MultipleOf and Value.Num are the
-// fields today, and a numeric field added to the IR is covered the moment it
-// exists.
+// The two codes name different repairs: a value the constructor rejects is not
+// a number; one it rewrites is spelled a way JSON does not admit (a leading
+// "+", a redundant zero, a bare dot). The walk reaches the literals, so a new
+// numeric field is covered at once.
 func checkBigVals(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
@@ -51,6 +39,9 @@ func checkBigVals(doc *ir.Document, _ declarations) ([]Violation, bool) {
 			// Value.Num is not a pointer and is the zero string on every Value
 			// that is not a number — most of the values a document holds — so an
 			// empty one here says the field is unused, not that it is broken.
+			// That reading holds only beside a non-number Value: an empty Num on
+			// one whose Kind is number is checkValues' to report
+			// (ir/value-missing-payload), not this check's.
 			if literal := v.String(); literal != "" {
 				vs = appendBigVal(vs, literal, path)
 			}

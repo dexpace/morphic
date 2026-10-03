@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.5.0",
+  "irVersion": "0.6.0",
   "name": "ParamQuerystring",
   "version": "1.0.0",
   "docs": {},
@@ -337,7 +337,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "date"
     },
@@ -349,7 +349,7 @@
       "docs": {},
       "sensitive": false,
       "provenance": {
-        "source": 0
+        "source": -1
       },
       "prim": "string"
     }

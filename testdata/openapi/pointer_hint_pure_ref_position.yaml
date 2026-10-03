@@ -1,8 +1,8 @@
 # GitHub #519: a pure $ref position — one with nothing beside the $ref for its
-# own declaration to intern — takes whichever lowering reaches it first.
+# own declaration to intern — was named by whichever lowering reached it first.
 # Declaring the owners before the Out* references that name their pure-$ref
 # positions is the order that exposed it: the declaration interns nothing
-# there, so there is nothing for it to rename once a later reference hoists a
+# there, so there was nothing for it to rename once a later reference hoisted a
 # node under its own guess at the $ref's target instead of the position.
 openapi: 3.1.0
 info: {title: Pointer Hint Pure Ref Position, version: "1"}

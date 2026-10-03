@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/ir"
 )
 
 func TestParse_UnsupportedVersion(t *testing.T) {
@@ -37,8 +36,8 @@ func TestParse_UnmarshalError(t *testing.T) {
 	assert.Nil(t, doc)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UndecodableSource, diags[0].Code)
-	assert.Equal(t, ir.NoSource, diags[0].Provenance.Source,
-		"no document comes back, so there is no source table for a Source of 0 to index into")
+	assert.Equal(t, rootSrcIndex, diags[0].Provenance.Source,
+		"no document comes back, but SourceTable names the source a refusal indexes")
 }
 
 // TestParse_KeyThatIsNotUTF8IsRefused pins what ids.Ptr relies on: a source with
@@ -63,7 +62,7 @@ func TestParse_KeyThatIsNotUTF8IsRefused(t *testing.T) {
 // the node is simply absent and every reference to it dangles.
 func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Register("", nil)
 	require.Len(t, types.Violations(), 1, "the refusal is recorded before run reports it")
 

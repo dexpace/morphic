@@ -12,15 +12,14 @@ import (
 )
 
 // idRefSite is one field carrying a typed-ID reference of a class other than
-// ir.TypeID — the classes Validate resolved nowhere before checkDanglingRefs.
+// ir.TypeID.
 //
-// The set below is derived from the ir package's own declarations: every field
-// whose type is one of those classes. A field holding a node's own ID
-// (Channel.ID, Operation.ID, Service.ID and their siblings) and a registry key
-// resolve against their own declaration by construction, so only the
-// cross-references are listed. Deriving the set is the point — enumerating the
-// classes here instead would leave a class added to the IR silently untested,
-// which is how the operation and service classes went unchecked (GitHub #50).
+// The sites are listed by hand from the ir package's declarations: every field
+// whose type is one of those classes. A node's own ID (Channel.ID,
+// Operation.ID, Service.ID and their siblings) and a registry key resolve
+// against their own declaration by construction, so only cross-references
+// appear. A class added to the IR stays untested until listed, as the operation
+// and service classes did (GitHub #50).
 type idRefSite struct {
 	name  string
 	code  string
@@ -226,7 +225,7 @@ func TestValidate_DanglingTypedIDRef(t *testing.T) {
 			require.Len(t, found, 1, "exactly the planted reference must dangle")
 			assert.Equal(t, ir.SeverityError, found[0].Severity)
 			assert.Contains(t, found[0].Message, tc.id)
-			assert.Contains(t, found[0].Provenance.Pointer, tc.where)
+			assert.Contains(t, found[0].Provenance.Node, tc.where)
 		})
 	}
 }
@@ -312,19 +311,15 @@ func TestValidate_TypedIDDiagnosticOrderIsDeterministic(t *testing.T) {
 }
 
 // TestValidate_RegistryOwnIDsResolveAndMismatchesDangle pins the other side of
-// deriving registries from Document's shape. A node's own ID is
-// ChannelID/MessageID/AuthID-typed like any cross-reference, so the walk reaches
-// it and it must resolve against its own entry rather than be reported as
-// dangling.
+// deriving registries from Document's shape: a node's own ID is typed like any
+// cross-reference, so it must resolve against its own entry rather than dangle.
 //
-// Each registry is driven from both ends, because the silent half alone would
-// pass just as well on a walk that never reached these nodes at all: filing an
-// entry under a key that disagrees with its own ID leaves that ID resolving to
-// nothing, and that must be reported. Registry keys are the other half and
-// cannot be driven this way — a key resolves to its own entry by construction,
-// so no key can be made to dangle. That the walk reaches map keys at all is
-// pinned by the Service.Renames case in validate_refs_test.go, where the key is
-// the reference and the value is not.
+// Each registry is driven from both ends, since the silent half would pass on a
+// walk that never reached these nodes: an entry filed under a key that
+// disagrees with its own ID leaves that ID resolving to nothing, which must be
+// reported. Keys cannot be driven so, as a key resolves to its own entry by
+// construction; the Service.Renames case in validate_refs_test.go pins that
+// keys are reached.
 func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

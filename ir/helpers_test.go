@@ -252,6 +252,8 @@ func populatedProvenance() ir.Provenance {
 	return ir.Provenance{
 		Source:   3,
 		Pointer:  "/paths/~1users/get",
+		Position: ir.Position{Line: 12, Column: 7},
+		Node:     "op/openapi/paths/~1users/get",
 		Inferred: "pagination-name-match",
 	}
 }

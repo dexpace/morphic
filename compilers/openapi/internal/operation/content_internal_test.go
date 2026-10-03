@@ -84,6 +84,19 @@ func TestBodySchemaPointer_SelfNamedRefFollowsFragment(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Form"), bodySchemaPointer(l.ctx, js, "/local"))
 }
 
+// TestBodySchemaPointer_NonUTF8FragmentStaysLocal pins another reason a $ref
+// falls back to the local pointer: a fragment that decodes to bytes that are
+// not UTF-8 can never resolve, because no document key can spell them. Reading
+// it anyway would have carried the raw byte into a PropID the IR cannot encode
+// (GitHub #520).
+func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	js := oas3.NewJSONSchemaFromReference("#/components/schemas/%FF")
+	assert.Equal(t, jsontext.Pointer("/local"), bodySchemaPointer(l.ctx, js, "/local"),
+		"a fragment that is not UTF-8 must not become a pointer")
+}
+
 func TestContentTypeKeys_Nil(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, contentTypeKeys(nil))

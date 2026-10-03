@@ -72,20 +72,17 @@ func applyTo(t *testing.T, ov string, lax bool) (overlay.Origin, []ir.Diagnostic
 // header is the preamble every overlay document below needs.
 const header = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"
 
-// TestApply_AttributesIntroducedPositions pins the acceptance criterion the
-// second Sources entry exists for: a position the overlay added names the
-// overlay, and the positions beside it that the source declared do not.
+// TestApply_AttributesIntroducedPositions pins the criterion the second Sources
+// entry exists for: a position the overlay added names the overlay, and the
+// positions beside it that the source declared do not.
 //
-// The four targets differ on purpose, because each addresses the walk
-// differently: a new leaf under an existing mapping, a new element appended to a
-// sequence, a whole new named schema — the case that proves the set is closed
-// downwards, since nothing marks its properties individually — and a new path,
-// whose key holds the `/` that RFC 6901 escaping exists for.
+// The four targets each address the walk differently: a new leaf in a mapping,
+// a new sequence element, a whole new named schema (proving the set is closed
+// downwards), and a new path whose key holds a `/` needing RFC 6901 escaping.
 //
-// Every one of them is asserted as introduced rather than as declared. A
-// declared assertion is satisfied by the fallback, so it would pass on a pointer
-// built wrongly just as readily as on a right one; only a position the overlay
-// must be found at can tell a correct pointer from an unrecognized one.
+// Introduced positions are asserted as introduced, not declared: a declared
+// assertion is satisfied by the fallback, so it passes on a wrongly built
+// pointer as readily as a right one.
 func TestApply_AttributesIntroducedPositions(t *testing.T) {
 	t.Parallel()
 	origin, _ := applyTo(t, header+`  - target: $.components.schemas.Pet.properties
@@ -320,6 +317,8 @@ func TestOrigin_ZeroValueAttributesNothing(t *testing.T) {
 
 	assert.False(t, zero.Applied())
 	assert.Equal(t, srcIndex, zero.IndexAt("/components/schemas/Pet", srcIndex))
+	assert.Equal(t, srcIndex, zero.IndexOf("/components/schemas/Pet",
+		[]jsontext.Pointer{"/components/schemas/Pet/if", "/components/schemas/Pet/then"}, srcIndex))
 	assert.Equal(t, ir.SourceInfo{}, zero.Source())
 	_, found := zero.At(&yaml.Node{Kind: yaml.ScalarNode})
 	assert.False(t, found, "no node is the overlay's when none was applied")
@@ -468,16 +467,13 @@ func detachedAliases(root *yaml.Node) (detached int) {
 // TestApply_GraftsNothingThatOnlyAnAliasCanReach pins the repair GitHub #477 is
 // about, at both doors the library grafts through.
 //
-// Its clone copies an alias by copying its target — `newNode.Alias =
-// clone(node.Alias)` — so a graft arrives holding an alias that points at a
-// node in no Content list anywhere. Every reading here walks Content and treats
-// an alias as a leaf, so whatever the graft carried is invisible to the node
-// budget, the cycle scan, the tagged-mapping refusal and this package's own
-// attribution alike, while the parser follows the alias and reads it.
+// Its clone copies an alias by copying its target, so a graft arrives holding
+// an alias to a node in no Content list. Every reading here walks Content and
+// treats an alias as a leaf, so the graft's content is invisible to them while
+// the parser follows the alias.
 //
 // An update is not the only graft: a copy action clones a subtree of the source
-// through the same clone, which is why the repair works on the applied tree
-// rather than on the overlay document.
+// the same way, so the repair works on the applied tree.
 func TestApply_GraftsNothingThatOnlyAnAliasCanReach(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ spec, ov string }{

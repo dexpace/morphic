@@ -42,17 +42,15 @@ func updateBomb(levels int) string {
 }
 
 // TestLoad_AnOverlayAnchorThatContainsItselfIsRefused pins GitHub #489. The
-// overlay library copies an update by cloning it, and its clone recurses
-// through an alias into what the alias names; an anchor naming one of its own
-// ancestors gives that recursion no base case, and the process ended with a
-// stack overflow — a fatal error rather than a panic, so no barrier in this
-// compiler could turn it into a diagnostic.
+// overlay library clones an update by recursing through an alias into what it
+// names, so an anchor naming one of its own ancestors overflows the stack: a
+// fatal error, not a panic, which no barrier in this compiler can turn into a
+// diagnostic. The overlay gets the refusal the source has had since GitHub #12,
+// before the library is handed it.
 //
-// The source has been protected from this shape since GitHub #12. The overlay
-// is now given the same refusal, over the same tree shape, before the library
-// is handed it. The second case is why it reads the whole document rather than
-// each update: its anchor sits on the action list, outside the update that
-// names it, so the cycle closes through a node no update holds.
+// An anchor on the action list or on an action is why the refusal reads the
+// whole document rather than each update: it sits outside the update that names
+// it.
 func TestLoad_AnOverlayAnchorThatContainsItselfIsRefused(t *testing.T) {
 	t.Parallel()
 	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n"
@@ -101,13 +99,13 @@ func TestLoad_AnOverlayRefusalNamesTheOverlay(t *testing.T) {
 	// The position is derived from the text, not written down: it is the alias
 	// on the fifth line, and a counted column is the number that drifts.
 	line := strings.Split(doc, "\n")[4]
-	want := fmt.Sprintf("5:%d", strings.Index(line, "*a")+1)
+	want := ir.Position{Line: 5, Column: strings.Index(line, "*a") + 1}
 
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), overlayOf(doc))
 
 	require.NoError(t, err)
 	require.Len(t, diags, 1)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: want}, diags[0].Provenance,
+	assert.Equal(t, ir.Provenance{Source: 1, Position: want}, diags[0].Provenance,
 		"the alias that closes the cycle, in the overlay's own text")
 }
 

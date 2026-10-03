@@ -16,7 +16,7 @@ type Service struct {
 	Namespace []string `json:"namespace,omitempty"`
 	// Extends lists client-visible service inheritance (Thrift service extends,
 	// WSDL 2.0 interface extension, Cap'n Proto interface inheritance); inherited
-	// operations are walked, never copied.
+	// operations are walked, never copied. No entry is empty.
 	Extends []ServiceID `json:"extends,omitempty"`
 	// Groups holds the hierarchical operation groups; a group is a TypeSpec
 	// interface / Smithy resource / tag.
@@ -32,7 +32,7 @@ type Service struct {
 	// (Smithy @protocolDefinition traits like aws.protocols#restJson1).
 	Protocols []ProtocolDecl `json:"protocols,omitempty"`
 	// Renames holds per-service shape presentation names (Smithy service rename);
-	// the TypeID — and Naming on the type — are unchanged.
+	// the TypeID — and Naming on the type — are unchanged. No key is empty.
 	Renames map[TypeID]Naming `json:"renames,omitempty"`
 	// Servers indexes into Document.Servers scoped to this service.
 	Servers []int `json:"servers,omitempty"`
@@ -80,14 +80,14 @@ type ResourceInfo struct {
 	Properties []Property `json:"properties,omitempty"`
 	// Lifecycle maps lifecycle names ("create"|"put"|"read"|"update"|"delete"|
 	// "list") to operations; put = create-or-replace with a client-provided
-	// identifier.
+	// identifier. No value is empty.
 	Lifecycle map[string]OpID `json:"lifecycle,omitempty"`
 	// NoReplace reports that put may create but not replace (Smithy @noReplace).
 	NoReplace bool `json:"noReplace"`
 	// InstanceOps are declared non-lifecycle instance operations (require
-	// identifiers).
+	// identifiers); no entry is empty.
 	InstanceOps []OpID `json:"instanceOps,omitempty"`
 	// CollectionOps are declared collection operations; the split drives
-	// sub-client shape and is a declared fact, not a heuristic.
+	// sub-client shape and is a declared fact, not a heuristic. No entry is empty.
 	CollectionOps []OpID `json:"collectionOps,omitempty"`
 }

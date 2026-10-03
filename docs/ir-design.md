@@ -94,7 +94,7 @@ checked against the document, but which spelling of the schema its keys are in h
 encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
 several times bumps it once, where it lands on `main` — a version that moves within an unmerged
 branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
-constant; its GoDoc carries the log of what each past bump changed.
+constant; the version history below records what each past bump changed.
 
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
 so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
@@ -136,6 +136,51 @@ ls testdata/*/openapi/*.golden.json | wc -l
 grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
 ```
 
+#### Version history
+
+What each generation changed in the JSON shape, and what a consumer pinned to the generation before
+it sees. Changes made together in one bump are listed together under it.
+
+- **0.2.0** — three shape changes made together. `Extensions` became `Preserved`, with `RawConfig`
+  split out. `Content.ItemEncoding` became a single encoding rather than a sentinel-keyed map. The
+  diagnostic code `pass/dangling-auth-ref` became `ir/dangling-auth-ref` (the `pass` package doc
+  explains the rename).
+- **0.3.0** — `Preserved` was renamed `Unmodeled` on every carrier, so the JSON key `preserved`
+  became `unmodeled`. A consumer pinned to 0.2.0 finds no key it recognizes and drops every
+  unmodeled construct in silence.
+- **0.4.0** — six shape changes made together, all of them closing a gap a consumer had to read
+  around rather than adding a capability:
+  - `ErrorCase` became `Response`'s sibling: `Type` was **removed**, and `Name`, `Payload` and
+    `Headers` took its place. A consumer pinned to 0.3.0 finds no `type` on an error case and cannot
+    reach its models at all; one that reads the new fields gets the status spelling, the headers and
+    every media type, which 0.3.0 dumped into `Unmodeled` whatever their arity.
+  - `Payload` gained `Required`. Body optionality stopped being an inverted `Unmodeled` sentinel
+    read by absence, so a consumer that still reads `openapi:required` now finds nothing and reads
+    every body as required.
+  - `Parameter` gained `Provenance`, not `omitempty`, and with it `x-sunset` promotion at the
+    parameter position.
+  - `Deprecation` gained `RemovalDate`. `x-sunset` promotes into it rather than into
+    `RemovalVersion`, so a consumer reading a removal date off the version field now finds it
+    empty.
+  - `Encoding` gained `Schema`, giving `contentSchema` a home at scalar positions.
+  - `Constraints.ExclusiveMin` and `ExclusiveMax` changed from bool to a decimal string carrying the
+    bound itself, so the two dialects' exclusive bounds no longer lose one keyword to the other. The
+    JSON type of both keys changed; a consumer decoding them as booleans fails rather than degrades.
+- **0.5.0** — the IR moved onto `encoding/json/v2` and absence got one spelling:
+  - `Operation.Auth`, `Service.Auth` and `Server.Auth` write nil (inherit) as an absent key rather
+    than `null`. An empty list, explicitly public, is still `[]`.
+  - A `Value`'s bytes, list and object payloads, and a `CtorValue`'s args, are omitted when empty
+    rather than written as `null`.
+  - Strings use RFC 8785's minimal escaping, so `<`, `>` and `&` are written as themselves rather
+    than as `\u003c`, `\u003e` and `\u0026`.
+  - Decoding refuses what it used to take in silence: a member the schema does not define, a
+    duplicate name, a string that is not UTF-8, and a missing or foreign `irVersion`, which is read
+    before any other member.
+- **0.6.0** — each kind of `Provenance` locator got its own key. `pointer` holds only an RFC 6901
+  pointer; a line and column moved to `position`, and an IR pass's location in the document itself
+  moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
+  unlocated.
+
 ---
 
 ## 3. Identity, names, references
@@ -171,9 +216,23 @@ either collides with the primitive of that kind or squats the name of the next o
 holds both halves — `ir/prim-id-not-derived` and `ir/prim-space-reserved` — for every document,
 whatever produced it.
 
+Having no source position, a primitive names no source either: its `Provenance.Source` is
+`NoSource` (§13). An index beside the empty pointer would say that file's whole document declared a
+node every source reaches by kind. `irverify` holds no producer to this so far (#590).
+
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
+
+An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
+declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
+omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil
+`*TypeRef` (§3.3). Two positions document an empty value as meaningful, and they are the only ones:
+`Discriminator.Default`, whose zero value means no default, and `Discriminator.Property`, empty when
+`PropertyName` or `Index` locates the tag instead (§4.3). `irverify` reports an empty reference
+anywhere else as `ir/empty-<noun>-ref`, except an empty `TypeRef.Target`, which is
+`ir/type-ref-no-target` (§3.3). `pass.Validate` reports an empty reference only in a discriminator
+mapping, as a missing variant, so far (#575).
 
 This is the direct answer to oagen's name-keyed registry (silent collision merging, string-rewrite
 ref fixing) and Kiota's name-keyed children (collision reconciliation logic), and adopts the
@@ -219,8 +278,8 @@ value, property key, tag or component name — the compiler mints a hint rather 
 emptiness through; nothing is lost, because there was no spelling to keep.
 
 **A camel-case boundary is where lowercasing changes the rune**, not where Unicode reports an
-uppercase category. The two differ: double-struck `ℤ`, GREEK UPSILON WITH HOOK `ϒ` and the Roman
-numerals are uppercase with no lowercase form, so they survive lowercasing unchanged and are not
+uppercase category. The two differ: double-struck `ℤ` and GREEK UPSILON WITH HOOK `ϒ` are
+uppercase with no lowercase form, so they survive lowercasing unchanged and are not
 boundaries — `COUNTℤ` is one word. The titlecase letters are boundaries and are not uppercase —
 `xǅy` is two. Defining it by the effect rather than the category is what makes the grammar a fixed
 point: a rune it split on but lowercasing left alone would still look like a boundary in the output,
@@ -241,10 +300,10 @@ by a conformance table and the properties every answer must satisfy by a fuzz ta
 (GitHub #186).
 
 One rule sits under all of those and under `Aliases` too, because it is about the encoding rather
-than the spelling: **every channel's bytes must decode** (`ir/naming-invalid-utf8`). Ill-formed
-UTF-8 survives a marshal as the replacement rune, so a document carrying it decodes to one that
-re-marshals to different bytes and the "Serializable" invariant above stops holding — broken by a
-name nothing else here objects to.
+than the spelling: **every channel's bytes must decode**. It is not a naming rule at all: every
+string a document holds must be well-formed UTF-8, because a `Document` refuses to encode one that
+is not, so a single ill-formed name, ID or description fails the whole artifact. `irverify` holds
+every string to it under one code, `ir/invalid-utf8`, at the path of the string that broke it.
 
 **`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
 matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,
@@ -485,7 +544,9 @@ component — so nothing about composition is special here; a `$ref` entry writi
 itself composes straight to the target and hoists no node. The alias's name hint is the hint the
 node the `$ref` resolves to carries — a component's name, or, for a position inside a schema, the
 hint its own declaration gives it — which is also what an outside `$ref` naming the branch pointer
-derives, since either may be the lowering that interns the node.
+derives, since either may be the lowering that interns the node. A position under `/paths` whose
+hint comes from its operation or response is the exception so far, since the pointer does not
+spell that hint (#729).
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
 `allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same
@@ -1786,7 +1847,10 @@ weakening, and outright dropping, so it says nothing about why. **`Provenance`**
 construct itself rather than the node carrying it, so an emitter can report on an entry at its
 own source position instead of the enclosing schema's — falling back to the declaring position
 only where the entry combines several keywords into one synthesized object and no single node
-addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
+addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`). Such an entry's
+`Source` names the input document that wrote every keyword it combines, when one did, and the
+declaring position's otherwise: an overlay that wrote the whole construct is credited with it, and
+one that only added to it leaves it with the document that declares it.
 
 A key names the origin format, then the construct — and, where one carrier holds constructs from
 more than one source object, the path between them. `openapi:x-rate-limit` is the extension on the
@@ -1958,9 +2022,16 @@ place it was declared and the one place it is recorded.
 
 ```go
 type Provenance struct {
-    Source   int       // index into Document.Sources, or NoSource (-1)
-    Pointer  string    // JSON pointer or line:col into that source
-    Inferred string    // "" = declared; else the heuristic that produced this node ("pagination-name-match")
+    Source   int              // index into Document.Sources, or NoSource (-1)
+    Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
+    Position Position         // 1-based line and column into that source, where no pointer exists yet
+    Node     string           // IR-space location: a stable ID or a path through the document's own fields
+    Inferred string           // "" = declared; else the heuristic that produced this node ("pagination-name-match")
+}
+
+type Position struct {
+    Line   int // 1-based; 0 = no position
+    Column int // 1-based; 0 = the producer knows the line only
 }
 
 const NoSource = -1 // the node addresses no input file
@@ -1977,10 +2048,29 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
-reusing one would make a renderer fabricate a location. `NoSource` is therefore the **only**
+reusing one would make a renderer fabricate a location. A shared primitive has no one file to name
+either, since every source reaches it by kind (§3.1). `NoSource` is therefore the **only**
 out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.
+
+**A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
+index the table that document would have carried. The compiler names it without reading anything
+(`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
+`engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
+made before any compiler claimed the spec, which names it as source `0`: it is about a file the
+table names, and only a finding about no file at all takes `NoSource`.
+
+**One field per kind of locator.** A consumer cannot tell a locator's kind from its spelling, so
+each kind has its own field. `Pointer` is the structural locator into a source and holds nothing
+but an RFC 6901 pointer, which is what lets a consumer walk it with `jsontext.Pointer`'s methods.
+`Position` is for a finding made before the construct has a pointer — on a raw node the parser
+hands back, or in a part of the source no pointer reaches — and is the form editors turn into a
+link. `Node` is where an IR pass reports a finding about the document itself; its spelling is the
+producer's, and nothing parses it. A verifier holds a `Pointer` to RFC 6901 and a `Position` to
+1-based values, and refuses either one on `NoSource`, where there is no file for it to be inside.
+Nothing requires exactly one locator: a finding may carry a `Node` beside a source location, and a
+node the lowering reached may carry both a pointer and a position.
 
 ---
 

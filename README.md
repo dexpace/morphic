@@ -75,7 +75,8 @@ engine (or CLI) decides what is fatal.
 
 ## Install
 
-Requires Go 1.26 or newer.
+Requires the Go release named by the `go` directive in [`go.mod`](go.mod), or newer. Under the
+default `GOTOOLCHAIN=auto`, an older `go` command from Go 1.21 on downloads that release itself.
 
 ```bash
 go install github.com/dexpace/morphic/cmd/morphic@latest
@@ -124,8 +125,11 @@ Help always prints to stdout and exits `0`.
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 
 Diagnostics print one per line as `<severity> <code> <location>: <message>`, where `<location>` is
-`<path>#<pointer>` for a finding in a spec file, a bare pointer for one an IR pass made about the
-document, and absent for one raised before any document existed.
+`<path>#<pointer>` for a finding at a pointer in a spec file, `<path>:<line>:<column>` for one found
+before it had a pointer (`<path>:<line>` when the column is unknown), `<path>` alone for one about
+the file as a whole, and the IR location bare for one an IR pass made about the document. A spec
+that was refused, or that no compiler recognized, names its file the same way: the path comes from
+the run, not from a document.
 
 Both commands use the same exit codes: `0` clean (and for any help request); `1` the spec has
 problems — a diagnostic reached the `--fail-on` threshold, or it could not be lowered at all, which

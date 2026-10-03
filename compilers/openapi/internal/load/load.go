@@ -72,6 +72,12 @@ type Options struct {
 	// the bound an input to the stage, so nothing a test does to it is visible to
 	// a concurrent load.
 	buildIndex func(root *yaml.Node) sourceindex.Index
+	// rebuildDoc rebuilds the model for resolveExternal's second pass, or nil for
+	// unmarshal itself. It is unexported because it is this package's test seam:
+	// the rebuild repeats an unmarshal that already succeeded on the same bytes
+	// and tree, and unmarshal depends on nothing else, so only a substitute
+	// reaches the error build returns for a failed rebuild.
+	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -102,42 +108,24 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 		"source document is %d bytes, past the %d-byte budget", len(data), limit), true
 }
 
-// releaseAnchors clears the anchor name from every node of the tree the model is
-// about to be built from, so the parser folds every entry the document writes.
+// releaseAnchors clears the anchor name from every node of the model's source
+// tree, so the parser folds every entry the document writes. root must not be
+// nil.
 //
-// The parser skips a mapping entry whose value carries an anchor wherever a
-// model folds its entries into a map — the paths, a path item's operations, the
-// responses, a callback's expressions — taking the anchor for an alias
-// definition rather than a value (speakeasy-api/openapi v1.25.2,
-// marshaller/unmarshaller.go). In OpenAPI such an entry is an entry like any
-// other, and skipping it dropped a whole operation, response or callback from
-// the IR with no diagnostic, while the same document without the anchor
-// compiled it (GitHub #459).
-//
-// Clearing the name changes nothing else the parser reads. That skip is the
-// only place it reads an anchor's name at all; an alias reaches its target
-// through the pointer yaml.v3 resolves it to, which is kept, so every alias
-// still stands for what it named. It runs after every pre-parse refusal, which
-// do read names — the recursive-anchor refusal quotes the one it found — and
-// nothing after the parse reads one.
-//
-// It reaches the source document only. A document an external reference names
-// is read and parsed by the resolver itself, from bytes, and its tree never
-// passes through here, so an anchored entry in one is still skipped in silence
-// (GitHub #501). Clearing the anchors there would mean
-// rewriting its bytes before the resolver parses them, which no hook the
-// resolver offers allows short of lexing YAML by hand.
-//
-// The walk follows Content and never an alias, so it visits each node of the
-// tree once and cannot cycle through a recursive anchor, which the refusals
-// have rejected by now in any case. root is never nil — a source with no
-// document decodes to an empty node — and yaml.v3 leaves no nil in Content.
+// The parser skips an anchored mapping entry where the model folds entries into
+// a map, and drops it silently (GitHub #459; speakeasy-api/openapi v1.25.2,
+// marshaller/unmarshaller.go). That skip is the only read of an anchor's name;
+// an alias reaches its target by a kept pointer. Run it after the pre-parse
+// refusals, which do read names. A document read through external is released
+// too (GitHub #501), and replaces the resolver's own parse on a second
+// resolution (GitHub #538).
 func releaseAnchors(root *yaml.Node) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		n.Anchor = ""
+		// Follows Content, never an alias: a recursive anchor cannot loop it.
 		stack = append(stack, n.Content...)
 	}
 }
@@ -204,8 +192,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 // build turns the decoded tree of a source's first document into a Document:
 // the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, then validation findings and reference resolution as
-// diagnostics. A nil document with error diagnostics is a refusal to lower.
+// version check, the reference-chain cycle refusal, then validation findings
+// and reference resolution as diagnostics. A nil document with error
+// diagnostics is a refusal to lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
@@ -249,9 +238,27 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	locate := locator(srcIndex, origin)
+	if d, found := chainCycle(ctx, locate, root, doc); found {
+		if d.Severity == ir.SeverityError {
+			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
+		}
+		cyc = append(cyc, d)
+	}
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
-	diags = append(diags, resolve(ctx, locate, doc, src.Path, opts)...)
+	rebuildDoc := opts.rebuildDoc
+	if rebuildDoc == nil {
+		rebuildDoc = unmarshal
+	}
+	rebuild := func() (*soa.OpenAPI, error) {
+		again, _, err := rebuildDoc(ctx, src.Data, root)
+		return again, err
+	}
+	doc, resolveDiags, err := resolve(ctx, locate, doc, src.Path, opts, rebuild)
+	if err != nil {
+		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
+	}
+	diags = append(diags, resolveDiags...)
 
 	return &Document{
 		Doc: doc,
@@ -265,15 +272,16 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 }
 
 // findings converts the model build's validation errors into diagnostics,
-// dropping the two kinds that are library artifacts rather than spec problems:
+// dropping the two kinds that are library artifacts rather than spec problems —
 // a numeric literal Morphic captures losslessly anyway, and a schema finding
-// raised only because the library checked against the wrong meta-schema.
+// raised only because the library checked against the wrong meta-schema — and
+// the findings of a rule the compiler checks itself.
 func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string) []ir.Diagnostic {
 	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
-			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)]) {
+			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)] || compilerOwned(verr)) {
 			continue
 		}
 		diags = append(diags, validationDiag(locate, ve))
@@ -281,13 +289,49 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 	return diags
 }
 
+// compilerOwned reports whether a finding belongs to a rule the compiler checks
+// itself.
+//
+// operationId uniqueness is the one. The library counts the operations written
+// under paths, walking the model before references are resolved: an operation a
+// YAML alias mounts twice counts twice, a $ref's target counts only where it is
+// written under paths, and no webhook, callback or component operation counts
+// at all. So it refused the alias form where the $ref form drew only a warning,
+// and missed repeats outside paths. The service lowering judges every claim
+// once it has seen them all (GitHub #502).
+func compilerOwned(verr validation.Error) bool {
+	return verr.Rule == validation.RuleValidationOperationIdUnique
+}
+
 // resolve resolves every reference in doc and converts what could not be
-// resolved into diagnostics, the refusal of external references included.
-func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options) []ir.Diagnostic {
-	resErrs, err := resolveAll(ctx, doc, soa.ResolveAllOptions{
+// resolved into diagnostics, the refusal of external references included. It
+// returns the document it resolved, which is a rebuild of doc when
+// resolveExternal had to recover an anchored external document the resolver
+// parsed itself.
+func resolve(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
+	rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, []ir.Diagnostic, error) {
+	if !opts.AllowExternalRefs {
+		return doc, resolveWith(ctx, locate, doc, path, opts, nil), nil
+	}
+	return resolveExternal(ctx, locate, doc, path, opts, rebuild)
+}
+
+// resolveWith resolves every reference in doc, reading external documents
+// through reader when one is given, and converts what could not be resolved
+// into diagnostics.
+func resolveWith(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
+	reader *external,
+) []ir.Diagnostic {
+	resolveOpts := soa.ResolveAllOptions{
 		OpenAPILocation:     path,
 		DisableExternalRefs: !opts.AllowExternalRefs,
-	})
+	}
+	if reader != nil {
+		resolveOpts.VirtualFS = *reader
+		resolveOpts.HTTPClient = *reader
+	}
+	resErrs, err := resolveAll(ctx, doc, resolveOpts)
 	diags := resolveDiags(locate, err)
 	for _, re := range resErrs {
 		diags = append(diags, resolveDiag(locate, re))
@@ -318,21 +362,15 @@ func locator(srcIndex int, origin overlay.Origin) scan.Locator {
 	}
 }
 
-// refusals indexes a decoded tree once and reports the pre-parse refusals over
-// it: the degenerate reference and alias structures scan finds, a mapping
-// carrying a tag the parser faults on, or — when the document is too large to
-// index in full — a refusal of its own. Each is anchored where locate puts its
-// node.
+// refusals indexes a decoded tree once and reports its pre-parse refusals: the
+// degenerate reference and alias structures scan finds, a mapping carrying a
+// tag the parser faults on (see diag.TaggedMapping), and a refusal of its own
+// when the document is too large to index in full. A tag refusal is reported
+// alongside a cycle, not instead of one.
 //
-// The size refusal is here rather than in scan because every answer in a
-// truncated index is a partial one, and the alias-expansion allowance derived
-// from a partial node count would refuse documents on a bound they never
-// crossed. A document that large is beyond what the pre-parse guarantees cover,
-// so it is refused rather than lowered on incomplete information.
-//
-// The tag refusal is here because it is read straight off the index; what it
-// guards is stated on diag.TaggedMapping. It is reported alongside a cycle
-// rather than instead of one, so a document with both hears about both.
+// The size refusal is here, not in scan, because a truncated index answers only
+// in part, and an alias-expansion allowance derived from a partial node count
+// would refuse documents on a bound they never crossed.
 func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
@@ -372,22 +410,15 @@ func patch(srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Di
 }
 
 // applyOverlay applies the overlay given what its pre-apply refusals found,
-// which it takes as data so what it does with each outcome is a function of
-// that outcome and can be held to it directly.
+// taken as data so each outcome is testable. An error there refuses before the
+// library is handed anything. Anything less, only the scan's report that it
+// faulted, is carried into what the compile reports: the overlay's protection
+// from the library is incomplete.
 //
-// An error there refuses before the library is handed anything. Anything less
-// is carried into what the compile reports: the only such finding is the
-// scan's own report that it faulted, and that says the overlay's protection
-// from the library is incomplete — exactly what a caller must hear before
-// trusting a compile that went on regardless.
-//
-// It re-runs the pre-parse refusals over the result, because the tree that
-// reaches the parser is no longer the one they first saw: an overlay action can
-// graft a $ref cycle onto a document that had none, and the guarantee those
-// refusals exist for is about what the parser is handed. That run locates
-// through the attribution the application produced, so a refusal on a node the
-// overlay grafted names the overlay rather than the source at a position the
-// node does not have.
+// It re-runs the pre-parse refusals afterwards, because an overlay action can
+// graft a $ref cycle onto a document that had none. They locate through the
+// attribution the application produced, so a refusal on a grafted node names
+// the overlay, not a position the node lacks.
 func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
 		return overlay.Origin{}, pre
@@ -404,27 +435,17 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	return origin, append(diags, refusals(locator(srcIndex, origin), root, opts)...)
 }
 
-// overlayRefusals refuses an overlay document whose aliases the library would
-// follow without end or far past its size, before the library is handed it.
+// overlayRefusals refuses an overlay whose aliases the library would follow
+// without end or far past its size, before the library is handed it.
 //
-// The overlay library copies each update by cloning it, and its clone follows
-// an alias into what the alias names. An anchor naming one of its own ancestors
-// gave that recursion no base case and ended the process with a stack overflow;
-// an alias bomb gave it an exponential one and ended it out of memory — a
-// 393-byte overlay cost 355 MB at six levels. Neither is a panic, so the barrier
-// around the application cannot see them (GitHub #489). They are the two
-// refusals the source gets before its own parser, held to the same ratio and
-// the same alias budget, and they run here because this is the one package
-// that reaches them.
+// The library clones each update by following aliases, so an anchor naming one
+// of its own ancestors overflows the stack and an alias bomb exhausts memory.
+// Neither is a panic, so no barrier catches them (GitHub #489). They are the
+// source's refusals, under the same limits.
 //
-// The overlay is decoded into a node tree of its own for this, which expands
-// nothing — a tree holds an alias as one node pointing at its anchor — and the
-// library then decodes it again. An overlay is a patch, so the second decode
-// costs little; the alternative was a scan over each update value alone, which
-// cannot see a cycle whose anchor sits outside the value naming it.
-//
-// Bytes that will not decode are left to the library, which refuses them with
-// its own reason; this answers only about documents that do.
+// The whole overlay is decoded, since a scan of each update alone would miss a
+// cycle whose anchor sits outside it. Undecodable bytes are left to the
+// library.
 func overlayRefusals(opts Options) []ir.Diagnostic {
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75): an overlay is an input document like the source,
@@ -465,28 +486,19 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 // removal of a false positive, and belongs to its own change.
 const metaSchemaReconciledMinor = "3.2"
 
-// metaSchemaVersionArtifacts returns the validation findings the library produced
-// only because it checked schema objects against the wrong meta-schema, keyed by
-// findingSite.
+// metaSchemaVersionArtifacts returns the findings the library raised only by
+// checking schemas against the wrong meta-schema, keyed by findingSite, or nil
+// unless minor is metaSchemaReconciledMinor.
 //
-// JSONSchema[T].Validate discards its options and calls Schema.Validate with none
-// (jsonschema/oas3/jsonschema.go, under a "for now" comment), so the
-// ParentDocumentVersion the document walk supplies never reaches schema
-// validation: every schema object is checked against the 3.1 meta-schema whatever
-// the document claims to be. A conformant 3.2 document writing a 3.2-only schema
-// keyword — discriminator.defaultMapping is the one that surfaced — then fails
-// against a meta-schema that does not declare it, and under the CLI's default
-// --fail-on error a valid spec exits 1.
+// JSONSchema[T].Validate discards its options (jsonschema/oas3/jsonschema.go),
+// so the document's version never reaches schema validation and every schema is
+// checked against the 3.1 meta-schema. A valid 3.2 document using a 3.2-only
+// keyword, such as discriminator.defaultMapping, then fails.
 //
-// Which findings to drop is derived, not listed. oas3.Validate does honour the
-// option, so validating every schema twice — once at the document's own version,
-// once as the library does — bounds the artifact exactly: a finding the second run
-// raises and the first does not is the library checking against a meta-schema the
-// document never claimed. Everything else is kept, including a finding on a schema
-// this walk did not reach, which appears in neither run and so is never in the
-// difference. Nothing names a keyword, so a 3.2 addition beyond defaultMapping is
-// covered without an edit — and once the library stops dropping its options the
-// two runs agree and this drops nothing.
+// The findings are derived, not listed. oas3.Validate does honour the option,
+// so validating every schema twice, at the document's version and as the
+// library does, isolates them: a finding only the second run raises is an
+// artifact and the rest stay.
 func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string) map[string]bool {
 	if minor != metaSchemaReconciledMinor {
 		return nil
@@ -588,8 +600,8 @@ func isNumericBoundKeyword(verr validation.Error) bool {
 		return false
 	}
 	name := mismatch.ParentName
-	if i := strings.LastIndexByte(name, '.'); i >= 0 {
-		name = name[i+1:]
+	if _, after, ok := strings.CutLast(name, "."); ok {
+		name = after
 	}
 	_, ok := numericBoundKeywords[name]
 	return ok
@@ -643,16 +655,14 @@ func walkNumericScalars(node *yaml.Node, depth int, visit func(*yaml.Node)) {
 	}
 }
 
-// nodeCount returns the number of nodes in the parsed tree rooted at root.
-//
-// The parse tree is a tree rather than a graph — aliasing only adds edges this
-// walk never follows, and yaml.v3 gives an alias node empty Content — so the
-// iterative stack visits each node once and is bounded by the tree's own size.
+// nodeCount returns the number of nodes in the parsed tree rooted at root. An
+// alias node has empty Content in yaml.v3 and its edge is never followed, so
+// the iterative walk visits each node once.
 //
 // The alias-amplification budget in scan takes the same measure of the same
-// tree, and the two are deliberately not shared: a ten-line walk over a
-// third-party node type is not a dependency worth adding between two packages
-// with different jobs, and this repo has no utility package to put it in.
+// tree. The two walks are deliberately not shared: ten lines over a third-party
+// node type are not worth a dependency between two packages with different
+// jobs.
 func nodeCount(root *yaml.Node) int {
 	if root == nil {
 		return 0
@@ -669,28 +679,15 @@ func nodeCount(root *yaml.Node) int {
 }
 
 // decodeStream parses source bytes into the node tree of the document the
-// compile lowers — the first in the stream that holds content — and reads what
-// follows it so a stream of several is reported rather than silently cut to
-// one. The error it returns is the parser's own: Decode hands it to detection,
-// which quotes it, and Load wraps it as ErrParse.
+// compile lowers, the first with content, and reads what follows so extra
+// documents are reported, not dropped. The error is the parser's own, which
+// detection quotes and Load wraps as ErrParse.
 //
-// It is split out from unmarshal so an overlay can be applied to the tree
-// between the two: the alternative — overlaying, re-serialising and re-parsing —
-// renumbers every line in the document, and every diagnostic about the source
-// would then name a position in a file that exists nowhere.
-//
-// It is the compile's only parse of the source: the pre-parse refusals used to
-// decode the same bytes a second time to scan them, and now read the tree this
-// produces. Nothing here bounds alias expansion, and nothing needs to: a node
-// tree holds an alias as one node pointing at its anchor, so decoding into one
-// expands nothing, and yaml.v3's excessive-aliasing guard — which counts
-// expansions — never fires for a Node target. What refuses a billion-laughs
-// document is scan's weigher over this tree.
-//
-// It carries no recover of its own, unlike the model build and the resolve
-// below it. yaml.v3 converts its own faults into errors before they leave
-// Decode; the third-party code that has been seen to fault is the layer above
-// the decode, which is where the barriers are.
+// It is split from unmarshal so an overlay can patch the tree in between;
+// re-parsing after serialising would renumber every line. It bounds no alias
+// expansion, because a node tree holds an alias as one node, and scan's weigher
+// refuses a billion-laughs document. It needs no recover: yaml.v3 turns its own
+// faults into errors.
 func decodeStream(data []byte) (*yaml.Node, tail, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	root, err := firstWithContent(dec)
@@ -701,23 +698,16 @@ func decodeStream(data []byte) (*yaml.Node, tail, error) {
 }
 
 // Parsed is a source's decoded form, produced once and used twice: detection
-// reads the document's own keys off it to name the format, and the compile it
-// routes to lowers that same tree rather than reading the bytes again. The two
-// happen back to back over one source, so parsing in both is parsing twice.
+// reads the document's keys off it, and the compile it routes to lowers the
+// same tree. It travels in compilers.Source.Parsed.
 //
-// It is the value this compiler puts in compilers.Source.Parsed, and the only
-// type it reads back out of one. Holding the digest of the bytes it came from
-// is what lets a reader check that: a Parsed reached its Compile beside the
-// Data it describes, or it is ignored and the bytes are read afresh.
+// It holds the digest of the bytes it came from, so a reader can check that it
+// describes the Data beside it and read the bytes afresh if not. The digest is
+// what SourceInfo.Hash records, so a document's hash is that of the bytes it
+// was lowered from.
 //
-// The digest is what SourceInfo.Hash records, so the hash a document carries is
-// the hash of the bytes that document was lowered from — not of whatever bytes
-// sat beside the tree at the time. Nothing here pays for that: the hash was
-// already computed on every compile for exactly that field, and comparing it is
-// the same work done once instead of trusted.
-//
-// The tree is live, not a snapshot: an overlay patches it in place, so a Parsed
-// belongs to one compile (compilers.Source.Parsed says so).
+// The tree is live: an overlay patches it in place, so a Parsed belongs to one
+// compile.
 type Parsed struct {
 	hash [sha256.Size]byte
 	root *yaml.Node
@@ -745,18 +735,12 @@ func Decode(data []byte) (*Parsed, error) {
 // when it is this compiler's own and describes these very bytes, and a fresh
 // parse otherwise.
 //
-// The bytes are compared by content, not by the identity of the slice holding
-// them. Identity is the cheaper question and the wrong one: a caller reading
-// into a pooled buffer hands back the same backing array with different bytes
-// in it, and every compile would then lower a tree the source no longer holds
-// while stamping SourceInfo.Hash from the bytes it does — a document whose
-// recorded hash describes content it was not built from, which is the identity
-// golden snapshots, IR diffing and caching all key on (ir-design §7).
-//
-// It costs nothing to ask. The digest is the one SourceInfo.Hash has always
-// recorded, so the hash taken here replaces the one build took rather than
-// adding to it; equal bytes then yield the tree they parse to, whichever buffer
-// they arrived in.
+// The bytes are compared by content, not by slice identity: a caller reading
+// into a pooled buffer hands back the same backing array with different bytes,
+// and the compile would lower a tree the source no longer holds while stamping
+// SourceInfo.Hash from the bytes it does, breaking the identity that snapshots,
+// IR diffing and caching key on (ir-design §7). The digest costs nothing extra:
+// SourceInfo.Hash records it anyway.
 func parsedFor(src compilers.Source) (*Parsed, error) {
 	// A nil *Parsed stored in the interface is not a nil interface, so the
 	// assertion succeeds and hands back nothing to read; ir.IsNilTypeDef and
@@ -772,19 +756,15 @@ func parsedFor(src compilers.Source) (*Parsed, error) {
 func (p *Parsed) Hash() string { return hex.EncodeToString(p.hash[:]) }
 
 // firstWithContent reads documents from dec until one holds content, and
-// returns it. A leading document that decodes to null — a bare `---`, a
-// comment, any spelling of null — is what a file assembled from fragments or
-// a template with its header stripped begins with, and taking it as the
-// document refused every such source for a null root while a whole spec sat
-// behind it.
+// returns it. A leading document that decodes to null, such as a bare `---`, is
+// what a file assembled from fragments begins with; taking it as the document
+// would refuse the spec behind it.
 //
-// A stream with no such document yields the first document it holds — a null,
-// which the model build refuses as it always has — or a node of no kind when
-// it holds none at all, as yaml.Unmarshal leaves one for an empty source; the
-// two reach different refusals and are kept apart. An error from the decoder
-// before content is found is the source's: nothing readable came before it.
-// The search reads at most maxStreamDocuments documents, the bound readTail
-// reads under; past it the first document read stands.
+// A stream with no such document yields the first one it holds, a null the
+// model build refuses, or a node of no kind when it holds none; the two reach
+// different refusals. A decoder error before content is the source's. The
+// search reads at most maxStreamDocuments documents; past it the first one read
+// stands.
 func firstWithContent(dec *yaml.Decoder) (*yaml.Node, error) {
 	var first *yaml.Node
 	for range maxStreamDocuments {
@@ -885,7 +865,7 @@ func (t tail) diagnostics(srcIndex int) []ir.Diagnostic {
 	}
 	prov := ir.Provenance{Source: srcIndex}
 	if t.line > 0 {
-		prov.Pointer = fmt.Sprintf("%d:%d", t.line, t.column)
+		prov.Position = ir.Position{Line: t.line, Column: t.column}
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.StreamDocumentsDropped, prov,
 		"only one document of the YAML stream was lowered; %s", t.describe())}
@@ -909,26 +889,15 @@ func (t tail) describe() string {
 }
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
-// reproducing soa.Unmarshal's sequence with the decode lifted out: seed the
-// cache, carry the source's YAML formatting onto the core model, populate from
-// the node, then validate and sort the findings as the library does. Reading the
-// nodes rather than bytes is what preserves each one's line and column through
-// an overlay.
+// reproducing soa.Unmarshal with the decode lifted out, so each node keeps its
+// line and column through an overlay.
 //
-// It converts a panic from the third-party parser — which faults on degenerate
-// input such as a whitespace-only document — into an ErrParse error, so the
-// compiler upholds the no-panics-escape invariant instead of crashing the
-// caller's process. The named returns are reset in the recover so a
-// partially-assigned document never leaks.
-//
-// The recover reaches only this goroutine: the model's entry point, populating
-// it from the core, and validating it — where the whitespace fault is raised.
-// The parser fans a model's fields out over an errgroup, so a fault while
-// building one of them — a tagged mapping at a reference position, before the
-// pre-parse refusals learned to catch it (GitHub #474) — is raised on a
-// goroutine the parser owns, and ends the process. Nothing here can change
-// that: recover is per goroutine and the parser exposes no hook. A shape known
-// to fault there is refused before the tree is handed over (see refusals).
+// A panic from the third-party parser, which faults on degenerate input such as
+// a whitespace-only document, becomes an ErrParse error. The recover reaches
+// only this goroutine, and the parser fans a model's fields out over an
+// errgroup, so a fault in one of those goroutines ends the process: a shape
+// known to fault, a tagged mapping at a reference position (GitHub #474), is
+// refused beforehand (see refusals).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1032,7 +1001,10 @@ func resolveDiags(locate scan.Locator, err error) []ir.Diagnostic {
 // its own only part, and a nil error has none.
 //
 // One level only, and no recursion to bound: ResolveAllReferences joins a flat
-// list built in one loop, so a part is never itself a join.
+// list built in one loop, one part per reference it could not resolve. A part
+// can be a join of its own — the external reader joins a failed read with the
+// error closing what it read — but it is still one reference's failure, and is
+// reported as one.
 func joinedParts(err error) []error {
 	if err == nil {
 		return nil

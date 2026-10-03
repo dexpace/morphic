@@ -43,18 +43,15 @@ const maxPointerSegments = 1024
 // View.expand and refCycles), not silently truncated.
 const MergeDepthLimit = 64
 
-// maxCachedPairs bounds total expanded pairs one View retains, on the order of
-// 50 MB at 2²¹ for the pairs themselves. It complements MergeDepthLimit: that
-// bound caps one mapping's expansion depth, this one caps a document with many
-// merged mappings. Past the budget the view still answers correctly — it just
-// stops memoizing, trading a cache hit for a recomputation.
+// maxCachedPairs bounds the total expanded pairs one View retains, about 50 MB
+// at 2²¹ for the pairs themselves. MergeDepthLimit caps one mapping's expansion
+// depth; this caps a document with many merged mappings. Past it the view still
+// answers correctly, only without memoizing.
 //
-// It bounds the key indexes beside the pairs rather than being charged twice for
-// them: an index exists only for a mapping whose pairs this retained and holds
-// one entry per pair, so what every index holds together is bounded by what this
-// already caps. The bound is a count, and a map entry costs more than a Pair, so
-// the memory ceiling with indexes in play is some multiple of the figure above
-// rather than that figure. See keyIndex.
+// It also bounds the key indexes without charging them: an index exists only
+// for a mapping whose pairs were retained and holds one entry per pair. The
+// bound is a count and a map entry costs more than a Pair, so the memory
+// ceiling with indexes is a multiple of the figure above. See keyIndex.
 const maxCachedPairs = 1 << 21
 
 // DocumentRoot returns the effective root node to scan: the content of a
@@ -80,27 +77,17 @@ type Pair struct {
 	Val *yaml.Node
 }
 
-// View reads a raw yaml.Node tree the way speakeasy's unmarshaller reads
-// it: alias keys and values dereferenced, `<<` merge keys expanded
-// (yml.ResolveAlias and yml.ResolveMergeKeys, applied per mapping in
-// marshaller/unmarshaller.go). Every gap between the raw tree this scan reads
-// and the resolved one speakeasy's resolver reads is a cycle that reaches the
-// resolver and faults the process (GitHub #26) — so every mapping read in this
-// file goes through a View.
+// View reads a raw yaml.Node tree as speakeasy's unmarshaller does,
+// dereferencing aliases and expanding `<<` merge keys (yml.ResolveAlias,
+// yml.ResolveMergeKeys). A cycle the scan misses because it reads a different
+// tree than the resolver faults the process (GitHub #26), so every mapping read
+// in this file goes through a View.
 //
-// It memoizes each mapping's expansion for the scan's lifetime: without that, a
-// merge chain costs O(n) per expansion and O(n) expansions per walk, going
-// cubic in chain length — a hang where the bug being fixed was a crash. The
-// memo is a pure cache: a read answers exactly what a fresh view would answer
-// at the same depth, whatever was read before it, which is what makes one view
-// safe to share across independent walks (see expansion and View.serves).
-// MergeDepthLimit and maxCachedPairs bound the chain depth and cache size
-// respectively, so unlimited memoization can't trade the crash for exhausted
-// memory instead.
-//
-// It memoizes one thing more, for the walk rather than the expansion: keyIndex
-// projects a memoized mapping into a key map, so descending a JSON pointer costs
-// a map read per token instead of a scan of every pair at each one.
+// It memoizes each mapping's expansion, since otherwise a merge chain goes
+// cubic. The memo is a pure cache, answering as a fresh view would at the same
+// depth, so one view can be shared across walks (see expansion and
+// View.serves). MergeDepthLimit and maxCachedPairs bound it. keyIndex adds key
+// maps for pointer walks.
 type View struct {
 	pairs       map[*yaml.Node]expansion
 	keys        map[*yaml.Node]map[string]*yaml.Node
@@ -126,17 +113,14 @@ func New() *View {
 	}
 }
 
-// expansion is one mapping's effective pairs together with what the memo needs
-// to know to serve them again: how deep the expansion reached, and whether it
-// reached everything.
+// expansion is one mapping's effective pairs with what the memo needs to serve
+// them again: how deep the expansion reached, and whether it reached
+// everything.
 //
-// height is the longest chain of `<<` merges beneath the node — 0 for a mapping
-// that merges nothing — and it is what makes a memo entry safe to share. The
-// expansion of a node depends on the depth it is reached at, because the depth
-// bound truncates from the entry point down: a chain that fits inside the bound
-// from one node may not from a node above it. So an entry computed from one
-// read is only the answer for another read when the whole chain still fits
-// (GitHub #404).
+// height is the longest chain of `<<` merges beneath the node, 0 for a mapping
+// that merges nothing. The depth bound truncates from the entry point down, so
+// an entry computed from one read answers another only when the whole chain
+// still fits (GitHub #404).
 type expansion struct {
 	pairs    []Pair
 	height   int
@@ -156,28 +140,15 @@ func (v *View) MappingPairs(n *yaml.Node) []Pair {
 	return v.expand(Deref(n), 0).pairs
 }
 
-// expand returns n's effective pairs and whether the expansion is complete —
-// false if a merge cycle was broken or MergeDepthLimit was reached. Only a
-// complete expansion is memoized: caching an incomplete one could make one
-// traversal order silently lose a $ref another would find. And a memoized
-// expansion is served only to a read it is the right answer for, which serves
-// decides — the memo must not let one traversal order see past a bound another
-// would stop at.
+// expand returns n's expansion, incomplete if a merge cycle was broken or
+// MergeDepthLimit was reached. Only a complete expansion is memoized: caching
+// an incomplete one could make one traversal order lose a $ref another would
+// find. serves decides which reads a memoized entry may answer.
 //
-// Truncation is not contagious — only the node that hit the bound is refused,
-// every other mapping still expands in full — because truncation only ever
-// drops pairs, never invents an edge. Letting one over-deep chain disable the
-// whole view would let an attacker disable the scan by prefixing a document
-// with one; refCycles records the fact via the exhausted flag instead.
-//
-// An incomplete expansion entered at depth 0 is memoized anyway, because at
-// depth 0 nothing is in flight and the result is a deterministic function of n
-// alone (unlike inside a chain, where how much survived depends on the entry
-// depth). Every walk-level read enters at depth 0, so this is what stops a
-// truncated chain from re-expanding once per node that references it.
-//
-// The in-flight (merge-cycle) case needs no bound of its own: it requires an
-// alias to an ancestor, which anchorCycle already refuses before refCycles runs.
+// Truncation is not contagious: only the node that hit the bound is refused,
+// since truncation only drops pairs and never invents an edge. Letting one
+// over-deep chain disable the view would let a document disable the scan by
+// opening with one; refCycles records it through the exhausted flag instead.
 func (v *View) expand(n *yaml.Node, depth int) expansion {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return expansion{complete: true}
@@ -185,6 +156,8 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 	if cached, ok := v.pairs[n]; ok && v.serves(cached, depth) {
 		return cached
 	}
+	// A merge cycle needs no bound of its own: it requires an alias to an
+	// ancestor, which anchorCycle refuses before refCycles runs.
 	if v.inFlight[n] {
 		return expansion{}
 	}
@@ -197,6 +170,9 @@ func (v *View) expand(n *yaml.Node, depth int) expansion {
 	e := v.expandContent(n, depth)
 	delete(v.inFlight, n)
 
+	// An incomplete result is memoized at an entry point too: nothing is in
+	// flight, so it depends on n alone, and a truncated chain is not
+	// re-expanded once per node that references it.
 	if e.complete || v.isEntryPoint(depth) {
 		v.memoize(n, e)
 	}
@@ -332,19 +308,16 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	return e
 }
 
-// IsMergeKey reports whether a raw mapping key node is a `<<` merge key,
-// applying the same test speakeasy does: yml.IsMergeKey (yml/yml.go), run over
-// every mapping via yml.ResolveMergeKeys. The key is checked undereferenced (an
-// alias standing in for the key is not a scalar) and by resolved tag (a quoted
-// '<<' resolves to !!str) — speakeasy treats both as ordinary keys, and
-// expanding them would invent pairs it never sees.
+// IsMergeKey reports whether a raw mapping key node is a `<<` merge key, as
+// speakeasy's yml.IsMergeKey does. The key is checked undereferenced (an alias
+// standing in for it is not a scalar) and by resolved tag (a quoted '<<'
+// resolves to !!str); speakeasy treats both as ordinary keys, and expanding
+// them would invent pairs it never sees.
 //
-// yaml.v3's own decoder (isMerge in decode.go) is the wrong model to copy: it's
-// laxer about the tag (also accepts an empty or non-specific one) and stricter
-// about repetition (honors only the last `<<`, where speakeasy merges every
-// one — why expandContent accumulates them all). Neither difference is
-// reachable from a parsed document today, but re-check this against
-// yml.IsMergeKey on any dependency bump.
+// yaml.v3's isMerge (decode.go) is the wrong model: it accepts an empty or
+// non-specific tag and honors only the last `<<`, where speakeasy merges every
+// one (hence expandContent accumulates them). Neither difference is reachable
+// from a parsed document today; re-check on a dependency bump.
 func IsMergeKey(n *yaml.Node) bool {
 	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == ynode.MergeTag
 }
@@ -397,21 +370,18 @@ func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 }
 
 // InternalPointer reports the JSON pointer a $ref value names inside this
-// document, and whether it names this document at all.
+// document, and whether the resolver walks it as a pointer into this
+// document.
 //
-// It mirrors the resolver exactly: speakeasy splits a $ref on '#', treats what
-// precedes it as a URI and what follows as the pointer, trims whitespace from
-// both, and percent-decodes the pointer (references/reference.go GetURI and
-// GetJSONPointer, v1.24.0). A ref whose URI half is empty names this document.
+// It mirrors the resolver (references/reference.go GetURI and GetJSONPointer,
+// v1.24.0): split on '#', trim both halves, percent-decode the pointer; an
+// empty URI half names this document. A raw read would hide a resolvable
+// pointer from the cycle scan, such as '#/paths/~1a ' with a trailing space.
+// Re-check on a dependency bump.
 //
-// Reading the raw value instead is not a near-enough approximation, it is a hole
-// in the cycle scan: a pointer this package calls dangling but the resolver
-// resolves is a reference the scan cannot see, and '#/paths/~1a ' — one trailing
-// space — is enough to be one. A dependency bump should re-check those two
-// methods, as MergeDepthLimit's comment does for the behavior it tracks.
-//
-// A fragment that is no pointer, such as `#name`, comes back as written, and the
-// scan walks it although the resolver does not follow it (GitHub #523).
+// A fragment not starting with '/' is refused: `#name` is a $anchor (GitHub
+// #523, #526). A bare '#' names the root. One decoding to non-UTF-8 bytes is
+// kept, unlike resolve.FragmentPointer's refusal (GitHub #520).
 func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	parts := strings.Split(ref, "#")
 	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
@@ -421,33 +391,33 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	if decoded, err := url.QueryUnescape(pointer); err == nil {
 		pointer = decoded
 	}
+	// A `#name` fragment is a $anchor the resolver looks up by name, not a
+	// pointer it walks. Walking the name from the root as a key refused a
+	// document as a cycle the resolver never enters (GitHub #523), and a chain
+	// the resolver does follow through the lookup is one the scan cannot see
+	// (GitHub #526). A bare '#' stays: it names the root.
+	if pointer != "" && !strings.HasPrefix(pointer, "/") {
+		return "", false // a $anchor name or other non-pointer fragment
+	}
+	// Kept for non-UTF-8 bytes too: no document key spells them, but the resolver
+	// walks every token before the one it cannot find, and a walk through a
+	// reference already on the chain is the re-entrant hop the scan refuses
+	// whether or not the pointer then resolves.
 	return jsontext.Pointer(pointer), true
 }
 
-// PointerPath walks a normalized internal JSON pointer ('/a/b', as
-// InternalPointer returns it) against the root node, keeping every node it
-// passes through: element 0 is the root and each later element is the node
-// reached by one more token. complete reports whether every token resolved;
-// when it is false the walk stopped at the last element returned, and there is
-// no destination. Alias nodes along the path are dereferenced so navigation
-// follows structure.
+// PointerPath walks a normalized JSON pointer (as InternalPointer returns it)
+// against root, returning the root and each node reached, aliases dereferenced.
+// complete reports whether every token was followed; if not, the path ends at
+// the last node reached.
 //
-// It yields the whole path rather than just the target because a pointer's
-// danger is not always at its destination. speakeasy resolves a reference while
-// holding that reference's own lock and read-locks every reference the pointer
-// walk passes through, so a pointer that traverses a reference already being
-// resolved deadlocks before it ever arrives (v1.24.0, openapi/reference.go
-// resolve/GetObject). A target alone cannot express that.
+// It returns the whole path because speakeasy resolves a reference holding its
+// own lock and read-locks each reference the walk passes through, so a pointer
+// through one already being resolved deadlocks before arriving (v1.24.0).
 //
-// The leading '/' introduces the first token rather than being one, and every
-// later '/' separates two — so '/a/' carries the tokens "a" and "", the second
-// naming a member whose key is the empty string (RFC 6901 §3, and
-// jsonpointer/navigation.go getNavigationStack, v1.24.0, which reads it the
-// same way).
-// Dropping the empty token instead is what a pointer's danger being upstream of
-// its destination makes unsafe: it turns a node the walk descends *through* into
-// the node it stops at, and the caller's re-entrancy check exempts exactly that
-// node (GitHub #238).
+// '/a/' has tokens "a" and "" (RFC 6901 §3). Dropping the empty token would
+// make a node the walk passes through its destination, which the caller's
+// re-entrancy check exempts (GitHub #238).
 func (v *View) PointerPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, tokenless(pointer))
 }
@@ -455,16 +425,11 @@ func (v *View) PointerPath(root *yaml.Node, pointer jsontext.Pointer) (path []*y
 // DocumentPath walks a pointer that names a position in this document rather
 // than a reference some source wrote, and is otherwise PointerPath.
 //
-// The two part company on '/'. PointerPath lands it on the root because that is
-// where the resolver lands it, a departure from RFC 6901 that tokenless records.
-// A position built by ids.Ptr carries no such departure: ids.Ptr("") spells the
-// root member whose key is the empty string exactly '/', so reading that as the
-// root walks past the member the pointer names. Only the empty pointer names the
-// root here.
-//
-// The distinction is load-bearing for a caller reading $id down a path: taking
-// '/' for the root hides an $id written on that member, which is the same
-// dropped-empty-token loss the rest of this walk exists to avoid.
+// They differ on '/'. PointerPath lands it on the root, as the resolver does, a
+// departure from RFC 6901 that tokenless records. ids.Ptr("") spells the root
+// member whose key is the empty string as '/', so here only the empty pointer
+// names the root. Taking '/' for the root would hide an $id written on that
+// member from a caller reading $id down a path.
 func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, pointer == "")
 }
@@ -513,13 +478,10 @@ func tokenless(pointer jsontext.Pointer) bool {
 // reads through the view, so pointer navigation resolves an alias key and an
 // aliased or merged value exactly as PureRefTarget does.
 //
-// n itself is not dereferenced, which is where this parts company with its two
-// neighbours: MappingPairs and PureRefTarget both take an alias standing in for
-// a whole mapping and read the mapping it names, while an alias handed here
-// matches neither arm and answers nil. Every caller reaches a node through a
-// walk that dereferences as it goes — PointerPath does it at each hop — so the
-// difference is unreachable rather than harmless, and it is written down because
-// the sibling promising the opposite is one line away.
+// n itself is not dereferenced, unlike MappingPairs and PureRefTarget: an alias
+// handed here matches neither arm and answers nil. Every caller walks with a
+// dereference at each hop, as PointerPath does, so the difference is
+// unreachable; it is written down because those siblings promise the opposite.
 func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	if n == nil {
 		return nil
@@ -547,6 +509,9 @@ func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 // n is known to be a mapping node here, so it is its own Deref and keys the
 // index under the same node MappingPairs memoizes the pairs under.
 func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
+	// Read without asking serves: every read of an index follows a pointer walk,
+	// which enters at depth 0, and there the memo entry it projects is always
+	// the answer. The index holds no state of its own to differ from it.
 	if index := v.keys[n]; index != nil {
 		return index[token]
 	}
@@ -565,87 +530,35 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // minIndexedPairs is the width below which a mapping is scanned rather than
 // indexed.
 //
-// An index costs a map allocation and one insert per pair to save a comparison
-// per pair per later read, so a mapping narrow enough, or read few enough times,
-// never repays it — and nearly every mapping a pointer descends is both. A
-// document is mostly narrow mappings: a schema body, a media-type entry, a
-// response. The wide ones a walk returns to over and over are the few a
-// components block holds, and those are what this admits.
+// An index costs a map allocation and an insert per pair to save a comparison
+// per pair per later read, so a narrow or rarely read mapping never repays it.
+// The wide ones a walk revisits are the few a components block holds. 16 is
+// where the costs roughly meet; BenchmarkPointerPath_IntoAWideMapping carries
+// the widths that show it.
 //
-// 16 is where the two costs meet closely enough that either side is cheap; the
-// benchmark beside this file carries the widths that show it, narrow ones
-// included, so a run that regresses at n=2 or n=8 is this gate having stopped
-// paying for itself.
-//
-// Width alone is not enough, because it says nothing about reuse: a walk that
-// reads a wide mapping once pays for an index it never reads again. That is not
-// hypothetical — declaresResourceIDAbove builds a view per call and reads each
-// node on the path exactly once, and indexing there cost it time and half again
-// its allocations for nothing. So width is one of two conditions; see keyIndex
-// for the other.
+// Width says nothing about reuse: declaresResourceIDAbove builds a view per
+// call and reads each node once, so indexing there cost time and allocations
+// for nothing. keyIndex adds a reuse condition.
 const minIndexedPairs = 16
 
-// keyIndex returns n's expansion as a key map, building it on first use, or nil
-// for a mapping this view does not index.
+// keyIndex returns n's expansion as a key map, built on the second read of a
+// mapping, or nil for a mapping it does not index.
 //
-// It is what stops a pointer walk rescanning the mappings it descends through.
-// Resolving R references into a components mapping of M entries scans R×M pairs
-// without it — quadratic in a document's own size, since both grow together —
-// where an index makes each hop a map read. A key map cannot answer differently
-// from the scan it replaces: expandContent yields each key once, so the pairs it
-// is built from hold no duplicate for a first-match scan to prefer.
+// Without it, resolving R references into a components mapping of M entries
+// scans R×M pairs, quadratic in the document's own size. A key map answers as
+// the scan does because expandContent yields each key once.
 //
-// It is gated on the pairs memo rather than on a second reading of memoize's
-// budget test, which is a choice about coupling rather than about behaviour: at
-// the depth this runs at the two select the same mappings. Every read here enters
-// expand at depth 0, where isEntryPoint holds, so a truncated expansion is
-// memoized deliberately and the only expansion the budget turns away is the one
-// memoize turned away for the same reason a moment earlier. A merge cycle is
-// refused before memoize is reached, but it yields no pairs at all and is already
-// below minIndexedPairs.
-//
-// The memo is still the better gate, because it is the condition itself rather
-// than a restatement of it. An index is a projection of a memo entry, so "is
-// there an entry" is what it has to ask; a copy of memoize's arithmetic answers
-// the same today and silently stops tracking it the day memoize's own test
-// changes.
-//
-// It is bounded by that memo rather than charged against it. An index holds one
-// entry per pair of a mapping the memo kept, so the entries across every index
-// are bounded by cachedPairs, which maxCachedPairs already caps. Charging them
-// too would halve the memo — and that memo is not a speed budget but the bound
-// that keeps a merge chain from going cubic, where the bug being fixed was a
-// hang.
-//
-// A built index is read without asking serves, and may be: every read of it
-// comes from a pointer walk, which enters at depth 0, and at depth 0 the memo
-// entry it projects is always the answer — a complete entry fits under the bound
-// from wherever it was computed, and an incomplete one was kept only as an entry
-// point. The index holds no state of its own, so it can be neither more nor less
-// correct than that entry.
-//
-// The second condition is reuse, and it is what the first read records rather
-// than predicts. A mapping arrives here with no entry at all the first time and
-// leaves with a nil one; only a read that finds that marker builds the map. So an
-// index exists exactly where a walk came back, which is the only place it can be
-// repaid — and a caller that touches every node once, as the resource-boundary
-// walk does, allocates nothing but the markers.
-//
-// A nil entry cannot be mistaken for an empty index: an empty mapping has no
-// pairs, and no mapping below minIndexedPairs is ever stored.
-//
-// The markers are bounded by the same budget the indexes are, and more tightly:
-// one is written only for a mapping whose pairs the memo kept, and every such
-// mapping charged at least minIndexedPairs to it, so v.keys holds at most
-// maxCachedPairs/minIndexedPairs entries however many mappings a document has.
-// Measured at saturation, that bound is exact.
-//
-// A built index is never returned from here — every caller reads v.keys itself
-// before reaching this — so the marker is the only entry this has to interpret.
+// The first read of a mapping only leaves a nil marker in v.keys, so an index
+// exists only where a walk came back. Indexes hold at most maxCachedPairs
+// entries between them, and markers at most maxCachedPairs/minIndexedPairs.
 func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 	if len(pairs) < minIndexedPairs {
 		return nil
 	}
+	// Gate on the memo itself, not a copy of memoize's budget test, so this keeps
+	// tracking memoize; at depth 0 the two select the same mappings. The memo
+	// bounds the indexes rather than being charged for them, which would halve
+	// a memo that keeps merge chains from going cubic.
 	if _, memoized := v.pairs[n]; !memoized {
 		return nil
 	}
@@ -653,10 +566,13 @@ func (v *View) keyIndex(n *yaml.Node, pairs []Pair) map[string]*yaml.Node {
 		if v.keys == nil {
 			v.keys = map[*yaml.Node]map[string]*yaml.Node{}
 		}
+		// A nil entry is a marker, never an empty index: only a mapping of at
+		// least minIndexedPairs is stored.
 		v.keys[n] = nil // read once; the next read is what earns an index
 		return nil
 	}
 
+	// Only a marker reaches here: callers read a built index from v.keys first.
 	index := make(map[string]*yaml.Node, len(pairs))
 	for _, p := range pairs {
 		index[p.Key] = p.Val

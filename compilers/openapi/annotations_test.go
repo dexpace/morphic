@@ -1045,21 +1045,14 @@ func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
 	return td
 }
 
-// marshalToMap JSON-marshals v — a type node — and decodes the result back
-// into a generic map keyed by wire field name. It backs two kinds of check
-// among the retention cases above: proving an annotation has no field to
-// land in on the declaration itself (constraints, default, and visibility
-// all read this way), and, in several of those same cases — gap or not —
-// additionally proving that same annotation has not leaked onto an
-// unrelated, field-less node the case also holds a handle to: the shared
-// primitive a scalar declaration aliases, or the target a reference case's
-// $ref points at.
+// marshalToMap JSON-marshals a type node into a map keyed by wire field name.
+// The retention cases use it to prove an annotation has no field on the
+// declaration and, where a case also holds a field-less node (the shared
+// primitive a scalar aliases, or a $ref's target), has not leaked onto it.
 //
-// Either way, NotContains(node, key) only rules out that exact JSON key —
-// not preservation under a different one, such as Unmodeled (ir-design
-// §4.7's carve-out for validation-only keywords with no structural home).
-// A knownGap case is waiting on a real field; this assertion exists to
-// catch exactly that gap, not every other way it could be routed around.
+// NotContains(node, key) rules out only that exact JSON key, not preservation
+// under another such as Unmodeled (ir-design §4.7). A knownGap case awaits a
+// real field, and this assertion exists to catch exactly that gap.
 func marshalToMap(t *testing.T, v any) map[string]any {
 	t.Helper()
 	raw, err := json.Marshal(v)
@@ -1193,7 +1186,7 @@ func assertResidueDiag(t *testing.T, diags []ir.Diagnostic, pointerSuffix string
 	t.Helper()
 	for _, d := range diags {
 		if d.Code == "openapi/degraded-construct" && d.Severity == ir.SeverityInfo &&
-			strings.HasSuffix(d.Provenance.Pointer, pointerSuffix) {
+			strings.HasSuffix(string(d.Provenance.Pointer), pointerSuffix) {
 			return
 		}
 	}
