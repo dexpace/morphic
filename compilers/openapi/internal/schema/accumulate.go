@@ -113,6 +113,26 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			diags = append(diags, tupleDiags...)
 			return t
 		}
+		if c.ArrayItemsRequired() && s.GetItems() == nil {
+			// A 3.0 document states the array form through items alone, so a
+			// schema that writes none declares an array without saying what its
+			// elements are. Nothing about the lowering changes — the element
+			// type is the top type either way — so this is the only place the
+			// document is told.
+			//
+			// Keyed on the keyword's absence, never on the element type having
+			// lowered to any: `items: {}` is present-and-empty, lowers to the
+			// same top type, and must stay silent. A 3.0 document writing
+			// prefixItems does not reach this branch at all — the Tuple
+			// lowering above never consults items — and what that reveals, a
+			// 3.1-only keyword read from a 3.0 document with no diagnostic, is
+			// a separate defect deliberately left untouched here (GitHub #650).
+			//
+			// internNode runs this build at most once per pointer, so a sibling
+			// $ref that reaches the declaration first still reports it once.
+			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
+				"3.0 requires items on an array schema; the element type is left as the top type"))
+		}
 		elem, elemDiags := Ref(c, ts, anchors, depth, s.GetItems(), pointer+ids.Ptr("items"), compile.SubHint(hint, "item"))
 		diags = append(diags, elemDiags...)
 		return &ir.List{

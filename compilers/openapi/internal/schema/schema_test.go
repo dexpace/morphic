@@ -336,12 +336,110 @@ func TestLower_ListConstraints(t *testing.T) {
 	assert.Equal(t, int64(1), *l.Constraints.MinItems)
 }
 
+// TestLower_ListWithoutItems pins what an array schema that writes no items
+// lowers to, and which dialects say so. 3.0 states the array form through items
+// alone, so an array without it is a document defect and is reported once per
+// declaration, at the array schema's own pointer; 2020-12 (3.1 and 3.2) leaves
+// the keyword optional, an array with none being an array of anything, so those
+// documents stay silent. The element type is the top type in every row: nothing
+// here changes what the IR holds.
 func TestLower_ListWithoutItems(t *testing.T) {
 	t.Parallel()
-	// No `items` → schema.Ref(nil) → element is `any`.
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    L: {type: array}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	l, ok := typeByName(doc, "L").(*ir.List)
+	cases := []struct {
+		name    string
+		version string
+		schemas string
+		// wantWarnings locates the missing-array-items warnings expected, in the
+		// order they are reported; empty when the row must be silent.
+		wantWarnings []string
+		// elemOf names a component whose lowered List element must be the top
+		// type, when the row has one to check.
+		elemOf string
+	}{
+		{
+			name:         "3.0 bare warns once at the schema",
+			version:      "3.0.3",
+			schemas:      "    L: {type: array}\n",
+			wantWarnings: []string{"/components/schemas/L"},
+			elemOf:       "L",
+		},
+		{
+			name:    "3.0 items written empty is silent",
+			version: "3.0.3",
+			schemas: "    L: {type: array, items: {}}\n",
+			elemOf:  "L",
+		},
+		{
+			name:         "3.0 nested array property warns at the property",
+			version:      "3.0.3",
+			schemas:      "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n",
+			wantWarnings: []string{"/components/schemas/Holder/properties/tags"},
+		},
+		{
+			name:         "3.0 sibling $ref to the bare array warns once",
+			version:      "3.0.3",
+			schemas:      "    Holder:\n      type: object\n      properties:\n        l: {$ref: \"#/components/schemas/L\"}\n    L: {type: array}\n",
+			wantWarnings: []string{"/components/schemas/L"},
+			elemOf:       "L",
+		},
+		{
+			name:    "3.1 bare is legal and silent",
+			version: "3.1.0",
+			schemas: "    L: {type: array}\n",
+			elemOf:  "L",
+		},
+		{
+			name:    "3.2 bare is legal and silent",
+			version: "3.2.0",
+			schemas: "    L: {type: array}\n",
+			elemOf:  "L",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
+			var got []string
+			for _, d := range diags {
+				if d.Code != diag.MissingArrayItems {
+					continue
+				}
+				assert.Equal(t, ir.SeverityWarning, d.Severity)
+				got = append(got, string(d.Provenance.Pointer))
+			}
+			assert.Equal(t, tc.wantWarnings, got)
+			if tc.elemOf != "" {
+				l, ok := typeByName(doc, tc.elemOf).(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target,
+					"a missing items leaves the element at the top type, unchanged")
+			}
+		})
+	}
+}
+
+// TestCompile_MissingArrayItemsReachesTheDiagnostics drives the issue's exact
+// document (GitHub #650) through the public compiler: the guard's warning is
+// raised by the schema lowering, and a caller only sees it if it survives the
+// walk up to Compile's own diagnostics.
+func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpecVer("3.0.3", "    NoItems: {type: array}\n")
+	doc, diags := parseFull(t, spec)
+	require.NotNil(t, doc)
+
+	var got []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.MissingArrayItems {
+			got = append(got, d)
+		}
+	}
+	require.Len(t, got, 1, "the warning reaches Compile's diagnostics; got %+v", diags)
+	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/NoItems"), got[0].Provenance.Pointer)
+
+	l, ok := doc.Types[componentID("NoItems")].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
 }
