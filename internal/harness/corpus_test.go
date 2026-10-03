@@ -105,21 +105,18 @@ func knownInvalid() map[string]bool {
 		// in no form, so it is reported as an error rather than dropped
 		// silently (#387).
 		filepath.FromSlash("../../testdata/openapi/stream_two_documents.yaml"): true,
-		// Discriminator mappings whose target is undeclared, external, or a
-		// sub-schema, dropped with an unresolved-ref error rather than written
-		// as a dangling TypeID (#14).
+		// Discriminator mappings whose target is undeclared or external,
+		// dropped with an unresolved-ref error rather than written as a
+		// dangling TypeID (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f04-composition.yaml"):   true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f05-discriminator.yaml"): true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f06-discriminator.yaml"): true,
-		filepath.FromSlash("../../testdata/dangling/openapi/f08-discriminator.yaml"): true,
 		filepath.FromSlash("../../testdata/dangling/openapi/f09-discriminator.yaml"): true,
 		// A same-file self-reference spelled with the m.yaml basename. Swept
 		// under its own filename the document part no longer matches, so it
 		// reads as an external reference, which the default options refuse
 		// (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"): true,
-		// A discriminator mapping onto a sub-schema, dropped as above (#14).
-		filepath.FromSlash("../../testdata/dangling/openapi/f13-refs.yaml"): true,
 		// A security requirement naming a scheme with no
 		// components.securitySchemes declaration, dropped with an
 		// unresolved-ref error rather than a dangling AuthID (#14).
@@ -129,8 +126,11 @@ func knownInvalid() map[string]bool {
 		// node, but the loader reports the malformed JSON pointer as an
 		// unresolved-ref error first (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml"): true,
-		// The other dangling reproducers (f07, f10, f11, f28, f31) intern
-		// their targets and compile clean, so they are absent.
+		// The other dangling reproducers (f07, f08, f10, f11, f13, f28, f31)
+		// intern their targets and compile clean, so they are absent. f08 and
+		// f13 map a tag to a sub-schema that is not a subtype; it resolves as
+		// a $ref to it would (#530), and pass.Validate, which this sweep does
+		// not run, reports it as pass/discriminator-missing-variant.
 	}
 }
 

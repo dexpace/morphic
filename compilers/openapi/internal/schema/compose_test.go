@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 func TestAllOf_SoleRefBecomesBase(t *testing.T) {
@@ -1093,10 +1094,7 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 // TestAllOf_InlineSubtypeDiscriminatorValueFromMapping pins the path the #517
 // fix leaves untouched: a mapping entry can still name an inline subtype by
 // JSON reference, and mappingTagsFor — not subtypeDiscriminatorValue's
-// implicit-name fallback — is what gives it that tag. Kennel is declared before
-// Pet because mappingTargetID finds an inline target only once it is interned
-// (GitHub #530); the ordering is incidental to this fix and not what the test
-// pins.
+// implicit-name fallback — is what gives it that tag.
 func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Kennel:
@@ -3215,5 +3213,242 @@ func TestAllOf_DiscriminatorAliasTagIsOrderInvariant(t *testing.T) {
 			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 				"as information, since the base's mapping loses nothing")
 		})
+	}
+}
+
+// TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder pins that a
+// discriminator mapping, or a 3.2 defaultMapping, naming an inline position
+// resolves whichever is declared first: the base carrying the discriminator, or
+// the schema enclosing the target. With the base first the target was not yet
+// built when the mapping was read, so the entry was dropped as unresolved
+// (GitHub #530). The two-order harness cannot see this: it stops at the first
+// error diagnostic, which that order produced.
+//
+// Each row's spec is written base-first, the order that failed; the other order
+// moves the base's block after the owner's.
+func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
+	t.Parallel()
+
+	const subBody = `{allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}`
+	// pet is the discriminated base, entry its mapping or defaultMapping line.
+	pet := func(entry string) string {
+		return `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        ` + entry + "\n"
+	}
+	mapping := func(target string) string { return pet(`mapping: {woofer: '#` + target + `'}`) }
+	spec32 := func(schemas string) string { return openapitest.ComponentSpecVer("3.2.0", schemas) }
+
+	const (
+		propTarget    = "/components/schemas/Kennel/properties/Dog"
+		itemsTarget   = "/components/schemas/Kennel/items"
+		keywordTarget = "/components/schemas/Kennel/properties/items/items"
+		defsTarget    = "/components/schemas/Kennel/$defs/Dog"
+		pathsBase     = "/paths/~1a/get/responses/200/content/application~1json/schema"
+		pathsTarget   = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+	)
+	ownerProperty := `    Kennel:
+      type: object
+      properties:
+        Dog: ` + subBody + "\n"
+	ownerItems := `    Kennel:
+      type: array
+      items: ` + subBody + "\n"
+	ownerKeywordKey := `    Kennel:
+      type: object
+      properties:
+        items:
+          type: array
+          items: ` + subBody + "\n"
+	ownerDefs := `    Kennel:
+      type: object
+      $defs:
+        Dog: ` + subBody + "\n"
+	pathBase := `  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind]
+                properties: {kind: {type: string}}
+                discriminator:
+                  propertyName: kind
+                  mapping: {woofer: '#` + pathsTarget + `'}
+`
+	pathOwner := `  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf: [{$ref: '#` + pathsBase + `'}]
+                  type: object
+                  properties: {woof: {type: string}}
+`
+
+	cases := []struct {
+		name             string
+		spec             func(string) string
+		base, owner      string
+		baseID, targetID ir.TypeID
+		wantDefault      bool
+	}{
+		{"a property", openapitest.ComponentSpec, mapping(propTarget), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, false},
+		{"items", openapitest.ComponentSpec, mapping(itemsTarget), ownerItems,
+			componentID("Pet"), "t/anon" + itemsTarget, false},
+		{"a keyword-named key", openapitest.ComponentSpec, mapping(keywordTarget), ownerKeywordKey,
+			componentID("Pet"), "t/anon" + keywordTarget, false},
+		{"a $defs entry", openapitest.ComponentSpec, mapping(defsTarget), ownerDefs,
+			componentID("Pet"), "t/anon" + defsTarget, false},
+		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propTarget + `'`), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, true},
+		{"a /paths inline subtype", openapitest.PathsSpec, pathBase, pathOwner,
+			"t/anon" + pathsBase, "t/anon" + pathsTarget, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			first, diags := parseFull(t, tc.spec(tc.base+tc.owner))
+			openapitest.RequireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, tc.spec(tc.owner+tc.base))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, doc := range []*ir.Document{first, last} {
+				base, ok := doc.Types[tc.baseID].(*ir.Model)
+				require.True(t, ok, "the discriminator base is a model")
+				require.NotNil(t, base.Discriminator)
+
+				subtype, ok := doc.Types[tc.targetID].(*ir.Model)
+				require.True(t, ok, "the mapping target is a model")
+
+				if tc.wantDefault {
+					assert.Equal(t, tc.targetID, base.Discriminator.Default)
+					// defaultMapping is the fallback for a tag the mapping does not
+					// recognize, so it names no tag for its target, and an inline
+					// subtype has no name to imply one (GitHub #517).
+					assert.Empty(t, subtype.DiscriminatorValue)
+				} else {
+					assert.Equal(t, tc.targetID, base.Discriminator.Mapping["woofer"])
+					assert.Equal(t, "woofer", subtype.DiscriminatorValue)
+				}
+			}
+
+			// The type registry is a map, so this is the properly order-blind
+			// claim; the /paths row's operation LIST legitimately reorders with
+			// its two path items, which is declaration order working as
+			// designed and no part of what this test is pinning.
+			assert.Empty(t, cmp.Diff(first.Types, last.Types),
+				"declaring the base before or after the owner must not change the registry")
+		})
+	}
+}
+
+// TestDiscriminatorMapping_ToAnAliasIsReportedByValidation pins the one target
+// GitHub #530's fix does not make a subtype: a position that is itself a pure
+// $ref. The mapping resolves, in either order, to the alias hoistSubSchema
+// builds there, as an outside $ref to it would. That alias is a Scalar, not a
+// subtype of the base, and pass.Validate does not read through an alias at a
+// mapping target, so it reports pass/discriminator-missing-variant naming the
+// alias. That rule is pass.Validate's, and this fix leaves it unchanged
+// (GitHub #758).
+func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
+	t.Parallel()
+	const dogComponent = `    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}
+`
+	const base = `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {woofer: '#/components/schemas/Kennel/properties/Dog'}
+`
+	const owner = `    Kennel:
+      type: object
+      properties:
+        Dog: {$ref: '#/components/schemas/Dog'}
+`
+	const aliasID = ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
+
+	first, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+base+owner))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+owner+base))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
+		"the alias is hoisted the same way whichever order the base or the owner is declared in")
+
+	for _, doc := range []*ir.Document{first, last} {
+		pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, aliasID, pet.Discriminator.Mapping["woofer"],
+			"the mapping resolves to the alias the position hoists, not to Dog directly")
+
+		alias, ok := doc.Types[aliasID].(*ir.Scalar)
+		require.True(t, ok, "the hoisted position is an alias scalar, not a model")
+		require.NotNil(t, alias.Base)
+		assert.Equal(t, componentID("Dog"), alias.Base.Target, "the alias's own target is Dog")
+
+		var msgs []string
+		for _, d := range pass.Validate(doc) {
+			if d.Code == "pass/discriminator-missing-variant" && d.Severity == ir.SeverityError &&
+				d.Provenance.Node == string(componentID("Pet")) {
+				msgs = append(msgs, d.Message)
+			}
+		}
+		require.Len(t, msgs, 1, "pass.Validate reports the alias once, on the base")
+		assert.Contains(t, msgs[0], string(aliasID),
+			"the diagnostic names the alias pass.Validate refused, not the schema it aliases")
+	}
+}
+
+// TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics pins that what
+// lowering a mapping target reports reaches the compile's diagnostics, for a
+// mapping entry and a defaultMapping alike. The targets sit under not and if,
+// which no declaration lowers, so the hoist is the only lowering that sees the
+// format each declares beside a model: dropping its findings would lose them.
+func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.2.0", `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {n: '#/components/schemas/Kennel/not'}
+        defaultMapping: '#/components/schemas/Kennel/if'
+    Kennel:
+      type: object
+      not: {type: object, format: wat, properties: {a: {type: string}}}
+      if: {type: object, format: huh, properties: {b: {type: string}}}
+      then: {required: [b]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok, "Pet is a model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/not"), pet.Discriminator.Mapping["n"])
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/if"), pet.Discriminator.Default)
+
+	for _, pointer := range []string{"/components/schemas/Kennel/not", "/components/schemas/Kennel/if"} {
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
+			"the format beside the model hoisted at %s is reported", pointer)
 	}
 }

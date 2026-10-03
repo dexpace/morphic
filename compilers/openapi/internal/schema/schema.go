@@ -91,8 +91,8 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // Every annotation.HomeCarrier position already keeps them in its own field:
 // `default` in a default field, readOnly/writeOnly in ir.Property.Visibility
 // or, at a parameter, verbatim on the ir.Parameter (preserveParamVisibility).
-// A pointer with no node wrote none, because declaresPositionScoped hoists a
-// node for any that it wrote.
+// A pointer with no node wrote none (declaresPositionScoped hoists one for any
+// it wrote) or is mid-build, and its builder records them.
 func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
 	// A $ref aimed at a carrier's own schema reaches here as HomeOwnNode. When the
 	// declaration then rebuilds that node, what this records goes with it but the
@@ -1021,7 +1021,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -1225,9 +1225,9 @@ func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, p
 // is checked before conversion because callers cover a pointer in either order,
 // and only the one that finds a node may emit conversion diagnostics.
 func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	// NodeAt rather than Lookup-then-registeredNode: the coordinate and its node
-	// are recorded together, so there is no state where the first resolves and
-	// the second does not, and a branch for one could never be reached.
+	// No node here means a position that reduced to a shared primitive, or one
+	// still being built further up this walk, whose builder attaches the same
+	// declaration once its build returns (GitHub #749).
 	td, ok := ts.NodeAt(string(pointer))
 	if !ok {
 		return nil

@@ -68,15 +68,18 @@ var loweringRecursions = [][]string{
 // reaches it; the rest is unexported because nothing outside the schema package
 // has any business entering mid-walk. The scalar hoisters and the encoding
 // reader are members because contentSchema's value is a schema, so lowering it
-// re-enters the walk from a scalar position.
+// re-enters the walk from a scalar position. Discriminator lowering is one
+// because resolving a mapping target can hoist the position it names.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple",
-	"composedVariant", "contentSchemaRef", "fillAdditional", "fillAllOf",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
+	"composedVariant", "contentSchemaRef", "discriminatorDefault",
+	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
 	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDistributedUnion",
-	"lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
-	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "resolveSchemaRef",
+	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
+	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
+	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
+	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 

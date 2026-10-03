@@ -120,14 +120,17 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
-	// What a $ref names: the pointer it addresses and the type already interned
-	// there. It reaches annotation to ask whether a referenced position declares
-	// a body at all, and compile for the registry it looks IDs up in. It reaches
-	// nothing that lowers — following a reference far enough to lower its target
-	// recurses back into the schema walk, so that stays with the walk.
+	// What a $ref names: the pointer it addresses, the schema declared there and
+	// the type already interned there. It reaches annotation to ask whether a
+	// referenced position declares a body at all, jsonpointer to find that
+	// schema as the resolver does, and compile for the registry it looks IDs up
+	// in. It reaches nothing that lowers — following a reference far enough to
+	// lower its target recurses back into the schema walk, so that stays with
+	// the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/ids",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references"},
 	// allOf property reconciliation. It reaches annotation for the one field a

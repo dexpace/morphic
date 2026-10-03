@@ -168,13 +168,23 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 	if !ok {
 		return "", false, nil
 	}
+	return resolvePointer(c, ts, anchors, depth, pointer, annotation.DeclaredSchema(js))
+}
+
+// resolvePointer resolves a same-document pointer to the ID of the schema it
+// addresses: a component by its stable ID, an interned node by its own, and
+// otherwise decl, the schema declared there, hoisted at the pointer. A nil decl
+// declares nothing to hoist.
+//
+// It is where a $ref and a discriminator mapping target meet once each has its
+// pointer: they differ only in how decl is found, so they cannot drift apart.
+func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
 	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved, nil
 	}
 	if id, ok := resolve.InternedID(ts, pointer); ok {
 		return id, true, nil
 	}
-	decl := annotation.DeclaredSchema(js)
 	if decl == nil {
 		return "", false, nil
 	}
