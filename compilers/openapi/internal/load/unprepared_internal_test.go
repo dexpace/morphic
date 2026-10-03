@@ -524,12 +524,14 @@ func TestResolveExternal_ASecondPassReportsWhatOnePassWould(t *testing.T) {
 	assert.True(t, ok, "the separately anchored 404 was folded, not skipped")
 }
 
-// twoRefsTarget is an external path item with an anchored get, so that a
-// respelling of its URL forces the rebuild, and a parameter missing its in, a
-// finding the unmarshal makes rather than validation.
+// twoRefsTarget is an external document with an anchored get, so that a
+// respelling of its URL forces the rebuild. /x's put has a parameter missing
+// its in, a finding the unmarshal makes rather than validation; /w is clean.
 const twoRefsTarget = `openapi: 3.1.0
 info: {title: O, version: "1"}
 paths:
+  /w:
+    get: {operationId: W, responses: {"200": {description: ok}}}
   /x:
     get: &g
       operationId: G
@@ -542,38 +544,41 @@ paths:
 `
 
 // TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce pins that a finding
-// in a target two $refs reach is reported once, at the first, whether or not a
-// rebuild ran. The one-pass resolution reports it once because the library
-// hands the second reference the object the first one built; the rebuild's
-// second resolution builds the target again for each reference, and reported
-// the finding at /y as well until resolveWith kept findings to one per node.
+// in a target two $refs reach is reported once, at the first, with or without a
+// rebuild. /w reads the document first, so the library builds /x's target from
+// bytes it already holds, and caches no object built that way: it builds the
+// target again for /y, finding and all, which reportable keeps from a second
+// report.
 func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 	t.Parallel()
 	srv, _ := countingServer(t, twoRefsTarget)
-	host := strings.TrimPrefix(srv.URL, "http://")
-	run := func(scheme string) []ir.Diagnostic {
-		url := scheme + "://" + host + "/other.yaml#/paths/~1x"
+	run := func(base string) []ir.Diagnostic {
+		doc := base + "/other.yaml#/paths/"
 		src := compilers.Source{Path: "root.yaml", Data: []byte("openapi: 3.1.0\n" +
 			"info: {title: T, version: \"1\"}\npaths:\n" +
-			"  /x: {$ref: \"" + url + "\"}\n  /y: {$ref: \"" + url + "\"}\n")}
+			"  /w: {$ref: \"" + doc + "~1w\"}\n" +
+			"  /x: {$ref: \"" + doc + "~1x\"}\n  /y: {$ref: \"" + doc + "~1x\"}\n")}
 		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
 		require.NoError(t, err)
 		return diags
 	}
 
-	onePass := run("http")
-	rebuilt := run("HTTP")
+	onePass := run(srv.URL)
+	rebuilt := run(respelled(srv.URL, "HTTP"))
 
 	if d := cmp.Diff(onePass, rebuilt); d != "" {
 		t.Errorf("two $refs to one target must report alike with and without a rebuild (-onePass +rebuilt):\n%s", d)
 	}
-	var sites []jsontext.Pointer
-	for _, d := range rebuilt {
-		if d.Code == diag.Validation+"/validation-required-field" {
-			sites = append(sites, d.Provenance.Pointer)
+	for name, diags := range map[string][]ir.Diagnostic{"one pass": onePass, "rebuilt": rebuilt} {
+		var sites []jsontext.Pointer
+		for _, d := range diags {
+			if d.Code == diag.Validation+"/validation-required-field" {
+				sites = append(sites, d.Provenance.Pointer)
+			}
 		}
+		assert.Equal(t, []jsontext.Pointer{"/paths/~1x"}, sites,
+			"%s: the finding is reported once, at the first $ref that reaches it", name)
 	}
-	assert.Equal(t, []jsontext.Pointer{"/paths/~1x"}, sites, "the finding is reported once, at the first $ref that reaches it")
 }
 
 // TestLoad_RecoversARespelledExternalReference drives the recovery through the

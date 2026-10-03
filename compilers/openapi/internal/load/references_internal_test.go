@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -122,6 +123,36 @@ func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 		assert.Contains(t, d.Message, `unresolved $ref "#/components/schemas/Missing"`)
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
+}
+
+// TestResolve_AnArtifactInAnotherDocumentIsDropped pins that a finding the
+// source's own findings drop as a library artifact is dropped from a document a
+// $ref reads too: the library cannot hold 1e400 in a float64, and Morphic reads
+// the bound from the raw node instead.
+func TestResolve_AnArtifactInAnotherDocumentIsDropped(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    R:
+      description: ok
+      content:
+        application/json:
+          schema: {type: number, maximum: 1e400}
+`)
+	src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: 'ext.yaml#/components/responses/R'}
+`)}
+
+	doc, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, diags)
 }
 
 // fakeResolvable is a resolvable fabricated without the speakeasy library, for
@@ -235,11 +266,12 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 	})
 }
 
-// TestUnreported covers the per-node bookkeeping resolveWith keeps its
-// findings to: a finding at a node already reported is dropped, a different
-// rule or message at that node is not, and anything not placed at a node is
-// kept whatever it says, since nothing tells two of them apart.
-func TestUnreported(t *testing.T) {
+// TestReportable covers what resolveWith keeps of a resolution's findings. A
+// repeat at a node already reported is dropped; another rule or message at that
+// node is not, and a finding at no node is kept whatever it says, since nothing
+// tells two of them apart. A finding the source's own would drop is dropped
+// whether or not it has a node, and is not recorded as reported.
+func TestReportable(t *testing.T) {
 	t.Parallel()
 	node, twin := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 3, Column: 5}
 	at := func(n *yaml.Node, rule, msg string) error {
@@ -247,15 +279,18 @@ func TestUnreported(t *testing.T) {
 			UnderlyingError: errors.New(msg), Node: n}
 	}
 	bare := errors.New("bare")
+	owned := validation.RuleValidationOperationIdUnique
 	reported := map[findingKey]bool{}
 
-	first := unreported([]error{at(node, "r", "m"), bare}, reported)
+	first := []error{at(node, "r", "m"), bare, at(node, owned, "m"), at(nil, owned, "m")}
+	assert.Equal(t, first[:2], reportable(first, reported),
+		"nothing was reported before, but a rule the compiler owns is dropped")
+	assert.Equal(t, map[findingKey]bool{{node: node, rule: "r", message: "m"}: true}, reported,
+		"only what was kept is recorded")
+
 	second := []error{at(node, "r", "m"), at(node, "r2", "m"), at(node, "r", "m2"),
 		at(twin, "r", "m"), at(nil, "r", "m"), bare}
-	kept := unreported(second, reported)
-
-	assert.Len(t, first, 2, "nothing was reported before")
-	assert.Equal(t, second[1:], kept,
+	assert.Equal(t, second[1:], reportable(second, reported),
 		"only the repeat at the same node is dropped: another rule, another message, "+
 			"an equal node that is another node, no node, and a bare error are all kept")
 }

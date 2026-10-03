@@ -281,12 +281,20 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
-			(numericLiteralArtifact(verr) || wrongMetaSchema[findingSite(verr)] || compilerOwned(verr)) {
+			(dropped(verr) || wrongMetaSchema[findingSite(verr)]) {
 			continue
 		}
 		diags = append(diags, validationDiag(locate, ve))
 	}
 	return diags
+}
+
+// dropped reports whether a finding is one the compiler drops wherever the
+// library makes it, the source or a document a $ref reads: a library artifact
+// (numericLiteralArtifact), or a finding of a rule the compiler checks itself
+// (compilerOwned).
+func dropped(verr validation.Error) bool {
+	return numericLiteralArtifact(verr) || compilerOwned(verr)
 }
 
 // compilerOwned reports whether a finding belongs to a rule the compiler checks

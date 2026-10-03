@@ -32,7 +32,7 @@ type resolvable interface {
 // A finding's position is in the target document, which has no entry in
 // Document.Sources (GitHub #74), so it goes in the message. A finding is about a
 // node, not a reference, so it is reported once, at the first $ref reaching it
-// (see unreported).
+// (see reportable).
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, reader *external,
 ) []ir.Diagnostic {
@@ -50,7 +50,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	reported := map[findingKey]bool{}
 	site, err := eachReference(soa.Walk(ctx, doc), func(site jsontext.Pointer, r resolvable) error {
 		vErrs, err := r.Resolve(ctx, resolveOpts)
-		diags = append(diags, referenceDiags(at(site), r, unreported(vErrs, reported), err)...)
+		diags = append(diags, referenceDiags(at(site), r, reportable(vErrs, reported), err)...)
 		return nil
 	})
 	if err != nil {
@@ -101,18 +101,24 @@ type findingKey struct {
 	message string
 }
 
-// unreported returns the findings among vErrs not yet in reported, and records
-// them. Only a finding placed at a node can be told apart from another like it;
-// anything else is kept as it is.
-func unreported(vErrs []error, reported map[findingKey]bool) []error {
+// reportable returns the findings among vErrs to report, recording each in
+// reported. One the source's own findings would drop (dropped) is dropped here
+// too, and so is a repeat at a node already reported: the library caches no
+// object it builds from a document whose bytes it already holds, so a target
+// whose document another $ref read first is built again, findings and all, for
+// each $ref reaching it. A finding at no node is never taken for a repeat.
+func reportable(vErrs []error, reported map[findingKey]bool) []error {
 	out := make([]error, 0, len(vErrs))
 	for _, ve := range vErrs {
 		verr, ok := asValidationError(ve)
+		if ok && dropped(verr) {
+			continue
+		}
 		if !ok || verr.Node == nil {
 			out = append(out, ve)
 			continue
 		}
-		key := findingKey{node: verr.Node, rule: verr.Rule, message: ve.Error()}
+		key := findingKey{node: verr.Node, rule: verr.Rule, message: validationMessage(verr)}
 		if reported[key] {
 			continue
 		}
