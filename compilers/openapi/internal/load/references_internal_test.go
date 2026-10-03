@@ -103,6 +103,40 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	}
 }
 
+// TestResolve_AChainedFailureNamesWhereItStopped pins the failure of a $ref
+// whose target is a $ref this compile will not follow: the reason is about the
+// second, so the report at the first quotes both, and the second's own report
+// quotes only itself.
+func TestResolve_AChainedFailureNamesWhereItStopped(t *testing.T) {
+	t.Parallel()
+	doc, valErrs := parseSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {$ref: '#/components/parameters/Alias'}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Alias: {$ref: 'other.yaml#/components/parameters/P'}
+`)
+	require.Empty(t, valErrs)
+
+	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, "root.yaml", Options{}, nil)
+
+	want := []ir.Diagnostic{
+		{Severity: ir.SeverityError, Code: diag.UnresolvedRef, Provenance: ir.Provenance{Pointer: "/paths/~1a/get/parameters/0"},
+			Message: `unresolved $ref "#/components/parameters/Alias", through "other.yaml#/components/parameters/P": ` +
+				"external reference not allowed"},
+		{Severity: ir.SeverityError, Code: diag.UnresolvedRef, Provenance: ir.Provenance{Pointer: "/components/parameters/Alias"},
+			Message: `unresolved $ref "other.yaml#/components/parameters/P": external reference not allowed`},
+	}
+	if d := cmp.Diff(want, got); d != "" {
+		t.Errorf("resolveWith (-want +got):\n%s", d)
+	}
+}
+
 // TestResolve_OverlayIntroducedReferenceNamesTheOverlay pins the other half of
 // pointerAt: a $ref an overlay adds is attributed to the overlay's own source
 // index, not the base document's, because the overlay is what wrote it.
@@ -123,6 +157,62 @@ func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 		assert.Contains(t, d.Message, `unresolved $ref "#/components/schemas/Missing"`)
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
+}
+
+// TestResolve_AFindingNamesTheDocumentItIsIn pins the document a finding's
+// message places it in, through Load. The second and third $refs name ext.yaml,
+// whose target is itself a $ref on to sub/ext2.yaml, where both findings are:
+// naming the document a $ref names would send a reader to a line of ext.yaml
+// that sits in the other file. The third also fails, and its failure is pinned.
+func TestResolve_AFindingNamesTheDocumentItIsIn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    R: {content: {}}
+    Chain: {$ref: 'sub/ext2.yaml#/components/responses/R2'}
+    Broken: {$ref: 'sub/ext2.yaml#/components/responses/Scalar'}
+`)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "sub"), 0o700))
+	writeFile(t, filepath.Join(dir, "sub"), "ext2.yaml", `# a line ext.yaml does not have
+components:
+  responses:
+    R2: {content: {}}
+    Scalar: 42
+`)
+	src := compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: 'ext.yaml#/components/responses/R'}
+        "201": {$ref: 'ext.yaml#/components/responses/Chain'}
+        "202": {$ref: 'ext.yaml#/components/responses/Broken'}
+`)}
+
+	_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+
+	ext, ext2 := filepath.Join(dir, "ext.yaml"), filepath.Join(dir, "sub", "ext2.yaml")
+	for pointer, want := range map[jsontext.Pointer]string{
+		"/paths/~1a/get/responses/200": ", at 3:8 of " + ext,
+		"/paths/~1a/get/responses/201": ", at 4:9 of " + ext2,
+		"/paths/~1a/get/responses/202": ", at 5:13 of " + ext2,
+	} {
+		var found []string
+		for _, d := range diags {
+			if d.Provenance.Pointer == pointer && strings.HasPrefix(d.Code, diag.Validation+"/") {
+				found = append(found, d.Message)
+			}
+		}
+		require.Len(t, found, 1, "%s: %+v", pointer, diags)
+		assert.True(t, strings.HasSuffix(found[0], want), "%s: want suffix %q, got %q", pointer, want, found[0])
+	}
+	assert.Equal(t, `unresolved $ref "ext.yaml#/components/responses/Broken": `+
+		"unable to resolve reference: sub/ext2.yaml#/components/responses/Scalar",
+		openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/paths/~1a/get/responses/202"),
+		"a resolution that recorded where it ended stopped at no other reference to quote")
 }
 
 // TestResolve_AnArtifactInAnotherDocumentIsDropped pins that a finding the
@@ -307,32 +397,61 @@ func TestReachedFinding(t *testing.T) {
 		verr := validation.Error{Severity: "warning", Rule: "some-rule",
 			UnderlyingError: errors.New("boom"), Node: &yaml.Node{Line: 5, Column: 9}}
 
-		got := reachedFinding(site, verr)
+		got := reachedFinding(site, "other.yaml", verr)
 
 		assert.Equal(t, ir.SeverityWarning, got.Severity)
 		assert.Equal(t, diag.Validation+"/some-rule", got.Code)
 		assert.Equal(t, site, got.Provenance)
-		assert.Equal(t, "boom, at 5:9 of the document the $ref resolves to", got.Message)
+		assert.Equal(t, "boom, at 5:9 of other.yaml", got.Message)
 	})
 
 	t.Run("a structured finding with no node", func(t *testing.T) {
 		t.Parallel()
 		verr := validation.Error{Severity: "error", Rule: "some-rule", UnderlyingError: errors.New("boom")}
 
-		got := reachedFinding(site, verr)
+		got := reachedFinding(site, "other.yaml", verr)
 
 		assert.Equal(t, "boom", got.Message, "no position to append when the finding names no node")
 	})
 
 	t.Run("an unstructured error", func(t *testing.T) {
 		t.Parallel()
-		got := reachedFinding(site, errors.New("plain failure"))
+		got := reachedFinding(site, "other.yaml", errors.New("plain failure"))
 
 		assert.Equal(t, diag.Validation, got.Code, "no rule to suffix the bare code with")
 		assert.Equal(t, ir.SeverityError, got.Severity)
 		assert.Equal(t, "plain failure", got.Message)
 		assert.Equal(t, site, got.Provenance)
 	})
+}
+
+// TestFindingPlace covers each answer findingPlace gives but the cut trail's,
+// which TestResolutionTrail_StopsAtMaxResolutionHops holds: the document a
+// resolution recorded reading last, the one named by a reference it stopped at,
+// and none for a reference resolutionTrail does not know.
+func TestFindingPlace(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "a.yaml", "components:\n  responses:\n    A: {$ref: 'b.yaml#/components/responses/B'}\n")
+	writeFile(t, dir, "b.yaml", "components:\n  responses:\n    B: {description: ok}\n")
+	doc, _, err := resolveSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    Chained: {$ref: 'a.yaml#/components/responses/A'}
+    Failed: {$ref: '#/components/responses/Ghost'}
+`, filepath.Join(dir, "root.yaml"))
+	require.NoError(t, err)
+	place := func(name string) string {
+		ref, ok := doc.Components.Responses.Get(name)
+		require.True(t, ok)
+		return findingPlace(ref)
+	}
+
+	assert.Equal(t, filepath.Join(dir, "b.yaml"), place("Chained"), "the last document, not the one the $ref names")
+	assert.Equal(t, `the document "#/components/responses/Ghost" names`, place("Failed"))
+	assert.Equal(t, "a document the $ref leads to", findingPlace(fakeResolvable{ref: "#/x"}))
 }
 
 // referencePairs walks doc and returns, for every reference the resolvable

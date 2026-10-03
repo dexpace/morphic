@@ -3,6 +3,7 @@ package openapi
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/validation"
@@ -119,7 +120,8 @@ func TestCompile_AFindingInAnExternalDocumentKeepsItsRule(t *testing.T) {
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.Validation+"/validation-required-field", ir.SeverityError, "/paths/~1x")
 	assert.Contains(t, msg, "`parameter.in` is required")
-	assert.Contains(t, msg, "of the document the $ref resolves to")
+	assert.True(t, strings.HasSuffix(msg, ", at 7:11 of "+filepath.Join(dir, "other.yaml")),
+		"its position, in the document it is in: %q", msg)
 }
 
 // TestLoad_RecoverableLiteralSuppressesFindingAmongOtherScalars pins the

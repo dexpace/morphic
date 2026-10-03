@@ -144,6 +144,7 @@ paths:
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	t.Parallel()
 	path := "../../../../testdata/openapi/resolve_main_external.yaml"
+	target := "../../../../testdata/openapi/resolve_target_invalid.yaml" // as the resolver keys it
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
@@ -158,9 +159,9 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 		contains string
 	}{
 		{ir.SeverityError, "openapi/validation/validation-type-mismatch", "/paths/~1a/get/responses/200",
-			"cannot unmarshal !!str `notabool` into bool, at 10:21 of the document the $ref resolves to"},
+			"cannot unmarshal !!str `notabool` into bool, at 10:21 of " + target},
 		{ir.SeverityError, "openapi/validation/validation-required-field", "/paths/~1a/get/responses/200",
-			"`response.description` is required, at 7:7 of the document the $ref resolves to"},
+			"`response.description` is required, at 7:7 of " + target},
 	}
 	require.Len(t, diags, len(want), "%+v", diags)
 	for i, w := range want {
