@@ -2345,11 +2345,22 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 // unhomed format and, at a HomeOwnNode position, readOnly it declares.
 func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T) {
 	t.Parallel()
-	componentPair := func(reference, owner string) (string, string) {
-		return openapitest.ComponentSpec(reference + owner), openapitest.ComponentSpec(owner + reference)
+	const (
+		property = "/components/schemas/X/properties/p/properties/d"
+		items    = "/components/schemas/X/properties/p/items"
+		response = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+	)
+	ref := func(pointer string) string { return "    Y: {$ref: '#" + pointer + "'}\n" }
+	mapping := func(pointer string) string {
+		return `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {d: '#` + pointer + "'}\n"
 	}
-	propRef, propDecl := componentPair(`    Y: {$ref: '#/components/schemas/X/properties/p/properties/d'}
-`, `    X:
+	ownerProperty := `    X:
       type: object
       properties:
         p:
@@ -2361,9 +2372,8 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
               format: wat
               properties:
                 back: {$ref: '#/components/schemas/X/properties/p'}
-`)
-	itemsRef, itemsDecl := componentPair(`    Y: {$ref: '#/components/schemas/X/properties/p/items'}
-`, `    X:
+`
+	ownerItems := `    X:
       type: object
       properties:
         p:
@@ -2375,15 +2385,8 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
             format: wat
             properties:
               back: {$ref: '#/components/schemas/X/properties/p'}
-`)
-	mappingRef, mappingDecl := componentPair(`    Pet:
-      type: object
-      required: [kind]
-      properties: {kind: {type: string}}
-      discriminator:
-        propertyName: kind
-        mapping: {d: '#/components/schemas/X/properties/p/properties/d'}
-`, `    X:
+`
+	ownerSubtype := `    X:
       type: object
       properties:
         p:
@@ -2396,8 +2399,8 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
               format: wat
               properties:
                 back: {$ref: '#/components/schemas/X/properties/p'}
-`)
-	const pathRef = `  /a:
+`
+	pathRef := `  /a:
     get:
       operationId: getA
       responses:
@@ -2405,9 +2408,9 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
           description: ok
           content:
             application/json:
-              schema: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/items'}
+              schema: {$ref: '#` + response + `'}
 `
-	const pathOwner = `  /b:
+	pathOwner := `  /b:
     get:
       operationId: getB
       responses:
@@ -2425,26 +2428,27 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
                     up: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema'}
 `
 	cases := []struct {
-		name                string
-		refFirst, declFirst string
-		revisited           string
-		wantUnmodeled       []string
+		name             string
+		spec             func(string) string
+		reference, owner string
+		revisited        string
+		wantUnmodeled    []string
 	}{
-		{"a property, through a $ref", propRef, propDecl,
-			"/components/schemas/X/properties/p/properties/d", []string{"openapi:format"}},
-		{"items, through a $ref", itemsRef, itemsDecl,
-			"/components/schemas/X/properties/p/items", []string{"openapi:format", "openapi:readOnly"}},
-		{"a property, through a discriminator mapping", mappingRef, mappingDecl,
-			"/components/schemas/X/properties/p/properties/d", []string{"openapi:format"}},
-		{"items beneath /paths", openapitest.PathsSpec(pathRef + pathOwner), openapitest.PathsSpec(pathOwner + pathRef),
-			"/paths/~1b/get/responses/200/content/application~1json/schema/items", []string{"openapi:format"}},
+		{"a property, through a $ref", openapitest.ComponentSpec, ref(property), ownerProperty,
+			property, []string{"openapi:format"}},
+		{"items, through a $ref", openapitest.ComponentSpec, ref(items), ownerItems,
+			items, []string{"openapi:format", "openapi:readOnly"}},
+		{"a property, through a discriminator mapping", openapitest.ComponentSpec, mapping(property), ownerSubtype,
+			property, []string{"openapi:format"}},
+		{"items beneath /paths", openapitest.PathsSpec, pathRef, pathOwner,
+			response, []string{"openapi:format"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			refFirst, diags := parseFull(t, tc.refFirst)
+			refFirst, diags := parseFull(t, tc.spec(tc.reference+tc.owner))
 			openapitest.RequireNoErrorDiags(t, diags)
-			declFirst, diags := parseFull(t, tc.declFirst)
+			declFirst, diags := parseFull(t, tc.spec(tc.owner+tc.reference))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			id := ir.TypeID("t/anon" + tc.revisited)

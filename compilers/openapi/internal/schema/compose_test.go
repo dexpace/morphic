@@ -3230,48 +3230,44 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 	t.Parallel()
 
 	const subBody = `{allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}`
+	// pet is the discriminated base, entry its mapping or defaultMapping line.
+	pet := func(entry string) string {
+		return `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        ` + entry + "\n"
+	}
+	mapping := func(target string) string { return pet(`mapping: {woofer: '#` + target + `'}`) }
+	spec32 := func(schemas string) string { return openapitest.ComponentSpecVer("3.2.0", schemas) }
 
-	mappingBase := func(target string) string {
-		return `    Pet:
-      type: object
-      required: [kind]
-      properties: {kind: {type: string}}
-      discriminator:
-        propertyName: kind
-        mapping: {woofer: '` + target + `'}
-`
-	}
-	defaultMappingBase := func(target string) string {
-		return `    Pet:
-      type: object
-      required: [kind]
-      properties: {kind: {type: string}}
-      discriminator:
-        propertyName: kind
-        defaultMapping: '` + target + `'
-`
-	}
+	const (
+		propTarget    = "/components/schemas/Kennel/properties/Dog"
+		itemsTarget   = "/components/schemas/Kennel/items"
+		keywordTarget = "/components/schemas/Kennel/properties/items/items"
+		defsTarget    = "/components/schemas/Kennel/$defs/Dog"
+		pathsBase     = "/paths/~1a/get/responses/200/content/application~1json/schema"
+		pathsTarget   = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+	)
 	ownerProperty := `    Kennel:
       type: object
       properties:
-        Dog: ` + subBody + `
-`
+        Dog: ` + subBody + "\n"
 	ownerItems := `    Kennel:
       type: array
-      items: ` + subBody + `
-`
+      items: ` + subBody + "\n"
 	ownerKeywordKey := `    Kennel:
       type: object
       properties:
         items:
           type: array
-          items: ` + subBody + `
-`
+          items: ` + subBody + "\n"
 	ownerDefs := `    Kennel:
       type: object
       $defs:
-        Dog: ` + subBody + `
-`
+        Dog: ` + subBody + "\n"
 	pathBase := `  /a:
     get:
       operationId: getA
@@ -3286,7 +3282,7 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
                 properties: {kind: {type: string}}
                 discriminator:
                   propertyName: kind
-                  mapping: {woofer: '#/paths/~1b/get/responses/200/content/application~1json/schema/items'}
+                  mapping: {woofer: '#` + pathsTarget + `'}
 `
 	pathOwner := `  /b:
     get:
@@ -3299,60 +3295,38 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
               schema:
                 type: array
                 items:
-                  allOf: [{$ref: '#/paths/~1a/get/responses/200/content/application~1json/schema'}]
+                  allOf: [{$ref: '#` + pathsBase + `'}]
                   type: object
                   properties: {woof: {type: string}}
 `
 
-	// anonID mirrors ids.AnonType(fragment as a pointer): every target below
-	// sits deeper than a bare component or path entry, so none of them
-	// qualifies for a named ID (ids.ComponentSchemaName requires exactly
-	// /components/schemas/<name>, no deeper).
-	anonID := func(fragment string) ir.TypeID {
-		return ir.TypeID("t/anon" + strings.TrimPrefix(fragment, "#"))
-	}
-	componentPair := func(version, base, owner string) (string, string) {
-		return openapitest.ComponentSpecVer(version, base+owner), openapitest.ComponentSpecVer(version, owner+base)
-	}
-	pathPair := func(base, owner string) (string, string) {
-		return openapitest.PathsSpecVer("3.1.0", base+owner), openapitest.PathsSpecVer("3.1.0", owner+base)
-	}
-
-	const (
-		propTarget    = "#/components/schemas/Kennel/properties/Dog"
-		itemsTarget   = "#/components/schemas/Kennel/items"
-		keywordTarget = "#/components/schemas/Kennel/properties/items/items"
-		defsTarget    = "#/components/schemas/Kennel/$defs/Dog"
-		pathsTarget   = "#/paths/~1b/get/responses/200/content/application~1json/schema/items"
-		pathsBaseID   = "#/paths/~1a/get/responses/200/content/application~1json/schema"
-	)
-	propBaseFirst, propOwnerFirst := componentPair("3.1.0", mappingBase(propTarget), ownerProperty)
-	itemsBaseFirst, itemsOwnerFirst := componentPair("3.1.0", mappingBase(itemsTarget), ownerItems)
-	keywordBaseFirst, keywordOwnerFirst := componentPair("3.1.0", mappingBase(keywordTarget), ownerKeywordKey)
-	defsBaseFirst, defsOwnerFirst := componentPair("3.1.0", mappingBase(defsTarget), ownerDefs)
-	defaultBaseFirst, defaultOwnerFirst := componentPair("3.2.0", defaultMappingBase(propTarget), ownerProperty)
-	pathsBaseFirst, pathsOwnerFirst := pathPair(pathBase, pathOwner)
-
 	cases := []struct {
-		name                  string
-		baseFirst, ownerFirst string
-		baseID, targetID      ir.TypeID
-		wantDefault           bool
+		name             string
+		spec             func(string) string
+		base, owner      string
+		baseID, targetID ir.TypeID
+		wantDefault      bool
 	}{
-		{"a property", propBaseFirst, propOwnerFirst, componentID("Pet"), anonID(propTarget), false},
-		{"items", itemsBaseFirst, itemsOwnerFirst, componentID("Pet"), anonID(itemsTarget), false},
-		{"a keyword-named key", keywordBaseFirst, keywordOwnerFirst, componentID("Pet"), anonID(keywordTarget), false},
-		{"a $defs entry", defsBaseFirst, defsOwnerFirst, componentID("Pet"), anonID(defsTarget), false},
-		{"a 3.2 defaultMapping", defaultBaseFirst, defaultOwnerFirst, componentID("Pet"), anonID(propTarget), true},
-		{"a /paths inline subtype", pathsBaseFirst, pathsOwnerFirst, anonID(pathsBaseID), anonID(pathsTarget), false},
+		{"a property", openapitest.ComponentSpec, mapping(propTarget), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, false},
+		{"items", openapitest.ComponentSpec, mapping(itemsTarget), ownerItems,
+			componentID("Pet"), "t/anon" + itemsTarget, false},
+		{"a keyword-named key", openapitest.ComponentSpec, mapping(keywordTarget), ownerKeywordKey,
+			componentID("Pet"), "t/anon" + keywordTarget, false},
+		{"a $defs entry", openapitest.ComponentSpec, mapping(defsTarget), ownerDefs,
+			componentID("Pet"), "t/anon" + defsTarget, false},
+		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propTarget + `'`), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, true},
+		{"a /paths inline subtype", openapitest.PathsSpec, pathBase, pathOwner,
+			"t/anon" + pathsBase, "t/anon" + pathsTarget, false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			first, diags := parseFull(t, tc.baseFirst)
+			first, diags := parseFull(t, tc.spec(tc.base+tc.owner))
 			openapitest.RequireNoErrorDiags(t, diags)
-			last, diags := parseFull(t, tc.ownerFirst)
+			last, diags := parseFull(t, tc.spec(tc.owner+tc.base))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			for _, doc := range []*ir.Document{first, last} {
