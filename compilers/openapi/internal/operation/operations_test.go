@@ -2000,13 +2000,9 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	require.NotEmpty(t, diags, "unresolved refs reported")
 
 	// And the skips themselves are silent: every diagnostic here is the load
-	// phase's own report of the $ref it followed to nothing, sited at the $ref
-	// itself now that the load phase drives the resolver's walk one reference at
-	// a time (GitHub #385) instead of handing the whole document to one call
-	// that reported every failure at the document root. A skip lowering an empty
-	// stand-in instead would report on a construct the document never wrote, and
-	// would do it a second time, from the walk, at the same pointer the load
-	// phase already used — one this table would then see twice.
+	// phase's report of a $ref it followed to nothing, at the $ref itself
+	// (GitHub #385). A skip lowering an empty stand-in instead would report on a
+	// construct the document never wrote, beside the one report per $ref below.
 	wantRefs := map[string]string{
 		"/paths/~1a/parameters/0":                                             "#/components/parameters/GhostParam",
 		"/paths/~1a/get/callbacks/good/{$url}":                                "#/components/pathItems/GhostInner",

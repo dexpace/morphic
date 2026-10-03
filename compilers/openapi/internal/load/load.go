@@ -313,9 +313,8 @@ func compilerOwned(verr validation.Error) bool {
 
 // resolve resolves every reference in doc and reports what each resolution
 // found at the $ref that produced it (see resolveWith). It returns the document
-// it resolved, which is a rebuild of doc when doc's own resolution parsed an
-// external document the compiler had prepared under another key (see
-// resolveExternal).
+// it resolved, which is a rebuild of doc when resolveExternal had to recover an
+// anchored external document the resolver parsed itself.
 func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {

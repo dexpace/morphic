@@ -74,15 +74,16 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	assertHasErrorCode(t, diags, diag.InternalInvariant)
 }
 
-// TestWithoutRereported is a unit table over the four ways a lowering
-// diagnostic and the load phase's diagnostics can relate. Only one of the four
-// drops anything: the exact key withoutRereported dedupes on is the whole
-// Provenance, not the pointer alone, so a diagnostic at the same pointer under
-// a different code, or the same code at a different pointer, both survive.
+// TestWithoutRereported is a unit table over the ways a lowering diagnostic
+// and the load phase's diagnostics can relate. Only one drops anything: the key
+// withoutRereported dedupes on is the code and the whole Provenance, so another
+// code at the same provenance survives, and so does the same code at another
+// pointer, or at the same pointer in another source.
 func TestWithoutRereported(t *testing.T) {
 	t.Parallel()
 	at := ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}
 	elsewhere := ir.Provenance{Source: 0, Pointer: "/components/schemas/T"}
+	inOverlay := ir.Provenance{Source: 1, Pointer: "/components/schemas/S"}
 
 	tests := map[string]struct {
 		lowered []ir.Diagnostic
@@ -98,6 +99,11 @@ func TestWithoutRereported(t *testing.T) {
 			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: elsewhere}},
 			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
 			want:    []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: elsewhere}},
+		},
+		"unresolved-ref at the same pointer in another source is kept": {
+			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: inOverlay}},
+			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			want:    []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: inOverlay}},
 		},
 		"unresolved-ref at the same provenance is dropped": {
 			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},

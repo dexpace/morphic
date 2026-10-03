@@ -67,11 +67,11 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection
-		// declines them before any compile — or a fault the parser or the
-		// reference resolver raised on a document that did parse. Either is the
-		// document's problem, so it is a diagnostic: a Go error here leaves
-		// engine.Run as a Go error, and the CLI reads that as a misuse of itself
-		// rather than as a spec it could not read.
+		// declines them before any compile — or a fault the parser raised on a
+		// document that did decode. Either is the document's problem, so it is a
+		// diagnostic: a Go error here leaves engine.Run as a Go error, and the
+		// CLI reads that as a misuse of itself rather than as a spec it could
+		// not read.
 		return nil, append(diags, undecodable(err)), nil
 	}
 	if err != nil || loadedDoc == nil {

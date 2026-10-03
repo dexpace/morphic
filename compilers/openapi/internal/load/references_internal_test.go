@@ -333,10 +333,9 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 		t.Parallel()
 		visited := 0
 		items := func(yield func(soa.WalkItem) bool) {
-			// The first reference resolves cleanly, so eachReference's own
-			// site = "" reset runs before the panic below — the reset this
-			// case exists to hold: the mutation that removes it leaves the
-			// first reference's site behind for the panic to be blamed on.
+			// The first reference resolves cleanly, so eachReference resets
+			// site before the panic below. Without that reset, the panic would
+			// be blamed on the first reference's site.
 			if !yield(fakeWalkItem("first", fakeResolvable{ref: "#/first"})) {
 				return
 			}
@@ -482,9 +481,9 @@ func referencePairs(t *testing.T, doc *soa.OpenAPI) map[string]bool {
 //
 // External references are off on both sides. The library's default reads the
 // real file system where resolveWith's Options{} refuses, a difference in I/O
-// policy rather than in which references either walk reaches. A fixture the
-// pre-parse refusals refuse is skipped: build never resolves one, and the
-// resolver has no guard of its own against the cycles they refuse.
+// policy rather than in which references either walk reaches. A fixture build
+// refuses before resolving, by the pre-parse refusals or the chain-cycle check,
+// is skipped: the resolver has no guard of its own against those cycles.
 func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob("../../../../testdata/openapi/*.yaml")
@@ -507,6 +506,9 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		doc1, _, err := unmarshal(t.Context(), data, root)
 		if err != nil {
 			continue
+		}
+		if d, found := chainCycle(t.Context(), scan.InSource(0), root, doc1); found && d.Severity == ir.SeverityError {
+			continue // a chain the resolver would recurse through forever
 		}
 
 		root2, _, err := decodeStream(data)
