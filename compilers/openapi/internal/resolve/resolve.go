@@ -1,12 +1,11 @@
-// Package resolve answers what a $ref names: which same-document pointer it
-// addresses, which interned type already lives there, and, for components that
-// are not schemas, which concrete value and declaration site a
+// Package resolve answers what a $ref names: the same-document pointer it
+// addresses, the schema declared there and the type interned there, and, for
+// components that are not schemas, the concrete value and declaration site a
 // reference-or-inline entry stands for.
 //
-// It is only that. Following a reference far enough to lower its target is
-// schema lowering, which recurses into the schema walk, so it stays with the
-// walk. What is here needs only the document's path, its declared names and a
-// registry.
+// It is only that. Following a reference far enough to lower its target
+// recurses into the schema walk, so it stays with the walk. What is here needs
+// only the document, its path, its declared names and a registry.
 //
 // Reference resolution is not promoted to compilers/compile: not every compiler
 // needs it, and those that do reach it by different mechanisms
@@ -19,6 +18,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 
@@ -29,7 +29,8 @@ import (
 )
 
 // Scope is what resolving a reference needs to know about the document doing
-// the referencing: which file it is, and which component schemas it declares.
+// the referencing: which file it is, which component schemas it declares, and
+// what it parsed to.
 //
 // Declares is a predicate rather than the name set itself, for the reason the
 // lowering context keeps that set behind an accessor: a copied struct shares a
@@ -41,6 +42,31 @@ type Scope struct {
 	// Declares reports whether the document declares a component schema of this
 	// name.
 	Declares func(name string) bool
+	// Doc is the parsed document a pointer is read against, as the resolver
+	// reads it; see DeclaredAt. It is typed as the pointer walk takes it, which
+	// keeps the document model out of this package's imports.
+	Doc any
+}
+
+// DeclaredAt returns the schema declared at a same-document pointer, found the
+// way the resolver finds a $ref's target, or nil where there is none, like
+// annotation.DeclaredSchema for a followed $ref.
+//
+// It is for a reference that is only a string: a discriminator mapping value is
+// never resolved, so it carries no declaration of its own (GitHub #530). A
+// position the parsed model holds as raw YAML, such as an extension's value or
+// enum member, is no schema here, though the resolver parses one when a $ref
+// names it, so a mapping reaches it only once a $ref has interned it (GitHub
+// #757).
+func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if err != nil {
+		return nil
+	}
+	// Anything but a schema fails the assertion and leaves js nil, and so does a
+	// keyword the schema leaves unset, which the walk reaches as a typed nil.
+	js, _ := target.(*oas3.JSONSchema[oas3.Referenceable])
+	return js
 }
 
 // sameFile reports whether a $ref document part names this compilation's own

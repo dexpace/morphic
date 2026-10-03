@@ -2333,6 +2333,139 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 		"which is what the two above are being held to")
 }
 
+// TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder is GitHub
+// #749. A reference hoists a position whose body refers back to a position
+// above it that nothing has interned, so lowering that one walks down into the
+// first again while its build is still running. The revisit gets the ID back,
+// but there is no node yet to attach its declaration to: the frame building it
+// does that once its build returns.
+//
+// Each row is written reference first, the order that crashed, and must match
+// the declaration-first order: the revisited node keeps the description,
+// unhomed format and, at a HomeOwnNode position, readOnly it declares.
+func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T) {
+	t.Parallel()
+	const (
+		property = "/components/schemas/X/properties/p/properties/d"
+		items    = "/components/schemas/X/properties/p/items"
+		response = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+	)
+	ref := func(pointer string) string { return "    Y: {$ref: '#" + pointer + "'}\n" }
+	mapping := func(pointer string) string {
+		return `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {d: '#` + pointer + "'}\n"
+	}
+	ownerProperty := `    X:
+      type: object
+      properties:
+        p:
+          type: object
+          properties:
+            d:
+              type: object
+              description: kept
+              format: wat
+              properties:
+                back: {$ref: '#/components/schemas/X/properties/p'}
+`
+	ownerItems := `    X:
+      type: object
+      properties:
+        p:
+          type: array
+          items:
+            type: object
+            readOnly: true
+            description: kept
+            format: wat
+            properties:
+              back: {$ref: '#/components/schemas/X/properties/p'}
+`
+	ownerSubtype := `    X:
+      type: object
+      properties:
+        p:
+          type: object
+          properties:
+            d:
+              allOf: [{$ref: '#/components/schemas/Pet'}]
+              type: object
+              description: kept
+              format: wat
+              properties:
+                back: {$ref: '#/components/schemas/X/properties/p'}
+`
+	pathRef := `  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#` + response + `'}
+`
+	pathOwner := `  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: kept
+                  format: wat
+                  properties:
+                    up: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema'}
+`
+	cases := []struct {
+		name             string
+		spec             func(string) string
+		reference, owner string
+		revisited        string
+		wantUnmodeled    []string
+	}{
+		{"a property, through a $ref", openapitest.ComponentSpec, ref(property), ownerProperty,
+			property, []string{"openapi:format"}},
+		{"items, through a $ref", openapitest.ComponentSpec, ref(items), ownerItems,
+			items, []string{"openapi:format", "openapi:readOnly"}},
+		{"a property, through a discriminator mapping", openapitest.ComponentSpec, mapping(property), ownerSubtype,
+			property, []string{"openapi:format"}},
+		{"items beneath /paths", openapitest.PathsSpec, pathRef, pathOwner,
+			response, []string{"openapi:format"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			refFirst, diags := parseFull(t, tc.spec(tc.reference+tc.owner))
+			openapitest.RequireNoErrorDiags(t, diags)
+			declFirst, diags := parseFull(t, tc.spec(tc.owner+tc.reference))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			id := ir.TypeID("t/anon" + tc.revisited)
+			for _, doc := range []*ir.Document{refFirst, declFirst} {
+				td, ok := doc.Types[id]
+				require.True(t, ok, "the revisited position is interned")
+				assert.Equal(t, "kept", td.Common().Docs.Description, "its declaration's annotations reach it")
+				for _, key := range tc.wantUnmodeled {
+					assert.Contains(t, td.Common().Unmodeled, key, "and what it declares with no home is kept")
+				}
+			}
+			assert.Empty(t, cmp.Diff(refFirst.Types, declFirst.Types),
+				"the registry is the same whichever lowering reaches the position first")
+		})
+	}
+}
+
 // TestPureRefPosition_IsNamedByItsDeclarationInBothOrders is GitHub #519: a
 // pure $ref position interns nothing from its own declaration, unlike the
 // structural positions TestInlinePosition_HintIsTheSameInBothOrders covers, so
