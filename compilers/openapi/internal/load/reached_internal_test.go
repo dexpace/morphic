@@ -350,7 +350,7 @@ components:
 // aliasKindsResolved resolves aliasKindsFixture (unprepared_internal_test.go)
 // and returns the bare object each Referenced* wrapper resolves to, keyed as
 // resolvedModels keys them: this fixture is the one place every kind
-// reachedWalk and hopDocuments switch on already exists, wired together.
+// reachedWalk and resolutionTrail switch on already exists, wired together.
 func aliasKindsResolved(t *testing.T) map[string]any {
 	t.Helper()
 	doc, diags, err := resolveSpec(t, aliasKindsFixture, "root.yaml")
@@ -402,7 +402,7 @@ func TestReachedWalk(t *testing.T) {
 	kinds := aliasKindsResolved(t)
 
 	// aliasKindsFixture's own path item and response nest every field behind a
-	// further $ref (proving hopDocuments' dispatch is what that fixture is
+	// further $ref (resolutionTrail's dispatch is what that fixture is
 	// for), so neither has a schema an unresolved-boundary walk would ever
 	// reach; a schema nested inline, as a real document can write it, needs
 	// its own small fixture instead.
