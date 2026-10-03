@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -1158,6 +1159,27 @@ components:
 	assert.Empty(t, landings(r, a), "held with no definition is no pointer read either")
 }
 
+// TestReach_ReadsHeldDefinitionsThroughOneReader pins the same bound for the
+// reach check: its held references are read through the one reader it was
+// given, so a reference at every level of a schema nested d deep costs a
+// constant number of navigations per level rather than a walk of the chain
+// above it.
+func TestReach_ReadsHeldDefinitionsThroughOneReader(t *testing.T) {
+	t.Parallel()
+	const depth = 60
+	doc, root := buildDoc(t, deepDefsDoc(depth))
+	r := emptyReach(root, &budget{limit: maxReachWork})
+	rule := defs.NewReader(doc)
+	r.rule = rule
+
+	r.collect(t.Context(), doc)
+
+	require.Len(t, r.held, depth)
+	assert.Same(t, rule, r.rule, "no reference swapped the reader for one with no memory")
+	assert.GreaterOrEqual(t, rule.Reads(), depth, "every level was read, through the one reader")
+	assert.LessOrEqual(t, rule.Reads(), 9*depth, "a constant number of navigations per level")
+}
+
 // TestReach_EmptyFragmentLandsNowhere pins that "#" and "#/" name the document
 // the resolver holds, which is always the root now that no $defs lookup hands it
 // another: no schema, so no edge, even under a $defs target.
@@ -1201,12 +1223,10 @@ components:
 `
 
 // Each schema's own "#/$defs/..." pointer lands on that schema's own
-// definition (the resolver's rule, GitHub #557), so A.x reaches A.y and B.y
-// reaches B.x, and neither is a reference. Before load resolved each $defs
-// pointer in its own place, reach had to take every schema's $defs as a
-// possible target — the resolver cached the first one it found and handed it
-// to the other schema — and refused this document for a cycle A.x -> B.y ->
-// A.x that neither resolver order takes.
+// definition (the resolver's rule, GitHub #557): A.x reaches A.y and B.y
+// reaches B.x, and both chains end there. Taking every schema's $defs as a
+// possible target would close a cycle A.x -> B.y -> A.x that neither resolver
+// order takes.
 const defsSameNamesAcrossComponents = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -1224,8 +1244,8 @@ components:
 
 // A's "#/$defs/n" names nothing: the resolver's rule searches A's ancestors,
 // never the document root, and never a sibling extension. So the extension's
-// n, which points back at A, is on no chain from A. reach used to take any
-// node holding the path, x-holder's included, and refused the round trip.
+// n, which points back at A, is on no chain from A, and a check that took any
+// node holding the path, x-holder's included, would refuse the round trip.
 const defsPointerDoesNotReachAnExtension = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -1239,8 +1259,8 @@ x-holder:
 
 // d's subtree holds q, an alias of Shared's own node. Shared's
 // "#/properties/y" is a plain pointer, read from the root, where there is no
-// such property, so it lands nowhere. reach used to mark the aliased node
-// drifted once a $defs pointer reached d, and read that pointer from any node.
+// such property, so it lands nowhere. A check that marked the aliased node
+// drifted once a $defs pointer reached d would read that pointer from any node.
 const defsTargetHoldsAnAlias = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}

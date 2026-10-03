@@ -35,8 +35,9 @@ var update = flag.Bool("update", false, "rewrite testdata/reach_fuzz_crashes.gol
 
 // reachFuzzOracleEnv, when set, makes this test binary act as the crash
 // oracle: TestMain reads the spec it names, runs the load pipeline over it with
-// the reference-chain check off and a bounded stack, and exits. A stack overflow cannot be recovered
-// in-process, so it has to happen in a process the test can afford to lose.
+// the reference-chain check off and a bounded stack, and exits. A stack
+// overflow cannot be recovered in-process, so it has to happen in a process the
+// test can afford to lose.
 const reachFuzzOracleEnv = "MORPHIC_REACH_FUZZ_ORACLE_SPEC"
 
 // TestMain lets this package act as its own crash-oracle subprocess. Every

@@ -249,9 +249,10 @@ components:
 // TestScope_MappingPointer pins what a mapping value names. A pointer or a
 // declared component is InternalPointer's answer; a "#/$defs/..." value is the
 // definition read from its discriminator; and every value that cannot be read
-// so is refused: one with a document part, as load holds a $ref spelled so, one
-// into another document, one in a Scope with no Doc, one whose discriminator
-// this document's tree does not contain, and one the rule finds nothing for.
+// so is refused: one with a document part, which load leaves to the resolver,
+// one into another document, one in a Scope with no Doc, one with no
+// discriminator, one whose discriminator this document's tree does not contain,
+// and one the rule finds nothing for.
 func TestScope_MappingPointer(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
@@ -283,7 +284,7 @@ components:
 
 	for value, why := range map[string]string{
 		"other.yaml#/A":        "a value into another document is refused",
-		"spec.yaml#/$defs/cat": "a document part is held out of the rule, as load holds a $ref spelled so",
+		"spec.yaml#/$defs/cat": "a document part is left to the resolver, as load leaves a $ref spelled so",
 		"#/$defs/missing":      "the rule finds no such definition",
 		"Pet":                  "a bare name names no pointer",
 	} {
@@ -293,6 +294,8 @@ components:
 
 	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
 	assert.False(t, ok, "no document to read from")
+	_, ok = sc.MappingPointer(nil, "#/$defs/cat")
+	assert.False(t, ok, "no discriminator to read a position from")
 	// A discriminator this document's tree does not contain has no position to
 	// read from. The document is a standalone schema with its own $defs, the one
 	// kind a missing position could still read a definition from.

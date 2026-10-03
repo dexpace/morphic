@@ -49,12 +49,12 @@ func namesRegistryEntry(raw string) bool {
 }
 
 // lookups is every set a reference of class c can land in. A held reference
-// lands on its definition alone. For the rest, the resolver asks
-// the registries first, with the fragment as written, and falls back to a
-// pointer read; a reference can be tried both ways, so both are kept. A pointer
-// the resolver may read against a document other than the root, because it
-// spells /$defs/ or the reference drifted, can start at any node; any other
-// starts at the root. Drift and the search each ask once per class.
+// lands on its definition alone. For the rest, the resolver asks the
+// registries first, with the fragment as written, and falls back to a pointer
+// read; a reference can be tried both ways, so both are kept. A pointer the
+// resolver may read against a document other than the root, because it spells
+// /$defs/ or the reference drifted, can start at any node; any other starts at
+// the root. Drift and the search each ask once per class.
 func (r *reach) lookups(c refClass) []*posSet {
 	r.budget.spend(1)
 	if c.held != nil {

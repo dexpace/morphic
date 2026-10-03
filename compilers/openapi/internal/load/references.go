@@ -11,6 +11,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -38,7 +39,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	opts Options, reader *external,
 ) []ir.Diagnostic {
 	pass := newResolution(ctx, at, doc, path, opts, reader)
-	held := defsRefs(ctx, doc)
+	held := heldRefs(ctx, doc, defs.NewReader(doc))
 	withDefsHeld(held, func() {
 		pass.fail(eachReference(soa.Walk(ctx, doc), func(site jsontext.Pointer, r resolvable) error {
 			pass.visit(site, r, r.GetReference())

@@ -13,12 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// propByWire looks up m's property by wire name. This file's tests are
-// package openapi (they read ids-derived TypeIDs directly, which only an
-// internal test file can import alongside compile), so they cannot reach
-// conformance_test.go's identically-named helper in package openapi_test;
-// this wraps openapitest.PropsByWire's map in the same two-value form instead
-// of duplicating its logic.
+// propByWire looks up m's property by wire name. This file is package openapi,
+// for the helpers it shares with the other internal tests, so it cannot reach
+// conformance_test.go's helper of the same name in package openapi_test; it
+// puts openapitest.PropsByWire's map in the same two-value form.
 func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
 	p, ok := openapitest.PropsByWire(m.Properties)[wire]
 	return p, ok
@@ -52,12 +50,10 @@ components:
 
 // TestCompile_DefsPointerRelativeToItsOwnSchema is the compiler-level
 // regression for GitHub #557: two component schemas that each $ref their own
-// "#/$defs/n" must resolve to their OWN definition — never the other's,
-// whichever is declared first — in either declaration order, and the two
-// orders must intern byte-identical types. Before the fix, the resolver
-// cached the first definition it found for the pointer and handed it to the
-// second schema's reference too, so which schema's shape "won" depended on
-// declaration order.
+// "#/$defs/n" resolve to their OWN definition, never the other's, whichever is
+// declared first, and the two orders intern identical types. The resolver
+// alone would hand the second reference the first's definition, so which
+// shape "won" would depend on declaration order.
 func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 	t.Parallel()
 	forward := readReproducer(t, "two")
@@ -100,15 +96,15 @@ func assertOwnDefsProperty(t *testing.T, doc *ir.Document, component, prop, want
 	assert.True(t, ok, "%s's own definition declares %q; got %+v", component, wantProp, target.Properties)
 }
 
-// f13ReadersSpec is GitHub #557's f13: two sibling components each $ref their
-// own "#/$defs/n", one a plain string and the other an "integer|null" union,
-// each carrying its own description. Both definitions reduce to the shared
-// primitive scalar, which has nowhere of its own to hold a description or a
-// null bit, so both merge onto the referencing property from whichever
-// schema's OWN definition the reference resolves to (fillPropertyAnnotations,
-// refNullable). Before the fix, a collapsed identity could read one sibling's
-// nullability or description onto the other's property with no diagnostic.
-const f13ReadersSpec = `openapi: 3.1.0
+// defsNullabilityAndDescriptionSpec has two sibling components that each $ref
+// their own "#/$defs/n", one a plain string and the other an "integer|null"
+// union, each carrying its own description. Both definitions reduce to the
+// shared primitive scalar, which has nowhere of its own to hold a description
+// or a null bit, so both merge onto the referencing property from the schema's
+// OWN definition (fillPropertyAnnotations, refNullable). A collapsed identity
+// would read one sibling's nullability or description onto the other's
+// property with no diagnostic.
+const defsNullabilityAndDescriptionSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -129,7 +125,7 @@ components:
 
 func TestCompile_DefsReferenceMergesTargetsOwnNullabilityAndDescription(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, f13ReadersSpec)
+	doc, diags := parseFull(t, defsNullabilityAndDescriptionSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	a, ok := doc.Types[componentID("A")].(*ir.Model)
@@ -164,12 +160,12 @@ func descriptionOf(doc *ir.Document, p ir.Property) string {
 	return ""
 }
 
-// f12MappingSpec is GitHub #557's f12: a discriminated oneOf whose mapping
-// values are "#/$defs/..." pointers naming Pet's own sibling definitions — the
-// same definitions its oneOf branches already $ref. Before the fix, both
-// mapping values could resolve to whichever definition the resolver's cache
-// happened to hold, typing "dog" with cat's shape or the reverse.
-const f12MappingSpec = `openapi: 3.1.0
+// defsMappingSpec is a discriminated oneOf whose mapping values are
+// "#/$defs/..." pointers naming Pet's own sibling definitions, the same
+// definitions its oneOf branches already $ref. Read through the resolver's
+// cache, a mapping value could name whichever definition it happened to hold,
+// typing "dog" with cat's shape or the reverse.
+const defsMappingSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -184,7 +180,7 @@ components:
 
 func TestCompile_DefsDiscriminatorMappingNamesItsOwnSiblingDefinition(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, f12MappingSpec)
+	doc, diags := parseFull(t, defsMappingSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := doc.Types[componentID("Pet")].(*ir.Union)
@@ -208,12 +204,12 @@ func TestCompile_DefsDiscriminatorMappingNamesItsOwnSiblingDefinition(t *testing
 	assert.Contains(t, variantTargets, dogID)
 }
 
-// f10ChainParentSpec is GitHub #557's f10: C's $ref is an ordinary
-// component-qualified pointer (not a bare "#/$defs/..." one, so load never
-// holds it) landing on A.$defs.m, whose OWN $ref is a bare "#/$defs/n" that
-// must be read relative to m's OWN position — A, the schema m is written
-// under — never relative to C, the schema that reaches m from elsewhere.
-const f10ChainParentSpec = `openapi: 3.1.0
+// defsChainSpec has a C whose $ref is an ordinary component-qualified pointer
+// (not a bare "#/$defs/..." one, so load never holds it) landing on A.$defs.m,
+// whose OWN $ref is a bare "#/$defs/n" that must be read relative to m's OWN
+// position, A, the schema m is written under, never relative to C, the schema
+// that reaches m from elsewhere.
+const defsChainSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -225,10 +221,10 @@ components:
         n: {type: object, properties: {x: {type: string}}}
 `
 
-// f10ChainParentReversedSpec is f10ChainParentSpec with A and C's declaration
-// order swapped; both orders must agree, since neither m's nor n's position in
-// the document depends on where C happens to be declared.
-const f10ChainParentReversedSpec = `openapi: 3.1.0
+// defsChainReversedSpec is defsChainSpec with A and C's declaration order
+// swapped; both orders must agree, since neither m's nor n's position in the
+// document depends on where C happens to be declared.
+const defsChainReversedSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -243,8 +239,8 @@ components:
 func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, spec string }{
-		{"C declared first", f10ChainParentSpec},
-		{"A declared first", f10ChainParentReversedSpec},
+		{"C declared first", defsChainSpec},
+		{"A declared first", defsChainReversedSpec},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -279,12 +275,11 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 	}
 }
 
-// f5bSpec is GitHub #557's f5b: A has no $defs of its own — not even from an
-// ancestor — while its sibling B does. A's "#/$defs/n" must stay unresolved
-// rather than borrowing B's definition; before the fix, the resolver's cache
-// (keyed on the fragment alone, document-wide) could hand A's reference
-// whatever B's already resolved.
-const f5bSpec = `openapi: 3.1.0
+// defsNoSiblingSpec has an A with no $defs of its own, not even from an
+// ancestor, while its sibling B does. A's "#/$defs/n" stays unresolved rather
+// than borrowing B's definition, as the resolver's cache, keyed on the fragment
+// alone for the whole document, would let it.
+const defsNoSiblingSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -301,9 +296,9 @@ components:
         n: {type: object, properties: {y: {type: integer}}}
 `
 
-// f5bReversedSpec is f5bSpec with A and B's declaration order swapped; A's
-// reference must stay unresolved in both orders.
-const f5bReversedSpec = `openapi: 3.1.0
+// defsNoSiblingReversedSpec is defsNoSiblingSpec with A and B's declaration
+// order swapped; A's reference must stay unresolved in both orders.
+const defsNoSiblingReversedSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
 components:
@@ -323,8 +318,8 @@ components:
 func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, spec string }{
-		{"A declared first", f5bSpec},
-		{"B declared first", f5bReversedSpec},
+		{"A declared first", defsNoSiblingSpec},
+		{"B declared first", defsNoSiblingReversedSpec},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -348,5 +343,30 @@ func TestCompile_DefsPointerWithNoSiblingDefsIsUnresolvedNotBorrowed(t *testing.
 			wantN := ids.ForPointer(ids.Ptr("components", "schemas", "B", "$defs", "n"))
 			assert.Equal(t, wantN, q.Type.Target, "B's own reference still resolves to its own definition")
 		})
+	}
+}
+
+// TestCompile_DefsPointerNoDefinitionAnswersForIsReportedOnceWhereverItSits pins
+// that a "#/$defs/..." reference no definition answers for is one error at the
+// reference, with the resolver's reason, at a position the lowering models (a
+// property) and at one it keeps verbatim ("not"), where only load reports it.
+func TestCompile_DefsPointerNoDefinitionAnswersForIsReportedOnceWhereverItSits(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      not: {$ref: "#/$defs/missing"}
+      properties:
+        p: {$ref: "#/$defs/missing"}
+`
+	_, diags := parseFull(t, spec)
+
+	const want = `unresolved $ref "#/$defs/missing": definition not found: #/$defs/missing`
+	for _, site := range []string{"/components/schemas/A/not", "/components/schemas/A/properties/p"} {
+		assert.Equal(t, want, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, site), site)
 	}
 }

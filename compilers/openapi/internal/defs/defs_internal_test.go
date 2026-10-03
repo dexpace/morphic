@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,9 +57,8 @@ func TestIsPointer(t *testing.T) {
 // definitions directly, without ever walking to an ancestor. That is the one
 // case the generic ancestor search (TargetFrom) can never reach by itself,
 // since it always starts one level above the referencing schema, never at it
-// (GitHub #557). Dropping this rule (mutation 3 in the PR) turns "p"'s own
-// reference unresolved: the ancestor loop starting above p never walks back
-// down into p's own $defs.
+// (GitHub #557). Without the rule, p's own reference is unresolved: the
+// ancestor loop starting above p never walks back down into p's own $defs.
 func TestTarget_LocalIDRuleAndEscapes(t *testing.T) {
 	t.Parallel()
 	const src = `
@@ -74,17 +75,17 @@ properties:
 	root := schemaFromYAML(t, src)
 	p := prop(t, root, "p")
 
-	got, at, ok := Target(root, p, "/$defs/n")
+	got, at, ok := NewReader(root).Target(p, "/$defs/n")
 	require.True(t, ok)
 	assert.Same(t, defEntry(t, p, "n"), got)
 	assert.Equal(t, jsontext.Pointer("/properties/p/$defs/n"), at,
 		"the position is where p's own $defs is written, not the root-relative pointer it spelled")
 
-	got, _, ok = Target(root, p, "/$defs/a~1b")
+	got, _, ok = NewReader(root).Target(p, "/$defs/a~1b")
 	require.True(t, ok, "~1 decodes to a literal slash in the key")
 	assert.Same(t, defEntry(t, p, "a/b"), got)
 
-	got, _, ok = Target(root, p, "/$defs/x~0y")
+	got, _, ok = NewReader(root).Target(p, "/$defs/x~0y")
 	require.True(t, ok, "~0 decodes to a literal tilde in the key")
 	assert.Same(t, defEntry(t, p, "x~y"), got)
 }
@@ -104,7 +105,7 @@ properties:
 	root := schemaFromYAML(t, src)
 	p := prop(t, root, "p")
 
-	got, at, ok := Target(root, p, "/$defs/k")
+	got, at, ok := NewReader(root).Target(p, "/$defs/k")
 	require.True(t, ok)
 	assert.Same(t, defEntry(t, root, "k"), got)
 	assert.Equal(t, jsontext.Pointer("/$defs/k"), at, "found at the document's own position, no ancestor prefix")
@@ -131,7 +132,7 @@ properties:
 	outer := prop(t, root, "outer")
 	inner := prop(t, outer, "inner")
 
-	got, at, ok := Target(root, inner, "/$defs/k")
+	got, at, ok := NewReader(root).Target(inner, "/$defs/k")
 	require.True(t, ok)
 	assert.Same(t, defEntry(t, outer, "k"), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
@@ -158,7 +159,7 @@ properties:
 	outer := prop(t, root, "outer")
 	p := prop(t, outer, "p")
 
-	got, at, ok := Target(root, p, "/$defs/k/properties/x")
+	got, at, ok := NewReader(root).Target(p, "/$defs/k/properties/x")
 	require.True(t, ok)
 	require.NotNil(t, got.GetSchema())
 	assert.Equal(t, "uuid", got.GetSchema().GetFormat())
@@ -172,7 +173,7 @@ func TestTargetFrom_NoMatch(t *testing.T) {
 	root := schemaFromYAML(t, "properties:\n  p: {type: string}\n")
 	p := prop(t, root, "p")
 
-	_, _, ok := Target(root, p, "/$defs/missing")
+	_, _, ok := NewReader(root).Target(p, "/$defs/missing")
 	assert.False(t, ok)
 }
 
@@ -185,18 +186,18 @@ func TestTarget_GuardClauses(t *testing.T) {
 	root := schemaFromYAML(t, "properties:\n  p: {type: string}\n")
 	p := prop(t, root, "p")
 
-	_, _, ok := Target(nil, p, "/$defs/n")
+	_, _, ok := NewReader(nil).Target(p, "/$defs/n")
 	assert.False(t, ok, "no document to navigate")
 
-	_, _, ok = Target(root, nil, "/$defs/n")
+	_, _, ok = NewReader(root).Target(nil, "/$defs/n")
 	assert.False(t, ok, "no reference site")
 
-	_, _, ok = Target(root, p, "/properties/p")
+	_, _, ok = NewReader(root).Target(p, "/properties/p")
 	assert.False(t, ok, "not a $defs pointer")
 
 	other := schemaFromYAML(t, "properties:\n  q: {type: string}\n")
 	otherQ := prop(t, other, "q")
-	_, _, ok = Target(root, otherQ, "/$defs/n")
+	_, _, ok = NewReader(root).Target(otherQ, "/$defs/n")
 	assert.False(t, ok, "a schema this document's tree does not contain has no position to read the pointer from")
 }
 
@@ -209,10 +210,10 @@ func TestTargetFrom_GuardClauses(t *testing.T) {
 	t.Parallel()
 	root := schemaFromYAML(t, "$defs:\n  k: {type: string}\n")
 
-	_, _, ok := TargetFrom(nil, "/properties/p", "/$defs/k")
+	_, _, ok := NewReader(nil).TargetFrom("/properties/p", "/$defs/k")
 	assert.False(t, ok, "no document to navigate")
 
-	_, _, ok = TargetFrom(root, "/properties/p", "/properties/p")
+	_, _, ok = NewReader(root).TargetFrom("/properties/p", "/properties/p")
 	assert.False(t, ok, "not a $defs pointer")
 }
 
@@ -253,15 +254,194 @@ func TestLocalDef(t *testing.T) {
 	})
 }
 
-// TestDefAt_AncestorNavigationFails drives the branch a real document never
-// reaches: parentPointer only ever produces a proper prefix of a position that
-// exists, so an ancestor pointer that names nothing is exercised directly
-// rather than through TargetFrom's own loop.
-func TestDefAt_AncestorNavigationFails(t *testing.T) {
+// readerDoc nests definitions at several levels, so a position's answer can
+// come from itself, any ancestor, or the document, and from none.
+const readerDoc = `
+$defs: {top: {type: string}}
+properties:
+  a:
+    $defs: {k: {type: string}, top: {type: integer}}
+    properties:
+      b:
+        $defs: {k: {type: object}}
+        properties:
+          c: {type: string}
+          d: {$defs: {z: {type: string}}, properties: {e: {type: string}}}
+  f: {properties: {g: {type: string}}}
+`
+
+// readerQueries is every (position, pointer) pair readerDoc is asked about.
+func readerQueries() (queries [][2]jsontext.Pointer) {
+	positions := []jsontext.Pointer{
+		"/properties/a/properties/b/properties/c", "/properties/a/properties/b/properties/d/properties/e",
+		"/properties/a/properties/b/properties/d", "/properties/a/properties/b", "/properties/a",
+		"/properties/f/properties/g", "/properties/f", "/properties/missing/properties/x", "properties/a", "",
+	}
+	for _, pos := range positions {
+		for _, ptr := range []jsontext.Pointer{"/$defs/k", "/$defs/top", "/$defs/z", "/$defs/missing"} {
+			queries = append(queries, [2]jsontext.Pointer{pos, ptr})
+		}
+	}
+	return queries
+}
+
+// TestReader_AnswersDoNotDependOnWhatItReadBefore pins that remembering is
+// invisible: every query gets the answer a reader that has read nothing gives
+// it, whether the queries arrive in one order or the reverse. A reader that let
+// one reference's walk colour another's would be the resolver's own caching
+// fault again (GitHub #557).
+func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 	t.Parallel()
-	root := schemaFromYAML(t, "$defs:\n  k: {type: string}\n")
-	_, ok := defAt(root, "/does/not/exist", "/$defs/k")
-	assert.False(t, ok, "an ancestor pointer with no target in the tree is no answer")
+	root := schemaFromYAML(t, readerDoc)
+	queries := readerQueries()
+	type result struct {
+		def *oas3.JSONSchema[oas3.Referenceable]
+		at  jsontext.Pointer
+		ok  bool
+	}
+	ask := func(r *Reader, q [2]jsontext.Pointer) result {
+		def, at, ok := r.TargetFrom(q[0], q[1])
+		return result{def, at, ok}
+	}
+
+	fresh := make([]result, 0, len(queries))
+	for _, q := range queries {
+		fresh = append(fresh, ask(NewReader(root), q))
+	}
+	shared := NewReader(root)
+	for i, q := range queries {
+		assert.Equal(t, fresh[i], ask(shared, q), "forward: %v", q)
+	}
+	reversed := NewReader(root)
+	for i := len(queries) - 1; i >= 0; i-- {
+		assert.Equal(t, fresh[i], ask(reversed, queries[i]), "reversed: %v", queries[i])
+	}
+	var found int
+	for _, r := range fresh {
+		if r.ok {
+			found++
+		}
+	}
+	assert.Positive(t, found, "some queries are answered")
+	assert.Less(t, found, len(fresh), "and some are not")
+}
+
+// TestReader_NilReaderFindsNothing pins the boundary: a reader that is nil, or
+// has no document, answers no question rather than faulting on one.
+func TestReader_NilReaderFindsNothing(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, readerDoc)
+	p := prop(t, root, "f")
+
+	for name, r := range map[string]*Reader{"nil": nil, "no document": NewReader(nil)} {
+		assert.Nil(t, r.Doc(), name)
+		assert.Zero(t, r.Reads(), name)
+		_, _, ok := r.Target(p, "/$defs/top")
+		assert.False(t, ok, name)
+		_, _, ok = r.TargetFrom("/properties/f", "/$defs/top")
+		assert.False(t, ok, name)
+	}
+}
+
+// TestReader_ObjectAtReadsEachPositionOnceFromItsParent pins what the walk down
+// remembers: the object at each position it passes, so a second position below
+// the same ancestors reads only what is new; and, for a position the document
+// lacks, nothing below the first missing one.
+func TestReader_ObjectAtReadsEachPositionOnceFromItsParent(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, readerDoc)
+	r := NewReader(root)
+
+	obj, held := r.objectAt("/properties/a/properties/b")
+	require.True(t, held)
+	assert.Same(t, prop(t, prop(t, root, "a"), "b"), obj)
+	assert.Len(t, r.objects, 4, "/properties, /properties/a, .../properties, .../b")
+
+	_, held = r.objectAt("/properties/a/properties/b/properties/c")
+	require.True(t, held)
+	assert.Len(t, r.objects, 6, "only the two positions below b are new")
+
+	before := r.reads
+	_, held = r.objectAt("/properties/a/properties/missing/properties/x")
+	assert.False(t, held, "no object below a position the document lacks")
+	assert.Equal(t, before+1, r.reads, "and none of them is read: the first missing one ends the walk")
+	_, held = r.objectAt("properties/a")
+	assert.False(t, held, "a position that is no pointer holds nothing")
+	root0, held := r.objectAt("")
+	assert.True(t, held, "the root is the document")
+	assert.Same(t, root, root0)
+}
+
+// deepChain is a schema whose property top holds a definition m and nests
+// depth levels of property n below it, and the pointer to each level.
+func deepChain(depth int) (body string, levels []jsontext.Pointer) {
+	inner := "{type: string}"
+	for range depth {
+		inner = "{properties: {n: " + inner + "}}"
+	}
+	at := jsontext.Pointer("/properties/top")
+	for range depth {
+		at += "/properties/n"
+		levels = append(levels, at)
+	}
+	return "properties: {top: {$defs: {m: {type: string}}, properties: {n: " + inner + "}}}", levels
+}
+
+// TestReader_WorkGrowsLinearlyWithDepth pins what the memory is for: asking for
+// the same definition from every level of a schema nested d deep reads each
+// position once, not once per question, so the navigations it makes double when
+// the depth does. Asked without memory, each question walks the whole chain
+// above it and the work grows with the square of the depth.
+func TestReader_WorkGrowsLinearlyWithDepth(t *testing.T) {
+	t.Parallel()
+	reads := func(depth int) int {
+		body, levels := deepChain(depth)
+		r := NewReader(schemaFromYAML(t, body))
+		for _, at := range levels {
+			_, found, ok := r.TargetFrom(at, "/$defs/m")
+			require.True(t, ok, at)
+			require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"), found)
+		}
+		return r.reads
+	}
+	small, large := reads(100), reads(200)
+	assert.LessOrEqual(t, small, 8*100, "a constant number of navigations per level")
+	assert.LessOrEqual(t, large, 2*small+10, "twice the depth, twice the work: %d then %d", small, large)
+}
+
+// TestTarget_SchemaInsideAnIDResourceReadsItsOwnDefs pins ownResource's second
+// alternative, which parsing a document makes true of every schema inside one
+// with an $id: q has none of its own, but its base is p's, not the document's,
+// so tryResolveLocalDefs reads q's own $defs before any ancestor's. Without the
+// alternative the answer is A's n, the nearest ancestor holding it.
+func TestTarget_SchemaInsideAnIDResourceReadsItsOwnDefs(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $defs: {n: {type: integer}}
+      properties:
+        p:
+          $id: https://x.test/p
+          properties:
+            q:
+              $ref: "#/$defs/n"
+              $defs: {n: {type: object}}
+`))
+	require.NoError(t, err)
+	const site = "/components/schemas/A/properties/p/properties/q"
+	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(site), jsonpointer.WithStructTags("key"))
+	require.NoError(t, err)
+	q, ok := target.(*oas3.JSONSchema[oas3.Referenceable])
+	require.True(t, ok)
+
+	got, at, ok := NewReader(doc).Target(q, "/$defs/n")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer(site+"/$defs/n"), at, "q's own definition, not A's")
+	assert.Same(t, defEntry(t, q, "n"), got)
 }
 
 func TestOwnResource(t *testing.T) {

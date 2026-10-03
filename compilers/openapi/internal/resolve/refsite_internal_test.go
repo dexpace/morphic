@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 )
 
 // schemaFromYAML unmarshals body as a JSONSchema, keeping the reference form a
@@ -112,13 +115,12 @@ func TestNamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 		"a sub-schema pointer that resolved to nothing does not")
 }
 
-// TestTargetPointer_DocumentPartIsHeldOutOfTheRule pins TargetPointer's own
+// TestTargetPointer_DocumentPartIsLeftToTheResolver pins TargetPointer's own
 // guard: a "#/$defs/..." pointer spelled with an explicit document part (even
-// one naming this same file) is exactly what load holds out of the resolver's
-// own pass (load.defsRefs matches only a $ref with no document part), so
-// reading it here would answer for a reference this compilation never resolves
-// this way.
-func TestTargetPointer_DocumentPartIsHeldOutOfTheRule(t *testing.T) {
+// one naming this same file) is not one load holds out of the resolver's pass
+// (load.heldRefs matches only a $ref with no document part), so the resolver
+// reads it itself and the rule has no answer for it.
+func TestTargetPointer_DocumentPartIsLeftToTheResolver(t *testing.T) {
 	t.Parallel()
 	root := schemaFromYAML(t, "$defs:\n  Target: {type: string}\nproperties:\n  p: {type: string}\n")
 	p, ok := root.GetSchema().GetProperties().Get("p")
@@ -126,5 +128,33 @@ func TestTargetPointer_DocumentPartIsHeldOutOfTheRule(t *testing.T) {
 
 	scope := Scope{SelfPath: "spec.yaml", Doc: root}
 	_, ok = scope.TargetPointer(p, "spec.yaml#/$defs/Target")
-	assert.False(t, ok, "a document part, even this document's own name, is held out of the rule")
+	assert.False(t, ok, "a document part, even this document's own name, is left to the resolver")
+}
+
+// TestTargetPointer_ReadsThroughTheReaderItIsGiven pins that a Scope given a
+// reader reads "#/$defs/..." pointers through it: the answer is the one a Scope
+// with only a document gives, and the second question about the same position
+// reads only the document's root again, not the ancestors the first read.
+func TestTargetPointer_ReadsThroughTheReaderItIsGiven(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "properties:\n  outer:\n    $defs:\n      k: {type: string}\n    properties:\n      p: {$ref: '#/$defs/k'}\n")
+	outer, ok := root.GetSchema().GetProperties().Get("outer")
+	require.True(t, ok)
+	p, ok := outer.GetSchema().GetProperties().Get("p")
+	require.True(t, ok)
+	reader := defs.NewReader(root)
+	scope := Scope{SelfPath: "spec.yaml", Doc: root, Defs: reader}
+
+	first, ok := scope.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+	afterFirst := reader.Reads()
+	second, ok := scope.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+
+	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), first)
+	assert.Equal(t, first, second)
+	assert.Equal(t, afterFirst+1, reader.Reads(), "the second question read the root alone")
+	plain, ok := Scope{SelfPath: "spec.yaml", Doc: root}.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+	assert.Equal(t, first, plain, "a scope with only a document answers the same")
 }

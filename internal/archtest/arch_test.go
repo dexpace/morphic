@@ -152,8 +152,10 @@ var rules = map[string][]string{
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar alone — the dialect question is
-	// asked of the document, and the grammar that answers it is the loader's.
+	// asked of the document, and the grammar that answers it is the loader's —
+	// and defs for the reader its scope reads "#/$defs/..." pointers through.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",

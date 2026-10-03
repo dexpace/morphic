@@ -221,6 +221,20 @@ func TestRefScope_NoDocumentResolvesNoDefsPointer(t *testing.T) {
 	assert.False(t, ok, "no document to read a definition from")
 }
 
+// TestRefScope_SharesTheContextsReader pins that every scope a context hands
+// out, from the context or any copy of it, reads "#/$defs/..." pointers through
+// the one reader New built: its memory is what keeps a reference's cost from
+// growing with how deep its schema sits, and a reader per scope would have none.
+func TestRefScope_SharesTheContextsReader(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, openapitest.DocDeclaring("A"), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+
+	require.NotNil(t, c.RefScope().Defs, "a context with a document reads through a reader")
+	assert.Same(t, c.RefScope().Defs, c.RefScope().Defs)
+	assert.Same(t, c.RefScope().Defs, c.NamingByReference().RefScope().Defs, "a copy shares it")
+	assert.Nil(t, lowering.Ctx{}.RefScope().Defs, "a context with no document has none")
+}
+
 // TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
 // GitHub #86 exists for. Provenance built by hand is how a diagnostic shipped
 // with none (#43) — and a source index written wrong misattributes a node just

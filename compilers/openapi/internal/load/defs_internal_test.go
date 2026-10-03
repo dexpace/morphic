@@ -3,6 +3,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -40,13 +42,13 @@ components:
         n: {type: object, properties: {y: {type: integer}}}
 `
 
-// TestDefsRefs_CollectsEveryHeldReferenceWithTheRulesAnswer drives defsRefs'
+// TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer drives heldRefs'
 // walk body: two "#/$defs/..." references, each spelling the same key name but
 // each answered from its own schema, exactly the shape GitHub #557 reports.
-func TestDefsRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
+func TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 2, "one held reference per schema")
 	for _, r := range refs {
 		assert.NotNil(t, r.target, "the rule finds each schema's own definition")
@@ -54,22 +56,58 @@ func TestDefsRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 	}
 }
 
-// TestDefsRefs_NoDefsPointerAnywhereCollectsNothing pins that a document without
+// TestHeldRefs_NoDefsPointerAnywhereCollectsNothing pins that a document without
 // a single "#/$defs/..." reference collects nothing.
-func TestDefsRefs_NoDefsPointerAnywhereCollectsNothing(t *testing.T) {
+func TestHeldRefs_NoDefsPointerAnywhereCollectsNothing(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, minimal31)
-	assert.Nil(t, defsRefs(t.Context(), doc))
+	assert.Nil(t, heldRefs(t.Context(), doc, defs.NewReader(doc)))
 }
 
-// TestDefsRefs_ReadsTheTreeToDecideWhetherToWalk pins the gate's input: it asks
+// deepDefsDoc is a component nested depth levels deep, with the "#/$defs/m"
+// definition at the top and a reference to it at every level.
+func deepDefsDoc(depth int) string {
+	var sb strings.Builder
+	sb.WriteString("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    A:\n      $defs: {m: {type: string}}\n      properties:\n")
+	indent := "        "
+	for i := range depth {
+		fmt.Fprintf(&sb, "%sp%d:\n%s  allOf: [{$ref: \"#/$defs/m\"}]\n%s  properties:\n", indent, i, indent, indent)
+		indent += "    "
+	}
+	return sb.String() + indent + "leaf: {type: string}\n"
+}
+
+// TestHeldRefs_ShareOneReader pins that the references of a document are read
+// through the one reader they are given, whose memory is what keeps the work
+// proportional to the document: a reference at every level of a schema nested
+// d deep costs a constant number of navigations per level. A reader per
+// reference would walk the whole chain above each, and the work would grow with
+// the square of the depth.
+func TestHeldRefs_ShareOneReader(t *testing.T) {
+	t.Parallel()
+	const depth = 60
+	doc, _ := buildDoc(t, deepDefsDoc(depth))
+	rule := defs.NewReader(doc)
+
+	refs := heldRefs(t.Context(), doc, rule)
+
+	require.Len(t, refs, depth)
+	for _, r := range refs {
+		require.NotNil(t, r.target, r.site)
+	}
+	assert.GreaterOrEqual(t, rule.Reads(), depth, "every level was read, through the reader it was given")
+	assert.LessOrEqual(t, rule.Reads(), 9*depth, "a constant number of navigations per level")
+}
+
+// TestHeldRefs_ReadsTheTreeToDecideWhetherToWalk pins the gate's input: it asks
 // the tree, not the model, so a tree spelling no "#/$defs/..." pointer is not
 // walked even though the model it was parsed into still holds the references.
 // The tree is edited after the parse to tell the two apart.
-func TestDefsRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
+func TestHeldRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	require.Len(t, defsRefs(t.Context(), doc), 2, "the model holds two such references")
+	require.Len(t, heldRefs(t.Context(), doc, defs.NewReader(doc)), 2, "the model holds two such references")
 
 	stack := []*yaml.Node{doc.GetRootNode()}
 	for len(stack) > 0 {
@@ -80,7 +118,7 @@ func TestDefsRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 		}
 		stack = append(stack, n.Content...)
 	}
-	assert.Nil(t, defsRefs(t.Context(), doc), "a tree spelling none is not walked")
+	assert.Nil(t, heldRefs(t.Context(), doc, defs.NewReader(doc)), "a tree spelling none is not walked")
 }
 
 // TestWithDefsHeld_HoldsDuringFAndRestoresAfter pins the hold-and-restore
@@ -89,7 +127,7 @@ func TestDefsRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 func TestWithDefsHeld_HoldsDuringFAndRestoresAfter(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	var duringHold []*references.Reference
@@ -117,7 +155,7 @@ func TestWithDefsHeld_HoldsDuringFAndRestoresAfter(t *testing.T) {
 func TestWithDefsHeld_RestoresEvenWhenFPanics(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	func() {
@@ -150,7 +188,7 @@ func heldPass(t *testing.T, doc *soa.OpenAPI) *resolution {
 func TestResolveHeld_ResolvesToTheRulesTarget(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	pass := heldPass(t, doc)
@@ -171,13 +209,13 @@ func TestResolveHeld_ResolvesToTheRulesTarget(t *testing.T) {
 	}
 }
 
-// TestResolveHeld_NoTargetLeavesTheReferenceUnresolvedWithoutAFailure pins the
-// branch for a reference the rule has no answer for: it never reaches the
-// resolver at all, so resolving the rest of the document cannot read it as
-// pointing anywhere by accident, and resolveHeld itself reports nothing — an
-// unresolved "#/$defs/..." reference is diagnosed the way any other unresolved
-// reference is, not doubly by this function.
-func TestResolveHeld_NoTargetLeavesTheReferenceUnresolvedWithoutAFailure(t *testing.T) {
+// TestResolveHeld_NoTargetIsReportedAsAMissingDefinition pins the branch for a
+// reference the rule has no answer for: it never reaches the resolver at all,
+// so resolving the rest of the document cannot read it as pointing anywhere by
+// accident, and resolveHeld reports it, at the reference, as the resolver
+// reports a definition it cannot find. The lowering reports only the positions
+// it models, so a reference under "not", say, would otherwise go unreported.
+func TestResolveHeld_NoTargetIsReportedAsAMissingDefinition(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -190,16 +228,57 @@ components:
         p: {$ref: "#/$defs/n"}
 `
 	doc, _ := buildDoc(t, spec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 1)
 	require.Nil(t, refs[0].target, "no $defs exists anywhere for the rule to find")
 
 	pass := heldPass(t, doc)
 	_, err := pass.resolveHeld(refs)
 	require.NoError(t, err)
-	assert.Empty(t, pass.failures)
+	require.Len(t, pass.failures, 1)
+	got := pass.failures[0]
+	assert.Equal(t, diag.UnresolvedRef, got.Code)
+	assert.Equal(t, ir.SeverityError, got.Severity)
+	assert.Equal(t, refs[0].site, got.Provenance.Pointer, "placed at the reference")
+	assert.Equal(t, `unresolved $ref "#/$defs/n": definition not found: #/$defs/n`, got.Message)
+	assert.False(t, refs[0].js.IsResolved(), "the resolver was never handed it")
 	require.NotNil(t, refs[0].js.GetSchema().Ref, "restored as written")
 	assert.Equal(t, "#/$defs/n", refs[0].js.GetSchema().Ref.String())
+}
+
+// TestLoad_AHeldReferenceWithNoDefinitionIsReportedWhereverItSits pins that a
+// "#/$defs/..." reference no definition answers for is an error at the
+// reference whether or not the lowering models its position: "not" is kept
+// verbatim, so only load can report the reference there. At a modeled position
+// the lowering would report it too, and the compiler keeps the one at load.
+func TestLoad_AHeldReferenceWithNoDefinitionIsReportedWhereverItSits(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      not: {$ref: "#/$defs/missing"}
+      properties:
+        p: {$ref: "#/$defs/missing"}
+`
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{})
+	require.NoError(t, err)
+
+	for _, site := range []jsontext.Pointer{"/components/schemas/A/not", "/components/schemas/A/properties/p"} {
+		var atSite []ir.Diagnostic
+		for _, d := range diags {
+			if d.Provenance.Pointer == site {
+				atSite = append(atSite, d)
+			}
+		}
+		require.Len(t, atSite, 1, "one report at %s: %v", site, diags)
+		assert.Equal(t, diag.UnresolvedRef, atSite[0].Code, site)
+		assert.Equal(t, ir.SeverityError, atSite[0].Severity, site)
+		assert.Equal(t, `unresolved $ref "#/$defs/missing": definition not found: #/$defs/missing`, atSite[0].Message, site)
+	}
 }
 
 // TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten drives the
@@ -212,7 +291,7 @@ components:
 func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := defsRefs(t.Context(), doc)
+	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 	refs[0].at = "/does/not/exist"
 
@@ -228,7 +307,7 @@ func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
 }
 
 // TestResolveHeld_RecoversFromAPanicAndReportsWhere drives resolveHeld's own
-// recover directly. A defsRef whose schema is nil is not a shape defsRefs ever
+// recover directly. A heldRef whose schema is nil is not a shape heldRefs ever
 // produces, but resolveHeld must not let a panic mid-batch — from this or from
 // the vendored resolver's own internals — escape as a Go panic and abort the
 // whole load: it comes back as an error naming the reference it stopped at. A
@@ -238,12 +317,12 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 	doc, _ := buildDoc(t, twoDefsSpec)
 	pass := heldPass(t, doc)
 
-	site, err := pass.resolveHeld([]defsRef{{js: nil, target: &oas3.JSONSchema[oas3.Referenceable]{}, at: "/$defs/n"}})
+	site, err := pass.resolveHeld([]heldRef{{js: nil, target: &oas3.JSONSchema[oas3.Referenceable]{}, at: "/$defs/n"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Empty(t, site, "stopped before reaching any reference")
 
-	held := defsRefs(t.Context(), doc)
+	held := heldRefs(t.Context(), doc, defs.NewReader(doc))
 	require.Len(t, held, 2)
 	held[1].written = nil // resolving the second then dereferences nothing
 	site, err = pass.resolveHeld(held)
@@ -273,6 +352,22 @@ func TestFragmentOf_RoundTrips(t *testing.T) {
 			got := jsontext.Pointer(ref.GetJSONPointer())
 			assert.Equal(t, p, got)
 		})
+	}
+}
+
+// TestFragmentOf_RoundTripsEveryByte pins the same property for every byte
+// value at the start, the middle and the end of a key. The resolver trims the
+// fragment before it decodes it, and a '#' ends it, so those are the places a
+// byte left unencoded would be lost.
+func TestFragmentOf_RoundTripsEveryByte(t *testing.T) {
+	t.Parallel()
+	for b := range 256 {
+		for _, key := range []string{string([]byte{byte(b), 'a'}), string([]byte{'a', byte(b), 'b'}), string([]byte{'a', byte(b)})} {
+			p := jsontext.Pointer("/$defs/" + key)
+			ref := references.Reference("#" + fragmentOf(p))
+			require.Equal(t, p, jsontext.Pointer(ref.GetJSONPointer()), "byte 0x%02x in %q", b, key)
+			require.Empty(t, ref.GetURI(), "byte 0x%02x in %q", b, key)
+		}
 	}
 }
 

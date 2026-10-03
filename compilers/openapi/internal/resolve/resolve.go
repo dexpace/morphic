@@ -47,13 +47,25 @@ type Scope struct {
 	// it; nil leaves every "#/$defs/..." pointer unresolved and every DeclaredAt
 	// answer nil.
 	Doc defs.Navigable
+	// Defs reads the document's "#/$defs/..." pointers and remembers what it has
+	// read, so references that share ancestors share the work. Nil reads each
+	// through a fresh reader over Doc, which answers the same and shares nothing.
+	Defs *defs.Reader
+}
+
+// reader returns the reader s reads "#/$defs/..." pointers through.
+func (s Scope) reader() *defs.Reader {
+	if s.Defs != nil {
+		return s.Defs
+	}
+	return defs.NewReader(s.Doc)
 }
 
 // TargetPointer returns the pointer of the position the $ref at js resolves to
 // in this document: InternalPointer's answer, except that a "#/$defs/..."
 // pointer names the definition the resolver's rule finds relative to js
-// (defs.Target), never the document-rooted /$defs/... it spells, which the
-// document does not have (GitHub #557). ok is false for a reference into
+// (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
+// the document does not have (GitHub #557). ok is false for a reference into
 // another document and for a $defs pointer the rule finds nothing for.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
@@ -61,30 +73,32 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 		return pointer, ok
 	}
 	if references.Reference(ref).GetURI() != "" {
-		return "", false // held out of the rule, as load holds it: see load.defsRefs
+		return "", false // left to the resolver, as load leaves it: see load.heldRefs
 	}
-	_, at, found := defs.Target(s.Doc, js, pointer)
+	_, at, found := s.reader().Target(js, pointer)
 	return at, found
 }
 
 // MappingPointer is TargetPointer for a discriminator mapping value: the
 // pointer it names, which for a "#/$defs/..." value is the definition read from
-// the discriminator d that holds it (defs.TargetFrom), as a $ref in the same
-// schema reads one (GitHub #557). ok is false for a value into another
-// document and for a $defs value the rule finds nothing for.
+// the discriminator d that holds it (defs.Reader.TargetFrom), as a $ref in the
+// same schema reads one (GitHub #557). ok is false for a value into another
+// document, for a $defs value the rule finds nothing for, and for no
+// discriminator.
 func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(value)
 	if !ok || !defs.IsPointer(pointer) {
 		return pointer, ok
 	}
-	if s.Doc == nil || references.Reference(value).GetURI() != "" {
+	rule := s.reader()
+	if d == nil || rule.Doc() == nil || references.Reference(value).GetURI() != "" {
 		return "", false
 	}
-	from := jsontext.Pointer(d.GetCore().GetJSONPointer(s.Doc.GetRootNode()))
+	from := jsontext.Pointer(d.GetCore().GetJSONPointer(rule.Doc().GetRootNode()))
 	if from == "" {
 		return "", false
 	}
-	_, at, found := defs.TargetFrom(s.Doc, from, pointer)
+	_, at, found := rule.TargetFrom(from, pointer)
 	return at, found
 }
 

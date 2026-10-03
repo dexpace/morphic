@@ -56,11 +56,14 @@ type reach struct {
 	// reference, and anything under the target of a reference already drifted.
 	drifted map[*yaml.Node]bool
 	// held holds, for each node that is a "#/$defs/..." reference of the model,
-	// the definitions its schemas resolve to (defs.Target); none when the rule
-	// names none, which is still no pointer read. load holds exactly these
+	// the definitions its schemas resolve to (defs.Reader.Target); none when the
+	// rule names none, which is still no pointer read. load holds exactly these
 	// references out of the resolver's own pass (withDefsHeld), so each is an
 	// edge the resolver takes, not an over-approximation of one.
 	held map[*yaml.Node]*posSet
+	// rule reads the pointers of held through one reader, so references sharing
+	// ancestors share the walk to them.
+	rule *defs.Reader
 	// scopes memoizes scopesOf, and climbed marks a node whose parents it has
 	// already queued, so every climb together reads each node once.
 	scopes  map[*yaml.Node][]*yaml.Node
@@ -114,6 +117,7 @@ func (r *reach) incomplete() bool {
 // references a search starts from.
 func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI) (*reach, []*yaml.Node) {
 	r := emptyReach(root, &budget{limit: limit})
+	r.rule = defs.NewReader(doc)
 	declared, defsRefs := r.tree.index()
 	starts := r.collect(ctx, doc)
 	r.group(declared)
@@ -162,7 +166,7 @@ func (r *reach) collect(ctx context.Context, doc *soa.OpenAPI) []*yaml.Node {
 		}
 		if js.IsReference() {
 			starts = append(starts, n)
-			r.hold(doc, js, n)
+			r.hold(js, n)
 		}
 		return nil
 	})
@@ -172,7 +176,7 @@ func (r *reach) collect(ctx context.Context, doc *soa.OpenAPI) []*yaml.Node {
 // hold records the definition a "#/$defs/..." reference js at n resolves to, as
 // load resolves it (resolveHeld). A node several schemas share, as an alias
 // does, is held to each one's definition.
-func (r *reach) hold(doc *soa.OpenAPI, js *schemaRef, n *yaml.Node) {
+func (r *reach) hold(js *schemaRef, n *yaml.Node) {
 	pointer, ok := heldDefsPointer(js)
 	if !ok {
 		return
@@ -182,7 +186,7 @@ func (r *reach) hold(doc *soa.OpenAPI, js *schemaRef, n *yaml.Node) {
 		set = &posSet{}
 		r.held[n] = set
 	}
-	if t, _, found := defs.Target(doc, js, pointer); found && t.GetSchema() != nil {
+	if t, _, found := r.rule.Target(js, pointer); found && t.GetSchema() != nil {
 		r.budget.spend(1)
 		set.members = append(set.members, nodeview.Deref(t.GetSchema().GetRootNode()))
 	}

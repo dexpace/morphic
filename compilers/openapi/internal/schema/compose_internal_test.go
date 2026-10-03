@@ -677,11 +677,11 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 	assert.Equal(t, ids.ForPointer("/components/schemas/Pet/properties/kind"), got)
 }
 
-// f12MappingSchemas is GitHub #557's discriminator-mapping shape: Pet's own
-// discriminator maps each tag to a "#/$defs/..." pointer naming its own
-// sibling definition, the same one its oneOf branch for that tag already
+// defsSiblingMappingSchemas is the discriminator-mapping shape of GitHub #557:
+// Pet's own discriminator maps each tag to a "#/$defs/..." pointer naming its
+// own sibling definition, the same one its oneOf branch for that tag already
 // $refs.
-const f12MappingSchemas = `    Pet:
+const defsSiblingMappingSchemas = `    Pet:
       oneOf: [{$ref: "#/$defs/cat"}, {$ref: "#/$defs/dog"}]
       discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat", dog: "#/$defs/dog"}}
       $defs:
@@ -697,7 +697,7 @@ const f12MappingSchemas = `    Pet:
 // keeps its own shape (GitHub #557).
 func TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling(t *testing.T) {
 	t.Parallel()
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(f12MappingSchemas))
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
 	}
