@@ -9,7 +9,9 @@ on:
 # the action installs the pinned release and runs it, and the step above reads
 # that pin back from the Makefile so the version still has a single definition.
 # Add a check to the Makefile and give it a step here; do not spell a command out
-# in this file.
+# in this file. The cache steps are not checks: they carry the Go build cache
+# from main to every run, and scripts/go-cache.sh explains why that takes more
+# than a restore.
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -21,6 +23,30 @@ jobs:
           # holds no copy of it to drift. `make gate` pins the same version from
           # the same line, which is what makes the two the same run.
           go-version-file: go.mod
+          # The steps below cache instead: setup-go saves once per dependency
+          # set and never again, so its build cache only ever holds the first
+          # run to see a go.sum.
+          cache: false
+      - name: go cache paths
+        id: go-env
+        run: |
+          echo "build=$(go env GOCACHE)" >>"$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >>"$GITHUB_OUTPUT"
+      # Main saves a cache per commit and every run restores the newest, so a
+      # pull request starts from what main last built. A change to go.mod or
+      # go.sum starts over.
+      - name: restore go cache
+        id: go-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ steps.go-env.outputs.build }}
+            ${{ steps.go-env.outputs.mod }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ github.sha }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}-
+      - name: age restored build cache
+        if: steps.go-cache.outputs.cache-matched-key != ''
+        run: ./scripts/go-cache.sh age
       - name: gofmt
         run: make fmt
       - name: vet
@@ -64,3 +90,16 @@ jobs:
           name: fuzz-findings
           path: "**/testdata/fuzz/**"
           if-no-files-found: ignore
+      # Only a green run on main saves, so pull requests share one cache rather
+      # than each storing its own, and the save holds what this run used.
+      - name: prune build cache
+        if: github.ref == 'refs/heads/main'
+        run: ./scripts/go-cache.sh prune
+      - name: save go cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ steps.go-env.outputs.build }}
+            ${{ steps.go-env.outputs.mod }}
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
