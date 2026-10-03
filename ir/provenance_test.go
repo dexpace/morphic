@@ -74,6 +74,59 @@ func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	assert.Equal(t, d, back, "the in-memory diagnostic survives a JSON round-trip")
 }
 
+// TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey pins the wire shape §13
+// promises: each kind of locator sits under its own JSON member, so a consumer
+// can tell a pointer from a position from a node by the key alone rather than
+// by parsing the value. The pointer-only row is byte-identical to what 0.5.0
+// wrote — the field was already a string on the wire, so the type change
+// underneath it is invisible to a consumer reading JSON.
+func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		prov ir.Provenance
+		want string
+	}{
+		{
+			name: "pointer only",
+			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
+			want: `{"source":0,"pointer":"/paths/~1x"}`,
+		},
+		{
+			name: "position with line and column",
+			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}},
+			want: `{"source":0,"position":{"line":5,"column":1}}`,
+		},
+		{
+			name: "position with line only",
+			prov: ir.Provenance{Source: 0, Position: ir.Position{Line: 5}},
+			want: `{"source":0,"position":{"line":5}}`,
+		},
+		{
+			name: "node only",
+			prov: ir.Provenance{Source: ir.NoSource, Node: "op/x"},
+			want: `{"source":-1,"node":"op/x"}`,
+		},
+		{
+			name: "zero value",
+			prov: ir.Provenance{},
+			want: `{"source":0}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tt.prov, json.Deterministic(true))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(raw))
+
+			var back ir.Provenance
+			require.NoError(t, json.Unmarshal(raw, &back))
+			assert.Equal(t, tt.prov, back, "each locator survives a decode round-trip")
+		})
+	}
+}
+
 // TestFirstError_Cases covers the shapes call sites depend on: no
 // diagnostics, diagnostics with no error severity, and diagnostics carrying
 // more than one error — where the first, not the last, must be returned.

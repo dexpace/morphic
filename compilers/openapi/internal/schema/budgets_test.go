@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ components:
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, "/components/schemas/E", diags[0].Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer("/components/schemas/E"), diags[0].Provenance.Pointer,
 				"the refusal points at the enum, not at the document")
 			// The budget bounds what the IR holds, so the members must not come
 			// back as bytes. The unhomed-keyword census preserves verbatim

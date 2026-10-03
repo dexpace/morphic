@@ -166,9 +166,9 @@ components:
 	_, err = json.Marshal(doc)
 	require.NoError(t, err, "no byte that is not UTF-8 reaches the document")
 
-	// The library's own resolver error for this reference carries U+FFFD in
-	// place of the raw byte (load.go's resolveDiag, a separate issue); scoping
-	// the check to everything but Diagnostics is what that leftover requires.
+	// The resolver's own error for this reference names the key it could not
+	// find, and diag.Newf scrubs that byte to U+FFFD so the message stays
+	// encodable. That is by design, so the check covers everything else.
 	withoutDiagnostics := *doc
 	withoutDiagnostics.Diagnostics = nil
 	clean, err := json.Marshal(&withoutDiagnostics)
@@ -341,14 +341,13 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the
 // empty token changes a verdict rather than a hang. Reading '/A/' as stopping
-// at A made this shape a cycle; reading it as descending through A makes it
-// what it is, a pointer naming a key that is not declared. That moves a schema
-// chain from chainCycles to chainReenters, and refCycles refuses a schema chain
-// on the first alone, so the document now reaches the resolver.
+// at A made this shape a cycle; reading it as descending through A makes it a
+// pointer naming a key that is not declared. That moves a schema chain from
+// chainCycles to chainReenters, and refCycles refuses a schema chain on the
+// first alone, so the document now reaches the resolver.
 //
 // It reports rather than blocks there: speakeasy resolves a schema $ref as an
-// oas3.JSONSchema, and only openapi/reference.go's cacheMutex is held across a
-// pointer walk (v1.24.0) — jsonschema/oas3 carries no per-reference lock at all.
+// oas3.JSONSchema, which carries no per-reference lock.
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0

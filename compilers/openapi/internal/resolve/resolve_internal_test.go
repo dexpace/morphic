@@ -2,8 +2,11 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -172,7 +175,7 @@ func TestSameFile(t *testing.T) {
 
 func TestInternedID_ByPointerHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	ts.Intern(deepPointer, "t/anon/prev", func() ir.TypeDef { return &ir.Any{} })
 
 	id, ok := InternedID(ts, deepPointer)
@@ -182,8 +185,8 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
-	// A node lives at the pointer-derived ID without a byPointer entry: internedID
+	ts := compile.NewTypes()
+	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
 	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
@@ -195,7 +198,7 @@ func TestInternedID_RegistryHit(t *testing.T) {
 
 func TestInternedID_Miss(t *testing.T) {
 	t.Parallel()
-	ts := compile.NewTypes(0)
+	ts := compile.NewTypes()
 	_, ok := InternedID(ts, deepPointer)
 	assert.False(t, ok, "an un-interned pointer does not resolve")
 }
@@ -203,3 +206,97 @@ func TestInternedID_Miss(t *testing.T) {
 // deepPointer is a sub-schema coordinate, deep enough that no component-name
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
+
+// TestScope_DeclaredAt pins which positions resolve: a schema position to the
+// very schema the document holds there, and every position holding no schema
+// to nil. That covers a non-schema object, an undeclared name, a keyword the
+// schema leaves unset (which the pointer walk reaches as a typed nil), raw YAML
+// under an extension key or in an enum, which only a $ref makes the resolver
+// parse, and a Scope with no Doc.
+func TestScope_DeclaredAt(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      enum: [{type: object}]
+      x-dog: {type: object}
+`))
+	require.NoError(t, err)
+	sc := Scope{Doc: doc}
+
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"),
+		"a schema position resolves to the declaration the document holds")
+
+	for pointer, why := range map[jsontext.Pointer]string{
+		"/info":                          "a non-schema position does not resolve",
+		"/components/schemas/Ghost":      "a position the document does not declare does not resolve",
+		"/components/schemas/Pet/not":    "a keyword the schema leaves unset does not resolve",
+		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
+		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
+	} {
+		assert.Nil(t, sc.DeclaredAt(pointer), why)
+	}
+
+	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
+}
+
+// TestScope_MappingPointer pins what a mapping value names. A pointer or a
+// declared component is InternalPointer's answer; a "#/$defs/..." value is the
+// definition read from its discriminator; and every value that cannot be read
+// so is refused: one with a document part, as load holds a $ref spelled so, one
+// into another document, one in a Scope with no Doc, one whose discriminator
+// this document's tree does not contain, and one the rule finds nothing for.
+func TestScope_MappingPointer(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf: [{$ref: "#/$defs/cat"}]
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object}
+`))
+	require.NoError(t, err)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	d := pet.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
+	sc := Scope{SelfPath: "spec.yaml", Doc: doc}
+
+	for value, want := range map[string]jsontext.Pointer{
+		"#/components/schemas/Pet": "/components/schemas/Pet",
+		"#/$defs/cat":              "/components/schemas/Pet/$defs/cat",
+	} {
+		got, ok := sc.MappingPointer(d, value)
+		assert.True(t, ok, value)
+		assert.Equal(t, want, got, value)
+	}
+
+	for value, why := range map[string]string{
+		"other.yaml#/A":        "a value into another document is refused",
+		"spec.yaml#/$defs/cat": "a document part is held out of the rule, as load holds a $ref spelled so",
+		"#/$defs/missing":      "the rule finds no such definition",
+		"Pet":                  "a bare name names no pointer",
+	} {
+		_, ok := sc.MappingPointer(d, value)
+		assert.False(t, ok, why)
+	}
+
+	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
+	assert.False(t, ok, "no document to read from")
+	// A discriminator this document's tree does not contain has no position to
+	// read from. The document is a standalone schema with its own $defs, the one
+	// kind a missing position could still read a definition from.
+	standalone := Scope{SelfPath: "spec.yaml", Doc: schemaFromYAML(t, "$defs:\n  cat: {type: object}\n")}
+	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
+	assert.False(t, ok, "no position to read the pointer from")
+}

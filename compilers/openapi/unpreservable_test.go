@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -29,9 +30,8 @@ const unpreservableValue = ".nan"
 // Unmodeled" must not be emitted when nothing was written.
 //
 // It asserts the pairing rather than one site's message, because the defect was
-// a property of the idiom rather than of any one caller: every site that
-// converts a node and then announces it shared the bug, and four of them still
-// had it after the first fix was applied to the fifth.
+// a property of the idiom: every site that converts a node and then announces
+// it shared the bug.
 //
 // Each case compiles a document whose preserved payload cannot convert, then
 // requires that (a) no degradation diagnostic claims preservation, and (b) the
@@ -154,7 +154,7 @@ func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
-	assert.Equal(t, "/components/schemas/T/items", d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/T/items"), d.Provenance.Pointer,
 		"the diagnostic locates the construct that was lost, not its owner")
 	assert.Contains(t, d.Message, "no form at all")
 }

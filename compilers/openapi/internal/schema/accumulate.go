@@ -28,14 +28,13 @@ import (
 // are what the upper layer still waits on; the rest of the apparent coupling was
 // this, filed in the wrong place.
 
-// AppendExample converts node into proto's value and appends the result to out;
-// an unconvertible node is skipped and yields a warning diagnostic for the
-// caller to record, rather than being silently dropped — an example is an annotation, not a structural hole, so losing it is
-// fine as long as it isn't silent. proto carries the annotations that surround
-// the value (name, summary, description); base and seg locate the node, joined
-// into a pointer only on the failure path, so an example that converts builds no
-// pointer at all. Shared by every example site: schema (schemaExamples),
-// media type, header, and parameter (exampleList).
+// AppendExample converts node into proto's value and appends the result to out.
+// An unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record: an example is an annotation, not a structural hole, so
+// losing it is fine as long as it is not silent. proto carries the surrounding
+// annotations (name, summary, description); base and seg locate the node,
+// joined into a pointer only on the failure path. The media type, header and
+// parameter example sites share it through exampleList.
 func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
 	base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
@@ -54,7 +53,7 @@ func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yam
 func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) {
-	annotation.PreserveInto(p, key, raw, reason, pointer, c.SrcIndex)
+	annotation.PreserveInto(p, key, raw, reason, c.ProvenanceAt(pointer))
 }
 
 // PreserveNode records the construct written at node under key in *p, reporting
@@ -63,7 +62,7 @@ func preserve(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 func PreserveNode(c lowering.Ctx, p *ir.Unmodeled, key string, node *yaml.Node,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer,
 ) (bool, []ir.Diagnostic) {
-	return annotation.PreserveNodeInto(p, key, node, reason, pointer, c.SrcIndex)
+	return annotation.PreserveNodeInto(p, key, node, reason, c.ProvenanceAt(pointer))
 }
 
 // PreserveSchemaKeyword records the top-level keyword s writes under key. It is
@@ -86,7 +85,7 @@ func PreserveSchemaKeyword(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, keyw
 // expanded. A census running before it could not tell that from an unread
 // keyword.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	return annotation.UnknownKeywordsIn(p, s, pointer, c.SrcIndex)
+	return annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
 }
 
 // preserveKeyword records a validation-only keyword's raw payload under key in
@@ -95,13 +94,13 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // nothing.
 //
 // entryPtr locates the entry itself, which is what a validation emitter reports
-// against: the keyword's own node where the source writes the entry as one
-// keyword, and declPtr where a §4.7 entry combines several keywords into one
-// synthesized object that no single node addresses.
+// against: the keyword's own node. A §4.7 entry combining several keywords has
+// no such node and is not recorded here but by annotation.Read, which attributes
+// it by the keywords it holds (GitHub #534).
 func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValue,
 	declPtr, entryPtr jsontext.Pointer, label string,
 ) []ir.Diagnostic {
-	return annotation.PreserveKeywordInto(p, key, raw, declPtr, entryPtr, label, c.SrcIndex)
+	return annotation.PreserveKeywordInto(p, key, raw, c.ProvenanceAt(entryPtr), c.ProvenanceAt(declPtr), label)
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
@@ -137,12 +136,12 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // empty. TestOperation_UnserializableExtensionStillWarns and its security-scheme
 // twin hold two of the callers to that.
 func ExtensionsOf(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsFrom(ext, c.SrcIndex, owner)
+	return annotation.ExtensionsFrom(ext, c.ProvenanceAt, owner)
 }
 
 // ExtensionsIn is ExtensionsOf for an object with no Unmodeled map of its own,
 // whose entries ride on an enclosing node's under scope — see
 // annotation.ExtensionsUnder for what scope names and why it is needed.
 func ExtensionsIn(c lowering.Ctx, ext *extensions.Extensions, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsUnder(ext, c.SrcIndex, owner, scope)
+	return annotation.ExtensionsUnder(ext, c.ProvenanceAt, owner, scope)
 }

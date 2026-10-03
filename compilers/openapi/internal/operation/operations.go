@@ -73,24 +73,17 @@ type pathOperation struct {
 	src    *soa.Operation
 }
 
-// pathOperations returns every operation a path item declares — the fixed method
+// pathOperations returns every operation a path item declares: the fixed method
 // fields first, in httpMethods order, then any 3.2 additionalOperations in
-// source order.
+// source order. One list serves the three walks that reach a path item, so an
+// operation is lowered on all of them or none; reading the fixed fields alone
+// silently dropped additionalOperations entries (GitHub #293).
 //
-// Reading the fixed fields alone dropped an additionalOperations entry whole:
-// its operationId, parameters, request body, responses, and every type reachable
-// only through them, with no diagnostic (GitHub #293). Yielding one list is what
-// keeps that from recurring per route — the three walks that reach a path item
-// all read this, so an operation is lowered on all of them or on none.
-//
-// A key is the method verbatim. ir.HTTPBinding.Method is the method as sent on
-// the wire and OpenAPI reads a method name case-sensitively, so the key is
-// neither upper-cased nor neutralized. A fixed field's name is a field name
-// rather than a method, so that one is upper-cased into its wire spelling.
-//
-// Taking the key verbatim means an empty one reaches the binding as an empty
-// method. It still lowers — dropping the entry would lose everything it declares
-// — and lowerOperation reports it, which is where every route funnels through.
+// An additionalOperations key is the method verbatim, neither upper-cased nor
+// neutralized, since OpenAPI reads method names case-sensitively; a fixed
+// field's name is upper-cased. An empty key still lowers, as an empty method,
+// because dropping the entry would lose what it declares; lowerOperation
+// reports it.
 func pathOperations(pi *soa.PathItem) []pathOperation {
 	ops := make([]pathOperation, 0, len(httpMethods))
 	for _, m := range httpMethods {
@@ -124,7 +117,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -144,8 +137,12 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups()
-	diags = append(diags, lowerPaths(ctx, c, ts, anchors, operationIDs, groups, &svc)...)
-	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, operationIDs, groups, &svc)...)
+	claims := newOperationIDClaims()
+	diags = append(diags, lowerPaths(ctx, c, ts, anchors, claims, groups, &svc)...)
+	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, claims, groups, &svc)...)
+	// After both walks: whether an operationId is unique is a question about
+	// every operation the service mounts, callbacks included.
+	diags = append(diags, claims.report(c)...)
 	svc.Groups = groups.finalize()
 	return svc, lowerTagDefs(c), diags
 }
@@ -179,7 +176,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -193,7 +190,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if pi == nil {
 			continue
 		}
-		diags = append(diags, lowerPathItem(c, ts, anchors, operationIDs, groups, svc, path, pi, declPtr)...)
+		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, pi, declPtr)...)
 	}
 	return diags
 }
@@ -204,7 +201,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 // path item, or a referenced path item's component pointer (issue #107) —
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
@@ -219,7 +216,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 			ptrs:          ptrs,
 			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 		}
-		op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
@@ -228,7 +225,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		mounted++
 	}
 	if mounted == 0 {
-		return append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, pathPtr), pi, pathPtr, declPtr)...)
+		return append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, pathPtr), pi, pathPtr, declPtr)...)
 	}
 	return diags
 }
@@ -237,7 +234,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 // each webhook operation carries IsWebhook on its HTTP binding. It stops
 // between webhooks when ctx is done, as lowerPaths does, and svc holds what a
 // webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -263,7 +260,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 				ptrs:          ptrs,
 				params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 			}
-			op, extra, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 			diags = append(diags, opDiags...)
 			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
 			grp := groups.group("webhook", func() ir.OperationGroup {
@@ -278,7 +275,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			mounted++
 		}
 		if mounted == 0 {
-			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(&svc.Unmodeled, c.SrcIndex, hookPtr), pi, hookPtr, declPtr)...)
+			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, hookPtr), pi, hookPtr, declPtr)...)
 		}
 	}
 	return diags
@@ -343,7 +340,7 @@ type opContext struct {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -393,7 +390,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled
 		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, operationIDs, src, opCtx.ptrs, opCtx.inferred)
+		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, anchors, claims, src, opCtx.ptrs, opCtx.inferred)
 		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 		diags = append(diags, cbDiags...)
 	}
@@ -402,7 +399,8 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	// After the extensions are on the map, since that is what it reads.
 	diags = append(diags, c.PromoteDeprecation(op.Unmodeled, op.Deprecation, &op.Provenance)...)
 	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
-	return op, extra, append(diags, checkOperationIDUnique(c, operationIDs, op, mount)...)
+	claims.add(src, opCtx.ptrs)
+	return op, extra, diags
 }
 
 // applyOperationAnnotations keeps the operation's own x-* and undeclared keys,
@@ -410,18 +408,15 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // its externalDocs, since ir.Link holds no Unmodeled map, and its Responses
 // Object, whose extensions are the map's own rather than any one response's.
 //
-// The Responses Object contributes extensions but no census. Its key set is the
-// status codes the document chooses, which the library models as a map, so an
-// undeclared key there is read as one more response rather than reported as
-// unknown — there is nothing for a census to say about it.
+// The Responses Object contributes extensions but no census: its keys are the
+// status codes the document chooses, so an undeclared key there reads as one
+// more response.
 //
-// It merges rather than assigns. The operation's map already carries whatever
-// its parameters or callbacks wrote by the time this runs, and an assignment
-// here would drop them — which is why the servers preservation used to have to
-// run after it.
+// It merges rather than assigns, because the operation's map already carries
+// whatever its parameters or callbacks wrote.
 func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
-	ext, diags := annotation.ExtensionsAt(c.SrcIndex,
+	ext, diags := annotation.ExtensionsAt(c.ProvenanceAt,
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
 		annotation.ExtensionSite{Scope: "externalDocs", Owner: docsPtr,
 			Ext: src.GetExternalDocs().GetExtensions()},
@@ -429,32 +424,23 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 			Ext: src.GetResponses().GetExtensions()},
 	)
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.SrcIndex, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
-		src.GetExternalDocs(), c.SrcIndex, docsPtr, "externalDocs")...)
+		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
 }
 
 // applyOperationServers preserves an operation's own `servers` verbatim under
-// Unmodeled, for the same reason applyPathServers preserves the path item's:
-// §10 scopes servers by index list at service and channel, and ir.Operation has
-// no such list yet, so the scoping is kept raw with an info diagnostic.
+// Unmodeled with an info diagnostic, for the reason applyPathServers does for
+// the path item's: ir.Operation has no server-scope list.
 //
-// It is the overriding half of the pair. OpenAPI says an Operation Object's
-// servers override the Path Item Object's, so a document declaring both had the
-// superseded list kept and the effective one dropped outright — an emitter
-// reading the entry would route to the wrong host, and nothing said so
-// (GitHub #39).
+// It is the overriding half of the pair: an Operation Object's servers override
+// the Path Item Object's, so keeping only the superseded list would route an
+// emitter to the wrong host (GitHub #39). The two sit under separate keys
+// because one key cannot hold both without the survivor depending on lowering
+// order; the path item's keeps `openapi:servers`.
 //
-// The two are kept under separate keys because they are two declarations at two
-// pointers, and one map key cannot hold both: writing them to a single key would
-// make the surviving list depend on which lowering ran last, silently. The path
-// item's keeps the plain `openapi:servers` it already shipped under, so this one
-// names its own object rather than renaming what a golden already records.
-//
-// Unlike applyPathServers, this is called from lowerOperation rather than from
-// each route: the operation is lowered in one place, so no route can be added
-// later that forgets it — which is exactly how the path-item half came to be
-// missing on two of its three routes.
+// Unlike applyPathServers, it is called from lowerOperation, so no route can
+// forget it.
 func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation, declPtr jsontext.Pointer) []ir.Diagnostic {
 	if len(src.GetServers()) == 0 {
 		return nil
@@ -467,30 +453,6 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, op.Provenance,
 		"operation servers kept under Unmodeled; an operation has no server-scope list to bind "+
 			"them to, and these override any path-item servers kept beside them"))
-}
-
-// checkOperationIDUnique reports an operationId claimed by more than one
-// operation. OpenAPI requires it to be unique across the whole API, and the
-// resolver cannot see this shape: one path item declaring an operationId and
-// mounted at two paths is written once but describes two operations. Names are
-// presentation, so the IR still records what the document said (invariant 4) —
-// but an emitter renders both under one identifier, so the collision has to be
-// reported rather than discovered downstream.
-//
-// operationIDs is the caller's, allocated where the lowering starts, so this
-// only ever writes into it — the lazy make it used to carry was unreachable
-// from newLowerer, which has always allocated the map up front.
-func checkOperationIDUnique(c lowering.Ctx, operationIDs map[string]jsontext.Pointer, op ir.Operation, mount jsontext.Pointer) []ir.Diagnostic {
-	if op.Name.Source == "" {
-		return nil // no operationId: emitters synthesize from the method and path
-	}
-	if first, seen := operationIDs[op.Name.Source]; seen {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DuplicateOperationID, mount,
-			"operationId %q is already used by the operation at %s; "+
-				"OpenAPI requires it to be unique across the API", op.Name.Source, first)}
-	}
-	operationIDs[op.Name.Source] = mount
-	return nil
 }
 
 // operationName builds an operation's neutral naming: the operationId when
@@ -514,24 +476,17 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 }
 
 // applyPathItem keeps what a path item declares that its operations have no
-// home for: its servers, its own documentation, its own x-* extensions, and the
-// keys the specification does not define for it. Each belongs to the path item
-// rather than to any one operation on it, so each is written onto every
-// operation the item declares.
+// home for: its servers, documentation, x-* extensions and undeclared keys.
+// Each belongs to the path item, so each is written onto every operation the
+// item declares.
 //
-// They are applied together, through this one entry point, because every route
-// that lowers a path item — a path, a webhook, a callback expression — must
-// reach each, and a second call beside the first is a second chance to forget
-// one on a route added later. That is exactly how the servers half came to be
-// missing on two of its three routes (GitHub #39).
+// They share one entry point because every route that lowers a path item (a
+// path, a webhook, a callback expression) must reach each, and a second call
+// beside the first is a chance to forget one on a route added later (GitHub
+// #39).
 //
-// The census reaches this object through its own keys rather than through the
-// library's, which reports none for it: the unmarshaller folds a key it does not
-// recognize into the item's embedded operations map, so GetUnknownProperties is
-// empty however much the document wrote (speakeasy-api/openapi v1.24.1). What is
-// left of that map once the HTTP methods are taken out, plus what the raw
-// mapping writes that neither the map nor the model holds, is the set the
-// census would have reported, which is what undeclaredPathItemKeys reads.
+// The undeclared keys come from undeclaredPathItemKeys: the library's
+// GetUnknownProperties is empty for this object.
 func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	diags := applyPathServers(c, into, pi, declPtr)
 	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr)...)
@@ -539,23 +494,18 @@ func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsont
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, undeclaredPathItemKeys(pi),
-		pi.GetRootNode(), c.SrcIndex, declPtr, into.scope)...)
+		pi.GetRootNode(), c.ProvenanceAt, declPtr, into.scope)...)
 }
 
 // carrier is where a path item's own declarations are kept, and under what key
-// scope. A path item lowers to no node of its own — its entries become
-// operations — so what it writes beside them has to be held by something else.
+// scope. A path item lowers to no node of its own, so they are held by each
+// operation it produced or, for an item that produced none, by the nearest node
+// holding an Unmodeled map (see onNearestNode), usually the service, where the
+// Paths Object's own extensions already go.
 //
-// Normally that is each operation the item produced. An item that produces none
-// has no such node, and used to lose everything it wrote: its servers, its
-// extensions and its undeclared keys reached the IR in no form and nothing
-// reported it. The service is the nearest node holding an Unmodeled map, which
-// is where the Paths Object's own extensions already go for the same reason, so
-// an item with no operation is kept there instead.
-//
-// scope carries the item's own pointer in that case, because one service holds
-// every such item and a bare "pathItem" prefix would make two of them collide on
-// one key — the survivor decided by iteration order.
+// scope carries the item's own pointer in the second case, because one service
+// holds every such item and a bare "pathItem" prefix would make two collide on
+// one key, the survivor decided by iteration order.
 type carrier struct {
 	unmodeled  *ir.Unmodeled
 	provenance ir.Provenance
@@ -587,45 +537,33 @@ func onOperation(op *ir.Operation) carrier {
 }
 
 // onNearestNode carries them on the nearest node holding an Unmodeled map, for
-// an item that produced no operation to hold them: the service for an item under
-// paths or webhooks, the parent operation's HTTP binding for a callback
+// an item that produced no operation to hold them: the service for an item
+// under paths or webhooks, the parent operation's HTTP binding for a callback
 // expression's, which is where the callback itself lives.
 //
 // mountPtr is the item's own mount pointer, and keys it apart from every other
 // item kept on that node. It is the provenance too: one node holds every such
-// item, so a diagnostic carrying the node's own pointer would name none of them —
-// and since diagnostic identity is the whole value, two items would produce one
-// indistinguishable finding rather than two.
-func onNearestNode(u *ir.Unmodeled, srcIndex int, mountPtr jsontext.Pointer) carrier {
+// item, so the node's own pointer would name none of them and two items would
+// produce one indistinguishable finding.
+func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
 	return carrier{
 		unmodeled:  u,
-		provenance: ir.Provenance{Source: srcIndex, Pointer: string(mountPtr)},
+		provenance: c.ProvenanceAt(mountPtr),
 		scope:      "pathItem" + string(mountPtr),
 		serversKey: "openapi:pathItem" + string(mountPtr) + "/servers",
 	}
 }
 
-// preserveUnmountedPathItem keeps what an item that produced no operation wrote,
-// and says so: the item is not lowered, so a reader seeing its declarations away
-// from any operation needs to know why they are there.
+// preserveUnmountedPathItem keeps what an item that produced no operation
+// wrote, and says so: a reader seeing its declarations away from any operation
+// needs to know why.
 //
-// An item produces no operation when it declares none, when every method it
-// declares names nothing this compiler lowers, or when the only keys it holds are
-// ones the Path Item Object does not define.
+// It keeps what applyPathItem keeps on a carrier holding no docs; the summary
+// and description are dropped (GitHub #383).
 //
-// What is kept is what applyPathItem keeps on a carrier holding no docs:
-// servers, extensions and undeclared keys. A mounted item's summary and
-// description are kept on its operation (GitHub #292); an unmounted item's are
-// still dropped, because the keys are bare and one node holds every such item —
-// GitHub #383, where the question is how path-item docs relate to an operation's
-// own rather than where to put a payload.
-//
-// The announcement is decided by what landed rather than by what the item wrote.
-// The two disagree: a construct supplied through a YAML merge key is read by the
-// model and not by RawChildNode, so a predicate over the model claims a
-// preservation that did not happen (GitHub #384). Reading the map also keeps this
-// from restating applyPathItem's list of constructs, which is the restatement
-// that would go stale the next time one is added there.
+// The announcement follows what landed, not what the item wrote: a merge-key
+// construct is read by the model but not by RawChildNode, so a model predicate
+// would claim a preservation that did not happen (GitHub #384).
 func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer) []ir.Diagnostic {
 	before := len(*into.unmodeled)
 	diags := applyPathItem(c, into, pi, declPtr)
@@ -638,65 +576,33 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 }
 
 // undeclaredPathItemKeys returns the keys a path item writes that the Path Item
-// Object does not define. Two readings are needed, because the library presents
-// no one place that holds them all.
+// Object does not define. The library presents no one place that holds them
+// all, so it reads two. The first is the item's operations map less every key
+// naming a standard method: the unmarshaller folds a key it does not recognize
+// into that map. The second is the raw mapping less every key pathItemDeclares.
 //
-// The first is the item's operations map, less every key naming an HTTP method:
-// the unmarshaller folds a key it does not recognize into that map. Everything
-// else the object may write is taken out before the map is filled: summary,
-// description, servers, parameters, additionalOperations and every x-* are
-// fields of the library's model, and a $ref is consumed by the reference wrapper
-// around it — pi is the referent it named by the time this runs.
+// A method spelled in any case but lowercase is undeclared, since OpenAPI fixes
+// the field names.
 //
-// The second is the raw mapping, less every key the first reading or the model
-// accounts for. One class of key reaches neither: the unmarshaller skips a key
-// whose value carries a YAML anchor before folding it, so `bogus: &a {...}`
-// enters no map and no field, and reading the map alone kept it by nothing and
-// reported it nowhere while a plainly-valued key beside it was kept and warned
-// about (GitHub #412). The source document's anchors are cleared before its
-// model is built (GitHub #459), so this class is left only in a path item that
-// an external reference loaded, which the resolver parses itself (GitHub #501).
-// The raw node is the only place such a key is written, so the raw node is read,
-// against the vocabulary pathItemDeclares spells. That is the reading GitHub
-// #377 set aside, on two grounds since answered: the method
-// vocabulary was unsettled until #293 settled it, and a key set of the
-// compiler's own would have to track the library's model by hand — which is
-// what holds pathItemFields to that model's own tags. The value is handed to the
-// same keeper the first reading's keys reach, so the two are kept under one key
-// form and announced under one code.
-//
-// The method predicate is the library's IsStandardMethod, deliberately, and not
-// httpMethods. The two answer different questions: httpMethods says what this
-// compiler lowers, while this asks only whether a key names a method at all, and
-// a method the specification defines is one the Path Item Object declares
-// whether or not this compiler has a field for it. Grading it as an undeclared
-// key would say something false about the document.
-//
-// The two vocabularies happen to hold the same nine names today — GitHub #293
-// closed by adding `query` to httpMethods and reading additionalOperations
-// beside it — so the choice changes nothing that can be measured here. It is
-// still the right one, because the sets are maintained independently: this
-// tracks the specification, httpMethods tracks the lowering. What that leaves
-// open is the other side of the gap — a method the library knows and this
-// compiler does not would be silently unmounted rather than reported, which is
-// GitHub #413 and not something a census can answer.
-//
-// A method spelled in any case but lowercase is undeclared and reported here.
-// OpenAPI fixes the field names, so `GET` is no more a path item's key than
-// `bogusPathItem` is, and neither is lowered.
-//
-// pi is never nil: resolve.ObjectAt yields no nil referent, and every route
-// checks it before lowering — including the unmounted one, which reaches this
-// through preserveUnmountedPathItem having lowered no operation at all. An
-// uninitialized map is tolerated, since the iterator and Has are nil-safe.
+// pi is already resolved through any $ref and is never nil: every route checks
+// it before lowering.
 func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 	var keys []string
 	for method := range pi.All() {
+		// The library's vocabulary, not httpMethods: that says what this compiler
+		// lowers, while this asks whether the key names a method the specification
+		// defines, and grading one as undeclared would be false.
+		// TestHTTPMethods_AgreesWithLibraryVocabulary keeps the two in step.
 		if soa.IsStandardMethod(string(method)) {
 			continue
 		}
 		keys = append(keys, string(method))
 	}
+	// The unmarshaller skips a key whose value carries a YAML anchor, so `bogus:
+	// &a {...}` is in neither the map nor a field (GitHub #412). Anchors are
+	// cleared before a model is built (GitHub #459, #501, #538), short of an
+	// external document past the hop bound that recovery follows; the raw node
+	// stays the one place such a key would be written.
 	for _, key := range annotation.RawMappingKeys(pi.GetRootNode()) {
 		if pathItemDeclares(pi, key) {
 			continue
@@ -715,15 +621,14 @@ func undeclaredPathItemKeys(pi *soa.PathItem) []string {
 var pathItemFields = []string{"summary", "description", "servers", "parameters", "additionalOperations"}
 
 // pathItemDeclares reports whether key, read off a path item's raw mapping, is
-// one the object accounts for: held in the operations map — where the first
-// reading of undeclaredPathItemKeys already answers for it — naming a standard
-// method, a field of the model, or an x- extension.
+// one the object accounts for: held in the operations map (the first reading of
+// undeclaredPathItemKeys answers for it), naming a standard method, a field of
+// the model, or an x- extension.
 //
-// A method held nowhere in the map is still declared: in an externally loaded
-// path item, `get: &g {...}` is skipped by the same anchor rule as an
-// undeclared key, and is not lowered either, but it is a key the specification
-// defines, and the census has no truthful way to grade it as one the document
-// may not write.
+// A method held nowhere in the map is still declared: naming a standard method
+// is enough. `get: &g {...}` would be skipped by the anchor rule and not
+// lowered, but the specification defines the key, so the census cannot
+// truthfully call it one the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
 	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)
@@ -739,35 +644,17 @@ var pathItemDocFields = []struct{ keyword, key string }{
 }
 
 // applyPathItemDocs keeps a path item's summary and description verbatim under
-// Unmodeled on each operation it holds. Nothing read either one, so both reached
-// the IR in no form at all — no field, no Unmodeled entry, no diagnostic
-// (GitHub #292).
+// Unmodeled on each operation it holds (GitHub #292).
 //
-// Kept rather than merged into Docs, deliberately. ir.Docs holds one summary and
-// one description and they are the operation's own; a path item's pair documents
-// the path. Merging would need a precedence rule against the operation's own,
-// would attach to an operation documentation its author did not write — an
-// inference, which invariant 6 places in injectable policy rather than in a
-// lowering — and would leave an emitter unable to tell the two subjects apart
-// afterwards. Preserving takes no position on precedence and loses nothing,
-// which is what invariant 2 asks of a construct with no typed home.
+// They are kept, not merged into Docs: ir.Docs holds the operation's own, and
+// merging would have to rank the pair against it and attribute to an operation
+// text its author did not write (an inference; invariant 6). ReasonNoIRHome,
+// not a boundary, since the IR could grow a home (GitHub #285); the cost is the
+// pair repeated on every operation.
 //
-// ReasonNoIRHome rather than a boundary: the IR could grow a home for this, and
-// GitHub #285 is where that class of decision is tracked. The cost is that the
-// pair is duplicated onto every operation under the path, exactly as the path
-// item's servers already are — a path item is distributed across the operations
-// it holds, and there is no ir.PathItem to attach it to.
-//
-// Two cases this does not reach, both shared with applyPathServers beside it:
-//
-//   - A path item that mounts no operation keeps nothing: carrier.keepsDocs is
-//     false on the service, whose bare keys two such items would collide on.
-//     GitHub #383 holds that gap, and the rest of what such an item writes now
-//     lands on the service through applyPathItem.
-//   - A pair supplied through a YAML merge key or an alias is read by the model
-//     but not by RawChildNode, whose lookup is a plain mapping scan. GetSummary
-//     is non-empty, the raw node is nil, and nothing is kept or reported —
-//     GitHub #384.
+// Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;
+// GitHub #383) and a pair supplied through a merge key or alias, which
+// RawChildNode does not read (GitHub #384).
 func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
 	if !into.keepsDocs || (pi.GetSummary() == "" && pi.GetDescription() == "") {
 		return nil
@@ -791,14 +678,9 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 
 // applyPathServers preserves path-item-level servers verbatim under Unmodeled
 // on the operation. §10 models servers as Document.Servers with per-scope index
-// lists (Service.Servers, Channel.Servers); ir.Operation just has no such list
-// yet, so the scoping is kept raw with an info diagnostic — a gap the IR can
-// close by adding one, hence ReasonNoIRHome rather than a boundary.
-//
-// Every route that lowers a path item reaches it through applyPathItem: a path,
-// a webhook, and a callback expression are the same object under three parents,
-// and a document that overrides the server for one of the latter two was losing
-// the override outright while the paths route reported it (GitHub #39).
+// lists (Service.Servers, Channel.Servers); ir.Operation has no such list yet,
+// so the scoping is kept raw with an info diagnostic, ReasonNoIRHome rather
+// than a boundary because the IR can close the gap by adding one.
 //
 // This is the path-item half of the pair; applyOperationServers keeps the
 // operation's own list, which overrides this one, under its own key.
@@ -923,17 +805,15 @@ type responseParts struct {
 }
 
 // lowerResponseParts lowers what a Response Object declares regardless of the
-// status it answers to: its naming, payload (all media types), headers, docs,
-// and any raw links or extensions preserved for later promotion.
+// status it answers to: naming, payload, headers, docs, and any raw links or
+// extensions preserved for later promotion.
 //
-// It is one function for both status classes so that nothing about the lowering
-// can depend on which class reached a declaration first. The payload's naming
-// hint is the live instance: a response $ref'd across operations and mounted
-// once as a success and once as an error interns its body once at its
-// declaration pointer, and where that pointer names no component the hint is
-// whatever fallback the first mount passed — so two fallbacks, "response" here
-// and "error" there, renamed the type on a reordering of two paths. One
-// fallback, passed from one place, cannot.
+// It is one function for both status classes so nothing can depend on which
+// class reached a declaration first. The payload's naming hint is the live
+// case: a response $ref'd across operations and mounted as a success and an
+// error interns its body once at its declaration pointer, hinted by the first
+// mount's fallback where that names no component, so two fallbacks would rename
+// the type when paths are reordered.
 func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
@@ -948,75 +828,50 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
-// on the node it lowered to: its links map, its own x-* extensions, and the keys
-// the specification does not define at all.
+// on the node it lowered to: its links map, its own x-* extensions, and the
+// keys the specification does not define.
 //
-// One helper for all three on purpose. ir.Response and ir.ErrorCase are two
-// lowerings of the same source object, and each construct kept on only one of
-// them makes a declaration survive or vanish on nothing but its status code:
-// links were kept on a 2xx and dropped on a 4xx, and extensions were read at
-// neither (GitHub #275). Adding a construct here reaches both by construction.
+// One helper serves ir.Response and ir.ErrorCase, so a construct kept on only
+// one would survive or vanish on its status code alone (GitHub #275).
 //
-// The links entry carries ReasonNoIRHome and no diagnostic, as it always has:
-// nothing is degraded, the map is in the document, and the gap is one the IR can
-// close by growing a links field.
-//
-// A Link Object inside that map gets no entry and no census of its own, which is
-// the decision already recorded for its extensions. This compiler lowers no Link
-// Object anywhere: a response's links survive only as the verbatim node above,
-// and a components/links entry nothing references is dropped whole, so a keyed
-// entry at one of the two positions would be the only trace of a construct the
-// IR does not model — while duplicating, for the response position alone, a
-// value the node above already carries.
+// The links entry carries ReasonNoIRHome and no diagnostic, since nothing is
+// degraded and the IR could add a links field. A Link Object inside it gets no
+// entry or census: this compiler lowers none, and a keyed entry would duplicate
+// the node above.
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysIn(p, r, c.SrcIndex, rptr)...)
+	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
-// response — it keys them by status code — which is the case ir-design §7.2
-// gives Name a hint for, so the hint is that key: "200", "2_xx", and the shared
-// mint for a key with no word in it (GitHub #259).
+// response, so the hint ir-design §7.2 allows is the status key: "200", "2_xx",
+// or the shared mint for a key with no word in it (GitHub #259).
 //
-// The key as declared rather than the range it parses to, so a response written
-// "2XX" is not named by a spelling its document never used, and one written
-// under no status code at all is not named by the catch-all range it silently
-// degrades to (GitHub #262).
+// It is the key as declared, not the range it parses to, so "2XX" is not named
+// by a spelling its document never used, nor a key naming no status by the
+// catch-all range (GitHub #262). Source stays empty: a components/responses key
+// names a reusable definition, not this mount of it.
 //
-// Source stays empty even for a $ref'd response: §7.2 fills it only "for formats
-// with named outputs", and a components/responses key names a reusable
-// definition rather than this mount of it — the same component reached at two
-// status codes is two responses, told apart by condition.
-//
-// The error side names itself through this same function rather than one of its
-// own. ErrorCase.Name is Response.Name (GitHub #422), so a hint derived
-// differently on the two sides would make the spelling depend on the status
-// class — the asymmetry the field was added to end.
-//
-// The key reaches the IR neutralized, not as written: "5XX" becomes "5_xx" and
-// only "default" survives unchanged. Source stays empty because a responses-map
-// key is not a name the document declared for anything — the pairing NamingFor
-// holds is for spellings an author chose. Two keys that neutralize alike are
-// reported where they are read, rather than told apart here.
+// The error side calls this too, since ErrorCase.Name is Response.Name (GitHub
+// #422).
 func responseName(code string) ir.Naming {
 	return compile.NamingHint(code)
 }
 
-// lowerErrorCase lowers one error response into an ErrorCase: its naming,
-// status condition, payload (all media types), headers, docs and fault
-// classification, plus any raw links preserved for later promotion.
+// lowerErrorCase lowers one error response into an ErrorCase: naming, status
+// condition, payload, headers, docs and fault classification, plus any raw
+// links preserved for later promotion.
 //
 // Everything but the condition and the fault is lowerResponseParts' work,
 // because an error response is a response (GitHub #422): the same helper the
 // success side calls, so the two cannot lower a shared declaration two ways.
 //
-// code is the responses-map key it was declared under, which is the only record
-// of how the source spelled a status its range cannot state — "4XX" and
-// "default" both, though only the second reaches the IR unchanged.
+// code is the responses-map key it was declared under, the only record of how
+// the source spelled a status its range cannot state ("4XX" or "default").
 func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer) (ir.ErrorCase, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr)
 	ec := ir.ErrorCase{
@@ -1037,7 +892,7 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil, nil
@@ -1065,7 +920,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 				continue
 			}
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, operationIDs, pi, cbPtrs, exprStr, inferred)
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, claims, pi, cbPtrs, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
@@ -1075,20 +930,17 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	return callbacks, ops, ext, diags
 }
 
-// lowerCallbackOps lowers a callback expression's path-item operations. Callback
-// operations do not recurse into their own callbacks (withCallbacks stays
-// false), which bounds the lowering to the declared out-of-band set. cb pairs
-// the expression's identity base (distinct per parent operation) with its
-// declaration base (shared when the callback or its path item is $ref'd;
-// issue #107).
+// lowerCallbackOps lowers a callback expression's path-item operations. They do
+// not recurse into their own callbacks (withCallbacks stays false), bounding
+// the lowering to the declared out-of-band set. cb pairs the expression's
+// identity base (distinct per parent operation) with its declaration base
+// (shared when the callback or its path item is $ref'd; issue #107).
 //
-// An expression mapping to an item that mounts no operation keeps what the item
-// wrote, on the returned map. This is the third route a path item is reached
-// through, and it needs the orphan branch for the same reason the other two do:
-// applyPathItem runs once per operation, so an item producing none reaches it
-// through nothing. The map goes where the Callback Object's own extensions
-// already go — the parent's HTTP binding, which is where the callbacks live.
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, operationIDs map[string]jsontext.Pointer, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+// An expression whose item mounts no operation keeps what the item wrote on the
+// returned map, as the other two routes do, because applyPathItem runs once per
+// operation. The map goes where the Callback Object's own extensions go, the
+// parent's HTTP binding.
+func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	declared := pathOperations(pi)
 	opIDs := make([]ir.OpID, 0, len(declared))
 	ops := make([]ir.Operation, 0, len(declared))
@@ -1102,7 +954,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 			ptrs:        ptrs,
 			params:      mergeParameters(pi.GetParameters(), po.src.GetParameters(), cb.decl, ptrs.decl),
 		}
-		op, _, opDiags := lowerOperation(c, ts, anchors, operationIDs, po.src, opCtx)
+		op, _, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, cb.decl)...)
 		opIDs = append(opIDs, op.ID)
@@ -1113,7 +965,7 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	}
 	orphan := ir.Unmodeled{}
 	orphanDiags := preserveUnmountedPathItem(c,
-		onNearestNode(&orphan, c.SrcIndex, cb.mount), pi, cb.mount, cb.decl)
+		onNearestNode(c, &orphan, cb.mount), pi, cb.mount, cb.decl)
 	return opIDs, ops, orphan, append(diags, orphanDiags...)
 }
 
@@ -1177,24 +1029,18 @@ func paramKey(rp *soa.ReferencedParameter) (string, bool) {
 	return string(p.GetIn()) + "\x00" + p.GetName(), true
 }
 
-// statusRange maps an OpenAPI response key to an inclusive status range: "200" →
-// {200,200}, "4XX" → {400,499}, "default" → {0,0} (ir-design §7.2). ok reports
-// whether the key named a status at all, and a false always comes paired with
-// the zero range — callers route on that, so it is a postcondition rather than
-// an incidental return.
+// statusRange maps an OpenAPI response key to an inclusive status range: "200"
+// → {200,200}, "4XX" → {400,499}, "default" → {0,0} (ir-design §7.2). ok
+// reports whether the key named a status, and a false always comes paired with
+// the zero range; callers route on that.
 //
-// Past "default", both forms are three characters over the same leading digit:
-// OpenAPI defines exactly the wildcards 1XX through 5XX, and HTTP defines codes
-// 100 through 599. Every character is checked, which is what the two loosenings
-// this replaced did not do — the wildcard test read the first two and ignored
-// the third, so "1XY" lowered as 1XX, and it admitted any leading digit up to 9,
-// so "9XX" lowered as a range no OpenAPI document can declare (GitHub #262).
+// Past "default", a key is three characters over one leading digit: OpenAPI
+// defines exactly the wildcards 1XX through 5XX and HTTP codes 100 through 599,
+// and every character is checked, so "1XY" and "9XX" are refused (GitHub #262).
 //
-// "default" is answered although no caller asks it today: soa.Responses carries
-// that entry on its own Default field, so it never appears in the map
-// lowerResponses walks. The vocabulary belongs to the function rather than to
-// its current caller — answering false for a key OpenAPI reserves would warn on
-// a correct document the moment anything did pass it.
+// "default" is answered although no caller asks it today (soa.Responses carries
+// it on its own Default field), so the function stays right for a caller that
+// does.
 func statusRange(code string) (ir.StatusRange, bool) {
 	if code == defaultResponseKey {
 		return ir.StatusRange{}, true
@@ -1228,17 +1074,14 @@ func twoDigits(tens, units byte) (int, bool) {
 	return int(tens-'0')*10 + int(units-'0'), true
 }
 
-// statusConditions records the status a response applies to, or no status at all
-// when its key named none.
+// statusConditions records the status a response applies to, or no status at
+// all when its key named none.
 //
-// Not the catch-all: {0,0} is the range "default" lowers to, so folding an
-// unreadable key into it makes a typo indistinguishable from a declared default,
-// and a document carrying both produces two responses claiming the catch-all.
-// Recording nothing is the closest true statement available — ResponseConditions
-// holds the statuses a response applies to, and none could be read.
-//
-// Nothing is lost by declining to guess: the key survives as the response's name
-// hint, and the warning beside it carries the pointer the key is spelled in.
+// Not the catch-all: {0,0} is what "default" lowers to, so folding an
+// unreadable key into it makes a typo indistinguishable from a declared
+// default, and a document with both gets two responses claiming the catch-all.
+// Nothing is lost by declining to guess: the key survives as the response's
+// name hint, and the warning beside it carries its pointer.
 func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 	if !ok {
 		return ir.ResponseConditions{}
@@ -1264,13 +1107,10 @@ func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) i
 // to one status range.
 //
 // A warning, and every response is kept: no key is wrong on its own, and
-// dropping one would choose a winner on declaration order — the thing every
-// other tie here is written to avoid. What the caller gets told is that these
-// entries answer to one status and cannot be told apart by name or condition,
-// which is otherwise only visible by counting them. Sited at the map and
-// naming all the keys rather than sited at whichever key came second, so the
-// report reads the same from either spelling of the map — a responses map has
-// no order to mean anything by.
+// dropping one would choose a winner on declaration order. The caller is told
+// the entries answer to one status and cannot be told apart by name or
+// condition. It is sited at the map and names all the keys, so the report reads
+// the same from either spelling of the map.
 func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
 	quoted := make([]string, len(keys))
 	for i, k := range keys {

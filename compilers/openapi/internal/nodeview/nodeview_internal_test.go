@@ -101,11 +101,10 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		{name: "undecodable escape without a slash stays no pointer", ref: "#%ZZ", want: "", internal: false},
 		{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F", want: "/", internal: true},
 		{name: "lone slash", ref: "#/", want: "/", internal: true},
-		// No document key can spell bytes that are not UTF-8, so a fragment that
-		// decodes to them is refused rather than read as a pointer (GitHub #520).
-		{name: "non-UTF-8 byte", ref: "#/a%FF", want: "", internal: false},
-		{name: "overlong encoding is not UTF-8", ref: "#/a%C0%AF", want: "", internal: false},
-		{name: "UTF-16 surrogate is not UTF-8", ref: "#/a%ED%A0%80", want: "", internal: false},
+		// No document key spells bytes that are not UTF-8, but the resolver walks
+		// the pointer up to the token it cannot find, so the scan must too
+		// (GitHub #520).
+		{name: "non-UTF-8 byte is walked like any pointer", ref: "#/a%FF", want: "/a\xff", internal: true},
 		{name: "no fragment", ref: "other.yaml", internal: false},
 		{name: "another document", ref: "other.yaml#/components/schemas/A", internal: false},
 	}
@@ -572,17 +571,16 @@ func wideMap(extra ...*yaml.Node) *yaml.Node {
 }
 
 // TestChildByToken_IndexAgreesWithTheScanItReplaces holds the key index to the
-// scan it stands in for, over the mappings whose effective pairs are not their
-// literal ones: a merge source and a key written twice.
+// scan it replaces, over mappings whose effective pairs are not their literal
+// ones: a merge source and a key written twice.
 //
-// A map answers by key where a scan answers by position, so the two agree only
-// because expandContent yields each key once. That is the property under test —
-// asserting the index against MappingPairs itself, key by key, is what would
-// redden if a duplicate ever survived into an expansion.
+// A map answers by key where a scan answers by position, so they agree only
+// because expandContent yields each key once; comparing against MappingPairs
+// key by key reddens if a duplicate ever survives an expansion.
 //
-// Every fixture is wide enough to be indexed, and the index is asserted present
-// before the reads: without that the whole table passes with the index disabled,
-// comparing the fallback scan against itself.
+// Every fixture is wide enough to index, and the index is asserted present
+// before the reads, since otherwise the table passes with the index disabled,
+// comparing the scan against itself.
 func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
 	t.Parallel()
 	base := wideMap(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
@@ -650,17 +648,14 @@ func TestKeyIndex_IsBoundedByThePairsMemoRatherThanCharged(t *testing.T) {
 	assert.Len(t, v.keys[n], len(pairs), "one entry per pair, so the memo bounds it")
 }
 
-// TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep covers the gate that makes the
-// index optional, from each state a read can reach it in.
+// TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep covers the gate that makes
+// the index optional, from each state a read can reach it in: the budget, a
+// merge cycle, and a mapping too narrow to repay an index.
 //
-// The three states are the budget, a merge cycle, and a mapping too narrow to
-// repay an index. They are asserted together because each reaches the same
-// outcome down a different path, and only the first is about the budget at all:
-// a cycle yields no pairs, so width turns it away before the memo is consulted.
-//
-// None of them distinguishes the memo gate from a copy of memoize's budget test,
-// which is not what that gate is for — see keyIndex. A test claiming to pin the
-// difference would be pinning nothing, since at depth 0 the two select the same
+// Each reaches the same outcome down a different path, and only the first is
+// about the budget: a cycle yields no pairs, so width turns it away before the
+// memo is consulted. None distinguishes the memo gate from a copy of memoize's
+// budget test (see keyIndex), since at depth 0 the two select the same
 // mappings.
 func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	t.Parallel()
@@ -698,19 +693,15 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	})
 }
 
-// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what the
-// benchmark beside it can only show with a stopwatch.
+// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what
+// BenchmarkPointerPath_IntoAWideMapping can only show with a stopwatch, and
+// nothing runs that in CI: a walk resolving many pointers through one view must
+// leave an index on the mapping every one of them descends. If a gate stopped
+// admitting it, through a raised width or a reuse marker never promoted, the
+// walk would silently return to scanning.
 //
-// BenchmarkPointerPath_IntoAWideMapping reads a flat per-component cost as the
-// index being reached, and nothing runs it in CI. What that cost depends on is
-// not a timing question at all: a walk resolving many pointers through one view
-// must leave an index on the mapping every one of them descends. If a gate ever
-// stops admitting that mapping — a width raised, a reuse marker never promoted —
-// the walk silently returns to scanning and only a benchmark nobody runs would
-// show it.
-//
-// The pointers deliberately name distinct components, because it is the mapping
-// they share that has to be indexed, not the entries they end at.
+// The pointers name distinct components because it is the shared mapping that
+// must be indexed, not the entries they end at.
 func TestPointerPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	t.Parallel()
 	const width = minIndexedPairs

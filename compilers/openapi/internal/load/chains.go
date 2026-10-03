@@ -1,7 +1,10 @@
 package load
 
 import (
+	"context"
+
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -27,13 +30,42 @@ func recoverChains(locate scan.Locator, walk func() (ir.Diagnostic, bool)) (d ir
 	return walk()
 }
 
-// declaresRegistryKeys reports whether any mapping in the tree under root has a
-// $anchor or $id key. The library registers a schema under nothing else, so a
-// tree without either leaves every registry empty and no lookup can succeed:
-// the chains then hold only pointers, which the pre-parse scan has already
-// refused a cycle of. It walks each node once, never through an alias, so its
-// cost is the node count the budget already bounds.
-func declaresRegistryKeys(root *yaml.Node) bool {
+// chains runs the reference-chain cycle refusal: chainCycle, or the check a
+// test put in its place.
+func (o Options) chains(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+	if o.chainCheck != nil {
+		return o.chainCheck(ctx, locate, root, doc)
+	}
+	return chainCycle(ctx, locate, root, doc)
+}
+
+// chainCycle runs the reach check when the tree can hold a lookup the
+// pre-parse scan does not model: a $anchor or $id the registries hold, or a
+// /$defs/ pointer resolved against something other than the root. Without
+// either, every chain is root pointers, which that scan has already refused a
+// cycle of.
+func chainCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+	if !needsChainModel(root) {
+		return ir.Diagnostic{}, false
+	}
+	return reachCycle(ctx, locate, root, doc)
+}
+
+// needsChainModel reports whether any scalar in the tree spells $anchor or $id,
+// the only keys the library registers a schema under, or a reference the
+// resolver reads as a /$defs/ pointer.
+//
+// It reads scalars rather than keys. A merge key or an alias can supply a key
+// where it is not written, but the word is still written somewhere, so a tree
+// without it leaves every registry empty and no lookup can succeed.
+func needsChainModel(root *yaml.Node) bool {
+	return anyScalar(root, func(v string) bool { return v == "$anchor" || v == "$id" || isDefsRef(v) })
+}
+
+// anyScalar reports whether any scalar in the tree under root satisfies match.
+// It walks each node once, never through an alias, so its cost is the node
+// count the source budget already bounds.
+func anyScalar(root *yaml.Node, match func(string) bool) bool {
 	stack := []*yaml.Node{root}
 	for visited := 0; len(stack) > 0 && visited < sourceindex.MaxIndexedNodes; visited++ {
 		n := stack[len(stack)-1]
@@ -41,19 +73,10 @@ func declaresRegistryKeys(root *yaml.Node) bool {
 		if n == nil || n.Kind == yaml.AliasNode {
 			continue
 		}
-		if n.Kind == yaml.MappingNode && hasRegistryKey(n) {
+		if n.Kind == yaml.ScalarNode && match(n.Value) {
 			return true
 		}
 		stack = append(stack, n.Content...)
-	}
-	return false
-}
-
-func hasRegistryKey(n *yaml.Node) bool {
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		if k := n.Content[i]; k.Kind == yaml.ScalarNode && (k.Value == "$anchor" || k.Value == "$id") {
-			return true
-		}
 	}
 	return false
 }

@@ -27,20 +27,15 @@ import (
 )
 
 // LowerSecuritySchemes interns every declared security scheme into the auth
-// registry keyed by ids.Auth(name) (ir-design §9). Run before the service walk
-// so operation- and document-level requirements reference registered IDs.
+// registry keyed by ids.Auth(name) (ir-design §9). Run it before the service
+// walk so requirements reference registered IDs.
 //
 // An entry whose $ref resolves to nothing is reported at its own components
-// pointer and interned nowhere. It is reported here rather than left to the
-// requirements that name it, because nothing has to name it: the load phase's
-// report of the same failure carries no pointer at all (issue #235), so an
-// unreferenced entry would otherwise be a scheme the document declares, the IR
-// silently drops, and no diagnostic sites.
+// pointer and interned nowhere; see unresolvableSchemeDiags.
 //
-// An entry that resolves to an object but names no mechanism is refused for the
-// same reason and reported the same way — see mechanismRefusalDiag. Those two
-// are the only entries reported as interning nothing; every other diagnostic
-// from here is about a scheme that did intern (see preserveUnreadFields).
+// An entry that resolves to an object but names no mechanism is refused and
+// reported the same way; see mechanismRefusalDiag. Every other diagnostic from
+// here concerns a scheme that did intern.
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -73,19 +68,14 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 }
 
 // unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
-// scheme — but only the one shape that nothing else places.
+// scheme, but only when it was written as a $ref that resolves to nothing. The
+// compiler keeps the load phase's report at that pointer instead, which has the
+// resolver's reason (GitHub #385); this one stands where the load phase never
+// got that far, as when a resolver panic ends its walk.
 //
-// Two kinds of entry reach the caller's nil: one written as something other
-// than an object (null, a scalar, a sequence), and one whose $ref resolves to
-// nothing — a missing internal target, or an external one this compile refuses.
-// Only the second is unplaced. The first already draws the loader's
-// type-mismatch, which names both the entry and what was wrong with it, so a
-// second report here would send the reader to the same position to learn less.
-//
-// rs is the entry as the document wrote it, which is what separates the two:
-// the reference is empty for everything that is not one. Its own nil is not
-// reachable from a parsed document — a malformed entry still arrives as an
-// object — so that guard is for a hand-built node, matching resolve.Object's.
+// An entry not written as an object already draws the loader's type-mismatch,
+// which names it and its fault. rs is the entry as written; a nil rs is
+// unreachable from a parsed document, so that guard is for a hand-built node.
 func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
 	entry jsontext.Pointer,
 ) []ir.Diagnostic {
@@ -100,22 +90,16 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
-// lowerSecurityScheme lowers one named security scheme into its AuthScheme,
-// dispatching the mechanism-specific fields by type. ok reports whether the
-// entry named a mechanism at all; when it did not, the caller interns nothing.
+// lowerSecurityScheme lowers one named security scheme into its AuthScheme. ok
+// reports whether the entry named a mechanism; if not, the caller interns
+// nothing.
 //
-// The two pointers are the same for an entry written inline and differ for one
-// written as a $ref (issue #107). entry is where this document names the scheme,
-// so it identifies the scheme and places anything said about the entry as a
-// whole. decl is where the fields live, so it places everything addressed
-// beneath one: a `$ref` entry is a one-key object, and `<entry>/in` names a
-// position no document holds.
-//
-// The scheme's own ID and provenance stay on entry even when the two differ,
-// deliberately. Two entries aliasing one declaration are two named schemes a
-// requirement can name separately, and irverify holds an AuthID to agreeing
-// with its provenance path — so following decl here would collapse two schemes
-// onto one identity and break that agreement at once.
+// For an entry written as a $ref the pointers differ (issue #107). entry is
+// where the document names the scheme and places anything said of the entry as
+// a whole; decl is where the fields live. The ID and provenance stay on entry,
+// since aliases of one declaration are separate schemes and irverify holds an
+// AuthID to agree with its provenance path. A `$ref` entry holds only the
+// reference, so `<entry>/in` names a position no document holds.
 func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	entry, decl jsontext.Pointer,
 ) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
@@ -138,7 +122,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	// defines for a securityScheme which this entry's own mechanism gives no
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
 	// at all.
-	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.SrcIndex, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, c.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
 	return scheme, true, append(diags,
 		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
@@ -154,17 +138,17 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
 func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
-	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.SrcIndex, decl)
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.ProvenanceAt, decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
 		return diags
 	}
 	flows := ss.GetFlows()
 	flowsPtr := decl + ids.Ptr("flows")
-	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.SrcIndex, flowsPtr, "flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.ProvenanceAt, flowsPtr, "flows")
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
 	diags = append(diags, flowsDiags...)
-	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.SrcIndex, flowsPtr, "flows")...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.ProvenanceAt, flowsPtr, "flows")...)
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
@@ -177,42 +161,29 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
 		fptr := flowsPtr + ids.Ptr(f.keyword)
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.SrcIndex, fptr)
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.ProvenanceAt, fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.SrcIndex, fptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.ProvenanceAt, fptr)...)
 	}
 	return diags
 }
 
-// mechanismRefusalDiag reports a securitySchemes entry that declares a scheme
-// without saying what it is, having omitted the field named by missing.
+// mechanismRefusalDiag reports a securitySchemes entry that omits missing, the
+// field that would name its mechanism.
 //
 // It is refused rather than interned because ir.AuthKind has no value for "the
-// document did not say": every kind names a mechanism, and AuthKindCustom names
-// one the IR does not model rather than one the entry never gave. Interning it
-// would put a scheme no emitter can implement in Document.Auth, recognisable
-// only by an empty Scheme — an in-band error for every consumer to rediscover —
-// and assert that the API is authenticated by nothing in particular (#294).
+// document did not say"; AuthKindCustom means a mechanism the IR does not
+// model. An interned scheme would be one no emitter can implement, asserting
+// that the API is authenticated by nothing in particular (#294).
 //
-// Refusing reuses the remedy #41 gave a requirement naming an undeclared
-// scheme, and does so deliberately rather than by inheritance: the two faults
-// differ — that entry was never declared, this one was declared and left
-// unsaid — but the IR has no more room for the second than for the first, and
-// the cost is one already documented and diagnosed at every step. A requirement
-// naming this entry drops whole, and a list whose every option drops collapses
-// to nil (see LowerSecurityRequirements).
-//
-// What is not kept, deliberately: the fields the entry did declare. An entry
-// that names no mechanism is a defect in the document rather than a construct
-// the IR declines to model, which is the call an unresolvable $ref already gets
-// here — and there is no scheme left to hang an Unmodeled map on. The entry
-// that *does* intern keeps everything it wrote; see preserveUnreadFields.
-// "has no" rather than "declares no": an entry written as a $ref declares only
-// the reference, and it is the declaration it resolves to that is missing the
-// field. Both are reported, each at its own entry, so the wording has to be
-// true of the alias as well as of the target.
+// A requirement naming it drops whole (#41; see lowerSecurityRequirement). The
+// entry's other fields are not kept: it is a document defect, as an
+// unresolvable $ref is, and there is no scheme to hold an Unmodeled map.
 func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
+	// "has no", not "declares no": a $ref entry declares only the reference, yet
+	// alias and target are each reported at their own entry, so the wording must
+	// hold for both.
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
@@ -256,11 +227,10 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 // and bearer get first-class kinds; any other scheme is custom with the token
 // preserved. BearerFormat rides along regardless (ir-design §9).
 //
-// `type: http` alone is the second shape that names no mechanism: the token is
-// what an HTTP scheme *is*, and a custom kind carrying an empty one says no
-// more than the typeless entry does. A token the RFC would reject is still a
-// token and still interns — comparing it against the grammar is validation this
-// compiler does not do, and trimming it would be a guess at what was meant.
+// `type: http` without a scheme is the second shape that names no mechanism: a
+// custom kind carrying an empty token says no more than a typeless entry. A
+// token the RFC would reject still interns; checking it against the grammar is
+// validation this compiler does not do, and trimming it would guess.
 func fillHTTPScheme(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing string, ok bool) {
 	token := ss.GetScheme()
 	if token == "" {
@@ -317,26 +287,19 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 	}
 }
 
-// preserveUnreadFields keeps every mechanism field the entry declared that
-// its own type gives no meaning to — `in` on an oauth2 scheme, `flows` on an
-// apiKey — verbatim under Unmodeled rather than dropping it (#294).
+// preserveUnreadFields keeps every mechanism field the entry declared that its
+// own type gives no meaning to verbatim under Unmodeled (#294).
 //
-// Each mechanism's lowering reads only its own fields, so before this the rest
-// reached no IR field and no Unmodeled entry either: declared source text gone
-// with no diagnostic, which invariant 2 forbids. ir.AuthScheme is flat and does
-// hold a field of each name, but filling one would say the mechanism has a
-// property it does not define — an apiKey location on a scheme that is not an
-// apiKey — so the declaration is kept beside the scheme instead of inside it.
-// ReasonDegradedLowering for that reason: the entry is lowered to the weaker
-// shape its type can hold, with what did not fit recoverable beside it.
+// Each mechanism's lowering reads only its own fields, so the rest would be
+// lost silently. ir.AuthScheme has a field of each name, but filling one would
+// give the mechanism a property it does not define, so the declaration is kept
+// beside the scheme under ReasonDegradedLowering.
 //
-// Presence, not truth: a field the entry did not write records nothing, and one
-// it wrote records whatever it wrote. RawChildNode reads the entry as the
-// document spelled it, so an explicit `in: ""` is a declaration like any other.
+// A field the entry did not write records nothing; an explicit `in: ""` is
+// recorded as written.
 //
-// decl is where the fields are written, which is the referenced declaration for
-// an entry written as a $ref rather than the entry itself — the value is read
-// from that node, so the entry that records it must name it (issue #107).
+// decl is where the fields are written: the referenced declaration for a $ref
+// entry (#107).
 func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
 	decl jsontext.Pointer,
 ) []ir.Diagnostic {
@@ -348,7 +311,7 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 		}
 		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
-			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, at, c.SrcIndex)
+			annotation.RawChildNode(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -437,42 +400,16 @@ func scopeMap(f *soa.OAuthFlow) map[string]string {
 }
 
 // LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9)
-// declared under base — the pointer of the node carrying the list, which is ""
-// at the document root and an operation's own declaration pointer, never its
-// mount, otherwise: a nil list inherits the enclosing default; a non-nil list
-// yields one AuthRequirement per surviving option, each diagnosed if need be at
-// its own base+/security/<index> pointer. An empty option object {} means "no
-// auth is one acceptable choice".
+// declared under base: "" at the root, else an operation's own declaration,
+// never its mount. A nil list inherits the enclosing default; an empty one
+// stays []. A non-nil list yields one AuthRequirement per surviving option,
+// diagnosed at base+/security/<index>; an empty option {} means "no auth is one
+// acceptable choice".
 //
-// An entry the source wrote as something other than an object is not an option
-// at all, and is dropped whole on the same terms — see writtenAsObject, which is
-// what tells it from the {} above. It draws no report from here, on the grounds
-// LowerSecuritySchemes states for the same shape: the loader's type-mismatch
-// already names both the entry and what was wrong with it.
-//
-// A requirement is a conjunction: every member must resolve for the option to
-// mean anything, so an option naming even one undeclared scheme is dropped in
-// full rather than surviving with just that member gone (issue #41) — the
-// latter would silently rewrite "this option requires an undeclared scheme" as
-// "no auth is also fine", the empty-option encoding above. When every option in
-// an originally non-empty list drops this way, the list itself collapses to nil
-// — "inherits the enclosing default" — rather than surfacing as [], which
-// ir-design §9 reserves for a deliberate "explicitly public" declaration. A
-// list the source declared empty to begin with is left untouched: that [] is
-// real, not a byproduct of dropping.
-//
-// What that collapse costs, deliberately: a carrier whose every option drops
-// becomes indistinguishable from one that never declared security, so an
-// operation reads as requiring whatever the service default requires — a scheme
-// it never named — or as unauthenticated where there is no default. Both
-// misstate the source, because the IR has no encoding for "auth is required but
-// its scheme is undeclared" and issue #14 forbids minting an AuthID nothing
-// backs. nil is chosen because it is the only spelling that never reduces a
-// demanded requirement to explicitly public, and every collapse carries an
-// error diagnostic. The dropped text is not kept under Unmodeled: a name that
-// resolves to nothing is a defect in the document rather than a construct the
-// IR declines to model, which is the call an unresolvable $ref in a schema
-// position and an unresolvable discriminator mapping already get here.
+// If every option of a non-empty list drops, it collapses to nil, with an
+// error: the IR cannot say "auth required, scheme undeclared", #14 forbids an
+// unbacked AuthID, and nil never turns a demanded requirement into explicitly
+// public []. Dropped names stay out of Unmodeled as document defects.
 func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
@@ -488,28 +425,28 @@ func LowerSecurityRequirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, 
 		}
 	}
 	if len(reqs) > 0 && len(out) == 0 {
+		// Every option dropped: nil, not [], which would read as explicitly
+		// public. The IR cannot say "auth is required but its scheme is
+		// undeclared" and #14 forbids minting an AuthID nothing backs, so the
+		// carrier inherits the enclosing default, or is unauthenticated where
+		// there is none; both misstate the source, but nil is the one spelling
+		// that never reduces a demanded requirement to public. Each collapse
+		// carries an error diagnostic.
 		return nil, diags
 	}
 	return out, diags
 }
 
 // lowerSecurityRequirement lowers one requirement option declared at pointer:
-// each member is a scheme reference plus the scopes required of it within this
-// option. A member naming a scheme the auth registry does not hold invalidates
-// the whole option, which the caller must drop in full rather than just that
-// member — never a dangling AuthID (issue #14), and never an unintended
-// empty-option encoding (issue #41). An entry that is no object drops for the
-// second of those reasons alone (issue #284). ok reports whether the option
-// survives; every unresolved member is still diagnosed individually, at the
-// shared requirement-level pointer, so a multi-member option reports each of its
-// bad names.
+// each member is a scheme reference plus its scopes. ok reports whether the
+// option survives.
 //
-// Three documents reach that state: one that never declared the name, one that
-// declared it as a $ref resolving to nothing, and one whose entry named no
-// mechanism (#294). What is said here is only that the name resolves to no
-// scheme, which is true of all three — calling it undeclared would contradict
-// the entry-level report LowerSecuritySchemes leaves beside it in the latter
-// two cases.
+// A requirement is a conjunction, so a member naming a scheme the auth registry
+// does not hold invalidates the whole option, which is dropped in full: never a
+// dangling AuthID (issue #14), never the empty option, which would read "no
+// auth is also fine" (issue #41). An entry that is no object drops for the
+// second reason alone (issue #284), with no report of its own: the loader's
+// type-mismatch already names it. Every unresolved member is still diagnosed.
 func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
 ) (r ir.AuthRequirement, ok bool, diags []ir.Diagnostic) {
 	if !writtenAsObject(req) {
@@ -520,6 +457,8 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 	for name, scopes := range req.All() {
 		id := ids.Auth(name)
 		if !c.DeclaresAuth(id) {
+			// "Unresolved", not "undeclared": the name may be declared as a $ref
+			// resolving to nothing, or as an entry naming no mechanism (#294).
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
 				"security requirement references unresolved scheme %q", name))
 			ok = false
@@ -533,23 +472,17 @@ func lowerSecurityRequirement(c lowering.Ctx, req *soa.SecurityRequirement, poin
 	return ir.AuthRequirement{Schemes: uses}, true, diags
 }
 
-// writtenAsObject reports whether the document wrote req as an object, which is
-// the only shape a requirement has.
+// writtenAsObject reports whether the document wrote req as an object, the only
+// shape a requirement has.
 //
-// Every other spelling a security list can hold — null, a scalar, a sequence —
-// unmarshals to a requirement holding no members, the same shape as the {} an
-// author writes to mean "no auth is one acceptable choice", so what the entry
-// says is not recoverable from the requirement itself (issue #284). The node it
-// was read from is what separates them: the marshaller records a root node for a
-// value it could read as a mapping and none for anything else, so {} carries one
-// whether written inline or reached through an alias, and no other spelling
-// does. That is a fact about the library rather than about the document, which
-// is why the tests holding it compile documents instead of building
-// requirements.
+// Null, a scalar and a sequence all unmarshal to a requirement with no members,
+// like the {} meaning "no auth is one acceptable choice" (issue #284). The node
+// it was read from separates them: the marshaller records a root node only for
+// a value it could read as a mapping, so {} carries one inline or through an
+// alias. Being library behavior, it is tested through compiled documents.
 //
-// req's own nil is not reachable from a parsed document — a malformed entry
-// still arrives as a requirement — so that half of the guard is for a hand-built
-// slice, matching unresolvableSchemeDiags'.
+// A nil req is unreachable from a parsed document; that guard is for a
+// hand-built slice, as in unresolvableSchemeDiags.
 func writtenAsObject(req *soa.SecurityRequirement) bool {
 	return req != nil && req.GetRootNode() != nil
 }

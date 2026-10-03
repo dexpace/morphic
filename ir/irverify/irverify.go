@@ -2,8 +2,6 @@ package irverify
 
 import (
 	"sort"
-	"strconv"
-	"unicode/utf8"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,7 +32,6 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkPrimKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
 	vs = append(vs, checkUnions(doc)...)
-	vs = append(vs, checkDiagnostics(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)
 
@@ -54,17 +51,14 @@ func Verify(doc *ir.Document) []Violation {
 // declarations is the identities a document's nodes declare, plus whether the
 // walk that read them was cut short.
 //
-// Reading them costs a full walk of the document, and two checks need them —
+// Reading them costs a full walk, and two checks need them:
 // checkReferentialIntegrity to resolve the classes Document keys no map by, and
-// checkDuplicateIDs to hold each one to being declared once. Deriving it in each
-// was the same walk twice over, so it is read once per run and handed down. The
-// checks that do not need it still take it, because one signature is what lets
-// walkChecks be a list at all.
+// checkDuplicateIDs to hold each to being declared once. They are read once per
+// run and handed down; the checks that do not need them still take them,
+// because one signature is what lets walkChecks be a list.
 //
-// The zero value is not a stand-in for "no declarations to speak of": it says the
-// document declares none, which makes every OpID and ServiceID reference in it
-// resolve against an empty registry and report as dangling. Read one with
-// readDeclarations from the document being checked.
+// The zero value says the document declares none, so every OpID and ServiceID
+// reference reports as dangling. Read one with readDeclarations.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
@@ -93,26 +87,23 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
+		checkUTF8,
+		checkValues,
+		checkEmptyRefs,
 	}
 }
 
 // runWalkChecks runs every walking check and folds their truncation flags into
 // one ir/walk-truncated violation.
 //
-// Truncation is a fact about the document, not about the check that noticed it,
-// so it is reported once here rather than once per walk that noticed it — which
-// would give one document a violation per walking check, all sharing a code and
-// a path. Not reporting it at all is what left the pruning walks silently
-// under-checking a too-deep document (GitHub #55): a pruned walk reaches a subset
-// of what the unpruned reference walk does, so today that one trips the cap
-// first, and depending on that coincidence is exactly what the flag replaces.
+// Truncation is a fact about the document, not about a check, so it is reported
+// once. Not reporting it left the pruning walks silently under-checking a
+// too-deep document (GitHub #55).
 //
-// The seed is decls.truncated rather than false because the declaration walk runs
-// here, and a function that walks owns its own flag. Both checks that read the
-// declarations return it too, so seeding from false reports the same thing today
-// — planting that mutation leaves the suite green. It is written this way anyway,
-// for the reason above: relying on a callee to hand back the flag for a walk this
-// function performed is the same dependence on a coincidence that #55 was.
+// The seed is decls.truncated rather than false because the declaration walk
+// runs here and a function that walks owns its own flag. The checks reading the
+// declarations return it too, so seeding from false reports the same today, but
+// relying on a callee for a walk performed here is the coincidence #55 was.
 func runWalkChecks(doc *ir.Document) []Violation {
 	decls := readDeclarations(doc)
 	var vs []Violation
@@ -181,32 +172,6 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 			Code:    "ir/" + noun + "-id-mismatch",
 			Message: "registry key " + key + " disagrees with node ID " + nodeID,
 			Path:    reg + "[" + key + "]",
-		})
-	}
-	return vs
-}
-
-// checkDiagnostics asserts every diagnostic message is well-formed UTF-8
-// (invariant #7). A message carrying an ill-formed byte run — as a third-party
-// validator emits when it truncates a multibyte rune — reaches
-// Document.Diagnostics, and a Document refuses to encode a string that is not
-// UTF-8 rather than rewrite it to U+FFFD, so one such message fails the whole
-// document. Producers coerce messages through ir.NewDiagnostic; this check
-// catches any that bypass it.
-// Message is the only diagnostic field that carries free-form validator
-// text: a Code may embed a validator-supplied rule suffix, but those rule
-// names are bounded ASCII identifiers, and Provenance holds line:col or
-// synthetic pointers — so neither can carry the ill-formed bytes Message can.
-func checkDiagnostics(doc *ir.Document) []Violation {
-	var vs []Violation
-	for i, d := range doc.Diagnostics {
-		if utf8.ValidString(d.Message) {
-			continue
-		}
-		vs = append(vs, Violation{
-			Code:    "ir/diagnostic-invalid-utf8",
-			Message: "diagnostic message is not valid UTF-8",
-			Path:    "diagnostics[" + strconv.Itoa(i) + "]",
 		})
 	}
 	return vs

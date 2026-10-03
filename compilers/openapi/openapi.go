@@ -2,7 +2,6 @@ package openapi
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -21,10 +20,11 @@ import (
 
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //
-// Three places stamp it and all three have to agree: the loader records it in
-// the SourceInfo, the type registry stamps the primitives it interns, and the
-// lowering stamps every Provenance it builds. Naming it says they must, where a
-// bare 0 written at each site only happens to.
+// Every place that stamps it has to agree: the loader records it in the
+// SourceInfo, the lowering stamps every Provenance it builds, and detection
+// names the source by it. Naming it says they must, where a bare 0 written at
+// each site only happens to. The type registry does not stamp it: a shared
+// primitive names no source (GitHub #528).
 //
 // A varying index arrives with the link pass, from Compile's caller.
 const rootSrcIndex = 0
@@ -67,20 +67,20 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection
-		// declines them before any compile — or a fault the parser or the
-		// reference resolver raised on a document that did parse. Either is the
-		// document's problem, so it is a diagnostic: a Go error here leaves
-		// engine.Run as a Go error, and the CLI reads that as a misuse of itself
-		// rather than as a spec it could not read.
+		// declines them before any compile — or a fault the parser raised on a
+		// document that did decode. Either is the document's problem, so it is a
+		// diagnostic: a Go error here leaves engine.Run as a Go error, and the
+		// CLI reads that as a misuse of itself rather than as a spec it could
+		// not read.
 		return nil, append(diags, undecodable(err)), nil
 	}
 	if err != nil || loadedDoc == nil {
 		return nil, diags, err
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(rootSrcIndex))
+	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, lowerDiags...)
+	all := append(diags, withoutRereported(lowerDiags, diags)...)
 	if err != nil {
 		return nil, all, err
 	}
@@ -88,25 +88,68 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	return out, out.Diagnostics, nil
 }
 
-// run drives the four-phase pipeline over one loaded document (architecture
-// §2.1). Order matters: named component schemas first, so refs from operations
-// find interned IDs; then security schemes, so requirements reference registered
-// IDs; then the service walk; then document metadata. It assembles and returns
-// the Document.
+// withoutRereported drops each lowering report of an unresolved reference that
+// the load phase already reported at the same position.
 //
-// It reports cancellation as a Go error rather than a diagnostic, and it is the
-// one thing here that is not a spec problem: nothing about the document is wrong,
-// the caller stopped asking. The document is dropped with it — the two walks
-// that honour ctx stop mid-registry, so what is left references types that were
-// never interned — and the diagnostics gathered before the stop are returned, so
-// a caller who cancels on a deadline still sees what the compile had found.
+// The load phase reports a failure at the $ref, with the resolver's reason. The
+// lowering reports a schema or security-scheme $ref it could not follow at that
+// pointer, without one, and also where the load phase did not: a $ref into a
+// document the lowering cannot read (GitHub #74), or one a resolver panic kept
+// the load phase from reaching. So only a report the load phase made at that
+// exact provenance is dropped; kept, one failure would read as two (#385).
+func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
+	reported := make(map[ir.Provenance]bool)
+	for _, d := range loaded {
+		if d.Code == diag.UnresolvedRef {
+			reported[d.Provenance] = true
+		}
+	}
+	out := make([]ir.Diagnostic, 0, len(lowered))
+	for _, d := range lowered {
+		if d.Code == diag.UnresolvedRef && reported[d.Provenance] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// SourceTable implements compilers.Compiler: the source at rootSrcIndex, then
+// the overlay at overlaySrcIndex when the options name one. Compile takes
+// exactly one source, so the two indexes are the ones every provenance this
+// compiler builds uses.
+//
+// The overlay is listed whenever it is named, not only when it applied: a
+// compile it refused reports at its index, and that refusal is the case this
+// table exists for.
+func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources)+1)
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	if o, err := optionsFrom(opts); err == nil && o.Overlay != nil {
+		table = append(table, ir.SourceInfo{Path: o.Overlay.Path})
+	}
+	return table
+}
+
+// run drives the four-phase pipeline over one loaded document (architecture
+// §2.1) and assembles the Document. Order matters: named component schemas
+// first, so refs from operations find interned IDs; then security schemes, so
+// requirements reference registered IDs; then the service walk; then document
+// metadata.
+//
+// It reports cancellation as a Go error, not a diagnostic: nothing about the
+// document is wrong, the caller stopped asking. The document is dropped with it,
+// since the two walks that honour ctx stop mid-registry and what is left
+// references types never interned, but the diagnostics gathered before the stop
+// are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
-	// out, the anchor memo and the claimed-operationId set are this function's,
-	// not a struct's: a document being built, a memo, and a loop-local set
-	// (micro-compiler-design §4.1). Nothing below allocates them.
+	// out and the anchor memo are this function's, not a struct's: a document
+	// being built and a memo (micro-compiler-design §4.1). Nothing below
+	// allocates them.
 	out := &ir.Document{Types: ts.Registry()}
 	var anchors schema.AnchorIndex
-	operationIDs := make(map[string]jsontext.Pointer)
 
 	// acc is what makes the identity dedup still hold. Every lowering returns its
 	// diagnostics now, so a shared declaration reported from N use sites returns N
@@ -130,7 +173,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors, operationIDs)
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, &anchors)
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
@@ -206,13 +249,10 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 
 // undecodable reports a source this compiler recognized and could not read.
 //
-// NoSource, not source 0: the parse that failed is the one that would have built
-// the document, so no document is returned and there is no source table for a
-// provenance to index into. A Source of 0 against the nil document engine.Run
-// hands on resolves to no path at all, so it would name nothing while claiming
-// to. The loader's own message carries the position instead, which is the half
-// of a location a reader can act on here.
+// It names the source even though no document is returned: SourceTable is the
+// table a refusal's diagnostics index. The loader's own message carries the
+// position, which the parse that failed never turned into a node.
 func undecodable(err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: ir.NoSource},
+	return diag.Newf(ir.SeverityError, diag.UndecodableSource, ir.Provenance{Source: rootSrcIndex},
 		"source cannot be read: %s", diag.OneLine(err))
 }

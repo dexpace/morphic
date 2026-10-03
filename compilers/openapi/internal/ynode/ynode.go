@@ -3,11 +3,10 @@
 // chain the compiler's depth bounds are measured against.
 //
 // It sits below nodeview, which reads MergeTag back for its merge-key
-// predicate, rather than beside it. Both the view and the cycle scan build
-// these nodes from their own internal test files, and an internal test file
-// cannot import a package that imports its own — so a home above nodeview would
-// be one the view's tests could not reach. Holding the tag here is what lets a
-// single definition of Merge serve both.
+// predicate. Both nodeview and the cycle scan build these nodes in their
+// internal test files, and an internal test file cannot import a package that
+// imports its own, so a home above nodeview could not be imported by the view's
+// tests. Holding the tag here lets one definition of Merge serve both.
 package ynode
 
 import (

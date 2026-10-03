@@ -3,6 +3,7 @@ package harness
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"os"
 	"path/filepath"
@@ -252,6 +253,71 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	})
 }
 
+// TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned pins the two
+// halves of the multiset key that a Position adds. A permutation moves a
+// finding's line and column by design, so two findings differing only in those
+// render as the same entry; but whether a finding carries a position at all is
+// not something a permutation changes, so a positioned finding must still
+// render differently from the same finding with none.
+// TestOrderInvariant_PermutationArtifactsAreNotFindings pins the first half end
+// to end, on a fixture whose finding the permutation moves in line and column.
+func TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned(t *testing.T) {
+	t.Parallel()
+	base := ir.Diagnostic{
+		Severity:   ir.SeverityError,
+		Code:       "x/y",
+		Provenance: ir.Provenance{Source: 0, Position: ir.Position{Line: 5, Column: 1}},
+	}
+
+	movedLine := base
+	movedLine.Provenance.Position = ir.Position{Line: 9, Column: 3}
+	assert.Equal(t, diagnosticSet([]ir.Diagnostic{base}), diagnosticSet([]ir.Diagnostic{movedLine}),
+		"line and column alone must not distinguish two findings")
+
+	unpositioned := base
+	unpositioned.Provenance.Position = ir.Position{}
+	assert.NotEqual(t, diagnosticSet([]ir.Diagnostic{base}), diagnosticSet([]ir.Diagnostic{unpositioned}),
+		"whether a finding has a position at all must still distinguish it from one that has none")
+}
+
+// TestDiagnosticSet_KeepsEachLocatorApart pins the rest of the key. Two findings
+// that differ only in severity, code, source, pointer or node are two findings,
+// since a permutation changes none of those; two that differ only in message
+// text are one, for the reason diagnosticSet gives.
+func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
+	t.Parallel()
+	base := ir.Diagnostic{
+		Severity:   ir.SeverityWarning,
+		Code:       "x/y",
+		Message:    "m",
+		Provenance: ir.Provenance{Source: 0, Pointer: "/a", Node: "t/x/A"},
+	}
+	for _, tc := range []struct {
+		name     string
+		vary     func(d *ir.Diagnostic)
+		distinct bool
+	}{
+		{"severity", func(d *ir.Diagnostic) { d.Severity = ir.SeverityError }, true},
+		{"code", func(d *ir.Diagnostic) { d.Code = "x/z" }, true},
+		{"source", func(d *ir.Diagnostic) { d.Provenance.Source = 1 }, true},
+		{"pointer", func(d *ir.Diagnostic) { d.Provenance.Pointer = "/b" }, true},
+		{"node", func(d *ir.Diagnostic) { d.Provenance.Node = "t/x/B" }, true},
+		{"message", func(d *ir.Diagnostic) { d.Message = "other" }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			varied := base
+			tc.vary(&varied)
+			got, want := diagnosticSet([]ir.Diagnostic{varied}), diagnosticSet([]ir.Diagnostic{base})
+			if tc.distinct {
+				assert.NotEqual(t, want, got, "a finding with another %s is another finding", tc.name)
+				return
+			}
+			assert.Equal(t, want, got, "a finding differing only in its %s is the same finding", tc.name)
+		})
+	}
+}
+
 // TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding pins the sorting:
 // properties, pattern properties and examples are held in source order, so a
 // permutation reorders them by design and must not be reported.
@@ -279,17 +345,13 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 }
 
 // TestOrderInvariant_ReachesTheCorpus is the reachability guard. The oracle
-// declines silently on a source it cannot permute, so a rewrite that started
-// refusing everything would leave the corpus sweep green while checking nothing
-// — the same shape as a verifier wired into CI that never meets its input.
+// declines silently on a source it cannot permute, so a rewrite that refused
+// everything would leave the corpus sweep green while checking nothing.
 //
-// It asserts the oracle actually asked its question of most of the corpus, not
-// merely that it ran.
-//
-// Both arms are guarded, because either can go quiet on its own. The rewrite
-// declines a source it cannot faithfully permute, and the baseline declines one
-// whose re-encoding will not compile — a skip with no diagnostic behind it, so
-// nothing else would notice it spreading.
+// It asserts the oracle asked its question of every conformance spec, not
+// merely that it ran, and guards both arms: the rewrite declines a source it
+// cannot faithfully permute, and the baseline one whose re-encoding will not
+// compile, a skip with no diagnostic behind it.
 func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 	t.Parallel()
 	const dir = "../../testdata/conformance/openapi"
@@ -324,11 +386,14 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 		"every conformance spec's re-encoding must still compile, or the oracle has no baseline to compare against")
 }
 
-// TestOrderInvariant_PermutationArtifactsAreNotFindings covers the sources whose
-// permutation is not meaning-preserving for a reason reverseMappings does not
-// exclude. Each compiles cleanly, and each differs between the two orders because
-// of the rewrite rather than because of a lowering, so reporting one is a false
-// finding about the compiler.
+// TestOrderInvariant_PermutationArtifactsAreNotFindings covers sources whose two
+// orders differ because of the rewrite rather than because of a lowering, so
+// reporting one would be a false finding about the compiler.
+//
+// Each must come out OK, which Check returns only once the order oracle has run
+// and found nothing. An earlier oracle's outcome is not order-dependence either,
+// so asserting only that let a case whose fixture drew an error diagnostic pass
+// without the oracle ever running (#550).
 func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -350,22 +415,56 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
 		},
 		{
-			// Provenance.Pointer holds line:col for a reference-resolution failure,
-			// and a permutation moves the offending node to a different line.
+			// The permutation moves the fixture's one finding to another line
+			// and column, both of which diagnosticSet sets aside;
+			// TestOrderInvariant_LineAndColumnCaseMovesItsFinding holds the
+			// fixture to drawing that finding and to moving it.
 			name: "a diagnostic located by line and column",
-			src: "openapi: 3.0.0\ninfo: {title: 0, version: 0}\npaths:\n 0:\n  0:\n" +
-				"      responses:\n       0:\n        description: 0\n" +
-				"      callbacks:\n       0:\n        0:\n         description:\n",
+			src:  positionedFindingSpec,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res := Check(context.Background(), tc.name+".yaml", []byte(tc.src))
-			assert.NotEqual(t, OutcomeOrderDependent, res.Outcome,
-				"the permutation changed the document's meaning, so this is not a finding: %s", res.Detail)
+			assert.Equal(t, OutcomeOK, res.Outcome,
+				"a permutation artifact must reach the order oracle and not be reported: %s", res.Detail)
 		})
 	}
+}
+
+// positionedFindingSpec draws one finding, located by line and column: a
+// validation warning about an invalid callback expression. Reversing the source
+// moves that expression to another line and, inside its flow mapping, to
+// another column.
+const positionedFindingSpec = "openapi: 3.0.0\ninfo: {title: t, version: v}\npaths:\n  /a:\n    get:\n" +
+	"      responses:\n        \"200\":\n          description: ok\n" +
+	"      callbacks:\n        cb: {notAnExpression: {}, \"{$request.body#/url}\": {}}\n"
+
+// TestOrderInvariant_LineAndColumnCaseMovesItsFinding holds the "a diagnostic
+// located by line and column" case to its question. That case would go on
+// passing if its fixture stopped drawing the finding or the permutation stopped
+// moving it, and the finding comes from the third-party parser's validation
+// rather than a rule of the compiler's own, so it can change with no change
+// here. The line and the column are each asserted because diagnosticSet sets
+// each aside.
+func TestOrderInvariant_LineAndColumnCaseMovesItsFinding(t *testing.T) {
+	t.Parallel()
+	positionIn := func(src []byte) ir.Position {
+		t.Helper()
+		_, diags, err := compile(t.Context(), "positioned.yaml", src)
+		require.NoError(t, err)
+		require.Len(t, diags, 1, "the fixture must draw exactly one finding")
+		return diags[0].Provenance.Position
+	}
+	baseline, ok := reencodeMappings([]byte(positionedFindingSpec))
+	require.True(t, ok, "the fixture must re-encode")
+	reversed, ok := reverseMappings([]byte(positionedFindingSpec))
+	require.True(t, ok, "the fixture must be permutable")
+
+	asWritten, permuted := positionIn(baseline), positionIn(reversed)
+	assert.NotEqual(t, asWritten.Line, permuted.Line, "the permutation must move the finding to another line")
+	assert.NotEqual(t, asWritten.Column, permuted.Column, "the permutation must move the finding to another column")
 }
 
 // yamlMapping returns a mapping node for the depth-bound test.
@@ -403,35 +502,6 @@ func TestReencodeMappings_EncodeFailureIsRefused(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// TestIsSourcePosition_ClassifiesPointers covers the split diagnosticSet turns
-// on: a source position moves with the source and must not identify a finding,
-// while every other pointer spelling — a JSON pointer, an IR-space ID — is
-// stable and must keep identifying one.
-func TestIsSourcePosition_ClassifiesPointers(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		pointer string
-		want    bool
-	}{
-		{"a line and column", "11:21", true},
-		{"the first position", "0:0", true},
-		{"empty", "", false},
-		{"no line", ":21", false},
-		{"no column", "11:", false},
-		{"a non-numeric half", "a:1", false},
-		{"a third segment", "1:2:3", false},
-		{"a JSON pointer", "/components/schemas/A", false},
-		{"an IR-space id", "t/openapi/components/schemas/A", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, isSourcePosition(tc.pointer))
-		})
-	}
-}
-
 // TestCheck_OrderDependentOutcome pins that Check classifies an order-dependent
 // compiler as such rather than folding it into another oracle. The seam returns
 // a different registry for the permuted bytes, which is what a lowering that
@@ -450,7 +520,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 		m := &ir.Model{
 			ID:         id,
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
-			Provenance: ir.Provenance{Pointer: "/" + path},
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
 		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}, nil, nil
 	}

@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -228,17 +229,14 @@ func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer)
 	return code
 }
 
-// writeFailureExit returns the exit code for a run whose diagnostics earned code
-// and whose output then could not be written.
+// writeFailureExit returns the exit code for a run whose diagnostics earned
+// code and whose output then could not be written.
 //
-// A failed write does not overwrite a non-zero code. Whether a destination can be
-// written at all is a property of the destination — /dev/null and a read-only
-// directory both refuse the temp file replaceFile publishes through — not of the
-// spec, so letting it decide the exit code made "the spec reached the --fail-on
-// threshold" report 1 or 2 depending on where -o pointed. The verdict on the spec
-// is the same either way and the write failure is on stderr either way, so the
-// exit code keeps the verdict, and 2 is left to mean a run that failed for a
-// reason outside the spec.
+// A failed write does not overwrite a non-zero code. Whether a destination can
+// be written is a property of the destination (/dev/null and a read-only
+// directory both refuse replaceFile's temp file), not of the spec, so the
+// verdict on the spec keeps the exit code and 2 is left for runs that failed
+// for a reason outside the spec.
 func writeFailureExit(code int) int {
 	if code != 0 {
 		return code
@@ -250,12 +248,9 @@ func writeFailureExit(code int) int {
 // appear either before or after the spec path (stdlib flag stops at the first
 // non-flag argument, so it is invoked once per positional).
 //
-// A "--" ends flag parsing for the whole invocation rather than for one round
-// of it, so it is split off before that loop starts. Leaving it to Parse would
-// shield exactly one argument: Parse consumes the marker and reports nothing
-// about having seen one, so the next round cannot tell a terminated list from a
-// list that merely stopped at a positional, and re-enables flag parsing for
-// everything the user had marked as operands.
+// A "--" ends flag parsing for the whole invocation, so it is split off before
+// the loop. Parse consumes the marker without reporting it, so a later round
+// would re-enable flag parsing for operands the user had marked as such.
 func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 	before, operands := splitAtTerminator(fs, args)
 
@@ -282,36 +277,60 @@ func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
 func renderDiagnostics(w io.Writer, res *engine.Result) {
 	for _, d := range res.Diagnostics {
 		emitf(w, "%s %s%s: %s\n",
-			d.Severity, d.Code, location(res.Document, d.Provenance), d.Message)
+			d.Severity, d.Code, location(res.Sources, d.Provenance), d.Message)
 	}
 }
 
 // location renders the "where" of a diagnostic line, leading space included:
-// " <path>#<pointer>" when the provenance resolves to a source file,
-// " <pointer>" when it names only an IR-space position (a pass diagnostic whose
-// pointer is an IR id), and nothing at all when it names neither.
+// " <path>#<pointer>" for a pointer, " <path>:<line>:<column>" for a position
+// (the form editors and terminals turn into a link), " <path>" for the source
+// as a whole, and the bare node for an IR-space node. A finding with several
+// locators is spelled by the first of them in that order.
 //
-// The empty case is what a diagnostic raised before any document existed
-// carries — an unrecognized spec format has no position inside a spec that was
-// never lowered — and printing nothing is the point: any location shown there
-// would be one the finding is not about.
-func location(doc *ir.Document, prov ir.Provenance) string {
-	if path := sourcePath(doc, prov.Source); path != "" {
-		return " " + path + "#" + prov.Pointer
+// sources is the run's table, which a refused compile has too. A locator whose
+// index names no entry in it is spelled without a path, and a finding naming
+// neither a source nor a node prints nothing rather than a guess.
+func location(sources []ir.SourceInfo, prov ir.Provenance) string {
+	path := sourcePath(sources, prov.Source)
+	switch {
+	case prov.Pointer != "":
+		return " " + onPath(path, "#", string(prov.Pointer))
+	case prov.Position.Line > 0:
+		return " " + onPath(path, ":", positionText(prov.Position))
+	case path != "":
+		return " " + path
+	case prov.Node != "":
+		return " " + prov.Node
+	default:
+		return ""
 	}
-	if prov.Pointer != "" {
-		return " " + prov.Pointer
+}
+
+// onPath spells locator against path, joined by sep, or alone when no path
+// resolved.
+func onPath(path, sep, locator string) string {
+	if path == "" {
+		return locator
 	}
-	return ""
+	return path + sep + locator
+}
+
+// positionText spells a position as <line>:<column>, or <line> alone when the
+// producer knows no column.
+func positionText(p ir.Position) string {
+	if p.Column > 0 {
+		return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
+	}
+	return strconv.Itoa(p.Line)
 }
 
 // sourcePath resolves a diagnostic's source index to its file path, returning
-// "" when the document or index is unavailable.
-func sourcePath(doc *ir.Document, source int) string {
-	if doc == nil || source < 0 || source >= len(doc.Sources) {
+// "" when the index addresses no entry of sources.
+func sourcePath(sources []ir.SourceInfo, source int) string {
+	if source < 0 || source >= len(sources) {
 		return ""
 	}
-	return doc.Sources[source].Path
+	return sources[source].Path
 }
 
 // exitCodeFor returns 1 when any diagnostic is at or above the failOn severity,
@@ -342,16 +361,14 @@ func severityRank(s ir.Severity) int {
 }
 
 // writeCompiled emits doc's IR JSON to opts.outPath, or to stdout when it is
-// empty. Stdout is indented because a person is reading it; a file is compact,
-// which is about half the bytes, unless --pretty asks for the indented form.
+// empty. Stdout is indented because a person is reading it; a file is compact
+// unless --pretty asks for the indented form.
 //
-// A file destination is encoded straight into replaceFile's temp file rather
-// than into a slice handed over afterwards. That drops a whole copy of the
-// output and keeps the property the marshal-first order used to provide: a
-// document that will not marshal removes the temp file and leaves whatever is
-// at outPath untouched, because outPath is only ever reached by the rename.
-// Stdout has no rename to withhold, so it gets the document encoded whole or
-// nothing, rather than the part that encoded before a failure.
+// A file is encoded straight into replaceFile's temp file, which saves a copy
+// of the output; a document that will not marshal still leaves outPath
+// untouched, since only the rename reaches it. Stdout has no rename to
+// withhold, so it is encoded whole into a buffer and receives the document
+// entirely or not at all.
 func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) error {
 	if opts.outPath == "" {
 		var buf bytes.Buffer
@@ -365,50 +382,16 @@ func writeCompiled(opts compileOptions, stdout io.Writer, doc *ir.Document) erro
 	})
 }
 
-// replaceFile writes what fill produces to outPath atomically: fill's bytes land
-// in a temp file in the destination's own directory — so the publishing rename
-// never crosses a filesystem boundary — and replace outPath only once all of
-// them are on disk. A failed or partial write therefore leaves outPath's
-// previous content intact instead of truncating it, and so does a fill that
-// fails halfway through.
+// replaceFile atomically replaces outPath with what fill produces: it writes a
+// temp file in outPath's directory, which keeps the rename on one filesystem,
+// then renames it over outPath. A failure leaves the previous content.
 //
-// Publishing by rename replaces the directory entry rather than the bytes behind
-// it, which is what makes the swap atomic and which costs four things a
-// truncating write gave for free. All four are accepted deliberately:
-//
-//   - Writing needs a directory that will accept a new entry, not just a
-//     writable destination. Rewriting an existing writable file inside a
-//     read-only directory used to succeed and now fails at temp-file creation,
-//     and so does any destination whose directory refuses one — -o /dev/null
-//     most visibly, since /dev takes no temp file. Writing through to such a
-//     destination instead is deliberately not done here: honouring what a name
-//     points at rather than replacing the name is the same trade the symlink and
-//     hard-link entries below decline, and opening a reader-less FIFO for
-//     writing blocks indefinitely. What the failure must not do is decide the
-//     exit code — see writeFailureExit.
-//   - A symlink at outPath is replaced by a regular file instead of being
-//     followed and written through, so its target keeps its old content.
-//   - Other hard links to outPath keep pointing at the old inode, and so keep
-//     the old content, instead of observing the new bytes.
-//   - The temp name is 21 characters longer than the destination's own, so a
-//     destination whose basename is within 21 of the filesystem's limit now
-//     fails at creation ("file name too long") where a truncating write
-//     succeeded. Unlike the other three this is a new failure rather than a
-//     lost capability, and it surfaces as an error rather than silently.
-//
-// Losing the first three is the price of the guarantee: each is a way for the
-// destination's bytes to be reached other than through its own name, and
-// honouring any of them means writing in place, which is exactly the truncation
-// this replaces.
-//
-// Durability stops at the file. fillTemp syncs the bytes before the rename, so
-// the rename never publishes contents the filesystem has not taken, but the
-// directory entry the rename creates is not itself synced. A crash immediately
-// after a successful run can therefore leave the destination holding its
-// previous content. It cannot leave it holding partial content, which is the
-// property this function exists to provide; making the swap itself survive a
-// crash would need an fsync on the parent directory and is deliberately out of
-// scope.
+// Costs of never writing in place: the directory must accept a new entry
+// (-o /dev/null fails; see writeFailureExit); a symlink or FIFO at outPath is
+// replaced, not written through; other hard links keep the old content. The
+// temp name is 21 characters longer, so a near-limit basename can fail to
+// create. The directory is not synced: a crash can leave the previous content,
+// never a partial one.
 func replaceFile(outPath string, fill func(io.Writer) error) error {
 	perm, replacing, err := destMode(outPath)
 	if err != nil {

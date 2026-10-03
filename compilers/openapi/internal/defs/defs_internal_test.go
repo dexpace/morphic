@@ -202,7 +202,7 @@ func TestTarget_GuardClauses(t *testing.T) {
 
 // TestTargetFrom_GuardClauses drives the two guards Target's own filtering
 // normally shields TargetFrom from: it is called directly elsewhere
-// (defsMappingTarget, for a discriminator mapping value), always with a
+// (resolve.Scope.MappingPointer, for a discriminator mapping value), always with a
 // pointer already known to be $defs-shaped, so only a direct call exercises
 // these two branches.
 func TestTargetFrom_GuardClauses(t *testing.T) {

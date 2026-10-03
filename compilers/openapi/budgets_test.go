@@ -301,18 +301,12 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 // liveForCalls answers Err with nil for its first left calls and
 // context.Canceled from then on, counting every call it answers.
 //
-// The document under test declares nothing, so the walks themselves consult
-// ctx.Err() not at all and run's phase boundaries are the only callers. A
-// context cancelled outright would therefore always land on the first boundary;
-// the later ones could otherwise be reached only by racing the walk against a
-// timer. Counting puts the cancellation at a chosen boundary, which is what
-// makes this deterministic rather than usually right.
-//
-// seen is what says the boundary under test is the one that stopped the compile.
-// The outcome cannot: every boundary returns the same nil document and the same
-// context.Canceled, so a boundary that never fires is covered for by the next
-// one and the test passes with it deleted. The call count is the only thing that
-// separates them.
+// The document under test declares nothing, so the walks never consult
+// ctx.Err() and run's phase boundaries are its only callers. Counting puts the
+// cancellation at a chosen boundary deterministically, where a timer would
+// race the walk. seen says which boundary stopped the compile: every boundary
+// returns the same nil document and context.Canceled, so one that never fires
+// is covered for by the next and the outcome cannot tell them apart.
 type liveForCalls struct {
 	context.Context
 	left *int
@@ -343,7 +337,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			left, seen := tc.live, 0
 
 			doc, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
-				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes(0))
+				lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")

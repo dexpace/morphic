@@ -1,7 +1,6 @@
 package operation_test
 
 import (
-	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,13 +63,13 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
 	var anchors schema.AnchorIndex
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types, &anchors))
 
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, &anchors, make(map[string]jsontext.Pointer))
+	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, &anchors)
 	acc.AppendAll(svcDiags)
 	return svc, append(loadDiags, acc.List()...)
 }

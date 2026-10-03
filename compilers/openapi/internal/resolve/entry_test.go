@@ -68,10 +68,10 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 // TestObjectAt_CrossDocumentKeepsUseSitePointer is the cross-document
 // counterpart to the same-document sharing tests above (issue #107). The
 // fixture's operation $refs a parameter and a response into a sibling
-// document; both resolve to real objects (resolveAll follows external refs),
-// but ObjectAt's internal-pointer check rejects the target because it lives
-// in another document, so the use-site pointer is kept rather than a pointer
-// into a document this IR has no node for.
+// document; both resolve to real objects (the load phase follows external
+// refs once a compile opts in), but ObjectAt's internal-pointer check rejects
+// the target because it lives in another document, so the use-site pointer is
+// kept rather than a pointer into a document this IR has no node for.
 //
 // Reaching the sibling file is what the case is about, so it opts in to the
 // external resolution the compiler does not do on its own.

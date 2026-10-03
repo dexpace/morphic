@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,24 +19,22 @@ import (
 const graftBase = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /b:\n    get:\n" +
 	"      responses: {\"200\": {description: ok}}\ncomponents:\n  schemas:\n    A: {type: string}\n"
 
-// TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay pins the fix for
-// GitHub #476 at every site that anchors a diagnostic on a raw node. A node an
-// overlay grafts has no line and column — the library's clone keeps neither —
-// so each of these used to name the source at 0:0. Now each names the overlay
-// and the JSON pointer of the position the node sits at, the answer the
-// lowering gives for that pointer.
+// TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay pins GitHub #476 at every
+// site that anchors a diagnostic on a raw node. A node an overlay grafts has no
+// line and column, so each diagnostic must name the overlay and the JSON
+// pointer the node sits at, the answer the lowering gives for that pointer.
 //
-// One case per site rather than one for the mechanism: the sites take their
-// provenance through different paths (two pre-parse refusals off the index, a
-// library validation finding), and a fix that reached one and not another
-// would pass a single case. A resolver failure is not among them because the
-// library reports one with no node at all, grafted or not (GitHub #235).
+// One case per site, since they take provenance through different paths (two
+// pre-parse refusals off the index, a library validation finding) and a fix
+// reaching only one would pass a single case. A resolver report is placed by
+// its $ref's pointer instead, never by a node; see
+// TestResolve_OverlayIntroducedReferenceNamesTheOverlay.
 func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		overlay string
 		code    string
-		pointer string
+		pointer jsontext.Pointer
 	}{
 		"a cycle refusal": {
 			overlay: "  - target: $.components.schemas\n    update: {C: {$ref: '#/components/schemas/C'}}\n",
@@ -97,24 +96,22 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 			continue
 		}
 		found++
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "6:26"}, d.Provenance,
+		assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 6, Column: 26}}, d.Provenance,
 			"the source declared this node, at this position")
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
 }
 
-// TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused pins GitHub #477: the
-// shape that reopened the tagged-mapping crash after #475 closed it.
-//
-// The overlay library clones an alias by cloning its target, so an update whose
+// TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused pins GitHub #477. The
+// overlay library clones an alias by cloning its target, so an update whose
 // value is an alias to a tagged anchor grafted a mapping that sat in no Content
-// list — invisible to the pre-parse refusal that exists to catch exactly that
-// tag, and visible to the parser, which followed the alias and faulted on a
-// goroutine no recover reaches. The document is now normalized before the
-// refusals read it, so the tag is found where it was grafted.
+// list: invisible to the pre-parse refusal for that tag, yet followed by the
+// parser, which faults on a goroutine no recover reaches. The patched tree is
+// normalized before the refusals read it, so the tag is found where it was
+// grafted.
 //
-// The anchor is declared in three places because it is the overlay document's
-// own structure, not the update's, that decides where a caller may put one.
+// The anchor is declared in three places because the overlay document's own
+// structure decides where a caller may put one.
 func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 	t.Parallel()
 	for name, ov := range map[string]string{

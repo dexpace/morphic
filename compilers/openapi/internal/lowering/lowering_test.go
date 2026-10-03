@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,16 +17,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestCtx_HasNoExportedMap is the guard that makes "immutable by value" true
-// rather than conventional. A struct copy shares a map rather than copying it,
-// so an exported map field would be the one part of the context a callee could
-// write to — and the write would be visible to its caller's caller, which is
-// exactly the class of bug passing by value is meant to remove.
+// TestCtx_HasNoExportedMap holds Ctx to "immutable by value": a struct copy
+// shares a map, so an exported map field would be the one part of the context a
+// callee could write to, visibly to its caller's caller.
 //
-// Slices are held to the same rule for the same reason: a copy shares the
-// backing array. The exported pointer to the document is deliberately not
-// covered — it is shared by design and lowering never writes through it, which
-// TestNew_KeepsTheDocumentItWasGiven pins.
+// Slices are held to the same rule, since a copy shares the backing array. The
+// exported document pointer is exempt: it is shared by design and lowering
+// never writes through it, which TestNew_KeepsTheDocumentItWasGiven pins.
 func TestCtx_HasNoExportedMap(t *testing.T) {
 	t.Parallel()
 	rt := reflect.TypeFor[lowering.Ctx]()
@@ -209,6 +207,18 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	require.NotNil(t, scope.Declares, "a scope with no predicate would resolve nothing")
 	assert.True(t, scope.Declares("User"))
 	assert.False(t, scope.Declares("Missing"))
+}
+
+// TestRefScope_NoDocumentResolvesNoDefsPointer pins that a context with no
+// document hands over a scope with none, rather than one holding a nil
+// pointer: that passes every nil check a reader makes and then faults when a
+// "#/$defs/..." pointer is navigated in it.
+func TestRefScope_NoDocumentResolvesNoDefsPointer(t *testing.T) {
+	t.Parallel()
+	scope := lowering.Ctx{}.RefScope()
+
+	_, ok := scope.TargetPointer(&oas3.JSONSchema[oas3.Referenceable]{}, "#/$defs/n")
+	assert.False(t, ok, "no document to read a definition from")
 }
 
 // TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee

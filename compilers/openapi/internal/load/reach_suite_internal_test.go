@@ -6,10 +6,11 @@ import "testing"
 // draft2020-12 groups (ref.json, defs.json, anchor.json, dynamicRef.json,
 // refRemote.json), each embedded four ways: bare (v1), wrapped inside an
 // object property (v2), referenced by a sibling component declared first
-// (v3), and duplicated across two components (v4). None of these are refused;
-// sweeping the full suite this way (1736 documents, every group times every
-// embedding) measures 0 false refusals, and this table pins a representative
-// ~20 of them as a committed regression rather than a rerun of that sweep.
+// (v3), and duplicated across two components (v4). None of these are refused,
+// and none was when every draft2020-12 group of the suite at its commit
+// 5b0ee16, optional ones included, was swept the same four ways. This table
+// keeps a representative sample as a committed regression rather than a rerun
+// of that sweep.
 const (
 	// ref.json#0 'root pointer ref' (bare).
 	suiteRefRootPointer = `openapi: 3.1.0

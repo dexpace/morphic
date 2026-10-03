@@ -15,7 +15,7 @@ import (
 // self-reference reached during build resolves instead of re-entering.
 func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	var seenDuringBuild bool
 	id := types.Intern("/p", "t/x", func() ir.TypeDef {
@@ -34,7 +34,7 @@ func TestTypes_InternIsIdempotentAndRecordsBeforeBuilding(t *testing.T) {
 
 func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	_, ok := types.Lookup("/nope")
 	assert.False(t, ok)
@@ -43,10 +43,11 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 }
 
 // TestTypes_NodeAtResolvesCoordinateAndNodeTogether pins the property that makes
-// the paired lookup safe: whenever a coordinate resolves, so does its node.
+// the paired lookup safe: a coordinate whose build has returned resolves to its
+// node in one step.
 func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 
 	td, ok := types.NodeAt("/p")
@@ -57,12 +58,65 @@ func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	assert.False(t, ok, "and an uninterned coordinate reports the miss")
 }
 
+// TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode pins the window Intern
+// opens. The coordinate is recorded before build runs, so a revisit gets the ID
+// back and recursion terminates, but the node exists only once build returns.
+// NodeAt reports that window as a miss, and Building is what tells it apart
+// from a coordinate nothing interned (GitHub #749).
+func TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	const pointer, id = "/p", ir.TypeID("t/x")
+
+	var resolved, hasNode, building bool
+	types.Intern(pointer, id, func() ir.TypeDef {
+		_, resolved = types.Lookup(pointer)
+		_, hasNode = types.NodeAt(pointer)
+		building = types.Building(id)
+		return &ir.Model{ID: id}
+	})
+	assert.True(t, resolved, "the coordinate resolves while its build runs")
+	assert.False(t, hasNode, "but it has no node to read yet")
+	assert.True(t, building, "and Building says why")
+
+	_, ok := types.NodeAt(pointer)
+	assert.True(t, ok, "once build returns, the node is there")
+	assert.False(t, types.Building(id), "and the build is over")
+}
+
+// TestTypes_BuildingHoldsOnlyDuringABuild holds Building to that window. A
+// coordinate never interned, a node minted without one, a build refused for
+// yielding nothing, and a declaration rebuilding a reference's node all report
+// false: in the last, the reference's node stays readable until the rebuild
+// returns.
+func TestTypes_BuildingHoldsOnlyDuringABuild(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	assert.False(t, types.Building("t/never"), "nothing interned it")
+
+	types.Register("t/minted", &ir.Model{ID: "t/minted"})
+	assert.False(t, types.Building("t/minted"), "a minted node has no build window")
+
+	types.Intern("/refused", "t/refused", func() ir.TypeDef { return nil })
+	assert.False(t, types.Building("t/refused"), "a refused intern leaves nothing behind")
+
+	types.InternProvisional("/r", "t/r", func() ir.TypeDef { return &ir.Model{ID: "t/r"} })
+	var building, hasNode bool
+	types.InternDeclared("/r", "t/r", func() ir.TypeDef {
+		building = types.Building("t/r")
+		_, hasNode = types.NodeAt("/r")
+		return &ir.Model{ID: "t/r"}
+	})
+	assert.False(t, building, "a rebuild replaces a node that is already there")
+	assert.True(t, hasNode, "so the reference's node stays readable while it runs")
+}
+
 // TestTypes_RegisterTakesNoCoordinate covers the minted-node path: a composed
 // union variant has no source coordinate of its own, because the pointer it
 // would occupy already denotes the branch it was built from.
 func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Register("t/composed", &ir.Model{ID: "t/composed"})
 
 	td, ok := types.Node("t/composed")
@@ -73,11 +127,12 @@ func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	assert.False(t, coordinated, "a minted node claims no coordinate")
 }
 
-// TestTypes_PrimRefInternsOnceAndStampsSource pins that primitives are interned
-// by kind rather than by position and carry the compile's source index.
-func TestTypes_PrimRefInternsOnceAndStampsSource(t *testing.T) {
+// TestTypes_PrimRefInternsOnceAndNamesNoSource pins that primitives are interned
+// by kind rather than by position, and that one shared by every position of its
+// kind claims no source (GitHub #528).
+func TestTypes_PrimRefInternsOnceAndNamesNoSource(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(7)
+	types := compile.NewTypes()
 
 	first := types.PrimRef(ir.PrimString)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), first.Target,
@@ -87,14 +142,14 @@ func TestTypes_PrimRefInternsOnceAndStampsSource(t *testing.T) {
 
 	td, ok := types.Node(first.Target)
 	require.True(t, ok)
-	assert.Equal(t, 7, td.Common().Provenance.Source)
+	assert.Equal(t, ir.Provenance{Source: ir.NoSource}, td.Common().Provenance)
 	_, coordinated := types.Lookup(string(first.Target))
 	assert.False(t, coordinated, "primitives are leaves and hold no coordinate")
 }
 
 func TestTypes_RegistryIsTheLiveMap(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	reg := types.Registry()
 	types.Register("t/late", &ir.Any{})
 
@@ -114,12 +169,15 @@ func TestDiags_DedupesByFullIdentity(t *testing.T) {
 		Provenance: ir.Provenance{Source: 0, Pointer: "/p"},
 	}
 	differs := map[string]func(d *ir.Diagnostic){
-		"severity":   func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
-		"code":       func(d *ir.Diagnostic) { d.Code = "x/z" },
-		"message":    func(d *ir.Diagnostic) { d.Message = "other" },
-		"source":     func(d *ir.Diagnostic) { d.Provenance.Source = 1 },
-		"pointer":    func(d *ir.Diagnostic) { d.Provenance.Pointer = "/q" },
-		"inferredBy": func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
+		"severity":        func(d *ir.Diagnostic) { d.Severity = ir.SeverityInfo },
+		"code":            func(d *ir.Diagnostic) { d.Code = "x/z" },
+		"message":         func(d *ir.Diagnostic) { d.Message = "other" },
+		"source":          func(d *ir.Diagnostic) { d.Provenance.Source = 1 },
+		"pointer":         func(d *ir.Diagnostic) { d.Provenance.Pointer = "/q" },
+		"inferredBy":      func(d *ir.Diagnostic) { d.Provenance.Inferred = "guess" },
+		"position line":   func(d *ir.Diagnostic) { d.Provenance.Position.Line = 5 },
+		"position column": func(d *ir.Diagnostic) { d.Provenance.Position.Column = 5 },
+		"node":            func(d *ir.Diagnostic) { d.Provenance.Node = "op/x" },
 	}
 	for name, mutate := range differs {
 		t.Run(name, func(t *testing.T) {
@@ -182,7 +240,7 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 	for name, attempt := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			types := compile.NewTypes(0)
+			types := compile.NewTypes()
 			attempt(types)
 
 			assert.Zero(t, types.Len(), "nothing malformed reaches the registry")
@@ -196,7 +254,7 @@ func TestTypes_RefusesEntriesTheRegistryCannotHold(t *testing.T) {
 
 func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
 	types.Register("t/composed", &ir.Any{})
 
@@ -214,7 +272,7 @@ func TestTypes_ViolationsIsEmptyForLegitimateEntries(t *testing.T) {
 // node that was overwritten is no longer present to fail.
 func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	node := func(id ir.TypeID) func() ir.TypeDef {
 		return func() ir.TypeDef { return &ir.Model{ID: id} }
 	}
@@ -233,7 +291,7 @@ func TestTypes_RefusesADerivationThatCollapsesTwoCoordinates(t *testing.T) {
 // so it must not be mistaken for two coordinates colliding.
 func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	build := func() ir.TypeDef { return &ir.Model{ID: "t/x/A"} }
 	types.Intern("/p", "t/x/A", build)
 	types.Intern("/p", "t/x/A", build)
@@ -248,7 +306,7 @@ func TestTypes_ReinterningOneCoordinateIsNotACollision(t *testing.T) {
 // caused by the first.
 func TestTypes_RefusedInternReleasesItsID(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	types.Intern("/first", "t/x/A", func() ir.TypeDef { return nil })
 	require.Len(t, types.Violations(), 1, "the nil build is refused")
 
@@ -279,7 +337,7 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			types := compile.NewTypes(0)
+			types := compile.NewTypes()
 			tc.use(types)
 			require.Len(t, types.Violations(), 1, "whichever arrives second is refused")
 			assert.Contains(t, types.Violations()[0], "needs a namespace of its own")
@@ -317,7 +375,7 @@ func hintAt(t *testing.T, types *compile.Types) string {
 // it whenever it arrives.
 func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef {
 		return named("items")
@@ -334,6 +392,31 @@ func TestTypes_DeclarationReplacesAProvisionalName(t *testing.T) {
 	assert.Equal(t, "a_item", hintAt(t, types))
 }
 
+// TestTypes_ReferenceAfterADeclarationTakesItsRecordedName is
+// InternProvisional's other branch: a declaration can reach a coordinate before
+// any node exists there — a $ref it resolves straight to its target, a body
+// that reduces to a shared primitive — so there is nothing yet to rename. The
+// hint it gave is recorded instead, and a reference that later interns the
+// coordinate takes it rather than marking the node provisional (GitHub #519).
+func TestTypes_ReferenceAfterADeclarationTakesItsRecordedName(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+
+	types.NameFromDeclaration(provisionalPointer, "Declared Name")
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("placeholder")
+	})
+	assert.Equal(t, compile.NamingHint("Declared Name").Hint, hintAt(t, types),
+		"the reference's node takes the hint the declaration already recorded")
+
+	// The node is not provisional — there was no placeholder for the declaration
+	// to arrive and replace — so a further declaration at the same coordinate
+	// cannot rename it either, the same guard TestTypes_DeclarationReplacesAProvisionalName
+	// pins for the ref-first order.
+	types.NameFromDeclaration(provisionalPointer, "something_else")
+	assert.Equal(t, compile.NamingHint("Declared Name").Hint, hintAt(t, types))
+}
+
 // TestTypes_NameFromDeclarationNeutralizesTheHint pins that a replacement writes
 // the field the way interning writes it. NamingHint neutralizes on the way in, so
 // a raw hint here would leave the node holding the caller's spelling — and the
@@ -346,13 +429,13 @@ func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
 	t.Parallel()
 	const raw = "A"
 
-	declaredFirst := compile.NewTypes(0)
+	declaredFirst := compile.NewTypes()
 	declaredFirst.Intern(provisionalPointer, provisionalID, func() ir.TypeDef {
 		return &ir.Scalar{ID: provisionalID, Name: compile.NamingHint(raw)}
 	})
 	interned := hintAt(t, declaredFirst)
 
-	referencedFirst := compile.NewTypes(0)
+	referencedFirst := compile.NewTypes()
 	referencedFirst.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
 		return named("placeholder")
 	})
@@ -369,7 +452,7 @@ func TestTypes_NameFromDeclarationNeutralizesTheHint(t *testing.T) {
 // so a reference arriving later cannot have marked it and the name stands.
 func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.Intern("/a/items", "t/anon/a/items", func() ir.TypeDef {
 		return named("a_item")
@@ -384,13 +467,19 @@ func TestTypes_NameFromDeclarationLeavesADeclaredNameAlone(t *testing.T) {
 	assert.Equal(t, "a_item", hintAt(t, types))
 }
 
-// TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate covers the ordinary
-// case: every declaration calls this at its own coordinate, and almost none of
-// them are replacing anything.
-func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
+// TestTypes_NameFromDeclarationInternsNothingAtAnUninternedCoordinate covers the
+// ordinary case: every declaration calls this at its own coordinate, and almost
+// none of them are replacing anything. The hint it records there is read only by
+// a reference interning the coordinate later
+// (TestTypes_ReferenceAfterADeclarationTakesItsRecordedName); the call itself
+// puts no node there and reports nothing.
+func TestTypes_NameFromDeclarationInternsNothingAtAnUninternedCoordinate(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 	require.NotPanics(t, func() { types.NameFromDeclaration("/nothing/here", "x") })
+	_, ok := types.NodeAt("/nothing/here")
+	assert.False(t, ok, "recording a hint interns no node")
+	assert.Zero(t, types.Len())
 	assert.Empty(t, types.Violations())
 }
 
@@ -399,7 +488,7 @@ func TestTypes_NameFromDeclarationIgnoresAnUninternedCoordinate(t *testing.T) {
 // declaration to rename and no coordinate left mapped.
 func TestTypes_RefusedProvisionalInternIsNotNamed(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes(0)
+	types := compile.NewTypes()
 
 	types.InternProvisional("/a/items", "t/anon/a/items", func() ir.TypeDef { return nil })
 	_, ok := types.NodeAt("/a/items")
@@ -407,4 +496,149 @@ func TestTypes_RefusedProvisionalInternIsNotNamed(t *testing.T) {
 	assert.NotEmpty(t, types.Violations())
 
 	require.NotPanics(t, func() { types.NameFromDeclaration("/a/items", "a_item") })
+}
+
+// TestTypes_InternDeclared_BehavesAsInternWithNoReference covers the common
+// case: almost every declaration reaches its own coordinate first, and there
+// InternDeclared is exactly Intern — build once, then return the same ID on
+// every revisit without rebuilding.
+func TestTypes_InternDeclared_BehavesAsInternWithNoReference(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+
+	builds := 0
+	id := types.InternDeclared("/p", "t/x", func() ir.TypeDef {
+		builds++
+		return &ir.Model{ID: "t/x"}
+	})
+	assert.Equal(t, ir.TypeID("t/x"), id)
+	assert.Equal(t, 1, builds)
+
+	again := types.InternDeclared("/p", "t/other", func() ir.TypeDef {
+		builds++
+		return &ir.Any{}
+	})
+	assert.Equal(t, ir.TypeID("t/x"), again, "a revisit returns the first ID")
+	assert.Equal(t, 1, builds, "and does not rebuild")
+}
+
+// TestTypes_InternDeclared_RebuildsWhatAReferenceBuiltOnce is the fix's core
+// property: a reference names the coordinate first, and the declaration that
+// owns it replaces the whole node — not just its hint — under the same ID,
+// exactly once.
+func TestTypes_InternDeclared_RebuildsWhatAReferenceBuiltOnce(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+
+	builds := 0
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		builds++
+		return named("ref_guess")
+	})
+	assert.Equal(t, 1, builds)
+	assert.Equal(t, "ref_guess", hintAt(t, types))
+
+	id := types.InternDeclared(provisionalPointer, provisionalID, func() ir.TypeDef {
+		builds++
+		return named("declared_name")
+	})
+	assert.Equal(t, provisionalID, id, "the ID does not change")
+	assert.Equal(t, 2, builds, "the declaration's build ran")
+	assert.Equal(t, "declared_name", hintAt(t, types), "the rebuilt node replaces the reference's")
+
+	// The coordinate is no longer marked byReference once rebuilt, so a third
+	// arrival — however it happens — takes Intern's plain revisit path.
+	again := types.InternDeclared(provisionalPointer, provisionalID, func() ir.TypeDef {
+		builds++
+		return named("third_build")
+	})
+	assert.Equal(t, provisionalID, again)
+	assert.Equal(t, 2, builds, "not rebuilt a third time")
+	assert.Equal(t, "declared_name", hintAt(t, types))
+}
+
+// TestTypes_InternDeclared_IDMismatchIsRefused pins the check that catches a
+// declaration passing an ID other than the one its coordinate was interned
+// under: a caller bug, not a spec problem, so it is refused rather than writing
+// the rebuilt node under an ID the coordinate does not map to.
+func TestTypes_InternDeclared_IDMismatchIsRefused(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("ref_guess")
+	})
+
+	const wrongID ir.TypeID = "t/anon/a/other"
+	got := types.InternDeclared(provisionalPointer, wrongID, func() ir.TypeDef {
+		return named("declared_name")
+	})
+	assert.Equal(t, provisionalID, got, "the reference's ID is kept")
+	require.Len(t, types.Violations(), 1)
+	assert.Contains(t, types.Violations()[0], "rebuild rejected")
+	assert.Contains(t, types.Violations()[0], provisionalPointer)
+	assert.Contains(t, types.Violations()[0], string(wrongID))
+	assert.Equal(t, "ref_guess", hintAt(t, types), "the reference's node is untouched")
+}
+
+// TestTypes_InternDeclared_NilBuildIsRefused covers the caller-error guard a
+// nil build needs on the rebuild path specifically: that path never calls
+// Intern, so Intern's own nil check cannot catch it and the guard has to be its
+// own.
+func TestTypes_InternDeclared_NilBuildIsRefused(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("ref_guess")
+	})
+
+	got := types.InternDeclared(provisionalPointer, provisionalID, nil)
+	assert.Equal(t, provisionalID, got, "the reference's ID is kept")
+	require.Len(t, types.Violations(), 1)
+	assert.Contains(t, types.Violations()[0], "rebuild rejected")
+	assert.Equal(t, "ref_guess", hintAt(t, types), "the reference's node is kept, unrebuilt")
+}
+
+// TestTypes_InternDeclared_BuildYieldingNothingIsRefused is the rebuild path's
+// version of Intern's own guard: a declaration whose body reduces to nothing
+// interned must not erase the node the reference already built and other
+// nodes may already reference by ID.
+func TestTypes_InternDeclared_BuildYieldingNothingIsRefused(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("ref_guess")
+	})
+
+	got := types.InternDeclared(provisionalPointer, provisionalID, func() ir.TypeDef { return nil })
+	assert.Equal(t, provisionalID, got, "the reference's ID is kept")
+	require.Len(t, types.Violations(), 1)
+	assert.Contains(t, types.Violations()[0], "rebuild rejected")
+	assert.Equal(t, "ref_guess", hintAt(t, types), "the reference's node is kept, unrebuilt")
+}
+
+// TestTypes_InternDeclared_DoesNotRebuildACoordinateNamedFromARecordedDeclaration
+// covers the interaction with GitHub #519's record: when the declaration
+// reached the coordinate before any node existed there, InternProvisional
+// applies the recorded hint directly and never marks the coordinate
+// byReference (see InternProvisional), so a later InternDeclared at the same
+// pointer finds nothing to rebuild.
+func TestTypes_InternDeclared_DoesNotRebuildACoordinateNamedFromARecordedDeclaration(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+
+	types.NameFromDeclaration(provisionalPointer, "declared_name")
+	types.InternProvisional(provisionalPointer, provisionalID, func() ir.TypeDef {
+		return named("ref_guess")
+	})
+	assert.Equal(t, compile.NamingHint("declared_name").Hint, hintAt(t, types),
+		"the reference's node takes the hint already recorded for it")
+
+	declBuilds := 0
+	got := types.InternDeclared(provisionalPointer, provisionalID, func() ir.TypeDef {
+		declBuilds++
+		return named("second_declaration_attempt")
+	})
+	assert.Equal(t, provisionalID, got)
+	assert.Zero(t, declBuilds, "not rebuilt: the coordinate was never marked byReference")
+	assert.Equal(t, compile.NamingHint("declared_name").Hint, hintAt(t, types))
 }

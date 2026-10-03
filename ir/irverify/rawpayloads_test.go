@@ -180,12 +180,16 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 		"msg/a": {ID: "msg/a", Name: named("a"), Bindings: cfg},
 	}
 	operation := validDoc()
+	operation.Channels = map[ir.ChannelID]ir.Channel{"chan/a": {ID: "chan/a", Name: named("a")}}
 	operation.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
 		Name: named("g"),
 		Operations: []ir.Operation{{
-			ID:       "o/x/S/op",
-			Name:     named("op"),
-			Bindings: ir.OpBindings{Message: &ir.MessageBinding{Bindings: cfg}},
+			ID:   "o/x/S/op",
+			Name: named("op"),
+			Bindings: ir.OpBindings{Message: &ir.MessageBinding{
+				Channel:  "chan/a",
+				Bindings: cfg,
+			}},
 		}},
 	}}}}
 	protocol := validDoc()

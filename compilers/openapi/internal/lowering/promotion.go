@@ -1,7 +1,6 @@
 package lowering
 
 import (
-	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"maps"
 	"slices"
@@ -50,16 +49,14 @@ const (
 	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
 	// the document does not list.
 	//
-	// It names the fact rather than the field, which the rest of this vocabulary
-	// does not, because openness is the only half of that bool a document ever
-	// declares: a schema's `enum` is closed by definition, so a target named for
-	// Closed could only ever be written false and would read as its own opposite
-	// at every mapping that names it.
+	// It names the fact rather than the field, unlike the rest of this
+	// vocabulary: a schema's `enum` is closed by definition, so openness is the
+	// only half of that bool a document declares, and a target named for Closed
+	// could only be written false and would read as its own opposite.
 	//
-	// The key's presence is the statement. The established spelling,
-	// x-extensible-enum, writes the member list as its value, so there is no flag
-	// to read there — but a boolean value *is* a statement about openness, and an
-	// explicit `false` is honoured rather than inverted (extensionOpenness).
+	// The key's presence is the statement, since x-extensible-enum, the
+	// established spelling, writes the member list as its value. An explicit
+	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
 )
 
@@ -129,7 +126,7 @@ func (c Ctx) PromoteDeprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, pro
 		text, ok := extensionText(entry.Value)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct,
-				jsontext.Pointer(entry.Provenance.Pointer), "extension %q is not a string, so it does not fill %s",
+				entry.Provenance.Pointer, "extension %q is not a string, so it does not fill %s",
 				key, c.promotions[key]))
 			continue
 		}
@@ -146,30 +143,19 @@ func (c Ctx) PromoteDeprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, pro
 // unmodeled include a key the policy maps to TargetEnumOpen, and marks prov
 // with the heuristic when it does.
 //
-// It is PromoteDeprecation at a second carrier, with the same three properties:
-// the entry it reads stays where it was, the node records that a heuristic
-// wrote the field, and a disabled policy writes nothing. What differs is that
-// the fact is stated by the key being present rather than by a value, so this
-// reports nothing: the deprecation reading declines a value it cannot hold and
-// says so, while here every value shape but an explicit `false` is a key that
-// means what its name says (TargetEnumOpen, extensionOpenness).
+// It is PromoteDeprecation at a second carrier, but reports nothing: the key's
+// presence is the statement, so every value shape but an explicit `false` reads
+// as open (extensionOpenness).
 //
-// The policy's keys are visited sorted, as PromoteDeprecation visits them.
-// Here the order cannot change the answer — a key that states openness writes
-// the same field the same value as any other, a key that does not is skipped
-// rather than deciding anything, and none of them reports, so two keys
-// disagreeing read as open either way round — but one spelling of the loop
-// for both carriers is one fewer place for the two to drift.
-//
-// Deliberately out of scope: a document that writes x-extensible-enum *instead*
-// of `enum`, listing the members in the extension, lowers to no ir.Enum at all,
-// so there is no node here to open. Reading a member list out of an extension
-// would be minting an enum from a vendor key rather than promoting a field, and
-// the entry survives verbatim for a consumer that wants to (GitHub #427).
+// A document writing x-extensible-enum instead of `enum` lowers to no ir.Enum,
+// so there is nothing to open. Minting an enum from a member-list extension is
+// out of scope; the entry survives verbatim for a consumer that wants it
+// (GitHub #427).
 func (c Ctx) PromoteEnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Provenance) {
 	if e == nil || prov == nil || len(unmodeled) == 0 || len(c.promotions) == 0 {
 		return
 	}
+	// Sorted as in PromoteDeprecation, though no order changes the answer.
 	for _, key := range slices.Sorted(maps.Keys(c.promotions)) {
 		entry, declared := unmodeled[extensionKeyPrefix+key]
 		if c.promotions[key] != TargetEnumOpen || !declared || !extensionOpenness(entry.Value) {
@@ -200,17 +186,15 @@ func deprecationField(dep *ir.Deprecation, target ExtensionTarget) *string {
 }
 
 // extensionText reads a preserved extension value as a string. Every
-// Deprecation field is prose, a version or a date, so a value of any other JSON
-// shape is a document meaning something else by the key. Text of the right JSON
-// shape is taken as written — a date is not parsed here, because the mapping is
-// the caller's policy and a key it points at the date field is its statement
-// that the key holds one.
+// Deprecation field is prose, a version or a date, so any other JSON shape is a
+// document meaning something else by the key. Text is taken as written; a date
+// is not parsed, because the mapping is the caller's statement that the key
+// holds one.
 //
-// The target is *string rather than string because JSON null decodes into a
-// string without error and leaves it empty, so a bare `x-sunset:` would
-// otherwise read as text that says nothing — an empty field written and the
-// node marked inferred, with no diagnostic. A key with no value is a value of
-// another shape, and is reported as one.
+// The target is *string because JSON null decodes into a string without error
+// and leaves it empty, so a bare `x-sunset:` would write an empty field, mark
+// the node inferred and report nothing. A key with no value is reported as
+// another shape.
 func extensionText(raw ir.RawValue) (string, bool) {
 	var text *string
 	if err := json.Unmarshal(raw, &text); err != nil || text == nil {
@@ -222,17 +206,14 @@ func extensionText(raw ir.RawValue) (string, bool) {
 // extensionOpenness reads a preserved extension value as a statement that an
 // enum's member set is open.
 //
-// The key's presence is the statement, so a value of any shape but a boolean
-// reads as open: x-extensible-enum's established spelling writes the *members*
-// as its value, and a list of members says nothing about openness that the key
-// naming it has not already said. A boolean is the one shape that does state
-// openness on its own, so an explicit false is read as written — a document
-// saying the set is not extensible, which is not something to invert.
+// The key's presence is the statement, so any value but a boolean reads as
+// open: x-extensible-enum's established spelling writes the *members* as its
+// value, which says nothing the key has not. A boolean states openness itself,
+// so an explicit false is read as written, not inverted.
 //
-// The target is *bool rather than bool because JSON null decodes into a bool
-// without error and leaves it false, so a bare `x-extensible-enum:` — the
-// presence-only spelling this reading exists for — would otherwise be read as
-// the explicit false that is the one way to decline.
+// The target is *bool because JSON null decodes into a bool without error and
+// leaves it false, so a bare `x-extensible-enum:`, the presence-only spelling
+// this reading exists for, would read as the explicit false that declines.
 func extensionOpenness(raw ir.RawValue) bool {
 	var open *bool
 	if err := json.Unmarshal(raw, &open); err != nil || open == nil {

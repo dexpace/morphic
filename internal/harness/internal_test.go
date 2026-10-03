@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // badExtDoc returns a document that cannot be marshalled: its Unmodeled holds
@@ -21,42 +22,25 @@ import (
 // Check no longer reaches its round-trip oracle with this: irverify reports the
 // payload as ir/invalid-raw-value first, which is the point of that check. It is
 // used to drive roundTrips and deterministic directly, where the marshal failure
-// is the behaviour under test; dupKeyDoc is the fixture for Check's round-trip
-// outcome.
+// is the behaviour under test; Check's round-trip outcome is driven through the
+// roundTrip seam instead (TestCheck_RoundtripOutcome).
 func badExtDoc() *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Unmodeled: ir.Unmodeled{
 		"openapi:x": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue("{invalid")},
 	}}
 }
 
-// dupKeyDoc returns a structurally sound document whose two type IDs are
-// distinct invalid-UTF-8 byte strings. Before canonicalOptions started refusing
-// invalid UTF-8, the two encoded to the same U+FFFD-replaced JSON key, so the
-// marshalled object carried a duplicate key that silently lost an entry on the
-// way back in — that collision is what gives the fixture its name. Now
-// marshaling either ID is refused outright, before any such collision can form
+// dupKeyDoc returns a document whose two type IDs are distinct invalid-UTF-8
+// byte strings. The name dates from when both encoded to one U+FFFD-replaced
+// JSON key; marshaling either ID is now refused
 // (TestRoundTrips_DupKeyDocRefusedAtMarshal).
 //
-// Verify does not treat invalid UTF-8 in an ID as a structural violation, so
-// Check still reaches the round-trip oracle on this document; it now fires by
-// refusing the marshal rather than by comparing mismatched bytes
-// (TestCheck_RoundtripOutcome).
-//
-// The IDs are well-shaped so the document reaches the round-trip oracle at
-// all: an ID the grammar could not have produced is a structural violation,
-// and Check returns at the first one. Only their paths carry the ill-formed
-// bytes.
-//
-// The nodes are Any rather than Primitive for the same reachability reason. A
-// primitive's ID is derived from its kind, so a primitive anywhere but
-// t/prim/<kind> is a violation of its own, and the fixture would be classified
-// before the oracle it exists to reach. Any carries no such rule; the node kind
-// is incidental to what this document tests.
-//
-// The names are load-bearing for the same reason the IDs are: a node with no
-// name in any channel is a structural violation, and Check would classify this
-// document as one before the round-trip oracle ever ran. The schema stamp is
-// load-bearing on the same terms.
+// Verify reports each ID, as registry key and node ID, as ir/invalid-utf8, so
+// Check classifies the document as violations before the round-trip oracle runs
+// (TestCheck_InvalidUTF8IsAViolationNotARoundTrip). The IDs are otherwise
+// well-shaped and the nodes named Any rather than Primitive, so those are the
+// only violations drawn: a primitive's ID derives from its kind, and an unnamed
+// node is a defect of its own.
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
@@ -226,20 +210,21 @@ func TestCheck_ViolationsOutcome(t *testing.T) {
 	assert.Equal(t, OutcomeViolations, r.Outcome)
 }
 
-// TestCheck_RoundtripOutcome pins that Check reports OutcomeRoundtrip for
-// dupKeyDoc regardless of which of roundTrips' branches actually fires: it is
-// now the marshal refusal (TestRoundTrips_DupKeyDocRefusedAtMarshal), not a
-// byte mismatch, but Check classifies every roundTrips failure alike.
+// TestCheck_RoundtripOutcome pins that Check maps a failed round trip to
+// OutcomeRoundtrip. It goes through the roundTrip seam rather than a document,
+// so what it pins does not depend on which documents Verify lets through to
+// that oracle.
 func TestCheck_RoundtripOutcome(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
+	origCompile, origRoundTrip := compile, roundTrip
+	t.Cleanup(func() { compile, roundTrip = origCompile, origRoundTrip })
 	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
-		return dupKeyDoc(), nil, nil
+		return soundDoc(), nil, nil
 	}
+	roundTrip = func(*ir.Document) (string, bool) { return "forced round-trip failure", false }
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeRoundtrip, r.Outcome)
-	assert.Contains(t, r.Detail, "marshal:", "dupKeyDoc is refused before the byte comparison ever runs")
+	assert.Equal(t, "forced round-trip failure", r.Detail)
 }
 
 // TestCheck_InvalidRawValueIsAViolationNotARoundTrip pins the reordering the
@@ -257,6 +242,31 @@ func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
 	assert.Contains(t, r.Detail, "ir/invalid-raw-value")
+}
+
+// TestCheck_InvalidUTF8IsAViolationNotARoundTrip pins the reordering checkUTF8
+// causes: dupKeyDoc's two ill-formed type IDs used to reach the round-trip
+// oracle, since Verify held no opinion on invalid UTF-8 outside naming and
+// diagnostic messages. Verify now reports each ill-formed ID as
+// ir/invalid-utf8 before Check ever reaches roundTrip.
+func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+		return dupKeyDoc(), nil, nil
+	}
+
+	r := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, r.Outcome)
+	assert.Contains(t, r.Detail, "ir/invalid-utf8")
+
+	vs := irverify.Verify(dupKeyDoc())
+	codes := make([]string, 0, len(vs))
+	for _, v := range vs {
+		codes = append(codes, v.Code)
+	}
+	assert.Equal(t, []string{"ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8"}, codes,
+		"each ill-formed ID, as registry key and as node ID, is all Verify reports")
 }
 
 func TestCheck_NondeterministicOutcome(t *testing.T) {

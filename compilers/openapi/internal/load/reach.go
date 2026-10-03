@@ -2,417 +2,409 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
-	"net/url"
-	"strconv"
-	"strings"
+	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxReachNodes bounds every walk this file makes over the tree or the graph.
-const maxReachNodes = sourceindex.MaxIndexedNodes
+// maxReachWork bounds every step the check takes: each node and edge it reads,
+// builds or visits. Work grows linearly with the document as its aliases and
+// merge keys expand it; only a pointer that can start at any node also costs
+// about its length times the nesting depth it repeats through, so a document
+// thousands of levels deep can reach the bound.
+const maxReachWork = 1 << 24
 
 // reach over-approximates where the resolver can send each schema reference,
-// and refuses a document in which any choice of targets closes a cycle
-// (GitHub #526, #546).
+// and finds a cycle through any choice of targets (GitHub #526, #546).
 //
-// The resolver's registry lookups keep state between references: every pointer
-// target is re-registered as a document of its own, which moves the base its
-// $id and $anchor lookups are keyed by, and of two equal anchors the first
-// registered wins. The result depends on declaration order, so no reading of
-// the model before resolution predicts it. What does not move is where a lookup
-// can land: a $anchor on a schema declaring that name within the schema
-// document the reference sits in, an $id on a schema declaring one there. The
-// graph below takes every such target as possible, so a cycle the resolver can
-// enter in any order is refused in every order.
-//
-// A "#/$defs/..." pointer is the one lookup it does not have to guess. load
-// holds every such reference out of the resolver's own pass and resolves each
-// to the definition the resolver's rule names for it in its own place
-// (GitHub #557), so its edge here is that one definition (defs.Target), and a
-// plain pointer is read from the root, where the resolver reads it now that no
-// $defs lookup hands it another document.
-//
-// Taking every possible registry target rather than the one a given run
-// takes is what makes this an over-approximation: a document the pipeline
-// survives can still be refused. Measured against the JSON Schema Test Suite's
-// own draft2020-12 groups (every group embedded four ways) that costs nothing,
-// 0 of 1736 documents; TestReachCycle_KnownFalseRefusals pins the mechanisms
-// behind the adversarial cases that remain (a node with no $id-scoped ancestor
-// searches the whole tree, and declaring does not model which of two
-// same-named anchors the registry keeps). That price buys the property no
-// exact model of this resolver's state can have: the same verdict regardless
-// of which order the document's components declare.
+// What the resolver keeps between references decides where a pointer lands, so
+// whether a document crashes it can turn on declaration order. No reading of
+// the model predicts that. Where a lookup can land does not move, so every
+// target is taken, and a cycle is refused in every order. A document the
+// resolver survives can be refused. A "#/$defs/..." reference load holds out of
+// the resolver resolves to one definition, and is exact (GitHub #557).
 type reach struct {
-	root *yaml.Node
-	// byKey holds every mapping value and sequence element under the key or
-	// index that reaches it, so a pointer's first token finds every node it can
-	// start from.
-	byKey map[string][]*yaml.Node
-	// scope maps a schema node of the parsed model to the root of the schema
-	// document it belongs to; a node outside the model is scoped to the whole
-	// tree.
-	scope map[*yaml.Node]*yaml.Node
-	// defs holds, for each "#/$defs/..." reference of the parsed model, the node
-	// of the definition the resolver's rule names for it (defs.Target), or nil
-	// when it names none. load holds exactly these references out of the
-	// resolver's own pass and resolves each to that definition afterwards
-	// (withDefsHeld, resolveDefs), so this is an edge the resolver takes, not an
-	// over-approximation of one (GitHub #557).
-	defs map[*yaml.Node]*yaml.Node
-	// parent is each node's parent in the tree, for the two walks upward below.
-	parent map[*yaml.Node]*yaml.Node
-	// decls holds, per schema-document root, every mapping under it declaring
-	// $anchor or $id; nil keys the whole tree, which every lookup from a node
-	// outside the model searches.
-	decls map[*yaml.Node][]*yaml.Node
+	tree   *tree
+	budget *budget
+	// scope maps a schema node of the parsed model to the roots of the schema
+	// documents it belongs to: more than one when an alias makes one node the
+	// root of several schemas. A node outside the model has none.
+	scope map[*yaml.Node][]*yaml.Node
+	// owned holds every (node, root) pair scope records, so an alias that makes
+	// one node a schema of many documents adds each owner without a scan.
+	owned map[[2]*yaml.Node]bool
+	// schemas lists the keys of scope in the library's walk order, so nothing
+	// that visits them depends on map order.
+	schemas []*yaml.Node
+	// decls indexes every mapping declaring $anchor or $id under the schema
+	// document it sits in; a nil scope is the whole tree, which every lookup
+	// from a node outside the model searches.
+	decls decls
+	// searched holds every node at or above a /$defs/ reference: the ancestors
+	// the resolver searches for a definition, and so the documents an empty
+	// fragment can be resolved against.
+	searched map[*yaml.Node]bool
+	// drifted holds every node a reference may be resolved from with a document
+	// other than the root in hand: anything under the target of a /$defs/
+	// reference, and anything under the target of a reference already drifted.
+	drifted map[*yaml.Node]bool
+	// held holds, for each node that is a "#/$defs/..." reference of the model,
+	// the definitions its schemas resolve to (defs.Target); none when the rule
+	// names none, which is still no pointer read. load holds exactly these
+	// references out of the resolver's own pass (withDefsHeld), so each is an
+	// edge the resolver takes, not an over-approximation of one.
+	held map[*yaml.Node]*posSet
+	// scopes memoizes scopesOf, and climbed marks a node whose parents it has
+	// already queued, so every climb together reads each node once.
+	scopes  map[*yaml.Node][]*yaml.Node
+	climbed map[*yaml.Node]bool
+	// docs is the set documents builds on first use.
+	docs   *posSet
+	static map[*yaml.Node]refClass
+	rawIDs map[string]int
+	raws   []string
 }
 
-// reachCycle reports the first schema reference, in the library's walk order,
-// from which some choice of targets returns to a node already on the chain.
+// reachCycle refuses a document when some choice of targets closes a chain from
+// one of its schema references, and names the first such reference in the
+// library's walk order. A document the model could not finish is not refused,
+// as for every bound in this stage: it is reported as diag.CycleScanFailed and
+// the compile goes on.
 func reachCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+	return reachWithin(ctx, maxReachWork, locate, root, doc)
+}
+
+// reachWithin is reachCycle under a work budget of limit, so a test can exhaust
+// it without a document that costs maxReachWork.
+func reachWithin(ctx context.Context, limit int, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
 	return recoverChains(locate, func() (ir.Diagnostic, bool) {
-		r, starts := newReach(ctx, root, doc)
-		state := map[*yaml.Node]int{}
+		r, starts := newReach(ctx, limit, root, doc)
+		state := map[vertex]int{}
 		for _, start := range starts {
 			if r.cycles(start, state) {
 				return diag.Newf(ir.SeverityError, diag.CyclicRef, locate(start),
 					"cyclic $ref: reference chain never reaches a node without a $ref"), true
 			}
 		}
+		if r.incomplete() {
+			return diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, locate(nil),
+				"reference-chain scan stopped at its %d-step or %d-level merge-key bound; "+
+					"reference-cycle protection is incomplete for this source", limit, nodeview.MergeDepthLimit), true
+		}
 		return ir.Diagnostic{}, false
 	})
 }
 
-func newReach(ctx context.Context, root *yaml.Node, doc *soa.OpenAPI) (*reach, []*yaml.Node) {
-	r := &reach{root: contentRoot(root), byKey: map[string][]*yaml.Node{}, scope: map[*yaml.Node]*yaml.Node{},
-		parent: map[*yaml.Node]*yaml.Node{}, decls: map[*yaml.Node][]*yaml.Node{}, defs: map[*yaml.Node]*yaml.Node{}}
-	declared := r.index()
-	var starts []*yaml.Node
-	for item := range soa.Walk(ctx, doc) {
-		_ = item.Match(soa.Matcher{Schema: func(js *schemaRef) error {
-			s := js.GetSchema()
-			if s == nil || s.GetRootNode() == nil {
-				return nil
-			}
-			n := deref(s.GetRootNode())
-			if owner, ok := s.GetOwningDocument().(*schemaRef); ok && owner.GetSchema() != nil {
-				r.scope[n] = deref(owner.GetSchema().GetRootNode())
-			}
-			if js.IsReference() {
-				starts = append(starts, n)
-				r.recordDefs(doc, js, n)
-			}
-			return nil
-		}})
-	}
+// incomplete reports whether the model stopped short of the whole document: its
+// work budget ran out, or the merge keys it reads nested past the view's bound.
+func (r *reach) incomplete() bool {
+	return r.budget.exhausted() || r.tree.view.Exhausted()
+}
+
+// newReach reads root and doc in the order each phase needs the last: the tree,
+// the model's schemas and the definitions its held references name, the
+// declarations' scopes, the searched ancestors and the drift. It returns the
+// references a search starts from.
+func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI) (*reach, []*yaml.Node) {
+	r := emptyReach(root, &budget{limit: limit})
+	declared, defsRefs := r.tree.index()
+	starts := r.collect(ctx, doc)
 	r.group(declared)
+	defsRefs = r.unheld(defsRefs)
+	r.markSearched(defsRefs)
+	r.drift(defsRefs)
 	return r, starts
 }
 
-// recordDefs records the definition a held "#/$defs/..." reference at n
-// resolves to, as load will resolve it.
-func (r *reach) recordDefs(doc *soa.OpenAPI, js *schemaRef, n *yaml.Node) {
+// unheld is the references of defsRefs the resolver reads for itself: those
+// load did not hold out of its pass. A held one resolves to its own definition,
+// so it searches no ancestor and moves no document.
+func (r *reach) unheld(defsRefs []*yaml.Node) []*yaml.Node {
+	var out []*yaml.Node
+	for _, n := range defsRefs {
+		if _, held := r.held[n]; !held {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// emptyReach is a check over root that has read nothing yet.
+func emptyReach(root *yaml.Node, b *budget) *reach {
+	return &reach{tree: newTree(root, b), budget: b, scope: map[*yaml.Node][]*yaml.Node{},
+		owned: map[[2]*yaml.Node]bool{}, decls: newDecls(), held: map[*yaml.Node]*posSet{},
+		searched: map[*yaml.Node]bool{}, drifted: map[*yaml.Node]bool{},
+		scopes: map[*yaml.Node][]*yaml.Node{}, climbed: map[*yaml.Node]bool{},
+		static: map[*yaml.Node]refClass{},
+		rawIDs: map[string]int{"": 0}, raws: []string{""}}
+}
+
+// collect records the schema document each schema of the model belongs to, and
+// returns the schemas that are references, in the library's walk order.
+func (r *reach) collect(ctx context.Context, doc *soa.OpenAPI) []*yaml.Node {
+	var starts []*yaml.Node
+	matchSchemas(soa.Walk(ctx, doc), func(js *schemaRef) error {
+		r.budget.spend(1)
+		s := js.GetSchema()
+		if s == nil || s.GetRootNode() == nil {
+			return nil
+		}
+		n := nodeview.Deref(s.GetRootNode())
+		if owner, ok := s.GetOwningDocument().(*schemaRef); ok && owner.GetSchema() != nil {
+			r.addScope(n, nodeview.Deref(owner.GetSchema().GetRootNode()))
+		}
+		if js.IsReference() {
+			starts = append(starts, n)
+			r.hold(doc, js, n)
+		}
+		return nil
+	})
+	return starts
+}
+
+// hold records the definition a "#/$defs/..." reference js at n resolves to, as
+// load resolves it (resolveHeld). A node several schemas share, as an alias
+// does, is held to each one's definition.
+func (r *reach) hold(doc *soa.OpenAPI, js *schemaRef, n *yaml.Node) {
 	pointer, ok := heldDefsPointer(js)
 	if !ok {
 		return
 	}
-	r.defs[n] = nil
+	set := r.held[n]
+	if set == nil {
+		set = &posSet{}
+		r.held[n] = set
+	}
 	if t, _, found := defs.Target(doc, js, pointer); found && t.GetSchema() != nil {
-		r.defs[n] = deref(t.GetSchema().GetRootNode())
+		r.budget.spend(1)
+		set.members = append(set.members, nodeview.Deref(t.GetSchema().GetRootNode()))
 	}
 }
 
-// group files each declaring mapping under the schema document it sits in, and
-// every one under the whole tree too.
-func (r *reach) group(declared []*yaml.Node) {
-	for _, d := range declared {
-		r.decls[nil] = append(r.decls[nil], d)
-		if s := r.scopeOf(d); s != nil {
-			r.decls[s] = append(r.decls[s], d)
-		}
+// addScope records that n belongs to the schema document rooted at root.
+func (r *reach) addScope(n, root *yaml.Node) {
+	if _, seen := r.scope[n]; !seen {
+		r.schemas = append(r.schemas, n)
+	}
+	if pair := [2]*yaml.Node{n, root}; !r.owned[pair] {
+		r.owned[pair] = true
+		r.scope[n] = append(r.scope[n], root)
 	}
 }
 
-// scopeOf is the schema document n belongs to: its own when n is a schema of
-// the model, else that of the nearest schema above it.
-func (r *reach) scopeOf(n *yaml.Node) *yaml.Node {
-	for i := 0; n != nil && i < maxReachNodes; i++ {
-		if s, ok := r.scope[n]; ok {
-			return s
-		}
-		n = r.parent[n]
+// ownerOf is the one schema document n belongs to. A node in several, or in
+// none, is searched against the whole tree, which holds every one of them.
+func (r *reach) ownerOf(n *yaml.Node) *yaml.Node {
+	if owners := r.scope[n]; len(owners) == 1 {
+		return owners[0]
 	}
 	return nil
 }
 
-// index fills byKey and parent with one bounded walk that never follows an
-// alias, so each node is entered once, and returns the mappings declaring
-// $anchor or $id.
-func (r *reach) index() (declared []*yaml.Node) {
-	stack := []*yaml.Node{r.root}
-	for visited := 0; len(stack) > 0 && visited < maxReachNodes; visited++ {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if n == nil || n.Kind == yaml.AliasNode {
+// classOf is the class of the reference at n. A node with no $ref is class 0,
+// which has no targets, so every chain ends there.
+func (r *reach) classOf(n *yaml.Node) refClass {
+	if _, held := r.held[n]; held {
+		return refClass{held: n} // resolved to its definition, wherever the resolver's documents drifted to
+	}
+	c, ok := r.static[n]
+	if !ok {
+		raw := r.tree.refValue(n)
+		c = refClass{id: r.intern(raw)}
+		if raw != "" && namesRegistryEntry(raw) {
+			c.scope = r.ownerOf(n)
+		}
+		r.static[n] = c
+	}
+	c.drifted = r.drifted[n]
+	return c
+}
+
+func (r *reach) intern(raw string) int {
+	if id, ok := r.rawIDs[raw]; ok {
+		return id
+	}
+	r.rawIDs[raw] = len(r.raws)
+	r.raws = append(r.raws, raw)
+	return len(r.raws) - 1
+}
+
+// drift computes drifted to its fixed point. Each class and each set is
+// applied once and each node marked once, so the worklist is bounded by the
+// tree.
+func (r *reach) drift(defsRefs []*yaml.Node) {
+	work := append([]*yaml.Node(nil), defsRefs...)
+	seen, done := map[refClass]bool{}, map[*posSet]bool{}
+	for len(work) > 0 && r.budget.spend(1) {
+		n := work[len(work)-1]
+		work = work[:len(work)-1]
+		c := r.classOf(n)
+		if seen[c] {
 			continue
 		}
-		if n.Kind == yaml.MappingNode && (child(n, "$anchor") != nil || child(n, "$id") != nil) {
-			declared = append(declared, n)
-		}
-		r.indexChildren(n)
-		stack = append(stack, n.Content...)
-	}
-	return declared
-}
-
-func (r *reach) indexChildren(n *yaml.Node) {
-	switch n.Kind {
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			v := deref(n.Content[i+1])
-			r.byKey[n.Content[i].Value] = append(r.byKey[n.Content[i].Value], v)
-			r.parent[n.Content[i+1]] = n
-		}
-	case yaml.SequenceNode:
-		for i, v := range n.Content {
-			r.byKey[strconv.Itoa(i)] = append(r.byKey[strconv.Itoa(i)], deref(v))
-			r.parent[v] = n
+		seen[c] = true
+		for _, s := range r.lookups(c) {
+			if done[s] {
+				continue
+			}
+			done[s] = true
+			for _, t := range s.members {
+				work = append(work, r.markDrifted(t)...)
+			}
 		}
 	}
 }
 
-// cycles is a bounded depth-first search from start over every possible target;
-// state is 1 while a node is on the current path and 2 once it is known to
-// reach no cycle.
-func (r *reach) cycles(start *yaml.Node, state map[*yaml.Node]int) bool {
-	type frame struct {
-		n    *yaml.Node
-		next []*yaml.Node
+// markDrifted marks t's subtree and returns the references newly marked in it.
+// It follows the same effective children the resolver does, aliases included.
+func (r *reach) markDrifted(t *yaml.Node) []*yaml.Node {
+	var refs []*yaml.Node
+	stack := []*yaml.Node{t}
+	for len(stack) > 0 && r.budget.spend(1) {
+		n := nodeview.Deref(stack[len(stack)-1])
+		stack = stack[:len(stack)-1]
+		if n == nil || r.drifted[n] {
+			continue
+		}
+		r.drifted[n] = true
+		if r.tree.refValue(n) != "" {
+			refs = append(refs, n)
+		}
+		for _, p := range r.tree.pairs(n) {
+			stack = append(stack, p.Val)
+		}
 	}
-	if state[start] != 0 {
-		return false
+	return refs
+}
+
+// group files each declaring mapping under every schema document it sits in,
+// and under the whole tree too.
+func (r *reach) group(declared []*yaml.Node) {
+	for _, d := range declared {
+		scopes := slices.Concat(r.scopesOf(d), []*yaml.Node{nil})
+		r.budget.spend(len(scopes))
+		if a := r.tree.child(d, "$anchor"); a != nil && a.Kind == yaml.ScalarNode {
+			r.decls.addAnchor(scopes, a.Value, d)
+		}
+		if id := r.tree.child(d, "$id"); id != nil && id.Kind == yaml.ScalarNode {
+			r.decls.addID(scopes, keyOfURI(id.Value), d)
+		}
 	}
-	stack := []frame{{n: start, next: r.targets(start)}}
-	state[start] = 1
-	for steps := 0; len(stack) > 0 && steps < maxReachNodes; steps++ {
-		top := &stack[len(stack)-1]
-		if len(top.next) == 0 {
-			state[top.n] = 2
+}
+
+// scopesOf is every schema document n belongs to: its own when n is a schema of
+// the model, else those of the nearest schemas above it. An alias or merge key
+// can put one mapping in several. It climbs iteratively and memoizes each node
+// it resolves, so declarations nested in one another share their climb.
+func (r *reach) scopesOf(n *yaml.Node) []*yaml.Node {
+	stack := []*yaml.Node{n}
+	for len(stack) > 0 && r.budget.spend(1) {
+		m := stack[len(stack)-1]
+		if _, done := r.scopes[m]; done {
 			stack = stack[:len(stack)-1]
 			continue
 		}
-		t := top.next[0]
-		top.next = top.next[1:]
-		switch state[t] {
+		if owners, ok := r.scope[m]; ok {
+			r.scopes[m] = owners
+			continue
+		}
+		if !r.climbed[m] {
+			r.climbed[m] = true
+			stack = append(stack, r.tree.parents[m]...)
+			continue
+		}
+		r.scopes[m] = r.parentScopes(m)
+	}
+	return r.scopes[n]
+}
+
+// parentScopes is the union of the scopes of m's parents, each once. A parent
+// still unresolved here, which only a cycle of aliases could leave, adds none.
+func (r *reach) parentScopes(m *yaml.Node) []*yaml.Node {
+	var out []*yaml.Node
+	seen := map[*yaml.Node]bool{}
+	for _, p := range r.tree.parents[m] {
+		r.budget.spend(len(r.scopes[p]))
+		for _, owner := range r.scopes[p] {
+			if !seen[owner] {
+				seen[owner] = true
+				out = append(out, owner)
+			}
+		}
+	}
+	return out
+}
+
+func (r *reach) markSearched(defsRefs []*yaml.Node) {
+	stack := append([]*yaml.Node(nil), defsRefs...)
+	for len(stack) > 0 && r.budget.spend(1) {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if r.searched[n] {
+			continue
+		}
+		r.searched[n] = true
+		stack = append(stack, r.tree.parents[n]...)
+	}
+}
+
+// vertex is one node of the graph the search walks: a reference class, or a set
+// of nodes several classes land in. Taking a shared set as one vertex is what
+// keeps the walk linear: its members are read once, however many classes reach
+// it. A vertex with a nil set is its class.
+type vertex struct {
+	class refClass
+	set   *posSet
+}
+
+// cycles is a depth-first search from start over classes and the sets they land
+// in; state is 1 for a vertex on the current path and 2 once it is known to
+// reach no cycle. It stops without a verdict when the budget runs out, which
+// reachWithin then reports as incomplete protection.
+func (r *reach) cycles(start *yaml.Node, state map[vertex]int) bool {
+	type frame struct {
+		v     vertex
+		sets  []*posSet    // a class's sets not yet entered
+		nodes []*yaml.Node // a set's members not yet entered
+	}
+	enter := func(v vertex) frame {
+		state[v] = 1
+		if v.set != nil {
+			return frame{v: v, nodes: v.set.members}
+		}
+		return frame{v: v, sets: r.lookups(v.class)}
+	}
+	v0 := vertex{class: r.classOf(start)}
+	if state[v0] != 0 {
+		return false
+	}
+	stack := []frame{enter(v0)}
+	for len(stack) > 0 && r.budget.spend(1) {
+		top := &stack[len(stack)-1]
+		var next vertex
+		switch {
+		case len(top.sets) > 0:
+			next, top.sets = vertex{set: top.sets[0]}, top.sets[1:]
+		case len(top.nodes) > 0:
+			next, top.nodes = vertex{class: r.classOf(top.nodes[0])}, top.nodes[1:]
+		default:
+			state[top.v] = 2
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		switch state[next] {
 		case 1:
 			return true
 		case 0:
-			if refValue(t) != "" {
-				state[t] = 1
-				stack = append(stack, frame{n: t, next: r.targets(t)})
-			}
+			stack = append(stack, enter(next))
 		}
 	}
 	return false
-}
-
-// targets is every node the reference at n can land on. The resolver asks the
-// registries first, with the fragment exactly as written (oas3.ExtractAnchor),
-// and falls back to a pointer read the way references.Reference trims and
-// decodes one, so a reference can be tried both ways and both are kept.
-func (r *reach) targets(n *yaml.Node) []*yaml.Node {
-	raw := refValue(n)
-	uriPart, fragment, hasFragment := strings.Cut(raw, "#")
-	uri := strings.TrimSpace(uriPart)
-	var out []*yaml.Node
-	if hasFragment && fragment != "" && !strings.HasPrefix(fragment, "/") {
-		out = append(out, r.declaring(n, "$anchor", fragment)...)
-	}
-	if uri != "" {
-		return append(out, r.idTargets(n, uri, strings.TrimSpace(fragment))...)
-	}
-	if !hasFragment {
-		return out
-	}
-	if t, held := r.defs[n]; held {
-		if t != nil {
-			out = append(out, t)
-		}
-		return out
-	}
-	if pointer := strings.TrimSpace(fragment); strings.HasPrefix(pointer, "/") && pointer != "/" {
-		return append(out, r.pointerTargets(decodeFragment(pointer))...)
-	}
-	// An empty fragment, or a lone '/', names the document the resolver holds,
-	// which is always the root now that no $defs lookup hands it another: the
-	// root is no schema, so it lands nowhere.
-	return out
-}
-
-// pointerTargets is every node the pointer names. The resolver reads a plain
-// pointer from the root; only a "#/$defs/..." pointer outside the parsed model
-// — under a raw node the resolver unmarshals as a standalone schema, whose
-// references load does not hold — is read by the resolver's own lookup, and
-// for that one every node holding the path is kept.
-func (r *reach) pointerTargets(pointer string) []*yaml.Node {
-	tokens := pointerTokens(pointer)
-	if len(tokens) == 0 {
-		return nil
-	}
-	var starts []*yaml.Node
-	if defs.IsPointer(jsontext.Pointer(pointer)) {
-		starts = r.byKey[tokens[0]]
-	} else if first := child(r.root, tokens[0]); first != nil {
-		starts = []*yaml.Node{first}
-	}
-	var out []*yaml.Node
-	for _, s := range starts {
-		if t := walkTokens(s, tokens[1:]); t != nil {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// idTargets is where a URI part can land within this document: a schema in
-// the reference's scope whose $id could resolve to the same URI, navigated by
-// the fragment when it is a pointer. Which base each side is resolved against
-// depends on the resolver's state, but resolving against any base keeps the
-// last path segment, so an $id whose last segment differs can never match.
-func (r *reach) idTargets(n *yaml.Node, uri, fragment string) []*yaml.Node {
-	want := lastSegment(uri)
-	var ids []*yaml.Node
-	for _, d := range r.declaring(n, "$id", "") {
-		if lastSegment(child(d, "$id").Value) == want {
-			ids = append(ids, d)
-		}
-	}
-	if fragment == "" || fragment == "/" {
-		return ids
-	}
-	if !strings.HasPrefix(fragment, "/") {
-		return nil // the anchor half is already among the targets
-	}
-	tokens := pointerTokens(decodeFragment(fragment))
-	var out []*yaml.Node
-	for _, id := range ids {
-		if t := walkTokens(id, tokens); t != nil {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// lastSegment is the final path segment of a URI, the part no base can change.
-func lastSegment(uri string) string {
-	uri, _, _ = strings.Cut(uri, "#")
-	uri, _, _ = strings.Cut(uri, "?")
-	if i := strings.LastIndexByte(uri, '/'); i >= 0 {
-		return uri[i+1:]
-	}
-	return uri
-}
-
-// declaring is every mapping in n's schema document with key set to value
-// (any value when value is ""), whatever base it would be registered under.
-// A node outside the model searches the whole tree.
-func (r *reach) declaring(n *yaml.Node, key, value string) []*yaml.Node {
-	var out []*yaml.Node
-	for _, d := range r.decls[r.scope[n]] {
-		if v := child(d, key); v != nil && v.Kind == yaml.ScalarNode && (value == "" || v.Value == value) {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-func refValue(n *yaml.Node) string {
-	v := child(n, "$ref")
-	if v == nil || v.Kind != yaml.ScalarNode {
-		return ""
-	}
-	return v.Value
-}
-
-func child(n *yaml.Node, token string) *yaml.Node {
-	n = deref(n)
-	if n == nil {
-		return nil
-	}
-	switch n.Kind {
-	case yaml.MappingNode:
-		var found *yaml.Node
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == token {
-				found = deref(n.Content[i+1]) // the last spelling wins, as the parser reads it
-			}
-		}
-		return found
-	case yaml.SequenceNode:
-		for i, v := range n.Content {
-			if strconv.Itoa(i) == token {
-				return deref(v)
-			}
-		}
-	}
-	return nil
-}
-
-func walkTokens(n *yaml.Node, tokens []string) *yaml.Node {
-	for _, t := range tokens {
-		if n = child(n, t); n == nil {
-			return nil
-		}
-	}
-	return n
-}
-
-func pointerTokens(pointer string) []string {
-	var out []string
-	for t := range jsontext.Pointer(pointer).Tokens() {
-		out = append(out, t)
-	}
-	return out
-}
-
-func decodeFragment(fragment string) string {
-	if d, err := url.QueryUnescape(fragment); err == nil {
-		return d
-	}
-	return fragment
-}
-
-func deref(n *yaml.Node) *yaml.Node {
-	for i := 0; n != nil && n.Kind == yaml.AliasNode && i < 64; i++ {
-		n = n.Alias
-	}
-	return n
-}
-
-func contentRoot(n *yaml.Node) *yaml.Node {
-	if n != nil && n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
-		return deref(n.Content[0])
-	}
-	return deref(n)
-}
-
-// chainCycle runs the reach check when the tree can hold a lookup the
-// pre-parse scan does not model: a $anchor or $id the registries hold, or a
-// /$defs/ pointer resolved against something other than the root. Without
-// either, every chain is root pointers, which that scan has already refused a
-// cycle of.
-func chainCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
-	if !declaresRegistryKeys(root) && !spellsDefsPointer(root) {
-		return ir.Diagnostic{}, false
-	}
-	return reachCycle(ctx, locate, root, doc)
 }

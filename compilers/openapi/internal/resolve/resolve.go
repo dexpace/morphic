@@ -1,18 +1,15 @@
-// Package resolve answers what a $ref names: which same-document pointer it
-// addresses, which interned type, if any, already lives there, and — for the
-// components that are not schemas — which concrete value and declaration site a
+// Package resolve answers what a $ref names: the same-document pointer it
+// addresses, the schema declared there and the type interned there, and, for
+// components that are not schemas, the concrete value and declaration site a
 // reference-or-inline entry stands for.
 //
-// It is deliberately only that. Following a reference far enough to lower what
-// it points at is schema lowering reached through a reference, not resolution,
-// and it recurses back into the schema walk — so it stays with the walk rather
-// than crossing this boundary. What is here needs nothing but the document's own
-// path, what it declares, and a registry to look an ID up in, which is why it is
-// a package at all.
+// It is only that. Following a reference far enough to lower its target
+// recurses into the schema walk, so it stays with the walk. What is here needs
+// only the document, its path, its declared names and a registry.
 //
-// Reference resolution is not promoted to compilers/compile: two of the three
-// compilers need it and need it by different mechanisms, which is the shape that
-// looks promotable and is not.
+// Reference resolution is not promoted to compilers/compile: not every compiler
+// needs it, and those that do reach it by different mechanisms
+// (docs/micro-compiler-design.md §3.2).
 package resolve
 
 import (
@@ -21,6 +18,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 
@@ -32,7 +30,8 @@ import (
 )
 
 // Scope is what resolving a reference needs to know about the document doing
-// the referencing: which file it is, and which component schemas it declares.
+// the referencing: which file it is, which component schemas it declares, and
+// what it parsed to.
 //
 // Declares is a predicate rather than the name set itself, for the reason the
 // lowering context keeps that set behind an accessor: a copied struct shares a
@@ -44,8 +43,9 @@ type Scope struct {
 	// Declares reports whether the document declares a component schema of this
 	// name.
 	Declares func(name string) bool
-	// Doc is the parsed document a "#/$defs/..." pointer is navigated in; nil
-	// leaves every such pointer unresolved.
+	// Doc is the parsed document a pointer is read against, as the resolver reads
+	// it; nil leaves every "#/$defs/..." pointer unresolved and every DeclaredAt
+	// answer nil.
 	Doc defs.Navigable
 }
 
@@ -67,19 +67,58 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 	return at, found
 }
 
-// sameFile reports whether a $ref document part names this compilation's own
-// source file. An exact path match is internal; so is a bare filename (no
-// directory) equal to our own basename, since self-references are
-// conventionally spelled with just the file's own name (e.g. `m.yaml#/...`
-// inside m.yaml). A doc part carrying its own directory is matched in full,
-// never on basename alone — otherwise `dir2/m.yaml` referenced from
-// `dir1/m.yaml` would misread as a self-reference.
+// MappingPointer is TargetPointer for a discriminator mapping value: the
+// pointer it names, which for a "#/$defs/..." value is the definition read from
+// the discriminator d that holds it (defs.TargetFrom), as a $ref in the same
+// schema reads one (GitHub #557). ok is false for a value into another
+// document and for a $defs value the rule finds nothing for.
+func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
+	pointer, ok := s.InternalPointer(value)
+	if !ok || !defs.IsPointer(pointer) {
+		return pointer, ok
+	}
+	if s.Doc == nil || references.Reference(value).GetURI() != "" {
+		return "", false
+	}
+	from := jsontext.Pointer(d.GetCore().GetJSONPointer(s.Doc.GetRootNode()))
+	if from == "" {
+		return "", false
+	}
+	_, at, found := defs.TargetFrom(s.Doc, from, pointer)
+	return at, found
+}
+
+// DeclaredAt returns the schema declared at a same-document pointer, found the
+// way the resolver finds a $ref's target, or nil where there is none, like
+// annotation.DeclaredSchema for a followed $ref.
 //
-// The equality alone already gives that, since path.Base never yields a string
-// containing a separator; the explicit slash test states the rule rather than
-// leaving it to be re-derived, and is what holds if the comparison is ever
-// loosened. The two answers differ only for a source path of "/", which is not
-// a document.
+// It is for a reference that is only a string: a discriminator mapping value is
+// never resolved, so it carries no declaration of its own (GitHub #530). A
+// position the parsed model holds as raw YAML, such as an extension's value or
+// enum member, is no schema here, though the resolver parses one when a $ref
+// names it, so a mapping reaches it only once a $ref has interned it (GitHub
+// #757).
+func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if err != nil {
+		return nil
+	}
+	// Anything but a schema fails the assertion and leaves js nil, and so does a
+	// keyword the schema leaves unset, which the walk reaches as a typed nil.
+	js, _ := target.(*oas3.JSONSchema[oas3.Referenceable])
+	return js
+}
+
+// sameFile reports whether a $ref document part names this compilation's own
+// source file: an exact path match, or a bare filename equal to our own
+// basename, since self-references are conventionally spelled that way
+// (`m.yaml#/...` inside m.yaml). A part carrying its own directory is matched
+// in full, so `dir2/m.yaml` referenced from `dir1/m.yaml` is not a
+// self-reference.
+//
+// The slash test is redundant with the basename equality: path.Base yields a
+// separator only for "/", which the exact match has already taken. It states
+// the intent, and holds if the comparison is loosened.
 func (s Scope) sameFile(doc string) bool {
 	self := s.SelfPath
 	if self == "" {
@@ -93,15 +132,13 @@ func (s Scope) sameFile(doc string) bool {
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
 // document the reference names: the text after '#', trimmed and percent-decoded
-// as the resolver reads it (references.Reference). A name hint asks what a
-// reference spells, where InternalPointer asks what this document can resolve.
+// as the resolver reads it (references.Reference). Unlike InternalPointer, it
+// does not ask what this document can resolve.
 //
-// It reports ok=false for a reference with no fragment, for a fragment that is
-// not a pointer (`#name` names a $anchor), and for a bare `#`, which names the
-// whole document rather than a position in it. It also refuses a fragment that
-// decodes to bytes that are not UTF-8: no document key can spell them, so the
-// resolver never finds the target, and a pointer carrying them would reach an ID
-// the IR cannot encode (GitHub #520).
+// It reports ok=false for a reference with no fragment, a fragment that is not
+// a pointer (`#name` names a $anchor), a bare `#`, which names the whole
+// document, and a fragment decoding to bytes that are not UTF-8, which no
+// document key can spell and the IR cannot encode in an ID (GitHub #520).
 func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 	pointer := jsontext.Pointer(references.Reference(ref).GetJSONPointer())
 	if !strings.HasPrefix(string(pointer), "/") {
@@ -113,33 +150,19 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 	return pointer, true
 }
 
-// InternalPointer returns the same-document JSON pointer a $ref (or discriminator
-// mapping) target addresses, and ok=false for a genuine cross-document reference,
-// a bare schema name, or a malformed ref. A document part naming this same source
-// file (an OpenAPI self-reference) is treated as internal — Milestone 1 interns
-// only same-file targets; genuinely external ones are diagnosed and dropped.
+// InternalPointer returns the same-document JSON pointer a $ref (or
+// discriminator mapping) target addresses, and ok=false for a cross-document
+// reference, a bare schema name or a malformed ref. A document part naming this
+// source file is internal.
 //
-// The split into document and pointer is the resolver's own (references.Reference,
-// v1.24.0) rather than a hand-rolled one: a $ref is a URI, so its fragment is
-// percent-encoded, and `#/components/schemas/Foo%2DBar` names the component
-// "Foo-Bar". Comparing the raw fragment against declared names instead reported a
-// reference the resolver had resolved as unresolved, degrading the position to
-// `any` and dropping any discriminator mapping that spelled its target that way.
-// The pointer returned here is also an ID source, so the quieter half cost more:
-// an encoded pointer interned a second node for a position an unencoded pointer
-// already named, leaving one coordinate with two types and no diagnostic either
-// side of it (GitHub #40). Asking the resolver is what stops the answer drifting
-// from it again; nodeview.InternalPointer mirrors the same two methods for the
-// cycle scan, and records what a dependency bump should re-check.
+// It uses the resolver's own references.Reference, since fragments are
+// percent-encoded: comparing them raw missed resolvable references and interned
+// a second node at a named position (GitHub #40). nodeview.InternalPointer
+// mirrors that split.
 //
-// A fragment that is not a JSON pointer is refused here rather than passed on.
-// `#addr` names a JSON Schema `$anchor`, not a coordinate, and Milestone 1
-// resolves no anchors; letting it through returned "addr" as though it were a
-// pointer, and every ID derived from it was a path no source coordinate spells
-// (GitHub #141). The refusal has to be this compiler's own: the resolver library
-// does resolve some such fragments, a reference inside the schema that declares
-// the anchor among them, so deferring to it would reinstate the malformed
-// derivation wherever it follows one.
+// A fragment that is not a JSON pointer is refused. `#addr` names a $anchor,
+// which only the library resolves, and an ID derived from it would be a path no
+// coordinate spells (GitHub #141).
 func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer, ok := FragmentPointer(ref)
 	if !ok {
@@ -151,16 +174,15 @@ func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	return pointer, true
 }
 
-// ComponentRef resolves an internal pointer addressing a top-level
-// component schema to its stable named ID, but only when that component is
-// declared. It returns handled=true once the pointer is classified as a
-// component pointer (declared or not), so callers can stop; a declared
-// component yields ok=true, an undeclared one ok=false (a dangling reference to
-// drop). The ID is rebuilt from the component's canonical name — unescaped, then
-// re-escaped by ids.Ptr — rather than from the incoming pointer text, so a
-// non-canonically escaped reference (e.g. `A~B` for a component named "A~B",
-// interned under `A~0B`) still resolves to the interned node instead of an
-// unbacked ID.
+// ComponentRef resolves an internal pointer addressing a top-level component
+// schema to its stable named ID, but only when that component is declared. It
+// returns handled=true once the pointer is classified as a component pointer,
+// declared or not, so callers can stop: a declared component yields ok=true, an
+// undeclared one ok=false (a dangling reference to drop). The ID is rebuilt
+// from the component's canonical name, unescaped then re-escaped by ids.Ptr,
+// not from the incoming pointer text, so a non-canonically escaped reference
+// (`A~B` for a component named "A~B", interned under `A~0B`) still resolves to
+// the interned node.
 func (s Scope) ComponentRef(pointer jsontext.Pointer) (id ir.TypeID, ok, handled bool) {
 	name, isComponent := ids.ComponentSchemaName(pointer)
 	if !isComponent {
@@ -186,16 +208,16 @@ func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
 	return "", false
 }
 
-// NamesReferent reports whether ref names a schema this compilation can
-// point a TypeRef at, answering the question resolveSchemaRef answers without
-// interning anything on the way. A classifier needs that: deciding how to lower
-// a schema must not hoist nodes as a side effect of asking.
+// NamesReferent reports whether ref names a schema this compilation can point a
+// TypeRef at, answering what resolveSchemaRef answers without interning
+// anything on the way, since deciding how to lower a schema must not hoist
+// nodes as a side effect of asking.
 //
-// It sits beside resolveSchemaRef because it must stay in step with it, and
-// mirrors it minus the two steps that are not pure lookups — hoistSubSchema,
-// which interns (its own only failure is a target that declares no schema body,
-// which is the last condition here), and the internedID cache hit, which would
-// make the answer depend on which schema happened to lower first.
+// It must stay in step with resolveSchemaRef, and mirrors it minus the two
+// steps that are not pure lookups: hoistSubSchema, which interns (its own only
+// failure, a target declaring no schema body, is the last condition here), and
+// the InternedID hit, which would make the answer depend on which schema
+// lowered first.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
 	pointer, ok := s.TargetPointer(js, ref)
 	if !ok {
@@ -211,7 +233,7 @@ func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string
 // IsRefSite reports whether a position is $ref-shaped: the resolver's own
 // IsReference (a non-empty $ref), or a schema body that carries a Ref field of
 // its own even when empty. That is deliberately broader than annotation.At's
-// classification: schemaRef, refTargetSchema, and bodySchemaPointer
+// classification: schemaRefHomed, TargetSchema, and bodySchemaPointer
 // (content.go) all need "there is a $ref-carrying body here," not "there is a
 // genuine, followable reference," so the degenerate {$ref: ""} shape counts for
 // them even though it does not count as an annotation.Reference. s is the

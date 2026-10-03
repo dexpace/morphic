@@ -24,16 +24,15 @@ const module = "github.com/dexpace/morphic"
 const subtreeSuffix = "/..."
 
 // rules maps a directory (relative to repo root) to its allowed non-stdlib
-// imports; test files are exempt. The walk starts only at keyed directories and
-// recurses into their subtrees, so an unkeyed subdirectory nested under a keyed
-// one is still audited, under the ancestor's allowlist.
+// imports; test files are exempt. An unkeyed subdirectory is audited under its
+// nearest keyed ancestor's allowlist.
 //
-// An entry is one exact import path, or a subtree when it ends in "/...".
-// The distinction is what makes "compilers never import each other" expressible:
-// compilers/openapi may import the contract package and the shared framework
-// package, and each is named in its own right, so no sibling compiler rides in
-// beside them. Prefer the exact form — a subtree entry is for an external module
-// whose package layout is not ours to enumerate.
+// An entry is one exact import path, or a subtree when it ends in "/...". The
+// distinction makes "compilers never import each other" expressible:
+// compilers/openapi names the contract and framework packages individually, so
+// no sibling compiler rides in. Prefer the exact form; a subtree suits an
+// external module whose layout is not ours to enumerate, or a compiler's own
+// internal tree.
 var rules = map[string][]string{
 	"ir":          {},
 	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
@@ -117,6 +116,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
@@ -127,15 +127,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
-	// What a $ref names: the pointer it addresses and the type already interned
-	// there. It reaches annotation to ask whether a referenced position declares
-	// a body at all, and compile for the registry it looks IDs up in. It reaches
-	// nothing that lowers — following a reference far enough to lower its target
-	// recurses back into the schema walk, so that stays with the walk.
+	// What a $ref names: the pointer it addresses, the schema declared there and
+	// the type already interned there. It reaches annotation to ask whether a
+	// referenced position declares a body at all, jsonpointer to find that
+	// schema as the resolver does, and compile for the registry it looks IDs up
+	// in. It reaches nothing that lowers — following a reference far enough to
+	// lower its target recurses back into the schema walk, so that stays with
+	// the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references"},
 	// allOf property reconciliation. It reaches annotation for the one field a
@@ -225,6 +228,10 @@ var rules = map[string][]string{
 	"cmd/morphic":         {module + "/ir", module + "/engine"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},
+	// Test infrastructure outside the pipeline, like internal/harness above —
+	// but stdlib-only, which is what lets a package that starts a goroutine in
+	// its tests call it without pulling anything else in.
+	"internal/leakcheck": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

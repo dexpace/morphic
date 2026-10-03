@@ -74,7 +74,7 @@ serialization-specific reasoning that has no business in the IR. **Recommendatio
 refine layer:** (1) port ogen's ordered strategy taxonomy as the union-strategy selector; (2) because
 Morphic's `Union` node already carries `Variants[].{Name,WireName,WireID}`, `Exclusive`, `WireTagged`,
 and `Discriminator` un-lowered (everything ogen's tree needs as *input*), the Go emitter can **degrade
-gracefully** (e.g. `json.RawMessage` / sealed-interface with a fallback) where ogen aborts the whole
+gracefully** (e.g. `jsontext.Value` / sealed-interface with a fallback) where ogen aborts the whole
 spec. Make "no strategy found" a `Diagnostic` + fallback, never fatal — this is the concrete payoff of
 having the ABI seam ogen lacks. (3) Preserve `Exclusive` in the decoder: oneOf must reject
 multi-match, anyOf must not (datamodel/openapi-python collapse both — the bug to avoid). (4) Generate

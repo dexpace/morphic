@@ -2,7 +2,9 @@ package openapi
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
@@ -177,17 +179,12 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 
 // TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate pins
 // the identity half of the same fix, which the resolution half hides: a pointer
-// *through* an encoded component name addresses a sub-schema an unencoded pointer
-// also addresses, so the two must intern one node. Reading the fragment raw
-// hoisted a second one at `.../Foo%2DBar/properties/inner` — a path no source
-// coordinate spells, the derivation GitHub #141 refused for anchors — so one
-// position became two types, silently: both references resolved, no diagnostic
-// was emitted, and the duplicate is a node irverify has no reason to call
-// dangling.
-//
-// Both spellings appear here because that is what makes the duplicate observable
-// at all; the encoded ref alone lands on one node either way, and only its name
-// is wrong.
+// *through* an encoded component name addresses a sub-schema an unencoded
+// pointer also addresses, so the two must intern one node, at the declared
+// coordinate and not at `.../Foo%2DBar/properties/inner`, a path no source
+// coordinate spells (the derivation GitHub #141 refused for anchors). A second
+// node raises no diagnostic. Both spellings appear because the encoded ref
+// alone lands on one node either way, and only its name would be wrong.
 func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
@@ -268,65 +265,154 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 		"the encoded mapping target names the declared component, and the entry is kept")
 }
 
-// TestInternalPointer_ScanAndLoweringReadFragmentsAlike holds nodeview's and
-// resolve's fragment readers to each other. The pre-lowering cycle scan reads a
-// $ref's fragment through nodeview.InternalPointer, a hand-written mirror of the
-// resolver; lowering reads the same fragment through resolve.Scope.InternalPointer,
-// which asks the resolver's own references.Reference instead. They mirror one
-// target by two different means, on opposite sides of the archtest ordering (this
-// package may import both; neither of them may import the other, and no package
-// they can both reach would host a shared predicate without widening an
-// allowlist for it) — so a rule added to one and not the other is exactly the
-// drift a grep-for-the-other-test convention cannot catch, and this test can.
+// TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516.
+// speakeasy-api/openapi v1.25.2 caps its reference-token character class at
+// U+FFFF (jsonpointer/navigation.go, tokenRegex), though RFC 6901 admits up to
+// U+10FFFF, so a $ref through an emoji key is refused and one through a Basic
+// Multilingual Plane key resolves.
 //
-// The one documented exception is a fragment that is empty after trimming: the
-// scan reads a bare '#' as the root, which is where the resolver lands it, but
-// lowering refuses it — there is no position there to intern. Every other row
-// asserts the two agree, both on whether the fragment is a pointer and on what
-// it names.
+// The twins differ only in that key. A refused schema reference still aliases
+// an earlier-lowered target, which the compiler reuses without asking the
+// resolver, but lowers to any when declared first, so each twin declares both.
+// A refused path item mount is lost. When the astral twin compiles like the
+// other, the library is fixed: assert that and close #516.
+func TestCompile_APointerTokenPastUFFFFIsRefusedUpstream(t *testing.T) {
+	t.Parallel()
+	twin := func(key string) string {
+		return `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  "/` + key + `":
+    get: {operationId: getKey, responses: {"200": {description: ok}}}
+  /mount: {$ref: '#/paths/~1` + key + `'}
+components:
+  schemas:
+    Early: {$ref: '#/components/schemas/Later/properties/` + key + `'}
+    Later: {type: object, properties: {"` + key + `": {type: object}}}
+    Holder: {type: object, properties: {"` + key + `": {type: object}}}
+    Uses: {$ref: '#/components/schemas/Holder/properties/` + key + `'}
+`
+	}
+	property := func(owner, key string) ir.TypeID {
+		return ir.TypeID("t/anon/components/schemas/" + owner + "/properties/" + key)
+	}
+
+	basic, basicDiags := parseFull(t, twin("é"))
+	openapitest.RequireNoErrorDiags(t, basicDiags)
+	assert.Len(t, operationsNamed(basic, "getKey"), 2,
+		"a key inside the Basic Multilingual Plane resolves: the item is mounted at both paths")
+	assertAliases(t, basic, "Uses", property("Holder", "é"), "a resolved reference aliases its target")
+	assertAliases(t, basic, "Early", property("Later", "é"), "in either declaration order")
+
+	astral, astralDiags := parseFull(t, twin("😀"))
+	assert.True(t, ir.HasError(astralDiags),
+		"the resolver still refuses a token past U+FFFF; if it no longer does, see this test's comment")
+	assert.Len(t, operationsNamed(astral, "getKey"), 1,
+		"the refused reference mounts nothing, which is what the fix will change")
+	assertAliases(t, astral, "Uses", property("Holder", "😀"),
+		"a refused reference still reuses a target lowered before it")
+	assertAliases(t, astral, "Early", "t/prim/any",
+		"a refused reference declared before its target has nothing to reuse, which the fix will change too")
+}
+
+// assertAliases asserts the component schema name lowered to an alias over
+// target: what the position's $ref came to stand for.
+func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID, msg string) {
+	t.Helper()
+	alias, ok := doc.Types[componentID(name)].(*ir.Scalar)
+	require.True(t, ok, "%s lowers to an alias over what its $ref names", name)
+	require.NotNil(t, alias.Base, "the alias names what it stands for")
+	assert.Equal(t, target, alias.Base.Target, msg)
+}
+
+// TestInternalPointer_ScanAndLoweringReadFragmentsAlike holds nodeview's and
+// resolve's fragment readers to each other. The cycle scan reads a $ref's
+// fragment with nodeview.InternalPointer, a hand-written mirror of the
+// resolver; lowering asks the resolver through resolve.Scope.InternalPointer.
+// Neither package may import the other, so a rule added to one would drift
+// unseen.
+//
+// Rows carry no document part, which is where the two answer different
+// questions. They part on two fragments the scan reads and lowering refuses: a
+// bare '#', the whole document; and one decoding to non-UTF-8 bytes, which no
+// IR ID can encode (GitHub #520). The rest must agree.
 func TestInternalPointer_ScanAndLoweringReadFragmentsAlike(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{SelfPath: "spec.yaml", Declares: func(string) bool { return false }}
-	tests := []struct{ name, ref string }{
-		// GitHub #523: a fragment with no leading '/' names a $anchor, not a
-		// pointer, however it decodes.
-		{"anchor name", "#x-s"},
-		{"undecodable escape without a leading slash", "#%ZZ"},
-		{"a slash spelled as an escape still introduces a pointer", "#%2F"},
-		{"lone slash", "#/"},
-		// GitHub #520: a fragment that decodes to bytes that are not UTF-8 names
-		// no document key, however it is spelled.
-		{"non-UTF-8 byte", "#/a%FF"},
-		{"overlong encoding is not UTF-8", "#/a%C0%AF"},
-		{"UTF-16 surrogate is not UTF-8", "#/a%ED%A0%80"},
-		{"non-UTF-8 byte in a realistic pointer", "#/components/schemas/%FF"},
-		// Escaping the two readers must keep agreeing on.
-		{"a plus decodes to a space", "#/a+b"},
-		{"second hash ends the pointer", "#/a#b"},
-		{"leading and trailing space", " #/a "},
-		{"non-canonical escape, accepted by both (GitHub #14)", "#/A~B"},
-		{"percent-encoded hyphen", "#/components/schemas/Foo%2DBar"},
-		// The documented exception: empty after trimming.
-		{"bare hash", "#"},
-		{"hash and a space", "# "},
-	}
-	for _, tc := range tests {
+	sc := fragmentScope()
+	for _, tc := range fragmentReadings {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			scanPointer, scanOK := nodeview.InternalPointer(tc.ref)
 			lowerPointer, lowerOK := sc.InternalPointer(tc.ref)
-
-			// The fragment is empty once trimmed: the one spelling the two
-			// readers give a different verdict for.
-			if tc.ref == "#" || tc.ref == "# " {
-				assert.Equal(t, jsontext.Pointer(""), scanPointer)
-				assert.True(t, scanOK, "the scan reads a bare '#' as the root, where the resolver lands it")
+			if tc.parted {
+				assert.True(t, scanOK, "the scan reads %q the way the resolver walks it", tc.ref)
+				assert.Equal(t, tc.scanReads, scanPointer)
+				assert.False(t, lowerOK, "lowering has no position to intern for %q", tc.ref)
 				assert.Equal(t, jsontext.Pointer(""), lowerPointer)
-				assert.False(t, lowerOK, "lowering has no position to intern for the whole document")
 				return
 			}
 			assert.Equal(t, scanOK, lowerOK, "the two readers must agree whether %q is a pointer", tc.ref)
 			assert.Equal(t, scanPointer, lowerPointer, "and on what it names")
 		})
 	}
+}
+
+// FuzzInternalPointer_ScanAndLoweringReadFragmentsAlike carries the test above
+// past its rows. Whatever the fragment, the two readers agree unless the scan
+// reads the root or bytes that are not UTF-8, and lowering refuses both.
+func FuzzInternalPointer_ScanAndLoweringReadFragmentsAlike(f *testing.F) {
+	for _, tc := range fragmentReadings {
+		f.Add(tc.ref)
+	}
+	sc := fragmentScope()
+	f.Fuzz(func(t *testing.T, ref string) {
+		if doc, _, _ := strings.Cut(ref, "#"); strings.TrimSpace(doc) != "" {
+			return // a document part, where the readers answer different questions
+		}
+		scanPointer, scanOK := nodeview.InternalPointer(ref)
+		lowerPointer, lowerOK := sc.InternalPointer(ref)
+		if scanOK && (scanPointer == "" || !utf8.ValidString(string(scanPointer))) {
+			assert.False(t, lowerOK, "lowering refuses %q, which the scan reads as %q", ref, scanPointer)
+			return
+		}
+		assert.Equal(t, scanOK, lowerOK, "the two readers must agree whether %q is a pointer", ref)
+		assert.Equal(t, scanPointer, lowerPointer, "and on what %q names", ref)
+	})
+}
+
+// fragmentScope is the lowering side of the fragment tests: a document that
+// declares nothing, since reading a fragment never asks what is declared.
+func fragmentScope() resolve.Scope {
+	return resolve.Scope{SelfPath: "spec.yaml", Declares: func(string) bool { return false }}
+}
+
+// fragmentReadings are $ref values with no document part, and how the two
+// fragment readers must read each. A parted row is one they read apart on
+// purpose: the scan reads it as scanReads, and lowering refuses it.
+var fragmentReadings = []struct {
+	name, ref string
+	parted    bool
+	scanReads jsontext.Pointer
+}{
+	// GitHub #523: a fragment with no leading '/' names a $anchor, not a
+	// pointer, however it decodes.
+	{name: "anchor name", ref: "#x-s"},
+	{name: "undecodable escape without a leading slash", ref: "#%ZZ"},
+	{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F"},
+	{name: "lone slash", ref: "#/"},
+	// Escaping the two readers must keep agreeing on.
+	{name: "a plus decodes to a space", ref: "#/a+b"},
+	{name: "second hash ends the pointer", ref: "#/a#b"},
+	{name: "leading and trailing space", ref: " #/a "},
+	{name: "non-canonical escape, accepted by both (GitHub #14)", ref: "#/A~B"},
+	{name: "percent-encoded hyphen", ref: "#/components/schemas/Foo%2DBar"},
+	// Parted: empty after trimming, so the whole document.
+	{name: "bare hash", ref: "#", parted: true, scanReads: ""},
+	{name: "hash and a space", ref: "# ", parted: true, scanReads: ""},
+	// Parted: decodes to bytes that are not UTF-8 (GitHub #520).
+	{name: "non-UTF-8 byte", ref: "#/a%FF", parted: true, scanReads: "/a\xff"},
+	{name: "overlong encoding is not UTF-8", ref: "#/a%C0%AF", parted: true, scanReads: "/a\xc0\xaf"},
+	{name: "UTF-16 surrogate is not UTF-8", ref: "#/a%ED%A0%80", parted: true, scanReads: "/a\xed\xa0\x80"},
+	{name: "non-UTF-8 byte in a realistic pointer", ref: "#/components/schemas/%FF", parted: true,
+		scanReads: "/components/schemas/\xff"},
 }

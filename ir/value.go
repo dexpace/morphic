@@ -35,10 +35,14 @@ const (
 
 // Value is typed data kept separate from the type graph: defaults, constants,
 // literal types, enum member values, and examples (ir-design §6). Kind selects
-// which payload field is meaningful; the remaining fields hold their zero
-// value, and every payload is omitted when empty. Kind already says which
-// payload a value carries, so an empty list and a nil one are the same value
-// and share one spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
+// which payload field is meaningful; the others hold their zero value, and
+// every payload is omitted when empty, so an empty list and a nil one share one
+// spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
+//
+// irverify holds this contract: a populated field the kind does not select is
+// ir/value-stray-payload, an absent one it does select is
+// ir/value-missing-payload (number, ref and ctor only; the other kinds' zero
+// payload is a real value), and an undeclared kind is ir/unknown-value-kind.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`
@@ -72,7 +76,7 @@ type Field struct {
 // ValueRef references a declared constant: a TypeSpec enum-member default or a
 // reference to a named const (ir-design §6).
 type ValueRef struct {
-	// Type identifies the declaring type.
+	// Type identifies the declaring type; never empty.
 	Type TypeID `json:"type,omitempty"`
 	// Member names the referenced member within Type.
 	Member string `json:"member,omitempty"`
@@ -82,7 +86,7 @@ type ValueRef struct {
 // utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
 // inherently non-literal, so compilers must not fold them (ir-design §6).
 type CtorValue struct {
-	// Scalar identifies the scalar whose constructor is invoked.
+	// Scalar identifies the scalar whose constructor is invoked; never empty.
 	Scalar TypeID `json:"scalar,omitempty"`
 	// Name is the constructor name ("fromISO", "now", custom inits).
 	Name string `json:"name,omitempty"`

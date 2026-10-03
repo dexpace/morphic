@@ -28,22 +28,13 @@ func IsPointer(pointer jsontext.Pointer) bool {
 // Target returns the schema a same-document "#/$defs/..." pointer written at
 // js lands on, and the pointer of the position it sits at, by the rule the
 // resolver applies to a reference it meets on its own walk: the definitions of
-// js itself when js is a schema resource of its own ($id), else those of the
-// nearest ancestor that holds the path (oas3 tryResolveLocalDefs, then
+// js itself when it is a schema resource of its own ($id), else those of the
+// nearest ancestor holding the path (oas3 tryResolveLocalDefs, then
 // tryResolveDefsUsingJSONPointerNavigation, v1.25.2).
 //
-// Only that rule is followed. The resolver also caches the first definition it
-// finds for a pointer and hands it to every later reference spelling the same
-// pointer anywhere in the document, and resolves a reference it reached through
-// another against that other's definitions instead. Both make its answer depend
-// on declaration order — one schema's definition typed another schema's
-// property — so the compiler reads each reference in its own place, which is
-// the answer the resolver gives every reference it resolves first.
-//
-// The position is the pointer the target was found at, the ancestor's own
-// position plus the path, so an ID derived from it names where the definition
-// is written — never the document-rooted /$defs/... the reference spells,
-// which the document does not have.
+// The resolver also hands the first definition found for a pointer to every
+// later reference spelling it, so its answer depends on declaration order. The
+// position is where the definition is written (GitHub #557).
 func Target(doc Navigable, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, bool) {
 	if doc == nil || js == nil || !IsPointer(pointer) {
 		return nil, "", false

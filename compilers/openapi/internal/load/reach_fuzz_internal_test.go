@@ -33,21 +33,10 @@ import (
 // not an ir.Document).
 var update = flag.Bool("update", false, "rewrite testdata/reach_fuzz_crashes.golden instead of comparing")
 
-// reachFuzzOracleEnv, when set in the environment, tells this test binary to
-// act as the crash oracle subprocess instead of running the test suite: read
-// the spec file it names, run ONLY the raw library's own resolver over it with
-// a bounded stack, and exit rather than crash the parent test process the way
-// a real, unrecoverable stack overflow would. TestMain intercepts this before
-// testing.Main ever runs — the same self-exec pattern the standard library's
-// own os/exec tests use for a "helper process" — because the crash this file
-// looks for cannot be recovered in-process (bounded-recursion styleguide rule:
-// Go does not recover a stack-exhaustion fatal error, and debug.SetMaxStack is
-// process-wide, so it must be set in a process this test can afford to lose).
-//
-// Only regenerateReachFuzzGolden (run under -update) still spawns this
-// subprocess; the normal comparison path never does (see
-// TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto's own doc comment
-// for why).
+// reachFuzzOracleEnv, when set, makes this test binary act as the crash
+// oracle: TestMain reads the spec it names, runs the load pipeline over it with
+// the reference-chain check off and a bounded stack, and exits. A stack overflow cannot be recovered
+// in-process, so it has to happen in a process the test can afford to lose.
 const reachFuzzOracleEnv = "MORPHIC_REACH_FUZZ_ORACLE_SPEC"
 
 // TestMain lets this package act as its own crash-oracle subprocess. Every
@@ -63,20 +52,12 @@ func TestMain(m *testing.M) {
 // runReachFuzzOracle runs this package's own load pipeline over the spec at
 // specPath with the reference-chain check turned off, and returns the process
 // exit code: 0 if Load returns at all, nonzero for an I/O failure. A genuine
-// stack overflow never returns from this function — the Go runtime terminates
-// the process with a fatal error and exit status 2 first, which is the signal
-// reachFuzzSubprocessCrashed reads.
+// stack overflow never returns: the Go runtime ends the process with status 2,
+// which reachFuzzSubprocessCrashed reads.
 //
-// The pipeline, not the raw library, is the oracle because the pipeline is
-// what the compiler hands the resolver. load holds every "#/$defs/..."
-// reference out of the resolver's own pass and resolves each to the
-// definition the resolver's rule names (GitHub #557), so the library's own
-// $defs lookup — whose cross-schema cache and chain-dependent reading crash
-// some documents in one declaration order and not the other — never runs.
-// A document that crashes the raw library only through that lookup does not
-// crash the pipeline, and one the pipeline resolves differently can: the
-// question this regression answers is whether the check refuses every
-// document the compiler itself would otherwise crash on.
+// The pipeline, not the raw library, is the oracle because it is what the
+// compiler hands the resolver, and load holds "#/$defs/..." references out of
+// the resolver's pass (GitHub #557): the library's own lookup never runs.
 func runReachFuzzOracle(specPath string) int {
 	debug.SetMaxStack(64 << 20)
 	data, err := os.ReadFile(specPath)
@@ -94,31 +75,32 @@ func noChainCheck(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI) (ir.D
 	return ir.Diagnostic{}, false
 }
 
-// reachFuzzSubprocessCrashed re-execs this test binary as the oracle
-// subprocess over specPath and reports whether it crashed: exit status 2 is
-// what a Go "fatal error: stack overflow" terminates with.
+// reachFuzzSubprocessCrashed re-execs this test binary as the oracle over
+// specPath and reports whether the pipeline overflowed its stack. Exit status 2
+// is also what a panic ends with, so the fatal error's own text is required: a
+// panic is a different finding and fails the test rather than counting as one.
 func reachFuzzSubprocessCrashed(ctx context.Context, t *testing.T, specPath string) bool {
 	t.Helper()
 	cmd := exec.CommandContext(ctx, os.Args[0])
 	cmd.Env = append(os.Environ(), reachFuzzOracleEnv+"="+specPath)
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return false
 	}
 	var exitErr *exec.ExitError
-	if !assert.ErrorAs(t, err, &exitErr, "the oracle subprocess must exit rather than fail to start") {
+	if !assert.ErrorAs(t, err, &exitErr, "the oracle subprocess must exit rather than fail to start") ||
+		exitErr.ExitCode() != 2 {
 		return false
 	}
-	return exitErr.ExitCode() == 2
+	return assert.Contains(t, string(out), "fatal error: stack overflow",
+		"the oracle exited with status 2 for a reason other than the stack overflow it looks for")
 }
 
 // reachFuzzRefs, reachFuzzIDs and reachFuzzAnchors are the fixed vocabularies
-// the grammar below draws $ref/$id/$anchor values from, ported from the
-// throwaway Python script that found GitHub #526 and #546 by fuzzing, so the
-// same adversarial $ref/$anchor/$id/$defs soup runs as a committed regression
-// instead of only a one-off script: random mixes of "#", "#/" and
-// $defs-relative pointers, cross-component references, and relative/absolute
-// $id values.
+// the grammar below draws $ref/$id/$anchor values from, the shapes GitHub #526
+// and #546 report, so they run as a committed regression: random mixes of "#",
+// "#/" and $defs-relative pointers, cross-component references, and
+// relative/absolute $id values.
 var (
 	reachFuzzRefs = []string{
 		"#a", "#b", "#/$defs/m", "#/$defs/n", "#/$defs/m/properties/p",
@@ -126,8 +108,15 @@ var (
 		"#/components/schemas/A/$defs/m", "#/components/schemas/B/$defs/n",
 		"#/components/schemas/A/properties/p", "#/components/schemas/B/properties/q",
 		"https://x.test/a", "https://x.test/a#a", "https://x.test/b#/$defs/m", "a.json", "#/x-s", "#/x-s/$defs/m",
+		// Spellings the resolver reads differently from a byte-for-byte reader:
+		// a percent-encoded pointer, a second '#', and URIs a '.', a '..' or a
+		// percent-encoding turns into another path.
+		"#/%24defs/m", "#/$defs%2Fn", "#/$defs/m#x", "#a#x", "#", "#/", "./a.json", "foo/..", ".",
+		"https://x.test/a/", "https://x.test/a%20b", "https://x.test/a b",
 	}
-	reachFuzzIDs     = []string{"https://x.test/a", "https://x.test/b", "a.json"}
+	reachFuzzIDs = []string{
+		"https://x.test/a", "https://x.test/b", "a.json", "https://x.test/a/", "https://x.test/a%20b", "./a.json", "a/..",
+	}
 	reachFuzzAnchors = []string{"a", "b"}
 )
 
@@ -140,6 +129,9 @@ type reachFuzzSchema struct {
 	hasRef, hasType, hasAnchor, hasID bool
 	defs, props                       map[string]*reachFuzzSchema
 	defOrder, propOrder               []string
+	// yamlAnchor names a YAML anchor the rendered mapping carries; merge names
+	// the anchor of an earlier mapping it merges in with a `<<` key.
+	yamlAnchor, merge string
 }
 
 // genFuzzSchema generates one random schema node. depth is an explicit,
@@ -192,8 +184,15 @@ func fuzzSample(rng *rand.Rand, pool []string) []string {
 // ASCII with no character %q would escape unexpectedly, so this needs no
 // general JSON encoder.
 func (s *reachFuzzSchema) writeJSON(sb *bytes.Buffer) {
+	if s.yamlAnchor != "" {
+		sb.WriteString("&" + s.yamlAnchor + " ")
+	}
 	sb.WriteByte('{')
 	first := true
+	if s.merge != "" {
+		sb.WriteString("<<: *" + s.merge)
+		first = false
+	}
 	field := func(key, value string) {
 		if !first {
 			sb.WriteString(", ")
@@ -239,7 +238,8 @@ func (s *reachFuzzSchema) writeChildren(sb *bytes.Buffer, first *bool, key strin
 
 // genFuzzDoc generates one random document: an OpenAPI 3.1 skeleton, an
 // optional "x-s" extension schema, and one to three components named from
-// {A, B, C}, each an independently generated reachFuzzSchema.
+// {A, B, C}, each an independently generated reachFuzzSchema. Sometimes the
+// first is a YAML anchor that a later one merges.
 func genFuzzDoc(rng *rand.Rand) string {
 	var sb bytes.Buffer
 	sb.WriteString("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n")
@@ -249,9 +249,18 @@ func genFuzzDoc(rng *rand.Rand) string {
 		sb.WriteByte('\n')
 	}
 	sb.WriteString("components:\n  schemas:\n")
-	for _, k := range fuzzSample(rng, []string{"A", "B", "C"}) {
+	keys := fuzzSample(rng, []string{"A", "B", "C"})
+	schemas := make([]*reachFuzzSchema, len(keys))
+	for i := range keys {
+		schemas[i] = genFuzzSchema(rng, 2)
+	}
+	if len(keys) > 1 && rng.Float64() < 0.35 {
+		schemas[0].yamlAnchor = "base"
+		schemas[1+rng.Intn(len(keys)-1)].merge = "base"
+	}
+	for i, k := range keys {
 		sb.WriteString("    " + k + ": ")
-		genFuzzSchema(rng, 2).writeJSON(&sb)
+		schemas[i].writeJSON(&sb)
 		sb.WriteByte('\n')
 	}
 	return sb.String()
@@ -322,17 +331,11 @@ func loadRefusedAsCycle(t *testing.T, spec string) bool {
 	return doc == nil && countErrorsAt(diags, diag.CyclicRef) > 0
 }
 
-// regenerateReachFuzzGolden runs the subprocess crash oracle over every
-// document in docs and rewrites goldenPath with the indices that crash. It is
-// the only code path left in this file that still spawns a subprocess per
-// document, which is why the real sweep (reachFuzzN documents, written to
-// reachFuzzGoldenPath) runs only under -update instead of on every test run:
-// race instrumentation multiplies each subprocess's own startup cost, and 200
-// of them under -race do not fit a normal test run's time budget.
-// TestRegenerateAndReadReachFuzzGolden_RoundTrip below calls this directly
-// (bypassing the -update flag) against a two-document set and a scratch
-// path, so every line here still runs — and is covered — on every ordinary
-// test invocation without paying the 200-subprocess cost.
+// regenerateReachFuzzGolden runs the subprocess oracle over docs and rewrites
+// goldenPath with the indices that overflow the stack. Only -update runs it over
+// the real sweep, because a subprocess per document does not fit a
+// race-instrumented run. TestRegenerateAndReadReachFuzzGolden_RoundTrip calls
+// it on two documents, so every line is covered on ordinary runs.
 func regenerateReachFuzzGolden(t *testing.T, docs []string, goldenPath string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
@@ -386,28 +389,13 @@ func readReachFuzzGolden(t *testing.T, goldenPath string) []int {
 	return indices
 }
 
-// TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto is a committed
-// regression for a property that can only be checked against the raw,
-// unrecoverable crash a stack overflow causes (see reachFuzzOracleEnv's own
-// doc comment for why that needs a subprocess): every one of reachFuzzN
-// documents this file's grammar generates from a fixed seed that crashes the
-// vendored resolver must be refused as a cyclic reference.
-//
-// Running that subprocess oracle on all 200 documents on every test run does
-// not fit inside a race-instrumented run's time budget — each spawn's own
-// cost multiplies under -race, and the 200 of them exceed what a normal test
-// timeout affords. So the crash labels are computed once, under -update,
-// into testdata/reach_fuzz_crashes.golden, and every other run instead
-// replays them in-process against the deterministic documents
-// genReachFuzzDocs regenerates from the same seed: no subprocess, and fast
-// even under -race.
-//
-// A dependency bump to speakeasy-api/openapi that changes the resolver's own
-// behavior can make the golden stale — some index that used to be safe might
-// start crashing, or stop. Regenerate it with -update when that dependency
-// moves. If regenerating turns up a document that now crashes the resolver
-// and this package does not refuse, that is a real finding to fix, not a
-// golden to accept silently.
+// TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto requires that every
+// generated document the golden records as overflowing the pipeline's stack is
+// refused. The labels come from the subprocess oracle under -update, since
+// running it for all reachFuzzN documents does not fit a race run; every other
+// run replays them in-process. A dependency bump can make the golden stale:
+// regenerate it, and treat a document it finds crashing but unrefused as a
+// finding, not a golden to accept.
 func TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto(t *testing.T) {
 	t.Parallel()
 	docs := genReachFuzzDocs()
@@ -421,10 +409,10 @@ func TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto(t *testing.T) {
 	for _, i := range indices {
 		spec := docs[i]
 		assert.True(t, loadRefusedAsCycle(t, spec),
-			"document %d crashes the raw resolver per %s but was not refused:\n%s",
+			"document %d crashes the pipeline per %s but was not refused:\n%s",
 			i, reachFuzzGoldenPath, spec)
 	}
-	t.Logf("%d/%d generated documents are known to crash the raw resolver; all refused",
+	t.Logf("%d/%d generated documents are known to crash the pipeline without the check; all refused",
 		len(indices), len(docs))
 }
 

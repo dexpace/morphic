@@ -56,20 +56,19 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
 // from every object around the document metadata that lowers to no node of its
-// own: the document root, the info block and the contact and license inside it,
-// the root externalDocs, the components object, and each declared tag with its
-// own externalDocs.
+// own: the root, info with its contact and license, the root externalDocs, the
+// components object, and each tag with its own externalDocs.
 //
 // ir.Document is the nearest node with an Unmodeled map for all of them, so each
 // object's keys are scoped by the source path they were written at. One unscoped
-// "openapi:status" would be a single key for six objects, and the entry that
+// "openapi:status" would be a single key for every object, and the entry that
 // survived would be whichever site ran last.
 func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	sites := append(rootUnknownSites(c), tagUnknownSites(c)...)
 	diags := make([]ir.Diagnostic, 0, len(sites))
 	for _, site := range sites {
 		diags = append(diags,
-			annotation.UnknownKeysUnder(p, site.model, c.SrcIndex, site.owner, site.scope)...)
+			annotation.UnknownKeysUnder(p, site.model, c.ProvenanceAt, site.owner, site.scope)...)
 	}
 	return diags
 }
@@ -87,11 +86,10 @@ type unknownSite struct {
 // itself; the rest are keyed by the path from it down to the object that wrote
 // them.
 //
-// The components object is one of them, unlike the maps beneath it. `paths`,
+// The components object is one of them, unlike the maps beneath it: `paths`,
 // `responses` and a callback each embed a sequenced map, so every key they hold
-// is a valid entry and an unrecognized one is not a thing they have; the
-// Components Object is a fixed-field struct beside them, and a key it does not
-// define is as undeclared as one on any other object here.
+// is a valid entry, while the Components Object is a fixed-field struct and a
+// key it does not define is as undeclared as one on any other object here.
 func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
@@ -137,7 +135,7 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 // source path it was written at — see annotation.ExtensionsUnder for why one
 // unscoped key for all of them would not do.
 func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
-	return annotation.ExtensionsAt(c.SrcIndex, append(rootExtensions(c), tagExtensions(c)...)...)
+	return annotation.ExtensionsAt(c.ProvenanceAt, append(rootExtensions(c), tagExtensions(c)...)...)
 }
 
 // rootExtensions returns the extension sites a document has exactly one of. The
@@ -241,7 +239,7 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 // ir.Server itself; sptr is the server's own pointer in the servers list.
 func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
-	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.SrcIndex, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.ProvenanceAt, sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
 		Name:        serverName(s),
@@ -250,25 +248,18 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 		Variables:   vars,
 		Unmodeled:   ext,
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.SrcIndex, sptr)...)
+	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
-// serverName builds a server's neutral naming: the declared name when the source
-// carries one, which only OpenAPI 3.2 can, else a hint derived from the URL
-// template that locates it — the shape operationName already uses for an
-// operation with no operationId. Every server below 3.2 used to reach the IR with
-// all three name channels empty (GitHub #258).
+// serverName builds a server's neutral naming: the declared name (only OpenAPI
+// 3.2 has one), else a hint derived from the URL template, as operationName does
+// for an operation with no operationId (GitHub #258). It names by the URL, not
+// the position in servers[], which shifts when the list is reordered, and by the
+// whole template, not a part: choosing a part is a policy and drops what the
+// rest distinguishes, since one host serving /v1 and /v2 is two servers.
 //
-// The URL rather than the position in servers[], which stops naming the same
-// server the moment the list is reordered. The whole template rather than a
-// chosen part of it, because choosing is a policy about what a server's name is
-// where transcribing is not, and it keeps what the omitted part distinguished:
-// one host serving /v1 and /v2 is two servers.
-//
-// Distinct servers can still collide, since canonicalizing drops every non-word
-// character and ".../v1" and ".../v-1" reduce to one word sequence. That is the
-// collision "red" and "Red" already produce between two enum members, and
-// uniquifying it is an emitter's job.
+// Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
+// sequence), as two enum members can; an emitter uniquifies.
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)
@@ -295,7 +286,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
 		// field is read directly — as XMLHints already reads its own.
-		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.SrcIndex, vptr)
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.ProvenanceAt, vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
@@ -304,7 +295,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.SrcIndex, vptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.ProvenanceAt, vptr)...)
 		out = append(out, one)
 	}
 	return out, diags

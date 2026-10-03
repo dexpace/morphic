@@ -1,6 +1,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -552,13 +553,13 @@ func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
 	require.True(t, ok, "allowReserved is kept; got %v", kept)
 	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 	assert.JSONEq(t, "true", string(entry.Value))
-	assert.Equal(t, at+"/allowReserved", entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at+"/allowReserved"), entry.Provenance.Pointer)
 	openapitest.AssertInfoDiagAt(t, diags, at+"/allowReserved")
 
 	ext, ok := kept["openapi:encoding/q/x-vendor"]
 	require.True(t, ok, "the encoding's own x-* is kept; got %v", kept)
 	assert.Equal(t, ir.ReasonVendorExtension, ext.Reason)
-	assert.Equal(t, at+"/x-vendor", ext.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at+"/x-vendor"), ext.Provenance.Pointer)
 }
 
 // TestEncoding_AbsentAllowReservedRecordsNothing is the control: preservation
@@ -626,15 +627,14 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 }
 
 // TestEncoding_PartNameWithSlashKeepsItsOwnKey pins that a part's name is one
-// scope segment however it is spelled. The scope is "encoding/<part>" and the
-// part is a schema property name, so a "/" in it used to read as a separator:
-// parts "q" and "q/x-a" spelled one key between them, the entry that survived
-// followed the order the properties were declared in, and neither order said
-// anything about it.
+// scope segment however it is spelled. The scope is "encoding/<part>" and a
+// property name can contain "/", which must not read as a separator: parts "q"
+// and "q/x-a" would otherwise share one key, and the surviving entry would
+// follow declaration order.
 //
-// Both halves are needed to state it. The two entries must be distinct, and each
-// must hold the value its own part declared — asserting only that two keys exist
-// would pass on a lowering that swapped them.
+// The two entries must be distinct and each must hold its own part's value;
+// asserting only that two keys exist would pass on a lowering that swapped
+// them.
 func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
@@ -788,7 +788,7 @@ func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	// externalValue that would have given it a home.
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok, "the skipped entry is reported")
-	assert.Equal(t, "/paths/~1examples/get/responses/200/content/application~1json/examples/empty",
+	assert.Equal(t, jsontext.Pointer("/paths/~1examples/get/responses/200/content/application~1json/examples/empty"),
 		d.Provenance.Pointer)
 }
 
@@ -818,7 +818,7 @@ func TestContent_UnconvertibleExamplesDiagnosed(t *testing.T) {
 	assert.Empty(t, c.Examples, "both unconvertible examples are skipped, not appended")
 
 	require.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
-	pointers := map[string]bool{}
+	pointers := map[jsontext.Pointer]bool{}
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
 			pointers[d.Provenance.Pointer] = true
@@ -867,7 +867,7 @@ components:
 	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning))
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok)
-	assert.Equal(t, "/paths/~1items/get/responses/200/content/application~1json/examples/bad",
+	assert.Equal(t, jsontext.Pointer("/paths/~1items/get/responses/200/content/application~1json/examples/bad"),
 		d.Provenance.Pointer, "the reference site, not a /value the source never had")
 	assert.Contains(t, d.Message, "example:")
 }
@@ -1139,7 +1139,7 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	assert.Equal(t,
 		ir.PropID("p/openapi/paths/~1u/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Rate"),
 		headers[0].ID, "the encoding entry that binds the name keeps the header's identity")
-	assert.Equal(t, headers[0].Provenance.Pointer, string(headers[0].ID)[len("p/openapi"):],
+	assert.Equal(t, headers[0].Provenance.Pointer, jsontext.Pointer(string(headers[0].ID)[len("p/openapi"):]),
 		"provenance tracks the same use-site pointer as the ID")
 }
 
@@ -1293,8 +1293,8 @@ func assertHeaderSerializationKept(t *testing.T, h ir.Property, diags []ir.Diagn
 		require.True(t, ok, "%s is kept", key)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
 		assert.JSONEq(t, want, string(entry.Value))
-		assert.Equal(t, at+"/"+key, entry.Provenance.Pointer)
-		openapitest.AssertInfoDiagAt(t, diags, entry.Provenance.Pointer)
+		assert.Equal(t, jsontext.Pointer(at+"/"+key), entry.Provenance.Pointer)
+		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
 	}
 }
 
@@ -1316,19 +1316,14 @@ func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	assert.Empty(t, diags, "and nothing is announced about keywords the header never wrote")
 }
 
-// TestHeaders_ReservedContentTypeEntryIsReported covers the headers-map half of
-// the rule diag.ReservedHeaderName records. OpenAPI states "SHALL be ignored"
-// for a reserved header name at three positions, not one: a header parameter
-// (§4.8.12), a Content-Type entry in a response's headers map (§4.8.17), and a
-// Content-Type entry in an encoding's (§4.8.15). Morphic lowers all three
-// anyway, because dropping declared content is a loss and the choice belongs to
-// an emitter — but doing that in silence is what leaves an emitter unable to
-// tell such a header from any other, and generating one that restates the media
-// type the position already owns.
-//
-// Both headers-map positions are exercised, because the rule belongs to the
-// shared lowering rather than the response position: an encoding's per-part
-// headers reach lowerHeaders from the other caller.
+// TestHeaders_ReservedContentTypeEntryIsReported covers the response side of
+// the headers-map half of the rule diag.ReservedHeaderName records: a
+// Content-Type entry (§4.8.17), in any casing, is reported at the entry's own
+// pointer, and other names, Accept included, are not. The header lowers either
+// way, because dropping declared content is a loss and the choice belongs to an
+// emitter; the diagnostic is what lets an emitter tell it from any other
+// header. The encoding side is
+// TestHeaders_ReservedContentTypeInEncodingIsReported.
 func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1699,7 +1694,7 @@ func TestElectTypeSpelling_CoDeclaredSpellingsElectContent(t *testing.T) {
 			require.True(t, ok, "the passed-over schema is kept verbatim; got %v", unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
-			assert.Equal(t, tc.at+"/schema", entry.Provenance.Pointer,
+			assert.Equal(t, jsontext.Pointer(tc.at+"/schema"), entry.Provenance.Pointer,
 				"located at the keyword itself, not at the object that carried it")
 
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at+"/schema")
@@ -1818,7 +1813,7 @@ func TestElectTypeSpelling_ElectedContentWithoutASchemaStillWins(t *testing.T) {
 	require.True(t, ok, "and the passed-over schema is kept; got %v", op.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"integer"}`, string(entry.Value))
-	assert.Equal(t, at, entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
 	assert.Contains(t, msg, "lowered as its content", "the message names the elected spelling")
@@ -1858,7 +1853,7 @@ func TestElectTypeSpelling_UnusableContentElectsSchemaAndKeepsIt(t *testing.T) {
 	require.True(t, ok, "the passed-over content map is kept verbatim; got %v", op.Params[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{}`, string(entry.Value))
-	assert.Equal(t, at, entry.Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer(at), entry.Provenance.Pointer)
 
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
 	assert.Contains(t, msg, "lowered as its schema", "the message names the elected spelling")

@@ -13,17 +13,13 @@ import (
 // type node interned there, the coordinates interned beneath it, and every
 // diagnostic stamped at it.
 //
-// It answers "why did my example disappear" from the emitted document alone.
-// Every hoisted node records the coordinate it came from in Provenance.Pointer,
-// so the coordinate-to-node relation the compiler builds during lowering is
-// recoverable afterwards without widening the compiler contract to expose the
-// walk's internal map.
-//
-// What it does not report is which reader filled which field. That would need
-// the annotation readers to be separable units, which they are not; claiming it
-// here would describe a compiler this is not.
-func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, pointer string) {
-	shown := pointer
+// It answers "why did my example disappear" from the emitted document alone:
+// every hoisted node records its coordinate in Provenance.Pointer, so the
+// coordinate-to-node relation is recoverable without widening the compiler
+// contract. It does not report which reader filled which field; the annotation
+// readers are not separable units.
+func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) {
+	shown := string(pointer)
 	if pointer == "" {
 		shown = `"" (the whole document)` // printed bare, the root reads as a missing argument
 	}
@@ -55,13 +51,18 @@ func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, point
 // A nil entry is skipped rather than dereferenced: a malformed registry is what
 // pass.Validate and irverify exist to report, and explain must not be the thing
 // that crashes on one.
-func nodeAtPointer(doc *ir.Document, pointer string) (ir.TypeID, ir.TypeDef, bool) {
+//
+// A node is at pointer by the rule a diagnostic is, stampedAt's, since an empty
+// Pointer is not always the root's: a shared primitive records one on NoSource,
+// and naming it at the root would say the whole document declared it
+// (GitHub #528).
+func nodeAtPointer(doc *ir.Document, pointer jsontext.Pointer) (ir.TypeID, ir.TypeDef, bool) {
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
 		if td == nil {
 			continue
 		}
-		if td.Common().Provenance.Pointer == pointer {
+		if stampedAt(td.Common().Provenance, pointer) {
 			return id, td, true
 		}
 	}
@@ -70,7 +71,7 @@ func nodeAtPointer(doc *ir.Document, pointer string) (ir.TypeID, ir.TypeDef, boo
 
 // coordinate is one interned source position and the node it produced.
 type coordinate struct {
-	pointer string
+	pointer jsontext.Pointer
 	id      ir.TypeID
 	kind    ir.TypeKind
 }
@@ -84,8 +85,7 @@ type coordinate struct {
 // not its token boundary is not below it, and a trailing '/' is a token of its
 // own: /components/schemas/ is the schema keyed "", and only its subtree is
 // beneath it.
-func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
-	query := jsontext.Pointer(pointer)
+func coordinatesBelow(doc *ir.Document, pointer jsontext.Pointer) []coordinate {
 	var out []coordinate
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
@@ -93,7 +93,7 @@ func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
 			continue
 		}
 		p := td.Common().Provenance.Pointer
-		if p != pointer && query.Contains(jsontext.Pointer(p)) {
+		if p != pointer && pointer.Contains(p) {
 			out = append(out, coordinate{pointer: p, id: id, kind: td.Kind()})
 		}
 	}
@@ -102,14 +102,26 @@ func coordinatesBelow(doc *ir.Document, pointer string) []coordinate {
 }
 
 // diagnosticsAt returns the diagnostics stamped at pointer, in emitted order.
-func diagnosticsAt(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
+func diagnosticsAt(diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
 	out := make([]ir.Diagnostic, 0, len(diags))
 	for _, d := range diags {
-		if d.Provenance.Pointer == pointer {
+		if stampedAt(d.Provenance, pointer) {
 			out = append(out, d)
 		}
 	}
 	return out
+}
+
+// stampedAt reports whether prov locates a node or finding at pointer in a
+// source. A shared primitive and an IR pass's finding sit on NoSource, in no
+// source at all. One located by position records no pointer, and its empty
+// Pointer is not the whole document's: the position locates it finer, and
+// matching it at the root would put every such one there.
+func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
+	if prov.Pointer != pointer || prov.Source == ir.NoSource {
+		return false
+	}
+	return pointer != "" || prov.Position == ir.Position{}
 }
 
 // sortedTypeIDs returns the registry's keys in sorted order so explain output is

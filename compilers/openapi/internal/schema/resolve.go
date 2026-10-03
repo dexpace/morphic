@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"slices"
 
@@ -73,23 +74,15 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 }
 
 // refSiteRef resolves a $ref position and keeps whatever is written beside the
-// $ref. Those siblings bind the position, not the referent, so they cannot go
-// on the target's node; when the position has no carrier to hold them either,
-// an alias over the target becomes their home.
+// $ref. In JSON Schema 2020-12 those siblings are conjoined with the $ref, so
+// they bind the position, not the referent, and cannot go on the target's
+// node; an alias over the target becomes their home. The alias carries the
+// position's constraints and annotations, and keeps verbatim the census
+// keywords, allOf and oneOf/anyOf written beside the $ref, because it has no
+// property set, member set, value or encoding of its own (GitHub #283, #406).
 //
-// In JSON Schema 2020-12, and so in OpenAPI 3.1, `$ref` is an ordinary keyword
-// and its siblings are conjoined with it. The alias carries the position's
-// constraints and annotations; every census keyword written beside the $ref is
-// kept verbatim on it instead, because an alias has no property set, no member
-// set, no value and no encoding of its own (GitHub #283). oneOf/anyOf and
-// allOf are the same conjunction and reached none of that — the union's one
-// keeper (preserveUnionSiblingsAt) and the census (refSiteUnhomedKeywords) were
-// each reachable only from the structural-body path — so the alias narrows to
-// them too now (GitHub #406).
-//
-// At an annotation.HomeCarrier position no alias is hoisted — a description or a
-// bound beside a property's $ref belongs on the property (GitHub #114) — so the
-// carrier keeps them there too, through PreserveRefSiteKeywords.
+// At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
+// them through PreserveRefSiteKeywords (GitHub #114).
 func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, anchors, depth, js, pointer)
 	unhomed := refSiteUnhomedKeywords(s, nil)
@@ -175,13 +168,23 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 	if !ok {
 		return "", false, nil
 	}
+	return resolvePointer(c, ts, anchors, depth, pointer, annotation.DeclaredSchema(js))
+}
+
+// resolvePointer resolves a same-document pointer to the ID of the schema it
+// addresses: a component by its stable ID, an interned node by its own, and
+// otherwise decl, the schema declared there, hoisted at the pointer. A nil decl
+// declares nothing to hoist.
+//
+// It is where a $ref and a discriminator mapping target meet once each has its
+// pointer: they differ only in how decl is found, so they cannot drift apart.
+func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
 	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved, nil
 	}
 	if id, ok := resolve.InternedID(ts, pointer); ok {
 		return id, true, nil
 	}
-	decl := annotation.DeclaredSchema(js)
 	if decl == nil {
 		return "", false, nil
 	}
@@ -191,16 +194,12 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
 // guarantees a node exists at its pointer-derived ID, aliasing when the body
 // reduces to a shared target so a $ref to the sub-schema always resolves
-// (invariants 1, 2). The annotations written at that position — value
-// constraints and examples — are carried onto the alias exactly as for a
-// named scalar component, so a $ref to a constrained scalar sub-schema
-// ({type: number, minimum: 5}) does not silently drop them.
+// (invariants 1, 2). The annotations written at that position, value
+// constraints and examples, are carried onto the alias as for a named scalar
+// component, so a $ref to {type: number, minimum: 5} does not drop them.
 //
 // decl is the declaration itself, not its resolved form, so a sub-schema that
-// is a $ref carrying siblings aliases its target while keeping them. Ref
-// already draws that distinction — peeling a $ref off to a TypeRef and
-// lowering a concrete body in place — leaving this to intern whichever node
-// the pointer ends up owning.
+// is a $ref carrying siblings aliases its target while keeping them.
 func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
 	s := annotation.At(decl)
 	if s.Node == nil {
@@ -227,132 +226,115 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
 }
 
-// subSchemaHint names the node a $ref'd sub-schema pointer owns: the target it
-// aliases when the sub-schema is itself a $ref carrying siblings, the branch
-// hint when the pointer addresses a composition branch, the structural hint when
-// it addresses an inline structural position, the pointer's last token
-// otherwise.
+// subSchemaHint names the node a $ref'd sub-schema pointer owns: the hint the
+// position takes for where it is (ownHint), or, at a position that takes its
+// target's name, the hint of the node its own $ref resolves to (targetHint).
 //
-// Every case but the last exists because another lowering can own the same
-// pointer and derives its hint that way. Both lowerings reach the pointer — the
-// enclosing schema through its own body, this one through an outside $ref naming
-// it — and only the first to arrive interns the node, so a hint derived
-// differently here makes the document depend on declaration order.
-//
-// The branch case is the second half of that agreement for a composition branch.
-// Falling through to the last segment named an inline branch after its own
-// ordinal — "0" — which is a hint an emitter cannot build an identifier from,
-// and which disagreed with the composition's "variant_0" (GitHub #181).
-//
-// The structural case is the same agreement for items, additionalProperties, a
-// patternProperties entry and a prefixItems slot (GitHub #353), where the last
-// segment named the node after the keyword that holds it — "items" — or after
-// the pattern text or the slot ordinal, none of which distinguish it from the
-// same position on any other schema.
-//
-// One order dependence is left: a position that is itself a pure $ref interns no
-// node of its own, so its declaration never renames what an outside $ref names
-// there (GitHub #519).
+// The enclosing schema's own body and an outside $ref both lower this pointer,
+// and only the first to arrive interns the node. Beneath /components/schemas
+// positionHint replays the declaration's hint exactly; elsewhere the reference's
+// names are placeholders that InternDeclared replaces when the declaration
+// arrives.
 func subSchemaHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) string {
-	if decl != nil && decl.IsReference() {
-		if name := refHint(decl.GetRef().String()); name != "" {
-			return name
-		}
-	}
-	if hint, ok := branchPointerHint(pointer); ok {
+	hint, follow := ownHint(decl, pointer)
+	if !follow {
 		return hint
 	}
-	if hint, ok := structuralPointerHint(pointer); ok {
-		return hint
-	}
-	return pointer.LastToken()
+	return cmp.Or(targetHint(decl), hint)
 }
 
-// componentSchemas is the pointer of the components/schemas map. A structural
-// position's enclosing hint is the enclosing pointer's own last token only
-// strictly beneath it; see structuralPointerHint for why the derivation is
-// confined there.
-const componentSchemas jsontext.Pointer = "/components/schemas"
-
-// structuralPointerHint returns the hint the inline structural position at
-// pointer takes, for a caller holding only the pointer, and whether the pointer
-// addresses one it can answer.
+// ownHint returns the hint the position at pointer takes for where it is, and
+// whether a $ref written there names it after its target instead. decl is the
+// schema written there, if known.
 //
-// It is branchPointerHint's counterpart for the four positions whose hint is
-// composed rather than positional: the structural lowering builds them as
-// compile.SubHint(enclosing, role), so answering requires the enclosing node's
-// hint, which a bare pointer walk does not carry. Under /components/schemas it
-// does: the enclosing hint there is the enclosing pointer's own last token —
-// the component's name, or a property's key — so the composition can be replayed
-// by peeling roles off the tail and rebuilding from what is left.
-//
-// It is confined to that root because the derivation is not total, and the
-// remainder is a naming decision rather than a bug to paper over. A position
-// under /paths takes its enclosing hint from an operationId, a response, or a
-// media-type key, and the pointer records none of them: the same items position
-// is "response_item" to the structural lowering and has no pointer spelling that
-// reproduces it. Answering those with a pointer-derived name would replace one
-// disagreement with a different one, so they keep the last-token fallback.
-// That leaves no order dependence there — components lower before paths, so a
-// reference from one always interns first — but it does leave a name that
-// depends on whether an unrelated schema points at the position. GitHub #372
-// holds that remainder.
-//
-// The walk is bounded by construction: each step moves to an ancestor, which is
-// strictly shorter, so the loop ends at the root at the latest.
-func structuralPointerHint(pointer jsontext.Pointer) (string, bool) {
-	var roles []string // innermost first
-	for pointer != "" {
-		role, parent, ok := structuralRole(pointer)
-		if !ok {
-			break
-		}
-		roles = append(roles, role)
-		pointer = parent
-	}
-	if len(roles) == 0 || pointer == componentSchemas || !componentSchemas.Contains(pointer) {
-		return "", false
-	}
-	hint := pointer.LastToken()
-	for _, role := range slices.Backward(roles) {
-		hint = compile.SubHint(hint, role)
-	}
-	return hint, true
+// Only a composition branch holding a $ref is named after its target, as the
+// composition names it (branchHint); every other position is named for where it
+// is, as positionHint replays it.
+func ownHint(decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (hint string, follow bool) {
+	hint, branch := positionHint(pointer)
+	return hint, branch && decl != nil && decl.IsReference()
 }
 
-// structuralRole reports the role the structural lowering names the position at
-// pointer by, and the pointer of the schema holding that position: one token up
-// for items, additionalProperties and contentSchema, two for a
-// patternProperties entry and a prefixItems slot.
+// componentSchemaTokens is the length of /components/schemas/<name>, the
+// pointer positionHint roots a component's walk at: the component itself.
+const componentSchemaTokens = 3
+
+// positionHint returns the hint the structural lowering gives the schema
+// position at pointer, and whether it is a composition branch.
 //
-// The roles are the suffixes the compile.SubHint call sites pass, and a change to
-// one of them has to be made here too — TestInlinePosition_HintIsTheSameInBothOrders
-// is what fails when they drift, provided its row aims the outside $ref above the
-// node it asserts (see the refAt column there): a reference aimed at the node
-// itself is renamed by the declaration in either order and cannot see a role
-// missing here.
-//
-// A role is recognized by its token's spelling alone, so a key spelled like a
-// keyword — a property named items — is read as the keyword (GitHub #518).
-func structuralRole(pointer jsontext.Pointer) (role string, parent jsontext.Pointer, ok bool) {
-	last, up := pointer.LastToken(), pointer.Parent()
-	switch last {
-	case "items":
-		return "item", up, true
-	case "additionalProperties":
-		return "value", up, true
-	case "contentSchema":
-		return "content", up, true
+// It replays the lowering because the hint is composed: items is
+// compile.SubHint(enclosing, "item"), so only a walk from the root tells the
+// keyword from a property named items (GitHub #518). Beneath /components/schemas
+// the replay is exact. Elsewhere the enclosing hint is not in the pointer, so
+// the walk resets at every token it does not know: a placeholder the declaration
+// replaces, or the name itself for a position only references reach (GitHub
+// #529). Each step consumes a token, bounding the walk.
+func positionHint(pointer jsontext.Pointer) (hint string, branch bool) {
+	tokens := slices.Collect(pointer.Tokens())
+	start := min(1, len(tokens))
+	if len(tokens) >= componentSchemaTokens && tokens[0] == "components" && tokens[1] == "schemas" {
+		start = componentSchemaTokens
 	}
-	switch up.LastToken() {
-	case "patternProperties":
-		return "pattern", up.Parent(), true
-	case "prefixItems":
-		if isDecimalIndex(last) {
-			return last, up.Parent(), true
-		}
+	if start > 0 {
+		hint = tokens[start-1]
 	}
-	return "", "", false
+	for i := start; i < len(tokens); {
+		var step int
+		hint, branch, step = positionStep(hint, tokens[i:])
+		i += step
+	}
+	return hint, branch
+}
+
+// positionStep applies the keyword at rest[0] to the enclosing hint, returning
+// the hint of the position it leads to, whether that position is a composition
+// branch, and how many tokens the step consumed: two for a keyword whose
+// children are keyed or indexed, one otherwise. A keyword the lowering does not
+// walk (not, if, then, else, an unknown one) is named after its own token: only
+// a reference reaches it, so any stable spelling keeps its name independent of
+// declaration order.
+func positionStep(enclosing string, rest []string) (hint string, branch bool, step int) {
+	keyword := rest[0]
+	if role, ok := structuralRoles[keyword]; ok {
+		return compile.SubHint(enclosing, role), false, 1
+	}
+	if len(rest) < 2 {
+		return keyword, false, 1
+	}
+	child := rest[1]
+	switch {
+	case keyedSchemaMaps[keyword]:
+		return child, false, 2
+	case keyword == "patternProperties":
+		return compile.SubHint(enclosing, "pattern"), false, 2
+	case keyword == "prefixItems" && isDecimalIndex(child):
+		return compile.SubHint(enclosing, child), false, 2
+	case compositionKeywords[keyword] && isDecimalIndex(child):
+		return positionalBranchHint(child), true, 2
+	}
+	return keyword, false, 1
+}
+
+// structuralRoles maps each keyword whose one schema the structural lowering
+// names by role to that role: the suffixes its compile.SubHint call sites pass. A
+// change to one of them has to be made here too, and
+// TestInlinePosition_HintIsTheSameInBothOrders is what fails when they drift,
+// provided its row aims the outside $ref above the node it asserts (see the
+// refAt column there): a reference aimed at the node itself is renamed by the
+// declaration in either order and cannot see a role missing here.
+var structuralRoles = map[string]string{
+	"items":                "item",
+	"additionalProperties": "value",
+	"contentSchema":        "content",
+}
+
+// keyedSchemaMaps are the keywords whose value maps a key to a schema that is
+// named by the key alone: a property by its name, and the $defs, definitions,
+// dependentSchemas and dependencies entries by theirs, as the pointer's last
+// token always named them. patternProperties is keyed too but names by role, so
+// positionStep takes it separately.
+var keyedSchemaMaps = map[string]bool{
+	"properties": true, "$defs": true, "definitions": true, "dependentSchemas": true, "dependencies": true,
 }
 
 // refNullable reports whether a $ref usage admits null: the reference site or
