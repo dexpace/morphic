@@ -3442,3 +3442,38 @@ func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
 			"the diagnostic names the alias pass.Validate refused, not the schema it aliases")
 	}
 }
+
+// TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics pins that what
+// lowering a mapping target reports reaches the compile's diagnostics, for a
+// mapping entry and a defaultMapping alike. The targets sit under not and if,
+// which no declaration lowers, so the hoist is the only lowering that sees the
+// format each declares beside a model: dropping its findings would lose them.
+func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.2.0", `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {n: '#/components/schemas/Kennel/not'}
+        defaultMapping: '#/components/schemas/Kennel/if'
+    Kennel:
+      type: object
+      not: {type: object, format: wat, properties: {a: {type: string}}}
+      if: {type: object, format: huh, properties: {b: {type: string}}}
+      then: {required: [b]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok, "Pet is a model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/not"), pet.Discriminator.Mapping["n"])
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/if"), pet.Discriminator.Default)
+
+	for _, pointer := range []string{"/components/schemas/Kennel/not", "/components/schemas/Kennel/if"} {
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
+			"the format beside the model hoisted at %s is reported", pointer)
+	}
+}
