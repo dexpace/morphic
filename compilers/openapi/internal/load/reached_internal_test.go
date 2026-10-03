@@ -156,9 +156,9 @@ func TestReached_ChargeCountsNoFurtherThanTheBudgetLeft(t *testing.T) {
 // reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
 // reachedObject and targetOf through a real, resolved document: a schema
 // reference to an object, one to a boolean (nothing but its value), a path
-// item, a path item whose chain stops at a pointer naming nothing, a chain
-// through two documents, and internal references that stay in the source or
-// leave it.
+// item, a path item whose chain stops at a pointer naming nothing, a response
+// whose chain loops, a chain through two documents, and internal references
+// that stay in the source or leave it.
 const reachedFixtureOther = `openapi: 3.1.0
 info: {title: O, version: "1"}
 paths:
@@ -172,6 +172,9 @@ components:
     Obj: {type: object, properties: {inner: {type: string}}}
     AnyBool: true
     Hop: {$ref: "./third.yaml#/components/schemas/Leaf"}
+  responses:
+    Loop: {$ref: "#/components/responses/Back"}
+    Back: {$ref: "#/components/responses/Loop"}
 `
 
 const reachedFixtureThird = `components:
@@ -192,6 +195,8 @@ components:
     Local: {type: string}
     ToLocal: {$ref: "#/components/schemas/Local"}
     ToS: {$ref: "#/components/schemas/S"}
+  responses:
+    Loops: {$ref: "./other.yaml#/components/responses/Loop"}
 `
 
 // reachedFixtureDoc loads reachedFixtureRoot beside the documents it names
@@ -280,16 +285,20 @@ func TestReachedObject(t *testing.T) {
 		assert.Same(t, ref.GetObject().GetRootNode(), node)
 	})
 
-	t.Run("a chain that stops at a pointer naming nothing ends on no object", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Paths.Get("/stops")
-		require.True(t, ok)
-		require.True(t, ref.IsResolved(), "its first hop resolved; the second did not")
-		obj, node, ok := reachedObject(ref)
-		assert.False(t, ok)
-		assert.Nil(t, obj)
-		assert.Nil(t, node)
-	})
+	stops, ok := doc.Paths.Get("/stops")
+	require.True(t, ok)
+	loops, ok := doc.Components.Responses.Get("Loops")
+	require.True(t, ok)
+	for name, ref := range map[string]resolvable{"stops": stops, "loops": loops} {
+		t.Run("a chain that "+name+" ends on no object", func(t *testing.T) {
+			t.Parallel()
+			require.True(t, ref.IsResolved(), "the resolver marks it resolved, with nothing at its end")
+			obj, node, ok := reachedObject(ref)
+			assert.False(t, ok)
+			assert.Nil(t, obj)
+			assert.Nil(t, node)
+		})
+	}
 
 	t.Run("a resolvable that cannot say what it names names nothing to validate", func(t *testing.T) {
 		t.Parallel()
