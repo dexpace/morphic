@@ -116,7 +116,8 @@ func (t *Types) claimSpace(id ir.TypeID, minted bool) {
 //
 // The ID is recorded before build runs, which is what terminates recursive and
 // diamond schemas: a self-reference reached while building hits the map and
-// returns the ID rather than re-entering build.
+// returns the ID rather than re-entering build. Until build returns the node is
+// Building, and NodeAt has none to give.
 //
 // A second call for the same pointer returns the first ID and does not rebuild,
 // so a caller must not rely on build running — it is the interning table, not a
@@ -225,11 +226,11 @@ func (t *Types) NameFromDeclaration(pointer, hint string) {
 		return
 	}
 	delete(t.provisional, pointer)
-	// The coordinate resolves and its node is present: a coordinate is marked
-	// provisional only once Intern has recorded both, and Intern is what removes
-	// the pair again when a build yields nothing — so there is no state here in
-	// which one exists without the other, and a branch for one would be
-	// untestable (the reasoning NodeAt states).
+	// The coordinate resolves and its node is present: InternProvisional marks a
+	// coordinate only once its build has returned a node, and Intern is what
+	// removes the pair again when a build yields nothing — so there is no state
+	// here in which one exists without the other, and a branch for one would be
+	// untestable.
 	//
 	// Neutralized on the way in, because this writes the field NamingHint would
 	// have written and has to write it the same way. A raw hint here would leave
@@ -273,26 +274,42 @@ func (t *Types) Lookup(pointer string) (ir.TypeID, bool) {
 	return id, ok
 }
 
-// NodeAt returns the node interned at pointer.
+// NodeAt returns the node interned at pointer, and false when there is none:
+// nothing interned the coordinate, or its node is still Building.
 //
-// It exists so the two-step "resolve the coordinate, then fetch the node" cannot
-// be written with a gap between the steps. Intern records a coordinate and its
-// node together, so a coordinate that resolves always has a node — a caller
-// doing Lookup then Node has to write a branch for a state this type does not
-// produce, and an unreachable branch is worse than no branch: it cannot be
-// tested, and it suggests the state is possible.
+// It exists so "resolve the coordinate, then fetch the node" is one step with
+// one answer. While its build runs a coordinate resolves, which is what stops
+// recursion, but holds no node, so NodeAt reports false there rather than hand
+// back a nil node to write to (GitHub #749).
 func (t *Types) NodeAt(pointer string) (ir.TypeDef, bool) {
 	id, ok := t.byPointer[pointer]
 	if !ok {
 		return nil, false
 	}
-	return t.reg[id], true
+	td, built := t.reg[id]
+	return td, built
 }
 
 // Node returns the type definition registered under id, if any.
 func (t *Types) Node(id ir.TypeID) (ir.TypeDef, bool) {
 	td, ok := t.reg[id]
 	return td, ok
+}
+
+// Building reports whether Intern is still building the node id names: the ID
+// is claimed, so a revisit of its coordinate gets it back, but build has not
+// returned it a node.
+//
+// A walk reaches such a node again only from below the frame building it, and
+// that frame finishes the node once its build returns. A reader that finds no
+// node asks this to tell the two misses apart: one is that frame's work, the
+// other a node that will never exist.
+func (t *Types) Building(id ir.TypeID) bool {
+	if _, claimed := t.byID[id]; !claimed {
+		return false
+	}
+	_, built := t.reg[id]
+	return !built
 }
 
 // PrimRef interns the primitive of kind k on first use and returns a reference

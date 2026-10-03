@@ -43,7 +43,8 @@ func TestTypes_LookupAndNodeReportMisses(t *testing.T) {
 }
 
 // TestTypes_NodeAtResolvesCoordinateAndNodeTogether pins the property that makes
-// the paired lookup safe: whenever a coordinate resolves, so does its node.
+// the paired lookup safe: a coordinate whose build has returned resolves to its
+// node in one step.
 func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
@@ -55,6 +56,59 @@ func TestTypes_NodeAtResolvesCoordinateAndNodeTogether(t *testing.T) {
 
 	_, ok = types.NodeAt("/never-interned")
 	assert.False(t, ok, "and an uninterned coordinate reports the miss")
+}
+
+// TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode pins the window Intern
+// opens. The coordinate is recorded before build runs, so a revisit gets the ID
+// back and recursion terminates, but the node exists only once build returns.
+// NodeAt reports that window as a miss, and Building is what tells it apart
+// from a coordinate nothing interned (GitHub #749).
+func TestTypes_ANodeStillBeingBuiltIsBuildingAndNotYetANode(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	const pointer, id = "/p", ir.TypeID("t/x")
+
+	var resolved, hasNode, building bool
+	types.Intern(pointer, id, func() ir.TypeDef {
+		_, resolved = types.Lookup(pointer)
+		_, hasNode = types.NodeAt(pointer)
+		building = types.Building(id)
+		return &ir.Model{ID: id}
+	})
+	assert.True(t, resolved, "the coordinate resolves while its build runs")
+	assert.False(t, hasNode, "but it has no node to read yet")
+	assert.True(t, building, "and Building says why")
+
+	_, ok := types.NodeAt(pointer)
+	assert.True(t, ok, "once build returns, the node is there")
+	assert.False(t, types.Building(id), "and the build is over")
+}
+
+// TestTypes_BuildingHoldsOnlyDuringABuild holds Building to that window. A
+// coordinate never interned, a node minted without one, a build refused for
+// yielding nothing, and a declaration rebuilding a reference's node all report
+// false: in the last, the reference's node stays readable until the rebuild
+// returns.
+func TestTypes_BuildingHoldsOnlyDuringABuild(t *testing.T) {
+	t.Parallel()
+	types := compile.NewTypes()
+	assert.False(t, types.Building("t/never"), "nothing interned it")
+
+	types.Register("t/minted", &ir.Model{ID: "t/minted"})
+	assert.False(t, types.Building("t/minted"), "a minted node has no build window")
+
+	types.Intern("/refused", "t/refused", func() ir.TypeDef { return nil })
+	assert.False(t, types.Building("t/refused"), "a refused intern leaves nothing behind")
+
+	types.InternProvisional("/r", "t/r", func() ir.TypeDef { return &ir.Model{ID: "t/r"} })
+	var building, hasNode bool
+	types.InternDeclared("/r", "t/r", func() ir.TypeDef {
+		building = types.Building("t/r")
+		_, hasNode = types.NodeAt("/r")
+		return &ir.Model{ID: "t/r"}
+	})
+	assert.False(t, building, "a rebuild replaces a node that is already there")
+	assert.True(t, hasNode, "so the reference's node stays readable while it runs")
 }
 
 // TestTypes_RegisterTakesNoCoordinate covers the minted-node path: a composed
