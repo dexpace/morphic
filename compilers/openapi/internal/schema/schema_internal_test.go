@@ -94,37 +94,59 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 
-// TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder drives
-// the two readers that find a node by its coordinate after interning,
-// attachDeclaredAnnotations and recordDeclarationResidue, at a coordinate
-// whose build is still running. Both leave it alone, and the frame building
-// the node attaches the same declaration once its build returns (GitHub #749).
-func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
-	t.Parallel()
+// lowererDeclaringS returns a lowerer over a component S that declares a
+// description and readOnly, with S's schema and pointer, for driving a reader
+// at S while its node is still being built and again once the build returns.
+func lowererDeclaringS(t *testing.T) (*lowerer, *oas3.Schema, jsontext.Pointer) {
+	t.Helper()
 	l, diags := loweredFor(t, openapitest.ComponentSpec(
 		"    S: {type: object, description: kept, readOnly: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	decl, ok := l.ctx.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	s := decl.GetSchema()
-	const at = jsontext.Pointer("/components/schemas/S")
+	return l, decl.GetSchema(), "/components/schemas/S"
+}
 
-	var annotated, residue []ir.Diagnostic
+// TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder pins
+// that a revisit while the node at its coordinate is still being built reads
+// nothing there and reports nothing; the frame building the node attaches the
+// same declaration once its build returns (GitHub #749).
+func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
+	t.Parallel()
+	l, s, at := lowererDeclaringS(t)
+
+	var midBuild []ir.Diagnostic
 	id := internNode(l.ctx, l.types, at, "s", func(cm ir.TypeCommon) ir.TypeDef {
-		annotated = attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at)
-		residue = recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode)
+		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at) })
 		return &ir.Model{TypeCommon: cm}
 	})
-	assert.Empty(t, annotated, "a revisit mid-build attaches nothing")
-	assert.Empty(t, residue, "and records nothing")
+	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
+
+	assert.Empty(t, attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at))
 	td, ok := l.types.Node(id)
 	require.True(t, ok)
-	assert.Empty(t, td.Common().Docs.Description, "so the node the build returned holds none of it yet")
-
-	attachDeclaredAnnotations(l.ctx, l.types, &l.anchors, s, at)
-	assert.NotEmpty(t, recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode))
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
-	assert.Contains(t, td.Common().Unmodeled, "openapi:readOnly", "and records the residue")
+}
+
+// TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder is the
+// same for the residue an own-node position records: nothing mid-build, and
+// readOnly kept and reported once the build has returned (GitHub #749).
+func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
+	t.Parallel()
+	l, s, at := lowererDeclaringS(t)
+
+	var midBuild []ir.Diagnostic
+	id := internNode(l.ctx, l.types, at, "s", func(cm ir.TypeCommon) ir.TypeDef {
+		require.NotPanics(t, func() { midBuild = recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode) })
+		return &ir.Model{TypeCommon: cm}
+	})
+	assert.Empty(t, midBuild, "a revisit mid-build records and reports nothing")
+
+	assert.NotEmpty(t, recordDeclarationResidue(l.ctx, l.types, s, at, annotation.HomeOwnNode),
+		"the builder's own pass reports what it keeps")
+	td, ok := l.types.Node(id)
+	require.True(t, ok)
+	assert.Contains(t, td.Common().Unmodeled, "openapi:readOnly", "and keeps it")
 }
 
 // TestAttachDeclaredAnnotations_MissingNode drives the invariant no source can
