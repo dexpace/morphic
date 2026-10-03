@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -206,28 +206,40 @@ func TestInternedID_Miss(t *testing.T) {
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
 
-// TestScope_DeclaredAt pins the four shapes a pointer can be at: a schema
-// position resolves to its declaration, a position that is not a schema at
-// all and a position the document does not declare both come back ok=false
-// rather than panicking or returning a zero *oas3.JSONSchema a caller could
-// mistake for a real one, and a Scope built with no Doc resolves nothing
-// (GitHub #530 — a discriminator mapping value has no js.GetResolvedSchema()
-// to fall back to, so DeclaredAt is what a caller without one uses instead).
+// TestScope_DeclaredAt pins which positions resolve: a schema does, and every
+// position holding no schema comes back ok=false rather than as a nil schema a
+// caller could take for a real one. That covers a non-schema object, an
+// undeclared name, a keyword the schema leaves unset (which the pointer walk
+// reaches as a typed nil), raw YAML under an extension key, which only a $ref
+// makes the resolver parse, and a Scope with no Doc.
 func TestScope_DeclaredAt(t *testing.T) {
 	t.Parallel()
-	doc := openapitest.DocDeclaring("Pet")
-	doc.Info = soa.Info{Title: "T", Version: "1"}
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      x-dog: {type: object}
+`))
+	require.NoError(t, err)
 	sc := Scope{Doc: doc}
 
 	got, ok := sc.DeclaredAt("/components/schemas/Pet")
 	require.True(t, ok, "a schema position resolves to its declaration")
 	assert.NotNil(t, got)
 
-	_, ok = sc.DeclaredAt("/info")
-	assert.False(t, ok, "a non-schema position does not resolve")
-
-	_, ok = sc.DeclaredAt("/components/schemas/Ghost")
-	assert.False(t, ok, "a position the document does not declare does not resolve")
+	for pointer, why := range map[jsontext.Pointer]string{
+		"/info":                         "a non-schema position does not resolve",
+		"/components/schemas/Ghost":     "a position the document does not declare does not resolve",
+		"/components/schemas/Pet/not":   "a keyword the schema leaves unset does not resolve",
+		"/components/schemas/Pet/x-dog": "raw YAML under an extension does not resolve",
+	} {
+		got, ok := sc.DeclaredAt(pointer)
+		assert.False(t, ok, why)
+		assert.Nil(t, got, why)
+	}
 
 	_, ok = Scope{}.DeclaredAt("/components/schemas/Pet")
 	assert.False(t, ok, "a nil Doc resolves nothing")
