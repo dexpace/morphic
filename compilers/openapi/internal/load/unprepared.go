@@ -266,12 +266,13 @@ func unprepared(doc *soa.OpenAPI, read *externalReads, used []usedDocument) []us
 }
 
 // trail is what a reference's resolution recorded: the document each hop read,
-// first hop first, and the reference it stopped at unresolved, if it did. cut
-// marks a trail followed only as far as maxResolutionHops. endsInSource marks
-// the last document as the source itself, which a hop is resolved against as
-// the model; every other document is resolved against as a parsed tree.
+// first hop first, and either the target it ended on, by absolute reference, or
+// the reference it stopped at unresolved. cut marks a trail followed only as far
+// as maxResolutionHops. endsInSource marks the last document as the source,
+// which a hop resolves against as the model, not as a parsed tree.
 type trail struct {
 	docs         []string
+	target       references.Reference
 	stopped      references.Reference
 	cut          bool
 	endsInSource bool
@@ -322,6 +323,7 @@ func hops[S any, R interface {
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
 }](ref R) trail {
 	var t trail
+	var last references.Reference
 	hop := ref
 	for hop != nil {
 		info := hop.GetReferenceResolutionInfo()
@@ -334,10 +336,14 @@ func hops[S any, R interface {
 		}
 		t.docs = append(t.docs, info.AbsoluteDocumentPath)
 		_, t.endsInSource = info.ResolvedDocument.(*soa.OpenAPI)
+		last = info.AbsoluteReference
 		hop = info.Object
 	}
 	if hop != nil {
 		t.stopped = hop.GetReference() // empty for the object a resolution ends on
+	}
+	if t.stopped == "" {
+		t.target = last
 	}
 	return t
 }

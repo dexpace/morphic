@@ -25,15 +25,15 @@ type resolvable interface {
 }
 
 // resolveWith resolves every reference in doc, reading external documents
-// through reader when one is given, and reports each failure, and each finding
-// in the object a reference names, at the $ref that produced it (GitHub #385,
-// GitHub #537). It runs ResolveAllReferences' own walk, since that call names
-// no reference for a failure or a finding.
+// through reader when one is given. It reports each failure at the $ref that
+// failed, and each finding in the object a reference names at a $ref reaching
+// it (GitHub #385, GitHub #537). It runs ResolveAllReferences' own walk, since
+// that call names no reference for a failure or a finding.
 //
 // A finding is in a document with no entry in Document.Sources (GitHub #74), so
 // its message names the document and its position there (see findingPlace). It
-// is about a node, not a reference, so it is reported once, at the first $ref
-// reaching it (see reportable).
+// is about a node, not a reference, so it is reported once (see
+// reachedFindings).
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, reader *external,
 ) []ir.Diagnostic {
@@ -47,22 +47,30 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 		resolveOpts.HTTPClient = *reader
 	}
 
-	var diags []ir.Diagnostic
-	reported := map[findingKey]bool{}
+	var failures []ir.Diagnostic
+	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
 	site, err := eachReference(soa.Walk(ctx, doc), func(site jsontext.Pointer, r resolvable) error {
-		vErrs, err := r.Resolve(ctx, resolveOpts)
-		diags = append(diags, referenceDiags(at(site), r, reportable(vErrs, reported), err)...)
+		var vErrs []error
+		var err error
+		if !r.IsResolved() { // one an earlier $ref's chain resolved is only noted
+			vErrs, err = r.Resolve(ctx, resolveOpts)
+		}
+		t := resolutionTrail(r)
+		found.note(site, t, vErrs)
+		if err != nil {
+			failures = append(failures, failureDiag(at(site), r, t, err))
+		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "%s", err.Error()))
+		failures = append(failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "%s", err.Error()))
 	}
-	return diags
+	return append(failures, found.diags(at)...)
 }
 
-// eachReference calls visit with each reference the walk reaches that is not
-// yet resolved, and the pointer that writes it. The walk does not descend into
-// what a resolved reference names, so each is visited once, where it is written.
+// eachReference calls visit with each reference the walk reaches, resolved or
+// not, and the pointer that writes it. The walk does not descend into what a
+// resolved reference names, so each is visited once, where it is written.
 //
 // A panic from the third-party walk or resolver becomes an error, as a parser
 // panic does in unmarshal: the resolver faults on shapes the parser accepts,
@@ -78,7 +86,7 @@ func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, re
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(resolvable)
-			if !ok || !r.IsReference() || r.IsResolved() {
+			if !ok || !r.IsReference() {
 				return nil
 			}
 			site = jsontext.Pointer(item.Location.ToJSONPointer())
@@ -94,59 +102,94 @@ func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, re
 	return "", nil
 }
 
-// findingKey identifies a finding by the node it is about and what it says.
-// The node is the parsed node itself, which two documents cannot share.
-type findingKey struct {
-	node    *yaml.Node
-	rule    string
-	message string
+// reachedFindings holds the findings resolveWith's walk draws until the walk ends, and
+// for each target the least pointer among the $refs whose trails end at it.
+// Which $ref draws a finding depends on declaration order: the library hands a
+// later $ref the object an earlier one built, and with it no findings. The set
+// of $refs reaching a target does not, so a finding is placed by that.
+type reachedFindings struct {
+	sites   map[references.Reference]jsontext.Pointer
+	pending []pendingFinding
 }
 
-// reportable returns the findings among vErrs to report, recording each in
-// reported. One the source's own findings would drop (dropped) is dropped here
-// too, and so is a repeat at a node already reported: the library caches no
-// object it builds from a document whose bytes it already holds, so a target
-// whose document another $ref read first is built again, findings and all, for
-// each $ref reaching it. A finding at no node is never taken for a repeat, nor
-// one in the source read again by a $ref from another document (GitHub #759).
-func reportable(vErrs []error, reported map[findingKey]bool) []error {
-	out := make([]error, 0, len(vErrs))
+// pendingFinding is a finding as the $ref at site drew it, along a trail ending
+// at target, or at no target.
+type pendingFinding struct {
+	site   jsontext.Pointer
+	target references.Reference
+	place  string
+	err    error
+}
+
+// note records that the $ref at site has trail t, and the findings vErrs its
+// resolution drew, less any the source's own findings would drop (dropped).
+func (f *reachedFindings) note(site jsontext.Pointer, t trail, vErrs []error) {
+	if t.target != "" {
+		if least, ok := f.sites[t.target]; !ok || site < least {
+			f.sites[t.target] = site
+		}
+	}
+	if len(vErrs) == 0 {
+		return
+	}
+	place := findingPlace(t)
 	for _, ve := range vErrs {
-		verr, ok := asValidationError(ve)
-		if ok && dropped(verr) {
+		if verr, ok := asValidationError(ve); ok && dropped(verr) {
 			continue
 		}
-		if !ok || verr.Node == nil {
-			out = append(out, ve)
-			continue
+		f.pending = append(f.pending, pendingFinding{site: site, target: t.target, place: place, err: ve})
+	}
+}
+
+// diags reports each finding once, at its target's least $ref, or at its own
+// $ref when its trail ended at no target. A finding drawn more than once is
+// kept at the least of its places: the library caches no object it builds from
+// a document whose bytes it already holds, so it builds a target again for each
+// $ref once another read that document. A finding in the source read again by
+// a $ref from another document shares no node with the source's (GitHub #759).
+func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
+	placed := make([]jsontext.Pointer, len(f.pending))
+	kept := make(map[findingKey]int, len(f.pending))
+	for i, p := range f.pending {
+		placed[i] = p.site
+		if least, ok := f.sites[p.target]; ok {
+			placed[i] = least
 		}
-		key := findingKey{node: verr.Node, rule: verr.Rule, message: validationMessage(verr)}
-		if reported[key] {
-			continue
+		key := keyOf(p.err, placed[i])
+		if j, seen := kept[key]; !seen || placed[i] < placed[j] {
+			kept[key] = i
 		}
-		reported[key] = true
-		out = append(out, ve)
+	}
+	out := make([]ir.Diagnostic, 0, len(kept))
+	for i, p := range f.pending {
+		if kept[keyOf(p.err, placed[i])] == i {
+			out = append(out, reachedFinding(at(placed[i]), p.place, p.err))
+		}
 	}
 	return out
 }
 
-// referenceDiags converts what resolving r reported into diagnostics at site:
-// each finding in what it names, and its failure. Both read the one trail the
-// resolution recorded.
-func referenceDiags(site ir.Provenance, r resolvable, vErrs []error, err error) []ir.Diagnostic {
-	if len(vErrs) == 0 && err == nil {
-		return nil
+// findingKey identifies a finding by the node it is about and what it says.
+// The node is the parsed node itself, which two documents cannot share. A
+// finding at no node is told apart by where it is placed as well.
+type findingKey struct {
+	node    *yaml.Node
+	site    jsontext.Pointer
+	rule    string
+	message string
+}
+
+// keyOf returns the key of a finding placed at site.
+func keyOf(err error, site jsontext.Pointer) findingKey {
+	verr, ok := asValidationError(err)
+	switch {
+	case !ok:
+		return findingKey{site: site, message: err.Error()}
+	case verr.Node == nil:
+		return findingKey{site: site, rule: verr.Rule, message: validationMessage(verr)}
+	default:
+		return findingKey{node: verr.Node, rule: verr.Rule, message: validationMessage(verr)}
 	}
-	t := resolutionTrail(r)
-	diags := make([]ir.Diagnostic, 0, len(vErrs)+1)
-	place := findingPlace(t)
-	for _, ve := range vErrs {
-		diags = append(diags, reachedFinding(site, place, ve))
-	}
-	if err != nil {
-		diags = append(diags, failureDiag(site, r, t, err))
-	}
-	return diags
 }
 
 // failureDiag reports that r could not be resolved, quoting it as written, with

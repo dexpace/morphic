@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -269,6 +270,66 @@ paths:
 		"a resolution that recorded where it ended stopped at no other reference to quote")
 }
 
+// TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder compiles one source
+// as written and with its paths reversed, and requires the same reports.
+// The library hands a later $ref the object an earlier one built, so which $ref
+// draws a finding follows declaration order; where it is reported must not. The
+// shapes: a target several $refs share, one an internal alias chains to, one
+// built again from cached bytes (/a reads the document first), one that fails
+// to build, reached twice, and a $ref /z's chain resolves before the walk
+// reaches it (/m), as written but not reversed.
+func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "ext.yaml", `components:
+  responses:
+    A: {description: fine}
+    R: {content: {}}
+    B: {content: {}}
+    R2: {content: {}}
+    Scalar: 42
+`)
+	paths := []string{
+		"/a: 'ext.yaml#/components/responses/A'",
+		"/x: 'ext.yaml#/components/responses/R'",
+		"/y: 'ext.yaml#/components/responses/R'",
+		"/c: '#/components/responses/Alias'",
+		"/b1: 'ext.yaml#/components/responses/B'",
+		"/b2: 'ext.yaml#/components/responses/B'",
+		"/s1: 'ext.yaml#/components/responses/Scalar'",
+		"/s2: 'ext.yaml#/components/responses/Scalar'",
+		"/z: '#/paths/~1m/get/responses/200'",
+		"/m: 'ext.yaml#/components/responses/R2'",
+	}
+	compile := func(order []string) []string {
+		src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"
+		for _, p := range order {
+			path, ref, _ := strings.Cut(p, ": ")
+			src += "  " + path + ": {get: {responses: {\"200\": {$ref: " + ref + "}}}}\n"
+		}
+		src += "components:\n  responses:\n    Alias: {$ref: 'ext.yaml#/components/responses/R'}\n"
+		_, diags, err := Load(t.Context(), 0,
+			compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}, Options{AllowExternalRefs: true})
+		require.NoError(t, err)
+		out := make([]string, 0, len(diags))
+		for _, d := range diags {
+			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+		}
+		slices.Sort(out)
+		return out
+	}
+
+	reversedPaths := slices.Clone(paths)
+	slices.Reverse(reversedPaths)
+	asWritten := compile(paths)
+	reversed := compile(reversedPaths)
+
+	require.NotEmpty(t, asWritten)
+	if d := cmp.Diff(asWritten, reversed); d != "" {
+		t.Errorf("reports depend on declaration order (-as written +reversed):\n%s", d)
+	}
+}
+
 // TestResolve_AnArtifactInAnotherDocumentIsDropped pins that a finding the
 // source's own findings drop as a library artifact is dropped from a document a
 // $ref reads too: the library cannot hold 1e400 in a float64, and Morphic reads
@@ -409,33 +470,48 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 	})
 }
 
-// TestReportable covers what resolveWith keeps of a resolution's findings. A
-// repeat at a node already reported is dropped; another rule or message at that
-// node is not, and a finding at no node is kept whatever it says, since nothing
-// tells two of them apart. A finding the source's own would drop is dropped
-// whether or not it has a node, and is not recorded as reported.
-func TestReportable(t *testing.T) {
+// TestReachedFindings covers where resolveWith reports the findings its walk draws. A
+// finding is placed at the least pointer among the $refs whose trails end at
+// its target, whichever $ref drew it; one along a trail with no target stays at
+// its own. One drawn twice is kept at the least of its places, and one at no
+// node is told apart by its place too. One the source's own would drop is not.
+func TestReachedFindings(t *testing.T) {
 	t.Parallel()
-	node, twin := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 3, Column: 5}
+	node, other := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 4, Column: 1}
 	at := func(n *yaml.Node, rule, msg string) error {
 		return &validation.Error{Severity: validation.SeverityError, Rule: rule,
 			UnderlyingError: errors.New(msg), Node: n}
 	}
-	bare := errors.New("bare")
-	owned := validation.RuleValidationOperationIdUnique
-	reported := map[findingKey]bool{}
+	toT := trail{docs: []string{"e.yaml"}, target: "e.yaml#/T"}
+	f := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
 
-	first := []error{at(node, "r", "m"), bare, at(node, owned, "m"), at(nil, owned, "m")}
-	assert.Equal(t, first[:2], reportable(first, reported),
-		"nothing was reported before, but a rule the compiler owns is dropped")
-	assert.Equal(t, map[findingKey]bool{{node: node, rule: "r", message: "m"}: true}, reported,
-		"only what was kept is recorded")
+	f.note("/paths/~1y", toT, []error{at(node, "r", "m"), at(nil, "r", "m"),
+		at(node, validation.RuleValidationOperationIdUnique, "m")})
+	f.note("/paths/~1x", toT, nil)                         // reaches T, draws nothing
+	f.note("/paths/~1z", toT, []error{at(node, "r", "m")}) // T built again
+	f.note("/paths/~1b", trail{stopped: "#/g"}, []error{at(other, "r", "m")})
+	f.note("/paths/~1a", trail{stopped: "#/g"}, []error{at(other, "r", "m")})
+	f.note("/paths/~1c", trail{stopped: "#/h"}, []error{at(nil, "r", "m"), errors.New("bare")})
 
-	second := []error{at(node, "r", "m"), at(node, "r2", "m"), at(node, "r", "m2"),
-		at(twin, "r", "m"), at(nil, "r", "m"), bare}
-	assert.Equal(t, second[1:], reportable(second, reported),
-		"only the repeat at the same node is dropped: another rule, another message, "+
-			"an equal node that is another node, no node, and a bare error are all kept")
+	type placed struct {
+		Pointer jsontext.Pointer
+		Message string
+	}
+	diags := f.diags(func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} })
+	got := make([]placed, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, placed{d.Provenance.Pointer, d.Message})
+	}
+	want := []placed{
+		{"/paths/~1x", "m, at 3:5 of e.yaml"},
+		{"/paths/~1x", "m"},
+		{"/paths/~1a", `m, at 4:1 of the document that "#/g" names`},
+		{"/paths/~1c", "m"},
+		{"/paths/~1c", "bare"},
+	}
+	if d := cmp.Diff(want, got); d != "" {
+		t.Errorf("reachedFindings.diags (-want +got):\n%s", d)
+	}
 }
 
 // TestReachedFinding covers what reachedFinding does with each shape a

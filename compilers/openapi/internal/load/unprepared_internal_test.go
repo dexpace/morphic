@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -545,11 +546,11 @@ paths:
 `
 
 // TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce pins that a finding
-// in a target two $refs reach is reported once, at the first, with or without a
-// rebuild. /w reads the document first, so the library builds /x's target from
-// bytes it already holds, and caches no object built that way: it builds the
-// target again for /y, finding and all, which reportable keeps from a second
-// report.
+// in a target two $refs reach is reported once, at the lesser pointer, with or
+// without a rebuild. /w reads the document first, so the library builds /x's
+// target from bytes it already holds, and caches no object built that way: it
+// builds the target again for /y, finding and all, which reachedFindings keeps
+// from a second report.
 func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 	t.Parallel()
 	srv, _ := countingServer(t, twoRefsTarget)
@@ -584,7 +585,7 @@ func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 			}
 		}
 		assert.Equal(t, []jsontext.Pointer{"/paths/~1x"}, sites,
-			"%s: the finding is reported once, at the first $ref that reaches it", name)
+			"%s: the finding is reported once, at the lesser of the $refs that reach it", name)
 	}
 }
 
@@ -873,16 +874,19 @@ func TestResolutionTrail(t *testing.T) {
 		assert.Empty(t, diags)
 		models := resolvedModels(t, doc)
 
-		for _, kind := range []string{
-			"pathItem", "parameter", "requestBody", "response",
-			"example", "header", "link", "callback", "securityScheme",
+		for kind, target := range map[string]references.Reference{
+			"pathItem": "#/components/pathItems/PI", "parameter": "#/components/parameters/P",
+			"requestBody": "#/components/requestBodies/RB", "response": "#/components/responses/R",
+			"example": "#/components/examples/EX", "header": "#/components/headers/H2",
+			"link": "#/components/links/L2", "callback": "#/components/callbacks/CB",
+			"securityScheme": "#/components/securitySchemes/Actual",
 		} {
 			t.Run(kind, func(t *testing.T) {
 				model, ok := models[kind]
 				require.True(t, ok, "fixture produced a resolved %s", kind)
 				got := resolutionTrail(model)
-				assert.Equal(t, trail{docs: []string{"root.yaml"}, endsInSource: true}, got,
-					"an internal reference's one hop is the source document itself, and ends on an object")
+				assert.Equal(t, trail{docs: []string{"root.yaml"}, target: "root.yaml" + target, endsInSource: true}, got,
+					"an internal reference's one hop is the source document itself, and ends on its target")
 			})
 		}
 	})
@@ -922,7 +926,8 @@ func TestResolutionTrail(t *testing.T) {
 		} {
 			sch, ok := doc.Components.Schemas.Get(tc.name)
 			require.True(t, ok)
-			assert.Equal(t, trail{docs: tc.want}, resolutionTrail(sch), "%s: %s", tc.name, tc.why)
+			assert.Equal(t, trail{docs: tc.want, target: references.Reference(bPath + "#/components/schemas/B")},
+				resolutionTrail(sch), "%s: %s", tc.name, tc.why)
 		}
 	})
 
