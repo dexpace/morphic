@@ -1158,45 +1158,42 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a
-// defaultMapping's, to the ID of the schema it names, interning that schema as
-// a $ref to it would when nothing has yet: mappingTargetID first, then the
-// position DeclaredAt finds for the target's pointer, hoisted by hoistSubSchema.
+// defaultMapping's, to the ID of the schema it names: a declared component's
+// bare name directly, and a reference as resolvePointer resolves a $ref,
+// interning the schema there when nothing has yet.
 //
-// The resolver never follows a mapping value, so the position is found here.
-// Hoisting it resolves the target to the same pointer-derived ID in either
-// declaration order (GitHub #530), naming the node provisionally until its
-// declaration arrives.
+// The resolver never follows a mapping value, so DeclaredAt finds the schema
+// a $ref would have carried. Hoisting it resolves the target to the same
+// pointer-derived ID in either declaration order (GitHub #530), naming the
+// node provisionally until its declaration arrives.
 func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, target string) (ir.TypeID, bool, []ir.Diagnostic) {
-	if id, ok := mappingTargetID(c, ts, target); ok {
-		return id, true, nil
+	if c.DeclaresSchema(target) {
+		return componentIDByName(target), true, nil
 	}
 	pointer, ok := c.RefScope().InternalPointer(target)
 	if !ok {
 		return "", false, nil
 	}
-	// mappingTargetID resolved every declared component, so this one is
-	// dangling, not an inline position to hoist.
-	if _, _, handled := c.RefScope().ComponentRef(pointer); handled {
-		return "", false, nil
-	}
-	decl, ok := c.RefScope().DeclaredAt(pointer)
-	if !ok {
-		return "", false, nil
-	}
-	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
+	return resolvePointer(c, ts, anchors, depth, pointer, c.RefScope().DeclaredAt(pointer))
+}
+
+// componentIDByName is the ID a mapping target naming a declared component
+// resolves to: its pointer's, so a component keyed "" gets the anonymous ID it
+// is interned under rather than a named one nothing backs.
+func componentIDByName(name string) ir.TypeID {
+	return ids.ForPointer(ids.Ptr("components", "schemas", name))
 }
 
 // mappingTargetID resolves a discriminator mapping target, a bare schema name
 // or a $ref string, to the TypeID of an interned schema. A bare name (even one
 // containing '/') that names a declared component resolves regardless of source
-// order, since every declared name is recorded before lowering begins; that
-// includes an empty-named component, which gets its real anonymous ID.
+// order, since every declared name is recorded before lowering begins.
 // Otherwise the target must be a same-file $ref to a declared component or an
 // already-interned node. Anything else yields ok=false: this half never lowers
 // anything, and resolveMappingTarget hoists the inline position it cannot reach.
 func mappingTargetID(c lowering.Ctx, ts *compile.Types, target string) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
-		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
+		return componentIDByName(target), true
 	}
 	pointer, ok := c.RefScope().InternalPointer(target)
 	if !ok {

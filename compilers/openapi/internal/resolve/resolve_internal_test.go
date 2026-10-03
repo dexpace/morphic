@@ -206,12 +206,12 @@ func TestInternedID_Miss(t *testing.T) {
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
 
-// TestScope_DeclaredAt pins which positions resolve: a schema does, and every
-// position holding no schema comes back ok=false rather than as a nil schema a
-// caller could take for a real one. That covers a non-schema object, an
-// undeclared name, a keyword the schema leaves unset (which the pointer walk
-// reaches as a typed nil), raw YAML under an extension key or in an enum, which
-// only a $ref makes the resolver parse, and a Scope with no Doc.
+// TestScope_DeclaredAt pins which positions resolve: a schema position to the
+// very schema the document holds there, and every position holding no schema
+// to nil. That covers a non-schema object, an undeclared name, a keyword the
+// schema leaves unset (which the pointer walk reaches as a typed nil), raw YAML
+// under an extension key or in an enum, which only a $ref makes the resolver
+// parse, and a Scope with no Doc.
 func TestScope_DeclaredAt(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
@@ -227,9 +227,10 @@ components:
 	require.NoError(t, err)
 	sc := Scope{Doc: doc}
 
-	got, ok := sc.DeclaredAt("/components/schemas/Pet")
-	require.True(t, ok, "a schema position resolves to its declaration")
-	assert.NotNil(t, got)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"),
+		"a schema position resolves to the declaration the document holds")
 
 	for pointer, why := range map[jsontext.Pointer]string{
 		"/info":                          "a non-schema position does not resolve",
@@ -238,11 +239,8 @@ components:
 		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
 		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
 	} {
-		got, ok := sc.DeclaredAt(pointer)
-		assert.False(t, ok, why)
-		assert.Nil(t, got, why)
+		assert.Nil(t, sc.DeclaredAt(pointer), why)
 	}
 
-	_, ok = Scope{}.DeclaredAt("/components/schemas/Pet")
-	assert.False(t, ok, "a nil Doc resolves nothing")
+	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
 }

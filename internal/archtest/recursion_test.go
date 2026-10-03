@@ -79,8 +79,8 @@ var schemaRecursion = []string{
 	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
 	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
 	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
-	"refTypeRef", "resolveMappingTarget", "resolveSchemaRef", "scalarEncoding",
-	"scalarTypeID", "schemaBody", "schemaRefHomed",
+	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,

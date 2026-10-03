@@ -49,22 +49,24 @@ type Scope struct {
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the
-// way the resolver finds a $ref's target, and ok=false when the pointer
-// addresses no schema.
+// way the resolver finds a $ref's target, or nil where there is none, like
+// annotation.DeclaredSchema for a followed $ref.
 //
 // It is for a reference that is only a string: a discriminator mapping value is
 // never resolved, so it carries no declaration of its own (GitHub #530). A
 // position the parsed model holds as raw YAML, such as an extension's value or
-// an enum member, is no schema here, although the resolver parses one when a
-// $ref names it, so a mapping reaches it only once a $ref has interned it
-// (GitHub #757).
-func (s Scope) DeclaredAt(pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], bool) {
+// enum member, is no schema here, though the resolver parses one when a $ref
+// names it, so a mapping reaches it only once a $ref has interned it (GitHub
+// #757).
+func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {
-		return nil, false
+		return nil
 	}
-	js, ok := target.(*oas3.JSONSchema[oas3.Referenceable])
-	return js, ok && js != nil
+	// Anything but a schema fails the assertion and leaves js nil, and so does a
+	// keyword the schema leaves unset, which the walk reaches as a typed nil.
+	js, _ := target.(*oas3.JSONSchema[oas3.Referenceable])
+	return js
 }
 
 // sameFile reports whether a $ref document part names this compilation's own
