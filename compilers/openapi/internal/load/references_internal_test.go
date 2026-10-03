@@ -202,8 +202,9 @@ components:
 // rest is the resolver's own wording.
 func assertFailures(t *testing.T, got []ir.Diagnostic, want map[jsontext.Pointer]string) {
 	t.Helper()
-	require.Len(t, got, len(want), "%+v", got)
+	seen := make(map[jsontext.Pointer]int, len(got))
 	for _, d := range got {
+		seen[d.Provenance.Pointer]++
 		prefix, ok := want[d.Provenance.Pointer]
 		if !assert.True(t, ok, "a report at %s: %+v", d.Provenance.Pointer, got) {
 			continue
@@ -211,6 +212,9 @@ func assertFailures(t *testing.T, got []ir.Diagnostic, want map[jsontext.Pointer
 		assert.Equal(t, diag.UnresolvedRef, d.Code)
 		assert.Equal(t, ir.SeverityError, d.Severity)
 		assert.True(t, strings.HasPrefix(d.Message, prefix), "want prefix %q, got %q", prefix, d.Message)
+	}
+	for pointer := range want {
+		assert.Equal(t, 1, seen[pointer], "one report at %s: %+v", pointer, got)
 	}
 }
 
@@ -324,10 +328,22 @@ func TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder(t *testing.T) {
 	asWritten := compile(paths)
 	reversed := compile(reversedPaths)
 
-	require.NotEmpty(t, asWritten)
 	if d := cmp.Diff(asWritten, reversed); d != "" {
 		t.Errorf("reports depend on declaration order (-as written +reversed):\n%s", d)
 	}
+	var findingSites []string
+	for _, line := range asWritten {
+		if code, rest, _ := strings.Cut(line, " "); strings.HasPrefix(code, diag.Validation+"/") {
+			site, _, _ := strings.Cut(rest, " ")
+			findingSites = append(findingSites, site)
+		}
+	}
+	assert.Equal(t, []string{
+		"/components/responses/Alias",   // R: the least of /x, /y, /c and the alias itself
+		"/paths/~1b1/get/responses/200", // B: drawn twice, kept once
+		"/paths/~1m/get/responses/200",  // R2: /m, which /z's chain resolves first as written
+		"/paths/~1s1/get/responses/200", // Scalar: the lesser of the two that fail
+	}, findingSites, "each finding at the least pointer among the $refs reaching its target")
 }
 
 // TestResolve_AnArtifactInAnotherDocumentIsDropped pins that a finding the
