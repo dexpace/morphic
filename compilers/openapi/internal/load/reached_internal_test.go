@@ -43,16 +43,6 @@ func (f reachedFake) Resolve(context.Context, references.ResolveOptions) ([]erro
 	return nil, nil
 }
 
-// reachedFakeHolder is a reachedFake whose GetObjectAny returns obj, for
-// reachedObject's default-arm branch where the object it names has no
-// GetRootNode of its own.
-type reachedFakeHolder struct {
-	reachedFake
-	obj any
-}
-
-func (f reachedFakeHolder) GetObjectAny() any { return f.obj }
-
 // reachedFakeWalkItem returns a soa.WalkItem whose Match hands model to whichever of
 // matcher's callbacks a caller supplies, at loc.
 func reachedFakeWalkItem(model any, loc soa.Locations) soa.WalkItem {
@@ -157,10 +147,11 @@ func TestReached_DocumentFallsBackToTheURIWhenResolutionFails(t *testing.T) {
 	assert.Equal(t, "other.yaml", got)
 }
 
-// reachedFixtureOther and reachedFixtureRoot exercise reachedObject's three
-// outcomes through a real, resolved document: a schema reference to an object
-// (ok), a schema reference to a boolean (not ok — nothing but its value), and
-// the default arm's success path for a non-schema reference (a path item).
+// reachedFixtureOther and reachedFixtureRoot exercise reachedObject's outcomes
+// through a real, resolved document: a schema reference to an object (ok), a
+// schema reference to a boolean (nothing but its value), the default arm's
+// success path for a non-schema reference (a path item), and a path item whose
+// chain stops at a pointer that names nothing.
 const reachedFixtureOther = `openapi: 3.1.0
 info: {title: O, version: "1"}
 paths:
@@ -168,6 +159,7 @@ paths:
     get:
       operationId: getX
       responses: {"200": {description: ok}}
+  /stops: {$ref: "#/paths/~1missing"}
 components:
   schemas:
     Obj: {type: object, properties: {inner: {type: string}}}
@@ -178,6 +170,7 @@ const reachedFixtureRoot = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /x: {$ref: "./other.yaml#/paths/~1x"}
+  /stops: {$ref: "./other.yaml#/paths/~1stops"}
 components:
   schemas:
     S: {$ref: "./other.yaml#/components/schemas/Obj"}
@@ -199,10 +192,9 @@ func reachedFixtureDoc(t *testing.T) *soa.OpenAPI {
 
 // TestReachedObject covers every outcome of reachedObject: a schema reference
 // resolving to an object, one resolving to a boolean (nothing to validate), the
-// default arm's success path for a plain reference, and the default arm's two
-// failure arms, which no real document reaches — a resolvable with no
-// GetObjectAny at all, and one whose named object has no GetRootNode — so both
-// are driven with fakes.
+// default arm's success path for a plain reference, a chain that ends on no
+// object, and a resolvable that cannot say what it names, which no real
+// document produces, so a fake drives it.
 func TestReachedObject(t *testing.T) {
 	t.Parallel()
 	doc := reachedFixtureDoc(t)
@@ -238,18 +230,20 @@ func TestReachedObject(t *testing.T) {
 		assert.Same(t, ref.GetObject().GetRootNode(), node)
 	})
 
-	t.Run("a resolvable with no GetObjectAny names nothing to validate", func(t *testing.T) {
+	t.Run("a chain that stops at a pointer naming nothing ends on no object", func(t *testing.T) {
 		t.Parallel()
-		_, _, ok := reachedObject(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"})
+		ref, ok := doc.Paths.Get("/stops")
+		require.True(t, ok)
+		require.True(t, ref.IsResolved(), "its first hop resolved; the second did not")
+		obj, node, ok := reachedObject(ref)
 		assert.False(t, ok)
+		assert.Nil(t, obj)
+		assert.Nil(t, node)
 	})
 
-	t.Run("an object with no GetRootNode names nothing to validate", func(t *testing.T) {
+	t.Run("a resolvable that cannot say what it names names nothing to validate", func(t *testing.T) {
 		t.Parallel()
-		_, _, ok := reachedObject(reachedFakeHolder{
-			reachedFake: reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"},
-			obj:         42,
-		})
+		_, _, ok := reachedObject(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"})
 		assert.False(t, ok)
 	})
 }
@@ -530,20 +524,17 @@ type reachedFakePanicHolder struct{ reachedFake }
 
 func (f reachedFakePanicHolder) GetObjectAny() any { return reachedFakePanicObject{} }
 
-// TestValidateReached_APanicIsReportedAtTheRef pins how the panic barrier
-// checkReached and validateReached share turns a recovered panic into a
-// diagnostic: openapi/validation, "validation panicked", at the $ref that
-// reached the panicking object.
-//
-// It drives checkReached — validateReached's own body, factored out for
-// exactly this (see its doc comment) — with a real, correctly built reached
-// value (newReached, with the root document and version a real call would
-// carry) and a synthetic walk yielding one already-resolved external
+func (f reachedFakePanicHolder) GetRootNode() *yaml.Node {
+	return reachedFakePanicObject{}.GetRootNode()
+}
+
+// TestValidateReached_APanicIsReportedAtTheRef pins how the panic barrier turns
+// a recovered panic into a diagnostic: openapi/validation, "validation
+// panicked", at the $ref that reached the panicking object. It drives
+// checkReached with a real newReached and a walk yielding one resolved external
 // reference whose object panics on Validate. No real document reaches this:
-// every fault newReached's own options exist to prevent is prevented (see
-// TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic), so what
-// panics here is a fake built to, the same way TestReachedObject's two
-// failure arms are.
+// the root document newReached passes keeps a security requirement from
+// panicking (TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic).
 func TestValidateReached_APanicIsReportedAtTheRef(t *testing.T) {
 	t.Parallel()
 	doc, valErrs := parseSpec(t, minimal31)
@@ -647,45 +638,45 @@ components:
 `
 
 // m3WantDiags is the exact diagnostic list TestResolve_ValidatesWhatAnExternalReferenceReaches
-// expects, in walk order.
-func m3WantDiags() []ir.Diagnostic {
+// expects, in walk order, with other.yaml at otherPath.
+func m3WantDiags(otherPath string) []ir.Diagnostic {
 	return []ir.Diagnostic{
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.Validation + "/validation-required-field",
-			Message:    "`parameter.in` is required, at 10:11 of the document the $ref resolves to",
+			Message:    "`parameter.in` is required, at 10:11 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
 		},
 		{
 			Severity: ir.SeverityError,
 			Code:     diag.Validation + "/validation-allowed-values",
 			Message: "parameter.in must be one of [`query, querystring, header, path, cookie`], " +
-				"at 10:11 of the document the $ref resolves to",
+				"at 10:11 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
 		},
 		{
 			Severity: ir.SeverityError,
 			Code:     diag.Validation + "/validation-allowed-values",
 			Message: "parameter.in must be one of [`query, querystring, header, path, cookie`], " +
-				"at 21:22 of the document the $ref resolves to",
+				"at 21:22 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/parameters/0"},
 		},
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.Validation + "/validation-invalid-schema",
-			Message:    "schema.minLength minimum: got -1, want 0, at 27:45 of the document the $ref resolves to",
+			Message:    "schema.minLength minimum: got -1, want 0, at 27:45 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/responses/200"},
 		},
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.Validation + "/validation-invalid-schema",
-			Message:    "schema.minProperties minimum: got -3, want 0, at 31:22 of the document the $ref resolves to",
+			Message:    "schema.minProperties minimum: got -3, want 0, at 31:22 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
 		},
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.Validation + "/validation-type-mismatch",
-			Message:    "schema.deprecated expected `boolean`, got `string`, at 32:19 of the document the $ref resolves to",
+			Message:    "schema.deprecated expected `boolean`, got `string`, at 32:19 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
 		},
 	}
@@ -707,7 +698,7 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 
 	_, diags := loadExternal(t, rootPath, reachRootFixture, Options{})
 
-	if d := cmp.Diff(m3WantDiags(), diags); d != "" {
+	if d := cmp.Diff(m3WantDiags(filepath.Join(dir, "other.yaml")), diags); d != "" {
 		t.Errorf("diagnostics did not match (-want +got):\n%s", d)
 	}
 	for _, d := range diags {
@@ -884,24 +875,15 @@ components:
     B: {$ref: "./other.yaml#/components/schemas/Broken"}
 `
 
-// TestResolve_AReached32SchemaIsReconciled: Pet's
-// defaultMapping is a 3.2-only discriminator keyword the library checks
-// against the 3.1 meta-schema regardless (metaSchemaVersionArtifacts' own
-// gap), so S must report nothing at all, while B's genuine type: 42 survives
-// reconciliation beside it.
+// TestResolve_AReached32SchemaIsReconciled: Pet's defaultMapping is a 3.2-only
+// discriminator keyword the library checks against the 3.1 meta-schema, so S
+// must report nothing, while B's genuine type: 42 survives beside it.
 //
-// A schema reached directly, as S and B both are here, is validated through
-// validateObject's own oas3.Validate call, which passes the version through
-// to Schema.Validate on its own — so this fixture alone never
-// exercises v.artifacts at all: S's own top-level validation already sees the
-// document's real version, dropping the artifacts()-returns-nil mutation
-// straight through it undetected. The second case below reaches the same
-// keyword nested inside a path item instead, which validateObject dispatches
-// to the generic Validate arm; that arm's own recursive call into the nested
-// schema goes through JSONSchema[T].Validate directly — the one the library
-// itself documents as dropping its options — so only there does
-// metaSchemaVersionArtifacts' reconciliation, replayed through reachedWalk,
-// do anything a mutation can catch.
+// A schema reached directly goes through oas3.Validate, which passes the
+// version on, so the first case never needs v.artifacts. The second reaches the
+// keyword nested in a path item, whose Validate reaches the schema through
+// JSONSchema[T].Validate, which drops its options: only there does the
+// reconciliation do anything a mutation can catch.
 func TestResolve_AReached32SchemaIsReconciled(t *testing.T) {
 	t.Parallel()
 
@@ -960,18 +942,12 @@ paths:
 	})
 }
 
-// nestedOtherFixture and nestedRootFixture reach one external parameter twice
-// over, directly and through the path item around it, plus a third path (/c)
-// to a small, separate object in the same external document: a
-// schema large enough (twenty string properties) that charging it twice —
-// once through /a's direct pointer to its parameter, once through /b's
-// reference to the whole path item around it — crosses a tight budget it
-// would not cross charged once. The large schema's parameter itself is
-// invalid (in: sideways), so a budget that stops before /b must still have
-// reported that finding once, from /a. /c reaches a small, unrelated,
-// well-formed response in the same document, reached after /b has already
-// crossed the budget, to pin that a document already over its budget refuses
-// silently rather than reporting budget-exceeded a second time.
+// nestedOtherFixture is an external document whose path item holds a parameter
+// with an invalid in: sideways and a schema of twenty properties. Reached once
+// through the parameter and once through the path item around it, those nodes
+// are charged twice, which crosses a budget a single charge does not. Small, a
+// separate response, is reached after that, to pin that a document already
+// over its budget is refused silently rather than reported again.
 func nestedOtherFixture() string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths:\n" +
@@ -986,6 +962,8 @@ func nestedOtherFixture() string {
 	return b.String()
 }
 
+// nestedRootFixture reaches nestedOtherFixture's parameter from /a, the path
+// item around it from /b, and Small from /c.
 const nestedRootFixture = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -1003,18 +981,13 @@ paths:
         "200": {$ref: "./other.yaml#/components/responses/Small"}
 `
 
-// TestResolve_ReachedValidationIsBudgeted runs nestedRootFixture at
-// MaxSourceNodes: 150, MaxAliasSurplus: 1 (limit 151): the parameter's own
-// finding is reported
-// once, from /a, and the container reached after it — which would charge the
-// same nodes again — is refused with budget-exceeded instead of validated.
-// This fixture's own total, charged once, is 198 (found by bisection);
-// MaxSourceNodes: 197, MaxAliasSurplus: 1 sits exactly on that
-// boundary — limit 198 admits both, and limit 197 (MaxSourceNodes alone,
-// which the mutation table's "limit = MaxSourceNodes only" entry produces)
-// refuses the container again — so this budget is the one that tells the two
-// apart; a wide margin above 198 would pass under the mutation too and never
-// catch it. An unbounded budget (0) also admits both.
+// TestResolve_ReachedValidationIsBudgeted runs nestedRootFixture under three
+// budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
+// from /a, and the path item reached after it, which charges those nodes
+// again, is refused as budget-exceeded. Charged once each, the two total 198
+// nodes, so 198 (197 + 1) admits both where MaxSourceNodes alone, 197, would
+// not: that boundary is what shows the alias budget's share is counted. An
+// unbounded budget admits both too.
 func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	t.Parallel()
 	other := nestedOtherFixture()
@@ -1098,18 +1071,13 @@ func respelledRoot(scheme, host string) string {
 		"  /x: {$ref: \"" + url + "\"}\n  /y: {$ref: \"" + url + "\"}\n"
 }
 
-// TestResolve_ValidatesOnceAfterARebuild: an upper-cased scheme forces the
-// rebuild of GitHub #538 (the resolver's own parse of a mis-keyed document
-// skips the anchored get), so /x's 8:25 allowed-values finding, inside that
-// anchored get, exists only in the recovered document. validateReached runs
-// once, on the document resolve returns rather than inside resolveWith's loop,
-// and must still find it there exactly once. other.yaml is served over HTTP so
-// the respelling (HTTP:// against http://) is the one difference between the
-// two runs, and both reach it through two paths, /x and /y.
-//
-// The whole diagnostic list must be identical with and without the rebuild:
-// what validation adds, and what resolution reports for the two references to
-// one target, each finding once, at /x.
+// TestResolve_ValidatesOnceAfterARebuild: an upper-cased scheme forces GitHub
+// #538's rebuild, since the resolver's own parse of a mis-keyed document skips
+// the anchored get. /x's 8:25 finding, inside that get, exists only in the
+// recovered document, and validateReached, run once on the document resolve
+// returns, must find it exactly once. other.yaml is served over HTTP so the
+// spelling is the one difference between the runs, which must report the same
+// diagnostics, the document's name aside: each finding once, at /x.
 func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1129,7 +1097,10 @@ func TestResolve_ValidatesOnceAfterARebuild(t *testing.T) {
 	notRebuilt := run("http")
 	rebuilt := run("HTTP")
 
-	if d := cmp.Diff(notRebuilt, rebuilt); d != "" {
+	respelled := cmp.Transformer("respelled", func(msg string) string {
+		return strings.ReplaceAll(msg, "HTTP://", "http://")
+	})
+	if d := cmp.Diff(notRebuilt, rebuilt, respelled); d != "" {
 		t.Errorf("the diagnostics must be identical whether or not a rebuild ran (-not-rebuilt +rebuilt):\n%s", d)
 	}
 	for _, d := range rebuilt {

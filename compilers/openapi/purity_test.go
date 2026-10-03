@@ -116,13 +116,11 @@ components:
 			"report differently depending on whether the named file is there")
 }
 
-// TestCompile_ExternalRefRefusalIsReportedOncePerDistinctFailure pins the shape
-// of the refusal now that the load phase resolves references one at a time
-// (GitHub #385): four external $refs the compiler refuses to follow are four
-// distinct findings, each at the $ref that produced it, not the one diagnostic
-// a joined resolver error used to render as the same sentence stuttered four
-// times.
-func TestCompile_ExternalRefRefusalIsReportedOncePerDistinctFailure(t *testing.T) {
+// TestCompile_ExternalRefRefusalIsReportedAtEachRef pins the shape of the
+// refusal: four external $refs the compiler refuses to follow are four reports,
+// each one diagnostic at the $ref that produced it (GitHub #385), not one joined
+// error rendered as the same sentence stuttered four times.
+func TestCompile_ExternalRefRefusalIsReportedAtEachRef(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: Main, version: "1"}

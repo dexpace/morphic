@@ -51,17 +51,14 @@ func Verify(doc *ir.Document) []Violation {
 // declarations is the identities a document's nodes declare, plus whether the
 // walk that read them was cut short.
 //
-// Reading them costs a full walk of the document, and two checks need them —
+// Reading them costs a full walk, and two checks need them:
 // checkReferentialIntegrity to resolve the classes Document keys no map by, and
-// checkDuplicateIDs to hold each one to being declared once. Deriving it in each
-// was the same walk twice over, so it is read once per run and handed down. The
-// checks that do not need it still take it, because one signature is what lets
-// walkChecks be a list at all.
+// checkDuplicateIDs to hold each to being declared once. They are read once per
+// run and handed down; the checks that do not need them still take them,
+// because one signature is what lets walkChecks be a list.
 //
-// The zero value is not a stand-in for "no declarations to speak of": it says the
-// document declares none, which makes every OpID and ServiceID reference in it
-// resolve against an empty registry and report as dangling. Read one with
-// readDeclarations from the document being checked.
+// The zero value says the document declares none, so every OpID and ServiceID
+// reference reports as dangling. Read one with readDeclarations.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
@@ -99,20 +96,14 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 // runWalkChecks runs every walking check and folds their truncation flags into
 // one ir/walk-truncated violation.
 //
-// Truncation is a fact about the document, not about the check that noticed it,
-// so it is reported once here rather than once per walk that noticed it — which
-// would give one document a violation per walking check, all sharing a code and
-// a path. Not reporting it at all is what left the pruning walks silently
-// under-checking a too-deep document (GitHub #55): a pruned walk reaches a subset
-// of what the unpruned reference walk does, so today that one trips the cap
-// first, and depending on that coincidence is exactly what the flag replaces.
+// Truncation is a fact about the document, not about a check, so it is reported
+// once. Not reporting it left the pruning walks silently under-checking a
+// too-deep document (GitHub #55).
 //
-// The seed is decls.truncated rather than false because the declaration walk runs
-// here, and a function that walks owns its own flag. Both checks that read the
-// declarations return it too, so seeding from false reports the same thing today
-// — planting that mutation leaves the suite green. It is written this way anyway,
-// for the reason above: relying on a callee to hand back the flag for a walk this
-// function performed is the same dependence on a coincidence that #55 was.
+// The seed is decls.truncated rather than false because the declaration walk
+// runs here and a function that walks owns its own flag. The checks reading the
+// declarations return it too, so seeding from false reports the same today, but
+// relying on a callee for a walk performed here is the coincidence #55 was.
 func runWalkChecks(doc *ir.Document) []Violation {
 	decls := readDeclarations(doc)
 	var vs []Violation

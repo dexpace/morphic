@@ -17,33 +17,15 @@ import (
 )
 
 // reached validates what a reference brings in from another document, holding
-// it to the checks the source's own objects get (GitHub #545).
+// it to the checks the source's own objects get (GitHub #545). The source is
+// validated whole before its references resolve, and the library validates a
+// reference as its $ref alone, never what it names.
 //
-// The source is validated once, whole, before any reference is resolved, and
-// the library validates a reference as its $ref alone, never what it names. An
-// object from another document was therefore only ever given the checks its
-// unmarshal makes: an allowed value, a schema bound or a keyword's type went
-// unchecked there while the same object in the source was reported.
-//
-// Only what a reference reaches is validated, not the document around it. The
-// rest of that document is not part of this API — a shared file of components
-// is used a piece at a time — and reporting defects in pieces nothing lowers
-// would fail a compile over content it never read. It is validated with the
-// options the source's validation passes down: the root document, which a
-// security requirement cannot be checked without, and its version. Its findings
-// are reconciled as the source's are — a numeric literal the lowering reads
-// exactly, and a schema finding raised only against the wrong meta-schema, are
-// dropped — and each is reported once, at the first $ref whose object holds it,
-// as the source reports a finding once however many references share its node.
-// An object inside one already validated is not validated again.
-//
-// What an object's validation spans is charged to the document it came from,
-// counting each alias as a copy of what it names, which is what validation
-// walks. A document may be charged what the source may be validated over: the
-// node budget, plus what the alias budget lets aliases add. Objects can nest,
-// so without the charge a document could be validated many times over its own
-// size; the object that would cross it is reported instead of validated, and
-// nothing from that document is validated after it.
+// Only what a reference reaches is validated: a shared file of components is
+// used a piece at a time, and a finding in a piece nothing lowers would fail a
+// compile over content it never read. Each
+// finding is reported once (see check), and what validation spans is charged
+// to a budget (see charge).
 type reached struct {
 	opts    []validation.Option
 	version string
@@ -52,7 +34,7 @@ type reached struct {
 	limit   int
 	// covered holds every node an object already validated spans.
 	covered map[*yaml.Node]bool
-	// reported holds every finding at a node already reported (see unreported).
+	// reported holds every finding already reported (see keyOf).
 	reported map[findingKey]bool
 	// spent is the node count charged to each document so far.
 	spent map[string]int
@@ -127,7 +109,9 @@ func eachReached(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, reso
 
 // newReached returns the validator for the objects doc's references reach,
 // under opts' node and alias budgets; either one unbounded leaves the charge
-// unbounded.
+// unbounded. It validates with the options the source's validation passes
+// down: the root document, which a security requirement cannot be checked
+// without, and its version.
 func newReached(doc *soa.OpenAPI, path string, opts Options) *reached {
 	limit := 0
 	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
@@ -153,7 +137,11 @@ func newReached(doc *soa.OpenAPI, path string, opts Options) *reached {
 
 // check validates the object r resolved to, when it has not been validated
 // yet, and reports what it finds at site. r is a resolved reference that
-// leaves the source (eachReached).
+// leaves the source (eachReached). Findings are reconciled as the source's are
+// (dropped, and the wrong-meta-schema artifacts), and each is reported once, at
+// the first $ref whose object holds it, as the source reports a finding once
+// however many references share its node. An object inside one already
+// validated is not validated again.
 func (v *reached) check(ctx context.Context, site ir.Provenance, r resolvable) []ir.Diagnostic {
 	obj, node, ok := reachedObject(r)
 	if !ok || v.covered[node] {
@@ -164,21 +152,26 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, r resolvable) [
 	}
 
 	artifacts := v.artifacts(ctx, obj)
-	var found []error
+	place := findingPlace(resolutionTrail(r))
+	var diags []ir.Diagnostic
 	for _, f := range validateObject(ctx, obj, v.opts) {
-		if verr, ok := asValidationError(f); ok && (numericLiteralArtifact(verr) || artifacts[findingSite(verr)]) {
+		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[findingSite(verr)]) {
 			continue
 		}
-		found = append(found, f)
-	}
-	var diags []ir.Diagnostic
-	for _, f := range unreported(found, v.reported) {
-		diags = append(diags, reachedFinding(site, f))
+		if key := keyOf(f, site.Pointer); !v.reported[key] {
+			v.reported[key] = true
+			diags = append(diags, reachedFinding(site, place, f))
+		}
 	}
 	return diags
 }
 
-// charge counts what validating the object at node spans against doc's budget.
+// charge counts what validating the object at node spans against doc's budget,
+// each alias counted as a copy of what it names, as validation walks it. A
+// document may be charged what the source may be validated over: the node
+// budget plus the alias budget. Objects nest, so without the charge a document
+// could be validated many times over its size.
+//
 // It reports true when the object is not to be validated: doc's budget was
 // crossed before, or this object would cross it, which is reported once, here.
 func (v *reached) charge(site ir.Provenance, doc string, node *yaml.Node) ([]ir.Diagnostic, bool) {
@@ -229,8 +222,10 @@ func (v *reached) artifacts(ctx context.Context, obj any) map[string]bool {
 }
 
 // reachedObject returns the object a resolved reference names and the node it
-// was built from, or false for one with none to validate — a boolean schema,
-// which has nothing but its value.
+// was built from, or false for one with none to validate: a boolean schema has
+// nothing but its value, and a chain that loops, or stops at a reference it
+// could not resolve, ends on no object. The reference reads the node itself:
+// asked of a missing object, a model's own GetRootNode faults.
 func reachedObject(r resolvable) (any, *yaml.Node, bool) {
 	switch ref := r.(type) {
 	case *oas3.JSONSchema[oas3.Referenceable]:
@@ -240,15 +235,18 @@ func reachedObject(r resolvable) (any, *yaml.Node, bool) {
 		}
 		return s, s.GetSchema().GetRootNode(), true
 	default:
-		holder, ok := r.(interface{ GetObjectAny() any })
+		holder, ok := r.(interface {
+			GetObjectAny() any
+			GetRootNode() *yaml.Node
+		})
 		if !ok {
 			return nil, nil, false
 		}
-		obj, ok := holder.GetObjectAny().(interface{ GetRootNode() *yaml.Node })
-		if !ok {
+		node := holder.GetRootNode()
+		if node == nil {
 			return nil, nil, false
 		}
-		return obj, obj.GetRootNode(), true
+		return holder.GetObjectAny(), node, true
 	}
 }
 
@@ -272,17 +270,11 @@ func validateObject(ctx context.Context, obj any, opts []validation.Option) []er
 // findings. An example, a link and a security scheme hold no schema, so there
 // is nothing to reconcile in one.
 //
-// Each concrete kind is walked through a Reference wrapper holding it as an
-// inline Object, never through the bare type directly: the library's Walk
-// dispatches on the started type through a registry that holds an entry for
-// each Referenced* wrapper and never for the bare PathItem, Parameter, Header,
-// RequestBody, Response or Callback it wraps, so starting a walk from one of
-// those bare types panics inside the library itself (v1.25.2: "no match
-// handler registered for type *openapi.PathItem", and likewise for the other
-// five). A wrapper with no Reference set walks straight
-// through to the Object's own fields (openapi.walkReferencedPathItem and its
-// siblings all take that branch when IsReference is false), so this changes
-// nothing about what the walk finds — only how it is started.
+// Each kind is walked through a Reference wrapper holding it inline. The
+// library's Walk dispatches on the started type, and its registry has no entry
+// for a bare PathItem, Parameter, Header, RequestBody, Response or Callback, so
+// a walk started from one panics (v1.25.2). A wrapper with no Reference walks
+// straight through to the Object's fields, so what the walk finds is unchanged.
 func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 	switch o := obj.(type) {
 	case *oas3.JSONSchema[oas3.Concrete]:
@@ -306,16 +298,13 @@ func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 
 // spanned counts the nodes under root as a model built from it holds them,
 // each alias counted as a copy of what it names, and records each in covered.
-// It stops once the count passes limit, negative meaning none, and is iterative
-// and bounded by limit or, with none, by the tree: the document it walks was
-// refused if an anchor named one of its own ancestors, so no alias leads back
-// up.
+// It stops once the count passes limit, negative meaning none. It is iterative,
+// and bounded by limit or by the tree: a document whose anchor names one of its
+// own ancestors was refused, so no alias leads back up.
 //
-// It has no guard for a nil node: root is always a real node's own subtree —
-// yaml.v3 leaves no nil in Content, the same invariant nodeCount relies on —
-// and a well-formed alias's Alias field is never nil either, or the cycle
-// refusals ahead of this package would have refused the document before its
-// tree ever reached here.
+// root and every node under it are real: yaml.v3 leaves no nil in Content, and
+// a well-formed alias's target is never nil, or the cycle refusals ahead
+// would have refused the document.
 func spanned(root *yaml.Node, limit int, covered map[*yaml.Node]bool) int {
 	count := 0
 	stack := []*yaml.Node{root}

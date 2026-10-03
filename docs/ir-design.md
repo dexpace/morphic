@@ -94,7 +94,7 @@ checked against the document, but which spelling of the schema its keys are in h
 encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
 several times bumps it once, where it lands on `main` — a version that moves within an unmerged
 branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
-constant; its GoDoc carries the log of what each past bump changed.
+constant; the version history below records what each past bump changed.
 
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
 so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
@@ -135,6 +135,51 @@ whole snapshot corpus in the same change that makes it. Confirm rather than trus
 ls testdata/*/openapi/*.golden.json | wc -l
 grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
 ```
+
+#### Version history
+
+What each generation changed in the JSON shape, and what a consumer pinned to the generation before
+it sees. Changes made together in one bump are listed together under it.
+
+- **0.2.0** — three shape changes made together. `Extensions` became `Preserved`, with `RawConfig`
+  split out. `Content.ItemEncoding` became a single encoding rather than a sentinel-keyed map. The
+  diagnostic code `pass/dangling-auth-ref` became `ir/dangling-auth-ref` (the `pass` package doc
+  explains the rename).
+- **0.3.0** — `Preserved` was renamed `Unmodeled` on every carrier, so the JSON key `preserved`
+  became `unmodeled`. A consumer pinned to 0.2.0 finds no key it recognizes and drops every
+  unmodeled construct in silence.
+- **0.4.0** — six shape changes made together, all of them closing a gap a consumer had to read
+  around rather than adding a capability:
+  - `ErrorCase` became `Response`'s sibling: `Type` was **removed**, and `Name`, `Payload` and
+    `Headers` took its place. A consumer pinned to 0.3.0 finds no `type` on an error case and cannot
+    reach its models at all; one that reads the new fields gets the status spelling, the headers and
+    every media type, which 0.3.0 dumped into `Unmodeled` whatever their arity.
+  - `Payload` gained `Required`. Body optionality stopped being an inverted `Unmodeled` sentinel
+    read by absence, so a consumer that still reads `openapi:required` now finds nothing and reads
+    every body as required.
+  - `Parameter` gained `Provenance`, not `omitempty`, and with it `x-sunset` promotion at the
+    parameter position.
+  - `Deprecation` gained `RemovalDate`. `x-sunset` promotes into it rather than into
+    `RemovalVersion`, so a consumer reading a removal date off the version field now finds it
+    empty.
+  - `Encoding` gained `Schema`, giving `contentSchema` a home at scalar positions.
+  - `Constraints.ExclusiveMin` and `ExclusiveMax` changed from bool to a decimal string carrying the
+    bound itself, so the two dialects' exclusive bounds no longer lose one keyword to the other. The
+    JSON type of both keys changed; a consumer decoding them as booleans fails rather than degrades.
+- **0.5.0** — the IR moved onto `encoding/json/v2` and absence got one spelling:
+  - `Operation.Auth`, `Service.Auth` and `Server.Auth` write nil (inherit) as an absent key rather
+    than `null`. An empty list, explicitly public, is still `[]`.
+  - A `Value`'s bytes, list and object payloads, and a `CtorValue`'s args, are omitted when empty
+    rather than written as `null`.
+  - Strings use RFC 8785's minimal escaping, so `<`, `>` and `&` are written as themselves rather
+    than as `\u003c`, `\u003e` and `\u0026`.
+  - Decoding refuses what it used to take in silence: a member the schema does not define, a
+    duplicate name, a string that is not UTF-8, and a missing or foreign `irVersion`, which is read
+    before any other member.
+- **0.6.0** — each kind of `Provenance` locator got its own key. `pointer` holds only an RFC 6901
+  pointer; a line and column moved to `position`, and an IR pass's location in the document itself
+  moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
+  unlocated.
 
 ---
 
@@ -233,8 +278,8 @@ value, property key, tag or component name — the compiler mints a hint rather 
 emptiness through; nothing is lost, because there was no spelling to keep.
 
 **A camel-case boundary is where lowercasing changes the rune**, not where Unicode reports an
-uppercase category. The two differ: double-struck `ℤ`, GREEK UPSILON WITH HOOK `ϒ` and the Roman
-numerals are uppercase with no lowercase form, so they survive lowercasing unchanged and are not
+uppercase category. The two differ: double-struck `ℤ` and GREEK UPSILON WITH HOOK `ϒ` are
+uppercase with no lowercase form, so they survive lowercasing unchanged and are not
 boundaries — `COUNTℤ` is one word. The titlecase letters are boundaries and are not uppercase —
 `xǅy` is two. Defining it by the effect rather than the category is what makes the grammar a fixed
 point: a rune it split on but lowercasing left alone would still look like a boundary in the output,
@@ -2008,6 +2053,13 @@ either, since every source reaches it by kind (§3.1). `NoSource` is therefore t
 out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.
+
+**A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
+index the table that document would have carried. The compiler names it without reading anything
+(`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
+`engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
+made before any compiler claimed the spec, which names it as source `0`: it is about a file the
+table names, and only a finding about no file at all takes `NoSource`.
 
 **One field per kind of locator.** A consumer cannot tell a locator's kind from its spelling, so
 each kind has its own field. `Pointer` is the structural locator into a source and holds nothing

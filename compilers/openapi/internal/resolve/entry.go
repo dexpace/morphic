@@ -43,17 +43,13 @@ func Object[T, S any, R interface {
 	return ref.GetResolvedObject()
 }
 
-// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration
-// (styleguide bounded-everything rule). A $ref cycle among the non-schema
-// components this walks is refused before lowering by speakeasy's resolver
-// rather than by internal/scan, whose pre-lowering refusal covers the cycles
-// that resolver does not — and a refused chain resolves to nothing, so ObjectAt
-// returns before the loop. The bound therefore only ever fires on an absurd
-// alias chain.
+// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration. A
+// $ref cycle among the non-schema components it walks is refused before
+// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
+// resolves to nothing, so the bound only fires on an absurd alias chain.
 //
-// Nothing outside this package reads it, so it stays unexported. The test that
-// holds the walk to the bound does need it — it has to say "one hop past"
-// rather than restate the number — and reaches it through export_test.go.
+// It stays unexported: only the test that holds the walk to the bound needs it,
+// and reaches it through export_test.go.
 const maxRefChain = 32
 
 // ObjectAt returns a reference-or-inline entry's concrete value together

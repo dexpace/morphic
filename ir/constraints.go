@@ -4,15 +4,13 @@ package ir
 // numeric type (ir-design §5.3). Numeric bounds are arbitrary-precision decimal
 // strings, never float64.
 //
-// Every Constraints is position-scoped: it holds what the position carrying it
-// declared, and nothing is ever copied across a TypeRef. Bounds conjoin rather
-// than override, so the effective restriction on a value is this struct
-// together with the Constraints of every node reached from the position's
-// TypeRef, and an absent Constraints means that position declared no bound —
-// never that the value is unbounded (ir-design §12.2). Documentation,
-// deprecation and Default are the other way round: a compiler merges them from
-// a $ref's target onto the referencing carrier with use-site precedence, so a
-// use site already carries those and resolves nothing to read them.
+// A Constraints is position-scoped: it holds only what its position declared,
+// and nothing is copied across a TypeRef. Bounds conjoin, so the effective
+// restriction is this struct and the Constraints of every node its TypeRef
+// reaches; an absent Constraints means no bound was declared, never that the
+// value is unbounded (ir-design §12.2). Documentation, deprecation, visibility
+// and Default are the opposite: a compiler merges them from a $ref's target
+// onto the referencing carrier, with use-site precedence.
 type Constraints struct {
 	// Min is the inclusive lower numeric bound (JSON Schema minimum): an
 	// admissible value is >= it. nil = this position declared none.

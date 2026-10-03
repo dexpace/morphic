@@ -174,19 +174,15 @@ func utf8Carriers() []utf8Carrier {
 }
 
 // TestVerify_InvalidUTF8IsReported drives one ill-formed string through every
-// carrier utf8Carriers names and pins the property GitHub #507 is about:
-// Verify reports ir/invalid-utf8 at the string's own walk path, the message
-// quotes nothing and is itself readable, and the document fails to encode
-// until that one string is repaired — at which point Verify has nothing left
-// to say about it and the document encodes.
+// carrier utf8Carriers names and pins GitHub #507: Verify reports
+// ir/invalid-utf8 at the string's own walk path, the message quotes nothing and
+// is itself readable, and the document fails to encode until the string is
+// repaired, when Verify has nothing left to say.
 //
-// Canonical and Hint each draw further violations from the very rune the
-// check exists to catch: the replacement rune is neither lowercase-idempotent
-// nor a word character, so ir/naming-cased and ir/naming-not-words both fire
-// alongside ir/invalid-utf8 there. That is GitHub #400's concern, not this
-// one, so those two rows list them as others. Every row's other codes are
-// compared exactly, so any further rule that starts firing on one of these
-// strings turns that row red.
+// Canonical and Hint also draw ir/naming-cased and ir/naming-not-words, since
+// the replacement rune is neither lowercase-idempotent nor a word character
+// (GitHub #400), so those rows list them as others. Every row's other codes are
+// compared exactly, so any further check firing on one turns it red.
 func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})

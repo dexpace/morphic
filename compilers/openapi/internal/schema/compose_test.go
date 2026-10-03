@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 func TestAllOf_SoleRefBecomesBase(t *testing.T) {
@@ -860,18 +861,13 @@ func TestAllOf_ExtraRefsBecomeMixins(t *testing.T) {
 
 // TestAllOf_NullabilityFollowsTheConjuncts pins that a composition over a
 // null-admitting conjunct reads as nullable at every usage naming it, and that
-// the bit is derived from the conjuncts rather than asserted.
+// the bit is derived from the conjuncts rather than asserted. A composition
+// declares no nullability of its own and Model.Base carries no Nullable bit, so
+// the null would otherwise be recorded nowhere (GitHub #279).
 //
-// A composition declares no nullability of its own, so asking the composing
-// schema alone answered "no" — and Model.Base carries no Nullable bit either,
-// which left `allOf: [{$ref: T}]` over a nullable T with no record of the null
-// anywhere and no diagnostic saying so. Against a model target there is not even
-// a second hop to recover it from (GitHub #279).
-//
-// WrapPlain and WrapBoth are the halves that keep the rule from being "a
-// conjunction is nullable": a conjunct declaring `type: object` forbids null,
-// and one forbidding conjunct decides the conjunction however many of its
-// siblings admit it.
+// WrapPlain and WrapBoth keep the rule from being "a conjunction is nullable":
+// a conjunct declaring `type: object` forbids null, and one forbidding conjunct
+// decides the conjunction however many of its siblings admit it.
 func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    NullableName: {type: [string, "null"]}
@@ -927,16 +923,13 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 // TestDistributedUnion_VariantCarriesTheBranchNullability pins that a union
 // distributed across its branches answers what the plain union over the same
-// branches does. The distributed variant is a synthesized model, and the TypeRef
-// naming it was built with no Nullable bit at all — so the branch's null was
-// dropped whatever the branch said, with one info diagnostic that says nothing
-// about it.
+// branches does: the TypeRef naming each synthesized variant model carries the
+// branch's Nullable bit, unless the body's own type forbids null.
 //
-// The two distributed rows differ only in the enclosing `type: object`, which is
-// the whole point: the variant is the body conjoined with the branch, so the
-// body's own type keyword decides as much as the branch does. A fix that copied
-// the branch's bit unconditionally passes the untyped row and fails the typed
-// one.
+// The two distributed rows differ only in the enclosing `type: object`, because
+// the variant is the body conjoined with the branch, so the body's own type
+// keyword decides as much as the branch does. Copying the branch's bit
+// unconditionally passes the untyped row and fails the typed one.
 func TestDistributedUnion_VariantCarriesTheBranchNullability(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    NullableModel:
@@ -1101,10 +1094,7 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 // TestAllOf_InlineSubtypeDiscriminatorValueFromMapping pins the path the #517
 // fix leaves untouched: a mapping entry can still name an inline subtype by
 // JSON reference, and mappingTagsFor — not subtypeDiscriminatorValue's
-// implicit-name fallback — is what gives it that tag. Kennel is declared before
-// Pet because mappingTargetID finds an inline target only once it is interned
-// (GitHub #530); the ordering is incidental to this fix and not what the test
-// pins.
+// implicit-name fallback — is what gives it that tag.
 func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Kennel:
@@ -1159,16 +1149,13 @@ func TestAllOf_InlineSubtypeDiscriminatorValueFromMapping(t *testing.T) {
 		"the base's own mapping resolves the same inline subtype the tag was read from")
 }
 
-// TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub #505:
-// a name holding a character a pointer escapes reaches the IR decoded wherever
-// it is read off a pointer's last token. That is the implicit discriminatorValue,
-// read off the subtype's own pointer and sent on the wire, the hints a union
-// variant and a branch alias read off the $ref they hold, and the hint a $defs
-// entry takes from its own key. Read raw, those carried the escapes: Cat~1Dog on
-// the wire, cat_1_dog, fish_2_d_tank and a_1_b as names.
-//
-// A $defs entry that is itself a $ref is named by its key as well, not by its
-// target, as a property holding one is (GitHub #519).
+// TestEscapedComponentName_DecodesInDiscriminatorValueAndHints pins GitHub
+// #505: a name holding a character a pointer escapes reaches the IR decoded
+// wherever it is read off a pointer's last token: the implicit
+// discriminatorValue sent on the wire, the hints a union variant and a branch
+// alias read off the $ref they hold, and the hint a $defs entry takes from its
+// own key. A $defs entry that is itself a $ref is named by its key too, not by
+// its target (GitHub #519).
 func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -1245,15 +1232,11 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 
 // TestUnionVariant_IsNamedAsTheNodeItHolds pins GitHub #521: a union variant
 // naming a $ref is named as the type it holds, not the pointer's own ordinal
-// or keyword. Choice/oneOf/0 targets X's own inline first branch directly;
-// Choice/oneOf/1 targets a plain structural position (A's items); Choice's
-// remaining two variants and Z's only variant all target a branch that is
-// itself a $ref, so naming them chases that $ref on to its own target
-// (targetHint): X/oneOf/1 takes two hops to reach Y's items (the branch
-// itself, then its own $ref), and Z/oneOf/0 one more on top of that — three in
-// all, so a hop cap below three fails that row. Before #521 was fixed,
-// Choice's four variants read 0, items, 1 and 0: the pointer's own ordinal or
-// keyword.
+// or keyword. Choice/oneOf/0 targets X's inline first branch and Choice/oneOf/1
+// a plain structural position (A's items). The other variants target a branch
+// that is itself a $ref, so naming them chases it on to its own target
+// (targetHint): Choice/oneOf/2 and Z/oneOf/0 take two hops to reach Y's items,
+// and Choice/oneOf/3 three, so a hop cap below three fails that row.
 func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Choice: {oneOf: [{$ref: '#/components/schemas/X/oneOf/0'}, {$ref: '#/components/schemas/A/items'},
@@ -1291,8 +1274,8 @@ func TestUnionVariant_IsNamedAsTheNodeItHolds(t *testing.T) {
 }
 
 // TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds is the same property for
-// variants naming positions in a response body, where positionHint cannot
-// replay the pointer. A branch is still named by its ordinal, a branch holding
+// variants naming positions in a response body, where the pointer does not spell
+// the enclosing hint. A branch is still named by its ordinal, a branch holding
 // a $ref after its target — through a second branch here, for two hops — and a
 // property by its key, so each variant still agrees with the node it holds.
 // Before this held outside /components/schemas the first three variants read
@@ -1541,14 +1524,12 @@ func enumPropertySpec(version, schema string) string {
 // TestEnum_NullMemberNormalizesToNullable pins ir-design §3.3 for the canonical
 // spelling of a nullable enum: on a schema that admits null in its own right,
 // the `null` member is stripped and carried by the enclosing reference's
-// Nullable bit, leaving a closed Enum of the scalar members. It used to make the
-// whole enum degrade to a union of three literals, losing its enum-ness (GitHub
-// #44).
+// Nullable bit, leaving a closed Enum of the scalar members (GitHub #44).
 //
-// The leading-null rows are not duplicates of the trailing-null ones. Member
-// kinds were reconciled against the member at index 0, so a `null` written first
-// fixed the kind to one no scalar member could then match; the rows differ only
-// in where the null sits, which is the whole question.
+// The leading-null rows are not duplicates of the trailing-null ones: member
+// kinds were reconciled against the member at index 0, so a leading `null`
+// fixed a kind no scalar member could match. The rows differ only in where the
+// null sits.
 func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	t.Parallel()
 	const enumID = ir.TypeID("t/anon/components/schemas/S/properties/p")
@@ -1647,21 +1628,17 @@ func TestEnum_NullMemberNormalizesToNullable(t *testing.T) {
 	}
 }
 
-// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member set
-// the normalization must not touch still lowers to a union of literals, with its
-// info diagnostic and every member preserved.
+// TestEnum_NullMemberKeepsUnionFallback pins the other half of #44: a member
+// set the normalization must not touch still lowers to a union of literals,
+// with its info diagnostic and every member preserved.
 //
-// The last two rows decide how far the rule reaches. A schema whose type keyword
-// excludes null conjoins the two, so its `null` member admits nothing and
-// normalizing would widen the declared type — that row must stay non-nullable
-// however the predicate is widened elsewhere; and an all-null set has no member
-// left to build an Enum from.
+// The last two rows bound the rule: a type keyword excluding null conjoins with
+// the enum, so its `null` member admits nothing and normalizing would widen the
+// declared type; an all-null set has no member left to build an Enum from.
 //
-// wantNullable is asserted beside the variants because the two answers have to
-// agree: a set that keeps its null as a Literal variant *and* reads as nullable
-// states one fact twice, which is tolerable, but a set whose null the fallback
-// keeps while the reference denies it would be a position an emitter cannot
-// generate.
+// wantNullable is asserted beside the variants because the two must agree: a
+// fallback keeping the null while the reference denies it leaves a position an
+// emitter cannot generate.
 func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
@@ -1745,21 +1722,14 @@ func TestEnum_NullMemberKeepsUnionFallback(t *testing.T) {
 }
 
 // TestEnum_EmptyMemberListMatchesNoValue pins what `enum: []` lowers to. It is
-// legal JSON Schema and it matches no instance, so the position it is written at
-// accepts nothing — the narrowest statement a schema can make.
+// legal JSON Schema and matches no instance, so the position it is written at
+// accepts nothing: a closed Enum with no member, reported once (GitHub #278).
 //
-// It used to make the widest one instead. The family election read the keyword
-// off `len(enum) > 0`, which cannot tell an empty member list from an absent
-// one, so the enum was neither lowered nor recorded and the position widened to
-// whatever its siblings admitted: the top type where nothing else was written,
-// the declared type where something was. Both channels were silent — no
-// diagnostic, nothing under Unmodeled (GitHub #278).
-//
-// The rows are the positions the keyword can sit at, because the widening
-// followed the siblings rather than the enum: a type keyword, a property set, a
-// composition, a nullable type array. The last row is the control — a populated
-// enum must keep lowering exactly as it did, so a fix reaching every enum rather
-// than the empty one fails here.
+// The rows are the positions the keyword can sit at, since what the position
+// admits otherwise depends on its siblings: a type keyword, a property set, a
+// composition, a nullable type array. The last row is the control: a populated
+// enum must lower as before, so a fix reaching every enum rather than the empty
+// one fails here.
 func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -1843,16 +1813,15 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 }
 
 // TestEnum_EmptyMemberListIsAUnionSibling pins the same keyword at the one
-// position that reads it through a different predicate. A oneOf/anyOf can be the
-// whole type only when nothing structural is written beside it, and an empty
-// enum is a value set like any other — so the union conjoins with a set holding
-// no member, and lowering the union alone would state the opposite of what the
-// source says.
+// position that reads it through a different predicate. A oneOf/anyOf can be
+// the whole type only when nothing structural is written beside it, and an
+// empty enum is a value set like any other, so the union conjoins with a set
+// holding no member and lowering the union alone would state the opposite of
+// the source.
 //
-// declaresShape and composesAsModel each spelled the same `len(enum) > 0` test
-// as the family election did, which is why this is a second case rather than a
-// second row: the first reaches lower()'s dispatch and this one does not reach
-// it at all.
+// It is a second case rather than a second row because declaresShape and
+// composesAsModel test the keyword themselves, through enumWritten, and a union
+// reaches lower()'s dispatch only through them.
 func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -2460,15 +2429,11 @@ func TestAllOf_BoolRefBranchHasNoDiscriminator(t *testing.T) {
 	_ = diags
 }
 
-// TestAllOf_BoolBranchSkippedInCompositionRequired covers compositionRequired's
-// `bs == nil` guard: an allOf branch can itself be a bare boolean schema
-// (`true`/`false`), not just a $ref to one (as above) or an inline object. For
-// such a branch, b.GetSchema() returns nil — it is the JSONSchema either-value's
-// Left half, populated only for an object branch, never for a bool one — so
-// without the guard, reading bs.GetRequired() would nil-deref on a real spec
-// that composes a bare boolean into an allOf. This pins that the guard makes
-// the bool branch inert rather than crashing, while the sibling object branch's
-// own property and its own required both still lower normally.
+// TestAllOf_BoolBranchSkippedInCompositionRequired covers an allOf branch that
+// is a bare boolean schema (`true` or `false`) rather than a $ref or an inline
+// object, so b.GetSchema() returns nil for it. It pins that the bool branch
+// contributes no required names, while the sibling object branch's property and
+// required still lower normally.
 func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Thing:
@@ -2674,20 +2639,15 @@ func comboDiscriminatedSpec(baseFirst bool) string {
 	return openapitest.ComponentSpec(rest + base)
 }
 
-// TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property the
-// pointer collision broke, over the whole compiled document rather than one
-// node: the same components in two declaration orders compile to the same IR.
-// Each case permutes a different site the distribution shares with something
-// outside it — an outside $ref aimed at either union branch, and the
-// discriminated base the variants take their tag from.
+// TestOneOf_CoDeclaredDistributionIsOrderIndependent states the property over
+// the whole compiled document: the same components in two declaration orders
+// compile to the same IR. Each case permutes a site the distribution shares
+// with something outside it: an outside $ref aimed at either union branch, and
+// the discriminated base the variants take their tag from.
 //
-// Comparing whole documents covers the diagnostic list as well as the registry,
-// which is why these cases permute only components that emit none: diagnostics
-// are appended in traversal order, so a document whose two orders diagnose the
-// same facts still lists them in two orders. The registry is then compared a
-// second time with nothing excluded at all, because these shapes settle their
-// name hints identically both ways and orderInvariantIR's Hint exclusion would
-// otherwise hide a regression there.
+// These cases permute only components that emit no diagnostics, since
+// diagnostics are appended in traversal order and so differ in order even when
+// they match. The registry is also compared on its own, with nothing excluded.
 func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -2738,8 +2698,8 @@ func branchAliasSpec(kind string, hostFirst bool) string {
 // depends on declaration order — silently, since either spelling is a valid hint
 // and no check compares them.
 //
-// Hints are compared here rather than excluded (orderInvariantIR drops them for
-// shapes that legitimately settle two ways): the hint *is* what differed.
+// The registry is compared on its own, name hints included: the hint *is* what
+// differed.
 func TestComposition_BranchAliasIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"allOf", "oneOf", "anyOf"} {
@@ -2926,13 +2886,10 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 // branch vanished — so all of them keep the verbatim lowering, which loses
 // nothing, and each still reports the broken reference.
 //
-// It drives the lowering directly (lowerSpecOnly) rather than through the
-// compiler, so the diagnostic checked below is the lowering's own — the one
-// diagUnresolvedBranches reports at the branch pointer without a reason — and
-// not the load phase's report of the same $ref, resolved and reasoned, which a
-// full compile would keep instead once compilers/openapi/withoutRereported has
-// deduplicated the two (see TestCompile_AResolutionFailureIsReportedOnceAtItsRef
-// for that combined view).
+// It drives the lowering alone (lowerSpecOnly), so the report checked is the
+// lowering's own, at the branch pointer and without a reason. A full compile
+// keeps the load phase's report of the same $ref instead; see
+// TestCompile_AResolutionFailureIsReportedOnceAtItsRef.
 func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
@@ -3032,20 +2989,13 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"each declined shape is reported once; got %+v", diags)
 }
 
-// TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that keeping
-// a union verbatim does not cost the position the value constraints written
-// beside it. The alias exists so the union attaches to a node this pointer owns
-// rather than to the shared primitive the body reduced to, and owning a node is
-// what stops hoistDeclarationHome hoisting the alias that would otherwise carry
-// the bounds — so this alias has to carry them itself, as every other hoist here
-// does (GitHub #343).
-//
-// Both reasons that keep a union hoist the same alias, and anyOf rides the same
-// path as oneOf, so each is covered. The last case pins what reading the bounds
-// also produces: the co-declared-bound reconciliation reports at a position
-// nothing used to read, and the keyword it cannot home is kept on the node the
-// bounds landed on. The key set is asserted whole — carrying the constraints
-// without that keyword leaves the diagnostic naming an entry the node lacks.
+// TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt pins that
+// keeping a union verbatim does not cost the position the value constraints
+// written beside it. The alias holding the union owns the pointer, so
+// hoistDeclarationHome does not hoist the alias that would carry the bounds,
+// and this alias must carry them itself (GitHub #343). Both reasons that keep a
+// union hoist the same alias, and anyOf takes the same path as oneOf. The last
+// case pins that a co-declared bound pair adds nothing beside the union.
 func TestUnionCombinators_CoDeclaredKeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	three := int64(3)
@@ -3186,17 +3136,14 @@ func TestUnionCombinators_UnpreservableIsNotAnnounced(t *testing.T) {
 
 // TestUnionCombinators_KeepingIsOrderIndependent states the property over the
 // whole document: declining the collapse gives this position a Union of its own
-// and turns its branches into ordinary union branches, so an outside $ref naming
-// one of them must reach the same IR whichever of the two is declared first.
+// and makes its branches ordinary union branches, so an outside $ref naming one
+// of them must reach the same IR whichever is declared first.
 //
-// The branch writes a description on purpose, and the guard below is what keeps
-// that load-bearing. A bare `{type: string}` branch resolves through the union to
-// the shared primitive, so the outside $ref is the only lowering that ever hoists
-// a node at the branch pointer: the node is still *there*, which is why asserting
-// its presence proves nothing — one lowering put it there and no hint ever had to
-// agree with another. Pinning the union's own variant to that node is what puts
-// both lowerings on the pointer, which is the state where only the first to
-// arrive interns it (branchHint, subSchemaHint, #181).
+// The branch writes a description deliberately. A bare `{type: string}` branch
+// resolves through the union to the shared primitive, so the outside $ref alone
+// hoists a node at the branch pointer and no hint ever has to agree with
+// another. Pinning the union's own variant to that node puts both lowerings on
+// the pointer (branchHint, subSchemaHint, #181).
 func TestUnionCombinators_KeepingIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	host := `    S:
@@ -3271,5 +3218,242 @@ func TestAllOf_DiscriminatorAliasTagIsOrderInvariant(t *testing.T) {
 			assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 				"as information, since the base's mapping loses nothing")
 		})
+	}
+}
+
+// TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder pins that a
+// discriminator mapping, or a 3.2 defaultMapping, naming an inline position
+// resolves whichever is declared first: the base carrying the discriminator, or
+// the schema enclosing the target. With the base first the target was not yet
+// built when the mapping was read, so the entry was dropped as unresolved
+// (GitHub #530). The two-order harness cannot see this: it stops at the first
+// error diagnostic, which that order produced.
+//
+// Each row's spec is written base-first, the order that failed; the other order
+// moves the base's block after the owner's.
+func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
+	t.Parallel()
+
+	const subBody = `{allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}`
+	// pet is the discriminated base, entry its mapping or defaultMapping line.
+	pet := func(entry string) string {
+		return `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        ` + entry + "\n"
+	}
+	mapping := func(target string) string { return pet(`mapping: {woofer: '#` + target + `'}`) }
+	spec32 := func(schemas string) string { return openapitest.ComponentSpecVer("3.2.0", schemas) }
+
+	const (
+		propTarget    = "/components/schemas/Kennel/properties/Dog"
+		itemsTarget   = "/components/schemas/Kennel/items"
+		keywordTarget = "/components/schemas/Kennel/properties/items/items"
+		defsTarget    = "/components/schemas/Kennel/$defs/Dog"
+		pathsBase     = "/paths/~1a/get/responses/200/content/application~1json/schema"
+		pathsTarget   = "/paths/~1b/get/responses/200/content/application~1json/schema/items"
+	)
+	ownerProperty := `    Kennel:
+      type: object
+      properties:
+        Dog: ` + subBody + "\n"
+	ownerItems := `    Kennel:
+      type: array
+      items: ` + subBody + "\n"
+	ownerKeywordKey := `    Kennel:
+      type: object
+      properties:
+        items:
+          type: array
+          items: ` + subBody + "\n"
+	ownerDefs := `    Kennel:
+      type: object
+      $defs:
+        Dog: ` + subBody + "\n"
+	pathBase := `  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind]
+                properties: {kind: {type: string}}
+                discriminator:
+                  propertyName: kind
+                  mapping: {woofer: '#` + pathsTarget + `'}
+`
+	pathOwner := `  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf: [{$ref: '#` + pathsBase + `'}]
+                  type: object
+                  properties: {woof: {type: string}}
+`
+
+	cases := []struct {
+		name             string
+		spec             func(string) string
+		base, owner      string
+		baseID, targetID ir.TypeID
+		wantDefault      bool
+	}{
+		{"a property", openapitest.ComponentSpec, mapping(propTarget), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, false},
+		{"items", openapitest.ComponentSpec, mapping(itemsTarget), ownerItems,
+			componentID("Pet"), "t/anon" + itemsTarget, false},
+		{"a keyword-named key", openapitest.ComponentSpec, mapping(keywordTarget), ownerKeywordKey,
+			componentID("Pet"), "t/anon" + keywordTarget, false},
+		{"a $defs entry", openapitest.ComponentSpec, mapping(defsTarget), ownerDefs,
+			componentID("Pet"), "t/anon" + defsTarget, false},
+		{"a 3.2 defaultMapping", spec32, pet(`defaultMapping: '#` + propTarget + `'`), ownerProperty,
+			componentID("Pet"), "t/anon" + propTarget, true},
+		{"a /paths inline subtype", openapitest.PathsSpec, pathBase, pathOwner,
+			"t/anon" + pathsBase, "t/anon" + pathsTarget, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			first, diags := parseFull(t, tc.spec(tc.base+tc.owner))
+			openapitest.RequireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, tc.spec(tc.owner+tc.base))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, doc := range []*ir.Document{first, last} {
+				base, ok := doc.Types[tc.baseID].(*ir.Model)
+				require.True(t, ok, "the discriminator base is a model")
+				require.NotNil(t, base.Discriminator)
+
+				subtype, ok := doc.Types[tc.targetID].(*ir.Model)
+				require.True(t, ok, "the mapping target is a model")
+
+				if tc.wantDefault {
+					assert.Equal(t, tc.targetID, base.Discriminator.Default)
+					// defaultMapping is the fallback for a tag the mapping does not
+					// recognize, so it names no tag for its target, and an inline
+					// subtype has no name to imply one (GitHub #517).
+					assert.Empty(t, subtype.DiscriminatorValue)
+				} else {
+					assert.Equal(t, tc.targetID, base.Discriminator.Mapping["woofer"])
+					assert.Equal(t, "woofer", subtype.DiscriminatorValue)
+				}
+			}
+
+			// The type registry is a map, so this is the properly order-blind
+			// claim; the /paths row's operation LIST legitimately reorders with
+			// its two path items, which is declaration order working as
+			// designed and no part of what this test is pinning.
+			assert.Empty(t, cmp.Diff(first.Types, last.Types),
+				"declaring the base before or after the owner must not change the registry")
+		})
+	}
+}
+
+// TestDiscriminatorMapping_ToAnAliasIsReportedByValidation pins the one target
+// GitHub #530's fix does not make a subtype: a position that is itself a pure
+// $ref. The mapping resolves, in either order, to the alias hoistSubSchema
+// builds there, as an outside $ref to it would. That alias is a Scalar, not a
+// subtype of the base, and pass.Validate does not read through an alias at a
+// mapping target, so it reports pass/discriminator-missing-variant naming the
+// alias. That rule is pass.Validate's, and this fix leaves it unchanged
+// (GitHub #758).
+func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
+	t.Parallel()
+	const dogComponent = `    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}
+`
+	const base = `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {woofer: '#/components/schemas/Kennel/properties/Dog'}
+`
+	const owner = `    Kennel:
+      type: object
+      properties:
+        Dog: {$ref: '#/components/schemas/Dog'}
+`
+	const aliasID = ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
+
+	first, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+base+owner))
+	openapitest.RequireNoErrorDiags(t, diags)
+	last, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+owner+base))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
+		"the alias is hoisted the same way whichever order the base or the owner is declared in")
+
+	for _, doc := range []*ir.Document{first, last} {
+		pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, aliasID, pet.Discriminator.Mapping["woofer"],
+			"the mapping resolves to the alias the position hoists, not to Dog directly")
+
+		alias, ok := doc.Types[aliasID].(*ir.Scalar)
+		require.True(t, ok, "the hoisted position is an alias scalar, not a model")
+		require.NotNil(t, alias.Base)
+		assert.Equal(t, componentID("Dog"), alias.Base.Target, "the alias's own target is Dog")
+
+		var msgs []string
+		for _, d := range pass.Validate(doc) {
+			if d.Code == "pass/discriminator-missing-variant" && d.Severity == ir.SeverityError &&
+				d.Provenance.Node == string(componentID("Pet")) {
+				msgs = append(msgs, d.Message)
+			}
+		}
+		require.Len(t, msgs, 1, "pass.Validate reports the alias once, on the base")
+		assert.Contains(t, msgs[0], string(aliasID),
+			"the diagnostic names the alias pass.Validate refused, not the schema it aliases")
+	}
+}
+
+// TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics pins that what
+// lowering a mapping target reports reaches the compile's diagnostics, for a
+// mapping entry and a defaultMapping alike. The targets sit under not and if,
+// which no declaration lowers, so the hoist is the only lowering that sees the
+// format each declares beside a model: dropping its findings would lose them.
+func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.2.0", `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {n: '#/components/schemas/Kennel/not'}
+        defaultMapping: '#/components/schemas/Kennel/if'
+    Kennel:
+      type: object
+      not: {type: object, format: wat, properties: {a: {type: string}}}
+      if: {type: object, format: huh, properties: {b: {type: string}}}
+      then: {required: [b]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok, "Pet is a model")
+	require.NotNil(t, pet.Discriminator)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/not"), pet.Discriminator.Mapping["n"])
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Kennel/if"), pet.Discriminator.Default)
+
+	for _, pointer := range []string{"/components/schemas/Kennel/not", "/components/schemas/Kennel/if"} {
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
+			"the format beside the model hoisted at %s is reported", pointer)
 	}
 }

@@ -134,19 +134,17 @@ paths:
 
 // TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
 // external reference names is reported: under its own rule and severity, at the
-// $ref that brought the document in, with its position there in the message.
-// It used to arrive as openapi/unresolved-ref at error severity, carrying the
-// external document's line and column against the source's index (GitHub #537).
+// $ref that brought the document in, with its position there in the message. It
+// used to arrive as openapi/unresolved-ref at error severity, with the external
+// document's line and column against the source's index (GitHub #537).
 //
-// Severity, code and provenance are Morphic's own construction and are pinned
-// exactly. The message is checked with Contains rather than equality: the text
-// before the position suffix is the library's own rendering of the finding
-// (validation.Error, stripped of its own prefix by validationMessage), and the
-// first entry embeds the library's own "line 10" wording, which a future
-// library version could reword without changing what either finding is.
+// Severity, code and provenance are Morphic's own and are pinned exactly. The
+// message is matched with Contains, since the text before the position is the
+// library's rendering of the finding, which a later version could reword.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	t.Parallel()
 	path := "../../../../testdata/openapi/resolve_main_external.yaml"
+	target := "../../../../testdata/openapi/resolve_target_invalid.yaml" // as the resolver keys it
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
@@ -161,9 +159,9 @@ func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 		contains string
 	}{
 		{ir.SeverityError, "openapi/validation/validation-type-mismatch", "/paths/~1a/get/responses/200",
-			"cannot unmarshal !!str `notabool` into bool, at 10:21 of the document the $ref resolves to"},
+			"cannot unmarshal !!str `notabool` into bool, at 10:21 of " + target},
 		{ir.SeverityError, "openapi/validation/validation-required-field", "/paths/~1a/get/responses/200",
-			"`response.description` is required, at 7:7 of the document the $ref resolves to"},
+			"`response.description` is required, at 7:7 of " + target},
 	}
 	require.Len(t, diags, len(want), "%+v", diags)
 	for i, w := range want {
@@ -427,14 +425,13 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 
 // TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model
 // build's other failure exit: the library refuses a document node that does not
-// wrap exactly one root, and that refusal is a Go error rather than a validation
-// finding about the spec.
+// wrap exactly one root, and that refusal is a Go error rather than a
+// validation finding about the spec.
 //
-// The node is built rather than decoded because yaml.v3 wraps exactly one root
-// in every tree it produces. What can hand this function another shape is an
-// overlay, which mutates the tree between the decode and the build — so the
-// branch is the compiler's to handle even though no source text reaches it
-// today, and building the node is the only way to hold it to that.
+// The node is built rather than decoded because yaml.v3 always wraps exactly
+// one root. An overlay mutates the tree between the decode and the build and
+// could hand over another shape, so the branch is the compiler's to handle, and
+// only a built node reaches it.
 func TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{

@@ -293,21 +293,15 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
-// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins which
-// unresolvable entries this package reports and which it leaves alone, through
-// the compiler rather than a hand-built node — the shapes below are what a
-// document can actually write, and a hand-built one is not among them.
+// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins how each
+// unresolvable entry below is reported, through the compiler rather than a
+// hand-built node: a document can write these shapes. None is named by a
+// requirement, so nothing downstream reports them.
 //
-// Every case here drops the entry from the registry, and none is named by any
-// security requirement, so nothing downstream would report it either. None is
-// reported here either, now that the load phase resolves references one at a
-// time: a $ref that resolves to nothing is reported at the entry's own
-// components pointer, naming the reference and the resolver's reason (GitHub
-// #385) — the gap this package used to fill when that report carried no
-// pointer at all (issue #235). An entry written as something other than an
-// object already draws the loader's type-mismatch, which names both the entry
-// and what was wrong with it, so a second report would send the reader to the
-// same place to learn less.
+// A $ref resolving to nothing is reported once at the entry's own pointer: this
+// package and the load phase both report it there, and the compiler keeps the
+// load phase's, which carries the resolver's reason (GitHub #385). An entry not
+// written as an object already draws the loader's type-mismatch alone.
 func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -356,6 +350,33 @@ components:
 				"the load phase's own report, naming the reference as written")
 		})
 	}
+}
+
+// TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere pins
+// what this package's report of a broken $ref is for. A resolver panic ends the
+// load phase's walk at /components/responses/000, before it reaches the entry,
+// so the load phase reports nothing there; without this report the scheme the
+// document declares would be dropped with no diagnostic that sites it.
+func TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.0.3
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    "000": {$ref: '#/B'}
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing'}
+B: {$ref}
+`)
+	require.NotEmpty(t, messagesAtPointer(diags, "/components/responses/000"),
+		"the fixture reaches the resolver panic it exists for: %+v", diags)
+
+	assert.NotContains(t, doc.Auth, ids.Auth("ghost"))
+	got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+	require.Len(t, got, 1, "%+v", diags)
+	assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: `+
+		`"#/components/securitySchemes/Missing"`, got[0])
 }
 
 // TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
@@ -438,15 +459,14 @@ components:
 }
 
 // TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive pins that no field
-// a securityScheme entry declares is dropped. Each mechanism's lowering reads
-// only the fields its own type defines, so everything else the entry wrote —
-// `in` on an oauth2 scheme, `flows` on an apiKey — reached no IR field and no
-// Unmodeled entry either, which "lossless by default" forbids (GitHub #294).
+// a securityScheme entry declares is dropped: `in` on an oauth2 scheme or
+// `flows` on an apiKey must reach Unmodeled, as "lossless by default" requires
+// (GitHub #294).
 //
-// Every case declares all seven mechanism fields, so each row states both
-// halves of §12.1's one-home rule at once: what the type defines reaches its IR
-// field and is not also kept raw, and what it does not define is kept raw and
-// does not silently fill a field of another mechanism.
+// Every case declares every mechanism field, so each row states both
+// halves of ir-design §12.1's one-home principle: what the type defines reaches
+// its IR field and is not also kept raw, and what it does not define is kept
+// raw and does not fill a field of another mechanism.
 func TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive(t *testing.T) {
 	t.Parallel()
 	// everyField is written on each entry below; a row names the ones its type
@@ -673,18 +693,15 @@ components:
 // TestLowerSecuritySchemes_ARefdEntryRecordsFieldsWhereTheyAreWritten pins
 // which of an aliased scheme's two positions each part of it is placed at.
 //
-// A `$ref` entry is a one-key object, so `<entry>/bearerFormat` names a position
-// no document holds — the fabricated-pointer failure issue #107 settled for
-// every other referenced component. The fields are read from the declaration,
-// so the entries recording them name the declaration.
+// A `$ref` entry is a one-key object, so `<entry>/bearerFormat` names a
+// position no document holds (issue #107). The fields are read from the
+// declaration, so the entries recording them name it. The scheme's identity
+// does not follow: alias and target are two schemes a requirement can name
+// separately, and irverify holds an AuthID to agree with its provenance path,
+// so both stay on the entry.
 //
-// The scheme's own identity does not follow: an alias and its target are two
-// named schemes a requirement can name separately, and irverify holds an AuthID
-// to agreeing with its provenance path, so both stay on the entry.
-//
-// One report, not two: with both aliases naming the same position the compiler's
-// identity dedup collapses them, which is what it is for — before this the two
-// copies differed only in a pointer neither document position had.
+// One report, not two: both entries name the declaration's position, so the
+// compiler's identity dedup collapses the copies.
 func TestLowerSecuritySchemes_ARefdEntryRecordsFieldsWhereTheyAreWritten(t *testing.T) {
 	t.Parallel()
 	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
@@ -777,15 +794,15 @@ components:
 		"the drop is reported exactly once: %+v", diags)
 }
 
-// TestSecurityRequirement_EveryUndeclaredMemberOfAnOptionIsReported pins the one
-// thing dropping the option whole must not cost. The option is refused once, but
-// each name that failed is still named — so a reader fixing the document sees
-// every scheme it has to declare, not only the first one the walk tripped over.
+// TestSecurityRequirement_EveryUndeclaredMemberOfAnOptionIsReported pins what
+// dropping an option whole must not cost: each name that failed is still named,
+// so a reader fixing the document sees every scheme to declare, not only the
+// first the walk tripped over.
 //
-// Nothing about the compiled Auth can see this: stopping at the first bad member
-// drops exactly the same option and collapses exactly the same list, so only the
-// diagnostics separate the two. Both names are undeclared here for that reason,
-// and they are read in source order, which is the order the IR promises.
+// The compiled Auth cannot show this: stopping at the first bad member drops
+// the same option and collapses the same list, so only the diagnostics differ.
+// Both names are undeclared for that reason, and read in source order, which
+// the IR promises.
 func TestSecurityRequirement_EveryUndeclaredMemberOfAnOptionIsReported(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
@@ -926,16 +943,15 @@ paths:
 
 // TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration pins
 // the base pointer for the carriers an operation-level security list sits on
-// besides an inline path operation. All of them reach one LowerSecurityRequirements
-// call, so a single wrong argument there misplaces every one of their
-// diagnostics at once — and an inline path operation cannot show that, because
-// it is mounted exactly where it is declared, leaving the two pointers equal. A
-// $ref'd path item separates them: it is mounted under /paths and declared under
-// /components, and only the declaration addresses a node the security list is
-// written at. Its broken option sits at index 1 so the survivor is kept too.
+// besides an inline path operation. All reach one LowerSecurityRequirements
+// call, so one wrong argument misplaces every one of their diagnostics. An
+// inline path operation cannot show that: it is mounted where it is declared,
+// so the two pointers are equal. A $ref'd path item separates them, mounted
+// under /paths and declared under /components, where the list is written. Its
+// broken option sits at index 1 so the survivor is kept too.
 //
-// The pointers are compared as a sorted set: the claim is that each carrier
-// reports at its own declaration, not that the walk visits them in some order.
+// The pointers are compared as a sorted set, since carrier order is not the
+// claim.
 func TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
@@ -1019,30 +1035,18 @@ func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	assert.Empty(t, emptyDiags)
 }
 
-// TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption pins that an entry
-// a security list holds without writing it as an object is dropped whole rather
-// than lowered to AuthRequirement{}, the encoding ir-design §9 reserves for "no
-// auth is one acceptable choice" (GitHub #284). Landing there turns a malformed
-// entry into a permission the document never granted: beside a real requirement
-// the API reads as optionally authenticated.
+// TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption pins that a
+// security-list entry not written as an object is dropped whole rather than
+// lowered to AuthRequirement{}, which ir-design §9 reserves for "no auth is one
+// acceptable choice" and which, beside a real requirement, would make auth
+// optional (GitHub #284).
 //
-// The `{}` an author writes on purpose is a row here rather than a separate
-// test, because the claim is that the two are different documents. Both
-// spellings arrive as a requirement holding no members, so a lowering that
-// refused every memberless option would satisfy the malformed rows alone while
-// deleting the encoding this all exists to protect.
+// The `{}` an author writes on purpose is a row too: refusing every memberless
+// option would pass the malformed rows while deleting that encoding.
 //
-// Each malformed row also pins that the loader's own report survives. These are
-// dropped without a second report from the compiler, on the grounds that the
-// loader already names both the entry and what was wrong with it — the call
-// LowerSecuritySchemes makes for the same shape — so if that report ever stops
-// arriving, the drop becomes silent and these rows are what says so.
-//
-// The aliased rows are what stops the drop from being written as a test of the
-// entry's node kind. An alias is its own kind whatever it points at, so reading
-// the kind directly would drop the `{}` reached through one — the very encoding
-// this exists to protect. The scalar reached through an alias is dropped either
-// way; it is here because nothing else says an alias cannot smuggle one in.
+// Each malformed row pins that the loader's report survives, since the drop is
+// otherwise silent. The aliased rows catch a drop that tests the entry's node
+// kind, which would lose the `{}` reached through an alias.
 func TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

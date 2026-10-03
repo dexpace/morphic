@@ -63,19 +63,15 @@ func applyStreaming(c lowering.Ctx, op *ir.Operation, declPtr jsontext.Pointer) 
 
 // classifyStream folds one direction's candidates into the detail to write.
 //
-// The one thing it refuses to do is elect an element type from candidates that
-// disagree. StreamDetail holds one Events per direction while Payload keeps
-// every media type, so naming one of two differing contents would be exactly
-// the primary-content selection a compiler must not make (invariant 2). The
-// direction still streams — that much all the candidates agree on — and the
-// element is left unnamed for a lowering that has the whole set to choose from.
+// It refuses to elect an element type from candidates that disagree:
+// StreamDetail holds one Events per direction while Payload keeps every media
+// type, so naming one of two differing contents would be the primary-content
+// selection invariant 2 forbids. The direction still streams and the element is
+// left unnamed for a lowering that has the whole set to choose from.
 //
-// Candidates naming the same element are not that case, so they are compared
-// rather than counted. A response offering one frame as both text/event-stream
-// and application/x-ndjson is content negotiation over a single element type,
-// and there is nothing to elect between: refusing on the count alone left the
-// commonest streaming shape there is with its element unnamed, which says less
-// than the source did rather than declining to choose.
+// Candidates naming the same element do not disagree, so they are compared, not
+// counted: one frame offered as both text/event-stream and application/x-ndjson
+// is content negotiation over one element type.
 func classifyStream(candidates []streamCandidate) streamDirection {
 	if len(candidates) == 0 {
 		return streamDirection{}

@@ -35,17 +35,14 @@ var nameChannels = []string{"Canonical", "Hint"}
 // TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly asserts that no
 // production package outside grammarOwners fills a nameChannels field itself.
 //
-// Those fields are ABI: an emitter reading one cannot tell which compiler
-// produced the name, so a compiler holding its own segmentation opinion makes
-// the field mean two things at once. That is not hypothetical — three copies of
-// the grammar disagreed about "." and about every other non-word character
-// (GitHub #163) — and deleting two copies does not stop a fourth being written.
-// Only a rule outside the compilers does.
+// Those fields are ABI, so a compiler's own segmentation would make one mean
+// two things (GitHub #163). Only a rule outside the compilers stops another
+// copy being written.
 //
-// Deliberately not checked: a name filled from a local variable reads as a
-// violation even when the variable came from the framework, so the call belongs
-// at the site; and a literal inside package ir is spelled Naming rather than
-// ir.Naming, which is one reason ir is an owner rather than a swept package.
+// Not checked: a name filled from a local variable reads as a violation even if
+// it came from the framework, so the call belongs at the site; and a literal
+// inside package ir is spelled Naming, not ir.Naming, which is why ir is an
+// owner rather than swept.
 func TestNamingGrammar_NameChannelsAreFilledByTheFrameworkOnly(t *testing.T) {
 	t.Parallel()
 	offenders := sweepProduction(t, repoRoot(t), "", grammarOwners, nameChannelViolations)
@@ -97,16 +94,14 @@ var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "Chann
 // TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
 // but the framework builds an ir ID out of a string.
 //
-// The derivation stays with the compiler — a JSON Pointer, a GraphQL structural
-// path and a protobuf fully-qualified name are different things — but the grammar
-// around it does not: the kind prefix, the namespace, and the rule that a minted
-// node takes a namespace of its own (GitHub #162). Three compilers each spelled
-// that themselves, and two of the three left the anonymous namespace unqualified
-// by format, so nothing but coincidence kept their IDs apart.
+// The derivation stays with the compiler (a JSON Pointer, a GraphQL structural
+// path and a protobuf name are different things), but the grammar around it
+// does not: the kind prefix, the namespace, and the rule that a minted node
+// takes a namespace of its own (GitHub #162).
 //
-// The sweep is the compilers rather than the repository because converting a
-// string that is already an ID back into its type is legitimate elsewhere:
-// pass and irverify do it to look a node up, which derives nothing.
+// The sweep covers the compilers, not the repository, because converting an
+// existing ID string back into its type is legitimate elsewhere: pass and
+// irverify do it to look a node up, which derives nothing.
 func TestIDGrammar_CompilersDeriveIDsThroughTheFramework(t *testing.T) {
 	t.Parallel()
 	offenders := sweepProduction(t, repoRoot(t), "compilers", idOwners, idDerivations)
