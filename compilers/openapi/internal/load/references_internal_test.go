@@ -30,8 +30,8 @@ import (
 // sitedFailuresSpec carries one unresolvable $ref at each of the six positions
 // GitHub #385 names (parameter, callback, requestBody, response, header,
 // pathItem), plus a component schema, a securityScheme entry, and a $ref this
-// compile refuses to leave the document for — nine positions in all, each with
-// its own, distinct reason.
+// compile refuses to leave the document for — nine positions in all, each
+// naming its own target.
 const sitedFailuresSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
