@@ -172,17 +172,17 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 	}
 }
 
-// checkAll validates each target in the order of its site, and reports what
-// each finds there. A finding already reported was reported at a lesser $ref,
-// so each lands at the least $ref whose object's validation draws it, and a
-// budget is crossed at the same object, whatever the declaration order.
+// checkAll validates each target in the order of its site, and reports its
+// findings. A finding already reported was reported at a lesser $ref, so each
+// lands at the least $ref whose object's validation draws it, and a budget is
+// crossed at the same object, whatever the declaration order. What resolution
+// reaches can follow that order (GitHub #761).
 //
-// An object inside one validated before it is validated again: a container
-// spans more than its model reads, such as an extension's content or a node
-// read as another kind.
+// An object inside one validated before it is validated, and charged, again
+// (GitHub #571): a container spans more than its model reads, such as an
+// extension's content.
 //
-// A panic in the library's validation stops it, and is reported at the target
-// being validated.
+// A panic in validation stops it, and is reported at the target it reached.
 func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	targets map[targetKey]reachedTarget,
 ) (diags []ir.Diagnostic) {
