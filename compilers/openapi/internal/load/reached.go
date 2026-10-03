@@ -5,10 +5,12 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"iter"
+	"maps"
+	"slices"
+	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
@@ -23,14 +25,12 @@ import (
 //
 // Only what a reference reaches is validated: a shared file of components is
 // used a piece at a time, and a finding in a piece nothing lowers would fail a
-// compile over content it never read. Each
-// finding is reported once (see check), and what validation spans is charged
-// to a budget (see charge).
+// compile over content it never read. Each finding is reported once (see
+// checkAll), and what validation spans is charged to a budget (see charge).
 type reached struct {
 	opts    []validation.Option
 	version string
 	minor   string
-	path    string
 	limit   int
 	// covered holds every node an object already validated spans.
 	covered map[*yaml.Node]bool
@@ -42,46 +42,58 @@ type reached struct {
 	over map[string]bool
 }
 
-// validateReached validates, once, every object a resolved reference in doc
-// brought in from another document, and reports what that finds at the $ref
-// that reached it (see reached).
-//
-// The library's validation faults on shapes it did not expect as its resolver
-// does, and this runs outside the resolver's barrier, so it has one of its own:
-// a panic stops the walk and is reported at the reference being validated, or
-// at the document root when the walk itself faulted.
-func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
-	path string, opts Options,
-) []ir.Diagnostic {
-	return checkReached(ctx, at, soa.Walk(ctx, doc), newReached(doc, path, opts))
+// reachedTarget is an object the source's references reach in another
+// document: the least pointer among the $refs reaching it, the object and the
+// node it was built from, and the document it is in, as findingPlace names it.
+type reachedTarget struct {
+	site jsontext.Pointer
+	obj  any
+	node *yaml.Node
+	doc  string
 }
 
-// checkReached is validateReached's own body, split out so a test can hand it
-// a walk it controls — the same reason eachReached itself takes one (see
-// matchSchemas) — since no real document can make check() panic once
-// newReached has supplied it the root document a security requirement needs
-// (that panic is reachable only by a document check() itself would refuse to
-// build from, which is what TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic's
-// own mutation exercises instead).
+// validateReached validates, once, every object a resolved reference in doc
+// brings in from another document, and reports what that finds at a $ref that
+// reaches it (see reached).
+func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
+	opts Options,
+) []ir.Diagnostic {
+	return checkReached(ctx, at, soa.Walk(ctx, doc), newReached(doc, opts))
+}
+
+// checkReached is validateReached over a walk the caller supplies, so a test
+// can hand it one yielding a reference no real document builds.
+//
+// The library's validation faults on shapes it did not expect as its resolver
+// does, and this runs outside the resolver's barrier, so it has one of its own.
+// A panic reading the walk is reported at the reference being read, or at the
+// root, and nothing is validated, since the targets read so far need not hold
+// each one's least $ref.
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	items iter.Seq[soa.WalkItem], checks *reached,
 ) []ir.Diagnostic {
-	var diags []ir.Diagnostic
+	targets := map[*yaml.Node]reachedTarget{}
 	site, err := eachReached(items, func(site jsontext.Pointer, r resolvable) error {
-		diags = append(diags, checks.check(ctx, at(site), r)...)
+		t, ok := targetOf(site, r)
+		if !ok {
+			return nil
+		}
+		if prev, seen := targets[t.node]; !seen || site < prev.site {
+			targets[t.node] = t
+		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error())}
 	}
-	return diags
+	return checks.checkAll(ctx, at, targets)
 }
 
-// eachReached calls visit with every resolved reference the walk reaches that
-// leaves the source, and the pointer that writes it, converting a panic into
-// an error as eachReference does and stopping at the first error visit
-// returns. validateReached's visit returns none; the stop is there so the error
-// Match hands back is handled rather than discarded, as in matchSchemas.
+// eachReached calls visit with every resolved reference the walk reaches, and
+// the pointer that writes it, converting a panic into an error as
+// eachReference does and stopping at the first error visit returns.
+// checkReached's visit returns none; the stop is there so the error Match
+// hands back is handled rather than discarded, as in matchSchemas.
 func eachReached(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, resolvable) error) (site jsontext.Pointer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -91,7 +103,7 @@ func eachReached(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, reso
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(resolvable)
-			if !ok || !r.IsReference() || !r.IsResolved() || r.GetReference().GetURI() == "" {
+			if !ok || !r.IsReference() || !r.IsResolved() {
 				return nil
 			}
 			site = jsontext.Pointer(item.Location.ToJSONPointer())
@@ -107,12 +119,31 @@ func eachReached(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, reso
 	return "", nil
 }
 
+// targetOf returns the object the reference at site reaches in another
+// document, or false when it reaches none: its chain ends on no object
+// (reachedObject), or in the source, whose own validation covers what is
+// there. An internal $ref whose chain leaves the source reaches an object as
+// an external one does, so a finding lands where the resolver's would. A $ref
+// naming the source's own file is read as another document (GitHub #759), so
+// what it reaches is validated a second time.
+func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
+	t := resolutionTrail(r)
+	if t.endsInSource {
+		return reachedTarget{}, false
+	}
+	obj, node, ok := reachedObject(r)
+	if !ok {
+		return reachedTarget{}, false
+	}
+	return reachedTarget{site: site, obj: obj, node: node, doc: findingPlace(t)}, true
+}
+
 // newReached returns the validator for the objects doc's references reach,
 // under opts' node and alias budgets; either one unbounded leaves the charge
 // unbounded. It validates with the options the source's validation passes
 // down: the root document, which a security requirement cannot be checked
 // without, and its version.
-func newReached(doc *soa.OpenAPI, path string, opts Options) *reached {
+func newReached(doc *soa.OpenAPI, opts Options) *reached {
 	limit := 0
 	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
 		limit = opts.MaxSourceNodes + opts.MaxAliasSurplus
@@ -126,7 +157,6 @@ func newReached(doc *soa.OpenAPI, path string, opts Options) *reached {
 		},
 		version:  version,
 		minor:    minor,
-		path:     path,
 		limit:    limit,
 		covered:  map[*yaml.Node]bool{},
 		reported: map[findingKey]bool{},
@@ -135,32 +165,57 @@ func newReached(doc *soa.OpenAPI, path string, opts Options) *reached {
 	}
 }
 
-// check validates the object r resolved to, when it has not been validated
-// yet, and reports what it finds at site. r is a resolved reference that
-// leaves the source (eachReached). Findings are reconciled as the source's are
-// (dropped, and the wrong-meta-schema artifacts), and each is reported once, at
-// the first $ref whose object holds it, as the source reports a finding once
-// however many references share its node. An object inside one already
-// validated is not validated again.
-func (v *reached) check(ctx context.Context, site ir.Provenance, r resolvable) []ir.Diagnostic {
-	obj, node, ok := reachedObject(r)
-	if !ok || v.covered[node] {
+// checkAll validates each target in the order of its site, and reports what
+// each finds there. In that order, a target spanned by one validated before it
+// lies inside an object a lesser $ref reaches, so it is skipped, and a finding
+// already reported was reported at a lesser $ref. So each finding lands at the
+// least $ref whose object holds its node, and a budget is crossed at the same
+// object, whatever order the source declares its references in.
+//
+// A panic in the library's validation stops it, and is reported at the target
+// being validated.
+func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
+	targets map[*yaml.Node]reachedTarget,
+) (diags []ir.Diagnostic) {
+	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
+		return strings.Compare(string(a.site), string(b.site))
+	})
+	var site jsontext.Pointer
+	defer func() {
+		if r := recover(); r != nil {
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site),
+				"validation panicked: %v", r))
+		}
+	}()
+	for _, t := range order {
+		site = t.site
+		diags = append(diags, v.check(ctx, at(t.site), t)...)
+	}
+	return diags
+}
+
+// check validates t's object, unless an object validated before it spans it,
+// and reports what it finds at site. Findings are reconciled as the source's
+// are (dropped, and the wrong-meta-schema artifacts), and one at a node
+// already reported is not reported again, as the source reports a finding once
+// however many references share its node.
+func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
+	if v.covered[t.node] {
 		return nil
 	}
-	if d, over := v.charge(site, v.document(r), node); over {
+	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
 
-	artifacts := v.artifacts(ctx, obj)
-	place := findingPlace(resolutionTrail(r))
+	artifacts := v.artifacts(ctx, t.obj)
 	var diags []ir.Diagnostic
-	for _, f := range validateObject(ctx, obj, v.opts) {
+	for _, f := range validateObject(ctx, t.obj, v.opts) {
 		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[findingSite(verr)]) {
 			continue
 		}
-		if key := keyOf(f, site.Pointer); !v.reported[key] {
+		if key := keyOf(f, t.site); !v.reported[key] {
 			v.reported[key] = true
-			diags = append(diags, reachedFinding(site, place, f))
+			diags = append(diags, reachedFinding(site, t.doc, f))
 		}
 	}
 	return diags
@@ -183,22 +238,10 @@ func (v *reached) charge(site ir.Provenance, doc string, node *yaml.Node) ([]ir.
 		v.over[doc] = true
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
 			"the objects references reach in %s span more than the %d nodes a document is validated over; "+
-				"this one, and any reached after it, is not validated", doc, v.limit)}, true
+				"its validation stops at this one", doc, v.limit)}, true
 	}
 	v.spent[doc] += span
 	return nil, false
-}
-
-// document names the document r's first step leaves the source for, as the
-// resolver spells it, so every reference into one document is charged to one
-// budget. A reference the resolver could not place is charged under its own
-// spelling.
-func (v *reached) document(r resolvable) string {
-	abs, err := references.ResolveAbsoluteReference(r.GetReference(), v.path)
-	if err != nil {
-		return r.GetReference().GetURI()
-	}
-	return abs.AbsoluteReference
 }
 
 // remaining is how many more nodes doc may be charged before its budget is

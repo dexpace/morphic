@@ -5,9 +5,11 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -132,26 +134,12 @@ func TestSpanned(t *testing.T) {
 	})
 }
 
-// TestReached_DocumentFallsBackToTheURIWhenResolutionFails covers document's
-// error arm: a reference's document key is normally the resolver's own
-// absolute spelling, but a reference the resolver could not place — here
-// because v.path itself cannot be parsed as a reference at all — is charged
-// under its own URI instead, so it still gets a budget of its own rather than
-// being silently uncharged.
-func TestReached_DocumentFallsBackToTheURIWhenResolutionFails(t *testing.T) {
-	t.Parallel()
-	v := &reached{path: "\x00not a valid target location"}
-
-	got := v.document(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/a"})
-
-	assert.Equal(t, "other.yaml", got)
-}
-
-// reachedFixtureOther and reachedFixtureRoot exercise reachedObject's outcomes
-// through a real, resolved document: a schema reference to an object (ok), a
-// schema reference to a boolean (nothing but its value), the default arm's
-// success path for a non-schema reference (a path item), and a path item whose
-// chain stops at a pointer that names nothing.
+// reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
+// reachedObject and targetOf through a real, resolved document: a schema
+// reference to an object, one to a boolean (nothing but its value), a path
+// item, a path item whose chain stops at a pointer naming nothing, a chain
+// through two documents, and internal references that stay in the source or
+// leave it.
 const reachedFixtureOther = `openapi: 3.1.0
 info: {title: O, version: "1"}
 paths:
@@ -164,6 +152,12 @@ components:
   schemas:
     Obj: {type: object, properties: {inner: {type: string}}}
     AnyBool: true
+    Hop: {$ref: "./third.yaml#/components/schemas/Leaf"}
+`
+
+const reachedFixtureThird = `components:
+  schemas:
+    Leaf: {type: string}
 `
 
 const reachedFixtureRoot = `openapi: 3.1.0
@@ -175,19 +169,56 @@ components:
   schemas:
     S: {$ref: "./other.yaml#/components/schemas/Obj"}
     Bool: {$ref: "./other.yaml#/components/schemas/AnyBool"}
+    Chained: {$ref: "./other.yaml#/components/schemas/Hop"}
+    Local: {type: string}
+    ToLocal: {$ref: "#/components/schemas/Local"}
+    ToS: {$ref: "#/components/schemas/S"}
 `
 
-// reachedFixtureDoc loads reachedFixtureRoot/reachedFixtureOther and returns
-// the resolved document, for the reachedObject/validateObject/reachedWalk unit
-// tests that read specific resolved references off it.
-func reachedFixtureDoc(t *testing.T) *soa.OpenAPI {
+// reachedFixtureDoc loads reachedFixtureRoot beside the documents it names
+// and returns the resolved document and the directory they are in.
+func reachedFixtureDoc(t *testing.T) (*soa.OpenAPI, string) {
 	t.Helper()
 	dir := t.TempDir()
-	writeFiles(t, dir, map[string]string{"other.yaml": reachedFixtureOther})
-	rootPath := filepath.Join(dir, "root.yaml")
-	writeFiles(t, dir, map[string]string{"root.yaml": reachedFixtureRoot})
-	got, _ := loadExternal(t, rootPath, reachedFixtureRoot, Options{})
-	return got.Doc
+	writeFiles(t, dir, map[string]string{
+		"root.yaml":  reachedFixtureRoot,
+		"other.yaml": reachedFixtureOther,
+		"third.yaml": reachedFixtureThird,
+	})
+	got, _ := loadExternal(t, filepath.Join(dir, "root.yaml"), reachedFixtureRoot, Options{})
+	return got.Doc, dir
+}
+
+// TestTargetOf covers which references reach an object in another document,
+// and the document each names: the one its chain ends in, not the one it
+// first leaves for. An internal reference counts once its chain leaves the
+// source, and one that stays in it, or ends on no object, reaches nothing.
+func TestTargetOf(t *testing.T) {
+	t.Parallel()
+	doc, dir := reachedFixtureDoc(t)
+	schema := func(name string) resolvable {
+		ref, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		return ref
+	}
+	stops, ok := doc.Paths.Get("/stops")
+	require.True(t, ok)
+
+	for name, want := range map[string]string{
+		"S":       filepath.Join(dir, "other.yaml"),
+		"Chained": filepath.Join(dir, "third.yaml"),
+		"ToS":     filepath.Join(dir, "other.yaml"),
+	} {
+		got, ok := targetOf("/site", schema(name))
+		require.True(t, ok, name)
+		assert.Equal(t, want, got.doc, name)
+		assert.Equal(t, jsontext.Pointer("/site"), got.site, name)
+		assert.NotNil(t, got.node, name)
+	}
+	for name, r := range map[string]resolvable{"ToLocal": schema("ToLocal"), "/stops": stops} {
+		_, ok := targetOf("/site", r)
+		assert.False(t, ok, "%s reaches no object in another document", name)
+	}
 }
 
 // TestReachedObject covers every outcome of reachedObject: a schema reference
@@ -197,7 +228,7 @@ func reachedFixtureDoc(t *testing.T) *soa.OpenAPI {
 // document produces, so a fake drives it.
 func TestReachedObject(t *testing.T) {
 	t.Parallel()
-	doc := reachedFixtureDoc(t)
+	doc, _ := reachedFixtureDoc(t)
 
 	t.Run("a schema reference to an object", func(t *testing.T) {
 		t.Parallel()
@@ -332,7 +363,7 @@ func TestReachedWalk(t *testing.T) {
 
 	t.Run("a schema walks through ConcreteToReferenceable", func(t *testing.T) {
 		t.Parallel()
-		doc := reachedFixtureDoc(t)
+		doc, _ := reachedFixtureDoc(t)
 		ref, ok := doc.Components.Schemas.Get("S")
 		require.True(t, ok)
 		obj, _, ok := reachedObject(ref)
@@ -466,12 +497,13 @@ func TestEachReached(t *testing.T) {
 		assert.Equal(t, 1, visited)
 	})
 
-	t.Run("a model that is not a resolved external reference is not visited", func(t *testing.T) {
+	// An internal reference is visited: whether its chain leaves the source is
+	// targetOf's to decide (TestTargetOf).
+	t.Run("a model that is not a resolved reference is not visited", func(t *testing.T) {
 		t.Parallel()
 		cases := map[string]reachedFake{
-			"not a reference":      {isRef: false, isResolved: true, ref: "other.yaml#/x"},
-			"unresolved":           {isRef: true, isResolved: false, ref: "other.yaml#/x"},
-			"internal (empty URI)": {isRef: true, isResolved: true, ref: "#/internal"},
+			"not a reference": {isRef: false, isResolved: true, ref: "other.yaml#/x"},
+			"unresolved":      {isRef: true, isResolved: false, ref: "other.yaml#/x"},
 		}
 		items := make([]soa.WalkItem, 0, len(cases))
 		for _, c := range cases {
@@ -483,7 +515,7 @@ func TestEachReached(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
-		assert.Zero(t, visited, "none of not-a-reference, unresolved, or internal reaches visit")
+		assert.Zero(t, visited, "neither reaches visit")
 	})
 }
 
@@ -508,57 +540,59 @@ paths:
   /x: {$ref: "./other.yaml#/paths/~1x"}
 `
 
-// reachedFakePanicObject implements just enough of a resolved object to reach
-// validateObject's dispatch — GetRootNode for reachedObject's default arm, and
-// Validate for validateObject's — and panics from Validate on command, driving
-// checkReached's panic barrier without depending on any particular library
-// fault to be the one available to trigger it.
+// reachedFakePanicObject is an object whose Validate panics, driving
+// checkAll's barrier without depending on a particular library fault.
 type reachedFakePanicObject struct{}
-
-func (reachedFakePanicObject) GetRootNode() *yaml.Node {
-	return &yaml.Node{Kind: yaml.MappingNode}
-}
 
 func (reachedFakePanicObject) Validate(context.Context, ...validation.Option) []error {
 	panic("object validation panicked")
 }
 
-// reachedFakePanicHolder is a reachedFake whose GetObjectAny returns a
-// reachedFakePanicObject, so reachedObject succeeds and validateObject then
-// panics on it.
+// reachedFakePanicHolder is a reachedFake naming a reachedFakePanicObject, so
+// reachedObject succeeds and validateObject then panics on it.
 type reachedFakePanicHolder struct{ reachedFake }
 
-func (f reachedFakePanicHolder) GetObjectAny() any { return reachedFakePanicObject{} }
+func (reachedFakePanicHolder) GetObjectAny() any { return reachedFakePanicObject{} }
 
-func (f reachedFakePanicHolder) GetRootNode() *yaml.Node {
-	return reachedFakePanicObject{}.GetRootNode()
-}
+func (reachedFakePanicHolder) GetRootNode() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode} }
 
-// TestValidateReached_APanicIsReportedAtTheRef pins how the panic barrier turns
-// a recovered panic into a diagnostic: openapi/validation, "validation
-// panicked", at the $ref that reached the panicking object. It drives
-// checkReached with a real newReached and a walk yielding one resolved external
-// reference whose object panics on Validate. No real document reaches this:
-// the root document newReached passes keeps a security requirement from
-// panicking (TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic).
-func TestValidateReached_APanicIsReportedAtTheRef(t *testing.T) {
+// TestCheckReached_APanicIsReported pins how both of checkReached's barriers
+// turn a recovered panic into a diagnostic: openapi/validation, "validation
+// panicked". One in an object's validation is reported at the $ref that
+// reached it. One reading the walk is reported at the root, and nothing read
+// before it is validated. No real document reaches either: the root document
+// newReached passes keeps a security requirement from panicking
+// (TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic).
+func TestCheckReached_APanicIsReported(t *testing.T) {
 	t.Parallel()
 	doc, valErrs := parseSpec(t, minimal31)
 	require.Empty(t, valErrs)
-	checks := newReached(doc, "root.yaml", Options{})
-	at := pointerAt(0, overlay.Origin{})
-
 	r := reachedFakePanicHolder{reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"}}
-	items := reachedFakeWalkItems(reachedFakeWalkItem(r, soa.Locations{{ParentField: "paths"}, {ParentKey: strPtr("x")}}))
+	item := reachedFakeWalkItem(r, soa.Locations{{ParentField: "paths"}, {ParentKey: strPtr("x")}})
 
-	diags := checkReached(t.Context(), at, items, checks)
+	for name, c := range map[string]struct {
+		items   iter.Seq[soa.WalkItem]
+		site    jsontext.Pointer
+		message string
+	}{
+		"in an object's validation": {reachedFakeWalkItems(item), "/paths/x", "object validation panicked"},
+		"reading the walk": {func(yield func(soa.WalkItem) bool) {
+			if yield(item) {
+				panic("walk boom")
+			}
+		}, "", "walk boom"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), c.items, newReached(doc, Options{}))
 
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.Validation, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Contains(t, diags[0].Message, "validation panicked")
-	assert.Contains(t, diags[0].Message, "object validation panicked")
-	assert.Equal(t, jsontext.Pointer("/paths/x"), diags[0].Provenance.Pointer, "reported at the $ref that reached the panicking object")
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, diag.Validation, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+			assert.Equal(t, "validation panicked: "+c.message, diags[0].Message)
+			assert.Equal(t, c.site, diags[0].Provenance.Pointer)
+		})
+	}
 }
 
 // TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic pins the
@@ -643,15 +677,28 @@ components:
       deprecated: "yes"
 `
 
-// m3WantDiags is the exact diagnostic list TestResolve_ValidatesWhatAnExternalReferenceReaches
-// expects, in walk order, with other.yaml at otherPath.
-func m3WantDiags(otherPath string) []ir.Diagnostic {
+// reachWantDiags is the exact diagnostic list
+// TestResolve_ValidatesWhatAnExternalReferenceReaches expects, with other.yaml
+// at otherPath: resolution's own finding first, then validation's, by site.
+func reachWantDiags(otherPath string) []ir.Diagnostic {
 	return []ir.Diagnostic{
 		{
 			Severity:   ir.SeverityError,
 			Code:       diag.Validation + "/validation-required-field",
 			Message:    "`parameter.in` is required, at 10:11 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1x"},
+		},
+		{
+			Severity:   ir.SeverityError,
+			Code:       diag.Validation + "/validation-invalid-schema",
+			Message:    "schema.minProperties minimum: got -3, want 0, at 31:22 of " + otherPath,
+			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
+		},
+		{
+			Severity:   ir.SeverityError,
+			Code:       diag.Validation + "/validation-type-mismatch",
+			Message:    "schema.deprecated expected `boolean`, got `string`, at 32:19 of " + otherPath,
+			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
 		},
 		{
 			Severity: ir.SeverityError,
@@ -673,18 +720,6 @@ func m3WantDiags(otherPath string) []ir.Diagnostic {
 			Message:    "schema.minLength minimum: got -1, want 0, at 27:45 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/responses/200"},
 		},
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-invalid-schema",
-			Message:    "schema.minProperties minimum: got -3, want 0, at 31:22 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
-		},
-		{
-			Severity:   ir.SeverityError,
-			Code:       diag.Validation + "/validation-type-mismatch",
-			Message:    "schema.deprecated expected `boolean`, got `string`, at 32:19 of " + otherPath,
-			Provenance: ir.Provenance{Source: 0, Pointer: "/components/schemas/S"},
-		},
 	}
 }
 
@@ -704,7 +739,7 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 
 	_, diags := loadExternal(t, rootPath, reachRootFixture, Options{})
 
-	if d := cmp.Diff(m3WantDiags(filepath.Join(dir, "other.yaml")), diags); d != "" {
+	if d := cmp.Diff(reachWantDiags(filepath.Join(dir, "other.yaml")), diags); d != "" {
 		t.Errorf("diagnostics did not match (-want +got):\n%s", d)
 	}
 	for _, d := range diags {
@@ -714,15 +749,23 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 }
 
 // TestResolve_AnObjectReachedTwiceIsValidatedOnce covers both ways one object
-// can be reached more than once: two independent $refs to the same named
-// component, and a container reached alongside something inside it addressed
-// by pointer rather than by component — in both orders, since the mechanism
-// differs (covered when the container comes first, the finding's own
-// deduplication when it comes second).
+// can be reached more than once: two $refs to one component, and a container
+// reached beside something inside it. Each root declares first the $ref that
+// does not sort first, so a report placed in walk order lands at the wrong
+// one. For the container, which mechanism holds depends on whose $ref is the
+// lesser: covered skips what the container holds when the container's is, and
+// the finding's own deduplication drops the container's copy when it is not.
 func TestResolve_AnObjectReachedTwiceIsValidatedOnce(t *testing.T) {
 	t.Parallel()
+	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
+		t.Helper()
+		dir := t.TempDir()
+		writeFiles(t, dir, map[string]string{"other.yaml": other, "root.yaml": root})
+		_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, opts)
+		return diags
+	}
 
-	t.Run("two refs to one component report once, at the first", func(t *testing.T) {
+	t.Run("two refs to one component report once, at the lesser", func(t *testing.T) {
 		t.Parallel()
 		other := `openapi: 3.1.0
 info: {title: O, version: "1"}
@@ -734,21 +777,16 @@ components:
 		root := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a:
-    get: {operationId: getA, parameters: [{$ref: "./other.yaml#/components/parameters/P"}], responses: {"200": {description: ok}}}
   /b:
     get: {operationId: getB, parameters: [{$ref: "./other.yaml#/components/parameters/P"}], responses: {"200": {description: ok}}}
+  /a:
+    get: {operationId: getA, parameters: [{$ref: "./other.yaml#/components/parameters/P"}], responses: {"200": {description: ok}}}
 `
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": other})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": root})
-
-		_, diags := loadExternal(t, rootPath, root, Options{})
+		diags := compile(t, other, root, Options{})
 
 		require.Len(t, diags, 1, "%+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer,
-			"reported at the first reference, not the second one to the same object")
+			"reported at the lesser $ref, not the one declared first")
 	})
 
 	other := `openapi: 3.1.0
@@ -763,90 +801,164 @@ paths:
           schema: {type: string}
       responses: {"200": {description: ok}}
 `
-
-	t.Run("container then contained: the covered skip", func(t *testing.T) {
-		t.Parallel()
-		root := `openapi: 3.1.0
+	containedFirst := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {$ref: "./other.yaml#/paths/~1x"}
   /b:
     get:
       operationId: getB
       parameters:
         - $ref: "./other.yaml#/paths/~1x/get/parameters/0"
       responses: {"200": {description: ok}}
+  /a: {$ref: "./other.yaml#/paths/~1x"}
 `
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": other})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": root})
 
-		_, diags := loadExternal(t, rootPath, root, Options{})
+	t.Run("a container at the lesser $ref covers what it holds", func(t *testing.T) {
+		t.Parallel()
+		diags := compile(t, other, containedFirst, Options{})
 
 		require.Len(t, diags, 1, "%+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer,
-			"the container's own finding; the contained parameter is covered and skipped, not re-reported at /paths/~1b")
+			"the container's own finding; the parameter it holds is covered, not reported at /paths/~1b")
 	})
 
-	// Reported-finding deduplication (above) hides a dropped covered skip from
-	// a plain finding count: re-validating an already-covered node reproduces
-	// the very same (node, rule, message), which the reported map catches
-	// independently of covered. What covered alone prevents is re-charging an
-	// already-covered node's budget, so that is what proves it is still
-	// checked: a container large enough that charging its own contained
-	// parameter a second time crosses a budget charging it once does not.
-	t.Run("container then contained: the covered skip also spares its budget", func(t *testing.T) {
+	// Deduplication hides a dropped covered skip from a finding count: the
+	// parameter validated again draws the same finding at the same node. What
+	// covered alone prevents is charging those nodes again, so a budget that
+	// one charge fits and two do not is what shows it is still checked.
+	t.Run("covering spares what the container holds its budget", func(t *testing.T) {
 		t.Parallel()
-		largeOther := nestedOtherFixture()
-		root := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /b: {$ref: "./other.yaml#/paths/~1x"}
-  /a:
-    get:
-      operationId: getA
-      parameters:
-        - $ref: "./other.yaml#/paths/~1x/get/parameters/0"
-      responses: {"200": {description: ok}}
-`
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": largeOther})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": root})
+		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
 
-		_, diags := loadExternal(t, rootPath, root, Options{MaxSourceNodes: 125, MaxAliasSurplus: 1})
-
-		require.Len(t, diags, 1, "the container's own finding only; charging its contained parameter's "+
-			"budget again, on top of the container's own charge, is what crosses this budget: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b"), diags[0].Provenance.Pointer)
+		require.Len(t, diags, 1, "the container's own finding only; charging the parameter it holds "+
+			"again, on top of the container's own charge, is what crosses this budget: %+v", diags)
+		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer)
 		assert.NotEqual(t, diag.BudgetExceeded, diags[0].Code)
 	})
 
-	t.Run("contained then container: the finding's own deduplication", func(t *testing.T) {
+	t.Run("a contained object at the lesser $ref keeps its finding there", func(t *testing.T) {
 		t.Parallel()
 		root := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
+  /b: {$ref: "./other.yaml#/paths/~1x"}
   /a:
     get:
       operationId: getA
       parameters:
         - $ref: "./other.yaml#/paths/~1x/get/parameters/0"
       responses: {"200": {description: ok}}
-  /b: {$ref: "./other.yaml#/paths/~1x"}
 `
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": other})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": root})
-
-		_, diags := loadExternal(t, rootPath, root, Options{})
+		diags := compile(t, other, root, Options{})
 
 		require.Len(t, diags, 1, "%+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer,
-			"the parameter's own finding, reported first; the container re-validates the same node but the finding is deduplicated, not re-reported at /paths/~1b")
+			"the parameter's own finding; the container draws it again, and that copy is dropped")
 	})
+}
+
+// TestResolve_ReachedSitesDoNotDependOnDeclarationOrder compiles one source as
+// written and with its paths and parameters reversed, and requires the same
+// reports. Placed in walk order, a finding moves with the declarations. The
+// shapes: a component two paths reach, a container at the lesser $ref and one
+// at the greater, and an internal $ref whose chain leaves the source, which
+// sorts before the external $ref it chains to.
+func TestResolve_ReachedSitesDoNotDependOnDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "other.yaml", `paths:
+  /x:
+    get:
+      parameters: [{name: q, in: under, schema: {type: string}}]
+      responses: {"200": {description: ok}}
+  /y:
+    get:
+      parameters: [{name: r, in: over, schema: {type: string}}]
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    P: {name: p, in: sideways, schema: {type: string}}
+    P2: {in: aslant, schema: {type: string}}
+`)
+	paths := []string{
+		"/b: {get: {parameters: [{$ref: './other.yaml#/components/parameters/P'}], responses: {'200': {description: ok}}}}",
+		"/a: {get: {parameters: [{$ref: './other.yaml#/components/parameters/P'}], responses: {'200': {description: ok}}}}",
+		"/d: {$ref: './other.yaml#/paths/~1x'}",
+		"/c: {get: {parameters: [{$ref: './other.yaml#/paths/~1x/get/parameters/0'}], responses: {'200': {description: ok}}}}",
+		"/f: {get: {parameters: [{$ref: './other.yaml#/paths/~1y/get/parameters/0'}], responses: {'200': {description: ok}}}}",
+		"/e: {$ref: './other.yaml#/paths/~1y'}",
+	}
+	parameters := []string{
+		"R: {$ref: './other.yaml#/components/parameters/P2'}",
+		"Q: {$ref: '#/components/parameters/R'}",
+	}
+	compile := func(paths, parameters []string) []string {
+		src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  " + strings.Join(paths, "\n  ") +
+			"\ncomponents:\n  parameters:\n    " + strings.Join(parameters, "\n    ") + "\n"
+		_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), src, Options{})
+		out := make([]string, 0, len(diags))
+		for _, d := range diags {
+			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
+		}
+		slices.Sort(out)
+		return out
+	}
+
+	asWritten := compile(paths, parameters)
+	slices.Reverse(paths)
+	slices.Reverse(parameters)
+	reversed := compile(paths, parameters)
+
+	if d := cmp.Diff(asWritten, reversed); d != "" {
+		t.Errorf("reports depend on declaration order (-as written +reversed):\n%s", d)
+	}
+	sites := make([]string, 0, len(asWritten))
+	for _, line := range asWritten {
+		code, rest, _ := strings.Cut(line, " ")
+		site, _, _ := strings.Cut(rest, " ")
+		sites = append(sites, code+" "+site)
+	}
+	assert.Equal(t, []string{
+		"openapi/validation/validation-allowed-values /components/parameters/Q",    // P2: Q chains to R's target
+		"openapi/validation/validation-allowed-values /paths/~1a/get/parameters/0", // P: the lesser of /a and /b
+		"openapi/validation/validation-allowed-values /paths/~1c/get/parameters/0", // q: held by /d, reached at /c
+		"openapi/validation/validation-allowed-values /paths/~1e",                  // r: /e holds what /f reaches
+		"openapi/validation/validation-required-field /components/parameters/Q",    // P2, as resolution places it
+	}, sites)
+}
+
+// TestResolve_AChainIsChargedToTheDocumentItEndsIn reaches one object of
+// b.yaml directly and a schema inside it through a.yaml. Both are b.yaml's
+// nodes, so both are charged to b.yaml, and together they cross a budget
+// neither crosses alone. Charged to the first document each $ref names, the
+// schema would go to a.yaml and nothing would cross.
+func TestResolve_AChainIsChargedToTheDocumentItEndsIn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	root := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {parameters: [{name: q, in: query, schema: {$ref: "./a.yaml#/components/schemas/X"}}], responses: {"200": {description: ok}}}}
+  /b: {get: {parameters: [{$ref: "./b.yaml#/components/parameters/Y"}], responses: {"200": {description: ok}}}}
+`
+	writeFiles(t, dir, map[string]string{
+		"root.yaml": root,
+		"a.yaml":    "components:\n  schemas:\n    X: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}\n",
+		"b.yaml": "components:\n  parameters:\n    Y: {name: p, in: sideways, schema: " +
+			"{type: object, properties: {p1: {type: string}, p2: {type: string}, p3: {type: string}, p4: {type: string}, p5: {type: string}, p6: {type: string}, p7: {type: string}, p8: {type: string}, p9: {type: string}, p10: {type: string}}}}\n",
+	})
+	bPath := filepath.Join(dir, "b.yaml")
+
+	_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{MaxSourceNodes: 60, MaxAliasSurplus: 1})
+
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
+	assert.Contains(t, diags[0].Message, "reach in "+bPath+" span more than the 61 nodes")
+
+	_, diags = loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{MaxSourceNodes: 120, MaxAliasSurplus: 1})
+	require.Len(t, diags, 1, "a budget both fit admits both: %+v", diags)
+	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
 
 // v32OtherFixture and v32RootFixture are a 3.2 root reaching
@@ -1000,34 +1112,41 @@ func nestedOtherFixture() string {
 	return b.String()
 }
 
-// nestedRootFixture reaches nestedOtherFixture's parameter from /a, the path
-// item around it from /b, and Small from /c.
-const nestedRootFixture = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a:
+// nestedRootPaths reach nestedOtherFixture's parameter from /a, the path item
+// around it from /b, and Small from /c. They are declared last first: in that
+// order a walk reaches the path item before the parameter it holds.
+var nestedRootPaths = []string{
+	`  /c:
+    get:
+      operationId: getC
+      responses:
+        "200": {$ref: "./other.yaml#/components/responses/Small"}
+`,
+	"  /b: {$ref: \"./other.yaml#/paths/~1x\"}\n",
+	`  /a:
     get:
       operationId: getA
       parameters:
         - $ref: "./other.yaml#/paths/~1x/get/parameters/0"
       responses: {"200": {description: ok}}
-  /b: {$ref: "./other.yaml#/paths/~1x"}
-  /c:
-    get:
-      operationId: getC
-      responses:
-        "200": {$ref: "./other.yaml#/components/responses/Small"}
-`
+`,
+}
 
-// TestResolve_ReachedValidationIsBudgeted runs nestedRootFixture under three
+// nestedRoot returns a source declaring paths in the order given.
+func nestedRoot(paths []string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + strings.Join(paths, "")
+}
+
+// TestResolve_ReachedValidationIsBudgeted runs nestedRootPaths under three
 // budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
-// from /a, and the path item reached after it, which charges those nodes
-// again, is refused as budget-exceeded. Charged once each, the two total 198
-// nodes, so 198 (197 + 1) admits both where MaxSourceNodes alone, 197, would
-// not: that boundary is what shows the alias budget's share is counted. An
-// unbounded budget admits both too.
+// from /a, and the path item at /b, which charges those nodes again, is refused
+// as budget-exceeded, in either declaration order. Charged once each, the
+// three total 198 nodes, so 198 (197 + 1) admits them all where MaxSourceNodes
+// alone, 197, would not: that boundary is what shows the alias budget's share
+// is counted. An unbounded budget admits them all too.
 func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	t.Parallel()
+	nestedRootFixture := nestedRoot(nestedRootPaths)
 	other := nestedOtherFixture()
 	dir := t.TempDir()
 	writeFiles(t, dir, map[string]string{"other.yaml": other})
@@ -1049,30 +1168,30 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 		assert.Equal(t, jsontext.Pointer("/paths/~1b"), diags[1].Provenance.Pointer)
 		assert.Equal(t, fmt.Sprintf(
 			"the objects references reach in %s span more than the 151 nodes a document is validated over; "+
-				"this one, and any reached after it, is not validated", otherPath),
+				"its validation stops at this one", otherPath),
 			diags[1].Message)
-	})
 
-	t.Run("a looser budget admits both", func(t *testing.T) {
-		t.Parallel()
-		_, diags := loadExternal(t, rootPath, nestedRootFixture, Options{MaxSourceNodes: 197, MaxAliasSurplus: 1})
-
-		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
-		for _, d := range diags {
-			assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
+		reversed := slices.Clone(nestedRootPaths)
+		slices.Reverse(reversed)
+		_, again := loadExternal(t, rootPath, nestedRoot(reversed), Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		if d := cmp.Diff(diags, again); d != "" {
+			t.Errorf("the budget is crossed at another object when the paths are reversed (-as written +reversed):\n%s", d)
 		}
 	})
 
-	t.Run("an unbounded budget admits both", func(t *testing.T) {
-		t.Parallel()
-		_, diags := loadExternal(t, rootPath, nestedRootFixture, Options{})
+	for name, opts := range map[string]Options{
+		"a budget the three fit admits them all": {MaxSourceNodes: 197, MaxAliasSurplus: 1},
+		"an unbounded budget admits them all":    {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := loadExternal(t, rootPath, nestedRootFixture, opts)
 
-		require.Len(t, diags, 1, "%+v", diags)
-		for _, d := range diags {
-			assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
-		}
-	})
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
+			assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+		})
+	}
 }
 
 // respelledOther is an external document with an anchored get whose parameter
