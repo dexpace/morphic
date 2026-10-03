@@ -3391,7 +3391,8 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 // builds there, as an outside $ref to it would. That alias is a Scalar, not a
 // subtype of the base, and pass.Validate does not read through an alias at a
 // mapping target, so it reports pass/discriminator-missing-variant naming the
-// alias. That rule is pass.Validate's, and this fix leaves it unchanged.
+// alias. That rule is pass.Validate's, and this fix leaves it unchanged
+// (GitHub #758).
 func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
 	t.Parallel()
 	const dogComponent = `    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}
