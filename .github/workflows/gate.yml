@@ -9,15 +9,15 @@ on:
 # the action installs the pinned release and runs it, and the step above reads
 # that pin back from the Makefile so the version still has a single definition.
 # Add a check to the Makefile and give it a step here; do not spell a command out
-# in this file. The cache steps are not checks: they carry the Go build cache
-# from main to every run, and scripts/go-cache.sh explains why that takes more
-# than a restore.
+# in this file. The toolchain pin and the cache steps are not checks: they set
+# up the runner, and scripts/go-cache.sh explains why carrying the build cache
+# from main takes more than a restore.
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           # Read from go.mod, so the toolchain has one definition and this file
           # holds no copy of it to drift. `make gate` pins the same version from
@@ -25,8 +25,15 @@ jobs:
           go-version-file: go.mod
           # The steps below cache instead: setup-go saves once per dependency
           # set and never again, so its build cache only ever holds the first
-          # run to see a go.sum.
+          # run to see a go.mod.
           cache: false
+      # setup-go exports GOTOOLCHAIN=local to every later step, and the Makefile
+      # warns about any value but the go.mod pin. Both name the toolchain just
+      # installed, so put the pin back rather than warn on every step.
+      - name: toolchain pin
+        run: |
+          version="$(env -u GOTOOLCHAIN make -s print-go-version)"
+          echo "GOTOOLCHAIN=go$version" >>"$GITHUB_ENV"
       - name: go cache paths
         id: go-env
         run: |
@@ -55,7 +62,7 @@ jobs:
         id: lint-version
         run: echo "version=$(make -s print-lint-version)" >>"$GITHUB_OUTPUT"
       - name: lint
-        uses: golangci/golangci-lint-action@v8.0.0
+        uses: golangci/golangci-lint-action@v9.3.0
         with:
           # Pinned so a golangci-lint release cannot redden main without a commit,
           # and so the nolint steps below describe the run that produced the
@@ -85,7 +92,7 @@ jobs:
       # gate and no reproducer to commit.
       - name: upload fuzz findings
         if: failure() && steps.fuzz.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-findings
           path: "**/testdata/fuzz/**"
