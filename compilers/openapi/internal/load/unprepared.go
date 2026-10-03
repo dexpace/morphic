@@ -267,11 +267,14 @@ func unprepared(doc *soa.OpenAPI, read *externalReads, used []usedDocument) []us
 
 // trail is what a reference's resolution recorded: the document each hop read,
 // first hop first, and the reference it stopped at unresolved, if it did. cut
-// marks a trail followed only as far as maxResolutionHops.
+// marks a trail followed only as far as maxResolutionHops. endsInSource marks
+// the last document as the source itself, which a hop is resolved against as
+// the model; every other document is resolved against as a parsed tree.
 type trail struct {
-	docs    []string
-	stopped references.Reference
-	cut     bool
+	docs         []string
+	stopped      references.Reference
+	cut          bool
+	endsInSource bool
 }
 
 // resolutionTrail returns the trail a reference's resolution recorded, or an
@@ -309,8 +312,10 @@ func resolutionTrail(model any) trail {
 // constraint is internal.
 //
 // A trail that ends on a reference, not an object, ends where the resolution
-// stopped. A schema's GetReferenceChain would not do: it hangs off the target's
-// parent, which the last reference to resolve a shared target overwrites.
+// stopped. A record holding no object is no hop: the library gives a $ref
+// inside a resolved schema one holding only the base it resolves against. A
+// schema's GetReferenceChain would not do: it hangs off the target's parent,
+// which the last reference to resolve a shared target overwrites.
 func hops[S any, R interface {
 	*S
 	GetReference() references.Reference
@@ -320,7 +325,7 @@ func hops[S any, R interface {
 	hop := ref
 	for hop != nil {
 		info := hop.GetReferenceResolutionInfo()
-		if info == nil {
+		if info == nil || info.Object == nil {
 			break
 		}
 		if len(t.docs) == maxResolutionHops {
@@ -328,6 +333,7 @@ func hops[S any, R interface {
 			return t
 		}
 		t.docs = append(t.docs, info.AbsoluteDocumentPath)
+		_, t.endsInSource = info.ResolvedDocument.(*soa.OpenAPI)
 		hop = info.Object
 	}
 	if hop != nil {

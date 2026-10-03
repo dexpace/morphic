@@ -130,48 +130,60 @@ func reportable(vErrs []error, reported map[findingKey]bool) []error {
 }
 
 // referenceDiags converts what resolving r reported into diagnostics at site:
-// each finding in what it names, and its failure.
+// each finding in what it names, and its failure. Both read the one trail the
+// resolution recorded.
 func referenceDiags(site ir.Provenance, r resolvable, vErrs []error, err error) []ir.Diagnostic {
+	if len(vErrs) == 0 && err == nil {
+		return nil
+	}
+	t := resolutionTrail(r)
 	diags := make([]ir.Diagnostic, 0, len(vErrs)+1)
-	if len(vErrs) > 0 {
-		place := findingPlace(r)
-		for _, ve := range vErrs {
-			diags = append(diags, reachedFinding(site, place, ve))
-		}
+	place := findingPlace(t)
+	for _, ve := range vErrs {
+		diags = append(diags, reachedFinding(site, place, ve))
 	}
 	if err != nil {
-		diags = append(diags, failureDiag(site, r, err))
+		diags = append(diags, failureDiag(site, r, t, err))
 	}
 	return diags
 }
 
 // failureDiag reports that r could not be resolved, quoting it as written, with
-// the resolver's reason. When the resolution got past r and stopped at another
-// reference, that one is quoted too: the reason is about it, and need not fit r,
-// as "external reference not allowed" does not fit a $ref to #/components.
-func failureDiag(site ir.Provenance, r resolvable, err error) ir.Diagnostic {
-	written := strconv.Quote(string(r.GetReference()))
-	if t := resolutionTrail(r); len(t.docs) > 0 && t.stopped != "" {
-		written += ", through " + strconv.Quote(string(t.stopped))
+// the resolver's reason. When t got past r and stopped at another reference,
+// that one is quoted too: the reason is about it, and need not fit r, as
+// "external reference not allowed" does not fit a $ref to #/components.
+func failureDiag(site ir.Provenance, r resolvable, t trail, err error) ir.Diagnostic {
+	if len(t.docs) > 0 && t.stopped != "" {
+		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q, through %s: %s",
+			string(r.GetReference()), quotedStop(t), err.Error())
 	}
-	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %s: %s", written, err.Error())
+	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q: %s",
+		string(r.GetReference()), err.Error())
 }
 
-// findingPlace names the document a finding made while resolving r is in: the
-// last one the resolution recorded reading, or, when it stopped at a reference
-// it could not follow, the one that reference names, which no record holds. A
-// resolution followed only as far as maxResolutionHops, or of a kind
-// resolutionTrail does not know, leaves the document unnamed.
-func findingPlace(r resolvable) string {
-	t := resolutionTrail(r)
+// findingPlace names the document a finding made along t is in: the last one t
+// read, or, when t stopped at a reference it could not follow, the one that
+// reference names, which no record holds. A trail cut at maxResolutionHops, or
+// empty because resolutionTrail does not know the kind, names none.
+func findingPlace(t trail) string {
 	switch {
 	case t.stopped != "":
-		return fmt.Sprintf("the document %q names", string(t.stopped))
+		return "the document that " + quotedStop(t) + " names"
 	case t.cut || len(t.docs) == 0:
 		return "a document the $ref leads to"
 	default:
 		return t.docs[len(t.docs)-1]
 	}
+}
+
+// quotedStop quotes the reference t stopped at, with the document it is written
+// in, the last one t read, when that is not the source. Quoted alone, an
+// internal reference written in another document would read as the source's.
+func quotedStop(t trail) string {
+	if len(t.docs) == 0 || t.endsInSource {
+		return strconv.Quote(string(t.stopped))
+	}
+	return strconv.Quote(string(t.stopped)) + " in " + t.docs[len(t.docs)-1]
 }
 
 // reachedFinding converts a finding the resolver made while building the

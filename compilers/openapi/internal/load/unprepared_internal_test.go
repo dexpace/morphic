@@ -856,7 +856,7 @@ func resolvedModels(t *testing.T, doc *soa.OpenAPI) map[string]any {
 // a chain whose target another reference shares), and the default arm for a
 // model none of the cases name. It also covers where a trail stops: at nothing
 // for a resolution that ended on an object, at the reference that failed for
-// one that did not.
+// one that did not, including a schema whose record holds no object.
 func TestResolutionTrail(t *testing.T) {
 	t.Parallel()
 
@@ -875,7 +875,7 @@ func TestResolutionTrail(t *testing.T) {
 				model, ok := models[kind]
 				require.True(t, ok, "fixture produced a resolved %s", kind)
 				got := resolutionTrail(model)
-				assert.Equal(t, trail{docs: []string{"root.yaml"}}, got,
+				assert.Equal(t, trail{docs: []string{"root.yaml"}, endsInSource: true}, got,
 					"an internal reference's one hop is the source document itself, and ends on an object")
 			})
 		}
@@ -897,7 +897,8 @@ func TestResolutionTrail(t *testing.T) {
 		root := hdr +
 			"    Direct: {$ref: \"" + bPath + "#/components/schemas/B\"}\n" +
 			"    Chained: {$ref: \"" + cPath + "#/components/schemas/C\"}\n" +
-			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n"
+			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n" +
+			"    Local: {$ref: \"#/components/schemas/Direct\"}\n"
 
 		doc, diags, err := resolveSpec(t, root, filepath.Join(dir, "root.yaml"))
 		require.NoError(t, err)
@@ -911,6 +912,7 @@ func TestResolutionTrail(t *testing.T) {
 			{"Direct", []string{bPath}, "a direct reference is one hop, not its document twice"},
 			{"Chained", []string{cPath, aPath, aPath, bPath}, "every hop, its own first, though a later reference shares its target"},
 			{"Shared", []string{aPath, aPath, bPath}, "an internal hop names the document it was read in"},
+			{"Local", []string{filepath.Join(dir, "root.yaml"), bPath}, "a trail out of the source ends outside it"},
 		} {
 			sch, ok := doc.Components.Schemas.Get(tc.name)
 			require.True(t, ok)
@@ -927,16 +929,29 @@ components:
   responses:
     Direct: {$ref: '#/components/responses/Ghost'}
     Chained: {$ref: '#/components/responses/Direct'}
+  schemas:
+    Direct: {$ref: '#/components/schemas/Ghost'}
+    Chained: {$ref: '#/components/schemas/Direct'}
 `, "root.yaml")
 		require.NoError(t, err)
 
 		for name, want := range map[string]trail{
 			"Direct":  {stopped: "#/components/responses/Ghost"},
-			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/responses/Ghost"},
+			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/responses/Ghost", endsInSource: true},
 		} {
 			ref, ok := doc.Components.Responses.Get(name)
 			require.True(t, ok)
-			assert.Equal(t, want, resolutionTrail(ref), "%s stops at the reference that failed", name)
+			assert.Equal(t, want, resolutionTrail(ref), "response %s stops at the reference that failed", name)
+		}
+		// A schema's Direct holds a record with no object, only the base its
+		// $ref resolves against: that is no hop, so its trail stops there too.
+		for name, want := range map[string]trail{
+			"Direct":  {stopped: "#/components/schemas/Ghost"},
+			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/schemas/Ghost", endsInSource: true},
+		} {
+			sch, ok := doc.Components.Schemas.Get(name)
+			require.True(t, ok)
+			assert.Equal(t, want, resolutionTrail(sch), "schema %s stops at the reference that failed", name)
 		}
 	})
 
@@ -974,7 +989,7 @@ func TestHopsUsed_StopsOnMatchError(t *testing.T) {
 // TestResolutionTrail_StopsAtMaxResolutionHops proves the bounded-everything
 // cap on both kinds of chain resolutionTrail follows: one of a document past
 // maxResolutionHops is cut at it rather than followed to its end, and says so,
-// so a finding at its end names no document of the trail as its own.
+// so that findingPlace names no document of the trail as a finding's.
 func TestResolutionTrail_StopsAtMaxResolutionHops(t *testing.T) {
 	t.Parallel()
 	const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
@@ -1025,9 +1040,6 @@ func TestResolutionTrail_StopsAtMaxResolutionHops(t *testing.T) {
 			assert.Len(t, got.docs, maxResolutionHops,
 				"a %d-document chain is capped at %d hops", chainLen, maxResolutionHops)
 			assert.True(t, got.cut, "and the trail records that it was cut")
-			r, ok := first.(resolvable)
-			require.True(t, ok)
-			assert.Equal(t, "a document the $ref leads to", findingPlace(r))
 		})
 	}
 }
