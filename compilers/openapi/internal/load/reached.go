@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -32,8 +33,6 @@ type reached struct {
 	version string
 	minor   string
 	limit   int
-	// covered holds every node an object already validated spans.
-	covered map[*yaml.Node]bool
 	// reported holds every finding already reported (see keyOf).
 	reported map[findingKey]bool
 	// spent is the node count charged to each document so far.
@@ -50,6 +49,14 @@ type reachedTarget struct {
 	obj  any
 	node *yaml.Node
 	doc  string
+}
+
+// targetKey identifies a target by the node its object was built from and the
+// kind a $ref read it as: a node one $ref reads as a response and another as a
+// schema is validated as each.
+type targetKey struct {
+	node *yaml.Node
+	kind reflect.Type
 }
 
 // validateReached validates, once, every object a resolved reference in doc
@@ -72,14 +79,15 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	items iter.Seq[soa.WalkItem], checks *reached,
 ) []ir.Diagnostic {
-	targets := map[*yaml.Node]reachedTarget{}
+	targets := map[targetKey]reachedTarget{}
 	site, err := eachReached(items, func(site jsontext.Pointer, r resolvable) error {
 		t, ok := targetOf(site, r)
 		if !ok {
 			return nil
 		}
-		if prev, seen := targets[t.node]; !seen || site < prev.site {
-			targets[t.node] = t
+		key := targetKey{node: t.node, kind: reflect.TypeOf(t.obj)}
+		if prev, seen := targets[key]; !seen || site < prev.site {
+			targets[key] = t
 		}
 		return nil
 	})
@@ -158,7 +166,6 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 		version:  version,
 		minor:    minor,
 		limit:    limit,
-		covered:  map[*yaml.Node]bool{},
 		reported: map[findingKey]bool{},
 		spent:    map[string]int{},
 		over:     map[string]bool{},
@@ -166,16 +173,18 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 }
 
 // checkAll validates each target in the order of its site, and reports what
-// each finds there. In that order, a target spanned by one validated before it
-// lies inside an object a lesser $ref reaches, so it is skipped, and a finding
-// already reported was reported at a lesser $ref. So each finding lands at the
-// least $ref whose object holds its node, and a budget is crossed at the same
-// object, whatever order the source declares its references in.
+// each finds there. A finding already reported was reported at a lesser $ref,
+// so each lands at the least $ref whose object's validation draws it, and a
+// budget is crossed at the same object, whatever the declaration order.
+//
+// An object inside one validated before it is validated again: a container
+// spans more than its model reads, such as an extension's content or a node
+// read as another kind.
 //
 // A panic in the library's validation stops it, and is reported at the target
 // being validated.
 func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
-	targets map[*yaml.Node]reachedTarget,
+	targets map[targetKey]reachedTarget,
 ) (diags []ir.Diagnostic) {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
 		return strings.Compare(string(a.site), string(b.site))
@@ -194,15 +203,11 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 	return diags
 }
 
-// check validates t's object, unless an object validated before it spans it,
-// and reports what it finds at site. Findings are reconciled as the source's
-// are (dropped, and the wrong-meta-schema artifacts), and one at a node
-// already reported is not reported again, as the source reports a finding once
-// however many references share its node.
+// check validates t's object and reports what it finds at site. Findings are
+// reconciled as the source's are (dropped, and the wrong-meta-schema
+// artifacts), and one at a node already reported is not reported again, as the
+// source reports a finding once however many references share its node.
 func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
-	if v.covered[t.node] {
-		return nil
-	}
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
@@ -233,8 +238,8 @@ func (v *reached) charge(site ir.Provenance, doc string, node *yaml.Node) ([]ir.
 	if v.over[doc] {
 		return nil, true
 	}
-	span := spanned(node, v.remaining(doc), v.covered)
-	if exceeds(v.spent[doc]+span, v.limit) {
+	span, fits := spanned(node, v.remaining(doc))
+	if !fits {
 		v.over[doc] = true
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, site,
 			"the objects references reach in %s span more than the %d nodes a document is validated over; "+
@@ -339,27 +344,29 @@ func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 }
 
 // spanned counts the nodes under root as a model built from it holds them,
-// each alias counted as a copy of what it names, and records each in covered.
-// It stops once the count passes limit, negative meaning none. It is iterative,
-// and bounded by limit or by the tree: a document whose anchor names one of its
-// own ancestors was refused, so no alias leads back up.
+// each alias counted as a copy of what it names, and reports whether the count
+// stays within limit, negative meaning none. It stops one node past limit, so
+// refusing an object costs the budget, not the object. No alias leads back up:
+// a document whose anchor names one of its own ancestors was refused.
 //
 // root and every node under it are real: yaml.v3 leaves no nil in Content, and
 // a well-formed alias's target is never nil, or the cycle refusals ahead
 // would have refused the document.
-func spanned(root *yaml.Node, limit int, covered map[*yaml.Node]bool) int {
+func spanned(root *yaml.Node, limit int) (int, bool) {
 	count := 0
 	stack := []*yaml.Node{root}
-	for len(stack) > 0 && (limit < 0 || count <= limit) {
+	for len(stack) > 0 {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		count++
-		covered[n] = true
+		if limit >= 0 && count > limit {
+			return count, false
+		}
 		if n.Kind == yaml.AliasNode {
 			stack = append(stack, n.Alias)
 			continue
 		}
 		stack = append(stack, n.Content...)
 	}
-	return count
+	return count, true
 }

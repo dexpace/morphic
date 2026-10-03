@@ -93,64 +93,70 @@ func loadExternal(t *testing.T, rootPath, root string, opts Options) (*Document,
 	return got, diags
 }
 
-// TestSpanned covers spanned's three properties: it counts every node under
-// root, an alias counts as a copy of what it names, and a limit stops the
-// count before the whole tree — proportionally to what covered records, since
-// covered is the same walk's bookkeeping. It has no case for a nil node: see
-// spanned's own doc comment for why yaml.v3 never gives it one to skip.
+// TestSpanned covers spanned's properties: it counts every node under root,
+// an alias counts as a copy of what it names, a tree of exactly limit nodes
+// fits, and a limit stops the count one node past it, never at the whole tree.
+// It has no case for a nil node: see spanned's own doc comment for why yaml.v3
+// never gives it one to skip.
 func TestSpanned(t *testing.T) {
 	t.Parallel()
+	wide := &yaml.Node{Kind: yaml.MappingNode}
+	for range 1000 {
+		wide.Content = append(wide.Content, &yaml.Node{Kind: yaml.ScalarNode})
+	}
+	target := &yaml.Node{Kind: yaml.ScalarNode}
+	aliased := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.AliasNode, Alias: target}}}
 
-	t.Run("counts every node under root", func(t *testing.T) {
-		t.Parallel()
-		root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
-			{Kind: yaml.ScalarNode}, {Kind: yaml.ScalarNode},
-		}}
-		covered := map[*yaml.Node]bool{}
-		assert.Equal(t, 3, spanned(root, -1, covered), "the mapping plus its two scalar children")
-		assert.Len(t, covered, 3)
-	})
-
-	t.Run("an alias counts its target as a copy", func(t *testing.T) {
-		t.Parallel()
-		target := &yaml.Node{Kind: yaml.ScalarNode}
-		alias := &yaml.Node{Kind: yaml.AliasNode, Alias: target}
-		root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{alias}}
-		covered := map[*yaml.Node]bool{}
-		assert.Equal(t, 3, spanned(root, -1, covered), "root, the alias node itself, and the target it names")
-		assert.True(t, covered[target], "the alias's target is recorded as covered too")
-	})
-
-	t.Run("a limit stops the count before the whole tree", func(t *testing.T) {
-		t.Parallel()
-		root := &yaml.Node{Kind: yaml.MappingNode}
-		for range 5 {
-			root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode})
-		}
-		covered := map[*yaml.Node]bool{}
-		got := spanned(root, 3, covered)
-		assert.Less(t, got, 6, "the unbounded count is 6: root plus five children")
-		assert.Equal(t, got, len(covered), "covered records exactly what the stopped count spanned")
-	})
+	for name, c := range map[string]struct {
+		root  *yaml.Node
+		limit int
+		count int
+		fits  bool
+	}{
+		"every node under root":                {wide, -1, 1001, true},
+		"an alias counts its target as a copy": {aliased, -1, 3, true},
+		"a tree of exactly limit nodes fits":   {wide, 1001, 1001, true},
+		"a limit stops the count one past it":  {wide, 6, 7, false},
+	} {
+		count, fits := spanned(c.root, c.limit)
+		assert.Equal(t, c.count, count, name)
+		assert.Equal(t, c.fits, fits, name)
+	}
 }
 
-// TestReached_ChargeCountsNoFurtherThanTheBudgetLeft pins that a charge stops
-// counting once an object has crossed what its document has left, so refusing
-// an object far over the budget costs the budget, not the object's size.
-func TestReached_ChargeCountsNoFurtherThanTheBudgetLeft(t *testing.T) {
+// TestReached_ChargeHoldsADocumentToWhatItHasLeft pins that charge measures an
+// object against what its document has left, not against the whole budget: of
+// a document with 6 nodes left, a 7-node object is refused and a 6-node one is
+// admitted, after which a document with none left refuses even one node.
+func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 	t.Parallel()
-	root := &yaml.Node{Kind: yaml.MappingNode}
-	for range 1000 {
-		root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode})
+	object := func(nodes int) *yaml.Node {
+		root := &yaml.Node{Kind: yaml.MappingNode}
+		for range nodes - 1 {
+			root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode})
+		}
+		return root
 	}
-	v := &reached{limit: 10, covered: map[*yaml.Node]bool{}, spent: map[string]int{"doc": 4}, over: map[string]bool{}}
+	charged := func() *reached {
+		return &reached{limit: 10, spent: map[string]int{"doc": 4}, over: map[string]bool{}}
+	}
 
-	d, over := v.charge(ir.Provenance{}, "doc", root)
-
+	v := charged()
+	d, over := v.charge(ir.Provenance{}, "doc", object(7))
 	assert.True(t, over)
 	require.Len(t, d, 1)
 	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
-	assert.Len(t, v.covered, 7, "the six nodes the document had left, and the one that crosses")
+
+	v = charged()
+	d, over = v.charge(ir.Provenance{}, "doc", object(6))
+	assert.False(t, over)
+	assert.Empty(t, d)
+	assert.Equal(t, 10, v.spent["doc"])
+
+	d, over = v.charge(ir.Provenance{}, "doc", object(1))
+	assert.True(t, over)
+	require.Len(t, d, 1)
+	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
 }
 
 // reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
@@ -776,14 +782,13 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	}
 }
 
-// TestResolve_AnObjectReachedTwiceIsValidatedOnce covers both ways one object
-// can be reached more than once: two $refs to one component, and a container
-// reached beside something inside it. Each root declares first the $ref that
-// does not sort first, so a report placed in walk order lands at the wrong
-// one. For the container, which mechanism holds depends on whose $ref is the
-// lesser: covered skips what the container holds when the container's is, and
-// the finding's own deduplication drops the container's copy when it is not.
-func TestResolve_AnObjectReachedTwiceIsValidatedOnce(t *testing.T) {
+// TestResolve_AnObjectReachedTwiceIsReportedOnce covers the ways one node can
+// be reached more than once: two $refs to one component, a container reached
+// beside something inside it, at the lesser $ref and at the greater, and one
+// node read as two kinds. Each root declares first the $ref that does not sort
+// first, so a report placed in walk order lands at the wrong one. Inside a
+// container, an object is validated twice and its finding reported once.
+func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
 		t.Helper()
@@ -841,27 +846,68 @@ paths:
   /a: {$ref: "./other.yaml#/paths/~1x"}
 `
 
-	t.Run("a container at the lesser $ref covers what it holds", func(t *testing.T) {
+	t.Run("a container at the lesser $ref keeps the finding of what it holds", func(t *testing.T) {
 		t.Parallel()
 		diags := compile(t, other, containedFirst, Options{})
 
 		require.Len(t, diags, 1, "%+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer,
-			"the container's own finding; the parameter it holds is covered, not reported at /paths/~1b")
+			"the container's own finding; the parameter it holds draws it again, and that copy is dropped")
 	})
 
-	// Deduplication hides a dropped covered skip from a finding count: the
-	// parameter validated again draws the same finding at the same node. What
-	// covered alone prevents is charging those nodes again, so a budget that
-	// one charge fits and two do not is what shows it is still checked.
-	t.Run("covering spares what the container holds its budget", func(t *testing.T) {
+	t.Run("what a container holds is charged again", func(t *testing.T) {
 		t.Parallel()
 		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
 
-		require.Len(t, diags, 1, "the container's own finding only; charging the parameter it holds "+
-			"again, on top of the container's own charge, is what crosses this budget: %+v", diags)
+		require.Len(t, diags, 2, "the container fits this budget and its parameter, charged again, "+
+			"does not: %+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a"), diags[0].Provenance.Pointer)
-		assert.NotEqual(t, diag.BudgetExceeded, diags[0].Code)
+		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[1].Provenance.Pointer)
+		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
+	})
+
+	t.Run("what a container spans but does not read is validated at its own $ref", func(t *testing.T) {
+		t.Parallel()
+		other := `paths:
+  /x:
+    x-shared: {name: q, in: sideways, schema: {type: string}}
+    get: {responses: {"200": {description: ok}}}
+`
+		root := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b: {get: {parameters: [{$ref: "./other.yaml#/paths/~1x/x-shared"}], responses: {"200": {description: ok}}}}
+  /a: {$ref: "./other.yaml#/paths/~1x"}
+`
+		diags := compile(t, other, root, Options{})
+
+		require.Len(t, diags, 1, "the path item at /a holds the parameter but never reads it: %+v", diags)
+		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
+		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+	})
+
+	t.Run("one node read as two kinds is validated as each", func(t *testing.T) {
+		t.Parallel()
+		other := "components:\n  responses:\n    R: {description: ok, type: 42, " +
+			"content: {application/json: {schema: {minLength: -2}}}}\n"
+		root := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {responses: {"200": {$ref: "./other.yaml#/components/responses/R"}}}}
+components:
+  schemas:
+    S: {$ref: "./other.yaml#/components/responses/R"}
+`
+		diags := compile(t, other, root, Options{})
+
+		sites := map[jsontext.Pointer][]string{}
+		for _, d := range diags {
+			sites[d.Provenance.Pointer] = append(sites[d.Provenance.Pointer], d.Message)
+		}
+		require.Len(t, sites["/paths/~1a/get/responses/200"], 1, "read as a response: %+v", diags)
+		assert.Contains(t, sites["/paths/~1a/get/responses/200"][0], "schema.minLength minimum: got -2")
+		assert.NotEmpty(t, sites["/components/schemas/S"], "read as a schema, type: 42 is a finding: %+v", diags)
 	})
 
 	t.Run("a contained object at the lesser $ref keeps its finding there", func(t *testing.T) {
