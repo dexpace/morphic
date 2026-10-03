@@ -134,6 +134,25 @@ func TestSpanned(t *testing.T) {
 	})
 }
 
+// TestReached_ChargeCountsNoFurtherThanTheBudgetLeft pins that a charge stops
+// counting once an object has crossed what its document has left, so refusing
+// an object far over the budget costs the budget, not the object's size.
+func TestReached_ChargeCountsNoFurtherThanTheBudgetLeft(t *testing.T) {
+	t.Parallel()
+	root := &yaml.Node{Kind: yaml.MappingNode}
+	for range 1000 {
+		root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode})
+	}
+	v := &reached{limit: 10, covered: map[*yaml.Node]bool{}, spent: map[string]int{"doc": 4}, over: map[string]bool{}}
+
+	d, over := v.charge(ir.Provenance{}, "doc", root)
+
+	assert.True(t, over)
+	require.Len(t, d, 1)
+	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
+	assert.Len(t, v.covered, 7, "the six nodes the document had left, and the one that crosses")
+}
+
 // reachedFixtureOther, reachedFixtureThird and reachedFixtureRoot exercise
 // reachedObject and targetOf through a real, resolved document: a schema
 // reference to an object, one to a boolean (nothing but its value), a path
@@ -1096,8 +1115,8 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 // with an invalid in: sideways and a schema of twenty properties. Reached once
 // through the parameter and once through the path item around it, those nodes
 // are charged twice, which crosses a budget a single charge does not. Small, a
-// separate response, is reached after that, to pin that a document already
-// over its budget is refused silently rather than reported again.
+// separate response with a defect of its own, is reached after that, to pin
+// that a document over its budget is not validated further.
 func nestedOtherFixture() string {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths:\n" +
@@ -1108,7 +1127,7 @@ func nestedOtherFixture() string {
 		fmt.Fprintf(&b, "              p%d: {type: string}\n", i)
 	}
 	b.WriteString("      responses:\n        \"200\": {description: ok}\n" +
-		"components:\n  responses:\n    Small: {description: ok}\n")
+		"components:\n  responses:\n    Small: {description: ok, content: {application/json: {schema: {minLength: -1}}}}\n")
 	return b.String()
 }
 
@@ -1139,11 +1158,11 @@ func nestedRoot(paths []string) string {
 
 // TestResolve_ReachedValidationIsBudgeted runs nestedRootPaths under three
 // budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
-// from /a, and the path item at /b, which charges those nodes again, is refused
-// as budget-exceeded, in either declaration order. Charged once each, the
-// three total 198 nodes, so 198 (197 + 1) admits them all where MaxSourceNodes
-// alone, 197, would not: that boundary is what shows the alias budget's share
-// is counted. An unbounded budget admits them all too.
+// from /a, the path item at /b, which charges those nodes again, is refused
+// as budget-exceeded, and Small at /c is not validated, in either declaration
+// order. The three total 206 nodes, so 206 (205 + 1) admits all of them where
+// MaxSourceNodes alone, 205, would not: that boundary is what shows the alias
+// budget's share is counted. An unbounded budget admits them all too.
 func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	t.Parallel()
 	nestedRootFixture := nestedRoot(nestedRootPaths)
@@ -1158,8 +1177,8 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 		t.Parallel()
 		_, diags := loadExternal(t, rootPath, nestedRootFixture, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
 
-		require.Len(t, diags, 2, "exactly two: /c's own document is already over budget and refuses silently, "+
-			"not with a second budget-exceeded: %+v", diags)
+		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
+			"its finding nor a second budget-exceeded is reported: %+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 
@@ -1180,16 +1199,18 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	})
 
 	for name, opts := range map[string]Options{
-		"a budget the three fit admits them all": {MaxSourceNodes: 197, MaxAliasSurplus: 1},
+		"a budget the three fit admits them all": {MaxSourceNodes: 205, MaxAliasSurplus: 1},
 		"an unbounded budget admits them all":    {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := loadExternal(t, rootPath, nestedRootFixture, opts)
 
-			require.Len(t, diags, 1, "%+v", diags)
+			require.Len(t, diags, 2, "%+v", diags)
 			assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
+			assert.Equal(t, jsontext.Pointer("/paths/~1c/get/responses/200"), diags[1].Provenance.Pointer)
+			assert.Equal(t, diag.Validation+"/validation-invalid-schema", diags[1].Code)
 		})
 	}
 }
