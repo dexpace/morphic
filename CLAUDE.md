@@ -359,6 +359,15 @@ context-switch between repos.
   the cap until the number was appended, which is the whole failure mode; to see that split rather
   than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
   `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+- **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
+  or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
+  or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a
+  reviewer reads and orphans their comments, and the squash merge keeps `main` clean whatever the
+  branch holds. To pick up `main`, merge it in rather than rebasing. The squash commit's *body* is
+  settled when merging, not by shaping the branch:
+  `gh api repos/dexpace/morphic --jq .squash_merge_commit_message` names what a default squash
+  pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
+  could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
   logical change; split unrelated changes into separate PRs.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
