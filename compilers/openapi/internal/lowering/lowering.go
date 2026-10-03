@@ -250,10 +250,10 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
-// own path, and what it declares.
+// own path, what it declares, and the parsed document itself.
 //
 // It is derived on use rather than stored beside the context. A stored copy
-// would be a second place the same two facts live, free to disagree with the
+// would be a second place the same facts live, free to disagree with the
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
