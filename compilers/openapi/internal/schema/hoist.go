@@ -28,9 +28,10 @@ const TopLevelDepth = 0
 //
 // A node the registry reports as Building is reached again only by a walk
 // running below the frame building it, and that frame finishes the node, this
-// declaration included, once its build returns (GitHub #749). Any other miss is a compiler bug no
-// source can provoke, so it is reported as one: the caller was about to attach
-// docs, examples or preserved constructs, which would otherwise vanish.
+// declaration included, once its build returns (GitHub #749). Any other miss
+// is a compiler bug no source can provoke, so it is reported as one: the caller
+// was about to attach docs, examples or preserved constructs, which would
+// otherwise vanish.
 func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) (ir.TypeDef, bool, []ir.Diagnostic) {
 	td, ok := ts.Node(id)
 	if ok {
