@@ -210,8 +210,8 @@ const deepPointer = "/components/schemas/Obj/properties/inner"
 // position holding no schema comes back ok=false rather than as a nil schema a
 // caller could take for a real one. That covers a non-schema object, an
 // undeclared name, a keyword the schema leaves unset (which the pointer walk
-// reaches as a typed nil), raw YAML under an extension key, which only a $ref
-// makes the resolver parse, and a Scope with no Doc.
+// reaches as a typed nil), raw YAML under an extension key or in an enum, which
+// only a $ref makes the resolver parse, and a Scope with no Doc.
 func TestScope_DeclaredAt(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
@@ -221,6 +221,7 @@ components:
   schemas:
     Pet:
       type: object
+      enum: [{type: object}]
       x-dog: {type: object}
 `))
 	require.NoError(t, err)
@@ -231,10 +232,11 @@ components:
 	assert.NotNil(t, got)
 
 	for pointer, why := range map[jsontext.Pointer]string{
-		"/info":                         "a non-schema position does not resolve",
-		"/components/schemas/Ghost":     "a position the document does not declare does not resolve",
-		"/components/schemas/Pet/not":   "a keyword the schema leaves unset does not resolve",
-		"/components/schemas/Pet/x-dog": "raw YAML under an extension does not resolve",
+		"/info":                          "a non-schema position does not resolve",
+		"/components/schemas/Ghost":      "a position the document does not declare does not resolve",
+		"/components/schemas/Pet/not":    "a keyword the schema leaves unset does not resolve",
+		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
+		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
 	} {
 		got, ok := sc.DeclaredAt(pointer)
 		assert.False(t, ok, why)
