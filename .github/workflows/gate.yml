@@ -11,6 +11,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: toolchain pin
+        run: |
+          version="$(env -u GOTOOLCHAIN make -s print-go-version)"
+          echo "GOTOOLCHAIN=go$version" >>"$GITHUB_ENV"
       - name: gofmt
         run: make fmt
       - name: vet
