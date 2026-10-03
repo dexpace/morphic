@@ -189,8 +189,8 @@ const (
 	// AliasAmplification reports a document whose YAML aliases expand it past a
 	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
 	// for small documents) — a billion-laughs shape
-	// that would exhaust memory inside soa.Unmarshal before ResolveAllReferences
-	// ever runs (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
+	// that would exhaust memory inside soa.Unmarshal before any reference is
+	// resolved (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
 	// this is a positive, measured finding, so the document is refused outright
 	// rather than handed to the parser.
 	//

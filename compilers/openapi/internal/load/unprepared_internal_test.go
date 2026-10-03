@@ -13,14 +13,16 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -40,14 +42,14 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	return resolveExternal(t.Context(), scan.InSource(0), doc, path, Options{AllowExternalRefs: true}, rebuild)
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
 }
 
 // resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	return resolveExternal(t.Context(), scan.InSource(0), modelOf(t, spec), "root.yaml",
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec), "root.yaml",
 		Options{AllowExternalRefs: true}, rebuild)
 }
 
@@ -164,7 +166,7 @@ func TestResolveExternal_RecoversARespelledURL(t *testing.T) {
 // reaches a.yaml canonically, and a.yaml's own path item is itself a reference
 // to a respelled b.yaml. Both documents are fetched exactly once in total, so
 // the second pass re-fetched neither — it found both under the keys the first
-// pass's hop-by-hop walk (hopDocuments) recorded.
+// pass's hop-by-hop walk (resolutionTrail) recorded.
 func TestResolveExternal_RecoversAChainedHop(t *testing.T) {
 	t.Parallel()
 	var reqA, reqB atomic.Int32
@@ -450,6 +452,155 @@ func TestResolveExternal_ARebuildErrorIsReturned(t *testing.T) {
 	assert.Equal(t, int32(1), requests.Load(), "the first pass still reads the document once before rebuild fails")
 }
 
+// otherDocWithAnchoredGetAndFinding is a document reached only through an
+// external $ref: an anchored get operation (so the resolver's own parse would
+// fold right over it, GitHub #501) whose 200 response carries a finding
+// (GitHub #537), and a second, separately anchored response on the same
+// operation — proving recovery for the responses map's fold too, not only the
+// path item's, which anchoredExternalDoc already covers.
+const otherDocWithAnchoredGetAndFinding = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    get: &g
+      operationId: EXTGET
+      responses:
+        "200":
+          description: ok
+          headers:
+            X:
+              schema: {type: string}
+              required: notabool
+        "404": &n
+          description: missing
+`
+
+// combinedRootSpec is a source with two ordinary ghost references beside the
+// $ref to other.yaml at url, so the diagnostic list the test below compares is
+// more than the one entry the recovery pass touches.
+func combinedRootSpec(url string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    parameters:\n      - {$ref: '#/components/parameters/GhostParam'}\n" +
+		"    get: {operationId: getA, responses: {\"200\": {description: ok}}}\n" +
+		"  /x: {$ref: \"" + url + "#/paths/~1x\"}\n" +
+		"components:\n  schemas:\n    S: {$ref: '#/components/schemas/GhostSchema'}\n"
+}
+
+// TestResolveExternal_ASecondPassReportsWhatOnePassWould pins how per-reference
+// reporting meets resolveExternal's two passes (see its doc comment): the
+// second pass REPLACES the first pass's diagnostics rather than adding to them,
+// and replacing must neither double nor lose a report. The two ordinary ghost
+// references in combinedRootSpec are what makes that a claim about the whole
+// diagnostic list a compile reports, not only about the one entry the recovery
+// touches.
+func TestResolveExternal_ASecondPassReportsWhatOnePassWould(t *testing.T) {
+	t.Parallel()
+	srv, requests := countingServer(t, otherDocWithAnchoredGetAndFinding)
+
+	run := func(url string) (*Document, []ir.Diagnostic) {
+		requests.Store(0)
+		src := compilers.Source{Path: "root.yaml", Data: []byte(combinedRootSpec(url))}
+		got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, int32(1), requests.Load(), "one request per compile")
+		return got, diags
+	}
+
+	respelledURL := respelled(srv.URL, "HTTP") + "/other.yaml"
+	recovered, twoPassDiags := run(respelledURL)
+	_, onePassDiags := run(srv.URL + "/other.yaml")
+
+	if d := cmp.Diff(spelledAs(onePassDiags, srv.URL, respelled(srv.URL, "HTTP")), twoPassDiags); d != "" {
+		t.Errorf("a second pass must report exactly what one pass would (-onePass +twoPass):\n%s", d)
+	}
+
+	ref, ok := recovered.Doc.Paths.Get("/x")
+	require.True(t, ok)
+	item := ref.GetObject()
+	require.NotNil(t, item)
+	get := item.Get()
+	require.NotNil(t, get, "the anchored get was folded, not skipped")
+	assert.Equal(t, "EXTGET", get.GetOperationID())
+	_, ok = get.GetResponses().Get("404")
+	assert.True(t, ok, "the separately anchored 404 was folded, not skipped")
+}
+
+// twoRefsTarget is an external document with an anchored get, so that a
+// respelling of its URL forces the rebuild. /x's put has a parameter missing
+// its in, a finding the unmarshal makes rather than validation; /w is clean.
+const twoRefsTarget = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /w:
+    get: {operationId: W, responses: {"200": {description: ok}}}
+  /x:
+    get: &g
+      operationId: G
+      responses: {"200": {description: ok}}
+    put:
+      operationId: P
+      parameters:
+        - {name: p, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+
+// TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce pins that a finding
+// in a target two $refs reach is reported once, at the lesser pointer, with or
+// without a rebuild. /w reads the document first, so the library builds /x's
+// target from bytes it already holds, and caches no object built that way: it
+// builds the target again for /y, finding and all, which reachedFindings keeps
+// from a second report.
+func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
+	t.Parallel()
+	srv, _ := countingServer(t, twoRefsTarget)
+	run := func(base string, wantRebuilds int32) []ir.Diagnostic {
+		doc := base + "/other.yaml#/paths/"
+		src := compilers.Source{Path: "root.yaml", Data: []byte("openapi: 3.1.0\n" +
+			"info: {title: T, version: \"1\"}\npaths:\n" +
+			"  /w: {$ref: \"" + doc + "~1w\"}\n" +
+			"  /x: {$ref: \"" + doc + "~1x\"}\n  /y: {$ref: \"" + doc + "~1x\"}\n")}
+		var rebuilds atomic.Int32
+		rebuild := func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error) {
+			rebuilds.Add(1)
+			return unmarshal(ctx, data, root)
+		}
+		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true, rebuildDoc: rebuild})
+		require.NoError(t, err)
+		require.Equal(t, wantRebuilds, rebuilds.Load(), "%s takes the path this case names", base)
+		return diags
+	}
+
+	onePass := run(srv.URL, 0)
+	rebuilt := run(respelled(srv.URL, "HTTP"), 1)
+
+	if d := cmp.Diff(spelledAs(onePass, srv.URL, respelled(srv.URL, "HTTP")), rebuilt); d != "" {
+		t.Errorf("two $refs to one target must report alike with and without a rebuild (-onePass +rebuilt):\n%s", d)
+	}
+	for name, diags := range map[string][]ir.Diagnostic{"one pass": onePass, "rebuilt": rebuilt} {
+		var sites []jsontext.Pointer
+		for _, d := range diags {
+			if d.Code == diag.Validation+"/validation-required-field" {
+				sites = append(sites, d.Provenance.Pointer)
+			}
+		}
+		assert.Equal(t, []jsontext.Pointer{"/paths/~1x"}, sites,
+			"%s: the finding is reported once, at the lesser of the $refs that reach it", name)
+	}
+}
+
+// spelledAs returns diags with every mention of from in a message spelled as
+// to, so two runs whose $refs spell one URL differently compare on the rest:
+// a finding's message names its document as the $ref spelled it.
+func spelledAs(diags []ir.Diagnostic, from, to string) []ir.Diagnostic {
+	out := make([]ir.Diagnostic, len(diags))
+	for i, d := range diags {
+		d.Message = strings.ReplaceAll(d.Message, from, to)
+		out[i] = d
+	}
+	return out
+}
+
 // TestLoad_RecoversARespelledExternalReference drives the recovery through the
 // public entry point rather than resolveExternal directly, so build's own
 // rebuild closure — not a test-supplied stand-in — is what runs and succeeds.
@@ -500,14 +651,14 @@ func TestLoad_ARebuildFailureIsWrappedAsRebuildSource(t *testing.T) {
 // rebuild that differs from the first model.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
-	locate := scan.InSource(3)
+	at := pointerAt(3, overlay.Origin{})
 	missed := []usedDocument{
 		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1x")},
 		{key: "http://a/1.yaml", site: jsontext.Pointer("/paths/~1y")}, // same key: reported once
 		{key: "http://a/2.yaml", site: jsontext.Pointer("/paths/~1z")},
 	}
 
-	diags := stillUnprepared(locate, missed)
+	diags := stillUnprepared(at, missed)
 
 	require.Len(t, diags, 2, "one report per distinct key")
 	for _, d := range diags {
@@ -516,10 +667,10 @@ func TestStillUnprepared(t *testing.T) {
 		assert.Equal(t, 3, d.Provenance.Source)
 	}
 	assert.Contains(t, diags[0].Message, "http://a/1.yaml")
-	assert.Contains(t, diags[0].Message, "/paths/~1x", "names the site of the first reference that read it")
-	assert.NotContains(t, diags[0].Message, "/paths/~1y", "the second reference to the same key is not a second report")
+	assert.Equal(t, jsontext.Pointer("/paths/~1x"), diags[0].Provenance.Pointer,
+		"reported at the first reference that read it, not at the second one to the same key")
 	assert.Contains(t, diags[1].Message, "http://a/2.yaml")
-	assert.Contains(t, diags[1].Message, "/paths/~1z")
+	assert.Equal(t, jsontext.Pointer("/paths/~1z"), diags[1].Provenance.Pointer)
 }
 
 // modelOf builds spec's model the way build does before resolving it.
@@ -585,12 +736,14 @@ func TestResolveExternal_ARespelledDocumentOnlyTheSecondPassReadsIsReported(t *t
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 	assert.Contains(t, diags[0].Message, otherURL)
-	assert.Contains(t, diags[0].Message, "/paths/~1y", "names the reference that read it")
+	assert.Equal(t, jsontext.Pointer("/paths/~1y"), diags[0].Provenance.Pointer,
+		"reported at the reference that read it")
 }
 
 // aliasKindsFixture carries one internal $ref of every Referenced* alias
-// hopDocuments switches on, resolved against the document itself (no I/O), so
-// TestHopDocuments can drive the dispatch alone without the recovery machinery.
+// resolutionTrail switches on, resolved against the document itself (no I/O),
+// so TestResolutionTrail can drive the dispatch alone without the recovery
+// machinery.
 const aliasKindsFixture = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -647,7 +800,7 @@ components:
 `
 
 // resolvedModels resolves doc and walks it, keeping the model Walk visits under
-// each alias kind hopDocuments switches on that is itself a $ref.
+// each alias kind resolutionTrail switches on that is itself a $ref.
 //
 // Walk visits a path item, header, link or security scheme twice: as the $ref
 // this fixture wrote, and as an inline wrapper around the resolved content,
@@ -705,11 +858,13 @@ func resolvedModels(t *testing.T, doc *soa.OpenAPI) map[string]any {
 	return out
 }
 
-// TestHopDocuments covers hopDocuments' dispatch: each Referenced* alias arm,
-// the schema arm (a direct reference, a chain through three documents, and a
-// chain whose target another reference shares), and the default arm for a
-// model none of the cases name.
-func TestHopDocuments(t *testing.T) {
+// TestResolutionTrail covers resolutionTrail's dispatch: each Referenced* alias
+// arm, the schema arm (a direct reference, a chain through three documents, and
+// a chain whose target another reference shares), and the default arm for a
+// model none of the cases name. It also covers where a trail stops: at nothing
+// for a resolution that ended on an object, at the reference that failed for
+// one that did not, including a schema whose record holds no object.
+func TestResolutionTrail(t *testing.T) {
 	t.Parallel()
 
 	t.Run("each alias kind", func(t *testing.T) {
@@ -719,16 +874,19 @@ func TestHopDocuments(t *testing.T) {
 		assert.Empty(t, diags)
 		models := resolvedModels(t, doc)
 
-		for _, kind := range []string{
-			"pathItem", "parameter", "requestBody", "response",
-			"example", "header", "link", "callback", "securityScheme",
+		for kind, target := range map[string]references.Reference{
+			"pathItem": "#/components/pathItems/PI", "parameter": "#/components/parameters/P",
+			"requestBody": "#/components/requestBodies/RB", "response": "#/components/responses/R",
+			"example": "#/components/examples/EX", "header": "#/components/headers/H2",
+			"link": "#/components/links/L2", "callback": "#/components/callbacks/CB",
+			"securityScheme": "#/components/securitySchemes/Actual",
 		} {
 			t.Run(kind, func(t *testing.T) {
 				model, ok := models[kind]
 				require.True(t, ok, "fixture produced a resolved %s", kind)
-				got := hopDocuments(model)
-				assert.Equal(t, []string{"root.yaml"}, got,
-					"an internal reference's one hop is the source document itself")
+				got := resolutionTrail(model)
+				assert.Equal(t, trail{docs: []string{"root.yaml"}, target: "root.yaml" + target, endsInSource: true}, got,
+					"an internal reference's one hop is the source document itself, and ends on its target")
 			})
 		}
 	})
@@ -749,7 +907,8 @@ func TestHopDocuments(t *testing.T) {
 		root := hdr +
 			"    Direct: {$ref: \"" + bPath + "#/components/schemas/B\"}\n" +
 			"    Chained: {$ref: \"" + cPath + "#/components/schemas/C\"}\n" +
-			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n"
+			"    Shared: {$ref: \"" + aPath + "#/components/schemas/A2\"}\n" +
+			"    Local: {$ref: \"#/components/schemas/Direct\"}\n"
 
 		doc, diags, err := resolveSpec(t, root, filepath.Join(dir, "root.yaml"))
 		require.NoError(t, err)
@@ -763,18 +922,55 @@ func TestHopDocuments(t *testing.T) {
 			{"Direct", []string{bPath}, "a direct reference is one hop, not its document twice"},
 			{"Chained", []string{cPath, aPath, aPath, bPath}, "every hop, its own first, though a later reference shares its target"},
 			{"Shared", []string{aPath, aPath, bPath}, "an internal hop names the document it was read in"},
+			{"Local", []string{filepath.Join(dir, "root.yaml"), bPath}, "a trail out of the source ends outside it"},
 		} {
 			sch, ok := doc.Components.Schemas.Get(tc.name)
 			require.True(t, ok)
-			assert.Equal(t, tc.want, hopDocuments(sch), "%s: %s", tc.name, tc.why)
+			assert.Equal(t, trail{docs: tc.want, target: references.Reference(bPath + "#/components/schemas/B")},
+				resolutionTrail(sch), "%s: %s", tc.name, tc.why)
+		}
+	})
+
+	t.Run("a resolution that failed", func(t *testing.T) {
+		t.Parallel()
+		doc, _, err := resolveSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    Direct: {$ref: '#/components/responses/Ghost'}
+    Chained: {$ref: '#/components/responses/Direct'}
+  schemas:
+    Direct: {$ref: '#/components/schemas/Ghost'}
+    Chained: {$ref: '#/components/schemas/Direct'}
+`, "root.yaml")
+		require.NoError(t, err)
+
+		for name, want := range map[string]trail{
+			"Direct":  {stopped: "#/components/responses/Ghost"},
+			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/responses/Ghost", endsInSource: true},
+		} {
+			ref, ok := doc.Components.Responses.Get(name)
+			require.True(t, ok)
+			assert.Equal(t, want, resolutionTrail(ref), "response %s stops at the reference that failed", name)
+		}
+		// A schema's Direct holds a record with no object, only the base its
+		// $ref resolves against: that is no hop, so its trail stops there too.
+		for name, want := range map[string]trail{
+			"Direct":  {stopped: "#/components/schemas/Ghost"},
+			"Chained": {docs: []string{"root.yaml"}, stopped: "#/components/schemas/Ghost", endsInSource: true},
+		} {
+			sch, ok := doc.Components.Schemas.Get(name)
+			require.True(t, ok)
+			assert.Equal(t, want, resolutionTrail(sch), "schema %s stops at the reference that failed", name)
 		}
 	})
 
 	t.Run("the default arm", func(t *testing.T) {
 		t.Parallel()
-		assert.Nil(t, hopDocuments(42))
-		assert.Nil(t, hopDocuments(&soa.Info{}))
-		assert.Nil(t, hopDocuments(nil))
+		assert.Zero(t, resolutionTrail(42))
+		assert.Zero(t, resolutionTrail(&soa.Info{}))
+		assert.Zero(t, resolutionTrail(nil))
 	})
 }
 
@@ -801,10 +997,11 @@ func TestHopsUsed_StopsOnMatchError(t *testing.T) {
 	assert.Zero(t, visited, "the item after the failure is never reached")
 }
 
-// TestHopDocuments_StopsAtMaxResolutionHops proves the bounded-everything cap
-// on both kinds of chain hopDocuments follows: one of a document past
-// maxResolutionHops is cut at it rather than followed to its end.
-func TestHopDocuments_StopsAtMaxResolutionHops(t *testing.T) {
+// TestResolutionTrail_StopsAtMaxResolutionHops proves the bounded-everything
+// cap on both kinds of chain resolutionTrail follows: one of a document past
+// maxResolutionHops is cut at it rather than followed to its end, and says so,
+// so that findingPlace names no document of the trail as a finding's.
+func TestResolutionTrail_StopsAtMaxResolutionHops(t *testing.T) {
 	t.Parallel()
 	const hdr = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
 	for _, tc := range []struct {
@@ -850,8 +1047,10 @@ func TestHopDocuments_StopsAtMaxResolutionHops(t *testing.T) {
 
 			first := tc.first(doc)
 			require.NotNil(t, first)
-			assert.Len(t, hopDocuments(first), maxResolutionHops,
+			got := resolutionTrail(first)
+			assert.Len(t, got.docs, maxResolutionHops,
 				"a %d-document chain is capped at %d hops", chainLen, maxResolutionHops)
+			assert.True(t, got.cut, "and the trail records that it was cut")
 		})
 	}
 }

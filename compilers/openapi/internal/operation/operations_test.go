@@ -1999,14 +1999,26 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	doc, diags := parseFull(t, ghostRefsSpec)
 	require.NotEmpty(t, diags, "unresolved refs reported")
 
-	// And the skips themselves are silent: every diagnostic here is the resolve
-	// phase's own report of a component that does not exist, which is why none
-	// carries a pointer — that phase runs before the walk that would know one. A
-	// skip lowering an empty stand-in instead would report on a construct the
-	// document never wrote, and would report it from the walk, sited.
-	for _, d := range diags {
-		assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
-		assert.Empty(t, d.Provenance.Pointer, "reported by the resolve phase, not the walk: %+v", d)
+	// And the skips themselves are silent: every diagnostic here is the load
+	// phase's report of a $ref it followed to nothing, at the $ref itself
+	// (GitHub #385). A skip lowering an empty stand-in instead would report on a
+	// construct the document never wrote, beside the one report per $ref below.
+	wantRefs := map[string]string{
+		"/paths/~1a/parameters/0":                                             "#/components/parameters/GhostParam",
+		"/paths/~1a/get/callbacks/good/{$url}":                                "#/components/pathItems/GhostInner",
+		"/paths/~1a/get/callbacks/bad":                                        "#/components/callbacks/GhostCb",
+		"/paths/~1a/get/requestBody":                                          "#/components/requestBodies/GhostBody",
+		"/paths/~1a/get/responses/200":                                        "#/components/responses/GhostResp",
+		"/paths/~1a/get/responses/201/headers/X-H":                            "#/components/headers/GhostHeader",
+		"/paths/~1a/get/responses/201/content/application~1json/examples/one": "#/components/examples/GhostEx",
+		"/paths/~1ref":                                                        "#/components/pathItems/GhostItem",
+		"/webhooks/hook":                                                      "#/components/pathItems/GhostHook",
+	}
+	require.Len(t, diags, len(wantRefs),
+		"one report per ghost reference, not a second added by a lowering resolver: %+v", diags)
+	for pointer, ref := range wantRefs {
+		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, pointer)
+		assert.Contains(t, msg, fmt.Sprintf("unresolved $ref %q", ref), "names the reference that failed")
 	}
 
 	// What each skip has to do is contribute nothing — not an empty stand-in.

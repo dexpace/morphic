@@ -31,9 +31,7 @@ import (
 // walk so requirements reference registered IDs.
 //
 // An entry whose $ref resolves to nothing is reported at its own components
-// pointer and interned nowhere. The load phase's report of the same failure
-// carries no pointer (issue #235), so an unreferenced entry would otherwise be
-// dropped with no diagnostic that sites it.
+// pointer and interned nowhere; see unresolvableSchemeDiags.
 //
 // An entry that resolves to an object but names no mechanism is refused and
 // reported the same way; see mechanismRefusalDiag. Every other diagnostic from
@@ -70,15 +68,14 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 }
 
 // unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
-// scheme, but only when it was written as a $ref that resolves to nothing.
+// scheme, but only when it was written as a $ref that resolves to nothing. The
+// compiler keeps the load phase's report at that pointer instead, which has the
+// resolver's reason (GitHub #385); this one stands where the load phase never
+// got that far, as when a resolver panic ends its walk.
 //
-// An entry written as something other than an object (null, a scalar, a
-// sequence) already draws the loader's type-mismatch, which names the entry and
-// its fault, so a second report would say less.
-//
-// rs is the entry as written; its reference is empty unless it is a $ref. A nil
-// rs is unreachable from a parsed document, so that guard is for a hand-built
-// node, as in resolve.Object.
+// An entry not written as an object already draws the loader's type-mismatch,
+// which names it and its fault. rs is the entry as written; a nil rs is
+// unreachable from a parsed document, so that guard is for a hand-built node.
 func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
 	entry jsontext.Pointer,
 ) []ir.Diagnostic {

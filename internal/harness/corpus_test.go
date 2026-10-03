@@ -91,7 +91,7 @@ func knownInvalid() map[string]bool {
 		// A 10-level x 10-way YAML alias fan-out ("billion laughs"). Every
 		// alias target is acyclic, so neither the anchor nor the $ref cycle
 		// detector catches it, and unguarded it exhausts memory inside
-		// soa.Unmarshal before ResolveAllReferences runs (#27). The pre-parse
+		// soa.Unmarshal before any reference is resolved (#27). The pre-parse
 		// scan measures the alias-expanded node count and refuses it.
 		filepath.FromSlash("../../testdata/openapi/amplification_alias_bomb.yaml"): true,
 		// A request body written as a mapping with a local YAML tag

@@ -26,8 +26,9 @@ const graftBase = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /
 //
 // One case per site, since they take provenance through different paths (two
 // pre-parse refusals off the index, a library validation finding) and a fix
-// reaching only one would pass a single case. A resolver failure is not among
-// them: the library reports one with no node at all (GitHub #235).
+// reaching only one would pass a single case. A resolver report is placed by
+// its $ref's pointer instead, never by a node; see
+// TestResolve_OverlayIntroducedReferenceNamesTheOverlay.
 func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

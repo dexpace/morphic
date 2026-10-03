@@ -67,11 +67,11 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if errors.Is(err, load.ErrParse) {
 		// ErrParse is a source Load could not read: bytes that will not parse,
 		// which reach here only from a caller compiling directly — detection
-		// declines them before any compile — or a fault the parser or the
-		// reference resolver raised on a document that did parse. Either is the
-		// document's problem, so it is a diagnostic: a Go error here leaves
-		// engine.Run as a Go error, and the CLI reads that as a misuse of itself
-		// rather than as a spec it could not read.
+		// declines them before any compile — or a fault the parser raised on a
+		// document that did decode. Either is the document's problem, so it is a
+		// diagnostic: a Go error here leaves engine.Run as a Go error, and the
+		// CLI reads that as a misuse of itself rather than as a spec it could
+		// not read.
 		return nil, append(diags, undecodable(err)), nil
 	}
 	if err != nil || loadedDoc == nil {
@@ -80,12 +80,38 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	// components schemas → auth → service/operations → meta; assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, lowerDiags...)
+	all := append(diags, withoutRereported(lowerDiags, diags)...)
 	if err != nil {
 		return nil, all, err
 	}
 	out.Diagnostics = all
 	return out, out.Diagnostics, nil
+}
+
+// withoutRereported drops each lowering report of an unresolved reference that
+// the load phase already reported at the same position.
+//
+// The load phase reports a failure at the $ref, with the resolver's reason. The
+// lowering reports a schema or security-scheme $ref it could not follow at that
+// pointer, without one, and also where the load phase did not: a $ref into a
+// document the lowering cannot read (GitHub #74), or one a resolver panic kept
+// the load phase from reaching. So only a report the load phase made at that
+// exact provenance is dropped; kept, one failure would read as two (#385).
+func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
+	reported := make(map[ir.Provenance]bool)
+	for _, d := range loaded {
+		if d.Code == diag.UnresolvedRef {
+			reported[d.Provenance] = true
+		}
+	}
+	out := make([]ir.Diagnostic, 0, len(lowered))
+	for _, d := range lowered {
+		if d.Code == diag.UnresolvedRef && reported[d.Provenance] {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // SourceTable implements compilers.Compiler: the source at rootSrcIndex, then

@@ -278,7 +278,7 @@ components:
 // The entry is a hand-built nil, which no parsed document produces — a
 // malformed entry still arrives as an object. That makes this the nil-guard
 // case rather than the reporting one, so nothing is reported: the entry carries
-// no $ref to have failed. TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere
+// no $ref to have failed. TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce
 // covers the shapes a document can write, through the compiler.
 func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
@@ -293,22 +293,22 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
-// TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere pins which unresolvable
-// entries this package reports and which it leaves alone, through the compiler
-// rather than a hand-built node: a document can write these shapes.
+// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins how each
+// unresolvable entry below is reported, through the compiler rather than a
+// hand-built node: a document can write these shapes. None is named by a
+// requirement, so nothing downstream reports them.
 //
-// None is named by a requirement, so nothing downstream reports them. What
-// separates them is whether anything else already places the fault. A $ref
-// resolving to nothing is reported by the load phase at no pointer (issue
-// #235), the gap this package fills; an entry not written as an object already
-// draws the loader's type-mismatch, which names the entry and its fault.
-func TestLowerSecuritySchemes_OnlyABrokenRefIsSitedHere(t *testing.T) {
+// A $ref resolving to nothing is reported once at the entry's own pointer: this
+// package and the load phase both report it there, and the compiler keeps the
+// load phase's, which carries the resolver's reason (GitHub #385). An entry not
+// written as an object already draws the loader's type-mismatch alone.
+func TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name  string
 		entry string
-		// wantRef is the reference the report must name, or "" when this
-		// package is expected to report nothing at all.
+		// wantRef is the reference the load phase's report must quote, or ""
+		// when nothing should land at the entry's own pointer.
 		wantRef string
 	}{
 		{
@@ -342,14 +342,41 @@ components:
 			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 			if tc.wantRef == "" {
 				assert.Empty(t, got,
-					"the loader already names this entry and its fault: %+v", diags)
+					"a non-$ref shape is left to the loader's own type-mismatch: %+v", diags)
 				return
 			}
-			require.Len(t, got, 1, "the entry is placed exactly once: %+v", diags)
-			assert.Contains(t, got[0], `"ghost"`, "the report names the entry")
-			assert.Contains(t, got[0], tc.wantRef, "and the reference that failed")
+			require.Len(t, got, 1, "the load phase reports the broken $ref exactly once: %+v", diags)
+			assert.Contains(t, got[0], `unresolved $ref "`+tc.wantRef+`"`,
+				"the load phase's own report, naming the reference as written")
 		})
 	}
+}
+
+// TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere pins
+// what this package's report of a broken $ref is for. A resolver panic ends the
+// load phase's walk at /components/responses/000, before it reaches the entry,
+// so the load phase reports nothing there; without this report the scheme the
+// document declares would be dropped with no diagnostic that sites it.
+func TestLowerSecuritySchemes_AnEntryTheLoadPhaseNeverReachedIsReportedHere(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.0.3
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    "000": {$ref: '#/B'}
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing'}
+B: {$ref}
+`)
+	require.NotEmpty(t, messagesAtPointer(diags, "/components/responses/000"),
+		"the fixture reaches the resolver panic it exists for: %+v", diags)
+
+	assert.NotContains(t, doc.Auth, ids.Auth("ghost"))
+	got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+	require.Len(t, got, 1, "%+v", diags)
+	assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: `+
+		`"#/components/securitySchemes/Missing"`, got[0])
 }
 
 // TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
@@ -797,10 +824,12 @@ paths: {}
 // TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared pins that the
 // two reports about one broken scheme agree with each other. The document does
 // declare "ghost" — its $ref is what fails — so the requirement naming it must
-// not be told the scheme is undeclared, which contradicts the entry-level report
-// standing right beside it and sends a reader to add a declaration already
-// there. Both now say the name resolves to nothing, which is true whether the
-// document wrote the entry or not.
+// not be told the scheme is undeclared, which contradicts the load phase's own
+// report standing right beside it and sends a reader to add a declaration
+// already there. The entry-level report is now the load phase's, naming the
+// reference at the entry's own pointer (GitHub #385); the requirement-level one
+// still says only that the name is unresolved, never that it was never
+// declared.
 func TestSecurityRequirement_ADeclaredSchemeIsNeverCalledUndeclared(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
@@ -816,8 +845,8 @@ components:
 
 	entry := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 	require.Len(t, entry, 1, "the entry whose $ref failed is reported: %+v", diags)
-	assert.Contains(t, entry[0], `"ghost"`, "naming the scheme, so it stands without its pointer")
-	assert.Contains(t, entry[0], "resolves to nothing")
+	assert.Contains(t, entry[0], `unresolved $ref "#/components/securitySchemes/Missing"`,
+		"the load phase's own report, naming the reference that failed")
 
 	req := messagesAtPointer(diags, "/security/0")
 	require.Len(t, req, 1, "so is the requirement that names it: %+v", diags)

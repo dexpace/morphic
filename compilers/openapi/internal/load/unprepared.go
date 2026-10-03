@@ -15,14 +15,14 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
 // maxResolutionHops bounds how many documents one reference's resolution is
 // followed through (styleguide bounded-everything rule). The resolver refuses a
 // cycle, so a chain ends on its own; the bound is for an absurd one. A document
-// past it is neither recovered nor reported (GitHub #538).
+// past it is neither recovered nor reported (GitHub #538), nor named as where a
+// finding is (findingPlace).
 const maxResolutionHops = 32
 
 // externalReads is what the external-document readers of one compile have
@@ -151,12 +151,12 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // external.replaying). It resolves as the first did but for those trees, which
 // the walk never descends into, so it reaches no new document; one found
 // unprepared is an internal fault.
-func resolveExternal(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, path string, opts Options,
-	rebuild func() (*soa.OpenAPI, error),
+func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	read := newExternalReads()
 	reader := newExternal(doc, opts, read)
-	diags := resolveWith(ctx, locate, doc, path, opts, &reader)
+	diags := resolveWith(ctx, at, doc, path, opts, &reader)
 	used := documentsUsed(ctx, doc)
 	if !anyAnchored(doc, unprepared(doc, read, used)) {
 		return doc, diags, nil
@@ -170,8 +170,8 @@ func resolveExternal(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI,
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
 	reader.replaying = true
-	diags = resolveWith(ctx, locate, again, path, opts, &reader)
-	return again, append(diags, stillUnprepared(locate, unprepared(again, read, documentsUsed(ctx, again)))...), nil
+	diags = resolveWith(ctx, at, again, path, opts, &reader)
+	return again, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -202,8 +202,8 @@ func hasAnchor(root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, naming the first reference that read it.
-func stillUnprepared(locate scan.Locator, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it.
+func stillUnprepared(at func(jsontext.Pointer) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -211,9 +211,9 @@ func stillUnprepared(locate scan.Locator, missed []usedDocument) []ir.Diagnostic
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, locate(nil),
-			"internal: the second resolution read %s itself for the $ref at %s; "+
-				"anchored entries in it may be missing (GitHub #538)", m.key, m.site))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, at(m.site),
+			"internal: the second resolution read %s itself; "+
+				"anchored entries in it may be missing (GitHub #538)", m.key))
 	}
 	return diags
 }
@@ -239,7 +239,7 @@ func hopsUsed(items iter.Seq[soa.WalkItem]) []usedDocument {
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			site := jsontext.Pointer(item.Location.ToJSONPointer())
-			for _, key := range hopDocuments(model) {
+			for _, key := range resolutionTrail(model).docs {
 				used = append(used, usedDocument{key: key, site: site})
 			}
 			return nil
@@ -265,9 +265,22 @@ func unprepared(doc *soa.OpenAPI, read *externalReads, used []usedDocument) []us
 	return out
 }
 
-// hopDocuments returns the document each hop of a resolved reference's
-// resolution read, first hop first, or nothing for a model that is not one.
-func hopDocuments(model any) []string {
+// trail is what a reference's resolution recorded: the document each hop read,
+// first hop first, and either the target it ended on, by absolute reference, or
+// the reference it stopped at unresolved. cut marks a trail followed only as far
+// as maxResolutionHops. endsInSource marks the last document as the source,
+// which a hop resolves against as the model, not as a parsed tree.
+type trail struct {
+	docs         []string
+	target       references.Reference
+	stopped      references.Reference
+	cut          bool
+	endsInSource bool
+}
+
+// resolutionTrail returns the trail a reference's resolution recorded, or an
+// empty one for a model that is not a reference.
+func resolutionTrail(model any) trail {
 	switch r := model.(type) {
 	case *soa.ReferencedPathItem:
 		return hops(r)
@@ -290,29 +303,47 @@ func hopDocuments(model any) []string {
 	case *oas3.JSONSchema[oas3.Referenceable]:
 		return hops(r)
 	default:
-		return nil
+		return trail{}
 	}
 }
 
-// hops follows a resolved reference through each document its resolution read,
-// by each hop's own resolution record. S is the reference's own type, a schema
-// or a Referenced* alias's Reference[T, V, C], named through S as
-// resolve.Referenced does because the library's V constraint is internal.
+// hops follows a reference through each hop its resolution recorded. S is the
+// reference's own type, a schema or a Referenced* alias's Reference[T, V, C],
+// named through S as resolve.Referenced does because the library's V
+// constraint is internal.
 //
-// A schema's GetReferenceChain would not do: it hangs off the target's parent,
+// A trail that ends on a reference, not an object, ends where the resolution
+// stopped. A record holding no object is no hop: the library gives a $ref
+// inside a resolved schema one holding only the base it resolves against. A
+// schema's GetReferenceChain would not do: it hangs off the target's parent,
 // which the last reference to resolve a shared target overwrites.
 func hops[S any, R interface {
 	*S
+	GetReference() references.Reference
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
-}](ref R) []string {
-	var docs []string
-	for hop := ref; hop != nil && len(docs) < maxResolutionHops; {
+}](ref R) trail {
+	var t trail
+	var last references.Reference
+	hop := ref
+	for hop != nil {
 		info := hop.GetReferenceResolutionInfo()
-		if info == nil {
+		if info == nil || info.Object == nil {
 			break
 		}
-		docs = append(docs, info.AbsoluteDocumentPath)
+		if len(t.docs) == maxResolutionHops {
+			t.cut = true
+			return t
+		}
+		t.docs = append(t.docs, info.AbsoluteDocumentPath)
+		_, t.endsInSource = info.ResolvedDocument.(*soa.OpenAPI)
+		last = info.AbsoluteReference
 		hop = info.Object
 	}
-	return docs
+	if hop != nil {
+		t.stopped = hop.GetReference() // empty for the object a resolution ends on
+	}
+	if t.stopped == "" {
+		t.target = last
+	}
+	return t
 }
