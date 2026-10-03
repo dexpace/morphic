@@ -3368,11 +3368,10 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 
 				if tc.wantDefault {
 					assert.Equal(t, tc.targetID, base.Discriminator.Default)
-					// defaultMapping names no wire-value tag for its target — it is
-					// the fallback for a tag the mapping does not recognize — so the
-					// subtype's DiscriminatorValue still comes from the implicit
-					// fallback (its pointer's last token) rather than from "woofer".
-					assert.Equal(t, "Dog", subtype.DiscriminatorValue)
+					// defaultMapping is the fallback for a tag the mapping does not
+					// recognize, so it names no tag for its target, and an inline
+					// subtype has no name to imply one (GitHub #517).
+					assert.Empty(t, subtype.DiscriminatorValue)
 				} else {
 					assert.Equal(t, tc.targetID, base.Discriminator.Mapping["woofer"])
 					assert.Equal(t, "woofer", subtype.DiscriminatorValue)
@@ -3434,9 +3433,15 @@ func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
 		require.NotNil(t, alias.Base)
 		assert.Equal(t, componentID("Dog"), alias.Base.Target, "the alias's own target is Dog")
 
-		msg := openapitest.DiagMessageAt(t, pass.Validate(doc), "pass/discriminator-missing-variant",
-			ir.SeverityError, string(componentID("Pet")))
-		assert.Contains(t, msg, string(aliasID),
+		var msgs []string
+		for _, d := range pass.Validate(doc) {
+			if d.Code == "pass/discriminator-missing-variant" && d.Severity == ir.SeverityError &&
+				d.Provenance.Node == string(componentID("Pet")) {
+				msgs = append(msgs, d.Message)
+			}
+		}
+		require.Len(t, msgs, 1, "pass.Validate reports the alias once, on the base")
+		assert.Contains(t, msgs[0], string(aliasID),
 			"the diagnostic names the alias pass.Validate refused, not the schema it aliases")
 	}
 }
