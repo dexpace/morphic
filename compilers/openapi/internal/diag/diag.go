@@ -28,17 +28,20 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref that could not be resolved.
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle — a recursive YAML anchor, a
-	// chain of $ref-only schemas that never reaches a concrete type, or a
-	// reference whose pointer resolves through a reference already being resolved
-	// — caught before it can crash the parser with a stack overflow or deadlock
-	// the resolver on a lock its own goroutine holds.
+	// CyclicRef reports a degenerate reference cycle, caught before it can crash
+	// the parser with a stack overflow or deadlock the resolver on a lock its own
+	// goroutine holds. Two checks report it: a pre-parse scan over the decoded
+	// tree, for a recursive YAML anchor or a chain of $ref-only schemas joined by
+	// ordinary same-document pointers; and load's reach, for a cycle that closes
+	// only through $anchor, $id or $defs-relative resolution. Reach
+	// over-approximates the resolver, so it can refuse a document the resolver
+	// survives.
 	CyclicRef = "openapi/cyclic-ref"
-	// CycleScanFailed reports that the pre-parse cycle scan did not run to
-	// completion — either it aborted (a detector bug) or the document exceeded one
-	// of its expansion bounds — leaving its stack-overflow protection incomplete
-	// for the source. It is a warning, never a refusal: the compile still
-	// proceeds, and every cycle the scan did classify is still caught.
+	// CycleScanFailed reports that a cycle check did not run to completion,
+	// leaving its stack-overflow protection incomplete for the source: the
+	// pre-parse scan or load's reach either aborted (a detector bug) or hit one of
+	// its bounds. It is a warning, never a refusal: the compile still
+	// proceeds, and every cycle the check did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives

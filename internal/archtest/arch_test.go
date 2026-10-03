@@ -109,6 +109,7 @@ var rules = map[string][]string{
 	// reaches nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",

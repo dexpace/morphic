@@ -192,8 +192,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 
 // build turns the decoded tree of a source's first document into a Document:
 // the pre-parse refusals, the overlay, the node budget, the model build, the
-// version check, then validation findings and reference resolution as
-// diagnostics. A nil document with error diagnostics is a refusal to lower.
+// version check, the reference-chain cycle refusal, then validation findings
+// and reference resolution as diagnostics. A nil document with error
+// diagnostics is a refusal to lower.
 //
 // It is what Load does after the decode, split from it so that what the decode
 // found past the first document is reported on every return path — a refusal
@@ -237,6 +238,12 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	locate := locator(srcIndex, origin)
+	if d, found := chainCycle(ctx, locate, root, doc); found {
+		if d.Severity == ir.SeverityError {
+			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
+		}
+		cyc = append(cyc, d)
+	}
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
 	rebuildDoc := opts.rebuildDoc
