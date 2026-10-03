@@ -250,20 +250,19 @@ func reachedObject(r resolvable) (any, *yaml.Node, bool) {
 	}
 }
 
-// validateObject validates obj under opts. A schema goes through oas3.Validate,
-// which passes opts on where the schema's own Validate drops them; every other
-// object's Validate passes them to what it holds.
+// validateObject validates obj under opts through its own Validate, as the
+// source's validation reaches each object. A schema's Validate drops opts, so
+// a reached schema is checked against the meta-schema a source schema is, and
+// reconciled the same way (see artifacts): validated at the document's
+// version, a 3.0 schema would draw findings the source's never do.
 func validateObject(ctx context.Context, obj any, opts []validation.Option) []error {
-	switch o := obj.(type) {
-	case *oas3.JSONSchema[oas3.Concrete]:
-		return oas3.Validate(ctx, o, opts...)
-	case interface {
+	o, ok := obj.(interface {
 		Validate(ctx context.Context, opts ...validation.Option) []error
-	}:
-		return o.Validate(ctx, opts...)
-	default:
+	})
+	if !ok {
 		return nil
 	}
+	return o.Validate(ctx, opts...)
 }
 
 // reachedWalk returns the walk over obj, for the reconciliation of its schema

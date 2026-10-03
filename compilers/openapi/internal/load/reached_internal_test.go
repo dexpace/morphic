@@ -248,38 +248,44 @@ func TestReachedObject(t *testing.T) {
 	})
 }
 
-// TestValidateObject covers all three branches of validateObject: a concrete
-// schema through oas3.Validate, an object with its own Validate method, and
-// the default arm, which no resolvable a real document produces reaches (every
-// kind reachedObject's default arm accepts also satisfies Validate), so it is
-// driven directly with a value that implements neither.
+// TestValidateObject covers validateObject's two outcomes: an object, a schema
+// among them, validated through its own Validate, and a value with no
+// Validate, which no resolvable a real document produces reaches, so it is
+// driven directly.
 func TestValidateObject(t *testing.T) {
 	t.Parallel()
-	doc := reachedFixtureDoc(t)
-	ctx := t.Context()
+	doc, valErrs := parseSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      parameters: [{name: q, in: sideways, schema: {type: string}}]
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Bad: {type: string, minLength: -1}
+`)
+	require.Len(t, valErrs, 2, "the source's own validation sees both defects: %v", valErrs)
+	schema, ok := doc.Components.Schemas.Get("Bad")
+	require.True(t, ok)
+	pathItem, ok := doc.Paths.Get("/x")
+	require.True(t, ok)
 
-	t.Run("a concrete schema validates through oas3.Validate", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Components.Schemas.Get("S")
-		require.True(t, ok)
-		obj, _, ok := reachedObject(ref)
-		require.True(t, ok)
-		errs := validateObject(ctx, obj, nil)
-		assert.Empty(t, errs, "{type: object, properties: {inner: {type: string}}} is a valid schema")
-	})
-
-	t.Run("an object with its own Validate is validated through it", func(t *testing.T) {
-		t.Parallel()
-		ref, ok := doc.Paths.Get("/x")
-		require.True(t, ok)
-		errs := validateObject(ctx, ref.GetObject(), nil)
-		assert.Empty(t, errs, "the path item's one operation is well-formed")
-	})
-
-	t.Run("the default arm reports nothing for an object with no Validate", func(t *testing.T) {
-		t.Parallel()
-		assert.Nil(t, validateObject(ctx, 42, nil))
-	})
+	for name, c := range map[string]struct {
+		obj  any
+		rule string
+	}{
+		"a schema":    {schema.GetResolvedSchema(), validation.RuleValidationInvalidSchema},
+		"a path item": {pathItem.GetObject(), validation.RuleValidationAllowedValues},
+	} {
+		errs := validateObject(t.Context(), c.obj, nil)
+		require.Len(t, errs, 1, "%s: %v", name, errs)
+		verr, ok := asValidationError(errs[0])
+		require.True(t, ok, name)
+		assert.Equal(t, c.rule, verr.Rule, name)
+	}
+	assert.Nil(t, validateObject(t.Context(), 42, nil), "a value with no Validate")
 }
 
 // aliasKindsResolved resolves aliasKindsFixture (unprepared_internal_test.go)
@@ -877,13 +883,10 @@ components:
 
 // TestResolve_AReached32SchemaIsReconciled: Pet's defaultMapping is a 3.2-only
 // discriminator keyword the library checks against the 3.1 meta-schema, so S
-// must report nothing, while B's genuine type: 42 survives beside it.
-//
-// A schema reached directly goes through oas3.Validate, which passes the
-// version on, so the first case never needs v.artifacts. The second reaches the
-// keyword nested in a path item, whose Validate reaches the schema through
-// JSONSchema[T].Validate, which drops its options: only there does the
-// reconciliation do anything a mutation can catch.
+// must report nothing, while B's genuine type: 42 survives beside it. The
+// second case reaches the same keyword nested in a path item, which the
+// reconciliation finds through a walk of the object (reachedWalk) rather than
+// as the object itself.
 func TestResolve_AReached32SchemaIsReconciled(t *testing.T) {
 	t.Parallel()
 
@@ -940,6 +943,41 @@ paths:
 
 		assert.Empty(t, diags, "the nested defaultMapping is an artifact reachedWalk must reconcile: %+v", diags)
 	})
+}
+
+// TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre compiles one 3.0 schema
+// in the source, reached directly, and reached inside a parameter, and each
+// draws only its minLength finding. Validated at 3.0, the one reached directly
+// would also draw findings for its type list and examples, which 3.0's
+// meta-schema forbids: the source's schemas are checked against 3.1's, and
+// reconciling that for 3.0 is a change of its own (metaSchemaReconciledMinor).
+func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
+	t.Parallel()
+	const header = "openapi: 3.0.3\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"
+	const body = "{type: [string, 'null'], examples: [a], minLength: -1}"
+	for name, files := range map[string]map[string]string{
+		"in the source": {"root.yaml": header + "  schemas:\n    S: " + body + "\n"},
+		"reached directly": {
+			"root.yaml":  header + "  schemas:\n    S: {$ref: './other.yaml#/components/schemas/T'}\n",
+			"other.yaml": "components:\n  schemas:\n    T: " + body + "\n",
+		},
+		"reached inside a parameter": {
+			"root.yaml":  header + "  parameters:\n    P: {$ref: './other.yaml#/components/parameters/Q'}\n",
+			"other.yaml": "components:\n  parameters:\n    Q: {name: q, in: query, schema: " + body + "}\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeFiles(t, dir, files)
+
+			_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), files["root.yaml"], Options{})
+
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, diag.Validation+"/validation-invalid-schema", diags[0].Code)
+			assert.Contains(t, diags[0].Message, "schema.minLength minimum: got -1, want 0")
+		})
+	}
 }
 
 // nestedOtherFixture is an external document whose path item holds a parameter
