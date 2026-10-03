@@ -40,7 +40,7 @@ func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jso
 	if ts.Building(id) {
 		return nil, false, nil
 	}
-	return td, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+	return nil, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
 }
 
