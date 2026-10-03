@@ -107,7 +107,8 @@ type findingKey struct {
 // too, and so is a repeat at a node already reported: the library caches no
 // object it builds from a document whose bytes it already holds, so a target
 // whose document another $ref read first is built again, findings and all, for
-// each $ref reaching it. A finding at no node is never taken for a repeat.
+// each $ref reaching it. A finding at no node is never taken for a repeat, nor
+// one in the source read again by a $ref from another document (GitHub #759).
 func reportable(vErrs []error, reported map[findingKey]bool) []error {
 	out := make([]error, 0, len(vErrs))
 	for _, ve := range vErrs {
