@@ -553,19 +553,25 @@ paths:
 func TestResolveExternal_TwoRefsToOneTargetReportItsFindingOnce(t *testing.T) {
 	t.Parallel()
 	srv, _ := countingServer(t, twoRefsTarget)
-	run := func(base string) []ir.Diagnostic {
+	run := func(base string, wantRebuilds int32) []ir.Diagnostic {
 		doc := base + "/other.yaml#/paths/"
 		src := compilers.Source{Path: "root.yaml", Data: []byte("openapi: 3.1.0\n" +
 			"info: {title: T, version: \"1\"}\npaths:\n" +
 			"  /w: {$ref: \"" + doc + "~1w\"}\n" +
 			"  /x: {$ref: \"" + doc + "~1x\"}\n  /y: {$ref: \"" + doc + "~1x\"}\n")}
-		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+		var rebuilds atomic.Int32
+		rebuild := func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error) {
+			rebuilds.Add(1)
+			return unmarshal(ctx, data, root)
+		}
+		_, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true, rebuildDoc: rebuild})
 		require.NoError(t, err)
+		require.Equal(t, wantRebuilds, rebuilds.Load(), "%s takes the path this case names", base)
 		return diags
 	}
 
-	onePass := run(srv.URL)
-	rebuilt := run(respelled(srv.URL, "HTTP"))
+	onePass := run(srv.URL, 0)
+	rebuilt := run(respelled(srv.URL, "HTTP"), 1)
 
 	if d := cmp.Diff(spelledAs(onePass, srv.URL, respelled(srv.URL, "HTTP")), rebuilt); d != "" {
 		t.Errorf("two $refs to one target must report alike with and without a rebuild (-onePass +rebuilt):\n%s", d)
