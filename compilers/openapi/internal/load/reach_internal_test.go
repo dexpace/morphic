@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -546,6 +547,10 @@ components:
 )
 
 var leftAloneFixtures = []struct{ name, spec string }{
+	{"two components reuse the same $defs names for unrelated definitions", defsSameNamesAcrossComponents},
+	{"a $defs pointer does not reach an extension's $defs", defsPointerDoesNotReachAnExtension},
+	{"an alias in a $defs target reads its pointer from the root", defsTargetHoldsAnAlias},
+	{"a merge key in a $defs target reads its pointer from the root", defsTargetHoldsAMergeKey},
 	{"a cross-component anchor reference stays unresolved", crossComponentAnchorStaysUnresolved},
 	{"anchor-declared recursion is legal", anchorDeclaredRecursionIsLegal},
 	{"a $dynamicAnchor is never registered", dynamicAnchorIsNotRegistered},
@@ -791,63 +796,11 @@ components:
 // TestReachCycle_KnownFalseRefusals pins the price of order-invariance: each
 // document does not crash the raw library, yet reach's over-approximation
 // refuses it. Each comment names the over-approximation. Accepting any of them
-// would need the model to track resolver state (registration order, which
-// document a pointer's first token is scoped to), which is what makes an exact
-// model order-dependent.
+// would need the model to track resolver state (registration order, which base
+// a relative $id resolves against), which is what makes an exact model
+// order-dependent.
 func TestReachCycle_KnownFalseRefusals(t *testing.T) {
 	t.Parallel()
-
-	t.Run("two components reuse the same $defs key names for unrelated definitions", func(t *testing.T) {
-		t.Parallel()
-		// A $defs pointer's first token ("$defs") is looked up across the WHOLE
-		// document (tree.anywhere), not scoped to the component that declares it,
-		// because the library re-registers a $defs entry's own base from
-		// whichever chain reached it — a chain no static read reproduces. A's
-		// "#/$defs/y" and B's "#/$defs/x" therefore each see both components'
-		// $defs blocks, and the union closes A.x -> B.y -> A.x even though each
-		// component's own pointer, resolved for real, only ever reaches its own
-		// sibling.
-		const spec = `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    A:
-      $defs:
-        x: {$ref: "#/$defs/y"}
-        y: {type: string}
-    B:
-      $defs:
-        y: {$ref: "#/$defs/x"}
-        x: {type: integer}
-`
-		assertRefusedByReach(t, spec)
-	})
-
-	t.Run("a $defs pointer round-trips through an extension", func(t *testing.T) {
-		t.Parallel()
-		// A's "#/$defs/n" pointer lands on x-holder's $defs.n (the global $defs
-		// union again). Once a node is reached through a /$defs/ pointer this
-		// way it is marked "drifted", and a drifted node's OWN pointer — even
-		// one that does not spell "/$defs/" — resolves from any node sharing
-		// its first path segment, so n's "#/components/schemas/A" is treated as
-		// reaching A and closing a cycle. The library itself does not crash:
-		// resolving into an extension unmarshals it as a standalone document
-		// (pointerLandsOnFreshExtensionAnchorCycle's own mechanism), and that
-		// standalone document has no "components" key of its own for the
-		// pointer to navigate, so the reference is left unresolved instead.
-		const spec = `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    A: {$ref: "#/$defs/n"}
-x-holder:
-  $defs:
-    n: {$ref: "#/components/schemas/A"}
-`
-		assertRefusedByReach(t, spec)
-	})
 
 	t.Run("a duplicate anchor's own declaration is one of its own candidate targets", func(t *testing.T) {
 		t.Parallel()
@@ -911,56 +864,15 @@ components:
 		assertRefusedByReach(t, spec)
 	})
 
-	t.Run("drift follows an alias into a $defs target's subtree", func(t *testing.T) {
+	t.Run("a pointer names the extension that holds it", func(t *testing.T) {
 		t.Parallel()
-		// d's subtree holds q, which is an alias of Shared's own node, so the
-		// walk marks that node drifted and Shared's "#/properties/y" is read as
-		// resolvable from any node. The library's model folds aliased content in
-		// under d, which is why the walk follows it, but it also keeps the two
-		// positions apart, and resolving Shared in place never leaves the root.
-		const spec = `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Shared: &s {$ref: "#/properties/y"}
-    Top:
-      $defs: {d: {properties: {q: *s}}}
-      properties:
-        x: {$ref: "#/$defs/d"}
-        y: {$ref: "#/components/schemas/Top/$defs/d/properties/q"}
-`
-		assertRefusedByReach(t, spec)
-	})
-
-	t.Run("drift follows a merge key into a $defs target's subtree", func(t *testing.T) {
-		t.Parallel()
-		// The same price for a merge key: the merged-in properties belong to d
-		// as far as the library's model is concerned.
-		const spec = `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Base: &b {properties: {z: {$ref: "#/properties/y"}}}
-    Top:
-      $defs: {d: {<<: *b}}
-      properties:
-        x: {$ref: "#/$defs/d"}
-        y: {$ref: "#/components/schemas/Top/$defs/d/properties/z"}
-`
-		assertRefusedByReach(t, spec)
-	})
-
-	t.Run("a pointer round-trips through an extension without an anchor", func(t *testing.T) {
-		t.Parallel()
-		// The same "drifted node's own plain pointer resolves from any node"
-		// mechanism as the extension case above, spelled with a pointer
-		// instead of an anchor: x-s's own "#/x-s" is a literal
-		// self-pointer, but the library unmarshals x-s as a standalone document
-		// only once something resolves into it, and that fresh copy's own
-		// "#/x-s" is read against the standalone document (which has no such
-		// key), not against the shared tree — so it does not crash for real.
+		// x-s's own "#/x-s" names x-s itself, read from the root as every plain
+		// pointer is, so the chain A -> x-s -> x-s closes. The library does not
+		// crash: it unmarshals x-s as a standalone document when A resolves into
+		// it, and the second hop finds the first's cached copy under the same
+		// absolute reference, which its own cycle check reports. The pre-parse
+		// scan refuses this shape too; reach refuses it here because the $anchor
+		// key sends the document through reach at all.
 		const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -1139,22 +1051,22 @@ func TestRecoverChains_PassesThroughResult(t *testing.T) {
 }
 
 // TestDrift_MarksTheDefsTargetAndPropagatesThroughItsOwnPointer drives drift's
-// fixpoint (reach.go): A's $ref is a /$defs/ pointer landing on n directly —
-// no fixpoint needed for that hop — but n's own $ref is a PLAIN pointer to B,
-// not itself spelled "#/$defs/...". Only re-scanning n's own reference after
-// marking it drifted discovers that this plain pointer must also be read as
-// resolvable from any node, which is what lets it reach B. Without the drift
-// pass, n is marked as a reference but never revisited, so B is never marked
-// drifted at all.
+// fixpoint (reach.go) from a "#/$defs/..." reference load cannot hold, one in an
+// extension: it lands on n directly — no fixpoint needed for that hop — but n's
+// own $ref is a PLAIN pointer to B, not itself spelled "#/$defs/...". Only
+// re-scanning n's own reference after marking it drifted discovers that this
+// plain pointer must also be read as resolvable from any node, which is what
+// lets it reach B. Without the drift pass, n is marked as a reference but never
+// revisited, so B is never marked drifted at all.
 func TestDrift_MarksTheDefsTargetAndPropagatesThroughItsOwnPointer(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
+x-a: {$ref: "#/$defs/n"}
 components:
   schemas:
     A:
-      $ref: "#/$defs/n"
       $defs:
         n: {$ref: "#/components/schemas/B"}
     B: {type: string}
@@ -1162,16 +1074,14 @@ components:
 	doc, root := buildDoc(t, spec)
 	r, _ := newReach(t.Context(), maxReachWork, root, doc)
 
-	component := func(name string) *yaml.Node {
-		return r.tree.walk(r.tree.root, []string{"components", "schemas", name})
-	}
-	bNode, aNode := component("B"), component("A")
+	bNode := r.tree.walk(r.tree.root, []string{"components", "schemas", "B"})
+	xNode := r.tree.walk(r.tree.root, []string{"x-a"})
 	require.NotNil(t, bNode)
-	require.NotNil(t, aNode)
+	require.NotNil(t, xNode)
 
 	assert.True(t, r.drifted[bNode],
 		"B is reached only through n's own pointer, discovered by revisiting n once it drifted")
-	assert.False(t, r.drifted[aNode],
+	assert.False(t, r.drifted[xNode],
 		"the referring node itself is never marked drifted, only what a /$defs/ target's subtree reaches")
 }
 
@@ -1179,10 +1089,39 @@ components:
 // specific shape where the fixpoint is load-bearing rather than merely
 // observable: n's own $ref is a bare "#", and an empty fragment, unlike a
 // pointer, lands nowhere from an undrifted node (there is no root fallback for
-// it). The cycle through n is visible only
-// once markDrifted's own return value re-queues n for a second look at its
-// own reference.
+// it). The cycle through n is visible only once markDrifted's own return value
+// re-queues n for a second look at its own reference.
 func TestDrift_BareFragmentSelfReferenceNeedsTheNodeItselfMarkedFirst(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+x-a: {$ref: "#/$defs/n"}
+components:
+  schemas:
+    A:
+      $defs:
+        n: {$ref: "#"}
+`
+	assertRefusedByReach(t, spec)
+}
+
+// landings is every node a reference at n can land on, by its class's lookups.
+func landings(r *reach, n *yaml.Node) []*yaml.Node {
+	var out []*yaml.Node
+	for _, s := range r.lookups(r.classOf(n)) {
+		out = append(out, s.members...)
+	}
+	return out
+}
+
+// TestReach_DefsEdgeIsTheRulesTarget pins that a held "#/$defs/..." reference's
+// edge is the one definition the resolver's rule names for it (defs.Reader.Target),
+// the edge resolveHeld later hands the resolver — not every node holding the
+// path. A nested reference reaches its schema's own definition; the schema's
+// own sibling $ref does not, because the rule starts at the reference's parent
+// (GitHub #557).
+func TestReach_DefsEdgeIsTheRulesTarget(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -1191,10 +1130,80 @@ components:
   schemas:
     A:
       $ref: "#/$defs/n"
+      properties:
+        p: {$ref: "#/$defs/n"}
+      $defs:
+        n: {type: string}
+    B:
+      $defs:
+        n: {type: integer}
+`
+	doc, root := buildDoc(t, spec)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	at := func(tokens ...string) *yaml.Node {
+		return r.tree.walk(r.tree.root, append([]string{"components", "schemas"}, tokens...))
+	}
+	a, p, aDef := at("A"), at("A", "properties", "p"), at("A", "$defs", "n")
+	require.NotNil(t, a)
+	require.NotNil(t, p)
+	require.NotNil(t, aDef)
+
+	held, ok := r.held[p]
+	require.True(t, ok, "p's pointer is held out of the resolver's own pass")
+	assert.Equal(t, []*yaml.Node{aDef}, held.members, "p lands on its own schema's definition, never B's")
+
+	held, ok = r.held[a]
+	require.True(t, ok)
+	assert.Empty(t, held.members, "a schema's own sibling $ref does not see its own $defs")
+	assert.Equal(t, []*yaml.Node{aDef}, landings(r, p))
+	assert.Empty(t, landings(r, a), "held with no definition is no pointer read either")
+}
+
+// TestReach_ReadsHeldDefinitionsThroughOneReader pins the same bound for the
+// reach check: its held references are read through the one reader it was
+// given, so a reference at every level of a schema nested d deep costs a
+// constant number of navigations per level rather than a walk of the chain
+// above it.
+func TestReach_ReadsHeldDefinitionsThroughOneReader(t *testing.T) {
+	t.Parallel()
+	const depth = 60
+	doc, root := buildDoc(t, deepDefsDoc(depth))
+	r := emptyReach(root, &budget{limit: maxReachWork})
+	rule := defs.NewReader(doc)
+	r.rule = rule
+
+	r.collect(t.Context(), doc)
+
+	require.Len(t, r.held, depth)
+	assert.Same(t, rule, r.rule, "no reference swapped the reader for one with no memory")
+	assert.GreaterOrEqual(t, rule.Reads(), depth, "every level was read, through the one reader")
+	assert.LessOrEqual(t, rule.Reads(), 9*depth, "a constant number of navigations per level")
+}
+
+// TestReach_EmptyFragmentLandsNowhere pins that "#" and "#/" name the document
+// the resolver holds, which is always the root now that no $defs lookup hands it
+// another: no schema, so no edge, even under a $defs target.
+func TestReach_EmptyFragmentLandsNowhere(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      properties:
+        p: {$ref: "#/$defs/n"}
       $defs:
         n: {$ref: "#"}
+        m: {$ref: "#/"}
 `
-	assertRefusedByReach(t, spec)
+	doc, root := buildDoc(t, spec)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	defsNode := r.tree.walk(r.tree.root, []string{"components", "schemas", "A", "$defs"})
+	require.NotNil(t, defsNode)
+	assert.Empty(t, landings(r, r.tree.child(defsNode, "n")))
+	assert.Empty(t, landings(r, r.tree.child(defsNode, "m")))
+	assertNotRefusedByReach(t, spec)
 }
 
 // aliasedSchemaAndItsAlias declares a real YAML alias (as opposed to every
@@ -1211,4 +1220,72 @@ components:
   schemas:
     A: &shared {$anchor: a, type: string}
     B: *shared
+`
+
+// Each schema's own "#/$defs/..." pointer lands on that schema's own
+// definition (the resolver's rule, GitHub #557): A.x reaches A.y and B.y
+// reaches B.x, and both chains end there. Taking every schema's $defs as a
+// possible target would close a cycle A.x -> B.y -> A.x that neither resolver
+// order takes.
+const defsSameNamesAcrossComponents = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $defs:
+        x: {$ref: "#/$defs/y"}
+        y: {type: string}
+    B:
+      $defs:
+        y: {$ref: "#/$defs/x"}
+        x: {type: integer}
+`
+
+// A's "#/$defs/n" names nothing: the resolver's rule searches A's ancestors,
+// never the document root, and never a sibling extension. So the extension's
+// n, which points back at A, is on no chain from A, and a check that took any
+// node holding the path, x-holder's included, would refuse the round trip.
+const defsPointerDoesNotReachAnExtension = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: "#/$defs/n"}
+x-holder:
+  $defs:
+    n: {$ref: "#/components/schemas/A"}
+`
+
+// d's subtree holds q, an alias of Shared's own node. Shared's
+// "#/properties/y" is a plain pointer, read from the root, where there is no
+// such property, so it lands nowhere. A check that marked the aliased node
+// drifted once a $defs pointer reached d would read that pointer from any node.
+const defsTargetHoldsAnAlias = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Shared: &s {$ref: "#/properties/y"}
+    Top:
+      $defs: {d: {properties: {q: *s}}}
+      properties:
+        x: {$ref: "#/$defs/d"}
+        y: {$ref: "#/components/schemas/Top/$defs/d/properties/q"}
+`
+
+// The same for a merge key: the merged-in properties belong to d as far as the
+// library's model is concerned, and their plain pointer is still read from the
+// root.
+const defsTargetHoldsAMergeKey = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Base: &b {properties: {z: {$ref: "#/properties/y"}}}
+    Top:
+      $defs: {d: {<<: *b}}
+      properties:
+        x: {$ref: "#/$defs/d"}
+        y: {$ref: "#/components/schemas/Top/$defs/d/properties/z"}
 `

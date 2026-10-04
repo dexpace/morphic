@@ -21,10 +21,14 @@ const reachBase = "http://reach.invalid/a/b/c/d"
 // schema document it sits in. References of one class have the same targets,
 // so the walk treats them as one vertex; a cycle among classes is a cycle among
 // references.
+//
+// A held "#/$defs/..." reference is a class of its own, named by held, the
+// node that is it: what it lands on is the definition its schemas name.
 type refClass struct {
 	id      int
 	drifted bool
 	scope   *yaml.Node
+	held    *yaml.Node
 }
 
 // isDefsRef reports whether the resolver reads raw as a /$defs/ pointer. The
@@ -44,14 +48,18 @@ func namesRegistryEntry(raw string) bool {
 	return oas3.ExtractAnchor(raw) != "" || references.Reference(raw).GetURI() != ""
 }
 
-// lookups is every set a reference of class c can land in. The resolver asks
-// the registries first, with the fragment as written, and falls back to a
-// pointer read; a reference can be tried both ways, so both are kept. A pointer
-// the resolver may read against a document other than the root, because it
-// spells /$defs/ or the reference drifted, can start at any node; any other
-// starts at the root. Drift and the search each ask once per class.
+// lookups is every set a reference of class c can land in. A held reference
+// lands on its definition alone. For the rest, the resolver asks the
+// registries first, with the fragment as written, and falls back to a pointer
+// read; a reference can be tried both ways, so both are kept. A pointer the
+// resolver may read against a document other than the root, because it spells
+// /$defs/ or the reference drifted, can start at any node; any other starts at
+// the root. Drift and the search each ask once per class.
 func (r *reach) lookups(c refClass) []*posSet {
 	r.budget.spend(1)
+	if c.held != nil {
+		return []*posSet{r.held[c.held]}
+	}
 	raw := r.raws[c.id]
 	ref := references.Reference(raw)
 	var out []*posSet

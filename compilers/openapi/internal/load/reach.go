@@ -7,6 +7,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -24,11 +25,11 @@ const maxReachWork = 1 << 24
 // and finds a cycle through any choice of targets (GitHub #526, #546).
 //
 // What the resolver keeps between references decides where a pointer lands, so
-// whether a document crashes it can turn on the order its components are
-// declared in. No reading of the model predicts that. Where a lookup can land
-// does not move, so every possible target is taken, and a cycle is refused in
-// every order. The price is that a document the resolver survives can be
-// refused.
+// whether a document crashes it can turn on declaration order. No reading of
+// the model predicts that. Where a lookup can land does not move, so every
+// target is taken, and a cycle is refused in every order. A document the
+// resolver survives can be refused. A "#/$defs/..." reference load holds out of
+// the resolver resolves to one definition, and is exact (GitHub #557).
 type reach struct {
 	tree   *tree
 	budget *budget
@@ -54,6 +55,15 @@ type reach struct {
 	// other than the root in hand: anything under the target of a /$defs/
 	// reference, and anything under the target of a reference already drifted.
 	drifted map[*yaml.Node]bool
+	// held holds, for each node that is a "#/$defs/..." reference of the model,
+	// the definitions its schemas resolve to (defs.Reader.Target); none when the
+	// rule names none, which is still no pointer read. load holds exactly these
+	// references out of the resolver's own pass (withDefsHeld), so each is an
+	// edge the resolver takes, not an over-approximation of one.
+	held map[*yaml.Node]*posSet
+	// rule reads the pointers of held through one reader, so references sharing
+	// ancestors share the walk to them.
+	rule *defs.Reader
 	// scopes memoizes scopesOf, and climbed marks a node whose parents it has
 	// already queued, so every climb together reads each node once.
 	scopes  map[*yaml.Node][]*yaml.Node
@@ -102,22 +112,36 @@ func (r *reach) incomplete() bool {
 }
 
 // newReach reads root and doc in the order each phase needs the last: the tree,
-// the model's schemas, the declarations' scopes, the searched ancestors and the
-// drift. It returns the references a search starts from.
+// the model's schemas and the definitions its held references name, the
+// declarations' scopes, the searched ancestors and the drift. It returns the
+// references a search starts from.
 func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI) (*reach, []*yaml.Node) {
 	r := emptyReach(root, &budget{limit: limit})
+	r.rule = defs.NewReader(doc)
 	declared, defsRefs := r.tree.index()
 	starts := r.collect(ctx, doc)
 	r.group(declared)
+	defsRefs = r.unheld(defsRefs)
 	r.markSearched(defsRefs)
 	r.drift(defsRefs)
 	return r, starts
 }
 
+// unheld is the references of defsRefs the resolver reads for itself: those
+// load did not hold out of its pass. A held one resolves to its own definition,
+// so it searches no ancestor and moves no document. It filters defsRefs in
+// place.
+func (r *reach) unheld(defsRefs []*yaml.Node) []*yaml.Node {
+	return slices.DeleteFunc(defsRefs, func(n *yaml.Node) bool {
+		_, held := r.held[n]
+		return held
+	})
+}
+
 // emptyReach is a check over root that has read nothing yet.
 func emptyReach(root *yaml.Node, b *budget) *reach {
 	return &reach{tree: newTree(root, b), budget: b, scope: map[*yaml.Node][]*yaml.Node{},
-		owned: map[[2]*yaml.Node]bool{}, decls: newDecls(),
+		owned: map[[2]*yaml.Node]bool{}, decls: newDecls(), held: map[*yaml.Node]*posSet{},
 		searched: map[*yaml.Node]bool{}, drifted: map[*yaml.Node]bool{},
 		scopes: map[*yaml.Node][]*yaml.Node{}, climbed: map[*yaml.Node]bool{},
 		static: map[*yaml.Node]refClass{},
@@ -140,10 +164,30 @@ func (r *reach) collect(ctx context.Context, doc *soa.OpenAPI) []*yaml.Node {
 		}
 		if js.IsReference() {
 			starts = append(starts, n)
+			r.hold(js, n)
 		}
 		return nil
 	})
 	return starts
+}
+
+// hold records the definition a "#/$defs/..." reference js at n resolves to, as
+// load resolves it (resolveHeld). A node several schemas share, as an alias
+// does, is held to each one's definition.
+func (r *reach) hold(js *schemaRef, n *yaml.Node) {
+	pointer, ok := heldDefsPointer(js)
+	if !ok {
+		return
+	}
+	set := r.held[n]
+	if set == nil {
+		set = &posSet{}
+		r.held[n] = set
+	}
+	if t, _, found := r.rule.Target(js, pointer); found && t.GetSchema() != nil {
+		r.budget.spend(1)
+		set.members = append(set.members, nodeview.Deref(t.GetSchema().GetRootNode()))
+	}
 }
 
 // addScope records that n belongs to the schema document rooted at root.
@@ -169,6 +213,9 @@ func (r *reach) ownerOf(n *yaml.Node) *yaml.Node {
 // classOf is the class of the reference at n. A node with no $ref is class 0,
 // which has no targets, so every chain ends there.
 func (r *reach) classOf(n *yaml.Node) refClass {
+	if _, held := r.held[n]; held {
+		return refClass{held: n} // resolved to its definition, wherever the resolver's documents drifted to
+	}
 	c, ok := r.static[n]
 	if !ok {
 		raw := r.tree.refValue(n)

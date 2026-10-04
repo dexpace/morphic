@@ -25,13 +25,14 @@ func schemasDoc(schemas string) string {
 	return "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" + schemas + "\n"
 }
 
-// onlyReachCrashFixtures each crash the vendored resolver, and each needs a
-// reading or a piece of resolver state the pre-parse scan does not have: where
-// the library splits and decodes a $ref, what an $id normalizes to, what a merge
-// key or an alias supplies, and which documents a /$defs/ pointer moves a
-// reference into. A check that misreads any of them lets the document reach the
-// resolver. TestReachCycle_RefusesCrashesOnlyReachCanSee requires reach itself
-// to refuse each, and that the raw resolver still overflows on it.
+// onlyReachCrashFixtures each crash the load pipeline without its reach check,
+// and each needs a reading or a piece of resolver state the pre-parse scan does
+// not have: where the library splits and decodes a $ref, what an $id normalizes
+// to, what a merge key or an alias supplies, and which documents a /$defs/
+// pointer the resolver reads itself moves a reference into. A check that
+// misreads any of them lets the document reach the resolver.
+// TestReachCycle_RefusesCrashesOnlyReachCanSee requires reach itself to refuse
+// each, and that the pipeline still overflows on it.
 var onlyReachCrashFixtures = []struct{ name, schemas string }{
 	{"a percent-encoded $ in a $defs pointer", `    A: {$defs: {n: {$ref: "#/%24defs/n"}}}`},
 	{"a percent-encoded slash after $defs", `    A: {$defs: {n: {$ref: "#/$defs%2Fn"}}}`},
@@ -42,6 +43,8 @@ var onlyReachCrashFixtures = []struct{ name, schemas string }{
 	{"an $id and a $ref with no path of their own", `    A: {$id: "?x=1", $ref: "?x=1"}`},
 	{"an $id with no path of its own inside one with a path",
 		"    A:\n      $id: \"http://x.test/a\"\n      properties:\n        p: {$id: \"?x=1\", $ref: \"http://x.test/a?x=1\"}"},
+	{"a $defs pointer in an extension, which the resolver reads itself",
+		"    A:\n      $defs:\n        n:\n          $ref: \"#/x-s\"\n          $defs: {m: {$ref: \"#\"}}\nx-s: {$ref: \"#/$defs/m\"}"},
 	{"a merge key supplies the $anchor", "    Base: &b {$anchor: a}\n    A: {<<: *b, $ref: \"#a\"}"},
 	{"a merge key supplies a $defs reference", "    Base: &b {$ref: \"#/$defs/n\"}\n    A:\n      $defs:\n        n: {<<: *b}"},
 	{"a merge key supplies the $id", "    Base: &b {$id: \"http://x.test/m\"}\n    A: {<<: *b, $ref: \"http://x.test/m\"}"},
@@ -51,12 +54,6 @@ var onlyReachCrashFixtures = []struct{ name, schemas string }{
 		"    A: &q {$anchor: a, $ref: \"#b\"}\n    B:\n      $defs: {n: {$anchor: b, $ref: \"#a\"}}\n      properties: {q: *q}"},
 	{"the same, with the alias declared second",
 		"    B:\n      $defs: {n: {$anchor: b, $ref: \"#a\"}}\n      properties: {q: &q {$anchor: a, $ref: \"#b\"}}\n    A: *q"},
-	{"drift reaches a reference only through an alias",
-		"    Shared: &s {$ref: \"#/properties/x\"}\n    Top:\n      $defs: {d: {properties: {q: *s}}}\n      properties:\n        x: {$ref: \"#/$defs/d/properties/q\"}"},
-	{"drift reaches a reference only through a merge key",
-		"    Shared: &s {$ref: \"#/properties/x\"}\n    Top:\n      $defs: {d: {properties: {q: {<<: *s}}}}\n      properties:\n        x: {$ref: \"#/$defs/d/properties/q\"}"},
-	{"an empty fragment lands on a searched ancestor that is no reference",
-		"    Top:\n      $defs:\n        n: {$ref: \"#/$defs/m\"}\n        m: {$ref: \"#\"}\n      properties:\n        x: {$ref: \"#/$defs/n\"}\n        p: {$ref: \"#/properties/q\"}\n        q: {$ref: \"#/properties/p\"}"},
 }
 
 func TestReachCycle_RefusesCrashesOnlyReachCanSee(t *testing.T) {
@@ -72,7 +69,44 @@ func TestReachCycle_RefusesCrashesOnlyReachCanSee(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 			defer cancel()
 			assert.True(t, reachFuzzSubprocessCrashed(ctx, t, path),
-				"the fixture no longer crashes the raw resolver, so refusing it protects nothing")
+				"the fixture no longer crashes the pipeline without the check, so refusing it protects nothing")
+		})
+	}
+}
+
+// heldOutCrashFixtures crash the raw resolver, which reads a "#/$defs/..."
+// pointer against whichever document its chain carries it to, so a plain
+// pointer further along is read from there too. The pipeline never reads one
+// of a model schema so: load holds each such reference out of the resolver's
+// pass (withDefsHeld), and every other pointer is read from the root.
+var heldOutCrashFixtures = []struct{ name, schemas string }{
+	{"drift reaches a reference only through an alias",
+		"    Shared: &s {$ref: \"#/properties/x\"}\n    Top:\n      $defs: {d: {properties: {q: *s}}}\n      properties:\n        x: {$ref: \"#/$defs/d/properties/q\"}"},
+	{"drift reaches a reference only through a merge key",
+		"    Shared: &s {$ref: \"#/properties/x\"}\n    Top:\n      $defs: {d: {properties: {q: {<<: *s}}}}\n      properties:\n        x: {$ref: \"#/$defs/d/properties/q\"}"},
+	{"an empty fragment lands on an ancestor the resolver searched",
+		"    Top:\n      $defs:\n        n: {$ref: \"#/$defs/m\"}\n        m: {$ref: \"#\"}\n      properties:\n        x: {$ref: \"#/$defs/n\"}\n        p: {$ref: \"#/properties/q\"}\n        q: {$ref: \"#/properties/p\"}"},
+}
+
+// TestReachCycle_LeavesWhatHoldingDefsOutOfTheResolverSurvives requires of
+// each such fixture that reach leaves it alone and that the pipeline, with the
+// check off, does not overflow: refusing it would be a false refusal, and
+// leaving it unprotected only holds while load keeps the $defs references of
+// the model out of the resolver's own pass.
+func TestReachCycle_LeavesWhatHoldingDefsOutOfTheResolverSurvives(t *testing.T) {
+	t.Parallel()
+	for _, tc := range heldOutCrashFixtures {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := schemasDoc(tc.schemas)
+			assertNotRefusedByReach(t, spec)
+
+			path := filepath.Join(t.TempDir(), "spec.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
+			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+			defer cancel()
+			assert.False(t, reachFuzzSubprocessCrashed(ctx, t, path),
+				"the pipeline overflowed, so the reference the resolver reads for itself is not held out")
 		})
 	}
 }
@@ -354,7 +388,7 @@ func TestLookups_ChargeEveryStep(t *testing.T) {
 	const depth = 100
 	path := strings.Repeat("/a", depth)
 	chain := strings.Repeat("{a: ", depth) + "1" + strings.Repeat("}", depth)
-	spec := schemasDoc("    A: {$ref: '#'}\n    B: {type: string}") + "x-c: {$defs: {b: " + chain + "}}\n"
+	spec := schemasDoc("    A: {$ref: '#/$defs/n', $defs: {n: {type: string}}}\n    B: {$ref: '#'}") + "x-c: {$defs: {b: " + chain + "}}\n"
 	doc, root := buildDoc(t, spec)
 	r, _ := newReach(t.Context(), maxReachWork, root, doc)
 	spent := func(c refClass) int {
@@ -368,6 +402,9 @@ func TestLookups_ChargeEveryStep(t *testing.T) {
 	assert.GreaterOrEqual(t, spent(refClass{id: r.intern("#/$defs/b" + path)}), depth, "a pointer from any node")
 	assert.GreaterOrEqual(t, spent(refClass{id: r.intern("#"), drifted: true}), len(r.schemas), "the document set")
 	assert.Positive(t, spent(refClass{id: r.intern("#absent")}), "a lookup that reads no tree")
+	a := r.tree.walk(r.tree.root, []string{"components", "schemas", "A"})
+	require.Contains(t, r.held, a, "A's $defs reference is held")
+	assert.Positive(t, spent(refClass{held: a}), "a held reference")
 }
 
 // TestCycles_ChargesEveryStep pins that the search pays per member it steps
@@ -396,7 +433,7 @@ func TestCycles_ChargesEveryStep(t *testing.T) {
 // prevent.
 func TestReach_EveryWalkStopsOnceTheBudgetIsSpent(t *testing.T) {
 	t.Parallel()
-	spec := schemasDoc("    A:\n      $defs: {n: {$anchor: z, $ref: '#/$defs/m'}, m: {$ref: '#/$defs/n'}}\n      $ref: '#/$defs/n'")
+	spec := schemasDoc("    A:\n      $defs: {n: {$anchor: z, $ref: '#/$defs/m'}, m: {$ref: '#/$defs/n'}}")
 	doc, root := buildDoc(t, spec)
 	prepared := func() (*reach, *budget, []*yaml.Node, []*yaml.Node) {
 		b := &budget{limit: maxReachWork}
@@ -451,18 +488,19 @@ func TestReach_EveryWalkStopsOnceTheBudgetIsSpent(t *testing.T) {
 
 // TestDocuments_ADriftedReferenceCanLandOnAnyReferenceOrSearchedAncestor pins
 // documents' filter: a schema that is a reference, or an ancestor the resolver
-// searched for a $defs entry, and nothing else.
+// searched for a $defs entry, and nothing else. Only a reference load did not
+// hold searches: the one in A's extension.
 func TestDocuments_ADriftedReferenceCanLandOnAnyReferenceOrSearchedAncestor(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(
-		"    A: {$defs: {n: {$ref: \"#/$defs/m\"}, m: {type: string}}}\n    B: {$ref: \"#/components/schemas/A\"}\n    C: {type: string}"))
+		"    A: {x-raw: {$ref: \"#/$defs/m\"}, $defs: {m: {type: string}}}\n    B: {$ref: \"#/components/schemas/A\"}\n    C: {type: string}"))
 	r, _ := newReach(t.Context(), maxReachWork, root, doc)
 	node := func(path ...string) *yaml.Node {
 		return r.tree.walk(r.tree.root, append([]string{"components", "schemas"}, path...))
 	}
 
-	assert.ElementsMatch(t, []*yaml.Node{node("A"), node("A", "$defs", "n"), node("B")}, r.documents().members,
-		"A is searched without being a reference, n and B are references, m and C are neither")
+	assert.ElementsMatch(t, []*yaml.Node{node("A"), node("B")}, r.documents().members,
+		"A is searched without being a reference, B is a reference, m and C are neither")
 	assert.Same(t, r.documents(), r.documents(), "every drifted empty fragment shares one set")
 }
 

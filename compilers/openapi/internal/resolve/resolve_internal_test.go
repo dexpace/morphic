@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -243,4 +244,62 @@ components:
 	}
 
 	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
+}
+
+// TestScope_MappingPointer pins what a mapping value names. A pointer or a
+// declared component is InternalPointer's answer; a "#/$defs/..." value is the
+// definition read from its discriminator; and every value that cannot be read
+// so is refused: one with a document part, which load leaves to the resolver,
+// one into another document, one in a Scope with no Doc, one with no
+// discriminator, one whose discriminator this document's tree does not contain,
+// and one the rule finds nothing for.
+func TestScope_MappingPointer(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf: [{$ref: "#/$defs/cat"}]
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object}
+`))
+	require.NoError(t, err)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	d := pet.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
+	sc := Scope{SelfPath: "spec.yaml", Doc: doc}
+
+	for value, want := range map[string]jsontext.Pointer{
+		"#/components/schemas/Pet": "/components/schemas/Pet",
+		"#/$defs/cat":              "/components/schemas/Pet/$defs/cat",
+	} {
+		got, ok := sc.MappingPointer(d, value)
+		assert.True(t, ok, value)
+		assert.Equal(t, want, got, value)
+	}
+
+	for value, why := range map[string]string{
+		"other.yaml#/A":        "a value into another document is refused",
+		"spec.yaml#/$defs/cat": "a document part is left to the resolver, as load leaves a $ref spelled so",
+		"#/$defs/missing":      "the rule finds no such definition",
+		"Pet":                  "a bare name names no pointer",
+	} {
+		_, ok := sc.MappingPointer(d, value)
+		assert.False(t, ok, why)
+	}
+
+	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
+	assert.False(t, ok, "no document to read from")
+	_, ok = sc.MappingPointer(nil, "#/$defs/cat")
+	assert.False(t, ok, "no discriminator to read a position from")
+	// A discriminator this document's tree does not contain has no position to
+	// read from. The document is a standalone schema with its own $defs, the one
+	// kind a missing position could still read a definition from.
+	standalone := Scope{SelfPath: "spec.yaml", Doc: schemaFromYAML(t, "$defs:\n  cat: {type: object}\n")}
+	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
+	assert.False(t, ok, "no position to read the pointer from")
 }

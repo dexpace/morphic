@@ -11,6 +11,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -30,13 +31,38 @@ type resolvable interface {
 // it (GitHub #385, GitHub #537). It runs ResolveAllReferences' own walk, since
 // that call names no reference for a failure or a finding.
 //
-// A finding is in a document with no entry in Document.Sources (GitHub #74), so
-// its message names the document and its position there (see findingPlace). It
-// is about a node, not a reference, so it is reported once (see
-// reachedFindings).
+// A "#/$defs/..." reference is held out of that walk and resolved after it (see
+// withDefsHeld). A finding is in a document with no entry in Document.Sources
+// (GitHub #74), so its message names the document (see findingPlace), and is
+// reported once (see reachedFindings).
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, reader *external,
 ) []ir.Diagnostic {
+	pass := newResolution(ctx, at, doc, path, opts, reader)
+	held := heldRefs(ctx, doc, defs.NewReader(doc))
+	withDefsHeld(held, func() {
+		pass.fail(eachReference(soa.Walk(ctx, doc), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
+			pass.visit(site, r, r.GetReference())
+			return nil
+		}))
+	})
+	pass.fail(pass.resolveHeld(held))
+	return append(pass.failures, pass.found.diags(at)...)
+}
+
+// resolution is one resolver pass over a document: how each reference is
+// resolved, and what the pass has found so far.
+type resolution struct {
+	ctx      context.Context
+	at       func(jsontext.Pointer) ir.Provenance
+	opts     references.ResolveOptions
+	failures []ir.Diagnostic
+	found    reachedFindings
+}
+
+func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+	opts Options, reader *external,
+) *resolution {
 	resolveOpts := references.ResolveOptions{
 		TargetLocation:      path,
 		RootDocument:        doc,
@@ -46,26 +72,31 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 		resolveOpts.VirtualFS = *reader
 		resolveOpts.HTTPClient = *reader
 	}
+	return &resolution{ctx: ctx, at: at, opts: resolveOpts,
+		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}}
+}
 
-	var failures []ir.Diagnostic
-	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
-	site, err := eachReference(soa.Walk(ctx, doc), "reference resolver", func(site jsontext.Pointer, r resolvable) error {
-		var vErrs []error
-		var err error
-		if !r.IsResolved() { // one an earlier $ref's chain resolved is only noted
-			vErrs, err = r.Resolve(ctx, resolveOpts)
-		}
-		t := resolutionTrail(r)
-		found.note(site, t, vErrs)
-		if err != nil {
-			failures = append(failures, failureDiag(at(site), r, t, err))
-		}
-		return nil
-	})
-	if err != nil {
-		failures = append(failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "%s", err.Error()))
+// visit resolves r, the reference written as ref at site, and notes what the
+// resolution found. A reference an earlier $ref's chain resolved is only noted.
+func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.Reference) {
+	var vErrs []error
+	var err error
+	if !r.IsResolved() {
+		vErrs, err = r.Resolve(p.ctx, p.opts)
 	}
-	return append(failures, found.diags(at)...)
+	t := resolutionTrail(r)
+	p.found.note(site, t, vErrs)
+	if err != nil {
+		p.failures = append(p.failures, failureDiag(p.at(site), ref, t, err))
+	}
+}
+
+// fail reports the fault a walk ended on, at the reference it ended at, and
+// nothing for no fault.
+func (p *resolution) fail(site jsontext.Pointer, err error) {
+	if err != nil {
+		p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, p.at(site), "%s", err.Error()))
+	}
 }
 
 // eachReference calls visit with each reference the walk reaches, resolved or
@@ -80,11 +111,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 func eachReference(items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, resolvable) error,
 ) (site jsontext.Pointer, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%s panicked: %v", what, r)
-		}
-	}()
+	defer recovered(&err, what)
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(resolvable)
@@ -102,6 +129,18 @@ func eachReference(items iter.Seq[soa.WalkItem], what string,
 		}
 	}
 	return "", nil
+}
+
+// resolverPanics names the work of the reference resolver in a panic it
+// recovers from.
+const resolverPanics = "reference resolver"
+
+// recovered turns a panic in the deferring function into *err, naming what was
+// running.
+func recovered(err *error, what string) {
+	if r := recover(); r != nil {
+		*err = fmt.Errorf("%s panicked: %v", what, r)
+	}
 }
 
 // reachedFindings holds the findings resolveWith's walk draws until the walk ends, and
@@ -194,17 +233,18 @@ func keyOf(err error, site jsontext.Pointer) findingKey {
 	}
 }
 
-// failureDiag reports that r could not be resolved, quoting it as written, with
-// the resolver's reason. When t got past r and stopped at another reference,
-// that one is quoted too: the reason is about it, and need not fit r, as
-// "external reference not allowed" does not fit a $ref to #/components.
-func failureDiag(site ir.Provenance, r resolvable, t trail, err error) ir.Diagnostic {
+// failureDiag reports that the reference ref could not be resolved, quoting it
+// as written, with the resolver's reason. When t got past it and stopped at
+// another reference, that one is quoted too: the reason is about it, and need
+// not fit ref, as "external reference not allowed" does not fit a $ref to
+// #/components.
+func failureDiag(site ir.Provenance, ref references.Reference, t trail, err error) ir.Diagnostic {
 	if len(t.docs) > 0 && t.stopped != "" {
 		return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q, through %s: %s",
-			string(r.GetReference()), quotedStop(t), err.Error())
+			string(ref), quotedStop(t), err.Error())
 	}
 	return diag.Newf(ir.SeverityError, diag.UnresolvedRef, site, "unresolved $ref %q: %s",
-		string(r.GetReference()), err.Error())
+		string(ref), err.Error())
 }
 
 // findingPlace names the document a finding made along t is in: the last one t

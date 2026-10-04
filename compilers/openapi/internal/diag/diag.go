@@ -35,7 +35,8 @@ const (
 	// ordinary same-document pointers; and load's reach, for a cycle that closes
 	// only through $anchor, $id or $defs-relative resolution. Reach
 	// over-approximates the resolver, so it can refuse a document the resolver
-	// survives.
+	// survives; a $defs reference load holds out of the resolver is exact
+	// (GitHub #557).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
