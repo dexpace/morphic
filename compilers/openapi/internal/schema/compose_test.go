@@ -3518,6 +3518,111 @@ func TestDiscriminatorMapping_NamesWhatAVariantWrittenThereNames(t *testing.T) {
 	}
 }
 
+// TestDiscriminatorMapping_NamesTheVariantNamingThePosition pins a union whose
+// variant is a $ref to the position its mapping names, or to a position on the
+// way there. That $ref hoists an alias at the position, as a $ref to any
+// position does, so the mapping names that alias and not the target past it,
+// which is no variant (GitHub #758). Where no variant names the position, the
+// mapping still reads through it. Each row is compiled with the union first and
+// again last: both must map the tag to the variant's type, which pass.Validate
+// accepts, and build the same registry.
+func TestDiscriminatorMapping_NamesTheVariantNamingThePosition(t *testing.T) {
+	t.Parallel()
+	const (
+		cat    = "    Cat: {type: object, properties: {kind: {type: string}}}\n"
+		catRef = "x-lib:\n  CatRef: {$ref: '#/components/schemas/Cat'}\n"
+	)
+	union := func(branch, discriminator string) string {
+		return "    Pet:\n      oneOf: [{$ref: '" + branch + "'}]\n" +
+			"      discriminator: {propertyName: kind, " + discriminator + "}\n"
+	}
+	tests := []struct {
+		name       string
+		version    string
+		components []string
+		tail       string
+		variant    ir.TypeID // what the variant names, as on main
+		isDefault  bool      // the discriminator's defaultMapping, not its mapping c
+	}{
+		{
+			name:       "an extension's value",
+			components: []string{union("#/x-lib/CatRef", "mapping: {c: '#/x-lib/CatRef'}"), cat},
+			tail:       catRef,
+			variant:    "t/anon/x-lib/CatRef",
+		},
+		{
+			name: "a property",
+			components: []string{union("#/components/schemas/Lib/properties/c",
+				"mapping: {c: '#/components/schemas/Lib/properties/c'}"), cat,
+				"    Lib: {type: object, properties: {c: {$ref: '#/components/schemas/Cat'}}}\n"},
+			variant: "t/anon/components/schemas/Lib/properties/c",
+		},
+		{
+			name: "a $defs entry",
+			components: []string{union("#/$defs/C", "mapping: {c: '#/$defs/C'}") +
+				"      $defs: {C: {$ref: '#/components/schemas/Cat'}}\n", cat},
+			variant: "t/anon/components/schemas/Pet/$defs/C",
+		},
+		{
+			name: "another union's branch",
+			components: []string{union("#/components/schemas/Other/oneOf/0",
+				"mapping: {c: '#/components/schemas/Other/oneOf/0'}"), cat,
+				"    Other: {oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]}\n"},
+			variant: "t/anon/components/schemas/Other/oneOf/0",
+		},
+		{
+			name:       "a 3.2 defaultMapping",
+			version:    "3.2.0",
+			components: []string{union("#/x-lib/CatRef", "defaultMapping: '#/x-lib/CatRef'"), cat},
+			tail:       catRef,
+			variant:    "t/anon/x-lib/CatRef",
+			isDefault:  true,
+		},
+		{
+			name:       "the union's own branch, through to the position its $ref names",
+			components: []string{union("#/x-lib/A", "mapping: {c: '#/components/schemas/Pet/oneOf/0'}"), cat},
+			tail:       "x-lib:\n  A: {$ref: '#/x-lib/B'}\n  B: {$ref: '#/components/schemas/Cat'}\n",
+			variant:    "t/anon/x-lib/A",
+		},
+		{
+			name: "a position no variant names, read through to the variant",
+			components: []string{"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat'}]\n" +
+				"      discriminator: {propertyName: kind, mapping: {c: '#/x-lib/CatRef'}}\n", cat},
+			tail:    catRef,
+			variant: componentID("Cat"),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			version := tc.version
+			if version == "" {
+				version = "3.1.0"
+			}
+			first, diags := parseFull(t, rawSpec(version, tc.components, tc.tail, false))
+			openapitest.RequireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, rawSpec(version, tc.components, tc.tail, true))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, doc := range []*ir.Document{first, last} {
+				pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
+				require.True(t, ok, "Pet is a union")
+				require.Len(t, pet.Variants, 1)
+				require.NotNil(t, pet.Discriminator)
+				assert.Equal(t, tc.variant, pet.Variants[0].Type.Target)
+				got := pet.Discriminator.Mapping["c"]
+				if tc.isDefault {
+					got = pet.Discriminator.Default
+				}
+				assert.Equal(t, pet.Variants[0].Type.Target, got, "the mapping names what the variant names")
+				assert.Empty(t, pass.Validate(doc), "every target is a variant")
+			}
+			assert.Empty(t, cmp.Diff(first.Types, last.Types),
+				"declaring the union before or after what its variant names must not change the registry")
+		})
+	}
+}
+
 // TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics pins that what
 // lowering a mapping target reports reaches the compile's diagnostics, for a
 // mapping entry and a defaultMapping alike. The targets sit under not and if,
