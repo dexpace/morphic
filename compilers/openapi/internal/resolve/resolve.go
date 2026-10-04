@@ -65,6 +65,15 @@ type Scope struct {
 	Holder string
 }
 
+// InSource returns s for reading what the source holds, which is never
+// Foreign. A reference read as internal names a position in the source, and
+// what is written there reads its own references as the source's content
+// does, wherever the reference naming it was written.
+func (s Scope) InSource() Scope {
+	s.Foreign, s.Holder = false, ""
+	return s
+}
+
 // reader returns the reader s reads "#/$defs/..." pointers through.
 func (s Scope) reader() *defs.Reader {
 	if s.Defs != nil {

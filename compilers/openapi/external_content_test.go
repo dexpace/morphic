@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -160,6 +161,77 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Code == "openapi/unresolved-ref" && string(d.Provenance.Pointer) == schema+"/discriminator/mapping/byRef"
 	}), "the URI reference is reported unresolved: %+v", diags)
+}
+
+// sourceNamer is a document whose path item holds a mapping to two positions
+// in root.yaml: an object, and a schema that is only a $ref.
+const sourceNamer = `paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {k: {type: string}}
+                discriminator:
+                  propertyName: k
+                  mapping:
+                    obj: 'root.yaml#/paths/~1b/get/responses/200/content/application~1json/schema'
+                    ref: 'root.yaml#/paths/~1c/get/responses/200/content/application~1json/schema'
+`
+
+// TestExternalContent_ASourcePositionItNamesIsTheSources pins where the scope
+// GitHub #762 gives another document's content ends. A position in the source
+// that such content names is the source's own, so the $refs written there name
+// the source's Thing: the object's property, and the $ref the mapping reads
+// through (GitHub #758). Read as the other document's, each named a position
+// there, and the object's was reported unresolved when the mapping reached it
+// before its own path item did.
+func TestExternalContent_ASourcePositionItNamesIsTheSources(t *testing.T) {
+	t.Parallel()
+	const (
+		obj = "/paths/~1b/get/responses/200/content/application~1json/schema"
+		ref = "/paths/~1c/get/responses/200/content/application~1json/schema"
+	)
+	items := map[string]string{
+		"a": "  /a: {$ref: './ext.yaml#/paths/~1x'}\n",
+		"b": "  /b:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+			"          content: {application/json: {schema: {type: object, properties: {t: {$ref: '#/components/schemas/Thing'}}}}}\n",
+		"c": "  /c:\n    get:\n      responses:\n        \"200\":\n          description: ok\n" +
+			"          content: {application/json: {schema: {$ref: '#/components/schemas/Thing'}}}\n",
+	}
+	orders := [][]string{{"a", "b", "c"}, {"b", "c", "a"}}
+	compiled := make([][]string, 0, len(orders))
+	for _, order := range orders {
+		var paths strings.Builder
+		for _, key := range order {
+			paths.WriteString(items[key])
+		}
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(sourceNamer), 0o600))
+		root := foreignRoot(paths.String())
+		doc, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+		openapitest.RequireNoErrorDiags(t, diags)
+
+		const thing = ir.TypeID("t/openapi/components/schemas/Thing")
+		base, ok := doc.Types[ir.TypeID("t/anon/paths/~1a/get/responses/200/content/application~1json/schema")].(*ir.Model)
+		require.True(t, ok, "%v: the mapping's schema is lowered as a model", order)
+		require.NotNil(t, base.Discriminator)
+		assert.Equal(t, map[string]ir.TypeID{"obj": ir.TypeID("t/anon" + obj), "ref": thing},
+			base.Discriminator.Mapping, order)
+		object, ok := doc.Types[ir.TypeID("t/anon"+obj)].(*ir.Model)
+		require.True(t, ok, "%v: the object is lowered as a model", order)
+		require.Len(t, object.Properties, 1)
+		assert.Equal(t, thing, object.Properties[0].Type.Target, order)
+		compiled = append(compiled, compiledThrough(t, dir, root))
+	}
+	assert.Empty(t, cmp.Diff(compiled[0], compiled[1]), "declaration order decided what the source's positions name")
 }
 
 // TestExternalContent_ARefNamingTheSourceNamesIt pins the other half of

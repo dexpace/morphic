@@ -85,8 +85,8 @@ type Ctx struct {
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
-	// Within). Unexported and set only by Within, which scopes them to the
-	// subtree that copy is threaded through.
+	// Within). Unexported and set only by Within and InSource, which scope them
+	// to the subtree that copy is threaded through.
 	foreign bool
 	holder  string
 
@@ -239,22 +239,28 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	return c.NamingByReference()
 }
 
-// Within returns c for lowering what the entry ref resolves to: c itself, or a
-// copy marked Foreign when another document holds it (resolve.HeldElsewhere).
+// Within returns c for lowering what the entry ref resolves to, in the scope
+// resolve.ScopeOf reads it in: Foreign when another document holds it,
+// InSource when its chain ends in the source, and c itself for an inline entry.
 //
-// A URI reference in that content is read against that document, so the
-// copy's RefScope reads one as internal only when it names the source. Read as
-// the source's, `#/...` resolved to whatever the source declared at the same
-// pointer, when that had lowered first (GitHub #762). A name, such as a
-// component's in a mapping, still names the entry document's, as the
-// specification recommends for such implicit connections.
+// A URI reference in another document's content is read against that
+// document. Read as the source's, `#/...` resolved to whatever the source
+// declared at the same pointer, when that had lowered first (GitHub #762). A
+// name, such as a component's in a mapping, still names the entry document's,
+// as the specification recommends for such implicit connections.
 func Within[T, S any, R interface {
 	*S
 	resolve.Referenced[T, S]
 }](c Ctx, ref R) Ctx {
-	if holder, elsewhere := resolve.HeldElsewhere[T, S](c.RefScope(), ref); elsewhere {
-		c.foreign, c.holder = true, holder
-	}
+	scope := resolve.ScopeOf[T, S](c.RefScope(), ref)
+	c.foreign, c.holder = scope.Foreign, scope.Holder
+	return c
+}
+
+// InSource returns c for lowering what the source holds at a position a
+// reference names: a copy no longer Foreign (resolve.Scope.InSource).
+func (c Ctx) InSource() Ctx {
+	c.foreign, c.holder = false, ""
 	return c
 }
 

@@ -84,7 +84,9 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
-		cand = target
+		// The next hop is written at target, which is the source's own content
+		// even when this one was written in another document's.
+		cand, scope = target, scope.InSource()
 		// obj != nil means the whole chain resolved, so info.Object is non-nil
 		// at every hop this loop takes; a nil one would still be safe, since
 		// the getters above are nil-receiver tolerant and end the walk.
@@ -93,16 +95,15 @@ func ObjectAt[T, S any, R interface {
 	return obj, pointer
 }
 
-// HeldElsewhere reports whether the entry ref resolves to an object a document
-// other than scope's holds, and the path the resolver read that document by:
-// the last hop of its chain resolved against another document. What is lowered
-// from that object is read in that document's scope, not this one's (see
-// Scope.Foreign). An inline entry, a chain that comes back into this document,
-// and one that resolved nothing are held here.
-func HeldElsewhere[T, S any, R interface {
+// ScopeOf returns the scope what the entry ref resolves to is read in, which is
+// where the last hop of its chain found it: the source's own (Scope.InSource)
+// when that is the source, and otherwise a Foreign scope over the document the
+// resolver read it by. An inline entry, and one that resolved nothing, are read
+// in scope itself.
+func ScopeOf[T, S any, R interface {
 	*S
 	Referenced[T, S]
-}](scope Scope, ref R) (holder string, elsewhere bool) {
+}](scope Scope, ref R) Scope {
 	var last *references.ResolveResult[S]
 	for range maxRefChain {
 		info := ref.GetReferenceResolutionInfo()
@@ -111,8 +112,13 @@ func HeldElsewhere[T, S any, R interface {
 		}
 		last, ref = info, R(info.Object)
 	}
-	if last == nil || last.ResolvedDocument == any(scope.Doc) {
-		return "", false
+	switch {
+	case last == nil:
+		return scope
+	case last.ResolvedDocument == any(scope.Doc):
+		return scope.InSource()
+	default:
+		scope.Foreign, scope.Holder = true, last.AbsoluteDocumentPath
+		return scope
 	}
-	return last.AbsoluteDocumentPath, true
 }

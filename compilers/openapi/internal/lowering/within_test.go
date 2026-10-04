@@ -17,19 +17,21 @@ import (
 
 // TestWithin pins the copy Within returns for lowering what an entry names:
 // when another document holds it, a scope marked Foreign that reads each
-// reference against that document, so only one naming the source is internal,
-// and c as it was otherwise. A copy already Foreign stays so for an entry
-// written inline in that content.
+// reference against that document, so only one naming the source is internal.
+// A copy already Foreign stays so for an entry written inline in that content,
+// and is the source's again for one whose chain ends in the source.
 func TestWithin(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
-		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
+		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"+
+			"  /back: {$ref: 'root.yaml#/paths/~1inline'}\n"), 0o600))
 	const root = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /inline: {get: {responses: {"200": {description: ok}}}}
   /ext: {$ref: './ext.yaml#/paths/~1x'}
+  /back: {$ref: './ext.yaml#/paths/~1back'}
 `
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
@@ -52,4 +54,9 @@ paths:
 	_, internal = scope.InternalPointer("root.yaml#/paths/~1inline")
 	assert.True(t, internal, "the source's file name, read beside ext.yaml, names the source")
 	assert.True(t, lowering.Within[soa.PathItem](foreign, inline).RefScope().Foreign, "content within stays foreign")
+	back, ok := doc.Doc.Paths.Get("/back")
+	require.True(t, ok)
+	home := lowering.Within[soa.PathItem](foreign, back).RefScope()
+	assert.False(t, home.Foreign, "what the source holds is read as the source's")
+	assert.Empty(t, home.Holder)
 }

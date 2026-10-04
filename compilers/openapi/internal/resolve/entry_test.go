@@ -1,6 +1,7 @@
 package resolve_test
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -307,7 +308,8 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 
 // elsewhereRoot is a source whose path items are reached each way an entry can
 // be: written inline, by an internal $ref, by a $ref into ext.yaml, by one into
-// ext.yaml that comes back into the source, and by one naming nothing.
+// ext.yaml that comes back into the source, once directly and once through a
+// further alias there, and by one naming nothing.
 const elsewhereRoot = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -315,37 +317,70 @@ paths:
   /internal: {$ref: '#/components/pathItems/P'}
   /ext: {$ref: './ext.yaml#/paths/~1x'}
   /back: {$ref: './ext.yaml#/paths/~1back'}
+  /hop: {$ref: './ext.yaml#/paths/~1hop'}
   /missing: {$ref: '#/components/pathItems/Nope'}
 components:
   pathItems:
     P: {get: {responses: {"200": {description: ok}}}}
+    Q: {$ref: '#/components/pathItems/P'}
 `
 
-// TestHeldElsewhere pins which entries another document holds, and the path
-// it was read by: one whose chain ends in another document's object. One
-// written here, one an internal $ref names, one that comes back into the
-// source and one that resolved nothing are held by the source.
-func TestHeldElsewhere(t *testing.T) {
-	t.Parallel()
+// loadElsewhere loads elsewhereRoot beside the ext.yaml its entries name, and
+// returns it with that file's path.
+func loadElsewhere(t *testing.T) (*load.Document, string) {
+	t.Helper()
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`paths:
+	ext := filepath.Join(dir, "ext.yaml")
+	require.NoError(t, os.WriteFile(ext, []byte(`paths:
   /x: {get: {responses: {"200": {description: ok}}}}
   /back: {$ref: 'root.yaml#/components/pathItems/P'}
+  /hop: {$ref: 'root.yaml#/components/pathItems/Q'}
 `), 0o600))
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(elsewhereRoot)}, load.Options{AllowExternalRefs: true})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	scope := resolve.Scope{Doc: doc.Doc}
+	return doc, ext
+}
 
-	ext := filepath.Join(dir, "ext.yaml")
+// TestScopeOf pins the scope each entry's object is read in, given a Foreign
+// scope over another document, which tells every answer apart. One whose chain
+// ends in ext.yaml is read there. One whose chain ends in the source, however
+// it got there, is read as the source's. One written inline, and one that
+// resolved nothing, keep the scope given.
+func TestScopeOf(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	given := resolve.Scope{Doc: doc.Doc, Foreign: true, Holder: "other.yaml"}
+
 	for path, want := range map[string]string{
-		"/inline": "", "/internal": "", "/ext": ext, "/back": "", "/missing": "",
+		"/inline": "other.yaml", "/internal": "", "/ext": ext, "/back": "", "/hop": "", "/missing": "other.yaml",
 	} {
 		rp, ok := doc.Doc.Paths.Get(path)
 		require.True(t, ok, path)
-		holder, elsewhere := resolve.HeldElsewhere[soa.PathItem](scope, rp)
-		assert.Equal(t, want, holder, path)
-		assert.Equal(t, want != "", elsewhere, path)
+		scope := resolve.ScopeOf[soa.PathItem](given, rp)
+		assert.Equal(t, want, scope.Holder, path)
+		assert.Equal(t, want != "", scope.Foreign, path)
+		assert.Same(t, doc.Doc, scope.Doc, path)
 	}
+}
+
+// TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins the scope ObjectAt
+// reads each hop in. The entry is ext.yaml's, read where ext.yaml sits: its
+// $ref names the source's Q, a $ref written in the source, so the next hop
+// reads `#/...` as the source's and reaches P. Read as ext.yaml's, it named a
+// position there, and the walk fell back to the use site.
+func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	rp, ok := doc.Doc.Paths.Get("/hop")
+	require.True(t, ok)
+	info := rp.GetReferenceResolutionInfo()
+	require.NotNil(t, info)
+	require.NotNil(t, info.Object, "the source's entry resolved to ext.yaml's")
+
+	scope := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: ext}
+	obj, pointer := resolve.ObjectAt[soa.PathItem](scope, info.Object, "/use")
+	require.NotNil(t, obj)
+	assert.Equal(t, jsontext.Pointer("/components/pathItems/P"), pointer)
 }
