@@ -151,14 +151,21 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	ref := js.GetRef().String()
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
-		why := ""
-		if c.RefScope().NamesHolder(ref) {
-			why = ": it names a position in the other document holding it, which is not lowered"
-		}
 		return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-			"unresolved $ref %q%s", ref, why))
+			"unresolved $ref %q%s", ref, namesHolderWhy(c, ref)))
 	}
 	return ir.TypeRef{Target: id, Nullable: refNullable(js)}, diags
+}
+
+// namesHolderWhy is the reason an unresolved reference reports when, in another
+// document's content, it names a position in that document (GitHub #762), and
+// empty for any other. The position may well exist there, so without it the
+// report reads as though the reference named nothing.
+func namesHolderWhy(c lowering.Ctx, ref string) string {
+	if c.RefScope().NamesHolder(ref) {
+		return ": it names a position in the other document holding it, which is not lowered"
+	}
+	return ""
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never

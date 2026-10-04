@@ -4,9 +4,9 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -47,7 +47,10 @@ components:
           schema:
             type: object
             properties: {k: {type: string}}
-            discriminator: {propertyName: k, mapping: {byName: Thing, byRef: '#/components/schemas/Thing'}}
+            discriminator:
+              propertyName: k
+              mapping: {byName: Thing, byRef: '#/components/schemas/Thing'}
+              defaultMapping: '#/components/schemas/Thing'
   parameters:
     P: {name: p, in: query, schema: {$ref: '#/components/schemas/Thing'}}
   headers:
@@ -138,10 +141,10 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 
 // TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
 // GitHub #762 draws inside another document's content. A mapping value that is
-// a pointer names a position in that document, so it is unresolved, as such a
-// $ref is. One that is a component's name is an implicit connection, which the
-// specification recommends resolving against the entry document, so it names
-// the source's component.
+// a pointer names a position in that document, so it is unresolved, and says
+// why, as such a $ref does. One that is a component's name is an implicit
+// connection, which the specification recommends resolving against the entry
+// document, so it names the source's component.
 func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -158,9 +161,14 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	require.True(t, ok, "the response's schema is lowered as a model")
 	require.NotNil(t, model.Discriminator)
 	assert.Equal(t, map[string]ir.TypeID{"byName": "t/openapi/components/schemas/Thing"}, model.Discriminator.Mapping)
-	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == "openapi/unresolved-ref" && string(d.Provenance.Pointer) == schema+"/discriminator/mapping/byRef"
-	}), "the URI reference is reported unresolved: %+v", diags)
+	const why = `"#/components/schemas/Thing": it names a position in the other document holding it, which is not lowered`
+	for at, message := range map[string]string{
+		"/mapping/byRef":  `discriminator mapping "byRef" references unresolved schema ` + why,
+		"/defaultMapping": "discriminator defaultMapping references unresolved schema " + why,
+	} {
+		assert.Contains(t, diags, ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
+			Message: message, Provenance: ir.Provenance{Pointer: jsontext.Pointer(schema + "/discriminator" + at)}})
+	}
 }
 
 // sourceNamer is a document whose path item holds a mapping to two positions

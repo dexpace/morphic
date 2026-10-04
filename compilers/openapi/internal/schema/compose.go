@@ -1129,7 +1129,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
-				"discriminator mapping %q references unresolved schema %q", tag, target))
+				"discriminator mapping %q references unresolved schema %q%s", tag, target, namesHolderWhy(c, target)))
 			continue
 		}
 		out[tag] = id
@@ -1152,7 +1152,7 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q", dm))
+			"discriminator defaultMapping references unresolved schema %q%s", dm, namesHolderWhy(c, dm)))
 	}
 	return id, diags
 }
