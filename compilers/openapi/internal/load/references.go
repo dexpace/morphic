@@ -121,20 +121,12 @@ func (p *resolution) fail(site jsontext.Pointer, err error) {
 func eachReference(items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, resolvable) error,
 ) (jsontext.Pointer, error) {
-	return eachResolvable(items, what, func(site jsontext.Pointer, r resolvable) error {
+	return eachModel(items, what, func(site jsontext.Pointer, r resolvable) error {
 		if !r.IsReference() {
 			return nil
 		}
 		return visit(site, r)
 	})
-}
-
-// eachResolvable calls visit with each model the walk reaches that a reference
-// can name or be, and the pointer that names it.
-func eachResolvable(items iter.Seq[soa.WalkItem], what string,
-	visit func(jsontext.Pointer, resolvable) error,
-) (jsontext.Pointer, error) {
-	return eachModel(items, what, visit)
 }
 
 // eachModel calls visit with each model of kind T the walk reaches, and the

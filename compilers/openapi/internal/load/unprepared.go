@@ -168,12 +168,17 @@ func (r *externalReads) mend(c chain, doc *soa.OpenAPI) bool {
 // settled returns what a record whose hop read path and resolved against
 // document should say instead, or nil when it says it already.
 func (r *externalReads) settled(document any, path string, doc *soa.OpenAPI) any {
-	tree, isTree := document.(*yaml.Node)
-	if data, isBytes := document.([]byte); isBytes {
-		tree, isTree = r.treeFor(path, data), true
+	var tree *yaml.Node
+	switch d := document.(type) {
+	case *yaml.Node:
+		tree = d
+	case []byte:
+		tree = r.treeFor(path, d)
+	default:
+		return nil
 	}
 	switch {
-	case !isTree || tree == nil:
+	case tree == nil:
 		return nil
 	case tree == r.self.root:
 		return doc
@@ -474,12 +479,8 @@ func recordsOf[S any, R interface {
 		if info == nil {
 			break
 		}
-		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			document: &info.ResolvedDocument, reached: info.Object != nil}
-		if r.reached {
-			r.object, r.walk = info.Object, walkOf(info.Object)
-		}
-		if !r.reached {
+		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference, document: &info.ResolvedDocument}
+		if info.Object == nil {
 			c.records = append(c.records, r)
 			break
 		}
@@ -487,6 +488,7 @@ func recordsOf[S any, R interface {
 			c.cut = true
 			return c
 		}
+		r.object, r.walk, r.reached = info.Object, walkOf(info.Object), true
 		c.records = append(c.records, r)
 		hop = info.Object
 	}

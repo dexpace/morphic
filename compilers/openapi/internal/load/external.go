@@ -88,7 +88,7 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 		e.doc.StoreExternalDocumentInCache(key, e.read.self.root)
 		e.doc.StoreReferenceDocumentInCache(key, e.read.self.data)
 	}
-	if _, err := eachResolvable(items, "source", func(site jsontext.Pointer, r resolvable) error {
+	if _, err := eachModel(items, "source", func(site jsontext.Pointer, r resolvable) error {
 		for _, key := range keys {
 			e.doc.StoreReferencedObjectInCache(key+"#"+string(site), r)
 		}
@@ -107,7 +107,10 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
 	vErrs []error, err error,
 ) ([]error, error) {
-	for i := 0; err != nil && i < maxResolutionHops && e.read.mend(resolutionChain(r), e.doc); i++ {
+	for range maxResolutionHops {
+		if err == nil || !e.read.mend(resolutionChain(r), e.doc) {
+			break
+		}
 		more, again := r.Resolve(ctx, opts)
 		vErrs, err = append(vErrs, more...), again
 	}
