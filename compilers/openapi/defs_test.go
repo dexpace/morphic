@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -64,8 +65,8 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diagsReversed)
 
 	for _, doc := range []*ir.Document{docForward, docReversed} {
-		assertOwnDefsProperty(t, doc, "A", "p", "x")
-		assertOwnDefsProperty(t, doc, "B", "q", "y")
+		assertOwnDefsProperty(t, doc, componentID("A"), ids.Ptr("components", "schemas", "A"), "p", "n", "x")
+		assertOwnDefsProperty(t, doc, componentID("B"), ids.Ptr("components", "schemas", "B"), "q", "n", "y")
 	}
 
 	if d := cmp.Diff(docForward.Types, docReversed.Types); d != "" {
@@ -73,27 +74,62 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 	}
 }
 
-// assertOwnDefsProperty requires that the named component's own property (by
-// wire name) resolves directly to a Model interned at that SAME component's
-// own "$defs/n" position, carrying wantProp — proof the reference landed on
-// the schema's own definition rather than a sibling's (GitHub #557). A model
-// property is a CarriedRef position, so a bare $ref (no siblings, as every
-// property here is) resolves directly to the target with no alias in between.
-func assertOwnDefsProperty(t *testing.T, doc *ir.Document, component, prop, wantProp string) {
+// assertOwnDefsProperty requires that the owner's own property (by wire name)
+// resolves directly to a Model interned at that SAME schema's own "$defs/<def>"
+// position, carrying wantProp — proof the reference landed on the schema's own
+// definition rather than a sibling's (GitHub #557). A model property is a
+// CarriedRef position, so a bare $ref (no siblings, as every property here is)
+// resolves directly to the target with no alias in between.
+func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, prop, def, wantProp string) {
 	t.Helper()
-	m, ok := doc.Types[componentID(component)].(*ir.Model)
-	require.True(t, ok, "%s owns a Model node", component)
+	m, ok := doc.Types[owner].(*ir.Model)
+	require.True(t, ok, "%s is a Model", owner)
 	p, ok := propByWire(m, prop)
-	require.True(t, ok, "%s declares property %q", component, prop)
+	require.True(t, ok, "%s declares property %q", owner, prop)
 
-	wantID := ids.ForPointer(ids.Ptr("components", "schemas", component, "$defs", "n"))
+	wantID := ids.ForPointer(ownerPointer + ids.Ptr("$defs", def))
 	require.Equal(t, wantID, p.Type.Target,
-		"%s.%s must resolve to %s's own $defs/n, not a sibling's", component, prop, component)
+		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, prop, def)
 
 	target, ok := doc.Types[p.Type.Target].(*ir.Model)
 	require.True(t, ok, "the definition itself is a Model")
 	_, ok = propByWire(target, wantProp)
-	assert.True(t, ok, "%s's own definition declares %q; got %+v", component, wantProp, target.Properties)
+	assert.True(t, ok, "%s's own definition declares %q; got %+v", owner, wantProp, target.Properties)
+}
+
+// TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema is the regression for
+// GitHub #557 outside components: two operations that each $ref their own
+// "#/$defs/n", a path and a definition key the pointer must escape and the
+// fragment encode, and a component whose own $defs are read when a callback
+// reaches it through another $ref. Each lowers at the pointer that names it.
+func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, string(readReproducer(t, "defs_in_operations")))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	response := func(path, media string) jsontext.Pointer {
+		return ids.Ptr("paths", path, "get", "responses", "200", "content", media, "schema")
+	}
+	tests := []struct {
+		name            string
+		owner           ir.TypeID
+		at              jsontext.Pointer
+		prop, def, want string
+	}{
+		{"an operation", "", response("/a", "application/json"), "p", "n", "x"},
+		{"another with the same definition name", "", response("/b/{id}", "application/json"), "q", "n", "y"},
+		{"keys that need escaping", "", response("/a~b/{x y}/ü%41+1", "application/vnd.api+json"), "r", "a/b", "z"},
+		{"reached through a callback", componentID("Wrapper"), ids.Ptr("components", "schemas", "Wrapper"), "inner", "w", "v"},
+	}
+	for _, tc := range tests {
+		owner := tc.owner
+		if owner == "" {
+			owner = ids.ForPointer(tc.at)
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			assertOwnDefsProperty(t, doc, owner, tc.at, tc.prop, tc.def, tc.want)
+		})
+	}
 }
 
 // defsNullabilityAndDescriptionSpec has two sibling components that each $ref

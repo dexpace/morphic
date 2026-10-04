@@ -615,14 +615,24 @@ func referencePairs(t *testing.T, doc *soa.OpenAPI) map[string]bool {
 	return out
 }
 
+// resolvesBeyondTheLibrary names, for a corpus file, the references resolveWith
+// resolves and the library's own walk does not: a "#/$defs/..." reference whose
+// definition the library's lookup cannot place, as when a callback reaches the
+// schema holding it through another $ref (GitHub #557). Each is held to the
+// compiler's own rule, which finds it. The test requires the library to fail on
+// each, so an entry that stops being true is reported rather than kept.
+var resolvesBeyondTheLibrary = map[string][]string{
+	"defs_in_operations.yaml": {"/components/schemas/Wrapper/properties/inner"},
+}
+
 // TestResolve_ResolvesWhatTheLibraryResolves is a drift test: resolveWith must
 // resolve exactly the references ResolveAllReferences does, over every corpus
-// fixture. The library names a Matcher field per kind and resolveWith matches
-// Any, so a kind the library adds later must still agree here.
+// fixture, except those in resolvesBeyondTheLibrary. The library names a
+// Matcher field per kind and resolveWith matches Any, so a kind the library
+// adds later must still agree here.
 //
-// External references are off on both sides. The library's default reads the
-// real file system where resolveWith's Options{} refuses, a difference in I/O
-// policy rather than in which references either walk reaches. A fixture build
+// External references are off on both sides: the library's default reads the
+// real file system where resolveWith's Options{} refuses. A fixture the build
 // refuses before resolving, by the pre-parse refusals or the chain-cycle check,
 // is skipped: the resolver has no guard of its own against those cycles.
 func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
@@ -665,6 +675,10 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 			OpenAPILocation: path, DisableExternalRefs: true,
 		})
 		want := referencePairs(t, doc1)
+		for _, pointer := range resolvesBeyondTheLibrary[filepath.Base(path)] {
+			require.False(t, want[pointer], "%s: the library now resolves %s; drop its entry", path, pointer)
+			want[pointer] = true
+		}
 
 		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, path, Options{}, nil)
 		got := referencePairs(t, doc2)
