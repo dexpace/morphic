@@ -83,6 +83,8 @@ func (m *mappings) see(site jsontext.Pointer, model any) {
 		m.collect(site, v)
 	case resolvable:
 		m.model[v] = true
+	default:
+		// Any other kind of model holds no mapping and resolves nothing.
 	}
 }
 
