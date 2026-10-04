@@ -2,9 +2,10 @@ package load
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json/jsontext"
 	"errors"
+	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -178,7 +179,7 @@ func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 	sourceRoot, otherTree := &yaml.Node{Kind: yaml.DocumentNode}, &yaml.Node{Kind: yaml.DocumentNode}
 	sourceBytes, otherBytes := []byte("openapi: 3.1.0\n"), []byte("components: {}\n")
 	read := newExternalReads(sourceDocument{path: "root.yaml", data: sourceBytes, root: sourceRoot})
-	read.recordTree("other.yaml", otherTree, sha256.Sum256(otherBytes))
+	read.recordTree("other.yaml", otherTree, otherBytes)
 
 	for _, c := range []struct {
 		name    string
@@ -201,70 +202,82 @@ func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 	}
 }
 
-// TestTreeFor pins which tree a document's bytes are taken to be. The path a
-// record names is asked first, since two documents can be read from the same
-// bytes, then the digest alone, which a record naming its document by $id
-// needs. Two trees from one digest, with neither under the path, are no
-// answer. The answer is kept for the same path and bytes, but not for none,
-// which every empty document shares.
+// TestTreeFor pins which tree a document's bytes are taken to be. The key the
+// record's path names is asked first, a URL's as the request built from it
+// spells it, since two documents can be read from the same bytes. Then the
+// digest alone, which a record naming its document by $id needs: it names the
+// first tree prepared from those bytes, whichever key or pass prepared another
+// since, as any of them holds what the bytes do. The last answer for each path
+// is kept for the same bytes, but not for none, which every empty document
+// shares.
 func TestTreeFor(t *testing.T) {
 	t.Parallel()
 	data := []byte("same bytes")
-	sum := sha256.Sum256(data)
 	a, b := &yaml.Node{}, &yaml.Node{}
 
 	t.Run("by digest", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, sum)
+		r.recordTree("a.yaml", a, data)
 		assert.Same(t, a, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)))
 	})
 	t.Run("by digest, once its document is prepared again", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, sum)
-		r.recordTree("a.yaml", b, sum)
-		assert.Same(t, b, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)),
-			"one document prepared twice is not two sharing a digest")
-		r.recordTree("c.yaml", a, sum)
-		r.recordTree("d.yaml", b, sum)
-		assert.Nil(t, r.treeFor("https://example.com/other.yaml", slices.Clone(data)),
-			"once two documents share the digest, a third does not make it name one")
+		r.recordTree("a.yaml", a, data)
+		r.recordTree("a.yaml", b, data)
+		r.recordTree("c.yaml", b, data)
+		assert.Same(t, a, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)),
+			"neither a second pass nor a second key leaves the bytes naming no tree")
 	})
 	t.Run("by path, when the digest is shared", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, sum)
-		r.recordTree("b.yaml", b, sum)
+		r.recordTree("a.yaml", a, data)
+		r.recordTree("b.yaml", b, data)
 		assert.Same(t, a, r.treeFor("a.yaml", slices.Clone(data)))
 		assert.Same(t, b, r.treeFor("b.yaml", slices.Clone(data)))
-		assert.Nil(t, r.treeFor("c.yaml", slices.Clone(data)), "two trees share the digest and neither is c.yaml's")
+		assert.Same(t, a, r.treeFor("c.yaml", slices.Clone(data)), "a path nothing was prepared under goes by digest")
+	})
+	t.Run("by the key a respelled URL was prepared under", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{})
+		r.recordTree("http://host/a.yaml", a, data)
+		r.recordTree("http://host/b.yaml", b, data)
+		assert.Same(t, b, r.treeFor("HTTP://host/b.yaml", slices.Clone(data)),
+			"the resolver's spelling names the tree its request's spelling was prepared under")
 	})
 	t.Run("not by a path whose bytes were others", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, sum)
-		r.recordTree("b.yaml", b, sha256.Sum256([]byte("other bytes")))
+		r.recordTree("a.yaml", a, data)
+		r.recordTree("b.yaml", b, []byte("other bytes"))
 		assert.Same(t, a, r.treeFor("b.yaml", slices.Clone(data)))
+		r.recordTree("c.yaml", b, []byte("sane bytes"))
+		assert.Same(t, a, r.treeFor("c.yaml", slices.Clone(data)), "bytes of the same length are compared too")
 	})
 	t.Run("memoized for the same bytes", func(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, sum)
+		r.recordTree("a.yaml", a, data)
 		cached := slices.Clone(data)
 		require.Same(t, a, r.treeFor("a.yaml", cached))
-		r.recordTree("a.yaml", b, sum)
-		assert.Same(t, a, r.treeFor("a.yaml", cached), "the bytes asked about before keep their answer")
-		assert.Same(t, b, r.treeFor("a.yaml", slices.Clone(data)), "other bytes are looked up afresh")
-		r.recordTree("c.yaml", b, sum)
-		assert.Same(t, b, r.treeFor("c.yaml", cached), "so are the same bytes under another path")
+		r.recordTree("a.yaml", b, data)
+		assert.Same(t, a, r.treeFor("a.yaml", cached), "the bytes asked about last keep their answer")
+		r.recordTree("c.yaml", b, data)
+		assert.Same(t, b, r.treeFor("c.yaml", cached), "the same bytes under another path are looked up afresh")
+		assert.Same(t, b, r.treeFor("a.yaml", slices.Clone(data)), "so are other bytes")
+		assert.Same(t, b, r.treeFor("a.yaml", cached), "and only each path's last answer is kept")
+		for range 8 {
+			r.treeFor("a.yaml", slices.Clone(data))
+		}
+		assert.Len(t, r.mended, 2, "one answer a path, so no copy of the bytes is held past the next")
 	})
 	t.Run("not memoized for none", func(t *testing.T) {
 		t.Parallel()
-		empty := sha256.Sum256(nil)
 		r := newExternalReads(sourceDocument{})
-		r.recordTree("a.yaml", a, empty)
-		r.recordTree("b.yaml", b, empty)
+		r.recordTree("a.yaml", a, nil)
+		r.recordTree("b.yaml", b, nil)
 		assert.Same(t, a, r.treeFor("a.yaml", nil))
 		assert.Same(t, b, r.treeFor("b.yaml", []byte{}), "an empty document's answer is its own path's")
 	})
@@ -314,4 +327,82 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 	assert.Zero(t, resumed, "nothing a mend could change, so nothing to resume")
 	require.ErrorIs(t, err, failed)
 	assert.Equal(t, []error{assert.AnError}, vErrs)
+}
+
+// byID is a document whose root declares $id, so each record of a hop into it
+// names it by the $id, and only its bytes say which tree it is.
+const byID = `$id: 'https://example.com/schemas/by-id.yaml'
+components:
+  schemas:
+    Base: {type: object}
+    Alias: {$ref: '#/components/schemas/Base'}
+`
+
+// TestSettle_AChainResolvesUnderEitherSpellingOfItsDocument pins GitHub #761 on
+// a document read under two keys: once by its absolute path, once relative to a
+// source named by a relative path. Each key prepares a tree of its own from the
+// same bytes, so the digest the record is found by names two trees. Written
+// with the absolute spelling first, the order that failed, and reversed, the
+// chain must resolve, with nothing reported.
+func TestSettle_AChainResolvesUnderEitherSpellingOfItsDocument(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"by-id.yaml": byID})
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	source, err := filepath.Rel(cwd, filepath.Join(dir, "root.yaml"))
+	require.NoError(t, err)
+	absolute := "    First: {$ref: '" + filepath.Join(dir, "by-id.yaml") + "#/components/schemas/Base'}\n"
+	relative := "    Base: {$ref: './by-id.yaml#/components/schemas/Base'}\n" +
+		"    Alias: {$ref: './by-id.yaml#/components/schemas/Alias'}\n"
+
+	for _, spec := range []string{rootOfSchemas(absolute, relative), rootOfSchemas(relative, absolute)} {
+		doc, diags, err := resolveSpec(t, spec, source)
+		require.NoError(t, err)
+		assert.Empty(t, diags, spec)
+		alias, ok := doc.Components.Schemas.Get("Alias")
+		require.True(t, ok)
+		assert.NotEmpty(t, resolutionTrail(alias).target, "Alias's chain ends on an object: %s", spec)
+	}
+}
+
+// TestSettle_AChainResolvesInDocumentsOfTheSameBytes pins GitHub #761 on two
+// documents served with the same bytes, each reached by a URL its request
+// respells. Each chain must resolve, with nothing reported, and each record
+// must hold the tree prepared under the key of its own document: the
+// resolver's spelling read as the request built from it reads it, not the
+// tree the shared digest names. It holds in a second resolution too, which a
+// respelled anchored document forces.
+func TestSettle_AChainResolvesInDocumentsOfTheSameBytes(t *testing.T) {
+	t.Parallel()
+	const shared = "components:\n  schemas:\n    Base: {type: object}\n" +
+		"    Alias: {$ref: '#/components/schemas/Base'}\n"
+	srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(shared))
+		assert.NoError(t, err)
+	})
+	trigger, _ := countingServer(t, anchoredExternalDoc)
+	url := respelled(srv.URL, "HTTP")
+	schemas := "components:\n  schemas:\n" +
+		"    BaseA: {$ref: '" + url + "/a.yaml#/components/schemas/Base'}\n" +
+		"    AliasA: {$ref: '" + url + "/a.yaml#/components/schemas/Alias'}\n" +
+		"    BaseB: {$ref: '" + url + "/b.yaml#/components/schemas/Base'}\n" +
+		"    AliasB: {$ref: '" + url + "/b.yaml#/components/schemas/Alias'}\n"
+
+	for _, paths := range []string{"paths: {}\n",
+		"paths:\n  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n"} {
+		doc, diags, err := resolveSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+paths+schemas, "root.yaml")
+		require.NoError(t, err)
+		assert.Empty(t, diags, paths)
+		for name, file := range map[string]string{"AliasA": "/a.yaml", "AliasB": "/b.yaml"} {
+			alias, ok := doc.Components.Schemas.Get(name)
+			require.True(t, ok)
+			c := resolutionChain(alias)
+			assert.NotEmpty(t, c.trail().target, "%s's chain ends on an object: %s", name, paths)
+			own, ok := doc.GetCachedExternalDocument(srv.URL + file)
+			require.True(t, ok)
+			for _, rec := range c.records {
+				assert.Same(t, own, *rec.document, "%s's records hold its own document's tree: %s", name, paths)
+			}
+		}
+	}
 }

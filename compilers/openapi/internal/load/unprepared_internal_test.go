@@ -1197,7 +1197,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("/tmp/doc.yaml", tree, digest{})
+		r.recordTree("/tmp/doc.yaml", tree, nil)
 
 		got, ok := r.preparedFor("/tmp/doc.yaml")
 
@@ -1209,7 +1209,7 @@ func TestPreparedFor(t *testing.T) {
 		t.Parallel()
 		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("dir/with space/doc.yaml", tree, digest{})
+		r.recordTree("dir/with space/doc.yaml", tree, nil)
 
 		got, ok := r.preparedFor("dir/with space/doc.yaml")
 
@@ -1224,7 +1224,7 @@ func TestPreparedFor(t *testing.T) {
 		// The spelling external.Do actually stores under: the request's own URL.
 		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
 		require.NoError(t, err)
-		r.recordTree(req.URL.String(), tree, digest{})
+		r.recordTree(req.URL.String(), tree, nil)
 
 		// The resolver's own, unnormalized key.
 		got, ok := r.preparedFor("HTTP://host/doc.yaml")
@@ -1238,7 +1238,7 @@ func TestPreparedFor(t *testing.T) {
 		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// http.NewRequest drops the empty port, so external.Do stores it without one.
-		r.recordTree("http://host/doc.yaml", tree, digest{})
+		r.recordTree("http://host/doc.yaml", tree, nil)
 
 		got, ok := r.preparedFor("http://host:/doc.yaml")
 
@@ -1315,7 +1315,7 @@ func TestUnprepared(t *testing.T) {
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
 		read := newExternalReads(sourceDocument{})
-		read.recordTree("k", tree, digest{}) // the same pointer: ours
+		read.recordTree("k", tree, nil) // the same pointer: ours
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -1388,7 +1388,7 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 			doc := &soa.OpenAPI{}
 			doc.InitCache()
 			for range 100 {
-				r.recordTree(key, tree, digest{})
+				r.recordTree(key, tree, nil)
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)

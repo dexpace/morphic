@@ -124,7 +124,7 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 func (e external) Open(name string) (fs.File, error) {
 	if e.read.self.names(name) {
 		e.doc.StoreExternalDocumentInCache(name, e.read.self.root)
-		e.read.recordTree(name, e.read.self.root, sha256.Sum256(e.read.self.data))
+		e.read.recordTree(name, e.read.self.root, e.read.self.data)
 		return sourceFile{Reader: bytes.NewReader(e.read.self.data)}, nil
 	}
 	if err := e.refusal(name); err != nil {
@@ -217,10 +217,9 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	releaseAnchors(root)
-	sum := sha256.Sum256(data)
 	e.doc.StoreExternalDocumentInCache(key, root)
-	e.read.recordTree(key, root, sum)
-	e.judged.Store(key, sum)
+	e.read.recordTree(key, root, data)
+	e.judged.Store(key, sha256.Sum256(data))
 	return data, nil
 }
 

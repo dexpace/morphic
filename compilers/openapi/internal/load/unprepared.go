@@ -27,11 +27,11 @@ import (
 const maxResolutionHops = 32
 
 // externalReads is what the external-document readers of one compile have
-// read: each prepared document's released tree, by the key it was prepared
-// under and by the digest of its bytes, the set of those trees, and every
-// answer their requests got, by URL and in order. The source is held as a
-// document read already (see sourceDocument). It is safe for concurrent use,
-// as the readers sharing it are.
+// read: each prepared document's released tree and the bytes it came from, by
+// the key it was prepared under, its tree by the digest of those bytes, the set
+// of those trees, and every answer their requests got, by URL and in order. The
+// source is held as a document read already (see sourceDocument). It is safe
+// for concurrent use, as the readers sharing it are.
 type externalReads struct {
 	mu       sync.Mutex
 	self     sourceDocument
@@ -39,25 +39,25 @@ type externalReads struct {
 	mine     map[*yaml.Node]bool
 	answers  map[string][]answer
 	replayed map[string]int
-	// digests holds the digest of the bytes each key's tree was prepared from,
-	// and byDigest the tree for each digest, or nil once two documents' trees
-	// share one (see recordTree).
-	digests  map[string]digest
+	// data holds the bytes each key's tree was prepared from, and byDigest the
+	// first tree prepared from bytes of each digest (see recordTree).
+	data     map[string][]byte
 	byDigest map[digest]*yaml.Node
-	// mended memoizes treeFor by what it was asked, since the resolver hands
-	// the same bytes out once per reference that hits its cache.
-	mended map[treeQuery]*yaml.Node
+	// mended holds treeFor's last answer for each path, since the resolver
+	// hands the bytes it holds for a document to each reference that hits its
+	// cache.
+	mended map[string]treeAnswer
 }
 
 // digest is the SHA-256 of a document's bytes.
 type digest = [sha256.Size]byte
 
-// treeQuery is what treeFor is asked: a path, and bytes by their backing array
+// treeAnswer is the tree treeFor gave for bytes, known by their backing array
 // and length.
-type treeQuery struct {
-	path  string
+type treeAnswer struct {
 	first *byte
 	n     int
+	tree  *yaml.Node
 }
 
 // newExternalReads returns a record holding only self, under each key the
@@ -69,13 +69,12 @@ func newExternalReads(self sourceDocument) *externalReads {
 		mine:     map[*yaml.Node]bool{},
 		answers:  map[string][]answer{},
 		replayed: map[string]int{},
-		digests:  map[string]digest{},
+		data:     map[string][]byte{},
 		byDigest: map[digest]*yaml.Node{},
-		mended:   map[treeQuery]*yaml.Node{},
+		mended:   map[string]treeAnswer{},
 	}
-	sum := sha256.Sum256(self.data)
 	for _, key := range self.keys() {
-		r.recordTree(key, self.root, sum)
+		r.recordTree(key, self.root, self.data)
 	}
 	return r
 }
@@ -119,39 +118,43 @@ func (r *externalReads) nextAnswer(key string) (answer, bool) {
 	return r.answers[key][n], true
 }
 
-// recordTree notes a document prepared under key from bytes of digest sum. A
-// tree from bytes another document's tree came from leaves the digest naming
-// neither. One replacing key's own earlier tree does not: the second
-// resolution prepares each file it reads again, and the digest must still name
-// it, since a document a record names by $id is found by its digest alone.
-func (r *externalReads) recordTree(key string, tree *yaml.Node, sum digest) {
+// recordTree notes a document prepared under key from data. A digest names the
+// first tree prepared from bytes of it: each such tree holds what those bytes
+// do, which is all a record that only its bytes identify needs of one, so one
+// file prepared under two keys, or once in each resolution of GitHub #538, is
+// still found by its bytes. The source is recorded first, so its bytes name its
+// tree, overlay and all: another document named only by the same bytes is
+// taken for it.
+func (r *externalReads) recordTree(key string, tree *yaml.Node, data []byte) {
+	sum := sha256.Sum256(data)
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	answer := tree
-	if held, ok := r.byDigest[sum]; ok && held != tree && (held == nil || held != r.trees[key]) {
-		answer = nil
-	}
 	r.trees[key] = tree
 	r.mine[tree] = true
-	r.digests[key] = sum
-	r.byDigest[sum] = answer
+	r.data[key] = data
+	if _, named := r.byDigest[sum]; !named {
+		r.byDigest[sum] = tree
+	}
 }
 
 // treeFor returns the tree prepared from data, the bytes of the document the
-// resolver keys as path, or nil for none: the tree prepared under path when its
-// bytes were these, else the one tree prepared from them.
+// resolver keys as path, or nil for none (see lookup). Its last answer for each
+// path is kept for the same bytes, since the resolver hands the bytes it holds
+// for a document to each reference that hits its cache. Only the last is kept:
+// the resolver replaces those bytes with a copy each time it reads them for a
+// pointer it has not resolved, and keeping each copy's answer would keep each
+// copy.
 func (r *externalReads) treeFor(path string, data []byte) *yaml.Node {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if len(data) == 0 {
 		return r.lookup(path, data)
 	}
-	query := treeQuery{path: path, first: &data[0], n: len(data)}
-	if tree, ok := r.mended[query]; ok {
-		return tree
+	if last := r.mended[path]; last.first == &data[0] && last.n == len(data) {
+		return last.tree
 	}
 	tree := r.lookup(path, data)
-	r.mended[query] = tree
+	r.mended[path] = treeAnswer{first: &data[0], n: len(data), tree: tree}
 	return tree
 }
 
@@ -195,13 +198,16 @@ func (r *externalReads) settled(document any, path string, doc *soa.OpenAPI) any
 	}
 }
 
-// lookup is treeFor unmemoized. The caller holds the lock.
+// lookup is treeFor unmemoized: the tree prepared under the key path names
+// (see under) when it was prepared from these very bytes, else the first one
+// prepared from bytes of their digest. The bytes are compared, not hashed: a
+// record names the key its bytes were prepared under far more often than not.
+// The caller holds the lock.
 func (r *externalReads) lookup(path string, data []byte) *yaml.Node {
-	sum := sha256.Sum256(data)
-	if held, ok := r.trees[path]; ok && r.digests[path] == sum {
-		return held
+	if key, tree, ok := r.under(path); ok && bytes.Equal(r.data[key], data) {
+		return tree
 	}
-	return r.byDigest[sum]
+	return r.byDigest[sha256.Sum256(data)]
 }
 
 // prepared reports whether tree is one this compile prepared.
@@ -212,21 +218,29 @@ func (r *externalReads) prepared(tree *yaml.Node) bool {
 }
 
 // preparedFor returns the tree prepared for the document the resolver keys as
-// used, or false for none. A file is keyed by the path the resolver opened,
-// which is used itself; a URL by the request built from used, which is what the
-// reader was handed.
+// used, or false for none (see under).
 func (r *externalReads) preparedFor(used string) (*yaml.Node, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	_, tree, ok := r.under(used)
+	return tree, ok
+}
+
+// under returns the key the document the resolver keys as used was prepared
+// under, and its tree, or false for none. A file is keyed by the path the
+// resolver opened, which is used itself; a URL by the request built from used,
+// which is what the reader was handed. The caller holds the lock.
+func (r *externalReads) under(used string) (string, *yaml.Node, bool) {
 	if tree, ok := r.trees[used]; ok {
-		return tree, true
+		return used, tree, true
 	}
 	req, err := http.NewRequest(http.MethodGet, used, nil)
 	if err != nil {
-		return nil, false
+		return "", nil, false
 	}
-	tree, ok := r.trees[req.URL.String()]
-	return tree, ok
+	key := req.URL.String()
+	tree, ok := r.trees[key]
+	return key, tree, ok
 }
 
 // handOver stores every prepared tree where the resolver of doc looks for one:
