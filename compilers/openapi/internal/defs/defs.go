@@ -53,6 +53,8 @@ type Reader struct {
 	// places is what the document holds at each position read from the root so
 	// far.
 	places map[jsontext.Pointer]place
+	// positions is where the containers of doc's tree sit, indexed on first use.
+	positions *positions
 	// reads counts the navigations made of doc.
 	reads int
 }
@@ -128,19 +130,22 @@ func (r *Reader) MappingTarget(d *oas3.Discriminator, pointer jsontext.Pointer) 
 	return r.targetFrom(from, pointer)
 }
 
-// positioned is a parsed object that can say where it sits in a document.
+// positioned is a parsed object that knows the node it was built from.
 type positioned interface {
-	GetJSONPointer(root *yaml.Node) string
+	GetRootNode() *yaml.Node
 }
 
-// positionOf returns the pointer to where obj sits in r's document, or "" when
-// r has no document or obj is not in it. The document itself sits at "" too,
-// and no $defs pointer is read from there.
+// positionOf returns the pointer to where obj sits in r's document, as the
+// library's GetJSONPointer finds it, or "" when r has no document or obj is not
+// in it. The document itself is "/", and no $defs pointer is read from there.
 func (r *Reader) positionOf(obj positioned) jsontext.Pointer {
 	if r.Doc() == nil {
 		return ""
 	}
-	return jsontext.Pointer(obj.GetJSONPointer(r.doc.GetRootNode()))
+	if r.positions == nil {
+		r.positions = indexPositions(r.doc.GetRootNode())
+	}
+	return r.positions.pointerOf(obj.GetRootNode())
 }
 
 // targetFrom reads pointer as written at the position from, which is in the
