@@ -3,7 +3,6 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"iter"
 	"net/http"
@@ -16,7 +15,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,52 +25,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
-
-// reachedFake is a minimal resolvable, for the branches of eachReached and
-// reachedObject a real document cannot drive on its own: no real Referenced*
-// type is ever unresolved-and-external at once with a chosen URI, and none
-// omits GetObjectAny.
-type reachedFake struct {
-	ref        references.Reference
-	isRef      bool
-	isResolved bool
-}
-
-func (f reachedFake) IsReference() bool                  { return f.isRef }
-func (f reachedFake) IsResolved() bool                   { return f.isResolved }
-func (f reachedFake) GetReference() references.Reference { return f.ref }
-func (f reachedFake) Resolve(context.Context, references.ResolveOptions) ([]error, error) {
-	return nil, nil
-}
-
-// reachedFakeWalkItem returns a soa.WalkItem whose Match hands model to whichever of
-// matcher's callbacks a caller supplies, at loc.
-func reachedFakeWalkItem(model any, loc soa.Locations) soa.WalkItem {
-	return soa.WalkItem{
-		Location: loc,
-		Match: func(m soa.Matcher) error {
-			if m.Any == nil {
-				return nil
-			}
-			return m.Any(model)
-		},
-	}
-}
-
-// reachedFakeWalkItems adapts a fixed slice of items to the iter.Seq soa.Walk
-// produces, for a caller that wants to hand eachReached a walk it controls.
-func reachedFakeWalkItems(items ...soa.WalkItem) func(func(soa.WalkItem) bool) {
-	return func(yield func(soa.WalkItem) bool) {
-		for _, it := range items {
-			if !yield(it) {
-				return
-			}
-		}
-	}
-}
-
-// strPtr is a *string literal helper for building soa.Locations by hand.
-func strPtr(s string) *string { return &s }
 
 // externalDir writes files, name to content, into a fresh directory for a root
 // to reach, and returns the directory.
@@ -306,7 +258,7 @@ func TestReachedObject(t *testing.T) {
 
 	t.Run("a resolvable that cannot say what it names names nothing to validate", func(t *testing.T) {
 		t.Parallel()
-		_, _, ok := reachedObject(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"})
+		_, _, ok := reachedObject(fakeResolvable{ref: "other.yaml#/x", resolved: true})
 		assert.False(t, ok)
 	})
 }
@@ -474,83 +426,6 @@ paths:
 	})
 }
 
-// TestEachReached drives eachReached's own filtering and panic barrier
-// directly, with synthetic walk items: a real document cannot produce a model
-// that is unresolved-and-visited, or make visit itself fail or panic on
-// command.
-func TestEachReached(t *testing.T) {
-	t.Parallel()
-
-	t.Run("visit's error stops the walk and is returned with its site", func(t *testing.T) {
-		t.Parallel()
-		boom := errors.New("boom")
-		item := reachedFakeWalkItem(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"},
-			soa.Locations{{ParentField: "paths"}, {ParentKey: strPtr("x")}})
-		visited := 0
-		site, err := eachReached(reachedFakeWalkItems(item), func(jsontext.Pointer, resolvable) error {
-			visited++
-			return boom
-		})
-		assert.Equal(t, 1, visited)
-		assert.ErrorIs(t, err, boom)
-		assert.Equal(t, jsontext.Pointer("/paths/x"), site)
-	})
-
-	t.Run("a visit that panics is reported at its site", func(t *testing.T) {
-		t.Parallel()
-		item := reachedFakeWalkItem(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"},
-			soa.Locations{{ParentField: "z"}})
-		site, err := eachReached(reachedFakeWalkItems(item), func(jsontext.Pointer, resolvable) error {
-			panic("kaboom")
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "kaboom")
-		assert.Equal(t, jsontext.Pointer("/z"), site)
-	})
-
-	t.Run("a walk that panics between items gives site empty", func(t *testing.T) {
-		t.Parallel()
-		first := reachedFakeWalkItem(reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"},
-			soa.Locations{{ParentField: "z"}})
-		items := func(yield func(soa.WalkItem) bool) {
-			if !yield(first) {
-				return
-			}
-			panic("walk boom")
-		}
-		visited := 0
-		site, err := eachReached(items, func(jsontext.Pointer, resolvable) error {
-			visited++
-			return nil
-		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "walk boom")
-		assert.Equal(t, jsontext.Pointer(""), site, "site was reset after the first item's successful visit")
-		assert.Equal(t, 1, visited)
-	})
-
-	// An internal reference is visited: whether its chain leaves the source is
-	// targetOf's to decide (TestTargetOf).
-	t.Run("a model that is not a resolved reference is not visited", func(t *testing.T) {
-		t.Parallel()
-		cases := map[string]reachedFake{
-			"not a reference": {isRef: false, isResolved: true, ref: "other.yaml#/x"},
-			"unresolved":      {isRef: true, isResolved: false, ref: "other.yaml#/x"},
-		}
-		items := make([]soa.WalkItem, 0, len(cases))
-		for _, c := range cases {
-			items = append(items, reachedFakeWalkItem(c, nil))
-		}
-		visited := 0
-		_, err := eachReached(reachedFakeWalkItems(items...), func(jsontext.Pointer, resolvable) error {
-			visited++
-			return nil
-		})
-		require.NoError(t, err)
-		assert.Zero(t, visited, "neither reaches visit")
-	})
-}
-
 // securityRequirementFixtureOther and its root reach an operation whose
 // security requirement is checked against a scheme name the components never
 // declare — the SecurityRequirement.Validate path that panics without the
@@ -572,21 +447,21 @@ paths:
   /x: {$ref: "./other.yaml#/paths/~1x"}
 `
 
-// reachedFakePanicObject is an object whose Validate panics, driving
-// checkAll's barrier without depending on a particular library fault.
-type reachedFakePanicObject struct{}
+// panickingObject is an object whose Validate panics, driving checkAll's
+// barrier without depending on a particular library fault.
+type panickingObject struct{}
 
-func (reachedFakePanicObject) Validate(context.Context, ...validation.Option) []error {
+func (panickingObject) Validate(context.Context, ...validation.Option) []error {
 	panic("object validation panicked")
 }
 
-// reachedFakePanicHolder is a reachedFake naming a reachedFakePanicObject, so
-// reachedObject succeeds and validateObject then panics on it.
-type reachedFakePanicHolder struct{ reachedFake }
+// panickingRef is a fakeResolvable naming a panickingObject, so reachedObject
+// succeeds and validateObject then panics on it.
+type panickingRef struct{ fakeResolvable }
 
-func (reachedFakePanicHolder) GetObjectAny() any { return reachedFakePanicObject{} }
+func (panickingRef) GetObjectAny() any { return panickingObject{} }
 
-func (reachedFakePanicHolder) GetRootNode() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode} }
+func (panickingRef) GetRootNode() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode} }
 
 // TestCheckReached_APanicIsReported pins how both of checkReached's barriers
 // turn a recovered panic into a diagnostic: openapi/validation, "validation
@@ -599,15 +474,14 @@ func TestCheckReached_APanicIsReported(t *testing.T) {
 	t.Parallel()
 	doc, valErrs := parseSpec(t, minimal31)
 	require.Empty(t, valErrs)
-	r := reachedFakePanicHolder{reachedFake{isRef: true, isResolved: true, ref: "other.yaml#/x"}}
-	item := reachedFakeWalkItem(r, soa.Locations{{ParentField: "paths"}, {ParentKey: strPtr("x")}})
+	item := fakeWalkItem("x", panickingRef{fakeResolvable{ref: "other.yaml#/x", resolved: true}})
 
 	for name, c := range map[string]struct {
 		items   iter.Seq[soa.WalkItem]
 		site    jsontext.Pointer
 		message string
 	}{
-		"in an object's validation": {reachedFakeWalkItems(item), "/paths/x", "object validation panicked"},
+		"in an object's validation": {slices.Values([]soa.WalkItem{item}), "/x", "object validation panicked"},
 		"reading the walk": {func(yield func(soa.WalkItem) bool) {
 			if yield(item) {
 				panic("walk boom")

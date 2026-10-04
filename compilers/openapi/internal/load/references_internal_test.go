@@ -398,14 +398,14 @@ func (f fakeResolvable) Resolve(ctx context.Context, opts references.ResolveOpti
 	return f.resolve(ctx, opts)
 }
 
-// fakeWalkItem builds a soa.WalkItem whose Match hands m over a single
-// fakeResolvable at field, the way the real walk hands a Matcher a model at the
-// position it sits.
-func fakeWalkItem(field string, r fakeResolvable) soa.WalkItem {
+// fakeWalkItem builds a soa.WalkItem whose Match hands m over a single model
+// at field, the way the real walk hands a Matcher a model at the position it
+// sits.
+func fakeWalkItem(field string, model any) soa.WalkItem {
 	return soa.WalkItem{
 		Location: soa.Locations{{ParentField: field}},
 		Match: func(m soa.Matcher) error {
-			return m.Any(r)
+			return m.Any(model)
 		},
 	}
 }
@@ -426,7 +426,7 @@ func TestEachReference_StopsAtTheFirstVisitError(t *testing.T) {
 	boom := errors.New("boom")
 	var visited []string
 
-	site, err := eachReference(items, func(_ jsontext.Pointer, r resolvable) error {
+	site, err := eachReference(items, "reference resolver", func(_ jsontext.Pointer, r resolvable) error {
 		ref := string(r.GetReference())
 		visited = append(visited, ref)
 		if ref == "#/second" {
@@ -473,7 +473,7 @@ func TestEachReference_PanicIsReportedAtTheReference(t *testing.T) {
 			panic("boom between items")
 		}
 
-		site, err := eachReference(items, func(jsontext.Pointer, resolvable) error {
+		site, err := eachReference(items, "reference resolver", func(jsontext.Pointer, resolvable) error {
 			visited++
 			return nil
 		})

@@ -3,7 +3,6 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"fmt"
 	"iter"
 	"maps"
 	"reflect"
@@ -72,15 +71,15 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // can hand it one yielding a reference no real document builds.
 //
 // The library's validation faults on shapes it did not expect as its resolver
-// does, and this runs outside the resolver's barrier, so it has one of its own.
-// A panic reading the walk is reported at the reference being read, or at the
-// root, and nothing is validated, since the targets read so far need not hold
-// each one's least $ref.
+// does, so reading the walk and validating each run behind a barrier. A panic
+// reading the walk is reported at the reference being read, or at the root,
+// and nothing is validated, since the targets read so far need not hold each
+// one's least $ref.
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	items iter.Seq[soa.WalkItem], checks *reached,
 ) []ir.Diagnostic {
 	targets := map[targetKey]reachedTarget{}
-	site, err := eachReached(items, func(site jsontext.Pointer, r resolvable) error {
+	site, err := eachReference(items, "validation", func(site jsontext.Pointer, r resolvable) error {
 		t, ok := targetOf(site, r)
 		if !ok {
 			return nil
@@ -95,36 +94,6 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error())}
 	}
 	return checks.checkAll(ctx, at, targets)
-}
-
-// eachReached calls visit with every resolved reference the walk reaches, and
-// the pointer that writes it, converting a panic into an error as
-// eachReference does and stopping at the first error visit returns.
-// checkReached's visit returns none; the stop is there so the error Match
-// hands back is handled rather than discarded, as in matchSchemas.
-func eachReached(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, resolvable) error) (site jsontext.Pointer, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("validation panicked: %v", r)
-		}
-	}()
-	for item := range items {
-		if err := item.Match(soa.Matcher{Any: func(model any) error {
-			r, ok := model.(resolvable)
-			if !ok || !r.IsReference() || !r.IsResolved() {
-				return nil
-			}
-			site = jsontext.Pointer(item.Location.ToJSONPointer())
-			if err := visit(site, r); err != nil {
-				return err
-			}
-			site = ""
-			return nil
-		}}); err != nil {
-			return site, err
-		}
-	}
-	return "", nil
 }
 
 // targetOf returns the object the reference at site reaches in another
@@ -269,11 +238,12 @@ func (v *reached) artifacts(ctx context.Context, obj any) map[string]bool {
 	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return reachedWalk(ctx, obj) }, v.version)
 }
 
-// reachedObject returns the object a resolved reference names and the node it
-// was built from, or false for one with none to validate: a boolean schema has
-// nothing but its value, and a chain that loops, or stops at a reference it
-// could not resolve, ends on no object. The reference reads the node itself:
-// asked of a missing object, a model's own GetRootNode faults.
+// reachedObject returns the object a reference names and the node it was built
+// from, or false for one with none to validate: an unresolved reference names
+// none, a boolean schema has nothing but its value, and a chain that loops, or
+// stops at a reference it could not resolve, ends on no object. The reference
+// reads the node itself: asked of a missing object, a model's own GetRootNode
+// faults.
 func reachedObject(r resolvable) (any, *yaml.Node, bool) {
 	switch ref := r.(type) {
 	case *oas3.JSONSchema[oas3.Referenceable]:

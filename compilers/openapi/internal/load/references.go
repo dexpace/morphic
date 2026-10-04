@@ -49,7 +49,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 
 	var failures []ir.Diagnostic
 	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
-	site, err := eachReference(soa.Walk(ctx, doc), func(site jsontext.Pointer, r resolvable) error {
+	site, err := eachReference(soa.Walk(ctx, doc), "reference resolver", func(site jsontext.Pointer, r resolvable) error {
 		var vErrs []error
 		var err error
 		if !r.IsResolved() { // one an earlier $ref's chain resolved is only noted
@@ -72,15 +72,17 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 // not, and the pointer that writes it. The walk does not descend into what a
 // resolved reference names, so each is visited once, where it is written.
 //
-// A panic from the third-party walk or resolver becomes an error, as a parser
-// panic does in unmarshal: the resolver faults on shapes the parser accepts,
-// such as a $ref with no value. It stops the walk, and site is the reference
-// being resolved, or the root when the walk itself panicked. An error visit
-// returns stops the walk too.
-func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, resolvable) error) (site jsontext.Pointer, err error) {
+// A panic in the walk or under visit becomes an error naming what was running,
+// as a parser panic does in unmarshal: the library faults on shapes the parser
+// accepts, such as a $ref with no value. It stops the walk at site, the
+// reference being visited, or the root when the walk itself panicked. So does
+// an error visit returns.
+func eachReference(items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, resolvable) error,
+) (site jsontext.Pointer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("reference resolver panicked: %v", r)
+			err = fmt.Errorf("%s panicked: %v", what, r)
 		}
 	}()
 	for item := range items {
