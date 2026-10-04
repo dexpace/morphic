@@ -6,6 +6,7 @@ package openapi_test // external test package — exercises only the public API
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,8 +18,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// foreignContent is a document whose objects each hold a schema $ref to its own
-// Thing, which the source declares too, with another shape.
+// foreignContent is a document whose objects each name its own Thing, by a
+// schema $ref or, in D, by a mapping. The source declares a Thing too, with
+// another shape.
 const foreignContent = `openapi: 3.1.0
 info: {title: E, version: "1"}
 paths:
@@ -36,6 +38,14 @@ components:
     R:
       description: ok
       content: {application/json: {schema: {$ref: '#/components/schemas/Thing'}}}
+    D:
+      description: ok
+      content:
+        application/json:
+          schema:
+            type: object
+            properties: {k: {type: string}}
+            discriminator: {propertyName: k, mapping: {byName: Thing, byRef: '#/components/schemas/Thing'}}
   parameters:
     P: {name: p, in: query, schema: {$ref: '#/components/schemas/Thing'}}
   headers:
@@ -86,6 +96,7 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 		foreign     bool
 	}{
 		{"a path item", "  /p: {$ref: './ext.yaml#/paths/~1x'}\n", true},
+		{"a webhook", "  {}\nwebhooks:\n  h: {$ref: './ext.yaml#/paths/~1x'}\n", true},
 		{"a response", op("      responses: {\"200\": {$ref: './ext.yaml#/components/responses/R'}}\n"), true},
 		{"a default response", op("      responses: {default: {$ref: './ext.yaml#/components/responses/R'}}\n"), true},
 		{"a parameter", op("      parameters: [{$ref: './ext.yaml#/components/parameters/P'}]\n" + ok200), true},
@@ -121,4 +132,31 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 			assert.Contains(t, foreign[0].Message, `"#/components/schemas/Thing"`)
 		})
 	}
+}
+
+// TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
+// GitHub #762 draws inside another document's content. A mapping value that is
+// a URI reference names a position in that document, so it is unresolved, as
+// a $ref is. One that is a component's name is an implicit connection, which
+// the specification recommends resolving against the entry document, so it
+// names the source's component.
+func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(foreignContent), 0o600))
+	root := foreignRoot("  /op:\n    get:\n      responses: {\"200\": {$ref: './ext.yaml#/components/responses/D'}}\n")
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	const schema = "/paths/~1op/get/responses/200/content/application~1json/schema"
+	model, ok := doc.Types[ir.TypeID("t/anon"+schema)].(*ir.Model)
+	require.True(t, ok, "the response's schema is lowered as a model")
+	require.NotNil(t, model.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"byName": "t/openapi/components/schemas/Thing"}, model.Discriminator.Mapping)
+	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == "openapi/unresolved-ref" && string(d.Provenance.Pointer) == schema+"/discriminator/mapping/byRef"
+	}), "the URI reference is reported unresolved: %+v", diags)
 }

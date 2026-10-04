@@ -1159,8 +1159,9 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 
 // resolveMappingTarget resolves a mapping target, a mapping entry's or a
 // defaultMapping's, to the ID of the schema it names: a declared component's
-// bare name directly, and a reference as resolvePointer resolves a $ref,
-// interning the schema there when nothing has yet.
+// bare name directly, and a reference as resolvePointer resolves a $ref at the
+// position whose type it names (typePosition), interning the schema there when
+// nothing has yet.
 //
 // The resolver never follows a mapping value, so DeclaredAt finds the schema
 // a $ref would have carried. Hoisting it resolves the target to the same
@@ -1220,9 +1221,10 @@ func componentIDByName(name string) ir.TypeID {
 // or a $ref string, to the TypeID of an interned schema. A bare name (even one
 // containing '/') that names a declared component resolves regardless of source
 // order, since every declared name is recorded before lowering begins.
-// Otherwise the target must be a same-file $ref to a declared component or an
-// already-interned node. Anything else yields ok=false: this half never lowers
-// anything, and resolveMappingTarget hoists the inline position it cannot reach.
+// Otherwise the target must be a same-file $ref, read at the position whose
+// type it names (typePosition), to a declared component or an already-interned
+// node. Anything else yields ok=false: this half never lowers anything, and
+// resolveMappingTarget hoists the inline position it cannot reach.
 func mappingTargetID(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true
