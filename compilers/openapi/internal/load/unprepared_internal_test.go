@@ -42,16 +42,18 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, newSourceDocument(path, data, root, nil),
-		Options{AllowExternalRefs: true}, rebuild)
+	resolved, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
+		newSourceDocument(path, data, root, nil), Options{AllowExternalRefs: true}, rebuild)
+	return resolved, diags, err
 }
 
 // resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec), sourceDocument{path: "root.yaml"},
-		Options{AllowExternalRefs: true}, rebuild)
+	resolved, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec),
+		sourceDocument{path: "root.yaml"}, Options{AllowExternalRefs: true}, rebuild)
+	return resolved, diags, err
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to

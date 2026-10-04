@@ -25,8 +25,9 @@ type resolvable interface {
 }
 
 // resolveWith resolves every reference in doc, reading external documents
-// through reader when one is given. It reports each failure at the $ref that
-// failed, and each finding in the object a reference names at a $ref reaching
+// through reader when one is given, then every discriminator mapping target as
+// a $ref to it would be (see mappings). It reports each failure at the $ref
+// that failed, and each finding in what a reference names at a $ref reaching
 // it (GitHub #385, GitHub #537). It runs ResolveAllReferences' own walk, since
 // that call names no reference for either.
 //
@@ -36,7 +37,7 @@ type resolvable interface {
 // source's own validation reported it.
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, reader *external,
-) []ir.Diagnostic {
+) (MappingTargets, []ir.Diagnostic) {
 	resolveOpts := references.ResolveOptions{
 		TargetLocation:      self.path,
 		RootDocument:        doc,
@@ -50,7 +51,13 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 
 	var failures []ir.Diagnostic
 	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}
-	site, err := eachReference(soa.Walk(ctx, doc), "reference resolver", func(site jsontext.Pointer, r resolvable) error {
+	targets := newMappings(self, doc, resolveOpts, reader)
+	site, err := eachModel(soa.Walk(ctx, doc), "reference resolver", func(site jsontext.Pointer, model any) error {
+		targets.see(site, model)
+		r, ok := model.(resolvable)
+		if !ok || !r.IsReference() {
+			return nil
+		}
 		var vErrs []error
 		var err error
 		if !r.IsResolved() { // one an earlier $ref's chain resolved is only noted
@@ -59,17 +66,21 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 		if reader != nil {
 			vErrs, err = reader.settle(ctx, r, resolveOpts, vErrs, err)
 		}
-		t := resolutionTrail(r)
-		found.note(site, t, vErrs)
+		c := resolutionChain(r)
+		targets.reached(site, c)
+		found.note(site, c.trail(), vErrs)
 		if err != nil {
-			failures = append(failures, failureDiag(at(site), r, t, err))
+			failures = append(failures, failureDiag(at(site), r, c.trail(), err))
 		}
 		return nil
 	})
+	if err == nil {
+		site, err = targets.resolve(ctx, &found)
+	}
 	if err != nil {
 		failures = append(failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "%s", err.Error()))
 	}
-	return append(failures, found.diags(at)...)
+	return targets.targets(), append(failures, found.diags(at)...)
 }
 
 // eachReference calls visit with each reference the walk reaches, resolved or
@@ -88,14 +99,22 @@ func eachReference(items iter.Seq[soa.WalkItem], what string,
 
 // eachResolvable calls visit with each model the walk reaches that a reference
 // can name or be, and the pointer that names it.
+func eachResolvable(items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, resolvable) error,
+) (jsontext.Pointer, error) {
+	return eachModel(items, what, visit)
+}
+
+// eachModel calls visit with each model of kind T the walk reaches, and the
+// pointer that names it.
 //
 // A panic in the walk or under visit becomes an error naming what was running,
 // as a parser panic does in unmarshal: the library faults on shapes the parser
 // accepts, such as a $ref with no value. It stops the walk at site, the model
 // being visited, or the root when the walk panicked. An error from visit stops
 // it too.
-func eachResolvable(items iter.Seq[soa.WalkItem], what string,
-	visit func(jsontext.Pointer, resolvable) error,
+func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, T) error,
 ) (site jsontext.Pointer, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -104,12 +123,12 @@ func eachResolvable(items iter.Seq[soa.WalkItem], what string,
 	}()
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
-			r, ok := model.(resolvable)
+			m, ok := model.(T)
 			if !ok {
 				return nil
 			}
 			site = jsontext.Pointer(item.Location.ToJSONPointer())
-			if err := visit(site, r); err != nil {
+			if err := visit(site, m); err != nil {
 				return err
 			}
 			site = ""

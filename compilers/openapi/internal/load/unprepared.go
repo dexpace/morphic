@@ -250,25 +250,25 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // unprepared is an internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, []ir.Diagnostic, error) {
+) (*soa.OpenAPI, MappingTargets, []ir.Diagnostic, error) {
 	read := newExternalReads(self)
 	reader := newExternal(doc, opts, read)
-	diags := resolveWith(ctx, at, doc, self, opts, &reader)
+	targets, diags := resolveWith(ctx, at, doc, self, opts, &reader)
 	used := documentsUsed(ctx, doc)
 	if !anyAnchored(doc, unprepared(doc, read, used)) {
-		return doc, diags, nil
+		return doc, targets, diags, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, nil, err
+		return nil, MappingTargets{}, nil, err
 	}
 	again.InitCache()
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
 	reader.replaying = true
-	diags = resolveWith(ctx, at, again, self, opts, &reader)
-	return again, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
+	targets, diags = resolveWith(ctx, at, again, self, opts, &reader)
+	return again, targets, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
@@ -393,11 +393,13 @@ type chain struct {
 }
 
 // record is one hop's record: the document it read, by path, what it reached,
-// and where it notes the document it resolved against, which a later hop
-// resolves against in turn.
+// the object built there and a walk over it, and where it notes the document
+// it resolved against, which a later hop resolves against in turn.
 type record struct {
 	path     string
 	target   references.Reference
+	object   any
+	walk     func(context.Context) iter.Seq[soa.WalkItem]
 	document *any
 	reached  bool
 }
@@ -472,6 +474,9 @@ func recordsOf[S any, R interface {
 		}
 		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
 			document: &info.ResolvedDocument, reached: info.Object != nil}
+		if r.reached {
+			r.object, r.walk = info.Object, walkOf(info.Object)
+		}
 		if !r.reached {
 			c.records = append(c.records, r)
 			break
@@ -487,4 +492,11 @@ func recordsOf[S any, R interface {
 		c.stopped = hop.GetReference() // empty for the object a resolution ends on
 	}
 	return c
+}
+
+// walkOf returns the walk over obj, started at its own kind.
+func walkOf[T any](obj *T) func(context.Context) iter.Seq[soa.WalkItem] {
+	return func(ctx context.Context) iter.Seq[soa.WalkItem] {
+		return soa.Walk(ctx, obj)
+	}
 }

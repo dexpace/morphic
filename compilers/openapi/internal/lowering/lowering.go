@@ -108,6 +108,11 @@ type Ctx struct {
 	// "provenance is built in exactly one place" true of the source index as well
 	// as of the pointer.
 	overlay overlay.Origin
+
+	// targets holds the schema each discriminator mapping target names, which
+	// the load phase resolved as a $ref to it is. Its zero value holds none.
+	// Unexported for the reason schemas is, and read only through RefScope.
+	targets load.MappingTargets
 }
 
 // New derives the immutable context for one loaded source.
@@ -162,6 +167,15 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // entry — has to survive the extension.
 func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 	c.auth = auth
+	return c
+}
+
+// WithMappingTargets returns a copy of c carrying the schemas the load phase
+// resolved for the document's discriminator mapping targets. They come with
+// the document rather than being derived from it, since resolving one runs the
+// resolver, which only the load phase may (GitHub #757).
+func (c Ctx) WithMappingTargets(targets load.MappingTargets) Ctx {
+	c.targets = targets
 	return c
 }
 
@@ -257,7 +271,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Doc: c.Doc}
+	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Doc: c.Doc, Mapped: c.targets.At}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source

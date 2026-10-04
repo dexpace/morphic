@@ -46,6 +46,9 @@ type Scope struct {
 	// reads it; see DeclaredAt. It is typed as the pointer walk takes it, which
 	// keeps the document model out of this package's imports.
 	Doc any
+	// Mapped returns the schema the load phase resolved at a pointer a
+	// discriminator mapping target names, or nil; see DeclaredAt.
+	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the
@@ -53,12 +56,17 @@ type Scope struct {
 // annotation.DeclaredSchema for a followed $ref.
 //
 // It is for a reference that is only a string: a discriminator mapping value is
-// never resolved, so it carries no declaration of its own (GitHub #530). A
-// position the parsed model holds as raw YAML, such as an extension's value or
-// enum member, is no schema here, though the resolver parses one when a $ref
-// names it, so a mapping reaches it only once a $ref has interned it (GitHub
-// #757).
+// never resolved, so it carries no declaration of its own (GitHub #530). The
+// load phase resolves each as a $ref, which is what Mapped answers: the model
+// holds a position such as an extension's value or an enum member as raw YAML,
+// which only resolving parses (GitHub #757). The model answers for a target
+// spelled in a way the load phase does not resolve.
 func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	if s.Mapped != nil {
+		if js := s.Mapped(pointer); js != nil {
+			return js
+		}
+	}
 	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {
 		return nil
