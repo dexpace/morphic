@@ -341,7 +341,7 @@ func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *
 	if err != nil {
 		return nil, MappingTargets{}, nil, err
 	}
-	return resolved, targets, append(diags, validateReached(ctx, at, resolved, opts)...), nil
+	return resolved, targets, append(diags, validateReached(ctx, at, resolved, opts, self.found)...), nil
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

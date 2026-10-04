@@ -648,6 +648,144 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	}
 }
 
+// TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated pins what a $ref
+// naming the source's file reaches that the source's own validation never
+// checked: raw YAML, such as an extension's value, and a node read as another
+// kind than it is declared as. Each is validated as an object in another
+// document is, at the $ref reaching it, whether that $ref is the source's own
+// or comes back into it from another document (GitHub #759). What the source
+// declares, reached as its kind, is not validated again
+// (TestHold_AFindingOnlyValidationMakesIsTheSourcesOwn).
+func TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated(t *testing.T) {
+	t.Parallel()
+	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+	for _, c := range []struct {
+		name  string
+		files map[string]string
+		root  string
+		want  []string
+	}{
+		{"a schema under an extension", nil, header + `paths: {}
+components:
+  schemas:
+    A: {$ref: 'root.yaml#/x-defs/S'}
+x-defs:
+  S: {type: string, minLength: -1}
+`, []string{"/components/schemas/A openapi/validation/validation-invalid-schema"}},
+		{
+			"a response under an extension, from another document",
+			map[string]string{"other.yaml": "components:\n  responses:\n    Back: {$ref: 'root.yaml#/x-responses/R'}\n"},
+			header + `paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: 'other.yaml#/components/responses/Back'}
+x-responses:
+  R:
+    description: ok
+    links:
+      L: {operationId: a, operationRef: '#/paths/~1a/get'}
+`, []string{"/paths/~1a/get/responses/200 openapi/validation/validation-mutually-exclusive-fields"},
+		},
+		{"a response read as a schema", nil, header + `paths: {}
+components:
+  schemas:
+    S: {$ref: 'root.yaml#/components/responses/R'}
+  responses:
+    R: {description: ok, minLength: -1}
+`, []string{"/components/schemas/S openapi/validation/validation-invalid-schema"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := loadExternal(t, externalDir(t, c.files), c.root, Options{})
+
+			assert.Empty(t, cmp.Diff(c.want, diagLines(diags)))
+		})
+	}
+}
+
+// TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid pins what a node
+// a $ref reads as another kind holds: what the source declares inside it, here
+// a header's schema, whose finding the source's own validation reported. That
+// finding is not reported again at the $ref (GitHub #759).
+func TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid(t *testing.T) {
+	t.Parallel()
+	_, diags := loadExternal(t, t.TempDir(), `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters: [{$ref: 'root.yaml#/components/headers/H'}]
+      responses: {"200": {description: ok}}
+components:
+  headers:
+    H: {name: h, in: query, schema: {type: string, minLength: -1}}
+`, Options{})
+
+	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-invalid-schema"}, diagLines(diags)),
+		"the source's own finding, once")
+}
+
+// TestNamesDocument covers which chains named a document on the way: one whose
+// first $ref has a document part, one whose later hop's has, and one of $refs
+// with none, which never left the source's model.
+func TestNamesDocument(t *testing.T) {
+	t.Parallel()
+	got, diags := loadExternal(t, t.TempDir(), `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    First: {$ref: 'root.yaml#/x-defs/S'}
+    Later: {$ref: '#/components/schemas/First'}
+    None: {$ref: '#/components/schemas/Inline'}
+    Inline: {type: string}
+x-defs:
+  S: {type: string}
+`, Options{})
+	require.Empty(t, diags)
+	for name, want := range map[string]bool{"First": true, "Later": true, "None": false} {
+		ref, ok := got.Doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		assert.Equal(t, want, namesDocument(ref, resolutionChain(ref)), name)
+	}
+}
+
+// TestCheckReached_APanicDroppingWhatTheSourceDeclaresIsReported pins the
+// barrier over the second read of the walk, which drops what the source
+// declares from what a $ref naming its file reached: a panic there is reported
+// at the root, and nothing is validated.
+func TestCheckReached_APanicDroppingWhatTheSourceDeclaresIsReported(t *testing.T) {
+	t.Parallel()
+	got, _ := loadExternal(t, t.TempDir(), `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: 'root.yaml#/x-defs/S'}
+x-defs:
+  S: {type: string, minLength: -1}
+`, Options{})
+	reads := 0
+	items := func(yield func(soa.WalkItem) bool) {
+		reads++
+		if reads > 1 {
+			panic("walk boom")
+		}
+		for item := range soa.Walk(t.Context(), got.Doc) {
+			if !yield(item) {
+				return
+			}
+		}
+	}
+
+	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, newReached(got.Doc, Options{}))
+
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, "validation panicked: walk boom", diags[0].Message)
+	assert.Equal(t, jsontext.Pointer(""), diags[0].Provenance.Pointer)
+}
+
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
 // names that the other tests do not, a header, request body, callback,
 // example, link and security scheme, each with a defect only its own Validate

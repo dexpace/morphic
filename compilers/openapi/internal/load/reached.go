@@ -11,6 +11,7 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
@@ -18,10 +19,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// reached validates what a reference brings in from another document, holding
-// it to the checks the source's own objects get (GitHub #545). The source is
-// validated whole before its references resolve, and the library validates a
-// reference as its $ref alone, never what it names.
+// reached validates what a reference brings in from another document, or from
+// the source read as one, holding it to the checks the source's own objects get
+// (GitHub #545): the library validates a reference as its $ref alone.
 //
 // Only what a reference reaches is validated: a shared file of components is
 // used a piece at a time, and a finding in a piece nothing lowers would fail a
@@ -32,7 +32,8 @@ type reached struct {
 	version string
 	minor   string
 	limit   int
-	// reported holds every finding already reported (see keyOf).
+	// reported holds every finding already reported (see keyOf), the source's
+	// own validation's included.
 	reported map[findingKey]bool
 	// spent is the node count charged to each document so far.
 	spent map[string]int
@@ -41,13 +42,15 @@ type reached struct {
 }
 
 // reachedTarget is an object the source's references reach in another
-// document: the least pointer among the $refs reaching it, the object and the
-// node it was built from, and the document it is in, as findingPlace names it.
+// document, or in the source read as one: the least pointer among the $refs
+// reaching it, the object and the node it was built from, the document it is
+// in, as findingPlace names it, and whether that is the source.
 type reachedTarget struct {
-	site jsontext.Pointer
-	obj  any
-	node *yaml.Node
-	doc  string
+	site     jsontext.Pointer
+	obj      any
+	node     *yaml.Node
+	doc      string
+	inSource bool
 }
 
 // targetKey identifies a target by the node its object was built from and the
@@ -59,12 +62,16 @@ type targetKey struct {
 }
 
 // validateReached validates every object a resolved reference in doc brings
-// in from another document, and reports each finding once, at a $ref that
-// reaches it (see reached).
+// in from another document, or from the source read as one (see targetOf), and
+// reports each finding once, at a $ref that reaches it (see reached). A finding
+// known, the source's own validation's, is not reported again: a node a $ref
+// reads as another kind holds what the source declares inside it.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
-	opts Options,
+	opts Options, known map[findingKey]bool,
 ) []ir.Diagnostic {
-	return checkReached(ctx, at, soa.Walk(ctx, doc), newReached(doc, opts))
+	checks := newReached(doc, opts)
+	maps.Copy(checks.reported, known)
+	return checkReached(ctx, at, soa.Walk(ctx, doc), checks)
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
@@ -72,9 +79,9 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 //
 // The library's validation faults on shapes it did not expect as its resolver
 // does, so reading the walk and validating each run behind a barrier. A panic
-// reading the walk is reported at the reference being read, or at the root,
-// and nothing is validated, since the targets read so far need not hold each
-// one's least $ref.
+// reading the walk is reported at the model being read, or at the root, and
+// nothing is validated, since the targets read so far need not hold each one's
+// least $ref.
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	items iter.Seq[soa.WalkItem], checks *reached,
 ) []ir.Diagnostic {
@@ -90,29 +97,77 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		}
 		return nil
 	})
+	if err == nil {
+		site, err = dropDeclared(items, targets)
+	}
 	if err != nil {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error())}
 	}
 	return checks.checkAll(ctx, at, targets)
 }
 
-// targetOf returns the object the reference at site reaches in another
-// document, or false when it reaches none: its chain ends on no object
-// (reachedObject), or in the source, whose own validation covers what is
-// there. An internal $ref whose chain leaves the source reaches an object as
-// an external one does, so a finding lands where the resolver's would. A chain
-// that comes back into the source from another document ends in it too (see
-// externalReads.mend).
+// targetOf returns the object the reference at site reaches, or false when it
+// reaches none to validate: its chain ends on no object (reachedObject), or in
+// the source through internal $refs alone, left to the source's own validation
+// (GitHub #567). An internal $ref whose chain leaves the source reaches an
+// object as an external one does.
+//
+// A chain that names a document and ends in the source read the source as that
+// document, so it can reach raw YAML, or a node read as another kind, which the
+// source's validation never checked (see dropDeclared).
 func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
-	t := resolutionTrail(r)
-	if t.endsInSource {
+	c := resolutionChain(r)
+	t := c.trail()
+	if t.endsInSource && !namesDocument(r, c) {
 		return reachedTarget{}, false
 	}
 	obj, node, ok := reachedObject(r)
 	if !ok {
 		return reachedTarget{}, false
 	}
-	return reachedTarget{site: site, obj: obj, node: node, doc: findingPlace(t)}, true
+	return reachedTarget{site: site, obj: obj, node: node, doc: findingPlace(t), inSource: t.endsInSource}, true
+}
+
+// namesDocument reports whether a hop of the resolution c records for ref was
+// a $ref with a document part: the first is ref's own, and each later one the
+// reference the hop before it reached.
+func namesDocument(ref resolvable, c chain) bool {
+	if ref.GetReference().GetURI() != "" {
+		return true
+	}
+	for _, rec := range c.records {
+		next, ok := rec.object.(interface{ GetReference() references.Reference })
+		if ok && next.GetReference().GetURI() != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// dropDeclared drops each target in the source that the source's own
+// validation covered: an object its model declares, reached as the kind it is
+// declared as, which the source reported on already (GitHub #759). It walks
+// items, the source's models, only when some target is in the source.
+func dropDeclared(items iter.Seq[soa.WalkItem], targets map[targetKey]reachedTarget) (jsontext.Pointer, error) {
+	inSource := false
+	for _, t := range targets {
+		inSource = inSource || t.inSource
+	}
+	if !inSource {
+		return "", nil
+	}
+	return eachModel(items, "validation", func(_ jsontext.Pointer, r resolvable) error {
+		if r.IsReference() {
+			return nil
+		}
+		if obj, node, ok := reachedObject(r); ok {
+			key := targetKey{node: node, kind: reflect.TypeOf(obj)}
+			if targets[key].inSource {
+				delete(targets, key)
+			}
+		}
+		return nil
+	})
 }
 
 // newReached returns the validator for the objects doc's references reach,
