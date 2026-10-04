@@ -54,6 +54,10 @@ type Scope struct {
 	// Mapped returns the schema the load phase resolved at a pointer a
 	// discriminator mapping target names, or nil; see DeclaredAt.
 	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
+	// Foreign marks a scope over content another document holds, where a
+	// reference names a position in that document, which this compile cannot
+	// address (GitHub #74): no reference is internal (GitHub #762).
+	Foreign bool
 }
 
 // reader returns the reader s reads "#/$defs/..." pointers through.
@@ -168,20 +172,19 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 
 // InternalPointer returns the same-document JSON pointer a $ref (or
 // discriminator mapping) target addresses, and ok=false for a cross-document
-// reference, a bare schema name or a malformed ref. A document part naming this
-// source file is internal.
+// reference, a bare schema name, a malformed ref, or any ref in a Foreign
+// scope. A document part naming this source file is internal.
 //
 // It uses the resolver's own references.Reference, since fragments are
 // percent-encoded: comparing them raw missed resolvable references and interned
 // a second node at a named position (GitHub #40). nodeview.InternalPointer
 // mirrors that split.
 //
-// A fragment that is not a JSON pointer is refused. `#addr` names a $anchor,
-// which only the library resolves, and an ID derived from it would be a path no
-// coordinate spells (GitHub #141).
+// A `#addr` fragment names a $anchor, which only the library resolves, and an
+// ID derived from it would be a path no coordinate spells (GitHub #141).
 func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer, ok := FragmentPointer(ref)
-	if !ok {
+	if !ok || s.Foreign {
 		return "", false
 	}
 	if doc := references.Reference(ref).GetURI(); doc != "" && !s.sameFile(doc) {

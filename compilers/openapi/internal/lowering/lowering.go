@@ -83,6 +83,11 @@ type Ctx struct {
 	// holds the struct to.
 	schemas map[string]bool
 
+	// foreign marks a lowering of content another document holds, read in that
+	// document's scope (see Within). Unexported and set only by Within, which
+	// scopes it to the subtree that copy is threaded through.
+	foreign bool
+
 	// namesByReference marks a lowering running under a $ref that named a
 	// coordinate, whose names are placeholders. Unexported and read through
 	// NamesByReference so it can only be set by NamingByReference, which is what
@@ -232,6 +237,28 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	return c.NamingByReference()
 }
 
+// Within returns c for lowering what the entry ref resolves to: c itself, or a
+// copy marked Foreign when another document holds it (resolve.HeldElsewhere).
+//
+// A URI reference in that content names a position in its own document, which
+// this compile cannot lower (GitHub #74), so the copy's RefScope reads none as
+// internal. Read as the source's, it resolved to whatever the source declared
+// at the same pointer, when that had lowered first (GitHub #762). A name, such
+// as a component's in a mapping, still names the entry document's, as the
+// specification recommends for such implicit connections.
+func Within[T, S any, R interface {
+	*S
+	resolve.Referenced[T, S]
+}](c Ctx, ref R) Ctx {
+	if resolve.HeldElsewhere[T, S](c.RefScope(), ref) {
+		c.foreign = true
+	}
+	return c
+}
+
+// Foreign reports whether c lowers content another document holds. See Within.
+func (c Ctx) Foreign() bool { return c.foreign }
+
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.
 func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
@@ -284,7 +311,8 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At}
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At,
+		Foreign: c.foreign}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

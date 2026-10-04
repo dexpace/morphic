@@ -36,7 +36,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		if p == nil {
 			continue
 		}
-		param, binding, paramDiags := lowerParameter(c, ts, anchors, p, pptr)
+		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, p, pptr)
 		diags = append(diags, paramDiags...)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)

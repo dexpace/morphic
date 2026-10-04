@@ -21,15 +21,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 )
 
-// externalOrderDependent names the corpus specs whose external compile still
-// follows declaration order, each with the issue that tracks it. A listed spec
-// that stops following it fails the sweep too, so the list cannot outlive its
-// reason.
-var externalOrderDependent = map[string]string{
-	"pointer_hint_cross_path_subtree.yaml":  "GitHub #762",
-	"ref_back_into_a_node_being_built.yaml": "GitHub #762",
-}
-
 // TestExternalCorpus_DeclarationOrderDecidesNothing compiles every OpenAPI 3
 // spec in the corpus as another document, reached by a source that $refs each
 // of its path items and components, once in its order and once reversed. The
@@ -37,7 +28,8 @@ var externalOrderDependent = map[string]string{
 //
 // It is the harness's order oracle for what a $ref brings in from another
 // document, which the harness never compiles: a schema chain there failed in
-// one order only (GitHub #761).
+// one order only (GitHub #761), and a $ref in a path item from there resolved
+// against the source in one order only (GitHub #762).
 func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 	t.Parallel()
 	swept := 0
@@ -53,12 +45,8 @@ func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), data, 0o600))
-			diff := cmp.Diff(compiledThrough(t, dir, forward), compiledThrough(t, dir, reversed))
-			if issue, known := externalOrderDependent[filepath.Base(path)]; known {
-				assert.NotEmpty(t, diff, "%s no longer follows declaration order: drop it from the list", issue)
-				return
-			}
-			assert.Empty(t, diff, "declaration order decided what compiling the spec as another document reports")
+			assert.Empty(t, cmp.Diff(compiledThrough(t, dir, forward), compiledThrough(t, dir, reversed)),
+				"declaration order decided what compiling the spec as another document reports")
 		})
 	}
 	assert.Positive(t, swept, "the sweep reached no OpenAPI 3 spec")

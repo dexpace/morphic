@@ -92,3 +92,23 @@ func ObjectAt[T, S any, R interface {
 	}
 	return obj, pointer
 }
+
+// HeldElsewhere reports whether the entry ref resolves to an object a document
+// other than scope's holds: the last hop of its chain resolved against another
+// document. What is lowered from that object is read in that document's scope,
+// not this one's (see Scope.Foreign). An inline entry, a chain that comes back
+// into this document, and one that resolved nothing are held here.
+func HeldElsewhere[T, S any, R interface {
+	*S
+	Referenced[T, S]
+}](scope Scope, ref R) bool {
+	var last *references.ResolveResult[S]
+	for range maxRefChain {
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil || info.Object == nil {
+			break
+		}
+		last, ref = info, R(info.Object)
+	}
+	return last != nil && last.ResolvedDocument != any(scope.Doc)
+}

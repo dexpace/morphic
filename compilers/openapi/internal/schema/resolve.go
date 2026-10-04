@@ -150,6 +150,10 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s 
 func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	ref := js.GetRef().String()
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
+	if !ok && c.Foreign() {
+		return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
+			"unresolved $ref %q: it names a position in the other document holding it, which is not lowered", ref))
+	}
 	if !ok {
 		return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
 			"unresolved $ref %q", ref))
