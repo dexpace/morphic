@@ -60,3 +60,35 @@ paths:
 	assert.False(t, home.Foreign, "what the source holds is read as the source's")
 	assert.Empty(t, home.Holder)
 }
+
+// TestInSource pins the copy InSource returns for lowering what the source
+// holds at a position another document's content names: no longer Foreign,
+// with no holder, so a pointer alone names the source's position again. The
+// context it was taken from is left as it was.
+func TestInSource(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
+		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /ext: {$ref: './ext.yaml#/paths/~1x'}
+`
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	ext, ok := doc.Doc.Paths.Get("/ext")
+	require.True(t, ok)
+	foreign := lowering.Within[soa.PathItem](c, ext)
+	require.True(t, foreign.RefScope().Foreign)
+
+	home := foreign.InSource().RefScope()
+	assert.False(t, home.Foreign, "what the source holds is read as the source's")
+	assert.Empty(t, home.Holder)
+	_, internal := home.InternalPointer("#/paths/~1ext")
+	assert.True(t, internal, "a pointer alone names the source's position again")
+	assert.True(t, foreign.RefScope().Foreign, "the context it was taken from is left as it was")
+}
