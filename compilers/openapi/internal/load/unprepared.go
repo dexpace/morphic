@@ -3,6 +3,7 @@ package load
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json/jsontext"
 	"io"
 	"iter"
@@ -27,24 +28,53 @@ const maxResolutionHops = 32
 
 // externalReads is what the external-document readers of one compile have
 // read: each prepared document's released tree, by the key it was prepared
-// under, the set of those trees, and every answer their requests got, by URL
-// and in order. It is safe for concurrent use, as the readers sharing it are.
+// under and by the digest of its bytes, the set of those trees, and every
+// answer their requests got, by URL and in order. The source is held as a
+// document read already (see sourceDocument). It is safe for concurrent use,
+// as the readers sharing it are.
 type externalReads struct {
 	mu       sync.Mutex
+	self     sourceDocument
 	trees    map[string]*yaml.Node
 	mine     map[*yaml.Node]bool
 	answers  map[string][]answer
 	replayed map[string]int
+	// digests holds the digest of the bytes each key's tree was prepared from,
+	// and byDigest the tree for each digest, or nil once two trees share one.
+	digests  map[string]digest
+	byDigest map[digest]*yaml.Node
+	// mended memoizes treeFor by the bytes it was asked about, which the
+	// resolver hands out once per reference that hits its cache.
+	mended map[byteSpan]*yaml.Node
 }
 
-// newExternalReads returns an empty record.
-func newExternalReads() *externalReads {
-	return &externalReads{
+// digest is the SHA-256 of a document's bytes.
+type digest = [sha256.Size]byte
+
+// byteSpan identifies a byte slice by its backing array and length.
+type byteSpan struct {
+	first *byte
+	n     int
+}
+
+// newExternalReads returns a record holding only self, under each key the
+// resolver looks it up by.
+func newExternalReads(self sourceDocument) *externalReads {
+	r := &externalReads{
+		self:     self,
 		trees:    map[string]*yaml.Node{},
 		mine:     map[*yaml.Node]bool{},
 		answers:  map[string][]answer{},
 		replayed: map[string]int{},
+		digests:  map[string]digest{},
+		byDigest: map[digest]*yaml.Node{},
+		mended:   map[byteSpan]*yaml.Node{},
 	}
+	sum := sha256.Sum256(self.data)
+	for _, key := range self.keys() {
+		r.recordTree(key, self.root, sum)
+	}
+	return r
 }
 
 // answer is how a request was answered: the error it failed with, or a status
@@ -86,12 +116,79 @@ func (r *externalReads) nextAnswer(key string) (answer, bool) {
 	return r.answers[key][n], true
 }
 
-// recordTree notes a document prepared under key.
-func (r *externalReads) recordTree(key string, tree *yaml.Node) {
+// recordTree notes a document prepared under key from bytes of digest sum.
+func (r *externalReads) recordTree(key string, tree *yaml.Node, sum digest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.trees[key] = tree
 	r.mine[tree] = true
+	r.digests[key] = sum
+	if held, ok := r.byDigest[sum]; ok && held != tree {
+		tree = nil
+	}
+	r.byDigest[sum] = tree
+}
+
+// treeFor returns the tree prepared from data, the bytes of the document the
+// resolver keys as path, or nil for none: the tree prepared under path when its
+// bytes were these, else the one tree prepared from them.
+func (r *externalReads) treeFor(path string, data []byte) *yaml.Node {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(data) == 0 {
+		return r.lookup(path, data)
+	}
+	span := byteSpan{first: &data[0], n: len(data)}
+	if tree, ok := r.mended[span]; ok {
+		return tree
+	}
+	tree := r.lookup(path, data)
+	r.mended[span] = tree
+	return tree
+}
+
+// mend settles where each of c's records says its hop resolved: the tree
+// prepared from a document's bytes in place of the bytes, and the source's
+// model, doc, in place of the source's bytes or tree, so the trail of a $ref
+// back into the source ends in the source as an internal one's does. It reports
+// whether it changed any record.
+func (r *externalReads) mend(c chain, doc *soa.OpenAPI) bool {
+	changed := false
+	for _, rec := range c.records {
+		if settled := r.settled(*rec.document, rec.path, doc); settled != nil {
+			*rec.document = settled
+			changed = true
+		}
+	}
+	return changed
+}
+
+// settled returns what a record whose hop read path and resolved against
+// document should say instead, or nil when it says it already.
+func (r *externalReads) settled(document any, path string, doc *soa.OpenAPI) any {
+	tree, isTree := document.(*yaml.Node)
+	if data, isBytes := document.([]byte); isBytes {
+		tree, isTree = r.treeFor(path, data), true
+	}
+	switch {
+	case !isTree || tree == nil:
+		return nil
+	case tree == r.self.root:
+		return doc
+	case document == any(tree):
+		return nil
+	default:
+		return tree
+	}
+}
+
+// lookup is treeFor unmemoized. The caller holds the lock.
+func (r *externalReads) lookup(path string, data []byte) *yaml.Node {
+	sum := sha256.Sum256(data)
+	if held, ok := r.trees[path]; ok && r.digests[path] == sum {
+		return held
+	}
+	return r.byDigest[sum]
 }
 
 // prepared reports whether tree is one this compile prepared.
@@ -124,9 +221,9 @@ func (r *externalReads) preparedFor(used string) (*yaml.Node, bool) {
 // the key the resolver read it by.
 //
 // It stores no bytes. With a document's bytes cached the resolver skips its
-// request and may return an object cached for another reference, so the
-// second resolution would not resolve as the first did (GitHub #576's
-// self-reference shows it); the replayed request brings them instead.
+// request and caches no object it builds, so two references the first
+// resolution gave one object would each get their own; the replayed request
+// brings them instead. The source's are stored by hold, in both resolutions.
 func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 	r.mu.Lock()
 	for key, tree := range r.trees {
@@ -151,12 +248,12 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // external.replaying). It resolves as the first did but for those trees, which
 // the walk never descends into, so it reaches no new document; one found
 // unprepared is an internal fault.
-func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
-	read := newExternalReads()
+	read := newExternalReads(self)
 	reader := newExternal(doc, opts, read)
-	diags := resolveWith(ctx, at, doc, path, opts, &reader)
+	diags := resolveWith(ctx, at, doc, self, opts, &reader)
 	used := documentsUsed(ctx, doc)
 	if !anyAnchored(doc, unprepared(doc, read, used)) {
 		return doc, diags, nil
@@ -170,7 +267,7 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
 	reader.replaying = true
-	diags = resolveWith(ctx, at, again, path, opts, &reader)
+	diags = resolveWith(ctx, at, again, self, opts, &reader)
 	return again, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
 }
 
@@ -281,69 +378,113 @@ type trail struct {
 // resolutionTrail returns the trail a reference's resolution recorded, or an
 // empty one for a model that is not a reference.
 func resolutionTrail(model any) trail {
-	switch r := model.(type) {
-	case *soa.ReferencedPathItem:
-		return hops(r)
-	case *soa.ReferencedParameter:
-		return hops(r)
-	case *soa.ReferencedHeader:
-		return hops(r)
-	case *soa.ReferencedRequestBody:
-		return hops(r)
-	case *soa.ReferencedResponse:
-		return hops(r)
-	case *soa.ReferencedExample:
-		return hops(r)
-	case *soa.ReferencedLink:
-		return hops(r)
-	case *soa.ReferencedCallback:
-		return hops(r)
-	case *soa.ReferencedSecurityScheme:
-		return hops(r)
-	case *oas3.JSONSchema[oas3.Referenceable]:
-		return hops(r)
-	default:
-		return trail{}
-	}
+	return resolutionChain(model).trail()
 }
 
-// hops follows a reference through each hop its resolution recorded. S is the
-// reference's own type, a schema or a Referenced* alias's Reference[T, V, C],
-// named through S as resolve.Referenced does because the library's V
-// constraint is internal.
-//
-// A trail that ends on a reference, not an object, ends where the resolution
-// stopped. A record holding no object is no hop: the library gives a $ref
-// inside a resolved schema one holding only the base it resolves against. A
-// schema's GetReferenceChain would not do: it hangs off the target's parent,
-// which the last reference to resolve a shared target overwrites.
-func hops[S any, R interface {
-	*S
-	GetReference() references.Reference
-	GetReferenceResolutionInfo() *references.ResolveResult[S]
-}](ref R) trail {
-	var t trail
+// chain is every record a reference's resolution holds, first hop first, and
+// the reference it stopped at, if it stopped at one. The last record holds no
+// object when the library gave the reference it stopped at one of its own: a
+// $ref inside a resolved schema gets one holding only the base it resolves
+// against. cut marks a chain followed only as far as maxResolutionHops.
+type chain struct {
+	records []record
+	stopped references.Reference
+	cut     bool
+}
+
+// record is one hop's record: the document it read, by path, what it reached,
+// and where it notes the document it resolved against, which a later hop
+// resolves against in turn.
+type record struct {
+	path     string
+	target   references.Reference
+	document *any
+	reached  bool
+}
+
+// trail reads what c's records say about where the resolution went. A record
+// holding no object is no hop.
+func (c chain) trail() trail {
+	t := trail{stopped: c.stopped, cut: c.cut}
 	var last references.Reference
-	hop := ref
-	for hop != nil {
-		info := hop.GetReferenceResolutionInfo()
-		if info == nil || info.Object == nil {
-			break
+	for _, r := range c.records {
+		if !r.reached {
+			continue
 		}
-		if len(t.docs) == maxResolutionHops {
-			t.cut = true
-			return t
-		}
-		t.docs = append(t.docs, info.AbsoluteDocumentPath)
-		_, t.endsInSource = info.ResolvedDocument.(*soa.OpenAPI)
-		last = info.AbsoluteReference
-		hop = info.Object
+		t.docs = append(t.docs, r.path)
+		_, t.endsInSource = (*r.document).(*soa.OpenAPI)
+		last = r.target
 	}
-	if hop != nil {
-		t.stopped = hop.GetReference() // empty for the object a resolution ends on
-	}
-	if t.stopped == "" {
+	if !c.cut && t.stopped == "" {
 		t.target = last
 	}
 	return t
+}
+
+// resolutionChain returns the records a reference's resolution holds, or none
+// for a model that is not a reference.
+func resolutionChain(model any) chain {
+	switch r := model.(type) {
+	case *soa.ReferencedPathItem:
+		return recordsOf(r)
+	case *soa.ReferencedParameter:
+		return recordsOf(r)
+	case *soa.ReferencedHeader:
+		return recordsOf(r)
+	case *soa.ReferencedRequestBody:
+		return recordsOf(r)
+	case *soa.ReferencedResponse:
+		return recordsOf(r)
+	case *soa.ReferencedExample:
+		return recordsOf(r)
+	case *soa.ReferencedLink:
+		return recordsOf(r)
+	case *soa.ReferencedCallback:
+		return recordsOf(r)
+	case *soa.ReferencedSecurityScheme:
+		return recordsOf(r)
+	case *oas3.JSONSchema[oas3.Referenceable]:
+		return recordsOf(r)
+	default:
+		return chain{}
+	}
+}
+
+// recordsOf follows a reference through each record its resolution holds. S is
+// the reference's own type, a schema or a Referenced* alias's Reference[T, V,
+// C], named through S as resolve.Referenced does because the library's V
+// constraint is internal.
+//
+// It walks forward from the reference, each hop owning its record. A schema's
+// GetReferenceChain would not do: it hangs off the target's parent, which the
+// last reference to resolve a shared target overwrites.
+func recordsOf[S any, R interface {
+	*S
+	GetReference() references.Reference
+	GetReferenceResolutionInfo() *references.ResolveResult[S]
+}](ref R) chain {
+	var c chain
+	hop := ref
+	for hop != nil {
+		info := hop.GetReferenceResolutionInfo()
+		if info == nil {
+			break
+		}
+		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
+			document: &info.ResolvedDocument, reached: info.Object != nil}
+		if !r.reached {
+			c.records = append(c.records, r)
+			break
+		}
+		if len(c.records) == maxResolutionHops {
+			c.cut = true
+			return c
+		}
+		c.records = append(c.records, r)
+		hop = info.Object
+	}
+	if hop != nil {
+		c.stopped = hop.GetReference() // empty for the object a resolution ends on
+	}
+	return c
 }

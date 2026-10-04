@@ -100,9 +100,9 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 // document, or false when it reaches none: its chain ends on no object
 // (reachedObject), or in the source, whose own validation covers what is
 // there. An internal $ref whose chain leaves the source reaches an object as
-// an external one does, so a finding lands where the resolver's would. A $ref
-// naming the source's own file is read as another document (GitHub #759), so
-// what it reaches is validated a second time.
+// an external one does, so a finding lands where the resolver's would. A chain
+// that comes back into the source from another document ends in it too (see
+// externalReads.mend).
 func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
 	t := resolutionTrail(r)
 	if t.endsInSource {
@@ -144,8 +144,7 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 // checkAll validates each target in the order of its site, and reports its
 // findings. A finding already reported was reported at a lesser $ref, so each
 // lands at the least $ref whose object's validation draws it, and a budget is
-// crossed at the same object, whatever the declaration order. What resolution
-// reaches can follow that order (GitHub #761).
+// crossed at the same object, whatever the declaration order.
 //
 // An object inside one validated before it is validated, and charged, again
 // (GitHub #571): a container spans more than its model reads, such as an

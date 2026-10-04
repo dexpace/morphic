@@ -254,7 +254,8 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		again, _, err := rebuildDoc(ctx, src.Data, root)
 		return again, err
 	}
-	doc, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, src.Path, opts, rebuild)
+	self := newSourceDocument(src.Path, src.Data, root, valErrs)
+	doc, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, self, opts, rebuild)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -321,13 +322,13 @@ func compilerOwned(verr validation.Error) bool {
 // resolution's objects are discarded when a rebuild replaces it, so validating
 // them would be work whose findings are thrown away, or findings reported
 // about objects the IR is not built from.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
-		return doc, resolveWith(ctx, at, doc, path, opts, nil), nil
+		return doc, resolveWith(ctx, at, doc, self, opts, nil), nil
 	}
-	resolved, diags, err := resolveExternal(ctx, at, doc, path, opts, rebuild)
+	resolved, diags, err := resolveExternal(ctx, at, doc, self, opts, rebuild)
 	if err != nil {
 		return nil, nil, err
 	}

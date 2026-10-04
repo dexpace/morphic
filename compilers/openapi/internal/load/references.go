@@ -28,32 +28,36 @@ type resolvable interface {
 // through reader when one is given. It reports each failure at the $ref that
 // failed, and each finding in the object a reference names at a $ref reaching
 // it (GitHub #385, GitHub #537). It runs ResolveAllReferences' own walk, since
-// that call names no reference for a failure or a finding.
+// that call names no reference for either.
 //
-// A finding is in a document with no entry in Document.Sources (GitHub #74), so
-// its message names the document and its position there (see findingPlace). It
-// is about a node, not a reference, so it is reported once (see
-// reachedFindings).
-func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+// A finding's document has no entry in Document.Sources (GitHub #74), so its
+// message names the document and its position there (see findingPlace). It is
+// about a node, so it is reported once (see reachedFindings), and not where the
+// source's own validation reported it.
+func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, reader *external,
 ) []ir.Diagnostic {
 	resolveOpts := references.ResolveOptions{
-		TargetLocation:      path,
+		TargetLocation:      self.path,
 		RootDocument:        doc,
 		DisableExternalRefs: !opts.AllowExternalRefs,
 	}
 	if reader != nil {
 		resolveOpts.VirtualFS = *reader
 		resolveOpts.HTTPClient = *reader
+		reader.hold(ctx)
 	}
 
 	var failures []ir.Diagnostic
-	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
+	found := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}
 	site, err := eachReference(soa.Walk(ctx, doc), "reference resolver", func(site jsontext.Pointer, r resolvable) error {
 		var vErrs []error
 		var err error
 		if !r.IsResolved() { // one an earlier $ref's chain resolved is only noted
 			vErrs, err = r.Resolve(ctx, resolveOpts)
+		}
+		if reader != nil {
+			vErrs, err = reader.settle(ctx, r, resolveOpts, vErrs, err)
 		}
 		t := resolutionTrail(r)
 		found.note(site, t, vErrs)
@@ -71,13 +75,26 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 // eachReference calls visit with each reference the walk reaches, resolved or
 // not, and the pointer that writes it. The walk does not descend into what a
 // resolved reference names, so each is visited once, where it is written.
+func eachReference(items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, resolvable) error,
+) (jsontext.Pointer, error) {
+	return eachResolvable(items, what, func(site jsontext.Pointer, r resolvable) error {
+		if !r.IsReference() {
+			return nil
+		}
+		return visit(site, r)
+	})
+}
+
+// eachResolvable calls visit with each model the walk reaches that a reference
+// can name or be, and the pointer that names it.
 //
 // A panic in the walk or under visit becomes an error naming what was running,
 // as a parser panic does in unmarshal: the library faults on shapes the parser
-// accepts, such as a $ref with no value. It stops the walk at site, the
-// reference being visited, or the root when the walk panicked. An error from
-// visit stops it too.
-func eachReference(items iter.Seq[soa.WalkItem], what string,
+// accepts, such as a $ref with no value. It stops the walk at site, the model
+// being visited, or the root when the walk panicked. An error from visit stops
+// it too.
+func eachResolvable(items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, resolvable) error,
 ) (site jsontext.Pointer, err error) {
 	defer func() {
@@ -88,7 +105,7 @@ func eachReference(items iter.Seq[soa.WalkItem], what string,
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(resolvable)
-			if !ok || !r.IsReference() {
+			if !ok {
 				return nil
 			}
 			site = jsontext.Pointer(item.Location.ToJSONPointer())
@@ -112,6 +129,8 @@ func eachReference(items iter.Seq[soa.WalkItem], what string,
 type reachedFindings struct {
 	sites   map[references.Reference]jsontext.Pointer
 	pending []pendingFinding
+	// known holds the findings already reported, which are not reported again.
+	known map[findingKey]bool
 }
 
 // pendingFinding is a finding as the $ref at site drew it, along a trail ending
@@ -144,11 +163,10 @@ func (f *reachedFindings) note(site jsontext.Pointer, t trail, vErrs []error) {
 }
 
 // diags reports each finding once, at its target's least $ref, or at its own
-// $ref when its trail ended at no target. A finding drawn more than once is
-// kept at the least of its places: the library caches no object it builds from
-// a document whose bytes it already holds, so it builds a target again for each
-// $ref once another read that document. A finding in the source read again by
-// a $ref from another document shares no node with the source's (GitHub #759).
+// $ref when its trail ended at no target, and none that is known. A finding
+// drawn more than once is kept at the least of its places: the library caches
+// no object it builds from a document whose bytes it already holds, so it
+// builds a target again for each $ref once another read that document.
 func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
 	placed := make([]jsontext.Pointer, len(f.pending))
 	kept := make(map[findingKey]int, len(f.pending))
@@ -164,7 +182,7 @@ func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Di
 	}
 	out := make([]ir.Diagnostic, 0, len(kept))
 	for i, p := range f.pending {
-		if kept[keyOf(p.err, placed[i])] == i {
+		if key := keyOf(p.err, placed[i]); kept[key] == i && !f.known[key] {
 			out = append(out, reachedFinding(at(placed[i]), p.place, p.err))
 		}
 	}

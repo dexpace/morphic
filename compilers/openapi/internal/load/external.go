@@ -2,11 +2,14 @@ package load
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"iter"
 	"math"
 	"net/http"
 	"os"
@@ -14,6 +17,7 @@ import (
 	"sync"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/ir"
@@ -61,9 +65,65 @@ func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{}}
 }
 
+// hold stores the source where the resolver of e.doc looks for a document it
+// has read: its tree and bytes under each key it is looked up by, and each
+// object the source's model holds at the pointer naming it. A $ref back into
+// the source from another document then reaches the source's own objects, and
+// no file is read for it (GitHub #759).
+//
+// A panic stops the walk where it stands, holding the rest no more than before.
+// The resolution walk that follows is the same walk, and reports it.
+func (e external) hold(ctx context.Context) {
+	e.holdWalked(soa.Walk(ctx, e.doc))
+}
+
+// holdWalked is hold over the walk of e.doc the caller supplies, so a test can
+// hand it one that panics.
+func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
+	keys := e.read.self.keys()
+	if len(keys) == 0 {
+		return
+	}
+	for _, key := range keys {
+		e.doc.StoreExternalDocumentInCache(key, e.read.self.root)
+		e.doc.StoreReferenceDocumentInCache(key, e.read.self.data)
+	}
+	if _, err := eachResolvable(items, "source", func(site jsontext.Pointer, r resolvable) error {
+		for _, key := range keys {
+			e.doc.StoreReferencedObjectInCache(key+"#"+string(site), r)
+		}
+		return nil
+	}); err != nil {
+		return
+	}
+}
+
+// settle finishes resolving r, whose resolution returned vErrs and err. It
+// mends the records r's chain holds (see externalReads.mend), and resumes a
+// resolution that failed while mending changed one: the library reports a
+// document as its bytes when it holds both them and the object a reference
+// names, and a hop resolved against bytes fails (GitHub #761). Each resumption
+// starts past a record the last stalled on, so maxResolutionHops bounds them.
+func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
+	vErrs []error, err error,
+) ([]error, error) {
+	for i := 0; err != nil && i < maxResolutionHops && e.read.mend(resolutionChain(r), e.doc); i++ {
+		more, again := r.Resolve(ctx, opts)
+		vErrs, err = append(vErrs, more...), again
+	}
+	e.read.mend(resolutionChain(r), e.doc)
+	return vErrs, err
+}
+
 // Open reads the file name as the resolver's default file system would, and
-// prepares it under name. A file refused once fails again without being opened.
+// prepares it under name. A file refused once fails again without being opened,
+// and the source, spelled as no key hold stored, is served as it is held.
 func (e external) Open(name string) (fs.File, error) {
+	if e.read.self.names(name) {
+		e.doc.StoreExternalDocumentInCache(name, e.read.self.root)
+		e.read.recordTree(name, e.read.self.root, sha256.Sum256(e.read.self.data))
+		return sourceFile{Reader: bytes.NewReader(e.read.self.data)}, nil
+	}
 	if err := e.refusal(name); err != nil {
 		return nil, err
 	}
@@ -154,9 +214,10 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	releaseAnchors(root)
+	sum := sha256.Sum256(data)
 	e.doc.StoreExternalDocumentInCache(key, root)
-	e.read.recordTree(key, root)
-	e.judged.Store(key, sha256.Sum256(data))
+	e.read.recordTree(key, root, sum)
+	e.judged.Store(key, sum)
 	return data, nil
 }
 
@@ -232,4 +293,20 @@ type preparedFile struct {
 // Read serves the bytes read ahead.
 func (p preparedFile) Read(b []byte) (int, error) {
 	return p.data.Read(b)
+}
+
+// sourceFile serves the source's bytes as the file the resolver opened. The
+// resolver reads it and closes it, and asks nothing else of it.
+type sourceFile struct {
+	*bytes.Reader
+}
+
+// Stat refuses: the source is held, not opened.
+func (sourceFile) Stat() (fs.FileInfo, error) {
+	return nil, fs.ErrInvalid
+}
+
+// Close releases nothing: the bytes are the source's own.
+func (sourceFile) Close() error {
+	return nil
 }

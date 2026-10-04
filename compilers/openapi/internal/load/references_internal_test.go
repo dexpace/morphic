@@ -68,7 +68,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	doc, valErrs := parseSpec(t, sitedFailuresSpec)
 	require.Empty(t, valErrs, "the fixture is otherwise well-formed")
 
-	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, "root.yaml", Options{}, nil)
+	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -157,7 +157,7 @@ components:
 `)
 		require.Empty(t, valErrs)
 
-		got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, "root.yaml", Options{}, nil)
+		got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -666,7 +666,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		})
 		want := referencePairs(t, doc1)
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, path, Options{}, nil)
+		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {

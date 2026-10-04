@@ -42,14 +42,15 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, path, Options{AllowExternalRefs: true}, rebuild)
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, newSourceDocument(path, data, root, nil),
+		Options{AllowExternalRefs: true}, rebuild)
 }
 
 // resolveSpecWith is resolveSpec at root.yaml with a caller-supplied rebuild, for
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec), "root.yaml",
+	return resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec), sourceDocument{path: "root.yaml"},
 		Options{AllowExternalRefs: true}, rebuild)
 }
 
@@ -389,11 +390,9 @@ func TestResolveExternal_TheFirstPassSendsEveryRequest(t *testing.T) {
 }
 
 // TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid pins
-// that the hand-over leaves the resolver's own caching alone. ./self.yaml is
-// read as another document (GitHub #576), so /b mounts a copy of what /a does.
-// Had the second pass been handed the source's bytes, the resolver would have
-// returned /a's object for /b instead: whether some other $ref is respelled
-// would decide how /b resolves.
+// that both passes answer a $ref naming the source's own file from the source
+// as held (GitHub #759): /b reaches /a's own declaration whether or not another
+// $ref is respelled, which is what decides whether a second pass runs.
 func TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid(t *testing.T) {
 	t.Parallel()
 	trigger, _ := countingServer(t, anchoredExternalDoc)
@@ -424,8 +423,8 @@ func TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid(t *tes
 			require.True(t, ok)
 			require.NotNil(t, a.GetObject())
 			require.NotNil(t, b.GetObject())
-			assert.NotSame(t, a.GetObject().GetRootNode(), b.GetObject().GetRootNode(),
-				"/b mounts the copy read from self.yaml, not /a's own declaration")
+			assert.Same(t, a.GetObject(), b.GetObject(),
+				"/b reaches the source's own declaration, as /a does")
 		})
 	}
 }
@@ -1194,9 +1193,9 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("/tmp/doc.yaml", tree)
+		r.recordTree("/tmp/doc.yaml", tree, digest{})
 
 		got, ok := r.preparedFor("/tmp/doc.yaml")
 
@@ -1206,9 +1205,9 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a file key http.NewRequest would respell", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
-		r.recordTree("dir/with space/doc.yaml", tree)
+		r.recordTree("dir/with space/doc.yaml", tree, digest{})
 
 		got, ok := r.preparedFor("dir/with space/doc.yaml")
 
@@ -1218,12 +1217,12 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a URL key found by its request spelling", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// The spelling external.Do actually stores under: the request's own URL.
 		req, err := http.NewRequest(http.MethodGet, "HTTP://host/doc.yaml", nil)
 		require.NoError(t, err)
-		r.recordTree(req.URL.String(), tree)
+		r.recordTree(req.URL.String(), tree, digest{})
 
 		// The resolver's own, unnormalized key.
 		got, ok := r.preparedFor("HTTP://host/doc.yaml")
@@ -1234,10 +1233,10 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a URL key spelled with an empty port", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		// http.NewRequest drops the empty port, so external.Do stores it without one.
-		r.recordTree("http://host/doc.yaml", tree)
+		r.recordTree("http://host/doc.yaml", tree, digest{})
 
 		got, ok := r.preparedFor("http://host:/doc.yaml")
 
@@ -1247,7 +1246,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a key http.NewRequest rejects", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 
 		_, ok := r.preparedFor("http://host/\x00bad")
 
@@ -1256,7 +1255,7 @@ func TestPreparedFor(t *testing.T) {
 
 	t.Run("a missing key", func(t *testing.T) {
 		t.Parallel()
-		r := newExternalReads()
+		r := newExternalReads(sourceDocument{})
 
 		_, ok := r.preparedFor("/no/such/file.yaml")
 
@@ -1299,7 +1298,7 @@ func TestUnprepared(t *testing.T) {
 		doc.InitCache()
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
-		read := newExternalReads() // nothing of ours is cached under "k"
+		read := newExternalReads(sourceDocument{}) // nothing of ours is cached under "k"
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -1313,8 +1312,8 @@ func TestUnprepared(t *testing.T) {
 		doc.InitCache()
 		tree := &yaml.Node{Kind: yaml.ScalarNode, Value: "x"}
 		doc.StoreExternalDocumentInCache("k", tree)
-		read := newExternalReads()
-		read.recordTree("k", tree) // the same pointer: ours
+		read := newExternalReads(sourceDocument{})
+		read.recordTree("k", tree, digest{}) // the same pointer: ours
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -1326,7 +1325,7 @@ func TestUnprepared(t *testing.T) {
 		doc := &soa.OpenAPI{}
 		doc.InitCache()
 		doc.StoreExternalDocumentInCache("k", "not a tree")
-		read := newExternalReads()
+		read := newExternalReads(sourceDocument{})
 
 		got := unprepared(doc, read, []usedDocument{{key: "k"}})
 
@@ -1337,7 +1336,7 @@ func TestUnprepared(t *testing.T) {
 		t.Parallel()
 		doc := &soa.OpenAPI{}
 		doc.InitCache()
-		read := newExternalReads()
+		read := newExternalReads(sourceDocument{})
 
 		got := unprepared(doc, read, []usedDocument{{key: "missing"}})
 
@@ -1349,7 +1348,7 @@ func TestUnprepared(t *testing.T) {
 // answers come back as they were recorded, one per request, and then none.
 func TestExternalReads_ReplaysAnswersInOrder(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads()
+	r := newExternalReads(sourceDocument{})
 	gone := answer{status: http.StatusNotFound}
 	found := answer{status: http.StatusOK, body: []byte("doc")}
 	other := answer{err: errors.New("reset")}
@@ -1378,7 +1377,7 @@ func TestExternalReads_ReplaysAnswersInOrder(t *testing.T) {
 // catch. Under -race, unsynchronized access fails here.
 func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 	t.Parallel()
-	r := newExternalReads()
+	r := newExternalReads(sourceDocument{})
 	for i := range 8 {
 		key := fmt.Sprintf("http://host/doc%d.yaml", i)
 		t.Run(fmt.Sprintf("doc%d", i), func(t *testing.T) {
@@ -1387,7 +1386,7 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 			doc := &soa.OpenAPI{}
 			doc.InitCache()
 			for range 100 {
-				r.recordTree(key, tree)
+				r.recordTree(key, tree, digest{})
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
