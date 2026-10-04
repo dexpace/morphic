@@ -40,7 +40,8 @@ type externalReads struct {
 	answers  map[string][]answer
 	replayed map[string]int
 	// digests holds the digest of the bytes each key's tree was prepared from,
-	// and byDigest the tree for each digest, or nil once two trees share one.
+	// and byDigest the tree for each digest, or nil once two documents' trees
+	// share one (see recordTree).
 	digests  map[string]digest
 	byDigest map[digest]*yaml.Node
 	// mended memoizes treeFor by what it was asked, since the resolver hands
@@ -118,17 +119,22 @@ func (r *externalReads) nextAnswer(key string) (answer, bool) {
 	return r.answers[key][n], true
 }
 
-// recordTree notes a document prepared under key from bytes of digest sum.
+// recordTree notes a document prepared under key from bytes of digest sum. A
+// tree from bytes another document's tree came from leaves the digest naming
+// neither. One replacing key's own earlier tree does not: the second
+// resolution prepares each file it reads again, and the digest must still name
+// it, since a document a record names by $id is found by its digest alone.
 func (r *externalReads) recordTree(key string, tree *yaml.Node, sum digest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	answer := tree
+	if held, ok := r.byDigest[sum]; ok && held != tree && (held == nil || held != r.trees[key]) {
+		answer = nil
+	}
 	r.trees[key] = tree
 	r.mine[tree] = true
 	r.digests[key] = sum
-	if held, ok := r.byDigest[sum]; ok && held != tree {
-		tree = nil
-	}
-	r.byDigest[sum] = tree
+	r.byDigest[sum] = answer
 }
 
 // treeFor returns the tree prepared from data, the bytes of the document the

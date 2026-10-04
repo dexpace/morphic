@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json/jsontext"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -107,6 +108,35 @@ components:
 	}
 }
 
+// TestSettle_AChainResolvesInTheSecondPassToo pins GitHub #761 through GitHub
+// #538's second resolution, which a respelled anchored URL forces. That pass
+// prepares each file it reads again, so a document named by its $id, which
+// only its digest identifies, must still be found by it: the chain resolves,
+// with nothing reported, as it does when no second pass runs.
+func TestSettle_AChainResolvesInTheSecondPassToo(t *testing.T) {
+	t.Parallel()
+	trigger, _ := countingServer(t, anchoredExternalDoc)
+	dir := externalDir(t, map[string]string{"by-id.yaml": `$id: 'https://example.com/schemas/by-id.yaml'
+components:
+  schemas:
+    Base: {type: object}
+    Alias: {$ref: '#/components/schemas/Base'}
+`})
+	schemas := "components:\n  schemas:\n" +
+		"    Base: {$ref: './by-id.yaml#/components/schemas/Base'}\n" +
+		"    Alias: {$ref: './by-id.yaml#/components/schemas/Alias'}\n"
+	for _, paths := range []string{"paths: {}\n",
+		"paths:\n  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n"} {
+		doc, diags, err := resolveSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+paths+schemas,
+			filepath.Join(dir, "root.yaml"))
+		require.NoError(t, err)
+		assert.Empty(t, diags, paths)
+		alias, ok := doc.Components.Schemas.Get("Alias")
+		require.True(t, ok)
+		assert.NotEmpty(t, resolutionTrail(alias).target, "Alias's chain ends on an object: %s", paths)
+	}
+}
+
 // TestSettle_AChainTargetIsValidatedInEitherOrder pins what GitHub #761 cost
 // once reached objects were validated: a chain that failed ended on no object,
 // so whether its target's finding was reported followed declaration order.
@@ -188,6 +218,18 @@ func TestTreeFor(t *testing.T) {
 		r := newExternalReads(sourceDocument{})
 		r.recordTree("a.yaml", a, sum)
 		assert.Same(t, a, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)))
+	})
+	t.Run("by digest, once its document is prepared again", func(t *testing.T) {
+		t.Parallel()
+		r := newExternalReads(sourceDocument{})
+		r.recordTree("a.yaml", a, sum)
+		r.recordTree("a.yaml", b, sum)
+		assert.Same(t, b, r.treeFor("https://example.com/by-id.yaml", slices.Clone(data)),
+			"one document prepared twice is not two sharing a digest")
+		r.recordTree("c.yaml", a, sum)
+		r.recordTree("d.yaml", b, sum)
+		assert.Nil(t, r.treeFor("https://example.com/other.yaml", slices.Clone(data)),
+			"once two documents share the digest, a third does not make it name one")
 	})
 	t.Run("by path, when the digest is shared", func(t *testing.T) {
 		t.Parallel()
