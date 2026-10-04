@@ -1174,7 +1174,39 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", false, nil
 	}
-	return resolvePointer(c, ts, anchors, depth, pointer, c.RefScope().DeclaredAt(pointer))
+	pointer, decl := typePosition(c, pointer, c.RefScope().DeclaredAt(pointer))
+	return resolvePointer(c, ts, anchors, depth, pointer, decl)
+}
+
+// maxTypePositionHops bounds how many $ref positions typePosition reads
+// through (styleguide bounded-everything rule). Each hop names another
+// position, and a cycle of them is one the resolver reports circular; the
+// bound only keeps the walk finite on one.
+const maxTypePositionHops = 64
+
+// typePosition returns the position whose type a mapping target naming
+// pointer, where decl is declared, names. It is pointer itself, unless what is
+// declared there is a $ref holding nothing an alias would (refSiteHomesNothing)
+// at a position no component declares: that position is only a use of its
+// target's type, so it names the position the $ref does, as a union variant
+// written there names its target (GitHub #758). Each hop is read as the $ref
+// there resolves, so the two cannot drift.
+func typePosition(c lowering.Ctx, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
+	for range maxTypePositionHops {
+		if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
+			break
+		}
+		s := decl.GetSchema()
+		if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
+			break
+		}
+		next, ok := c.RefScope().TargetPointer(decl, decl.GetRef().String())
+		if !ok {
+			break
+		}
+		pointer, decl = next, annotation.DeclaredSchema(decl)
+	}
+	return pointer, decl
 }
 
 // componentIDByName is the ID a mapping target naming a declared component
@@ -1199,6 +1231,7 @@ func mappingTargetID(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, t
 	if !ok {
 		return "", false
 	}
+	pointer, _ = typePosition(c, pointer, c.RefScope().DeclaredAt(pointer))
 	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
 		return id, resolved
 	}
