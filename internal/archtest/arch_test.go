@@ -113,12 +113,15 @@ var rules = map[string][]string{
 	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
-	// reaches nothing that lowers — at this point there is no document to lower.
+	// reaches resolve to read which mapping values name a position in the source
+	// as the lowering will. It reaches nothing that lowers — at this point there
+	// is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",

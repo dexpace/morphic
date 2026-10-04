@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"iter"
-	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // MappingTargets holds the schema each discriminator mapping target in the
@@ -42,11 +44,7 @@ type mappings struct {
 	// built unless the model holds it, as the walk's end tells.
 	built   []builtObject
 	entries []mappingEntry
-	tried   map[string]bool
 	out     map[jsontext.Pointer]*schemaRef
-	// from holds the target each pointer's schema was resolved from: the least
-	// of the spellings naming it, so declaration order never decides it.
-	from map[jsontext.Pointer]string
 }
 
 // builtObject is an object a resolution reached in the source: the record
@@ -69,8 +67,7 @@ type mappingEntry struct {
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
 	return &mappings{self: self, doc: doc, opts: opts, reader: reader,
-		model: map[any]bool{}, walked: map[any]bool{}, tried: map[string]bool{},
-		out: map[jsontext.Pointer]*schemaRef{}, from: map[jsontext.Pointer]string{}}
+		model: map[any]bool{}, walked: map[any]bool{}, out: map[jsontext.Pointer]*schemaRef{}}
 }
 
 // targets returns what resolve resolved.
@@ -122,8 +119,8 @@ func pointerIn(r record) jsontext.Pointer {
 
 // resolve resolves each target the discriminators collected name, then those
 // in what each target brings in, and notes what each resolution draws in
-// found. Each target is resolved once and each object walked once, so the
-// work is bounded by the source's text.
+// found. Each entry is resolved once and each object walked once, so the work
+// is bounded by the source's text.
 //
 // A panic stops it, reported as an error naming site, the entry or reference
 // whose work was running, as a panic in resolveWith's walk is.
@@ -166,30 +163,33 @@ func (m *mappings) collectFrom(base jsontext.Pointer, items iter.Seq[soa.WalkIte
 	}
 }
 
-// resolveEntry resolves e's target as a $ref to it in the source is resolved,
-// and records the schema it names there, which its first hop reaches. A target
-// resolved already, or not in the source (see pointerOf), is skipped.
+// resolveEntry resolves e's target as a $ref to the position it names in the
+// source is resolved, unless it names none (see pointerOf), and records the
+// schema its first hop reaches there. Each spelling of one position resolves
+// one $ref, so each reaches the object the first did. Every entry is noted, so
+// each takes part in placing what the first drew.
 //
 // A target that does not resolve is recorded nowhere: the lowering reports
 // every target it cannot resolve, and reporting it here too would report it
 // twice. What its resolution drew is noted all the same.
 func (m *mappings) resolveEntry(ctx context.Context, e mappingEntry, found *reachedFindings) {
 	pointer, ok := m.pointerOf(e.target)
-	if !ok || m.tried[e.target] {
+	if !ok {
 		return
 	}
-	m.tried[e.target] = true
-	ref := oas3.NewJSONSchemaFromReference(references.Reference(e.target))
+	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
 	vErrs, err := ref.Resolve(ctx, m.opts)
 	if m.reader != nil {
 		vErrs, err = m.reader.settle(ctx, ref, m.opts, vErrs, err)
 	}
 	c := resolutionChain(ref)
 	found.note(e.site, c.trail(), vErrs)
-	if err != nil {
+	if err != nil || m.out[pointer] != nil {
 		return
 	}
-	m.record(pointer, e.target, c.records[0])
+	if declared, ok := c.records[0].object.(*schemaRef); ok {
+		m.out[pointer] = declared
+	}
 	for _, r := range c.records {
 		if inSource(r) && !m.model[r.object] {
 			m.walk(ctx, pointerIn(r), r)
@@ -197,33 +197,16 @@ func (m *mappings) resolveEntry(ctx context.Context, e mappingEntry, found *reac
 	}
 }
 
-// record keeps r's object as the schema at pointer, which target names, unless
-// a lesser spelling of it named one already.
-func (m *mappings) record(pointer jsontext.Pointer, target string, r record) {
-	declared, ok := r.object.(*schemaRef)
-	if from, held := m.from[pointer]; !ok || held && from < target {
-		return
-	}
-	m.out[pointer], m.from[pointer] = declared, target
-}
-
-// pointerOf returns the pointer target names in the source, as the lowering
-// reads it, and whether to resolve it here. Only a target in the source is: an
-// internal $ref, or one whose document part the resolver reads as the source,
-// which it reads only with external references allowed. A declared
-// component's name is the component, as the lowering reads it. The lowering
-// asks only for a pointer, so what another fragment names is never read.
+// pointerOf returns the position target names in the source, and whether it
+// names one: as the lowering reads it (refscope.Scope.InternalPointer), so the
+// targets resolved here are exactly those it asks DeclaredAt about. A declared
+// component's name is the component, and a "#/$defs/..." pointer is the
+// definition the lowering reads relative to the discriminator (GitHub #557),
+// which no $ref to the pointer resolves.
 func (m *mappings) pointerOf(target string) (jsontext.Pointer, bool) {
 	if _, declared := m.doc.GetComponents().GetSchemas().Get(target); declared {
 		return "", false
 	}
-	ref := references.Reference(target)
-	pointer := jsontext.Pointer(ref.GetJSONPointer())
-	uri := ref.GetURI()
-	if uri == "" {
-		return pointer, true
-	}
-	abs, err := references.ResolveAbsoluteReference(references.Reference(uri), m.self.path)
-	return pointer, err == nil && (slices.Contains(m.self.keys(), abs.AbsoluteReference) ||
-		m.self.names(abs.AbsoluteReference))
+	pointer, ok := refscope.Scope{SelfPath: m.self.path}.InternalPointer(target)
+	return pointer, ok && !defs.IsPointer(pointer)
 }

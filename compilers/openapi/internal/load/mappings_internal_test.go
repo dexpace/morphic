@@ -97,11 +97,12 @@ func TestMappings_ATargetHeldAsRawYAMLIsResolvedAtLoad(t *testing.T) {
 }
 
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
-// phase resolves: one whose pointer names a position in the source, spelled
-// internally or, when external references are allowed, by a path the resolver
-// reads as the source. A component's name is the component's, an anchor or the
-// whole document names no pointer, and another document is not read for a
-// mapping: the finding in its Cat would be reported if it were.
+// phase resolves: those the lowering reads as naming a position in the source,
+// spelled internally or by the source's file name, whether or not external
+// references are allowed. A spelling through a directory is another document
+// to the lowering (GitHub #576). A component's name is the component's, an
+// anchor or the whole document names no pointer, and another document is not
+// read for a mapping: the finding in its Cat would be reported if it were.
 func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": "x-lib:\n  Cat: {type: object, minLength: abc}\n"})
@@ -113,7 +114,8 @@ func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 	}{
 		{"an internal pointer", "#/x-lib/Cat", false, true},
 		{"the source's file name, read as the source", "root.yaml#/x-lib/Cat", true, true},
-		{"the source's file name, with external references disallowed", "root.yaml#/x-lib/Cat", false, false},
+		{"the source's file name, with external references disallowed", "root.yaml#/x-lib/Cat", false, true},
+		{"the source's file name through a directory", "./root.yaml#/x-lib/Cat", true, false},
 		{"another document", "other.yaml#/x-lib/Cat", true, false},
 		{"an anchor", "#cat", false, false},
 		{"the whole source, by its file name", "root.yaml", true, false},
@@ -128,6 +130,22 @@ func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 			assert.Equal(t, c.resolved, got.Targets.At("/x-lib/Cat") != nil)
 		})
 	}
+
+	t.Run("a definition, however spelled", func(t *testing.T) {
+		t.Parallel()
+		// The document-rooted $defs is no definition the mapping names: the
+		// lowering reads a $defs value relative to the discriminator. Resolving
+		// it here reported the finding in it at the mapping entry.
+		for _, target := range []string{"#/$defs/X", "root.yaml#/$defs/X"} {
+			spec := mappingSpec("    Pet:\n      type: object\n"+
+				"      discriminator: {propertyName: k, mapping: {x: '"+target+"'}}\n"+
+				"      $defs: {X: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}}\n",
+				"$defs:\n  X: {type: object, minLength: abc}\n")
+			got, diags := loadTargets(t, path, spec, true)
+			assert.Empty(t, diags, target)
+			assert.Nil(t, got.Targets.At("/$defs/X"), target)
+		}
+	})
 
 	t.Run("a declared component's name", func(t *testing.T) {
 		t.Parallel()
@@ -175,10 +193,27 @@ func TestMappings_AFindingInATargetIsReportedOnce(t *testing.T) {
 	}
 }
 
-// TestMappings_TheLeastSpellingDecides pins which object is kept for a pointer
-// two spellings of a target name. The internal spelling's is, in either
-// order: resolved first, the other spelling builds an object no cache holds.
-func TestMappings_TheLeastSpellingDecides(t *testing.T) {
+// TestMappings_AFindingIsPlacedWhateverTheEntryOrder pins that every entry
+// naming a target takes part in placing what resolving it draws: the finding
+// lands at the least of their sites, in either declaration order, though only
+// the first entry resolved draws it.
+func TestMappings_AFindingIsPlacedWhateverTheEntryOrder(t *testing.T) {
+	t.Parallel()
+	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
+	a := strings.Replace(petMapping("b: '#/x-lib/Bad'"), "Pet:", "A:", 1)
+	z := strings.Replace(petMapping("b: '#/x-lib/Bad'"), "Pet:", "Z:", 1)
+	want := []string{"/components/schemas/A/discriminator/mapping/b openapi/validation/validation-type-mismatch"}
+	for _, schemas := range []string{a + z, z + a} {
+		_, diags := loadTargets(t, "spec.yaml", mappingSpec(schemas, lib), false)
+		assert.Empty(t, cmp.Diff(want, diagLines(diags)))
+	}
+}
+
+// TestMappings_EverySpellingReachesOneObject pins that two spellings of one
+// position resolve to one object, the one an internal $ref to it is cached as,
+// in either order. Resolved as written, the file name spelling built an object
+// of its own when it came first.
+func TestMappings_EverySpellingReachesOneObject(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "root.yaml")
 	internal, byFile := "a: '#/x-lib/Cat'", "b: 'root.yaml#/x-lib/Cat'"
