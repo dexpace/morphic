@@ -1191,7 +1191,8 @@ const maxTypePositionHops = 64
 // at a position no component declares: that position is only a use of its
 // target's type, so it names the position the $ref does, as a union variant
 // written there names its target (GitHub #758). Each hop is read as the $ref
-// there resolves, so the two cannot drift.
+// there resolves, so the two cannot drift. A keyword beside a property's $ref
+// still stops it, though the property's type is the target (GitHub #764).
 func typePosition(c lowering.Ctx, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
 	for range maxTypePositionHops {
 		if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
