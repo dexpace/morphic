@@ -2,6 +2,7 @@ package resolve_test
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -301,4 +303,49 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 		"the fixture must be brittle, or this asserts nothing")
 
 	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
+}
+
+// elsewhereRoot is a source whose path items are reached each way an entry can
+// be: written inline, by an internal $ref, by a $ref into ext.yaml, by one into
+// ext.yaml that comes back into the source, and by one naming nothing.
+const elsewhereRoot = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /inline: {get: {responses: {"200": {description: ok}}}}
+  /internal: {$ref: '#/components/pathItems/P'}
+  /ext: {$ref: './ext.yaml#/paths/~1x'}
+  /back: {$ref: './ext.yaml#/paths/~1back'}
+  /missing: {$ref: '#/components/pathItems/Nope'}
+components:
+  pathItems:
+    P: {get: {responses: {"200": {description: ok}}}}
+`
+
+// TestHeldElsewhere pins which entries another document holds, and the path
+// it was read by: one whose chain ends in another document's object. One
+// written here, one an internal $ref names, one that comes back into the
+// source and one that resolved nothing are held by the source.
+func TestHeldElsewhere(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`paths:
+  /x: {get: {responses: {"200": {description: ok}}}}
+  /back: {$ref: 'root.yaml#/components/pathItems/P'}
+`), 0o600))
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(elsewhereRoot)}, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	scope := resolve.Scope{Doc: doc.Doc}
+
+	ext := filepath.Join(dir, "ext.yaml")
+	for path, want := range map[string]string{
+		"/inline": "", "/internal": "", "/ext": ext, "/back": "", "/missing": "",
+	} {
+		rp, ok := doc.Doc.Paths.Get(path)
+		require.True(t, ok, path)
+		holder, elsewhere := resolve.HeldElsewhere[soa.PathItem](scope, rp)
+		assert.Equal(t, want, holder, path)
+		assert.Equal(t, want != "", elsewhere, path)
+	}
 }

@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -171,6 +172,80 @@ func TestSameFile(t *testing.T) {
 	assert.False(t, sc.sameFile("other/m.yaml"),
 		"a doc part with its own directory is a distinct path, not a basename match")
 	assert.False(t, Scope{}.sameFile("m.yaml"), "empty source path never matches")
+}
+
+// TestInternalPointer_InAForeignScope pins how a Foreign scope reads a
+// reference: against the document holding it, as the resolver does. A pointer
+// alone names a position there, and so does a document part naming another
+// file. One naming the source, however spelled from there, is internal, and
+// nothing is internal with no holder to read against, though read from the
+// working directory the last row would name the source.
+func TestInternalPointer_InAForeignScope(t *testing.T) {
+	t.Parallel()
+	const self = "spec.yaml"
+	for _, c := range []struct {
+		holder, ref string
+		internal    bool
+	}{
+		{"ext.yaml", "#/components/schemas/A", false},
+		{"ext.yaml", "spec.yaml#/components/schemas/A", true},
+		{"ext.yaml", "./spec.yaml#/components/schemas/A", true},
+		{"ext.yaml", "other.yaml#/components/schemas/A", false},
+		{"sub/ext.yaml", "../spec.yaml#/components/schemas/A", true},
+		{"sub/ext.yaml", "spec.yaml#/components/schemas/A", false},
+		{"https://example.com/ext.yaml", "spec.yaml#/components/schemas/A", false},
+		{"", "spec.yaml#/components/schemas/A", false},
+	} {
+		scope := Scope{SelfPath: self, Foreign: true, Holder: c.holder}
+		pointer, ok := scope.InternalPointer(c.ref)
+		assert.Equal(t, c.internal, ok, "%s from %s", c.ref, c.holder)
+		if c.internal {
+			assert.Equal(t, "/components/schemas/A", string(pointer))
+		}
+	}
+}
+
+// TestNamesHolder pins which references in a Foreign scope name a position in
+// the document holding them: a pointer alone, or a document part naming that
+// document. Outside a Foreign scope, none does.
+func TestNamesHolder(t *testing.T) {
+	t.Parallel()
+	scope := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "api/ext.yaml"}
+	for ref, want := range map[string]bool{
+		"#/components/schemas/A":            true,
+		"ext.yaml#/components/schemas/A":    true,
+		"spec.yaml#/components/schemas/A":   false,
+		"third.yaml#/components/schemas/A":  false,
+		"https://example.com/ext.yaml#/x/y": false,
+	} {
+		assert.Equal(t, want, scope.NamesHolder(ref), ref)
+	}
+	assert.False(t, Scope{SelfPath: "api/spec.yaml"}.NamesHolder("#/components/schemas/A"))
+	unplaceable := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "http://[::1"}
+	assert.False(t, unplaceable.NamesHolder("#/components/schemas/A"), "a holder the resolver cannot place")
+}
+
+// TestSameDocument pins when the resolver reading one path reads the document
+// at another: the same spelling, or the same file however reached. A URL is
+// one document only as spelled, and an empty path names none.
+func TestSameDocument(t *testing.T) {
+	t.Parallel()
+	abs, err := filepath.Abs("api/spec.yaml")
+	require.NoError(t, err)
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"api/spec.yaml", "api/spec.yaml", true},
+		{"api/spec.yaml", "api/./sub/../spec.yaml", true},
+		{"api/spec.yaml", abs, true},
+		{"api/spec.yaml", "api/other.yaml", false},
+		{"https://example.com/a.yaml", "https://example.com/a.yaml", true},
+		{"https://example.com/a.yaml", "https://example.com/./a.yaml", false},
+		{"", "", false},
+	} {
+		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+	}
 }
 
 func TestInternedID_ByPointerHit(t *testing.T) {
