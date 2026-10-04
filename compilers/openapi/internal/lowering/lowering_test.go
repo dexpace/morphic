@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -233,6 +235,36 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 	assert.Same(t, c.RefScope().Defs, c.RefScope().Defs)
 	assert.Same(t, c.RefScope().Defs, c.NamingByReference().RefScope().Defs, "a copy shares it")
 	assert.Nil(t, lowering.Ctx{}.RefScope().Defs, "a context with no document has none")
+}
+
+// TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
+// the load phase resolved reaches the scope through the context. The target is
+// an extension's value, a position the parsed model holds as raw YAML, so the
+// scope finds it only if WithMappingTargets handed it over (GitHub #757).
+func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      discriminator: {propertyName: k, mapping: {c: '#/x-lib/Cat'}}
+x-lib:
+  Cat: {type: object}
+`
+	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	require.NotNil(t, loaded.Targets.At("/x-lib/Cat"), "the load phase resolved the target")
+
+	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
+	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the model holds the target as raw YAML")
+
+	carrying := bare.WithMappingTargets(loaded.Targets)
+	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
+	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
 }
 
 // TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee

@@ -246,6 +246,52 @@ components:
 	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
 }
 
+// TestScope_DeclaredAt_MappedAnswersFirst pins the order of DeclaredAt's two
+// sources: the schema Mapped holds for a pointer wins, even over one the model
+// declares there, since the load phase resolved it the way a $ref would. The
+// model answers when Mapped holds nothing or the Scope has no Mapped, so a
+// value the load phase did not resolve still finds its declaration (GitHub
+// #757).
+func TestScope_DeclaredAt_MappedAnswersFirst(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet: {type: object}
+`))
+	require.NoError(t, err)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+
+	mapped := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	require.NotSame(t, pet, mapped, "the two sources must be told apart")
+
+	const raw = jsontext.Pointer("/x-lib/Cat")
+	var asked []jsontext.Pointer
+	answering := func(at jsontext.Pointer, js *oas3.JSONSchema[oas3.Referenceable]) func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+		return func(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+			asked = append(asked, pointer)
+			if pointer == at {
+				return js
+			}
+			return nil
+		}
+	}
+
+	sc := Scope{Doc: doc, Mapped: answering(raw, mapped)}
+	assert.Same(t, mapped, sc.DeclaredAt(raw), "a position only Mapped holds resolves to its answer")
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "a nil answer falls back to the model")
+	assert.Equal(t, []jsontext.Pointer{raw, "/components/schemas/Pet"}, asked, "Mapped is asked for each pointer")
+
+	shadowed := Scope{Doc: doc, Mapped: answering("/components/schemas/Pet", mapped)}
+	assert.Same(t, mapped, shadowed.DeclaredAt("/components/schemas/Pet"), "Mapped wins over the model's own declaration")
+
+	assert.Same(t, pet, Scope{Doc: doc}.DeclaredAt("/components/schemas/Pet"), "no Mapped leaves the model to answer")
+	assert.Nil(t, Scope{Doc: doc}.DeclaredAt(raw), "no Mapped and no declaration resolves nothing")
+}
+
 // TestScope_MappingPointer pins what a mapping value names. A pointer or a
 // declared component is InternalPointer's answer; a "#/$defs/..." value is the
 // definition read from its discriminator; and every value that cannot be read
