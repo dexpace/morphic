@@ -55,3 +55,53 @@ components:
 	require.Len(t, op.Responses, 1)
 	assert.Equal(t, ir.TypeID("t/prim/any"), openapitest.BodyTarget(t, op.Responses[0].Payload))
 }
+
+// TestDynamicRef_InAnotherDocumentsContentIsNotExpanded pins a $dynamicRef in
+// content another document holds: its fragment names that document's
+// $dynamicAnchor, which this compile does not index, so it is kept verbatim
+// rather than expanded to the source's anchor of the same name (GitHub #762).
+func TestDynamicRef_InAnotherDocumentsContentIsNotExpanded(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {$dynamicRef: '#node'}}}
+components:
+  schemas:
+    Other: {$dynamicAnchor: node, type: object}
+`), 0o600))
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p: {$ref: './ext.yaml#/paths/~1x'}
+components:
+  schemas:
+    Node: {$dynamicAnchor: node, type: object}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+
+	want := ir.Diagnostic{Severity: ir.SeverityInfo, Code: "openapi/degraded-construct",
+		Message: "$dynamicRef was not expanded because it is written in another document, whose " +
+			"$dynamicAnchor it names and which is not lowered; it is kept verbatim under Unmodeled",
+		Provenance: ir.Provenance{Pointer: "/paths/~1p/get/responses/200/content/application~1json/schema/$dynamicRef"}}
+	assert.Contains(t, diags, want)
+	require.NotNil(t, doc)
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Groups, 1)
+	require.Len(t, doc.Services[0].Groups[0].Operations, 1)
+	op := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, op.Responses, 1)
+	held, ok := doc.Types[openapitest.BodyTarget(t, op.Responses[0].Payload)].(*ir.Scalar)
+	require.True(t, ok, "the position holds a node of its own for the reference it keeps")
+	require.NotNil(t, held.Base)
+	assert.Equal(t, ir.TypeID("t/prim/any"), held.Base.Target,
+		"the source's anchor of the same name is not what the reference names")
+	assert.Equal(t, ir.ReasonDegradedLowering, held.Unmodeled["openapi:$dynamicRef"].Reason)
+}
