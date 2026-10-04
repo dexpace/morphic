@@ -45,10 +45,7 @@ func indexPositions(root *yaml.Node) *positions {
 	p := &positions{origins: map[*yaml.Node]origin{}}
 	start := resolveAlias(root)
 	if start != nil && start.Kind == yaml.DocumentNode {
-		start = nil
-		if len(root.Content) > 0 {
-			start = resolveAlias(root.Content[0])
-		}
+		start = documentContent(start)
 	}
 	if start == nil {
 		return p
@@ -128,6 +125,14 @@ func (p *positions) pointerOf(node *yaml.Node) jsontext.Pointer {
 		sb.WriteString(tokens[i])
 	}
 	return jsontext.Pointer(sb.String())
+}
+
+// documentContent returns what a document node holds, or nil when it is empty.
+func documentContent(doc *yaml.Node) *yaml.Node {
+	if len(doc.Content) == 0 {
+		return nil
+	}
+	return resolveAlias(doc.Content[0])
 }
 
 // isContainer reports whether n is a mapping or a sequence, the only nodes a

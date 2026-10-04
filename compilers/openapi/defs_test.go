@@ -132,6 +132,36 @@ func TestCompile_DefsPointerInOperationsRelativeToItsOwnSchema(t *testing.T) {
 	}
 }
 
+// TestCompile_DefsInAnAliasedOrMergedSchemaAreTheAnchorsDefinitions pins what a
+// YAML alias or merge key means for the rule. The aliased schema is the anchor's
+// own YAML, so the library places it where the anchor is written, and a
+// reference in it reads the anchor's $defs: B, an alias of A, reads A's, and
+// Child, which merges Base, reads Base's. A schema that only resembles another
+// keeps its own, as C does.
+func TestCompile_DefsInAnAliasedOrMergedSchemaAreTheAnchorsDefinitions(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, string(readReproducer(t, "defs_alias_and_merge")))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assertOwnDefsProperty(t, doc, componentID("A"), ids.Ptr("components", "schemas", "A"), "p", "n", "x")
+	assertOwnDefsProperty(t, doc, componentID("C"), ids.Ptr("components", "schemas", "C"), "q", "n", "y")
+	assertOwnDefsProperty(t, doc, componentID("Base"), ids.Ptr("components", "schemas", "Base"), "r", "m", "z")
+
+	for _, tc := range []struct {
+		name, owner, prop string
+		anchor            jsontext.Pointer
+	}{
+		{"an alias", "B", "p", ids.Ptr("components", "schemas", "A", "$defs", "n")},
+		{"a merge key", "Child", "r", ids.Ptr("components", "schemas", "Base", "$defs", "m")},
+	} {
+		m, ok := doc.Types[componentID(tc.owner)].(*ir.Model)
+		require.True(t, ok, tc.name)
+		p, ok := propByWire(m, tc.prop)
+		require.True(t, ok, "%s declares %q", tc.owner, tc.prop)
+		assert.Equal(t, ids.ForPointer(tc.anchor), p.Type.Target, "%s reads the anchor's definition", tc.name)
+	}
+}
+
 // defsNullabilityAndDescriptionSpec has two sibling components that each $ref
 // their own "#/$defs/n", one a plain string and the other an "integer|null"
 // union, each carrying its own description. Both definitions reduce to the
