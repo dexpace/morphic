@@ -74,20 +74,23 @@ func reachedFakeWalkItems(items ...soa.WalkItem) func(func(soa.WalkItem) bool) {
 // strPtr is a *string literal helper for building soa.Locations by hand.
 func strPtr(s string) *string { return &s }
 
-// writeFiles writes each of files (name -> content) under dir.
-func writeFiles(t *testing.T, dir string, files map[string]string) {
+// externalDir writes files, name to content, into a fresh directory for a root
+// to reach, and returns the directory.
+func externalDir(t *testing.T, files map[string]string) string {
 	t.Helper()
+	dir := t.TempDir()
 	for name, content := range files {
 		writeFile(t, dir, name, content)
 	}
+	return dir
 }
 
-// loadExternal loads root from rootPath (inside a t.TempDir the caller
-// populated) with external references allowed, and requires it to succeed.
-func loadExternal(t *testing.T, rootPath, root string, opts Options) (*Document, []ir.Diagnostic) {
+// loadExternal loads root as root.yaml in dir, with external references
+// allowed, and requires it to load.
+func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir.Diagnostic) {
 	t.Helper()
 	opts.AllowExternalRefs = true
-	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: rootPath, Data: []byte(root)}, opts)
+	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}, opts)
 	require.NoError(t, err)
 	require.NotNil(t, got, "%+v", diags)
 	return got, diags
@@ -209,13 +212,8 @@ components:
 // and returns the resolved document and the directory they are in.
 func reachedFixtureDoc(t *testing.T) (*soa.OpenAPI, string) {
 	t.Helper()
-	dir := t.TempDir()
-	writeFiles(t, dir, map[string]string{
-		"root.yaml":  reachedFixtureRoot,
-		"other.yaml": reachedFixtureOther,
-		"third.yaml": reachedFixtureThird,
-	})
-	got, _ := loadExternal(t, filepath.Join(dir, "root.yaml"), reachedFixtureRoot, Options{})
+	dir := externalDir(t, map[string]string{"other.yaml": reachedFixtureOther, "third.yaml": reachedFixtureThird})
+	got, _ := loadExternal(t, dir, reachedFixtureRoot, Options{})
 	return got.Doc, dir
 }
 
@@ -640,12 +638,9 @@ func TestCheckReached_APanicIsReported(t *testing.T) {
 // instead.
 func TestResolve_ASecurityRequirementInAReachedOperationDoesNotPanic(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	writeFiles(t, dir, map[string]string{"other.yaml": securityRequirementFixtureOther})
-	rootPath := filepath.Join(dir, "root.yaml")
-	writeFiles(t, dir, map[string]string{"root.yaml": securityRequirementFixtureRoot})
+	dir := externalDir(t, map[string]string{"other.yaml": securityRequirementFixtureOther})
 
-	_, diags := loadExternal(t, rootPath, securityRequirementFixtureRoot, Options{})
+	_, diags := loadExternal(t, dir, securityRequirementFixtureRoot, Options{})
 
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "panicked", "%+v", d)
@@ -766,12 +761,9 @@ func reachWantDiags(otherPath string) []ir.Diagnostic {
 // nothing in root.yaml names.
 func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	writeFiles(t, dir, map[string]string{"other.yaml": reachOtherFixture})
-	rootPath := filepath.Join(dir, "root.yaml")
-	writeFiles(t, dir, map[string]string{"root.yaml": reachRootFixture})
+	dir := externalDir(t, map[string]string{"other.yaml": reachOtherFixture})
 
-	_, diags := loadExternal(t, rootPath, reachRootFixture, Options{})
+	_, diags := loadExternal(t, dir, reachRootFixture, Options{})
 
 	if d := cmp.Diff(reachWantDiags(filepath.Join(dir, "other.yaml")), diags); d != "" {
 		t.Errorf("diagnostics did not match (-want +got):\n%s", d)
@@ -789,7 +781,6 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 // library gives it: the callback's is a warning.
 func TestResolve_EveryKindOfObjectIsValidated(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
 	root := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -808,7 +799,7 @@ components:
   securitySchemes:
     s: {$ref: './other.yaml#/components/securitySchemes/S'}
 `
-	writeFiles(t, dir, map[string]string{"root.yaml": root, "other.yaml": `components:
+	dir := externalDir(t, map[string]string{"other.yaml": `components:
   headers:
     H: {style: form, schema: {type: string}}
   requestBodies:
@@ -823,7 +814,7 @@ components:
     S: {type: bogus}
 `})
 
-	_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{})
+	_, diags := loadExternal(t, dir, root, Options{})
 
 	got := make([]string, 0, len(diags))
 	for _, d := range diags {
@@ -853,9 +844,7 @@ func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
 		t.Helper()
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": other, "root.yaml": root})
-		_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, opts)
+		_, diags := loadExternal(t, externalDir(t, map[string]string{"other.yaml": other}), root, opts)
 		return diags
 	}
 
@@ -1000,8 +989,7 @@ paths:
 // sorts before the external $ref it chains to.
 func TestResolve_ReachedSitesDoNotDependOnDeclarationOrder(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	writeFile(t, dir, "other.yaml", `paths:
+	dir := externalDir(t, map[string]string{"other.yaml": `paths:
   /x:
     get:
       parameters: [{name: q, in: under, schema: {type: string}}]
@@ -1014,7 +1002,7 @@ components:
   parameters:
     P: {name: p, in: sideways, schema: {type: string}}
     P2: {in: aslant, schema: {type: string}}
-`)
+`})
 	paths := []string{
 		"/b: {get: {parameters: [{$ref: './other.yaml#/components/parameters/P'}], responses: {'200': {description: ok}}}}",
 		"/a: {get: {parameters: [{$ref: './other.yaml#/components/parameters/P'}], responses: {'200': {description: ok}}}}",
@@ -1030,7 +1018,7 @@ components:
 	compile := func(paths, parameters []string) []string {
 		src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  " + strings.Join(paths, "\n  ") +
 			"\ncomponents:\n  parameters:\n    " + strings.Join(parameters, "\n    ") + "\n"
-		_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), src, Options{})
+		_, diags := loadExternal(t, dir, src, Options{})
 		out := make([]string, 0, len(diags))
 		for _, d := range diags {
 			out = append(out, fmt.Sprintf("%s %s %s", d.Code, d.Provenance.Pointer, d.Message))
@@ -1069,29 +1057,27 @@ components:
 // schema would go to a.yaml and nothing would cross.
 func TestResolve_AChainIsChargedToTheDocumentItEndsIn(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
 	root := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a: {get: {parameters: [{name: q, in: query, schema: {$ref: "./a.yaml#/components/schemas/X"}}], responses: {"200": {description: ok}}}}
   /b: {get: {parameters: [{$ref: "./b.yaml#/components/parameters/Y"}], responses: {"200": {description: ok}}}}
 `
-	writeFiles(t, dir, map[string]string{
-		"root.yaml": root,
-		"a.yaml":    "components:\n  schemas:\n    X: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}\n",
+	dir := externalDir(t, map[string]string{
+		"a.yaml": "components:\n  schemas:\n    X: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}\n",
 		"b.yaml": "components:\n  parameters:\n    Y: {name: p, in: sideways, schema: " +
 			"{type: object, properties: {p1: {type: string}, p2: {type: string}, p3: {type: string}, p4: {type: string}, p5: {type: string}, p6: {type: string}, p7: {type: string}, p8: {type: string}, p9: {type: string}, p10: {type: string}}}}\n",
 	})
 	bPath := filepath.Join(dir, "b.yaml")
 
-	_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{MaxSourceNodes: 60, MaxAliasSurplus: 1})
+	_, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: 60, MaxAliasSurplus: 1})
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
 	assert.Contains(t, diags[0].Message, "reach in "+bPath+" span more than the 61 nodes")
 
-	_, diags = loadExternal(t, filepath.Join(dir, "root.yaml"), root, Options{MaxSourceNodes: 120, MaxAliasSurplus: 1})
+	_, diags = loadExternal(t, dir, root, Options{MaxSourceNodes: 120, MaxAliasSurplus: 1})
 	require.Len(t, diags, 1, "a budget both fit admits both: %+v", diags)
 	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
@@ -1139,12 +1125,9 @@ func TestResolve_AReached32SchemaIsReconciled(t *testing.T) {
 
 	t.Run("a schema reached directly", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": v32OtherFixture})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": v32RootFixture})
+		dir := externalDir(t, map[string]string{"other.yaml": v32OtherFixture})
 
-		_, diags := loadExternal(t, rootPath, v32RootFixture, Options{})
+		_, diags := loadExternal(t, dir, v32RootFixture, Options{})
 
 		for _, d := range diags {
 			assert.Equal(t, jsontext.Pointer("/components/schemas/B"), d.Provenance.Pointer,
@@ -1181,12 +1164,9 @@ info: {title: T, version: "1"}
 paths:
   /x: {$ref: "./other.yaml#/paths/~1x"}
 `
-		dir := t.TempDir()
-		writeFiles(t, dir, map[string]string{"other.yaml": other})
-		rootPath := filepath.Join(dir, "root.yaml")
-		writeFiles(t, dir, map[string]string{"root.yaml": root})
+		dir := externalDir(t, map[string]string{"other.yaml": other})
 
-		_, diags := loadExternal(t, rootPath, root, Options{})
+		_, diags := loadExternal(t, dir, root, Options{})
 
 		assert.Empty(t, diags, "the nested defaultMapping is an artifact reachedWalk must reconcile: %+v", diags)
 	})
@@ -1202,23 +1182,22 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.0.3\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"
 	const body = "{type: [string, 'null'], examples: [a], minLength: -1}"
-	for name, files := range map[string]map[string]string{
-		"in the source": {"root.yaml": header + "  schemas:\n    S: " + body + "\n"},
+	for name, c := range map[string]struct{ root, other string }{
+		"in the source": {root: header + "  schemas:\n    S: " + body + "\n"},
 		"reached directly": {
-			"root.yaml":  header + "  schemas:\n    S: {$ref: './other.yaml#/components/schemas/T'}\n",
-			"other.yaml": "components:\n  schemas:\n    T: " + body + "\n",
+			root:  header + "  schemas:\n    S: {$ref: './other.yaml#/components/schemas/T'}\n",
+			other: "components:\n  schemas:\n    T: " + body + "\n",
 		},
 		"reached inside a parameter": {
-			"root.yaml":  header + "  parameters:\n    P: {$ref: './other.yaml#/components/parameters/Q'}\n",
-			"other.yaml": "components:\n  parameters:\n    Q: {name: q, in: query, schema: " + body + "}\n",
+			root:  header + "  parameters:\n    P: {$ref: './other.yaml#/components/parameters/Q'}\n",
+			other: "components:\n  parameters:\n    Q: {name: q, in: query, schema: " + body + "}\n",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			dir := t.TempDir()
-			writeFiles(t, dir, files)
+			dir := externalDir(t, map[string]string{"other.yaml": c.other})
 
-			_, diags := loadExternal(t, filepath.Join(dir, "root.yaml"), files["root.yaml"], Options{})
+			_, diags := loadExternal(t, dir, c.root, Options{})
 
 			require.Len(t, diags, 1, "%+v", diags)
 			assert.Equal(t, diag.Validation+"/validation-invalid-schema", diags[0].Code)
@@ -1283,15 +1262,12 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	t.Parallel()
 	nestedRootFixture := nestedRoot(nestedRootPaths)
 	other := nestedOtherFixture()
-	dir := t.TempDir()
-	writeFiles(t, dir, map[string]string{"other.yaml": other})
-	rootPath := filepath.Join(dir, "root.yaml")
-	writeFiles(t, dir, map[string]string{"root.yaml": nestedRootFixture})
+	dir := externalDir(t, map[string]string{"other.yaml": other})
 	otherPath := filepath.Join(dir, "other.yaml")
 
 	t.Run("a tight budget refuses the container after the overlap", func(t *testing.T) {
 		t.Parallel()
-		_, diags := loadExternal(t, rootPath, nestedRootFixture, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		_, diags := loadExternal(t, dir, nestedRootFixture, Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
 
 		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
 			"its finding nor a second budget-exceeded is reported: %+v", diags)
@@ -1308,7 +1284,7 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 
 		reversed := slices.Clone(nestedRootPaths)
 		slices.Reverse(reversed)
-		_, again := loadExternal(t, rootPath, nestedRoot(reversed), Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
+		_, again := loadExternal(t, dir, nestedRoot(reversed), Options{MaxSourceNodes: 150, MaxAliasSurplus: 1})
 		if d := cmp.Diff(diags, again); d != "" {
 			t.Errorf("the budget is crossed at another object when the paths are reversed (-as written +reversed):\n%s", d)
 		}
@@ -1320,7 +1296,7 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags := loadExternal(t, rootPath, nestedRootFixture, opts)
+			_, diags := loadExternal(t, dir, nestedRootFixture, opts)
 
 			require.Len(t, diags, 2, "%+v", diags)
 			assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
