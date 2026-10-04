@@ -181,9 +181,13 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 		return d
 	}
 
+	found := validateObject(ctx, t.obj, v.opts)
+	if len(found) == 0 {
+		return nil
+	}
 	artifacts := v.artifacts(ctx, t.obj)
 	var diags []ir.Diagnostic
-	for _, f := range validateObject(ctx, t.obj, v.opts) {
+	for _, f := range found {
 		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[findingSite(verr)]) {
 			continue
 		}
