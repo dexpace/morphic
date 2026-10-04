@@ -158,8 +158,9 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
 		diags = append(diags, refDiags...)
 		if !ok {
+			ref := b.GetRef().String()
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q", b.GetRef().String()))
+				"unresolved allOf $ref %q%s", ref, namesHolderWhy(c, ref)))
 			continue
 		}
 		bs := b.GetSchema()
@@ -727,6 +728,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
+//
+// One in another document's content naming a position there says so, as
+// refTypeRef's report does (namesHolderWhy): that document may well declare
+// the position, so "nothing declared" would be false.
 func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
@@ -735,9 +740,13 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 		if c.RefScope().NamesReferent(b, ref) {
 			continue
 		}
+		why := " resolves to nothing this document declares"
+		if holder := namesHolderWhy(c, ref); holder != "" {
+			why = " is unresolved" + holder
+		}
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref))
+			"union branch $ref %q%s; the branch is kept verbatim", ref, why))
 	}
 	return diags
 }
