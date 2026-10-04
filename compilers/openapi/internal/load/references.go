@@ -75,8 +75,8 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 // A panic in the walk or under visit becomes an error naming what was running,
 // as a parser panic does in unmarshal: the library faults on shapes the parser
 // accepts, such as a $ref with no value. It stops the walk at site, the
-// reference being visited, or the root when the walk itself panicked. So does
-// an error visit returns.
+// reference being visited, or the root when the walk panicked. An error from
+// visit stops it too.
 func eachReference(items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, resolvable) error,
 ) (site jsontext.Pointer, err error) {
