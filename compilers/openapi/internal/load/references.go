@@ -41,7 +41,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 	pass := newResolution(ctx, at, doc, path, opts, reader)
 	held := heldRefs(ctx, doc, defs.NewReader(doc))
 	withDefsHeld(held, func() {
-		pass.fail(eachReference(soa.Walk(ctx, doc), func(site jsontext.Pointer, r resolvable) error {
+		pass.fail(eachReference(soa.Walk(ctx, doc), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
 			pass.visit(site, r, r.GetReference())
 			return nil
 		}))
@@ -103,13 +103,15 @@ func (p *resolution) fail(site jsontext.Pointer, err error) {
 // not, and the pointer that writes it. The walk does not descend into what a
 // resolved reference names, so each is visited once, where it is written.
 //
-// A panic from the third-party walk or resolver becomes an error, as a parser
-// panic does in unmarshal: the resolver faults on shapes the parser accepts,
-// such as a $ref with no value. It stops the walk, and site is the reference
-// being resolved, or the root when the walk itself panicked. An error visit
-// returns stops the walk too.
-func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, resolvable) error) (site jsontext.Pointer, err error) {
-	defer recovered(&err)
+// A panic in the walk or under visit becomes an error naming what was running,
+// as a parser panic does in unmarshal: the library faults on shapes the parser
+// accepts, such as a $ref with no value. It stops the walk at site, the
+// reference being visited, or the root when the walk panicked. An error from
+// visit stops it too.
+func eachReference(items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, resolvable) error,
+) (site jsontext.Pointer, err error) {
+	defer recovered(&err, what)
 	for item := range items {
 		if err := item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(resolvable)
@@ -129,10 +131,15 @@ func eachReference(items iter.Seq[soa.WalkItem], visit func(jsontext.Pointer, re
 	return "", nil
 }
 
-// recovered turns a panic in the deferring function into *err.
-func recovered(err *error) {
+// resolverPanics names the work of the reference resolver in a panic it
+// recovers from.
+const resolverPanics = "reference resolver"
+
+// recovered turns a panic in the deferring function into *err, naming what was
+// running.
+func recovered(err *error, what string) {
 	if r := recover(); r != nil {
-		*err = fmt.Errorf("reference resolver panicked: %v", r)
+		*err = fmt.Errorf("%s panicked: %v", what, r)
 	}
 }
 

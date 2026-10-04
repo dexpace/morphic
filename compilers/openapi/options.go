@@ -94,10 +94,10 @@ type Options struct {
 	// untrusted and its $refs could name any file or host, a $ref leaving the
 	// document is reported unresolved.
 	//
-	// Turning it on makes output depend on the filesystem and network, and
-	// buys little: references resolve against Source.Path's directory (the
-	// working directory when Path is empty), and resolved content still does
-	// not reach lowering (GitHub #74).
+	// Turning it on makes output depend on the filesystem and network:
+	// references resolve against Source.Path's directory (the working
+	// directory when Path is empty). Resolved content is validated as the
+	// source is but not lowered (GitHub #74).
 	//
 	// A referenced document fails the reference naming it when it crosses the
 	// source's budgets or pre-parse refusals, or its scan cannot finish, where
@@ -177,7 +177,8 @@ type Limits struct {
 	// MaxSourceNodes bounds the YAML nodes one source document parses to,
 	// checked before the typed model is built from it. A document an external
 	// reference names is checked against it the same way, before the resolver
-	// builds from that document.
+	// builds from that document, and what references reach in it is validated
+	// within this budget plus MaxAliasSurplus.
 	MaxSourceNodes int `json:"maxSourceNodes,omitzero"`
 	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
 	// as the top type with an error diagnostic naming the budget; the rest of the

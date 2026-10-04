@@ -79,7 +79,7 @@ func restoreDefs(refs []heldRef) {
 // reported as a definition the resolver cannot find: the lowering reports only
 // the positions it models. It returns where a panic stopped it.
 func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err error) {
-	defer recovered(&err)
+	defer recovered(&err, resolverPanics)
 	defer restoreDefs(refs)
 	for _, r := range refs {
 		s := r.js.GetSchema()

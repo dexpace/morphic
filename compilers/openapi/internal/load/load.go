@@ -319,13 +319,23 @@ func compilerOwned(verr validation.Error) bool {
 // found at the $ref that produced it (see resolveWith). It returns the document
 // it resolved, which is a rebuild of doc when resolveExternal had to recover an
 // anchored external document the resolver parsed itself.
+//
+// What the references bring in from other documents is validated after the
+// last resolution, over the document returned (see validateReached): a first
+// resolution's objects are discarded when a rebuild replaces it, so validating
+// them would be work whose findings are thrown away, or findings reported
+// about objects the IR is not built from.
 func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
 		return doc, resolveWith(ctx, at, doc, path, opts, nil), nil
 	}
-	return resolveExternal(ctx, at, doc, path, opts, rebuild)
+	resolved, diags, err := resolveExternal(ctx, at, doc, path, opts, rebuild)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resolved, append(diags, validateReached(ctx, at, resolved, opts)...), nil
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -503,21 +513,28 @@ func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor str
 	if minor != metaSchemaReconciledMinor {
 		return nil
 	}
-	version := doc.OpenAPI
-	atDocumentVersion := schemaFindings(ctx, doc,
+	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }, doc.OpenAPI)
+}
+
+// schemaArtifacts returns the findings sites schema validation raises over the
+// walk only because it checked against the wrong meta-schema (see
+// metaSchemaVersionArtifacts), for a document at version. walk is called once
+// per run, so each run gets a walk of its own.
+func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], version string) map[string]bool {
+	atDocumentVersion := schemaFindings(ctx, walk(),
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
-	asLibraryChecks := schemaFindings(ctx, doc)
+	asLibraryChecks := schemaFindings(ctx, walk())
 	for key := range atDocumentVersion {
 		delete(asLibraryChecks, key)
 	}
 	return asLibraryChecks
 }
 
-// schemaFindings validates every schema object the document walk reaches under
-// opts, returning each finding's site.
-func schemaFindings(ctx context.Context, doc *soa.OpenAPI, opts ...validation.Option) map[string]bool {
+// schemaFindings validates every schema object items reaches under opts,
+// returning each finding's site.
+func schemaFindings(ctx context.Context, items iter.Seq[soa.WalkItem], opts ...validation.Option) map[string]bool {
 	out := map[string]bool{}
-	matchSchemas(soa.Walk(ctx, doc), func(js *oas3.JSONSchema[oas3.Referenceable]) error {
+	matchSchemas(items, func(js *oas3.JSONSchema[oas3.Referenceable]) error {
 		for _, found := range oas3.Validate(ctx, js, opts...) {
 			if verr, ok := asValidationError(found); ok {
 				out[findingSite(verr)] = true
