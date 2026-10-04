@@ -8,6 +8,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"slices"
 	"sync"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -47,6 +48,9 @@ type externalReads struct {
 	// hands the bytes it holds for a document to each reference that hits its
 	// cache.
 	mended map[string]treeAnswer
+	// stood holds the source's reference object each stand-in stands for (see
+	// external.holdObject).
+	stood map[any]resolvable
 }
 
 // digest is the SHA-256 of a document's bytes.
@@ -72,6 +76,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		data:     map[string][]byte{},
 		byDigest: map[digest]*yaml.Node{},
 		mended:   map[string]treeAnswer{},
+		stood:    map[any]resolvable{},
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
@@ -160,18 +165,102 @@ func (r *externalReads) treeFor(path string, data []byte) *yaml.Node {
 
 // mend settles where each of c's records says its hop resolved: the tree
 // prepared from a document's bytes in place of the bytes, and the source's
-// model, doc, in place of the source's bytes or tree, so the trail of a $ref
-// back into the source ends in the source as an internal one's does. It reports
-// whether it changed any record.
+// model, doc, and path in place of the source's bytes or tree, however spelled,
+// so a $ref back into the source ends in it as an internal one does. A hop that
+// reached a stand-in reached the object it stands for, which a resumed
+// resolution resolves as the source does. It reports whether it changed any
+// record.
 func (r *externalReads) mend(c chain, doc *soa.OpenAPI) bool {
 	changed := false
 	for _, rec := range c.records {
 		if settled := r.settled(*rec.document, rec.path, doc); settled != nil {
 			*rec.document = settled
+			if settled == any(doc) {
+				*rec.documentPath = r.self.path
+			}
+			changed = true
+		}
+		if obj, ok := r.stoodFor(rec.object); ok && rec.replace(obj) {
 			changed = true
 		}
 	}
 	return changed
+}
+
+// standIn returns a stand-in for the source's reference object obj: an empty
+// object of its kind, neither a reference nor an inline object, so a hop the
+// resolver resolves to it fails. It returns false for a kind with none, a
+// schema, which hold holds no stand-in for (see external.holdWalked).
+func (r *externalReads) standIn(obj resolvable) (any, bool) {
+	stand, ok := emptyOf(obj)
+	if !ok {
+		return nil, false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.stood[stand] = obj
+	return stand, true
+}
+
+// stoodFor returns the source's object stand stands in for, or false when it
+// is no stand-in.
+func (r *externalReads) stoodFor(stand any) (resolvable, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	obj, ok := r.stood[stand]
+	return obj, ok
+}
+
+// stoodIn reports whether c stopped at a stand-in: its last hop reached one,
+// which a resolution resumed once mend has replaced it gets past.
+func (r *externalReads) stoodIn(c chain) bool {
+	if len(c.records) == 0 {
+		return false
+	}
+	_, ok := r.stoodFor(c.records[len(c.records)-1].object)
+	return ok
+}
+
+// sourceKeys returns, sorted, each key the source was recorded under: those it
+// is looked up by, and each a reader found a $ref spell it by.
+func (r *externalReads) sourceKeys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var keys []string
+	for key, tree := range r.trees {
+		if tree == r.self.root && r.self.root != nil {
+			keys = append(keys, key)
+		}
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+// emptyOf returns an empty object of obj's kind of reference object, or false
+// for a kind with no stand-in.
+func emptyOf(obj resolvable) (any, bool) {
+	switch obj.(type) {
+	case *soa.ReferencedPathItem:
+		return &soa.ReferencedPathItem{}, true
+	case *soa.ReferencedParameter:
+		return &soa.ReferencedParameter{}, true
+	case *soa.ReferencedHeader:
+		return &soa.ReferencedHeader{}, true
+	case *soa.ReferencedRequestBody:
+		return &soa.ReferencedRequestBody{}, true
+	case *soa.ReferencedResponse:
+		return &soa.ReferencedResponse{}, true
+	case *soa.ReferencedExample:
+		return &soa.ReferencedExample{}, true
+	case *soa.ReferencedLink:
+		return &soa.ReferencedLink{}, true
+	case *soa.ReferencedCallback:
+		return &soa.ReferencedCallback{}, true
+	case *soa.ReferencedSecurityScheme:
+		return &soa.ReferencedSecurityScheme{}, true
+	default:
+		return nil, false
+	}
 }
 
 // settled returns what a record whose hop read path and resolved against
@@ -421,14 +510,18 @@ type chain struct {
 
 // record is one hop's record: the document it read, by path, what it reached,
 // the object built there and a walk over it, and where it notes the document
-// it resolved against, which a later hop resolves against in turn.
+// it resolved against and that document's path, which a later hop resolves
+// against in turn. replace puts an object of the hop's kind in place of the
+// one it reached, and reports whether obj was of that kind.
 type record struct {
-	path     string
-	target   references.Reference
-	object   any
-	walk     func(context.Context) iter.Seq[soa.WalkItem]
-	document *any
-	reached  bool
+	path         string
+	target       references.Reference
+	object       any
+	walk         func(context.Context) iter.Seq[soa.WalkItem]
+	document     *any
+	documentPath *string
+	reached      bool
+	replace      func(obj any) bool
 }
 
 // trail reads what c's records say about where the resolution went. A record
@@ -499,7 +592,8 @@ func recordsOf[S any, R interface {
 		if info == nil {
 			break
 		}
-		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference, document: &info.ResolvedDocument}
+		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference, document: &info.ResolvedDocument,
+			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
 		if info.Object == nil {
 			c.records = append(c.records, r)
 			break
@@ -516,6 +610,18 @@ func recordsOf[S any, R interface {
 		c.stopped = hop.GetReference() // empty for the object a resolution ends on
 	}
 	return c
+}
+
+// replacing returns the replace of info's record: obj becomes the object
+// info's hop reached when it is of that hop's kind.
+func replacing[S any](info *references.ResolveResult[S]) func(any) bool {
+	return func(obj any) bool {
+		o, ok := obj.(*S)
+		if ok {
+			info.Object = o
+		}
+		return ok
+	}
 }
 
 // walkOf returns the walk over obj, started at its own kind.

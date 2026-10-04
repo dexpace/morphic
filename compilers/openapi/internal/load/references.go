@@ -201,15 +201,17 @@ func recovered(err *error, what string) {
 	}
 }
 
-// reachedFindings holds the findings resolveWith's walk draws until the walk ends, and
-// for each target the least pointer among the $refs whose trails end at it.
-// Which $ref draws a finding depends on declaration order: the library hands a
-// later $ref the object an earlier one built, and with it no findings. The set
-// of $refs reaching a target does not, so a finding is placed by that.
+// reachedFindings holds the findings resolveWith's resolutions draw, the walk's,
+// the held "#/$defs/..." references' and the mapping targets', until it reports
+// them, and for each target the least pointer among the $refs whose trails end
+// at it. Which $ref draws a finding depends on declaration order: the library
+// hands a later $ref the object an earlier one built, and with it no findings.
+// The set of $refs reaching a target does not, so a finding is placed by that.
 type reachedFindings struct {
 	sites   map[references.Reference]jsontext.Pointer
 	pending []pendingFinding
-	// known holds the findings already reported, which are not reported again.
+	// known holds the findings the source's own validation reported, which are
+	// not reported again.
 	known map[findingKey]bool
 }
 

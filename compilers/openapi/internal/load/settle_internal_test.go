@@ -177,9 +177,10 @@ func TestSettle_AChainTargetIsValidatedInEitherOrder(t *testing.T) {
 // TestSettle_ARecordIsMendedToWhatTheUncachedReadReports pins mend on each
 // thing a record can say it resolved against. A record reporting a document's
 // bytes is given the tree prepared from them, as a read the library had not
-// cached reports it. One reporting the source, by its bytes or its tree, is
-// given the source's model, which an internal $ref resolves against. Anything
-// else is left as it is.
+// cached reports it. One reporting the source, by its bytes or its tree, or by
+// any bytes under a key the source is held under, is given the source's model,
+// which an internal $ref resolves against, and the source's path. Anything else
+// is left as it is.
 func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
@@ -187,25 +188,28 @@ func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 	sourceBytes, otherBytes := []byte("openapi: 3.1.0\n"), []byte("components: {}\n")
 	read := newExternalReads(sourceDocument{path: "root.yaml", data: sourceBytes, root: sourceRoot})
 	read.recordTree("other.yaml", otherTree, otherBytes)
+	read.recordTree("held.yaml", sourceRoot, nil)
 
 	for _, c := range []struct {
-		name    string
-		was     any
-		want    any
-		changed bool
+		name, path   string
+		was, want    any
+		changed      bool
+		resolvedPath string
 	}{
-		{"another document's bytes", slices.Clone(otherBytes), otherTree, true},
-		{"the source's bytes", slices.Clone(sourceBytes), doc, true},
-		{"the source's tree", sourceRoot, doc, true},
-		{"bytes no tree was prepared from", []byte("unknown"), []byte("unknown"), false},
-		{"another document's tree", otherTree, otherTree, false},
-		{"the source's model", doc, doc, false},
-		{"nothing", nil, nil, false},
+		{"another document's bytes", "other.yaml", slices.Clone(otherBytes), otherTree, true, "other.yaml"},
+		{"the source's bytes", "other.yaml", slices.Clone(sourceBytes), doc, true, "root.yaml"},
+		{"the bytes held for the source", "held.yaml", []byte{}, doc, true, "root.yaml"},
+		{"the source's tree", "../dir/root.yaml", sourceRoot, doc, true, "root.yaml"},
+		{"bytes no tree was prepared from", "other.yaml", []byte("unknown"), []byte("unknown"), false, "other.yaml"},
+		{"another document's tree", "other.yaml", otherTree, otherTree, false, "other.yaml"},
+		{"the source's model", "other.yaml", doc, doc, false, "other.yaml"},
+		{"nothing", "other.yaml", nil, nil, false, "other.yaml"},
 	} {
-		document := c.was
-		changed := read.mend(chain{records: []record{{path: "other.yaml", document: &document}}}, doc)
+		document, path := c.was, c.path
+		changed := read.mend(chain{records: []record{{path: path, document: &document, documentPath: &path}}}, doc)
 		assert.Equal(t, c.want, document, c.name)
 		assert.Equal(t, c.changed, changed, "%s: mend reports a change only when it makes one", c.name)
+		assert.Equal(t, c.resolvedPath, path, "%s: the path the record says it read", c.name)
 	}
 }
 

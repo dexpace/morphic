@@ -3,14 +3,18 @@ package load
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
@@ -126,31 +130,33 @@ components:
 }
 
 // TestHold_EverySpellingOfTheSourceReachesIt pins that a back reference reaches
-// the source however its path is spelled. Each spelling the resolver keys as
-// the source's path, or that path cleaned, reaches its own declaration. One it
-// keys otherwise, an absolute path not cleaned, is opened, and answered with
-// the source's tree, so it reaches the source's node, read once.
+// the source's own declaration however its path is spelled: one the resolver
+// keys as the source's path or that path cleaned, and one it keys otherwise,
+// which it opens, finds held, and reads no further. An alias, a declaration
+// that is itself a $ref, is reached through to what it names.
 func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	clean := filepath.Join(dir, "root.yaml")
 	for _, c := range []struct {
 		name, source, spelling string
-		sameObject             bool
 	}{
-		{"its file name", clean, "root.yaml", true},
-		{"through the current directory", clean, "./root.yaml", true},
-		{"through its parent", clean, "../" + filepath.Base(dir) + "/root.yaml", true},
-		{"its absolute path", clean, clean, true},
-		{"an absolute path not cleaned", clean, dir + "/./root.yaml", false},
-		{"its file name, from a source path not cleaned", dir + "/./root.yaml", "root.yaml", true},
+		{"its file name", clean, "root.yaml"},
+		{"through the current directory", clean, "./root.yaml"},
+		{"through its parent", clean, "../" + filepath.Base(dir) + "/root.yaml"},
+		{"its absolute path", clean, clean},
+		{"an absolute path not cleaned", clean, dir + "/./root.yaml"},
+		{"its file name, from a source path not cleaned", dir + "/./root.yaml", "root.yaml"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			sub := filepath.Join(dir, strings.ReplaceAll(c.name, " ", "-"))
-			writeFile(t, dir, filepath.Base(sub)+".yaml",
-				"components:\n  responses:\n    Back: {$ref: '"+c.spelling+"#/components/responses/R'}\n")
-			root := backRoot(backPath("/a", filepath.Base(sub)+".yaml#/components/responses/Back"))
+			name := strings.ReplaceAll(c.name, " ", "-") + ".yaml"
+			writeFile(t, dir, name, "components:\n  responses:\n"+
+				"    Back: {$ref: '"+c.spelling+"#/components/responses/R'}\n"+
+				"    Alias: {$ref: '"+c.spelling+"#/components/responses/RA'}\n")
+			root := strings.Replace(backRoot(backPath("/a", name+"#/components/responses/Back")+
+				backPath("/b", name+"#/components/responses/Alias")),
+				"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
 			got, diags, err := Load(t.Context(), 0,
 				compilers.Source{Path: c.source, Data: []byte(root)}, Options{AllowExternalRefs: true})
 			require.NoError(t, err)
@@ -159,12 +165,71 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 			assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
 			r, ok := got.Doc.Components.Responses.Get("R")
 			require.True(t, ok)
-			reached := response200(t, got.Doc, "/a").GetObject()
-			require.NotNil(t, reached, "the $ref resolves although no root.yaml is on disk")
-			assert.Same(t, r.GetObject().GetRootNode(), reached.GetRootNode(), "it reaches the source's own node")
-			if c.sameObject {
-				assert.Same(t, r.GetObject(), reached, "and the source's own declaration")
+			for _, path := range []string{"/a", "/b"} {
+				assert.Same(t, r.GetObject(), response200(t, got.Doc, path).GetObject(),
+					"%s reaches the source's own declaration, although no root.yaml is on disk", path)
 			}
+		})
+	}
+}
+
+// TestHold_ARelativeSourceIsReachedHoweverItIsSpelled pins GitHub #759 for a
+// source named relative to the working directory, which a back reference can
+// spell otherwise: by climbing out of its directory and back, or by an absolute
+// path. Each reaches the source's own path item, whose references are resolved
+// as the source's are, where a copy of it would hold them unresolved and the
+// lowering would drop what they name.
+//
+// Not run in parallel: the source's path is relative to the working directory.
+func TestHold_ARelativeSourceIsReachedHoweverItIsSpelled(t *testing.T) {
+	dir := t.TempDir()
+	api := filepath.Join(dir, "api")
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "common"), 0o750))
+	require.NoError(t, os.MkdirAll(api, 0o750))
+	t.Chdir(api)
+	for _, c := range []struct {
+		name, file, spelling string
+	}{
+		{"climbing out of its directory", "../common/x.yaml", "../api/root.yaml"},
+		{"from beside it", "beside.yaml", "root.yaml"},
+		{"by its absolute path", "absolute.yaml", filepath.Join(api, "root.yaml")},
+		{"by an absolute path not cleaned", "unclean.yaml", api + "/./root.yaml"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			writeFile(t, api, c.file, "paths:\n  /a: {$ref: '"+c.spelling+"#/components/pathItems/P'}\n")
+			root := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '` + c.file + `#/paths/~1a'}
+components:
+  pathItems:
+    P:
+      get:
+        parameters: [{$ref: '#/components/parameters/Q'}]
+        responses: {"200": {$ref: '#/components/responses/R'}}
+  parameters:
+    Q: {name: q, in: query, schema: {type: string}}
+  responses:
+    R: {description: ok}
+`
+			got, diags, err := Load(t.Context(), 0,
+				compilers.Source{Path: "root.yaml", Data: []byte(root)}, Options{AllowExternalRefs: true})
+			require.NoError(t, err)
+			require.NotNil(t, got, "%+v", diags)
+
+			assert.Empty(t, diags)
+			p, ok := got.Doc.Components.PathItems.Get("P")
+			require.True(t, ok)
+			a, ok := got.Doc.Paths.Get("/a")
+			require.True(t, ok)
+			require.Same(t, p.GetObject(), a.GetObject(), "the source's own path item")
+			get := a.GetObject().Get()
+			require.NotNil(t, get)
+			require.Len(t, get.GetParameters(), 1)
+			assert.NotNil(t, get.GetParameters()[0].GetObject(), "its parameter $ref is resolved")
+			resp, ok := get.GetResponses().Get("200")
+			require.True(t, ok)
+			assert.NotNil(t, resp.GetObject(), "and its response $ref")
 		})
 	}
 }
@@ -306,23 +371,302 @@ func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
 	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
 }
 
-// TestSourceFile pins the file the source is served as: its bytes, read to the
-// end, a close that cannot fail, and no file information to give.
-func TestSourceFile(t *testing.T) {
+// TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder pins that
+// the source's own component is resolved as the source resolves it when a back
+// reference spelling the source otherwise reaches it first. Resolved against
+// that spelling, its $ref named the file beside it otherwise, so the file was
+// read twice, and a finding in it was named by whichever spelling came first.
+//
+// Not run in parallel: the source's path is relative to the working directory.
+func TestHold_ARelativeSourceResolvesItsComponentAsItDoesInEitherOrder(t *testing.T) {
+	dir := t.TempDir()
+	api := filepath.Join(dir, "api")
+	require.NoError(t, os.MkdirAll(api, 0o750))
+	writeFile(t, dir, "x.yaml", "components:\n  responses:\n    Back: {$ref: 'api/root.yaml#/components/responses/P'}\n")
+	writeFile(t, api, "other.yaml", "components:\n  responses:\n    Q:\n      description: q\n"+
+		"      links: {L: {operationId: getA, operationRef: '#/paths/~1a/get'}}\n")
+	t.Chdir(api)
+	back := backPath("/a", "../x.yaml#/components/responses/Back")
+	internal := backPath("/z", "#/components/responses/P")
+	root := func(paths string) string {
+		return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + paths +
+			"components:\n  responses:\n    P: {$ref: './other.yaml#/components/responses/Q'}\n"
+	}
+
+	for _, spec := range []string{root(back + internal), root(internal + back)} {
+		got, diags, err := Load(t.Context(), 0,
+			compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{AllowExternalRefs: true})
+		require.NoError(t, err)
+		require.NotNil(t, got, "%+v", diags)
+		require.Len(t, diags, 1, "%+v", diags)
+		assert.Equal(t, jsontext.Pointer("/components/responses/P"), diags[0].Provenance.Pointer)
+		assert.Contains(t, diags[0].Message, "of other.yaml", "named as the source names it")
+	}
+}
+
+// heldResolution returns spec's model, built as the source at path, and the
+// resolution newResolution makes of it with external references allowed, which
+// has held the source where the resolver looks for it.
+func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution) {
+	t.Helper()
+	data := []byte(spec)
+	root, _, err := decodeStream(data)
+	require.NoError(t, err)
+	releaseAnchors(root)
+	doc, valErrs, err := unmarshal(t.Context(), data, root)
+	require.NoError(t, err)
+	self := newSourceDocument(path, data, root, valErrs)
+	opts := Options{AllowExternalRefs: true}
+	reader := newExternal(doc, opts, newExternalReads(self))
+	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
+}
+
+// TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
+// source spelled as no key holds it: it holds the source under that spelling,
+// so the next $ref spelling it so finds the source's own objects, and serves
+// the bytes held for it, which the resolver reads none of, its tree being held.
+func TestExternal_OpenHoldsTheSourceItIsAskedFor(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
+	spelled := dir + "/./root.yaml"
+
+	f, err := pass.reader.Open(spelled)
+
+	require.NoError(t, err, "no root.yaml is on disk, and none is read")
+	data, err := io.ReadAll(f)
+	require.NoError(t, err)
+	assert.Empty(t, data)
+	_, err = f.Stat()
+	require.ErrorIs(t, err, fs.ErrInvalid)
+	require.NoError(t, f.Close())
+	tree, ok := doc.GetCachedExternalDocument(spelled)
+	require.True(t, ok)
+	assert.Same(t, pass.reader.read.self.root, tree)
+	held, ok := doc.GetCachedReferencedObject(spelled + "#/components/responses/R")
+	require.True(t, ok)
+	r, ok := doc.Components.Responses.Get("R")
+	require.True(t, ok)
+	assert.Same(t, r, held, "the source's own object, a response being no reference")
+}
+
+// TestHold_EachSpellingADocumentUsesIsHeldAhead pins which $refs in a document
+// hold the source under their spelling, read against the key the document was
+// read by: one with a document part naming the source, here an absolute path
+// not cleaned, which the resolver keys as written. A spelling the source is
+// held under already, a pointer alone, a $ref that is no string, another file
+// and a URL hold nothing more.
+func TestHold_EachSpellingADocumentUsesIsHeldAhead(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "root.yaml")
-	reader := newExternal(&soa.OpenAPI{}, Options{},
-		newExternalReads(sourceDocument{path: path, data: []byte("held"), root: &yaml.Node{}}))
+	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), path)
+	unclean := dir + "/./root.yaml"
+	tree, ok := parseTree([]byte(`a: {$ref: '#/components/responses/R'}
+b: {$ref: [root.yaml]}
+c: {$ref: 'other.yaml#/x'}
+d: {$ref: 'https://example.com/root.yaml#/x'}
+e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}, {$ref: '../root.yaml'}]
+`))
+	require.True(t, ok)
 
-	f, err := reader.Open(path)
-	require.NoError(t, err, "no root.yaml is on disk: the source is served as held")
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	assert.Equal(t, "held", string(data))
-	_, err = f.Stat()
-	require.ErrorIs(t, err, fs.ErrInvalid)
-	assert.NoError(t, f.Close())
+	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
+
+	assert.Equal(t, []string{unclean, path}, pass.reader.read.sourceKeys())
+	held, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/R")
+	require.True(t, ok)
+	r, ok := doc.Components.Responses.Get("R")
+	require.True(t, ok)
+	assert.Same(t, r, held, "the source's own object, under the spelling")
+	for _, key := range []string{filepath.Join(dir, "sub", "other.yaml"), "https://example.com/root.yaml"} {
+		_, ok := doc.GetCachedExternalDocument(key)
+		assert.False(t, ok, key)
+	}
+}
+
+// TestHold_ASpellingTheSourceUsesForItselfIsHeldAhead pins that a $ref in the
+// source naming the source's own file by a spelling no key holds, here an
+// absolute path not cleaned, reaches the source's own declaration, as a $ref
+// from another document spelling it so does.
+func TestHold_ASpellingTheSourceUsesForItselfIsHeldAhead(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	got, diags := loadExternal(t, dir, backRoot(backPath("/a", dir+"/./root.yaml#/components/responses/R")), Options{})
+
+	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
+	r, ok := got.Doc.Components.Responses.Get("R")
+	require.True(t, ok)
+	assert.Same(t, r.GetObject(), response200(t, got.Doc, "/a").GetObject())
+}
+
+// TestHold_ASpellingHeldAlreadyIsNotHeldAgain pins that each document naming
+// the source by a spelling it is held under costs nothing more: holding it
+// again would store every object again, and a new stand-in for each reference
+// object, once for each such document.
+func TestHold_ASpellingHeldAlreadyIsNotHeldAgain(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	unclean := dir + "/./root.yaml"
+	root := strings.Replace(backRoot(backPath("/a", "#/components/responses/RA")),
+		"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
+	doc, pass := heldResolution(t, root, filepath.Join(dir, "root.yaml"))
+	pass.reader.holdUnder(unclean)
+	stand, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/RA")
+	require.True(t, ok)
+
+	pass.reader.holdUnder(unclean)
+
+	again, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/RA")
+	require.True(t, ok)
+	assert.Same(t, stand, again)
+}
+
+// TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound pins that the source
+// is held, for the document a second resolution rebuilds, under each spelling
+// the first found: that resolution reads a prepared document's tree without
+// preparing it again, so no $ref in it is read for a spelling then.
+func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	spelled := dir + "/./root.yaml"
+	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
+	pass.reader.holdUnder(spelled)
+
+	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
+	reader := newExternal(again, Options{}, pass.reader.read)
+	reader.hold(t.Context())
+
+	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
+	assert.True(t, ok, "held under the spelling the first resolution found")
+	_, ok = doc.GetCachedReferencedObject(spelled + "#/components/responses/R")
+	assert.True(t, ok)
+}
+
+// TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt pins the cost of a schema
+// $ref that names the source's file. The resolver reads the whole document
+// such a $ref names, copying the bytes it holds for it, with nothing cached
+// for the next one to reuse. The bytes held beside the source's tree are none
+// of the source's, so no read copies the source, and none is left holding a
+// copy.
+func TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	doc, pass := heldResolution(t, rootOfSchemas(
+		"    A: {$ref: 'root.yaml#/components/schemas/B'}\n",
+		"    B: {type: string}\n"), path)
+	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+
+	pass.visit("/components/schemas/A", a, a.GetReference())
+
+	require.Empty(t, pass.failures)
+	assert.Equal(t, "string", string(a.GetResolvedSchema().GetSchema().GetType()[0]))
+	cached, ok := doc.GetCachedReferenceDocument(path)
+	require.True(t, ok)
+	assert.Empty(t, cached)
+}
+
+// TestHold_ASchemaCycleThroughTheSourceEndsAsACycle pins that a schema chain
+// leaving the source and coming back to where it started ends as the cycle it
+// is. The resolver follows a schema hop it finds resolved without tracking it,
+// so the held schema the chain started from looped it until the stack ran out.
+// This is the resolution the walk starts, before anything settles it.
+func TestHold_ASchemaCycleThroughTheSourceEndsAsACycle(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": "A: {$ref: 'root.yaml#/components/schemas/W'}\n"})
+	doc, pass := heldResolution(t, rootOfSchemas(
+		"    P: {$ref: 'other.yaml#/A'}\n",
+		"    W: {$ref: '#/components/schemas/P'}\n"), filepath.Join(dir, "root.yaml"))
+	p, ok := doc.Components.Schemas.Get("P")
+	require.True(t, ok)
+
+	_, err := p.Resolve(t.Context(), pass.opts)
+
+	require.ErrorContains(t, err, "circular reference detected")
+}
+
+// TestHold_ASourceComponentIsResolvedAgainstItsSelfInEitherOrder pins that the
+// source's own component is resolved against the base its $self sets, as the
+// source resolves it, whichever reaches it first: an internal $ref, or a $ref
+// back into the source from another document. The resolver resolved what it
+// had handed the back reference against the path it read the source by.
+func TestHold_ASourceComponentIsResolvedAgainstItsSelfInEitherOrder(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("components:\n  responses:\n    Q: {description: by self}\n"))
+		assert.NoError(t, err)
+	})
+	dir := externalDir(t, map[string]string{
+		"ext.yaml":   "components:\n  responses:\n    Back: {$ref: 'root.yaml#/components/responses/P'}\n",
+		"other.yaml": "components:\n  responses:\n    Q: {description: by path}\n",
+	})
+	root := func(paths string) string {
+		return "openapi: 3.2.0\n$self: " + srv.URL + "/api/root.yaml\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+			paths + "components:\n  responses:\n    P: {$ref: './other.yaml#/components/responses/Q'}\n"
+	}
+	// The source's own relative $refs resolve against $self, so ext.yaml is
+	// named by its path.
+	back := backPath("/a", filepath.Join(dir, "ext.yaml")+"#/components/responses/Back")
+	internal := backPath("/z", "#/components/responses/P")
+
+	reports := make([][]string, 0, 2)
+	for _, spec := range []string{root(back + internal), root(internal + back)} {
+		got, diags := loadExternal(t, dir, spec, Options{})
+		reports = append(reports, diagLines(diags))
+		for _, path := range []string{"/a", "/z"} {
+			assert.Equal(t, "by self", response200(t, got.Doc, path).GetObject().GetDescription(), path)
+		}
+	}
+	assert.Empty(t, cmp.Diff(reports[0], reports[1]), "the same in either order")
+}
+
+// TestHold_AnInternalRefResolvesThroughEveryAlias pins that holding the source
+// leaves an internal $ref resolving as it does when no other document is read:
+// through each alias the source declares, however many. Reached as a stand-in,
+// each alias would cost a resumed resolution, and a chain longer than
+// maxResolutionHops would stop unresolved.
+func TestHold_AnInternalRefResolvesThroughEveryAlias(t *testing.T) {
+	t.Parallel()
+	var responses strings.Builder
+	n := maxResolutionHops + 8
+	for i := range n {
+		fmt.Fprintf(&responses, "    R%d: {$ref: '#/components/responses/R%d'}\n", i, i+1)
+	}
+	fmt.Fprintf(&responses, "    R%d: {description: ok}\n", n)
+	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		backPath("/a", "#/components/responses/R0") + "components:\n  responses:\n" + responses.String()
+
+	got, diags := loadExternal(t, t.TempDir(), root, Options{})
+
+	assert.Empty(t, diags)
+	last, ok := got.Doc.Components.Responses.Get(fmt.Sprintf("R%d", n))
+	require.True(t, ok)
+	assert.Same(t, last.GetObject(), response200(t, got.Doc, "/a").GetObject())
+}
+
+// TestStandIn pins the stand-in held for each kind of reference object: an
+// empty object of the kind, which mend knows to stand for the object. A schema
+// has none.
+func TestStandIn(t *testing.T) {
+	t.Parallel()
+	read := newExternalReads(sourceDocument{})
+	for _, obj := range []resolvable{
+		&soa.ReferencedPathItem{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{},
+		&soa.ReferencedRequestBody{}, &soa.ReferencedResponse{}, &soa.ReferencedExample{},
+		&soa.ReferencedLink{}, &soa.ReferencedCallback{}, &soa.ReferencedSecurityScheme{},
+	} {
+		stand, ok := read.standIn(obj)
+		require.True(t, ok, "%T", obj)
+		assert.IsType(t, obj, stand)
+		assert.NotSame(t, obj, stand)
+		stood, ok := read.stoodFor(stand)
+		require.True(t, ok, "%T", obj)
+		assert.Same(t, obj, stood)
+	}
+	_, ok := read.standIn(oas3.NewJSONSchemaFromReference("#/components/schemas/S"))
+	assert.False(t, ok, "a schema is held as no stand-in")
+	_, ok = read.stoodFor(&soa.ReferencedResponse{})
+	assert.False(t, ok, "an object made elsewhere stands for nothing")
 }
 
 // TestReachedFindings_DropsAKnownFinding pins the known findings at the one

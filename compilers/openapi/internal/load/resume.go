@@ -14,14 +14,17 @@ import (
 )
 
 // resumable reports whether settle may resume r, whose resolution holds c and
-// failed with err. Only the failure mending cures is resumed: a pointer within
-// a document walked through that document's bytes (GitHub #761), where a tree
-// prepared from them can take their place. Mending cures no other failure, a
-// cycle least of all, which a resumed schema can recurse through without end.
-// The stalled hop read its own record when r is a schema, and the previous
-// hop's otherwise; a schema is resumed only where its remaining hops end (see
-// ends).
+// failed with err. Only a failure mending cures is resumed: a hop that reached
+// a stand-in for the source's object (see external.holdObject), and a pointer
+// within a document walked through that document's bytes (GitHub #761), where
+// a tree prepared from them can take their place. Mending cures no other
+// failure, a cycle least of all. The stalled hop read its own record when r is
+// a schema, and the previous hop's otherwise; a schema is resumed only where
+// its remaining hops end (see ends).
 func (e external) resumable(r resolvable, c chain, err error) bool {
+	if e.read.stoodIn(c) {
+		return true
+	}
 	if !errors.Is(err, jsonpointer.ErrInvalidPath) || c.cut || len(c.records) == 0 ||
 		c.stopped == "" || c.stopped.GetURI() != "" {
 		return false
