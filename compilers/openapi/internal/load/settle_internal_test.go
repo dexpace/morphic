@@ -1,14 +1,17 @@
 package load
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json/jsontext"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -225,11 +228,11 @@ func TestTreeFor(t *testing.T) {
 	})
 }
 
-// TestSettle_AResolutionIsResumedOnlyWhileMendingChangesARecord pins settle's
-// loop through a resolution that fails for a reason mending cannot touch: the
-// stalled record is mended once, the resolution resumed once, and the failure
-// returned with the findings of both attempts.
-func TestSettle_AResolutionIsResumedOnlyWhileMendingChangesARecord(t *testing.T) {
+// TestSettle_AResumedResolutionFailsWhereItStillFails pins settle through a
+// resolution that stalls on a record mending changes and, resumed, fails for a
+// reason mending cannot touch: the failure returned is the missing target's,
+// past the hop that stalled, not the bytes'.
+func TestSettle_AResumedResolutionFailsWhereItStillFails(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": `components:
   schemas:
@@ -249,4 +252,24 @@ func TestSettle_AResolutionIsResumedOnlyWhileMendingChangesARecord(t *testing.T)
 	alias, ok := got.Doc.Components.Schemas.Get("Alias")
 	require.True(t, ok)
 	assert.Equal(t, "#/components/schemas/Missing", string(resolutionTrail(alias).stopped))
+}
+
+// TestSettle_AFailureMendingCannotTouchIsNotResumed pins settle's loop guard: a
+// resolution whose chain holds no record mending changes is returned as it
+// failed, with its findings, and never resumed.
+func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
+	t.Parallel()
+	resumed := 0
+	r := fakeResolvable{ref: "#/x", resolve: func(context.Context, references.ResolveOptions) ([]error, error) {
+		resumed++
+		return nil, errors.New("again")
+	}}
+	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
+	failed := errors.New("failed")
+
+	vErrs, err := reader.settle(t.Context(), r, references.ResolveOptions{}, []error{assert.AnError}, failed)
+
+	assert.Zero(t, resumed, "nothing a mend could change, so nothing to resume")
+	require.ErrorIs(t, err, failed)
+	assert.Equal(t, []error{assert.AnError}, vErrs)
 }

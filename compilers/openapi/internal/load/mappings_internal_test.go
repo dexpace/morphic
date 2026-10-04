@@ -67,27 +67,28 @@ func TestMappings_ATargetHeldAsRawYAMLIsResolvedAtLoad(t *testing.T) {
       application/json:
         schema: {type: object, discriminator: {propertyName: k, defaultMapping: '#/x-lib/Dog'}}
 `
+	const toResp = "paths:\n  /a:\n    get:\n      responses:\n        \"200\": {$ref: '#/x-lib/Resp'}\n"
 	for _, c := range []struct {
 		name, schemas string
+		paths         string // the document's paths, when not empty
 		pointer       jsontext.Pointer
 		want          string
 	}{
-		{"an extension's value, named by a mapping alone", petMapping("c: '#/x-lib/Cat'"), "/x-lib/Cat", "cat"},
+		{"an extension's value, named by a mapping alone", petMapping("c: '#/x-lib/Cat'"), "", "/x-lib/Cat", "cat"},
 		{"an enum member",
 			petMapping("e: '#/components/schemas/Kennel/properties/e/enum/0'") +
 				"    Kennel: {type: object, properties: {e: {enum: [{description: member, type: object}]}}}\n",
-			"/components/schemas/Kennel/properties/e/enum/0", "member"},
-		{"a mapping in what a $ref reaches", "    Holder: {$ref: '#/x-lib/Inner'}\n", "/x-lib/Dog", "dog"},
-		{"a mapping in another target", petMapping("i: '#/x-lib/Inner'"), "/x-lib/Dog", "dog"},
-		{"a defaultMapping in a response a $ref reaches", "    Pet: {type: object}\n", "/x-lib/Dog", "dog"},
+			"", "/components/schemas/Kennel/properties/e/enum/0", "member"},
+		{"a mapping in what a $ref reaches", "    Holder: {$ref: '#/x-lib/Inner'}\n", "", "/x-lib/Dog", "dog"},
+		{"a mapping in another target", petMapping("i: '#/x-lib/Inner'"), "", "/x-lib/Dog", "dog"},
+		{"a defaultMapping in a response a $ref reaches", "    Pet: {type: object}\n", toResp, "/x-lib/Dog", "dog"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			paths := "paths: {}\n"
-			if strings.Contains(c.name, "response") {
-				paths = "paths:\n  /a:\n    get:\n      responses:\n        \"200\": {$ref: '#/x-lib/Resp'}\n"
+			spec := mappingSpec(c.schemas, lib)
+			if c.paths != "" {
+				spec = strings.Replace(spec, "paths: {}\n", c.paths, 1)
 			}
-			spec := strings.Replace(mappingSpec(c.schemas, lib), "paths: {}\n", paths, 1)
 			got, diags := loadTargets(t, "spec.yaml", spec, false)
 
 			assert.Empty(t, diags)

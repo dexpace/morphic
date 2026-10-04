@@ -325,10 +325,10 @@ func TestSourceFile(t *testing.T) {
 	assert.NoError(t, f.Close())
 }
 
-// TestResolveWith_ASourceFindingIsNotReportedAgain pins the known findings at
-// the one place they act: a finding the walk draws at a node the source's own
+// TestReachedFindings_DropsAKnownFinding pins the known findings at the one
+// place they act: a finding the walk draws at a node the source's own
 // validation already reported is dropped there.
-func TestResolveWith_ASourceFindingIsNotReportedAgain(t *testing.T) {
+func TestReachedFindings_DropsAKnownFinding(t *testing.T) {
 	t.Parallel()
 	node := &yaml.Node{Line: 1, Column: 1}
 	finding := &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: node}
