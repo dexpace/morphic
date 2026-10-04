@@ -451,3 +451,104 @@ components:
 	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
 	assert.False(t, ok, "no position to read the pointer from")
 }
+
+// walkDoc is a document whose positions a walk reaches past a path item, into a
+// schema, and through a response keyed by the empty string.
+const walkDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {responses: {"200": {description: ok}}}}
+components:
+  schemas:
+    S: {type: object, properties: {p: {type: object, properties: {q: {type: string}}}}}
+  responses:
+    "": {description: keyed by the empty string}
+`
+
+// unmarshalWalkDoc parses walkDoc.
+func unmarshalWalkDoc(t *testing.T) *soa.OpenAPI {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(walkDoc))
+	require.NoError(t, err)
+	return doc
+}
+
+// elsewhere is an Ends that reads every node it is asked about as a reference
+// ending in another document, so any node a walk steps past shows.
+func elsewhere(any) (End, bool) { return End{Document: "elsewhere", Path: "x.yaml"}, true }
+
+// TestStep_ReadsOneToken pins the one step the walk takes: what a node holds
+// under a token, the empty token included, which the library reads as the root
+// when it is the only one; and nothing where the node holds nothing.
+func TestStep_ReadsOneToken(t *testing.T) {
+	t.Parallel()
+	doc := unmarshalWalkDoc(t)
+	empty, ok := doc.Components.Responses.Get("")
+	require.True(t, ok)
+
+	next, ok := step(doc.Components.Responses, "")
+	require.True(t, ok)
+	assert.Same(t, empty, next, "the empty token names the entry keyed by the empty string")
+	next, ok = step(doc, "components")
+	require.True(t, ok)
+	assert.Same(t, doc.Components, next)
+	_, ok = step(doc, "nope")
+	assert.False(t, ok, "a token the node holds nothing under")
+}
+
+// TestScopeAt_StopsAtASchema pins where the walk stops: at the first schema,
+// since the resolver reads a schema's own $ref as a keyword, so a schema
+// pointer costs the steps to its schema rather than one per token.
+func TestScopeAt_StopsAtASchema(t *testing.T) {
+	t.Parallel()
+	asked := 0
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
+
+	assert.False(t, sc.At("/components/schemas/S/properties/p/properties/q").Foreign)
+	assert.Equal(t, 3, asked, "the document, its components and its schemas, then the schema stops it")
+}
+
+// TestScopeAt_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
+// those it steps past to the next token. One where the walk finds nothing more
+// is not passed, nor is the node the pointer ends at.
+func TestScopeAt_PassesOnlyWhatTheWalkStepsPast(t *testing.T) {
+	t.Parallel()
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: elsewhere}
+
+	assert.False(t, sc.At("/nope/x").Foreign, "the walk finds nothing past the document")
+	assert.False(t, sc.At("").Foreign, "the pointer ends at the document")
+	past := sc.At("/paths/~1a")
+	assert.True(t, past.Foreign, "the walk steps past the document and its paths")
+	assert.Equal(t, "x.yaml", past.Holder)
+}
+
+// TestScopeAt_FollowsAtMostMaxRefChainRefs pins the bound on the $refs a walk
+// follows, each to where its chain ends: a chain ending back at a position its
+// own walk passes it again is followed maxRefChain times, then read as the
+// source's own.
+func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
+	t.Parallel()
+	doc := unmarshalWalkDoc(t)
+	turns := 0
+	sc := Scope{Doc: doc, Ends: func(node any) (End, bool) {
+		if _, ok := node.(*soa.ReferencedPathItem); !ok {
+			return End{}, false
+		}
+		turns++
+		return End{Document: doc, Pointer: "/paths/~1a/get"}, true
+	}}
+
+	assert.False(t, sc.At("/paths/~1a/get").Foreign, "past the bound, the source's own")
+	assert.Equal(t, maxRefChain, turns, "each turn follows one $ref")
+}
+
+// TestScopeAt_WithoutEndsPassesNothing pins a scope with no Ends: nothing can
+// be read as a reference, so every pointer names the source's own content.
+func TestScopeAt_WithoutEndsPassesNothing(t *testing.T) {
+	t.Parallel()
+	sc := Scope{Doc: unmarshalWalkDoc(t), Foreign: true, Holder: "x.yaml"}
+
+	got := sc.At("/paths/~1a/get")
+	assert.False(t, got.Foreign)
+	assert.Empty(t, got.Holder)
+}

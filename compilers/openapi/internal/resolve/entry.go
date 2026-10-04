@@ -84,8 +84,9 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
-		// The next hop is written at target, which is the source's own content
-		// even when this one was written in another document's.
+		// The resolver reads the next hop against the document this one
+		// resolved against, the source, even where this one was written in
+		// another document's content or its pointer passed a $ref into one.
 		cand, scope = target, scope.InSource()
 		// obj != nil means the whole chain resolved, so info.Object is non-nil
 		// at every hop this loop takes; a nil one would still be safe, since
@@ -96,29 +97,48 @@ func ObjectAt[T, S any, R interface {
 }
 
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is
-// where the last hop of its chain found it: the source's own (Scope.InSource)
-// when that is the source, and otherwise a Foreign scope over the document the
-// resolver read it by. An inline entry, and one that resolved nothing, are read
-// in scope itself.
+// where the last hop of its chain found it (see reached): a Foreign scope over
+// the document the resolver read it by, or, when that hop resolved against the
+// source, the scope the position it names there is read in (Scope.At). An
+// inline entry, and one that resolved nothing, are read in scope itself.
 func ScopeOf[T, S any, R interface {
 	*S
 	Referenced[T, S]
 }](scope Scope, ref R) Scope {
+	end, ok := EndOf[T, S](ref)
+	if !ok {
+		return scope
+	}
+	return scope.reached(end)
+}
+
+// End is where the last hop of a reference's chain resolved: the document it
+// resolved against, the path the resolver read that document by, and the
+// position its pointer names there.
+type End struct {
+	Document any
+	Path     string
+	Pointer  jsontext.Pointer
+}
+
+// EndOf returns where the chain of the entry ref ends, and false for an inline
+// entry and for one that resolved nothing.
+func EndOf[T, S any, R interface {
+	*S
+	Referenced[T, S]
+}](ref R) (End, bool) {
 	var last *references.ResolveResult[S]
+	var written references.Reference
 	for range maxRefChain {
 		info := ref.GetReferenceResolutionInfo()
 		if info == nil || info.Object == nil {
 			break
 		}
-		last, ref = info, R(info.Object)
+		last, written, ref = info, ref.GetReference(), R(info.Object)
 	}
-	switch {
-	case last == nil:
-		return scope
-	case last.ResolvedDocument == any(scope.Doc):
-		return scope.InSource()
-	default:
-		scope.Foreign, scope.Holder = true, last.AbsoluteDocumentPath
-		return scope
+	if last == nil {
+		return End{}, false
 	}
+	return End{Document: last.ResolvedDocument, Path: last.AbsoluteDocumentPath,
+		Pointer: jsontext.Pointer(written.GetJSONPointer())}, true
 }

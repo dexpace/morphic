@@ -309,7 +309,8 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 // elsewhereRoot is a source whose path items are reached each way an entry can
 // be: written inline, by an internal $ref, by a $ref into ext.yaml, by one into
 // ext.yaml that comes back into the source, once directly and once through a
-// further alias there, and by one naming nothing.
+// further alias there, and by one naming nothing. The responses of /through are
+// reached by pointers passing the $ref of /ext, /back and /internal on the way.
 const elsewhereRoot = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -319,6 +320,12 @@ paths:
   /back: {$ref: './ext.yaml#/paths/~1back'}
   /hop: {$ref: './ext.yaml#/paths/~1hop'}
   /missing: {$ref: '#/components/pathItems/Nope'}
+  /through:
+    get:
+      responses:
+        "200": {$ref: '#/paths/~1ext/get/responses/200'}
+        "201": {$ref: '#/paths/~1back/get/responses/200'}
+        "202": {$ref: '#/paths/~1internal/get/responses/200'}
 components:
   pathItems:
     P: {get: {responses: {"200": {description: ok}}}}
@@ -363,6 +370,51 @@ func TestScopeOf(t *testing.T) {
 		assert.Equal(t, want != "", scope.Foreign, path)
 		assert.Same(t, doc.Doc, scope.Doc, path)
 	}
+}
+
+// pathItemEnds is the Ends of a scope whose walks meet path items alone, as
+// those through elsewhereRoot do.
+func pathItemEnds(node any) (resolve.End, bool) {
+	rp, ok := node.(*soa.ReferencedPathItem)
+	if !ok {
+		return resolve.End{}, false
+	}
+	return resolve.EndOf[soa.PathItem](rp)
+}
+
+// TestScopeOf_PastARefReadsWhereItsChainEnds pins the scope of an entry whose
+// pointer passes a $ref, which the resolver's walk follows to what it resolved
+// to, though it reports the source as what the pointer resolved against. Past
+// /ext's, the response is ext.yaml's, read as /ext's own entry reads it, and
+// ObjectAt names it by the pointer /ext's own lowering reaches it at, so both
+// lowerings read one position alike (GitHub #762). Past /back's or
+// /internal's, whose chains end in the source, it is the source's.
+func TestScopeOf_PastARefReadsWhereItsChainEnds(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	given := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: "other.yaml",
+		Ends: pathItemEnds}
+	through, ok := doc.Doc.Paths.Get("/through")
+	require.True(t, ok)
+	responses := through.GetObject().Get().GetResponses()
+	rp, ok := doc.Doc.Paths.Get("/ext")
+	require.True(t, ok)
+	own := resolve.ScopeOf[soa.PathItem](given, rp)
+	require.Equal(t, ext, own.Holder, "/ext's own entry is read where ext.yaml sits")
+
+	for code, want := range map[string]string{"200": ext, "201": "", "202": ""} {
+		rr, ok := responses.Get(code)
+		require.True(t, ok, code)
+		require.NotNil(t, resolve.Object[soa.Response](rr), "%s: the resolver walked through the $ref", code)
+		scope := resolve.ScopeOf[soa.Response](given, rr)
+		assert.Equal(t, want, scope.Holder, code)
+		assert.Equal(t, want != "", scope.Foreign, code)
+	}
+	rr, ok := responses.Get("200")
+	require.True(t, ok)
+	_, pointer := resolve.ObjectAt[soa.Response](given.InSource(), rr, "/paths/~1through/get/responses/200")
+	assert.Equal(t, jsontext.Pointer("/paths/~1ext/get/responses/200"), pointer,
+		"named where /ext's own lowering reaches it, in the scope that lowering reads it in")
 }
 
 // TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins the scope ObjectAt

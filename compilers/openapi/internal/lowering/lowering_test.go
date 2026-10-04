@@ -1,6 +1,8 @@
 package lowering_test
 
 import (
+	"encoding/json/jsontext"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -265,6 +268,60 @@ x-lib:
 	carrying := bare.WithMappingTargets(loaded.Targets)
 	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
+}
+
+// referenceKinds is a source declaring one component of each kind the library
+// models as a reference, and beside each an alias naming it.
+const referenceKinds = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  pathItems: {P: {get: {responses: {"200": {description: ok}}}}, A: {$ref: '#/components/pathItems/P'}}
+  parameters: {P: {name: q, in: query, schema: {type: string}}, A: {$ref: '#/components/parameters/P'}}
+  headers: {P: {schema: {type: string}}, A: {$ref: '#/components/headers/P'}}
+  requestBodies: {P: {content: {application/json: {schema: {type: string}}}}, A: {$ref: '#/components/requestBodies/P'}}
+  responses: {P: {description: ok}, A: {$ref: '#/components/responses/P'}}
+  examples: {P: {value: 1}, A: {$ref: '#/components/examples/P'}}
+  links: {P: {operationRef: '#/paths/~1x/get'}, A: {$ref: '#/components/links/P'}}
+  callbacks: {P: {'{$request.body#/u}': {post: {responses: {"200": {description: ok}}}}}, A: {$ref: '#/components/callbacks/P'}}
+  securitySchemes: {P: {type: http, scheme: basic}, A: {$ref: '#/components/securitySchemes/P'}}
+`
+
+// TestRefScope_EndsReadsEachReferenceKind pins the dispatch a walk through the
+// document asks about each node it passes: every kind the library models as a
+// reference is read as one, so a pointer passing an alias of any kind is read
+// where that alias's chain ends. A kind left out would pass unread. An inline
+// entry, and a value of no reference kind, are no reference.
+func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
+	require.NoError(t, err)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	ends := c.RefScope().Ends
+	require.NotNil(t, ends)
+	cs := doc.Doc.Components
+	for kind, entries := range map[string][2]any{
+		"pathItems":       {cs.PathItems.GetOrZero("A"), cs.PathItems.GetOrZero("P")},
+		"parameters":      {cs.Parameters.GetOrZero("A"), cs.Parameters.GetOrZero("P")},
+		"headers":         {cs.Headers.GetOrZero("A"), cs.Headers.GetOrZero("P")},
+		"requestBodies":   {cs.RequestBodies.GetOrZero("A"), cs.RequestBodies.GetOrZero("P")},
+		"responses":       {cs.Responses.GetOrZero("A"), cs.Responses.GetOrZero("P")},
+		"examples":        {cs.Examples.GetOrZero("A"), cs.Examples.GetOrZero("P")},
+		"links":           {cs.Links.GetOrZero("A"), cs.Links.GetOrZero("P")},
+		"callbacks":       {cs.Callbacks.GetOrZero("A"), cs.Callbacks.GetOrZero("P")},
+		"securitySchemes": {cs.SecuritySchemes.GetOrZero("A"), cs.SecuritySchemes.GetOrZero("P")},
+	} {
+		end, ok := ends(entries[0])
+		require.True(t, ok, "%s: the alias is read as a reference", kind)
+		assert.Equal(t, resolve.End{Document: any(doc.Doc), Path: path,
+			Pointer: jsontext.Pointer("/components/" + kind + "/P")}, end, kind)
+		_, ok = ends(entries[1])
+		assert.False(t, ok, "%s: an inline entry is no reference", kind)
+	}
+	_, ok := ends(doc.Doc)
+	assert.False(t, ok, "a value of no reference kind is no reference")
 }
 
 // TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee

@@ -220,9 +220,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// coordinate, not through the declaration that owns it, so the names minted
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
 	// subtree rather than this coordinate alone: a reference to an object body
-	// interns its children too, and their names hang off this one. It is the
-	// source's content too, whichever document's content held the reference.
-	c = c.InSource().NamingByReference()
+	// interns its children too, and their names hang off this one. It is read
+	// where the coordinate lies, whichever document's content held the reference:
+	// the source's own, or another document's past a $ref the pointer passes.
+	c = c.At(pointer).NamingByReference()
 
 	hint := subSchemaHint(decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)

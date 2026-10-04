@@ -85,8 +85,8 @@ type Ctx struct {
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
-	// Within). Unexported and set only by Within and InSource, which scope them
-	// to the subtree that copy is threaded through.
+	// Within). Unexported and set only by Within and At, which scope them to the
+	// subtree that copy is threaded through.
 	foreign bool
 	holder  string
 
@@ -257,11 +257,41 @@ func Within[T, S any, R interface {
 	return c
 }
 
-// InSource returns c for lowering what the source holds at a position a
-// reference names: a copy no longer Foreign (resolve.Scope.InSource).
-func (c Ctx) InSource() Ctx {
-	c.foreign, c.holder = false, ""
+// At returns c for lowering what an internal pointer names, in the scope
+// resolve.Scope.At reads it in: the source's own, or, where the resolver's walk
+// to it passes a $ref into another document, that document's.
+func (c Ctx) At(pointer jsontext.Pointer) Ctx {
+	scope := c.RefScope().At(pointer)
+	c.foreign, c.holder = scope.Foreign, scope.Holder
 	return c
+}
+
+// referenceEnd is resolve.EndOf for an entry of each of the library's reference
+// kinds, which a walk through the document meets as values of any type, and
+// false for any other value.
+func referenceEnd(node any) (resolve.End, bool) {
+	switch r := node.(type) {
+	case *soa.ReferencedPathItem:
+		return resolve.EndOf[soa.PathItem](r)
+	case *soa.ReferencedParameter:
+		return resolve.EndOf[soa.Parameter](r)
+	case *soa.ReferencedHeader:
+		return resolve.EndOf[soa.Header](r)
+	case *soa.ReferencedRequestBody:
+		return resolve.EndOf[soa.RequestBody](r)
+	case *soa.ReferencedResponse:
+		return resolve.EndOf[soa.Response](r)
+	case *soa.ReferencedExample:
+		return resolve.EndOf[soa.Example](r)
+	case *soa.ReferencedLink:
+		return resolve.EndOf[soa.Link](r)
+	case *soa.ReferencedCallback:
+		return resolve.EndOf[soa.Callback](r)
+	case *soa.ReferencedSecurityScheme:
+		return resolve.EndOf[soa.SecurityScheme](r)
+	default:
+		return resolve.End{}, false
+	}
 }
 
 // declaredSchemaNames collects the names under components/schemas, or nil when
@@ -317,7 +347,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At,
-		Foreign: c.foreign, Holder: c.holder}
+		Foreign: c.foreign, Holder: c.holder, Ends: referenceEnd}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

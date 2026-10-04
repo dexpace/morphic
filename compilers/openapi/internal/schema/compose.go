@@ -1224,21 +1224,21 @@ const maxTypePositionHops = 64
 // (readsThrough): a $ref holding nothing an alias would, where no component is
 // declared, is only a use of its target's type, so it names the position the
 // $ref does, as a union variant written there names its target (GitHub #758).
-// Each hop is read as the $ref there resolves, in the source's scope, so the
-// two cannot drift. A keyword beside a property's $ref stops it (GitHub #764).
+// Each hop is read as its $ref resolves, where it is written
+// (resolve.Scope.At), so the two cannot drift. A keyword beside a property's
+// $ref stops it (GitHub #764).
 func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes map[ir.TypeID]bool) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
 	if _, named := ids.ComponentSchemaName(pointer); named {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
 		return pointer, nil
 	}
-	scope = scope.InSource()
 	decl := scope.DeclaredAt(pointer)
 	for range maxTypePositionHops {
 		if !readsThrough(pointer, decl, variantTypes) {
 			break
 		}
-		next, ok := scope.TargetPointer(decl, decl.GetRef().String())
+		next, ok := scope.At(pointer).TargetPointer(decl, decl.GetRef().String())
 		if !ok {
 			break
 		}

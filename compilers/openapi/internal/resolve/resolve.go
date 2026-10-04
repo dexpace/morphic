@@ -63,6 +63,11 @@ type Scope struct {
 	Foreign bool
 	// Holder is the path the resolver read that document by.
 	Holder string
+	// Ends returns where the chain of a reference a walk through Doc passes
+	// ends (EndOf), and false for a node that is no reference. The library's
+	// reference kinds are each a type of their own, which the caller names;
+	// nil passes no reference.
+	Ends func(node any) (End, bool)
 }
 
 // InSource returns s for reading what the source holds, which is never
@@ -72,6 +77,76 @@ type Scope struct {
 func (s Scope) InSource() Scope {
 	s.Foreign, s.Holder = false, ""
 	return s
+}
+
+// At returns s for reading what an internal pointer names: the source's own
+// content (InSource), unless the resolver's walk to it passes a $ref, whose
+// target it then lies in (GitHub #762). Past one into another document, it is
+// that document's content, though the resolver reports the source as the
+// document the pointer resolved against.
+func (s Scope) At(pointer jsontext.Pointer) Scope {
+	return s.reached(End{Document: s.Doc, Pointer: pointer})
+}
+
+// reached returns s for reading what a hop ending at end found: a Foreign scope
+// over the document it resolved against, unless that is the source, where the
+// position its pointer names is read as At reads it. A $ref the walk to that
+// position passes is followed to where its own chain ends, so each turn takes
+// one; maxRefChain bounds them, and the source's own is the answer past it.
+func (s Scope) reached(end End) Scope {
+	for range maxRefChain {
+		if end.Document != any(s.Doc) {
+			s.Foreign, s.Holder = true, end.Path
+			return s
+		}
+		next, passed := s.passed(end.Pointer)
+		if !passed {
+			break
+		}
+		end = next
+	}
+	return s.InSource()
+}
+
+// passed returns where the chain of the last $ref the resolver's walk to
+// pointer through Doc passes ends, and false when it passes none. The walk
+// reads a reference it passes as what that resolved to (GetNavigableNode), so
+// what lies past one is the content its chain ends in. A schema's own $ref is
+// read as a keyword instead, so nothing past a schema is passed.
+func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
+	if s.Ends == nil {
+		return End{}, false
+	}
+	var (
+		node   any = s.Doc
+		end    End
+		passes bool
+	)
+	for token := range pointer.Tokens() {
+		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
+			break
+		}
+		next, ok := step(node, token)
+		if !ok {
+			break
+		}
+		if e, isRef := s.Ends(node); isRef {
+			end, passes = e, true
+		}
+		node = next
+	}
+	return end, passes
+}
+
+// step returns what node holds under the one token, as the resolver's walk
+// reads it, and false where it holds nothing. The library reads the
+// one-token pointer "/" as the root rather than the empty token, so the token
+// is read as the second of two, below an envelope keyed by the empty string.
+func step(node any, token string) (any, bool) {
+	envelope := map[string]any{"": node}
+	next, err := jsonpointer.GetTarget(envelope, jsonpointer.JSONPointer("//"+jsonpointer.EscapeString(token)),
+		jsonpointer.WithStructTags("key"))
+	return next, err == nil
 }
 
 // reader returns the reader s reads "#/$defs/..." pointers through.
