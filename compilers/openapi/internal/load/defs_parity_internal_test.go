@@ -27,8 +27,9 @@ const (
 var parityRefs = []string{"#/$defs/m", "#/$defs/n", "#/$defs/m/properties/p", "#/$defs/n/$defs/m", "#/$defs/m/$defs/n"}
 
 // parityGrammar draws schemas that spell "#/$defs/..." references, $defs and
-// $id at random. A definition spells no reference, so nothing it holds can close
-// a cycle, and every $id is its own.
+// $id at random, a reference as a property or as a schema keyword's own value.
+// A definition spells no reference, so nothing it holds can close a cycle, and
+// every $id is its own.
 type parityGrammar struct {
 	rng *rand.Rand
 	ids int
@@ -51,6 +52,9 @@ func (g *parityGrammar) schema(depth int, inDefs bool) string {
 	}
 	if depth > 0 && g.rng.Intn(2) == 0 {
 		fields = append(fields, "properties: "+g.keyed(depth, inDefs, "p", "q"))
+	}
+	if depth > 0 && g.rng.Intn(4) == 0 { // a child that is a schema itself, whose parent is this one
+		fields = append(fields, []string{"items", "not"}[g.rng.Intn(2)]+": "+g.schema(depth-1, inDefs))
 	}
 	return "{" + strings.Join(fields, ", ") + "}"
 }

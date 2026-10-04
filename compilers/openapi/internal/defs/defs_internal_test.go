@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -136,6 +137,32 @@ properties:
 	require.True(t, ok)
 	assert.Same(t, defEntry(t, outer, "k"), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
+}
+
+// TestTargetFrom_ParentThatHoldsTheDefinition pins the search's first step: a
+// reference that is a schema keyword's own value, rather than an entry of a map
+// or list, has the schema that holds the $defs as its parent, and reads them.
+func TestTargetFrom_ParentThatHoldsTheDefinition(t *testing.T) {
+	t.Parallel()
+	const src = `
+properties:
+  outer:
+    $defs:
+      k: {type: object}
+    not: {$ref: "#/$defs/k"}
+`
+	root := schemaFromYAML(t, src)
+	outer := prop(t, root, "outer")
+	not := outer.GetSchema().Not
+
+	got, at, ok := NewReader(root).Target(not, "/$defs/k")
+	require.True(t, ok)
+	assert.Same(t, defEntry(t, outer, "k"), got)
+	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
+
+	_, at, ok = NewReader(root).TargetFrom("/properties/outer/not", "/$defs/k")
+	require.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at, "read from the position alone")
 }
 
 // TestTargetFrom_RestPath pins that a pointer deeper than the bare key
@@ -343,38 +370,60 @@ func TestReader_NilReaderFindsNothing(t *testing.T) {
 	}
 }
 
-// TestReader_ObjectAtReadsEachPositionOnceFromItsParent pins what the walk down
-// remembers: the object at each position it passes, so a second position below
-// the same ancestors reads only what is new; and, for a position the document
-// lacks, nothing below the first missing one.
-func TestReader_ObjectAtReadsEachPositionOnceFromItsParent(t *testing.T) {
+// TestReader_PlaceAtReadsEachPositionOnceFromItsParent pins what the walk down
+// remembers: for each position it passes, the object, whether that object has a
+// $defs of its own and the closest ancestor that does, so a second position
+// below the same ancestors reads only what is new; and, for a position the
+// document lacks, nothing below the first missing one.
+func TestReader_PlaceAtReadsEachPositionOnceFromItsParent(t *testing.T) {
 	t.Parallel()
 	root := schemaFromYAML(t, readerDoc)
 	r := NewReader(root)
+	const a, b = "/properties/a", "/properties/a/properties/b"
 
-	obj, held := r.objectAt("/properties/a/properties/b")
-	require.True(t, held)
-	assert.Same(t, prop(t, prop(t, root, "a"), "b"), obj)
-	assert.Len(t, r.objects, 4, "/properties, /properties/a, .../properties, .../b")
+	here := r.placeAt(b)
+	require.True(t, here.held)
+	assert.Same(t, prop(t, prop(t, root, "a"), "b"), here.value)
+	assert.True(t, here.hasDefs, "b declares $defs")
+	assert.Equal(t, jsontext.Pointer(a), here.holder, "a is the closest holder above b")
+	assert.Len(t, r.places, 4, "/properties, /properties/a, .../properties, .../b")
+	assert.Equal(t, jsontext.Pointer(""), r.places["/properties"].holder, "a map holds none, and the root is no holder")
 
-	_, held = r.objectAt("/properties/a/properties/b/properties/c")
-	require.True(t, held)
-	assert.Len(t, r.objects, 6, "only the two positions below b are new")
+	here = r.placeAt(b + "/properties/c")
+	require.True(t, here.held)
+	assert.False(t, here.hasDefs, "c declares none")
+	assert.Equal(t, jsontext.Pointer(b), here.holder, "so its holder is b's")
+	assert.Len(t, r.places, 6, "only the two positions below b are new")
 
 	before := r.reads
-	_, held = r.objectAt("/properties/a/properties/missing/properties/x")
-	assert.False(t, held, "no object below a position the document lacks")
+	here = r.placeAt(a + "/properties/missing/properties/x")
+	assert.False(t, here.held, "no object below a position the document lacks")
 	assert.Equal(t, before+1, r.reads, "and none of them is read: the first missing one ends the walk")
-	_, held = r.objectAt("properties/a")
-	assert.False(t, held, "a position that is no pointer holds nothing")
-	root0, held := r.objectAt("")
-	assert.True(t, held, "the root is the document")
-	assert.Same(t, root, root0)
+	assert.False(t, r.placeAt("properties/a").held, "a position that is no pointer holds nothing")
+	assert.Same(t, root, r.placeAt("").value, "the root is the document")
 }
 
-// deepChain is a schema whose property top holds a definition m and nests
-// depth levels of property n below it, and the pointer to each level.
-func deepChain(depth int) (body string, levels []jsontext.Pointer) {
+// TestDefinesDefs pins the filter the search rests on: an object has a $defs of
+// its own when the library navigates to a value there, and the library reports
+// an absent one as an empty value, not an error.
+func TestDefinesDefs(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, readerDoc)
+	a := prop(t, root, "a")
+
+	assert.True(t, definesDefs(a), "a schema with $defs")
+	assert.False(t, definesDefs(prop(t, root, "f")), "a schema without: a nil value, no error")
+	assert.False(t, definesDefs(root.GetSchema().GetProperties()), "a map is no object with a $defs")
+	assert.False(t, definesDefs(nil), "nothing is not one either")
+	assert.True(t, definesDefs(struct {
+		Defs string `key:"$defs"`
+	}{Defs: "x"}), "a $defs that is a plain value is one, whatever it holds")
+}
+
+// deepChain is a schema whose property top holds the definitions m0 to
+// m<definitions-1> and nests depth levels of property n below it, and the
+// pointer to each level.
+func deepChain(depth, definitions int) (body string, levels []jsontext.Pointer) {
 	inner := "{type: string}"
 	for range depth {
 		inner = "{properties: {n: " + inner + "}}"
@@ -384,29 +433,48 @@ func deepChain(depth int) (body string, levels []jsontext.Pointer) {
 		at += "/properties/n"
 		levels = append(levels, at)
 	}
-	return "properties: {top: {$defs: {m: {type: string}}, properties: {n: " + inner + "}}}", levels
+	defs := make([]string, 0, definitions)
+	for i := range definitions {
+		defs = append(defs, "m"+strconv.Itoa(i)+": {type: string}")
+	}
+	return "properties: {top: {$defs: {" + strings.Join(defs, ", ") + "}, properties: {n: " + inner + "}}}", levels
 }
 
-// TestReader_WorkGrowsLinearlyWithDepth pins what the memory is for: asking for
-// the same definition from every level of a schema nested d deep reads each
-// position once, not once per question, so the navigations it makes double when
-// the depth does. Asked without memory, each question walks the whole chain
-// above it and the work grows with the square of the depth.
-func TestReader_WorkGrowsLinearlyWithDepth(t *testing.T) {
+// TestReader_WorkAndMemoryGrowLinearlyWithDepth pins what remembering is for:
+// asking for a definition from every level of a schema nested d deep reads each
+// position once, not once per question, so the navigations it makes and the
+// positions it keeps double when the depth does. It holds whether every level
+// asks for the same definition or each its own: what is kept is a property of
+// the positions, never of the pointers asked about. Asked without memory, each
+// question walks the whole chain above it and the work grows with the square of
+// the depth; kept per pointer, the memory would.
+func TestReader_WorkAndMemoryGrowLinearlyWithDepth(t *testing.T) {
 	t.Parallel()
-	reads := func(depth int) int {
-		body, levels := deepChain(depth)
-		r := NewReader(schemaFromYAML(t, body))
-		for _, at := range levels {
-			_, found, ok := r.TargetFrom(at, "/$defs/m")
-			require.True(t, ok, at)
-			require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"), found)
-		}
-		return r.reads
+	for name, distinct := range map[string]bool{"one definition asked for everywhere": false, "a definition each": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cost := func(depth int) (reads, kept int) {
+				definitions := 1
+				if distinct {
+					definitions = depth
+				}
+				body, levels := deepChain(depth, definitions)
+				r := NewReader(schemaFromYAML(t, body))
+				for i, at := range levels {
+					_, found, ok := r.TargetFrom(at, jsontext.Pointer("/$defs/m"+strconv.Itoa(i%definitions)))
+					require.True(t, ok, at)
+					require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"+strconv.Itoa(i%definitions)), found)
+				}
+				return r.reads, len(r.places)
+			}
+			smallReads, smallKept := cost(100)
+			largeReads, largeKept := cost(200)
+			assert.LessOrEqual(t, smallReads, 8*100, "a constant number of navigations per level")
+			assert.LessOrEqual(t, largeReads, 2*smallReads+10, "twice the depth, twice the work: %d then %d", smallReads, largeReads)
+			assert.LessOrEqual(t, smallKept, 2*100+4, "a constant number of positions per level")
+			assert.LessOrEqual(t, largeKept, 2*smallKept+4, "twice the depth, twice the memory: %d then %d", smallKept, largeKept)
+		})
 	}
-	small, large := reads(100), reads(200)
-	assert.LessOrEqual(t, small, 8*100, "a constant number of navigations per level")
-	assert.LessOrEqual(t, large, 2*small+10, "twice the depth, twice the work: %d then %d", small, large)
 }
 
 // TestTarget_SchemaInsideAnIDResourceReadsItsOwnDefs pins ownResource's second

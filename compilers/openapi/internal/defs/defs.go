@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"reflect"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
@@ -25,41 +26,35 @@ func IsPointer(pointer jsontext.Pointer) bool {
 	return strings.HasPrefix(string(pointer), defsPrefix)
 }
 
-// Reader reads "#/$defs/..." pointers in one parsed document by the rule the
-// resolver applies to a reference it meets on its own walk, and remembers what
-// it has read. References that sit under the same ancestors share the walk down
-// to them and the answer each ancestor gives, so a document nested d deep with
-// a reference at every level costs O(d) steps rather than O(d²). A Reader is for
-// one document and is not safe for concurrent use.
+// Reader reads "#/$defs/..." pointers by the rule the resolver applies to a
+// reference it meets on its own walk, and remembers what it has read of one
+// document. Only an object with a $defs of its own can answer a pointer, so each
+// position keeps the closest ancestor that has one: a reference visits those,
+// however deep it sits or whatever it spells, and a document nested d deep with
+// a reference at every level costs O(d) steps and memory, not O(d²). It is not
+// safe for concurrent use.
 type Reader struct {
 	doc Navigable
-	// objects is the object at each position read from the root so far.
-	objects map[jsontext.Pointer]object
-	// nearest is the answer to each question asked of a position so far.
-	nearest map[probe]answer
+	// places is what the document holds at each position read from the root so
+	// far.
+	places map[jsontext.Pointer]place
 	// reads counts the navigations made of doc.
 	reads int
 }
 
-// object is what the document holds at a position: the object, if it holds one.
-type object struct {
-	value any
-	held  bool
-}
-
-// probe asks which of a position and its ancestors answers a pointer.
-type probe struct{ at, pointer jsontext.Pointer }
-
-// answer is the definition an ancestor holds for a pointer and where that
-// ancestor sits; def is nil when none does.
-type answer struct {
-	def *oas3.JSONSchema[oas3.Referenceable]
-	at  jsontext.Pointer
+// place is a position the reader has read: the object the document holds there,
+// if it holds one; whether that object has a $defs of its own; and the closest
+// proper ancestor that does, the root excepted, or "" for none.
+type place struct {
+	value   any
+	held    bool
+	hasDefs bool
+	holder  jsontext.Pointer
 }
 
 // NewReader returns a Reader over doc, which may be nil: it then finds nothing.
 func NewReader(doc Navigable) *Reader {
-	return &Reader{doc: doc, objects: map[jsontext.Pointer]object{}, nearest: map[probe]answer{}}
+	return &Reader{doc: doc, places: map[jsontext.Pointer]place{}}
 }
 
 // Reads reports how many times r has navigated its document, which is the work
@@ -120,67 +115,78 @@ func (r *Reader) TargetFrom(from, pointer jsontext.Pointer) (*oas3.JSONSchema[oa
 	if t, ok := defAt(r.doc, pointer); ok {
 		return t, pointer, true
 	}
-	found := r.above(parentPointer(from), pointer)
-	if found.def == nil {
+	anc := parentPointer(from)
+	if anc == "" {
 		return nil, "", false
 	}
-	return found.def, found.at + pointer, true
+	here := r.placeAt(anc)
+	if !here.hasDefs {
+		anc = here.holder
+	}
+	// Each holder is closer to the root than the last, which bounds the walk.
+	for anc != "" {
+		here = r.placeAt(anc)
+		r.reads++
+		if t, ok := defAt(here.value, pointer); ok {
+			return t, anc + pointer, true
+		}
+		anc = here.holder
+	}
+	return nil, "", false
 }
 
-// above returns the closest of anc and its ancestors, the root excepted, whose
-// object answers pointer, and remembers the answer for each position it passed
-// on the way. Every step shortens the position, which bounds it.
-func (r *Reader) above(anc, pointer jsontext.Pointer) answer {
-	var passed []jsontext.Pointer
-	var found answer
-	for at := anc; at != ""; at = parentPointer(at) {
-		if remembered, ok := r.nearest[probe{at, pointer}]; ok {
-			found = remembered
-			break
-		}
-		if obj, held := r.objectAt(at); held {
-			r.reads++
-			if def, ok := defAt(obj, pointer); ok {
-				found = answer{def: def, at: at}
-				r.nearest[probe{at, pointer}] = found
-				break
-			}
-		}
-		passed = append(passed, at)
-	}
-	for _, at := range passed {
-		r.nearest[probe{at, pointer}] = found
-	}
-	return found
-}
-
-// objectAt returns the object at pos and whether the document holds one there.
-// Each is read from the one at its parent, one token at a time, and remembered,
-// so the walk down to a position starts at the closest one already read. A
-// position the document lacks has no object below it either, as the resolver
-// reading a path from the root finds. Every step shortens the position.
-func (r *Reader) objectAt(pos jsontext.Pointer) (any, bool) {
+// placeAt returns what the document holds at pos. Each position is read from
+// the one at its parent, one token at a time, and remembered, so the walk down
+// to a position starts at the closest one already read. A position the document
+// lacks has no object below it either, as the resolver reading a path from the
+// root finds. Every step shortens the position.
+func (r *Reader) placeAt(pos jsontext.Pointer) place {
 	var unread []jsontext.Pointer
-	var obj any = r.doc
-	held := true
+	here := place{value: r.doc, held: true}
 	for at := pos; at != ""; at = parentPointer(at) {
-		if read, ok := r.objects[at]; ok {
-			obj, held = read.value, read.held
+		if read, ok := r.places[at]; ok {
+			here = read
 			break
 		}
 		unread = append(unread, at)
 	}
 	for i := len(unread) - 1; i >= 0; i-- {
 		at := unread[i]
-		if held {
-			var err error
+		parent := parentPointer(at)
+		next := place{}
+		if here.held {
 			r.reads++
-			obj, err = jsonpointer.GetTarget(obj, jsonpointer.JSONPointer(at[len(parentPointer(at)):]), jsonpointer.WithStructTags("key"))
-			held = err == nil
+			value, err := jsonpointer.GetTarget(here.value, jsonpointer.JSONPointer(at[len(parent):]), jsonpointer.WithStructTags("key"))
+			next.value, next.held = value, err == nil
 		}
-		r.objects[at] = object{value: obj, held: held}
+		if next.held {
+			r.reads++
+			next.hasDefs = definesDefs(next.value)
+		}
+		next.holder = here.holder
+		if here.hasDefs { // never the root, whose place is not read for one
+			next.holder = parent
+		}
+		r.places[at] = next
+		here = next
 	}
-	return obj, held
+	return here
+}
+
+// definesDefs reports whether obj has a $defs of its own. An object that does
+// not answers a pointer for no reference, so the search never probes it. The
+// library reports an absent $defs as an empty value rather than an error.
+func definesDefs(obj any) bool {
+	t, err := jsonpointer.GetTarget(obj, "/$defs", jsonpointer.WithStructTags("key"))
+	if err != nil || t == nil {
+		return false
+	}
+	switch v := reflect.ValueOf(t); v.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Interface:
+		return !v.IsNil()
+	default:
+		return true
+	}
 }
 
 // defAt navigates pointer from obj, as the resolver does with obj as the

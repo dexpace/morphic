@@ -134,7 +134,7 @@ func TestTargetPointer_DocumentPartIsLeftToTheResolver(t *testing.T) {
 // TestTargetPointer_ReadsThroughTheReaderItIsGiven pins that a Scope given a
 // reader reads "#/$defs/..." pointers through it: the answer is the one a Scope
 // with only a document gives, and the second question about the same position
-// reads only the document's root again, not the ancestors the first read.
+// probes the root and the one holder, and reads no position again.
 func TestTargetPointer_ReadsThroughTheReaderItIsGiven(t *testing.T) {
 	t.Parallel()
 	root := schemaFromYAML(t, "properties:\n  outer:\n    $defs:\n      k: {type: string}\n    properties:\n      p: {$ref: '#/$defs/k'}\n")
@@ -153,7 +153,7 @@ func TestTargetPointer_ReadsThroughTheReaderItIsGiven(t *testing.T) {
 
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), first)
 	assert.Equal(t, first, second)
-	assert.Equal(t, afterFirst+1, reader.Reads(), "the second question read the root alone")
+	assert.Equal(t, afterFirst+2, reader.Reads(), "the second question probed the root and the holder, and read no position again")
 	plain, ok := Scope{SelfPath: "spec.yaml", Doc: root}.TargetPointer(p, "#/$defs/k")
 	require.True(t, ok)
 	assert.Equal(t, first, plain, "a scope with only a document answers the same")
