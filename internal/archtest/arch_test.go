@@ -114,8 +114,9 @@ var rules = map[string][]string{
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches resolve to read which mapping values name a position in the source
-	// as the lowering will. It reaches nothing that lowers — at this point there
-	// is no document to lower.
+	// as the lowering will, and the library's pointer walk to tell a hop that
+	// walked a document's bytes and to walk a document as it does. It reaches
+	// nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
@@ -125,6 +126,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",

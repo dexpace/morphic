@@ -4,20 +4,27 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/jsonpointer"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -327,6 +334,300 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 	assert.Zero(t, resumed, "nothing a mend could change, so nothing to resume")
 	require.ErrorIs(t, err, failed)
 	assert.Equal(t, []error{assert.AnError}, vErrs)
+}
+
+// settleChildEnv names a directory whose root.yaml a re-run of this test
+// binary loads with external references allowed, printing what the load
+// reports, in place of the test it re-ran. A stack overflow ends the process,
+// so a resolution that might recurse without end runs where losing the
+// process fails one test, not the binary (GitHub #569).
+const settleChildEnv = "MORPHIC_SETTLE_CHILD_DIR"
+
+// settleChildMark opens each line the child prints for a diagnostic.
+const settleChildMark = "settle-child: "
+
+// loadInChild loads root.yaml in dir as loadExternal does, in a re-run of this
+// test binary running test alone, and returns each diagnostic as its pointer,
+// code and message. A child that does not exit cleanly fails the test with the
+// start of what it printed.
+func loadInChild(t *testing.T, test, dir string) []string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	t.Cleanup(cancel)
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+test+"$")
+	cmd.Env = append(os.Environ(), settleChildEnv+"="+dir)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "the load ends rather than overflow its stack:\n%.1500s", out)
+	var diags []string
+	for line := range strings.Lines(string(out)) {
+		if d, ok := strings.CutPrefix(strings.TrimRight(line, "\n"), settleChildMark); ok {
+			diags = append(diags, d)
+		}
+	}
+	return diags
+}
+
+// printLoad is the child's side of loadInChild: it loads root.yaml in dir, on a
+// stack small enough to overflow at once, and prints each diagnostic.
+func printLoad(t *testing.T, dir string) {
+	t.Helper()
+	debug.SetMaxStack(64 << 20)
+	data, err := os.ReadFile(filepath.Join(dir, "root.yaml"))
+	require.NoError(t, err)
+	_, diags := loadExternal(t, dir, string(data), Options{})
+	for _, d := range diags {
+		fmt.Printf("%s%s %s %s\n", settleChildMark, d.Provenance.Pointer, d.Code, d.Message)
+	}
+}
+
+// report is what a site's one diagnostic says: an unresolved reference, with
+// says in its message.
+type report struct{ site, says string }
+
+// assertReports requires got, the diagnostics loadInChild returned, to be one
+// unresolved-reference report per site of want, each saying what want does.
+func assertReports(t *testing.T, got []string, want []report, msgAndArgs ...any) {
+	t.Helper()
+	if !assert.Len(t, got, len(want), msgAndArgs...) {
+		return
+	}
+	slices.Sort(got)
+	slices.SortFunc(want, func(a, b report) int { return strings.Compare(a.site, b.site) })
+	for i, w := range want {
+		assert.True(t, strings.HasPrefix(got[i], w.site+" "+diag.UnresolvedRef+" "), "%s: %v", got[i], msgAndArgs)
+		assert.Contains(t, got[i], w.says, msgAndArgs...)
+	}
+}
+
+// TestSettle_ACycleIsReportedNotResumed pins settle on a resolution whose hops
+// lead back into what it resolved. The library restarts its cycle check at
+// each schema hop it resolved before, so resuming one recursed until the stack
+// overflowed, which nothing recovers from, or, short of that, until its chain
+// was cut and its message lost where it went. Each row is loaded in a child in
+// the order that failed and reversed. Each site must report what its chain met
+// first, the cycle or the bytes a later hop walked, and where only the cycle
+// is met, report it alike in both orders.
+func TestSettle_ACycleIsReportedNotResumed(t *testing.T) {
+	if dir := os.Getenv(settleChildEnv); dir != "" {
+		printLoad(t, dir)
+		return
+	}
+	t.Parallel()
+	const (
+		circular = "circular reference detected: "
+		walked   = "invalid path -- expected index, got key"
+	)
+	mapped := func(entries ...string) string {
+		return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+			"    Pet:\n      type: object\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: {propertyName: kind, mapping: {a: '#/x-holder/S'}}\nx-holder:\n" +
+			strings.ReplaceAll(strings.Join(entries, ""), "    ", "  ")
+	}
+	for _, c := range []struct {
+		name    string
+		files   map[string]string
+		root    func(...string) string
+		entries []string
+		want    [2][]report
+		same    bool
+	}{
+		{"a cycle through the source",
+			map[string]string{"other.yaml": "A: {$ref: 'root.yaml#/components/schemas/S'}\nB: {$ref: '#/A'}\n"},
+			rootOfSchemas, []string{"    S: {$ref: 'other.yaml#/B'}\n", "    T: {$ref: 'other.yaml#/A'}\n"},
+			[2][]report{
+				{{"/components/schemas/S", circular}, {"/components/schemas/T", circular}},
+				{{"/components/schemas/S", walked}, {"/components/schemas/T", circular}},
+			}, false},
+		{"two references into a cycle the source is not part of",
+			map[string]string{"other.yaml": "A: {$ref: 'third.yaml#/B'}\n", "third.yaml": "B: {$ref: 'other.yaml#/A'}\n"},
+			rootOfSchemas, []string{"    R1: {$ref: 'other.yaml#/A'}\n", "    R2: {$ref: 'other.yaml#/A'}\n"},
+			[2][]report{
+				{{"/components/schemas/R1", `through "other.yaml#/A" in `}, {"/components/schemas/R2", `through "other.yaml#/A" in `}},
+				{{"/components/schemas/R1", `through "other.yaml#/A" in `}, {"/components/schemas/R2", `through "other.yaml#/A" in `}},
+			}, true},
+		{"a cycle the source is not part of",
+			map[string]string{
+				"other.yaml": "X: {type: string}\nA: {$ref: 'third.yaml#/T'}\nB: {$ref: '#/A'}\n",
+				"third.yaml": "T: {$ref: 'other.yaml#/B'}\n",
+			},
+			rootOfSchemas, []string{"    R1: {$ref: 'other.yaml#/X'}\n", "    R2: {$ref: 'other.yaml#/B'}\n"},
+			[2][]report{{{"/components/schemas/R2", walked}}, {{"/components/schemas/R2", circular}}}, false},
+		{"a mapping target in a cycle",
+			map[string]string{"other.yaml": "A: {$ref: 'root.yaml#/x-holder/T'}\nB: {$ref: '#/A'}\n"},
+			mapped, []string{"    S: {$ref: 'other.yaml#/B'}\n", "    T: {$ref: 'other.yaml#/B'}\n"},
+			[2][]report{}, true},
+		{"a stall on bytes whose hops lead back through the source",
+			map[string]string{"other.yaml": "A: {$ref: '#/B'}\nB: {$ref: 'root.yaml#/components/schemas/W'}\nC: {type: object}\n"},
+			rootOfSchemas, []string{"    E: {$ref: 'other.yaml#/C'}\n", "    Q: {$ref: 'other.yaml#/A'}\n",
+				"    W: {$ref: '#/components/schemas/Q'}\n"},
+			[2][]report{
+				{{"/components/schemas/Q", walked}, {"/components/schemas/W", walked}},
+				{{"/components/schemas/W", circular}},
+			}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			dir := externalDir(t, c.files)
+			reversed := slices.Clone(c.entries)
+			slices.Reverse(reversed)
+			var got [2][]string
+			for i, entries := range [][]string{c.entries, reversed} {
+				writeFile(t, dir, "root.yaml", c.root(entries...))
+				got[i] = loadInChild(t, "TestSettle_ACycleIsReportedNotResumed", dir)
+				assertReports(t, got[i], c.want[i], "order %d", i)
+			}
+			if c.same {
+				assert.Empty(t, cmp.Diff(got[0], got[1]), "each site reports the cycle alike in either order")
+			}
+		})
+	}
+}
+
+// TestResumable pins which failures settle resumes: a pointer within a document
+// walked through bytes a tree was prepared from, in the record the stalled hop
+// read, and for a schema only where its remaining hops end. Each row differs
+// from the first of its kind in one respect. A row of another kind than a
+// schema tests what the walk would answer for a schema anyway.
+func TestResumable(t *testing.T) {
+	t.Parallel()
+	data := []byte("components:\n  schemas:\n    Base: {type: object}\n" +
+		"    Alias: {$ref: '#/components/schemas/Base'}\n    Loop: {$ref: '#/components/schemas/Loop'}\n")
+	tree, parsed := parseTree(data)
+	require.True(t, parsed)
+	read := newExternalReads(sourceDocument{})
+	read.recordTree("other.yaml", tree, data)
+	reader := newExternal(&soa.OpenAPI{}, Options{}, read)
+	walked := jsonpointer.ErrInvalidPath.Wrap(errors.New("expected index, got key at /components"))
+	cycle := errors.New("circular reference detected: other.yaml#/A -> other.yaml#/A")
+	hop := func(document any, reached bool) record {
+		return record{path: "other.yaml", target: "other.yaml#/components/schemas/Alias", document: &document, reached: reached}
+	}
+	stalled := func(stopped string, documents ...any) chain {
+		c := chain{stopped: references.Reference(stopped)}
+		for i, d := range documents {
+			c.records = append(c.records, hop(d, i < len(documents)-1))
+		}
+		return c
+	}
+	schema := oas3.NewJSONSchemaFromReference("./other.yaml#/components/schemas/Alias")
+	other := fakeResolvable{ref: "./other.yaml#/components/parameters/P"}
+	cut := chain{records: []record{hop(slices.Clone(data), true)}, stopped: "#/components/schemas/Base", cut: true}
+
+	for _, c := range []struct {
+		name string
+		r    resolvable
+		c    chain
+		err  error
+		want bool
+	}{
+		{"a schema's stall GitHub #761 reports", schema, stalled("#/components/schemas/Base", slices.Clone(data), slices.Clone(data)),
+			walked, true},
+		{"a schema's cycle", schema, stalled("#/components/schemas/Base", slices.Clone(data), slices.Clone(data)), cycle, false},
+		{"a schema's pointer walked through a tree", schema, stalled("#/components/schemas/Base", tree, tree), walked, false},
+		{"a schema's bytes no tree was prepared from", schema,
+			stalled("#/components/schemas/Base", slices.Clone(data), []byte("unknown")), walked, false},
+		{"a schema hop that read no record of its own", schema,
+			chain{records: []record{hop(slices.Clone(data), true)}, stopped: "#/components/schemas/Base"}, walked, false},
+		{"a schema whose remaining hops lead back", schema,
+			stalled("#/components/schemas/Loop", slices.Clone(data), slices.Clone(data)), walked, false},
+		{"a resolution that reached nothing", schema, chain{stopped: "#/components/schemas/Base"}, walked, false},
+		{"another kind's stall, whose hops the library checks itself", other,
+			chain{records: []record{hop(slices.Clone(data), true)}, stopped: "#/components/schemas/Loop"}, walked, true},
+		{"another kind's cycle", other,
+			chain{records: []record{hop(slices.Clone(data), true)}, stopped: "#/components/schemas/Base"}, cycle, false},
+		{"another kind's chain followed only so far", other, cut, walked, false},
+		{"another kind stopped at no reference", other, chain{records: []record{hop(slices.Clone(data), true)}}, walked, false},
+		{"another kind stopped at a reference naming a document", other,
+			chain{records: []record{hop(slices.Clone(data), true)}, stopped: "third.yaml#/Base"}, walked, false},
+		{"another kind, which holds no record of a stalled hop", other,
+			chain{records: []record{hop(slices.Clone(data), false)}, stopped: "#/components/schemas/Base"}, walked, false},
+	} {
+		assert.Equal(t, c.want, reader.resumable(c.r, c.c, c.err), c.name)
+	}
+}
+
+// TestEnds pins the walk that decides whether a schema chain's remaining hops
+// end in one document: each $ref is read as the library reads it, through an
+// alias or a merge key, and a hop it cannot read as the library does, a cycle,
+// and a chain past maxResolutionHops are no answer.
+func TestEnds(t *testing.T) {
+	t.Parallel()
+	tree, parsed := parseTree([]byte(`components:
+  schemas:
+    Base: {type: object}
+    Alias: {$ref: '#/components/schemas/Base'}
+    Two: {$ref: '#/components/schemas/Alias'}
+    Loop: {$ref: '#/components/schemas/Loop'}
+    Out: {$ref: 'third.yaml#/components/schemas/X'}
+    Back: {$ref: '#/components/schemas/Out'}
+    Merged: {<<: {$ref: '#/components/schemas/Loop'}}
+    Anchored: &a {$ref: '#/components/schemas/Loop'}
+    ViaAlias: *a
+    NotString: {$ref: [x]}
+    Flag: true
+    Listed: [{$ref: '#/components/schemas/Loop'}]
+`))
+	require.True(t, parsed)
+	for _, c := range []struct {
+		ref  string
+		want bool
+		why  string
+	}{
+		{"#/components/schemas/Base", true, "a node holding no $ref"},
+		{"#/components/schemas/Two", true, "each $ref followed to one holding none"},
+		{"#/components/schemas/Missing", true, "no node: the hop fails where it stands"},
+		{"#/components/schemas/NotString", true, "a $ref that is not a string is none"},
+		{"#/components/schemas/Flag", true, "a schema that is a boolean holds none"},
+		{"#/components/schemas/Loop", false, "a cycle"},
+		{"#/components/schemas/Back", false, "a hop naming a document"},
+		{"#/components/schemas/Merged", false, "a $ref a merge key supplies is followed"},
+		{"#/components/schemas/ViaAlias", false, "an alias's $ref is followed"},
+		{"#/components/schemas/Listed/0", false, "an index is followed"},
+		{"#a", false, "an anchor"},
+		{"#/$defs/x", false, "a pointer read relative to its schema"},
+		{"third.yaml#/x", false, "a document"},
+		{"#", false, "no pointer"},
+	} {
+		assert.Equal(t, c.want, ends(tree, references.Reference(c.ref)), "%s: %s", c.ref, c.why)
+	}
+
+	// S0 to S{n-1} each name the next, and S{n} holds no $ref: from S2, the
+	// walk reads maxResolutionHops nodes, the last holding none, and from S1 it
+	// would need one more.
+	n := maxResolutionHops + 1
+	var long strings.Builder
+	long.WriteString("components:\n  schemas:\n")
+	for i := range n {
+		fmt.Fprintf(&long, "    S%d: {$ref: '#/components/schemas/S%d'}\n", i, i+1)
+	}
+	fmt.Fprintf(&long, "    S%d: {type: object}\n", n)
+	chainTree, parsed := parseTree([]byte(long.String()))
+	require.True(t, parsed)
+	assert.True(t, ends(chainTree, "#/components/schemas/S2"), "a chain within maxResolutionHops")
+	assert.False(t, ends(chainTree, "#/components/schemas/S1"), "a chain past maxResolutionHops")
+}
+
+// TestChain_WithoutStall pins that only the record of the hop a chain stalled
+// at, the one a schema hop holds of its own, is left out.
+func TestChain_WithoutStall(t *testing.T) {
+	t.Parallel()
+	var doc any
+	reached, stalled := record{path: "a.yaml", document: &doc, reached: true}, record{path: "b.yaml", document: &doc}
+	for _, c := range []struct {
+		name      string
+		in, wants []record
+	}{
+		{"a stalled hop's record", []record{reached, stalled}, []record{reached}},
+		{"a chain that resolved", []record{reached, reached}, []record{reached, reached}},
+		{"no record", nil, nil},
+	} {
+		got := chain{records: c.in, stopped: "#/x"}.withoutStall()
+		assert.Len(t, got.records, len(c.wants), c.name)
+		for i := range got.records {
+			assert.Equal(t, c.wants[i].path, got.records[i].path, c.name)
+		}
+		assert.Equal(t, references.Reference("#/x"), got.stopped, c.name)
+	}
 }
 
 // byID is a document whose root declares $id, so each record of a hop into it

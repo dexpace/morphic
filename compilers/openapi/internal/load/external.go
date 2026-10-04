@@ -100,21 +100,24 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 
 // settle finishes resolving r, whose resolution returned vErrs and err. It
 // mends the records r's chain holds (see externalReads.mend), and resumes a
-// resolution that failed while mending changed one: the library reports a
-// document as its bytes when it holds both them and the object a reference
-// names, and a hop resolved against bytes fails (GitHub #761). Each resumption
-// starts past a record the last stalled on, so maxResolutionHops bounds them.
+// resolution that stalled where mending cures it (see resumable): the library
+// reports a document as its bytes when it holds both them and the object a
+// reference names, and a hop resolved against bytes fails (GitHub #761). Each
+// resumption starts past the hop the last stalled at, so maxResolutionHops
+// bounds them. A hop left stalled keeps its record (see chain.withoutStall).
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
 	vErrs []error, err error,
 ) ([]error, error) {
 	for range maxResolutionHops {
-		if err == nil || !e.read.mend(resolutionChain(r), e.doc) {
+		c := resolutionChain(r)
+		if !e.resumable(r, c, err) {
 			break
 		}
+		e.read.mend(c, e.doc)
 		more, again := r.Resolve(ctx, opts)
 		vErrs, err = append(vErrs, more...), again
 	}
-	e.read.mend(resolutionChain(r), e.doc)
+	e.read.mend(resolutionChain(r).withoutStall(), e.doc)
 	return vErrs, err
 }
 
