@@ -30,6 +30,15 @@ func recoverChains(locate scan.Locator, walk func() (ir.Diagnostic, bool)) (d ir
 	return walk()
 }
 
+// chains runs the reference-chain cycle refusal: chainCycle, or the check a
+// test put in its place.
+func (o Options) chains(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+	if o.chainCheck != nil {
+		return o.chainCheck(ctx, locate, root, doc)
+	}
+	return chainCycle(ctx, locate, root, doc)
+}
+
 // chainCycle runs the reach check when the tree can hold a lookup the
 // pre-parse scan does not model: a $anchor or $id the registries hold, or a
 // /$defs/ pointer resolved against something other than the root. Without
@@ -48,10 +57,15 @@ func chainCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *
 //
 // It reads scalars rather than keys. A merge key or an alias can supply a key
 // where it is not written, but the word is still written somewhere, so a tree
-// without it leaves every registry empty and no lookup can succeed. It walks
-// each node once, never through an alias, so its cost is the node count the
-// source budget already bounds.
+// without it leaves every registry empty and no lookup can succeed.
 func needsChainModel(root *yaml.Node) bool {
+	return anyScalar(root, func(v string) bool { return v == "$anchor" || v == "$id" || isDefsRef(v) })
+}
+
+// anyScalar reports whether any scalar in the tree under root satisfies match.
+// It walks each node once, never through an alias, so its cost is the node
+// count the source budget already bounds.
+func anyScalar(root *yaml.Node, match func(string) bool) bool {
 	stack := []*yaml.Node{root}
 	for visited := 0; len(stack) > 0 && visited < sourceindex.MaxIndexedNodes; visited++ {
 		n := stack[len(stack)-1]
@@ -59,7 +73,7 @@ func needsChainModel(root *yaml.Node) bool {
 		if n == nil || n.Kind == yaml.AliasNode {
 			continue
 		}
-		if n.Kind == yaml.ScalarNode && (n.Value == "$anchor" || n.Value == "$id" || isDefsRef(n.Value)) {
+		if n.Kind == yaml.ScalarNode && match(n.Value) {
 			return true
 		}
 		stack = append(stack, n.Content...)

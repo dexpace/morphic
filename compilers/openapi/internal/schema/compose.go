@@ -459,7 +459,7 @@ func mappingTagsFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id
 	}
 	var tags []string
 	for tag, target := range m.All() {
-		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
+		if tid, ok := mappingTargetID(c, ts, d, target); ok && tid == id {
 			tags = append(tags, tag)
 		}
 	}
@@ -1124,7 +1124,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok, targetDiags := resolveMappingTarget(c, ts, anchors, depth, target)
+		id, ok, targetDiags := resolveMappingTarget(c, ts, anchors, depth, d, target)
 		diags = append(diags, targetDiags...)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
@@ -1148,7 +1148,7 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if dm == "" {
 		return "", nil
 	}
-	id, ok, diags := resolveMappingTarget(c, ts, anchors, depth, dm)
+	id, ok, diags := resolveMappingTarget(c, ts, anchors, depth, d, dm)
 	if !ok {
 		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
@@ -1166,11 +1166,11 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // a $ref would have carried. Hoisting it resolves the target to the same
 // pointer-derived ID in either declaration order (GitHub #530), naming the
 // node provisionally until its declaration arrives.
-func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, target string) (ir.TypeID, bool, []ir.Diagnostic) {
+func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, target string) (ir.TypeID, bool, []ir.Diagnostic) {
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true, nil
 	}
-	pointer, ok := c.RefScope().InternalPointer(target)
+	pointer, ok := c.RefScope().MappingPointer(d, target)
 	if !ok {
 		return "", false, nil
 	}
@@ -1191,11 +1191,11 @@ func componentIDByName(name string) ir.TypeID {
 // Otherwise the target must be a same-file $ref to a declared component or an
 // already-interned node. Anything else yields ok=false: this half never lowers
 // anything, and resolveMappingTarget hoists the inline position it cannot reach.
-func mappingTargetID(c lowering.Ctx, ts *compile.Types, target string) (ir.TypeID, bool) {
+func mappingTargetID(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
 		return componentIDByName(target), true
 	}
-	pointer, ok := c.RefScope().InternalPointer(target)
+	pointer, ok := c.RefScope().MappingPointer(d, target)
 	if !ok {
 		return "", false
 	}

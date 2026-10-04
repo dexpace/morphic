@@ -78,6 +78,10 @@ type Options struct {
 	// and tree, and unmarshal depends on nothing else, so only a substitute
 	// reaches the error build returns for a failed rebuild.
 	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, []error, error)
+	// chainCheck runs the reference-chain cycle refusal, or nil for chainCycle
+	// itself. It is unexported because it is this package's test seam: the fuzz
+	// oracle turns the check off to find what it stands between the resolver and.
+	chainCheck func(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -241,7 +245,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	locate := locator(srcIndex, origin)
-	if d, found := chainCycle(ctx, locate, root, doc); found {
+	if d, found := opts.chains(ctx, locate, root, doc); found {
 		if d.Severity == ir.SeverityError {
 			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
 		}

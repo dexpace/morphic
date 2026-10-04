@@ -15,6 +15,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -109,6 +110,13 @@ type Ctx struct {
 	// as of the pointer.
 	overlay overlay.Origin
 
+	// defsReader reads the document's "#/$defs/..." pointers and remembers what
+	// it has read. Copies of the context share it on purpose: it only caches
+	// reads of a document lowering never writes, so what one copy remembers
+	// cannot change another's answer, and it keeps a reference's cost from
+	// growing with how deep its schema sits. Nil when there is no document.
+	defsReader *defs.Reader
+
 	// targets holds the schema each discriminator mapping target names, which
 	// the load phase resolved as a $ref to it is. Its zero value holds none.
 	// Unexported for the reason schemas is, and read only through RefScope.
@@ -126,6 +134,10 @@ type Ctx struct {
 // The $dynamicAnchor index is built on first use instead (GitHub #172): its
 // bounds diagnostic would warn about documents that never write $dynamicRef.
 func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
+	var reader *defs.Reader
+	if doc != nil {
+		reader = defs.NewReader(doc)
+	}
 	return Ctx{
 		Doc:        doc,
 		Source:     src,
@@ -136,6 +148,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		streaming:  streamingSet(streaming),
 		promotions: promotionSet(promotions),
 		overlay:    origin,
+		defsReader: reader,
 	}
 }
 
@@ -271,7 +284,11 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Doc: c.Doc, Mapped: c.targets.At}
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At}
+	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
+		scope.Doc, scope.Defs = c.Doc, c.defsReader
+	}
+	return scope
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source

@@ -881,7 +881,7 @@ func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], 
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := c.RefScope().InternalPointer(js.GetRef().String()); ok {
+	if pointer, ok := c.RefScope().TargetPointer(js, js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr

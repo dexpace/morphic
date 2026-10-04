@@ -2,33 +2,27 @@
 #   go test ./compilers/openapi/internal/load -run TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto -update
 #
 # One index per line: which of reachFuzzN documents genReachFuzzDocs
-# generates, in order, from rand.New(rand.NewSource(reachFuzzSeed)), crash the
-# vendored speakeasy-api/openapi resolver with an unrecoverable stack
-# overflow. math/rand's v1 source (used here, not math/rand/v2) is documented
-# to produce the same sequence for a given seed across Go versions, so
-# genReachFuzzDocs reproduces these exact documents on every run without this
-# file needing to store them itself.
+# generates, in order, from rand.New(rand.NewSource(reachFuzzSeed)), crash this
+# package's own load pipeline with an unrecoverable stack overflow when its
+# reference-chain check is turned off (runReachFuzzOracle). math/rand's v1
+# source (used here, not math/rand/v2) is documented to produce the same
+# sequence for a given seed across Go versions, so genReachFuzzDocs reproduces
+# these exact documents on every run without this file needing to store them
+# itself.
 #
 # A dependency bump to speakeasy-api/openapi that changes the resolver's own
-# behavior can make this file stale. Regenerate it with -update. If that
-# finds a document which now crashes the resolver but
-# TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto does not refuse,
-# that is a real finding to fix, not a golden to accept as given.
-1
-13
-15
+# behavior, or a change to how load drives it, can make this file stale.
+# Regenerate it with -update. If that finds a document which now crashes the
+# pipeline but TestReachFuzz_RefusesEveryCycleTheResolverRecursesInto does not
+# refuse, that is a real finding to fix, not a golden to accept as given.
+3
 29
-30
+31
 33
 34
 42
-45
-46
-58
 80
-82
 85
-86
 87
 89
 91
@@ -36,20 +30,16 @@
 109
 114
 116
-126
 130
 132
-139
+135
 140
 141
-146
 147
 148
 152
 153
-160
-166
-177
+164
 179
 184
 187

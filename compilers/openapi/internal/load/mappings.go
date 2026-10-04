@@ -3,7 +3,6 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"fmt"
 	"iter"
 	"slices"
 
@@ -129,11 +128,7 @@ func pointerIn(r record) jsontext.Pointer {
 // A panic stops it, reported as an error naming site, the entry or reference
 // whose work was running, as a panic in resolveWith's walk is.
 func (m *mappings) resolve(ctx context.Context, found *reachedFindings) (site jsontext.Pointer, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("discriminator mapping resolver panicked: %v", r)
-		}
-	}()
+	defer recovered(&err, "discriminator mapping resolver")
 	for _, b := range m.built {
 		site = b.site
 		if !m.model[b.record.object] {

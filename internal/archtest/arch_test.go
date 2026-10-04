@@ -68,6 +68,13 @@ var rules = map[string][]string{
 	// key predicate tests against, and is below both the scans that first wanted
 	// it and the schema lowering that wants the same view.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
+	// spells it. It reads the parsed model through the library's own navigation
+	// and nothing of the compiler, so the loader that hands the resolver its
+	// answer and the lowering that names the target can both reach the one rule.
+	"compilers/openapi/internal/defs": {"github.com/speakeasy-api/openapi/jsonpointer",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not
@@ -108,6 +115,7 @@ var rules = map[string][]string{
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
@@ -129,6 +137,7 @@ var rules = map[string][]string{
 	// the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
@@ -144,8 +153,10 @@ var rules = map[string][]string{
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the version grammar alone — the dialect question is
-	// asked of the document, and the grammar that answers it is the loader's.
+	// asked of the document, and the grammar that answers it is the loader's —
+	// and defs for the reader its scope reads "#/$defs/..." pointers through.
 	"compilers/openapi/internal/lowering": {module + "/ir",
+		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/overlay",
@@ -169,6 +180,7 @@ var rules = map[string][]string{
 	// of the compiler package from here is the cycle the extraction removed.
 	"compilers/openapi/internal/schema": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
@@ -178,6 +190,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/values", "gopkg.in/yaml.v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It

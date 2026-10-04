@@ -24,6 +24,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -42,25 +43,72 @@ type Scope struct {
 	// Declares reports whether the document declares a component schema of this
 	// name.
 	Declares func(name string) bool
-	// Doc is the parsed document a pointer is read against, as the resolver
-	// reads it; see DeclaredAt. It is typed as the pointer walk takes it, which
-	// keeps the document model out of this package's imports.
-	Doc any
+	// Doc is the parsed document a pointer is read against, as the resolver reads
+	// it; nil leaves every "#/$defs/..." pointer unresolved and every DeclaredAt
+	// answer nil.
+	Doc defs.Navigable
+	// Defs reads the document's "#/$defs/..." pointers and remembers what it has
+	// read, so references that share ancestors share the work. Nil reads each
+	// through a fresh reader over Doc, which answers the same and shares nothing.
+	Defs *defs.Reader
 	// Mapped returns the schema the load phase resolved at a pointer a
 	// discriminator mapping target names, or nil; see DeclaredAt.
 	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// reader returns the reader s reads "#/$defs/..." pointers through.
+func (s Scope) reader() *defs.Reader {
+	if s.Defs != nil {
+		return s.Defs
+	}
+	return defs.NewReader(s.Doc)
+}
+
+// TargetPointer returns the pointer of the position the $ref at js resolves to
+// in this document: InternalPointer's answer, except that a "#/$defs/..."
+// pointer names the definition the resolver's rule finds relative to js
+// (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
+// the document does not have (GitHub #557). ok is false for a reference into
+// another document and for a $defs pointer the rule finds nothing for.
+func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
+	pointer, ok := s.InternalPointer(ref)
+	if !ok || !defs.IsPointer(pointer) {
+		return pointer, ok
+	}
+	if _, held := defs.PointerOf(references.Reference(ref)); !held {
+		return "", false // left to the resolver, as load leaves it: see load.heldRefs
+	}
+	_, at, found := s.reader().Target(js, pointer)
+	return at, found
+}
+
+// MappingPointer is TargetPointer for a discriminator mapping value: the
+// pointer it names, which for a "#/$defs/..." value is the definition read from
+// the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
+// the same schema reads one (GitHub #557). ok is false for a value into another
+// document, for a $defs value the rule finds nothing for, and for no
+// discriminator.
+func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
+	pointer, ok := s.InternalPointer(value)
+	if !ok || !defs.IsPointer(pointer) {
+		return pointer, ok
+	}
+	if _, held := defs.PointerOf(references.Reference(value)); !held {
+		return "", false
+	}
+	_, at, found := s.reader().MappingTarget(d, pointer)
+	return at, found
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the
 // way the resolver finds a $ref's target, or nil where there is none, like
 // annotation.DeclaredSchema for a followed $ref.
 //
-// It is for a reference that is only a string: a discriminator mapping value is
-// never resolved, so it carries no declaration of its own (GitHub #530). The
-// load phase resolves each as a $ref, which is what Mapped answers: the model
-// holds a position such as an extension's value or an enum member as raw YAML,
-// which only resolving parses (GitHub #757). The model answers for a target
-// spelled in a way the load phase does not resolve.
+// It is for a mapping value, which the resolver never follows, so it carries no
+// declaration of its own (GitHub #530). Mapped answers first: the load phase
+// resolves each value as a $ref, which parses a position the model holds as
+// raw YAML, such as an extension's value or an enum member (GitHub #757). The
+// model answers for a value spelled so the load phase does not resolve it.
 func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	if s.Mapped != nil {
 		if js := s.Mapped(pointer); js != nil {
@@ -187,7 +235,7 @@ func InternedID(ts *compile.Types, pointer jsontext.Pointer) (ir.TypeID, bool) {
 // the InternedID hit, which would make the answer depend on which schema
 // lowered first.
 func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable], ref string) bool {
-	pointer, ok := s.InternalPointer(ref)
+	pointer, ok := s.TargetPointer(js, ref)
 	if !ok {
 		return false
 	}

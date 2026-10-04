@@ -212,23 +212,23 @@ func TestMappingTargetID(t *testing.T) {
 		out: &ir.Document{Types: ir.TypeRegistry{}},
 	}
 	// A $ref to a declared component.
-	id, ok := mappingTargetID(l.ctx, l.types, "#/components/schemas/Cat")
+	id, ok := mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, "#/components/schemas/Cat")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType("/components/schemas/Cat"), id)
 	// A bare schema name.
-	id, ok = mappingTargetID(l.ctx, l.types, "Dog")
+	id, ok = mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, "Dog")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "Dog")), id)
 	// A bare name that contains '/' but names an existing schema must resolve, not
 	// dangle as a misclassified external $ref (issue #14, f07).
-	id, ok = mappingTargetID(l.ctx, l.types, "A/B")
+	id, ok = mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, "A/B")
 	require.True(t, ok)
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A/B")), id)
 	// An undeclared component and a genuine external ref are dropped, never
 	// synthesized into a dangling ID.
-	_, ok = mappingTargetID(l.ctx, l.types, "#/components/schemas/Ghost")
+	_, ok = mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, "#/components/schemas/Ghost")
 	assert.False(t, ok, "undeclared component target dropped")
-	_, ok = mappingTargetID(l.ctx, l.types, "a.yaml#/A")
+	_, ok = mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, "a.yaml#/A")
 	assert.False(t, ok, "external target dropped")
 	// A declared but empty-named component ("") is interned anonymously, so its
 	// bare mapping name must resolve to that anon ID, not an unbacked ids.NamedType
@@ -236,7 +236,7 @@ func TestMappingTargetID(t *testing.T) {
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
 	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-	id, ok = mappingTargetID(empty, l.types, "")
+	id, ok = mappingTargetID(empty, l.types, &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.AnonType(ids.Ptr("components", "schemas", "")), id)
 	assert.NotEqual(t, ids.NamedType(ids.Ptr("components", "schemas", "")), id)
@@ -290,7 +290,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	resolveTarget := func(target string) (ir.TypeID, bool, []ir.Diagnostic) {
-		return resolveMappingTarget(l.ctx, l.types, &l.anchors, TopLevelDepth, target)
+		return resolveMappingTarget(l.ctx, l.types, &l.anchors, TopLevelDepth, &oas3.Discriminator{}, target)
 	}
 
 	cat := ids.NamedType(ids.Ptr("components", "schemas", "Cat"))
@@ -313,7 +313,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 	assert.Equal(t, before, l.types.Len(), "a refused target interns nothing")
 
 	const scalarTarget = "#/components/schemas/Pet/properties/kind"
-	_, mappingOK := mappingTargetID(l.ctx, l.types, scalarTarget)
+	_, mappingOK := mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, scalarTarget)
 	require.False(t, mappingOK, "mappingTargetID alone cannot reach an un-interned scalar position")
 
 	id, ok, _ := resolveTarget(scalarTarget)
@@ -663,7 +663,7 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 	const sub = "#/components/schemas/Pet/properties/kind"
 
 	empty := newRawLowerer(openapitest.DocDeclaring("Pet"))
-	_, ok := mappingTargetID(empty.ctx, empty.types, sub)
+	_, ok := mappingTargetID(empty.ctx, empty.types, &oas3.Discriminator{}, sub)
 	assert.False(t, ok, "nothing is interned at that pointer, so the target does not resolve")
 
 	// A nested object owns a node at its own pointer, where a scalar property
@@ -672,7 +672,111 @@ func TestMappingTargetID_FallsBackToAnInternedPointer(t *testing.T) {
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"))
 	l.diags.AppendAll(LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors))
 
-	got, ok := mappingTargetID(l.ctx, l.types, sub)
+	got, ok := mappingTargetID(l.ctx, l.types, &oas3.Discriminator{}, sub)
 	require.True(t, ok, "the interned sub-schema resolves")
 	assert.Equal(t, ids.ForPointer("/components/schemas/Pet/properties/kind"), got)
+}
+
+// defsSiblingMappingSchemas is the discriminator-mapping shape of GitHub #557:
+// Pet's own discriminator maps each tag to a "#/$defs/..." pointer naming its
+// own sibling definition, the same one its oneOf branch for that tag already
+// $refs.
+const defsSiblingMappingSchemas = `    Pet:
+      oneOf: [{$ref: "#/$defs/cat"}, {$ref: "#/$defs/dog"}]
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat", dog: "#/$defs/dog"}}
+      $defs:
+        cat: {type: object, required: [kind], properties: {kind: {type: string}, meow: {type: string}}}
+        dog: {type: object, required: [kind], properties: {kind: {type: string}, bark: {type: string}}}
+`
+
+// TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling drives the
+// success path end to end: Pet's discriminator mapping values are
+// "#/$defs/..." pointers naming Pet's own sibling definitions — the same
+// definitions its oneOf branches already interned while lowering Pet — so the
+// mapping and the oneOf branch it tags resolve to the same ID, and each tag
+// keeps its own shape (GitHub #557).
+func TestResolveMappingTarget_DefsValueNamesItsOwnInternedSibling(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(defsSiblingMappingSchemas))
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
+	}
+
+	petID := ids.NamedType(ids.Ptr("components", "schemas", "Pet"))
+	u, ok := doc.Types[petID].(*ir.Union)
+	require.True(t, ok, "a discriminated oneOf lowers to a Union")
+	require.NotNil(t, u.Discriminator)
+
+	catID, ok := u.Discriminator.Mapping["cat"]
+	require.True(t, ok)
+	dogID, ok := u.Discriminator.Mapping["dog"]
+	require.True(t, ok)
+	assert.NotEqual(t, catID, dogID, "each mapping value names its own definition, not a shared one")
+
+	catModel, ok := doc.Types[catID].(*ir.Model)
+	require.True(t, ok)
+	_, hasMeow := propIDByName(catModel, "meow")
+	assert.True(t, hasMeow, "cat's own property, not dog's")
+
+	dogModel, ok := doc.Types[dogID].(*ir.Model)
+	require.True(t, ok)
+	_, hasBark := propIDByName(dogModel, "bark")
+	assert.True(t, hasBark, "dog's own property, not cat's")
+
+	require.Len(t, u.Variants, 2)
+	variantTargets := []ir.TypeID{u.Variants[0].Type.Target, u.Variants[1].Type.Target}
+	assert.Contains(t, variantTargets, catID, "the mapping names the same node its oneOf branch interned")
+	assert.Contains(t, variantTargets, dogID)
+}
+
+// defsMappingPet and defsMappingToy each map a tag to a "#/$defs/cat" definition
+// that nothing else in the schema references, so no oneOf branch has interned
+// it when the mapping asks. They spell the same pointer for different
+// definitions, GitHub #557's shape.
+const (
+	defsMappingPet = `    Pet:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object, properties: {meow: {type: string}}}
+`
+	defsMappingToy = `    Toy:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object, properties: {squeak: {type: string}}}
+`
+)
+
+// TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition
+// pins how a "#/$defs/..." mapping value resolves when its definition is not
+// interned yet: hoisted where it is written, as any mapping to a sub-schema is
+// (GitHub #530), never at the document-rooted /$defs/cat the value spells
+// (GitHub #557). Each component's tag names its own definition, in either
+// declaration order.
+func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(t *testing.T) {
+	t.Parallel()
+	for name, blocks := range map[string]string{
+		"Pet declared first": defsMappingPet + defsMappingToy,
+		"Toy declared first": defsMappingToy + defsMappingPet,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(blocks))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, owner := range []string{"Pet", "Toy"} {
+				m, ok := doc.Types[ids.NamedType(ids.Ptr("components", "schemas", owner))].(*ir.Model)
+				require.True(t, ok, owner)
+				require.NotNil(t, m.Discriminator, owner)
+
+				want := ids.ForPointer(ids.Ptr("components", "schemas", owner, "$defs", "cat"))
+				assert.Equal(t, map[string]ir.TypeID{"cat": want}, m.Discriminator.Mapping, owner)
+				_, interned := doc.Types[want]
+				assert.True(t, interned, "%s's definition is interned where it is written", owner)
+			}
+		})
+	}
 }
