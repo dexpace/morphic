@@ -239,9 +239,11 @@ func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
 	return abs.AbsoluteReference, true
 }
 
-// SameDocument reports whether the resolver reading the document at path b
-// reads the one at path a: b spells a, or names the same file. A document named
-// by URL is named only as spelled.
+// SameDocument reports whether paths a and b name one document: the same
+// spelling, or, for two file paths, the same path once made absolute against
+// the working directory and cleaned (filepath.Abs). The test is lexical, so a
+// file reached through a symlink or another link is another document. A URL
+// (IsURL) names one only as spelled, and an empty path names none.
 func SameDocument(a, b string) bool {
 	if a == "" || b == "" {
 		return false
@@ -258,9 +260,14 @@ func SameDocument(a, b string) bool {
 }
 
 // IsURL reports whether location names a document by URL rather than as a
-// file.
+// file, as the resolver classifies it (references.ResolveAbsoluteReference):
+// by the scheme url.Parse finds, but for a drive letter before a backslash. A
+// scheme needs no "//" after it, and a file path holding "://" past a
+// directory named like a scheme is still a file. A location the resolver
+// cannot parse is none; it resolves nothing.
 func IsURL(location string) bool {
-	return strings.Contains(location, "://")
+	abs, err := references.ResolveAbsoluteReference("", location)
+	return err == nil && abs.Classification != nil && abs.Classification.IsURL
 }
 
 // ComponentRef resolves an internal pointer addressing a top-level component

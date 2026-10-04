@@ -242,6 +242,45 @@ func TestExternalContent_ASourcePositionItNamesIsTheSources(t *testing.T) {
 	assert.Empty(t, cmp.Diff(compiled[0], compiled[1]), "declaration order decided what the source's positions name")
 }
 
+// TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile pins a
+// source compiled through a path holding "://" past a directory named "x:".
+// The resolver reads that path as a file, not a URL, so the lowering must too:
+// a $ref back into the source from a document beside it names the source's own
+// Thing, and the source's path item, reached back, is read as the source's.
+// Read as a URL, the source was named only as spelled, so the $ref was
+// unresolved, and the path item was read again from disk as another
+// document's.
+func TestExternalContent_ASourcePathThroughASchemeLikeDirectoryIsAFile(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "x:")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(`paths:
+  /x:
+    get:
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {schema: {$ref: 'root.yaml#/components/schemas/Thing'}}}
+  /back: {$ref: 'root.yaml#/components/pathItems/Own'}
+`), 0o600))
+	root := foreignRoot("  /p: {$ref: './ext.yaml#/paths/~1x'}\n  /q: {$ref: './ext.yaml#/paths/~1back'}\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.yaml"), []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: dir + "//root.yaml", Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.NotNil(t, doc)
+	ops := allOperations(doc)
+	require.Len(t, ops, 2)
+	for _, op := range ops {
+		require.Len(t, op.Responses, 1)
+		assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload),
+			"%s names the source's own Thing", op.ID)
+	}
+}
+
 // TestExternalContent_ARefNamingTheSourceNamesIt pins the other half of
 // GitHub #762's line: a $ref in another document's content is read where that
 // document sits, as the resolver reads it. One whose document part names the

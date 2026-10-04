@@ -240,11 +240,38 @@ func TestSameDocument(t *testing.T) {
 		{"api/spec.yaml", "api/./sub/../spec.yaml", true},
 		{"api/spec.yaml", abs, true},
 		{"api/spec.yaml", "api/other.yaml", false},
+		{"api/x:/spec.yaml", "api/x://spec.yaml", true},
 		{"https://example.com/a.yaml", "https://example.com/a.yaml", true},
 		{"https://example.com/a.yaml", "https://example.com/./a.yaml", false},
+		{"file:/api/spec.yaml", "file:/api/./spec.yaml", false},
 		{"", "", false},
 	} {
 		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+	}
+}
+
+// TestIsURL pins which locations name a document by URL, as the resolver
+// classifies them: those with a scheme before their first colon, whether or
+// not "//" follows it. A file path is no URL, even one holding "://" past a
+// directory named like a scheme, nor is a Windows drive before a backslash, or
+// a location the resolver cannot parse.
+func TestIsURL(t *testing.T) {
+	t.Parallel()
+	for location, want := range map[string]bool{
+		"https://example.com/spec.yaml": true,
+		"file:///api/spec.yaml":         true,
+		"file:/api/spec.yaml":           true,
+		"urn:example:spec":              true,
+		"x://spec.yaml":                 true,
+		"/api/x://spec.yaml":            false,
+		"./x://spec.yaml":               false,
+		"api/x://spec.yaml":             false,
+		"api/spec.yaml":                 false,
+		`C:\api\spec.yaml`:              false,
+		"":                              false,
+		"%zz":                           false,
+	} {
+		assert.Equal(t, want, IsURL(location), "%q", location)
 	}
 }
 
