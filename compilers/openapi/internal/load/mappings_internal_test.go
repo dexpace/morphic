@@ -605,3 +605,42 @@ x-lib:
 		assert.Nil(t, got.Targets.At("/x-lib/Y"), name)
 	}
 }
+
+// TestMappings_ADiscriminatorPastARefIntoAnotherDocumentIsNotTheSources pins a
+// reference whose pointer passes a $ref into another document. The resolver
+// reports it resolved against the source, but it reaches that document's
+// content, whose discriminator is not the source's: its "#/x-lib/Cat" names a
+// position there, which the lowering reports unresolved. Read as the source's,
+// it drew a finding in the source's own x-lib/Cat (GitHub #762). The source's
+// own mapping to that position still draws it.
+func TestMappings_ADiscriminatorPastARefIntoAnotherDocumentIsNotTheSources(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"ext.yaml": `paths:
+  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {k: {type: string}}
+                discriminator: {propertyName: k, mapping: {x: '#/x-lib/Cat'}}
+`})
+	for _, c := range []struct {
+		name, schemas string
+		want          []string
+	}{
+		{"a schema $ref past /a's $ref",
+			"    P: {$ref: '#/paths/~1a/get/responses/200/content/application~1json/schema'}\n", []string{}},
+		{"the source's own mapping",
+			"    Pet:\n      type: object\n      discriminator: {propertyName: k, mapping: {y: '#/x-lib/Cat'}}\n",
+			[]string{"/components/schemas/Pet/discriminator/mapping/y openapi/validation/validation-type-mismatch"}},
+	} {
+		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {$ref: './ext.yaml#/paths/~1a'}\n" +
+			"components:\n  schemas:\n" + c.schemas + "x-lib:\n  Cat: {type: object, required: notalist}\n"
+		_, diags := loadExternal(t, dir, root, Options{})
+		assert.Empty(t, cmp.Diff(c.want, diagLines(diags)), c.name)
+	}
+}

@@ -141,29 +141,48 @@ func (m *mappings) see(site jsontext.Pointer, loc soa.Locations, model any) {
 // reached notes the objects c's hops reached in the source, for the reference
 // written at site, held until a reach releases the reference's region.
 func (m *mappings) reached(site jsontext.Pointer, c chain) {
-	if in := inSourceRecords(c); len(in) > 0 {
+	if in := inSourceRecords(m.doc, c); len(in) > 0 {
 		region := m.refRegions[site]
 		m.pending[region] = append(m.pending[region], sighting{site: site, region: region, records: in})
 	}
 }
 
 // inSourceRecords returns the records of c's hops that reached an object in
-// the source.
-func inSourceRecords(c chain) []record {
+// doc, the source's model.
+func inSourceRecords(doc *soa.OpenAPI, c chain) []record {
 	var in []record
 	for _, r := range c.records {
-		if inSource(r) {
+		if inSource(doc, r) {
 			in = append(in, r)
 		}
 	}
 	return in
 }
 
-// inSource reports whether r's hop reached an object in the source, which is
-// what it resolved against once mended.
-func inSource(r record) bool {
-	_, ok := (*r.document).(*soa.OpenAPI)
-	return r.reached && ok
+// inSource reports whether r's hop reached an object in doc, the source's
+// model: one it resolved against once mended, at a pointer whose walk passes no
+// $ref into another document. The resolver reports such a pointer resolved
+// against the source too, but what it reaches is that document's content
+// (refscope.Scope.At, GitHub #762).
+func inSource(doc *soa.OpenAPI, r record) bool {
+	if _, ok := (*r.document).(*soa.OpenAPI); !ok || !r.reached {
+		return false
+	}
+	return !refscope.Scope{Doc: doc, Ends: referenceEnd}.At(pointerIn(r)).Foreign
+}
+
+// referenceEnd returns where the chain of the reference node ends, as the
+// records of its hops say once mended, and false for a node that is no
+// reference or whose chain reached nothing.
+func referenceEnd(node any) (refscope.End, bool) {
+	var end refscope.End
+	reached := false
+	for _, r := range resolutionChain(node).records {
+		if r.reached {
+			end, reached = refscope.End{Document: *r.document, Path: r.path, Pointer: pointerIn(r)}, true
+		}
+	}
+	return end, reached
 }
 
 // pointerIn returns the pointer r's hop reached, in its document. The absolute
@@ -415,7 +434,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 // enqueue queues each object c's hops reached in the source, for the work at
 // site.
 func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
-	for _, r := range inSourceRecords(c) {
+	for _, r := range inSourceRecords(m.doc, c) {
 		m.queue = append(m.queue, arrival{site: site, record: r})
 	}
 }
