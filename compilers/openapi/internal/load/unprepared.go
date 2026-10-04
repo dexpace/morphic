@@ -43,16 +43,18 @@ type externalReads struct {
 	// and byDigest the tree for each digest, or nil once two trees share one.
 	digests  map[string]digest
 	byDigest map[digest]*yaml.Node
-	// mended memoizes treeFor by the bytes it was asked about, which the
-	// resolver hands out once per reference that hits its cache.
-	mended map[byteSpan]*yaml.Node
+	// mended memoizes treeFor by what it was asked, since the resolver hands
+	// the same bytes out once per reference that hits its cache.
+	mended map[treeQuery]*yaml.Node
 }
 
 // digest is the SHA-256 of a document's bytes.
 type digest = [sha256.Size]byte
 
-// byteSpan identifies a byte slice by its backing array and length.
-type byteSpan struct {
+// treeQuery is what treeFor is asked: a path, and bytes by their backing array
+// and length.
+type treeQuery struct {
+	path  string
 	first *byte
 	n     int
 }
@@ -68,7 +70,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		replayed: map[string]int{},
 		digests:  map[string]digest{},
 		byDigest: map[digest]*yaml.Node{},
-		mended:   map[byteSpan]*yaml.Node{},
+		mended:   map[treeQuery]*yaml.Node{},
 	}
 	sum := sha256.Sum256(self.data)
 	for _, key := range self.keys() {
@@ -138,12 +140,12 @@ func (r *externalReads) treeFor(path string, data []byte) *yaml.Node {
 	if len(data) == 0 {
 		return r.lookup(path, data)
 	}
-	span := byteSpan{first: &data[0], n: len(data)}
-	if tree, ok := r.mended[span]; ok {
+	query := treeQuery{path: path, first: &data[0], n: len(data)}
+	if tree, ok := r.mended[query]; ok {
 		return tree
 	}
 	tree := r.lookup(path, data)
-	r.mended[span] = tree
+	r.mended[query] = tree
 	return tree
 }
 

@@ -172,8 +172,8 @@ func TestSettle_ARecordIsMendedToWhatTheUncachedReadReports(t *testing.T) {
 // record names is asked first, since two documents can be read from the same
 // bytes, then the digest alone, which a record naming its document by $id
 // needs. Two trees from one digest, with neither under the path, are no
-// answer. The answer is kept for the same bytes, but not for none, which every
-// empty document shares.
+// answer. The answer is kept for the same path and bytes, but not for none,
+// which every empty document shares.
 func TestTreeFor(t *testing.T) {
 	t.Parallel()
 	data := []byte("same bytes")
@@ -211,6 +211,8 @@ func TestTreeFor(t *testing.T) {
 		r.recordTree("a.yaml", b, sum)
 		assert.Same(t, a, r.treeFor("a.yaml", cached), "the bytes asked about before keep their answer")
 		assert.Same(t, b, r.treeFor("a.yaml", slices.Clone(data)), "other bytes are looked up afresh")
+		r.recordTree("c.yaml", b, sum)
+		assert.Same(t, b, r.treeFor("c.yaml", cached), "so are the same bytes under another path")
 	})
 	t.Run("not memoized for none", func(t *testing.T) {
 		t.Parallel()
