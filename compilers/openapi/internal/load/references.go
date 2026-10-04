@@ -38,20 +38,40 @@ type resolvable interface {
 func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, reader *external,
 ) (MappingTargets, []ir.Diagnostic) {
-	pass := newResolution(ctx, at, doc, self, opts, reader)
-	held := heldRefs(ctx, doc, defs.NewReader(doc))
+	return newResolution(ctx, at, doc, self, opts, reader).run(doc)
+}
+
+// run is resolveWith's work over doc, the document p was made for.
+func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
+	held := heldRefs(p.ctx, doc, defs.NewReader(doc))
+	p.targets.hold(held)
 	withDefsHeld(held, func() {
-		pass.fail(eachModel(soa.Walk(ctx, doc), resolverPanics, func(site jsontext.Pointer, model any) error {
-			pass.targets.see(site, model)
-			if r, ok := model.(resolvable); ok && r.IsReference() {
-				pass.visit(site, r, r.GetReference())
-			}
-			return nil
-		}))
+		p.fail(eachSighting(soa.Walk(p.ctx, doc), resolverPanics,
+			func(site jsontext.Pointer, loc soa.Locations, model any) error {
+				p.targets.see(site, loc, model)
+				if r, ok := model.(resolvable); ok && r.IsReference() {
+					p.visit(site, r, r.GetReference())
+				}
+				return nil
+			}))
 	})
-	pass.fail(pass.resolveHeld(held))
-	pass.fail(pass.targets.resolve(ctx, &pass.found))
-	return pass.targets.targets(), append(pass.failures, pass.found.diags(at)...)
+	p.fail(p.resolveHeld(held))
+	p.fail(p.resolveTargets(held))
+	p.failures = append(p.failures, p.targets.exhausted(p.at)...)
+	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
+}
+
+// resolveTargets resolves the mapping targets with every held reference as
+// resolveHeld resolved it, and puts each back as written after. A target's
+// chain meets a "#/$defs/..." reference as a $ref's did: at its definition, or,
+// where the rule names none, ending there. Put back as written, it sent the
+// chain to the resolver's own lookup, which resolveHeld keeps out of play.
+func (p *resolution) resolveTargets(held []heldRef) (jsontext.Pointer, error) {
+	for _, r := range held {
+		r.retarget()
+	}
+	defer restoreDefs(held)
+	return p.targets.resolve(p.ctx, &p.found)
 }
 
 // resolution is one resolver pass over a document: how each reference is
@@ -131,14 +151,23 @@ func eachReference(items iter.Seq[soa.WalkItem], what string,
 
 // eachModel calls visit with each model of kind T the walk reaches, and the
 // pointer that names it.
+func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, T) error,
+) (jsontext.Pointer, error) {
+	return eachSighting(items, what, func(site jsontext.Pointer, _ soa.Locations, m T) error {
+		return visit(site, m)
+	})
+}
+
+// eachSighting is eachModel handing visit the location of each model as well.
 //
 // A panic in the walk or under visit becomes an error naming what was running,
 // as a parser panic does in unmarshal: the library faults on shapes the parser
 // accepts, such as a $ref with no value. It stops the walk at site, the model
 // being visited, or the root when the walk panicked. An error from visit stops
 // it too.
-func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
-	visit func(jsontext.Pointer, T) error,
+func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
+	visit func(jsontext.Pointer, soa.Locations, T) error,
 ) (site jsontext.Pointer, err error) {
 	defer recovered(&err, what)
 	for item := range items {
@@ -148,7 +177,7 @@ func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
 				return nil
 			}
 			site = jsontext.Pointer(item.Location.ToJSONPointer())
-			if err := visit(site, m); err != nil {
+			if err := visit(site, item.Location, m); err != nil {
 				return err
 			}
 			site = ""

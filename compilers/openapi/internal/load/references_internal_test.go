@@ -197,6 +197,44 @@ components:
 	})
 }
 
+// TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind pins that a
+// mapping target is resolved with every "#/$defs/..." reference as resolveHeld
+// left it: one GitHub #557's rule finds no definition for stays out of the
+// resolver's reach, so a chain through it ends there, as a $ref's does. Put
+// back as written, it sent the chain to the document-root $defs the rule
+// rejects, reporting X's finding at the entry, and with external references on
+// reading the document X names.
+func TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "other.yaml", "Y: {type: object, minLength: abc}\n")
+	const schemas = "    Pet:\n      type: object\n      properties: {k: {type: string}}\n" +
+		"      discriminator: {propertyName: k, mapping: {c: '#/components/schemas/Holder/properties/p'}}\n" +
+		"    Holder: {type: object, properties: {p: {$ref: '#/$defs/X'}}}\n"
+	for name, x := range map[string]string{
+		"a definition with a finding":          "{type: object, minLength: abc}",
+		"a definition naming another document": "{$ref: 'other.yaml#/Y'}",
+	} {
+		src := openapitest.ComponentSpec(schemas) + "$defs:\n  X: " + x + "\n"
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)},
+			Options{AllowExternalRefs: true})
+		require.NoError(t, err, name)
+
+		assert.Equal(t, []string{"/components/schemas/Holder/properties/p error " + diag.UnresolvedRef},
+			severityLines(diags), name)
+	}
+}
+
+// severityLines renders diags as "pointer severity code", sorted.
+func severityLines(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Severity, d.Code))
+	}
+	slices.Sort(out)
+	return out
+}
+
 // assertFailures requires got to hold exactly one unresolved-ref error per
 // pointer in want and nothing else, each message starting as want says. The
 // rest is the resolver's own wording.

@@ -3,6 +3,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"iter"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -95,6 +97,288 @@ func TestMappings_ATargetHeldAsRawYAMLIsResolvedAtLoad(t *testing.T) {
 			assert.Equal(t, c.want, describedAs(got.Targets, c.pointer))
 		})
 	}
+}
+
+// badDiscriminator is a discriminated object whose one mapping entry names the
+// raw schema at #/x-lib/Bad, which carries a finding.
+const badDiscriminator = "{type: object, properties: {k: {type: string}}, " +
+	"discriminator: {propertyName: k, mapping: {x: '#/x-lib/Bad'}}}"
+
+// TestMappings_ADiscriminatorNothingLowersIsNotResolved pins that the load
+// phase resolves no target of a discriminator the lowering never reads: under
+// a keyword it keeps verbatim (ir-design §4.7), in a definition or component
+// nothing it lowers references, beside a $ref, or in an inline allOf branch,
+// whose properties alone it merges. Resolving such a target reported the
+// finding in Bad, failing a compile over content nothing lowers.
+func TestMappings_ADiscriminatorNothingLowersIsNotResolved(t *testing.T) {
+	t.Parallel()
+	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
+	d := badDiscriminator
+	keyword := func(k, typ string) string { return "    A: {type: " + typ + ", " + k + ": " + d + "}\n" }
+	component := func(kind, entry string) string {
+		return "  " + kind + ":\n    E: " + entry + "\n"
+	}
+	content := "{content: {application/json: {schema: " + d + "}}}"
+	op := func(get string) string { return "paths:\n  /a: {get: {" + get + "}}\n" }
+	for _, c := range []struct {
+		name, schemas, components, paths, lib string
+		// source is what the source's own validation reports, as "pointer code".
+		source []string
+	}{
+		{name: "not", schemas: keyword("not", "object")},
+		{name: "if", schemas: keyword("if", "object")},
+		{name: "then", schemas: keyword("then", "object")},
+		{name: "else", schemas: keyword("else", "object")},
+		{name: "dependentSchemas", schemas: "    A: {type: object, dependentSchemas: {p: " + d + "}}\n"},
+		{name: "propertyNames", schemas: keyword("propertyNames", "object")},
+		{name: "contains", schemas: keyword("contains", "array")},
+		{name: "unevaluatedItems", schemas: keyword("unevaluatedItems", "array")},
+		{name: "unevaluatedProperties", schemas: keyword("unevaluatedProperties", "object")},
+		{name: "a definition nothing references", schemas: "    A: {type: object, $defs: {U: " + d + "}}\n"},
+		{name: "beside a schema under a validation-only keyword a property names",
+			schemas: "    A: {type: object, not: {type: object, properties: {p: {type: object}, q: " + d + "}}, " +
+				"properties: {r: {$ref: '#/components/schemas/A/not/properties/p'}}}\n"},
+		{name: "a definition only a validation-only keyword references",
+			schemas: "    A: {type: object, $defs: {U: " + d + "}, not: {$ref: '#/components/schemas/A/$defs/U'}}\n"},
+		{name: "beside a $ref", schemas: "    A: {$ref: '#/components/schemas/B', " +
+			"discriminator: {propertyName: k, mapping: {x: '#/x-lib/Bad'}}}\n    B: {type: object}\n"},
+		{name: "under a keyword beside a $ref",
+			schemas: "    A: {$ref: '#/components/schemas/B', properties: {p: " + d + "}}\n    B: {type: object}\n"},
+		{name: "under a keyword beside a held $defs $ref",
+			schemas: "    A: {type: object, $defs: {D: {type: object}}, properties: {r: {$ref: '#/$defs/D', properties: {p: " +
+				d + "}}}}\n"},
+		{name: "an inline allOf branch", schemas: "    A: {allOf: [" + d + "]}\n"},
+		{name: "under an inline allOf branch's items", schemas: "    A: {allOf: [{type: array, items: " + d + "}]}\n"},
+		{name: "under an inline allOf branch's union", schemas: "    A: {allOf: [{oneOf: [" + d + ", {type: string}]}]}\n"},
+		{name: "items beside prefixItems", schemas: "    A: {type: array, prefixItems: [{type: string}], items: " + d + "}\n"},
+		{name: "anyOf beside oneOf", schemas: "    A: {oneOf: [{type: string}, {type: integer}], anyOf: [" + d + "]}\n"},
+		{name: "allOf beside enum", schemas: "    A: {enum: [a], allOf: [{type: object, properties: {p: " + d + "}}]}\n"},
+		{name: "a parameter's schema beside its content", paths: op("parameters: [{name: q, in: query, schema: " + d +
+			", content: {application/json: {schema: {type: string}}}}], responses: {'200': {description: ok}}")},
+		{name: "a parameter's second content entry", paths: op("parameters: [{name: q, in: query, content: " +
+			"{text/plain: {schema: {type: string}}, application/json: {schema: " + d + "}}}], responses: {'200': {description: ok}}"),
+			source: []string{" openapi/validation/validation-allowed-values"}},
+		{name: "a header's schema beside its content", paths: op("responses: {'200': {description: ok, headers: " +
+			"{X-H: {schema: " + d + ", content: {application/json: {schema: {type: string}}}}}}}")},
+		{name: "a response nothing references", components: component("responses", "{description: x, content: "+
+			"{application/json: {schema: "+d+"}}}")},
+		{name: "a response only another unreferenced one references",
+			components: "  responses:\n    E: {description: x, content: {application/json: {schema: " + d + "}}}\n" +
+				"    F: {$ref: '#/components/responses/E'}\n"},
+		{name: "a parameter nothing references", components: component("parameters", "{name: q, in: query, schema: "+d+"}")},
+		{name: "a header nothing references", components: component("headers", "{schema: "+d+"}")},
+		{name: "a request body nothing references", components: component("requestBodies", content)},
+		{name: "a path item nothing references", components: component("pathItems",
+			"{get: {responses: {'200': {description: ok, content: {application/json: {schema: "+d+"}}}}}}")},
+		{name: "in a raw object a $ref reaches, under not", schemas: "    A: {$ref: '#/x-lib/W'}\n",
+			lib: "  W: {type: object, not: " + d + "}\n"},
+		{name: "in a raw object only a validation-only keyword reaches",
+			schemas: "    A: {type: object, not: {$ref: '#/x-lib/W'}}\n", lib: "  W: {type: object, properties: {p: " + d + "}}\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			schemas := c.schemas
+			if schemas == "" {
+				schemas = "    Z: {type: object}\n"
+			}
+			spec := mappingSpec(schemas, c.components+lib+c.lib)
+			if c.paths != "" {
+				spec = strings.Replace(spec, "paths: {}\n", c.paths, 1)
+			}
+			got, diags := loadTargets(t, "spec.yaml", spec, false)
+
+			assert.ElementsMatch(t, c.source, diagLines(diags), "the finding in Bad is in content nothing lowers")
+			assert.Nil(t, got.Targets.At("/x-lib/Bad"))
+		})
+	}
+}
+
+// TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved pins the other
+// half: content the lowering reaches only through a reference, or a mapping
+// target, is lowered from there, so the targets of a discriminator in it are
+// resolved, wherever that reference stands in the document.
+func TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved(t *testing.T) {
+	t.Parallel()
+	d := "{type: object, properties: {k: {type: string}}, discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}"
+	const lib = "x-lib:\n  T: {description: marker, type: object}\n"
+	respond := "paths:\n  /a: {get: {responses: {'200': {$ref: '#/components/responses/F'}}}}\n"
+	for _, c := range []struct{ name, schemas, components, paths, lib string }{
+		{name: "a definition a property names by pointer",
+			schemas: "    A: {type: object, $defs: {U: " + d + "}, properties: {r: {$ref: '#/components/schemas/A/$defs/U'}}}\n"},
+		{name: "a definition a property names by the relative rule",
+			schemas: "    A: {type: object, $defs: {U: " + d + "}, properties: {r: {$ref: '#/$defs/U'}}}\n"},
+		{name: "a definition named before the reference reaching it",
+			schemas: "    A: {type: object, $defs: {U: " + d + "}}\n    B: {$ref: '#/components/schemas/A/$defs/U'}\n"},
+		{name: "a definition a mapping target reaches",
+			schemas: "    A: {type: object, $defs: {U: " + d + "}}\n" +
+				"    P: {type: object, properties: {k: {type: string}}, " +
+				"discriminator: {propertyName: k, mapping: {u: '#/components/schemas/A/$defs/U'}}}\n"},
+		{name: "a validation-only keyword's schema a property names",
+			schemas: "    A: {type: object, not: " + d + ", properties: {r: {$ref: '#/components/schemas/A/not'}}}\n"},
+		{name: "a schema under a validation-only keyword a property names",
+			schemas: "    A: {type: object, not: {type: object, properties: {p: " + d + "}}, " +
+				"properties: {r: {$ref: '#/components/schemas/A/not/properties/p'}}}\n"},
+		{name: "an inline allOf branch a $ref names",
+			schemas: "    A: {allOf: [" + d + "]}\n    B: {$ref: '#/components/schemas/A/allOf/0'}\n"},
+		{name: "a union in an inline allOf branch a $ref names",
+			schemas: "    A: {allOf: [{oneOf: [" + d + ", {type: string}]}]}\n    B: {$ref: '#/components/schemas/A/allOf/0'}\n"},
+		{name: "a parameter's content entry", paths: "paths:\n  /a: {get: {parameters: [{name: q, in: query, " +
+			"content: {application/json: {schema: " + d + "}}}], responses: {'200': {description: ok}}}}\n"},
+		{name: "a header's schema", paths: "paths:\n  /a: {get: {responses: {'200': {description: ok, " +
+			"headers: {X-H: {schema: " + d + "}}}}}}\n"},
+		{name: "a property of an inline allOf branch", schemas: "    A: {allOf: [{type: object, properties: {p: " + d + "}}]}\n"},
+		{name: "a response a path names", paths: respond,
+			components: "  responses:\n    F: {description: x, content: {application/json: {schema: " + d + "}}}\n"},
+		{name: "a response reached through another a path names", paths: respond,
+			components: "  responses:\n    E: {description: x, content: {application/json: {schema: " + d + "}}}\n" +
+				"    F: {$ref: '#/components/responses/E'}\n"},
+		{name: "a definition in a raw object a $ref reaches",
+			schemas: "    A: {$ref: '#/x-lib/W/$defs/U'}\n", lib: "  W: {type: object, not: {}, $defs: {U: " + d + "}}\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			schemas := c.schemas
+			if schemas == "" {
+				schemas = "    Z: {type: object}\n"
+			}
+			spec := mappingSpec(schemas, c.components+lib+c.lib)
+			if c.paths != "" {
+				spec = strings.Replace(spec, "paths: {}\n", c.paths, 1)
+			}
+			got, diags := loadTargets(t, "spec.yaml", spec, false)
+
+			assert.Empty(t, diagLines(diags))
+			assert.Equal(t, "marker", describedAs(got.Targets, "/x-lib/T"))
+		})
+	}
+}
+
+// TestMappings_AReferenceInABuiltObjectIsResolved pins that a schema $ref
+// inside an object the load phase builds from raw YAML is resolved where the
+// lowering lowers it, as the model's own are. Left unresolved, it resolved
+// only through a node a mapping, or another $ref, happened to intern first, so
+// whether it resolved followed declaration order. One under a keyword the
+// lowering keeps verbatim, a "#/$defs/..." one (GitHub #570) and one naming
+// another document stay as they were: unresolved, and other.yaml unread.
+func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{"other.yaml": "X: {type: object, minLength: abc}\n"})
+	spec := mappingSpec("    Box: {$ref: '#/x-lib/Wrapper'}\n"+petMapping("dog: '#/x-lib/Dog'"), `x-lib:
+  Wrapper:
+    type: object
+    properties:
+      pet: {$ref: '#/x-lib/Dog'}
+      def: {$ref: '#/$defs/D'}
+      far: {$ref: 'other.yaml#/X'}
+    not: {$ref: '#/x-lib/Bad'}
+  Dog: {description: dog, type: object}
+  Bad: {type: object, minLength: abc}
+`)
+	got, diags := loadTargets(t, filepath.Join(dir, "root.yaml"), spec, true)
+	require.Empty(t, diagLines(diags), "nothing past the lowered reference is resolved")
+
+	box, ok := got.Doc.GetComponents().GetSchemas().Get("Box")
+	require.True(t, ok)
+	wrapper := box.GetResolvedSchema().GetSchema()
+	require.NotNil(t, wrapper, "Box's $ref builds Wrapper")
+	property := func(name string) *schemaRef {
+		js, found := wrapper.GetProperties().Get(name)
+		require.True(t, found, name)
+		return js
+	}
+	pet := property("pet")
+	require.True(t, pet.IsResolved())
+	assert.Same(t, got.Targets.At("/x-lib/Dog"), pet.GetReferenceResolutionInfo().Object,
+		"the $ref reaches the object Pet's mapping does")
+	assert.False(t, property("def").IsResolved(), "a definition is read by GitHub #557's rule, which reads the model only")
+	assert.False(t, property("far").IsResolved(), "another document is not read for content the source holds")
+	assert.False(t, wrapper.GetNot().IsResolved(), "nothing lowers what not holds")
+}
+
+// TestMappings_AChainThatFailsPastItsFirstHopRecordsTheHop pins that a target
+// whose chain fails further on still records the schema its first hop reached,
+// which a $ref to the position lowers as well. Recorded nowhere, it resolved
+// through the node such a $ref interned, and only in the order where that $ref
+// came first.
+func TestMappings_AChainThatFailsPastItsFirstHopRecordsTheHop(t *testing.T) {
+	t.Parallel()
+	got, diags := loadTargets(t, "spec.yaml", mappingSpec(petMapping("t: '#/x-lib/T'"),
+		"x-lib:\n  T: {$ref: '#/x-lib/Missing', description: hop}\n"), false)
+
+	assert.Empty(t, diags, "the failure is the lowering's to report")
+	assert.Equal(t, "hop", describedAs(got.Targets, "/x-lib/T"))
+}
+
+// resolverOver runs the resolver pass over spec, as Load does with external
+// references off, its mapping target work bounded by limit, and returns the
+// mapping target resolver and what the pass reported.
+func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnostic) {
+	t.Helper()
+	doc, valErrs := parseSpec(t, spec)
+	require.Empty(t, valErrs)
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "spec.yaml"}, Options{}, nil)
+	pass.targets.limit = limit
+	_, diags := pass.run(doc)
+	return pass.targets, diags
+}
+
+// TestMappings_APositionIsResolvedOnce pins that the entries naming one
+// position share one resolution, whatever their spelling, whether it resolves
+// or not: resolving each again cost a full walk of the target, or a marshal of
+// a whole non-schema one, per entry. An entry is read once wherever it is
+// built, so the levels of a raw chain each mapping the next are read once each,
+// not once for every level above them.
+func TestMappings_APositionIsResolvedOnce(t *testing.T) {
+	t.Parallel()
+	const pet = "    Pet:\n      type: object\n      properties: {k: {type: string}}\n      discriminator:\n" +
+		"        propertyName: k\n        mapping: {a: '#/x-lib/Cat', b: '#/x-lib/C%61t', c: 'spec.yaml#/x-lib/Cat', " +
+		"p: '#/paths', q: '#/paths'}\n"
+	const level = "{type: object, properties: {k: {type: string}, c: %s}, " +
+		"discriminator: {propertyName: k, mapping: {a: '%s'}}}"
+	chain := "{type: string}"
+	next := "#/x-lib/L/properties/c/properties/c/properties/c"
+	for depth := 3; depth > 0; depth-- {
+		chain = fmt.Sprintf(level, chain, next)
+		next = next[:strings.LastIndex(next, "/properties/c")]
+	}
+	spec := mappingSpec(pet+"    Z: {type: object, discriminator: {propertyName: k, mapping: {z: '#/x-lib/L'}}}\n",
+		"x-lib:\n  Cat: {description: cat, type: object}\n  L: "+chain+"\n")
+	m, diags := resolverOver(t, spec, maxMappingWork)
+	require.Empty(t, diagLines(diags))
+
+	assert.Equal(t, "cat", describedAs(m.targets(), "/x-lib/Cat"))
+	assert.Len(t, m.named, 9, "Pet's five entries, Z's, and one at each level of L")
+	assert.Equal(t, 6, m.resolutions, "Cat, /paths, L and the three positions under it, once each")
+}
+
+// TestMappings_TheWorkIsBounded pins maxMappingWork's bound: past it nothing
+// more is resolved, which is reported once, at the document, since which
+// target crosses it follows declaration order. Every bound short of the work
+// the document takes is tried, so the bound is met at each kind of step.
+func TestMappings_TheWorkIsBounded(t *testing.T) {
+	t.Parallel()
+	spec := mappingSpec(petMapping("a: '#/x-lib/A', b: '#/x-lib/B'"),
+		"x-lib:\n  A: {description: a, type: object}\n  B: {description: b, type: object}\n")
+	unbounded, diags := resolverOver(t, spec, maxMappingWork)
+	require.Empty(t, diags)
+	require.Equal(t, 2, unbounded.resolutions)
+
+	stoppedAfter := map[int]bool{}
+	for limit := 1; limit < unbounded.work; limit++ {
+		bounded, diags := resolverOver(t, spec, limit)
+		stoppedAfter[bounded.resolutions] = true
+
+		assert.Equal(t, bounded.resolutions > 0, bounded.targets().At("/x-lib/A") != nil, "limit %d", limit)
+		assert.Equal(t, bounded.resolutions > 1, bounded.targets().At("/x-lib/B") != nil, "limit %d", limit)
+		require.Len(t, diags, 1, "limit %d: %+v", limit, diags)
+		assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+		assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		assert.Equal(t, ir.Provenance{Pointer: ""}, diags[0].Provenance)
+		assert.Equal(t, fmt.Sprintf("resolving the discriminator mapping targets takes more than %d steps; "+
+			"those past them are found only as the lowering meets them", limit), diags[0].Message)
+	}
+	assert.Equal(t, map[int]bool{0: true, 1: true, 2: true}, stoppedAfter,
+		"some bound stops the work before each target, and one only after both")
 }
 
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
@@ -286,7 +570,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 func TestMappings_APanicIsReportedAtTheWorkRunning(t *testing.T) {
 	t.Parallel()
 	m := newMappings(sourceDocument{}, &soa.OpenAPI{}, oas3.ResolveOptions{}, nil)
-	m.built = []builtObject{{site: "/x", record: record{object: 1,
+	m.queue = []arrival{{site: "/x", record: record{object: 1,
 		walk: func(context.Context) iter.Seq[soa.WalkItem] { panic("boom") }}}}
 
 	site, err := m.resolve(t.Context(), &reachedFindings{})
@@ -294,26 +578,6 @@ func TestMappings_APanicIsReportedAtTheWorkRunning(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, "discriminator mapping resolver panicked: boom", err.Error())
 	assert.Equal(t, jsontext.Pointer("/x"), site)
-}
-
-// TestMappings_ACollectingWalkStopsAtAnError pins collectFrom's early return,
-// which only a walk a test builds can reach: Match returns what its callback
-// does, and collectFrom's never fails.
-func TestMappings_ACollectingWalkStopsAtAnError(t *testing.T) {
-	t.Parallel()
-	m := newMappings(sourceDocument{}, &soa.OpenAPI{}, oas3.ResolveOptions{}, nil)
-	discriminator := &oas3.Discriminator{DefaultMapping: new("#/x")}
-	items := func(yield func(soa.WalkItem) bool) {
-		failing := soa.WalkItem{Match: func(soa.Matcher) error { return assert.AnError }}
-		if !yield(failing) {
-			return
-		}
-		yield(fakeWalkItem("discriminator", discriminator))
-	}
-
-	m.collectFrom("/base", items)
-
-	assert.Empty(t, m.entries, "nothing past the failing item is collected")
 }
 
 // TestMappings_NoDiscriminatorOutsideTheSourceIsCollected pins that only what
