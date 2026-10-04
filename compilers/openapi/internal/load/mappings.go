@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"iter"
+	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -112,9 +113,13 @@ func inSource(r record) bool {
 	return r.reached && ok
 }
 
-// pointerIn returns the pointer r's hop reached, in its document.
+// pointerIn returns the pointer r's hop reached, in its document. The absolute
+// reference holds it decoded already, as the resolver read it, so it is taken
+// as written: GetJSONPointer would decode it again, reading a key's '+' as a
+// space and its '%41' as 'A'.
 func pointerIn(r record) jsontext.Pointer {
-	return jsontext.Pointer(r.target.GetJSONPointer())
+	_, pointer, _ := strings.Cut(string(r.target), "#")
+	return jsontext.Pointer(pointer)
 }
 
 // resolve resolves each target the discriminators collected name, then those

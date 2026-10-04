@@ -210,6 +210,26 @@ func TestMappings_AFindingIsPlacedWhateverTheEntryOrder(t *testing.T) {
 	}
 }
 
+// TestMappings_AnEntryInABuiltObjectIsSitedAtItsKey pins where an entry in an
+// object built from raw YAML is placed: under the key as written. The resolver
+// records the pointer it reached decoded already, so decoding it again read a
+// '+' in the key as a space and '%41' as 'A', siting the finding at a pointer
+// that names nothing. Each row reaches the object by a mapping and by a $ref.
+func TestMappings_AnEntryInABuiltObjectIsSitedAtItsKey(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ key, spelled string }{{"a+b", "a%2Bb"}, {"a%41", "a%2541"}} {
+		lib := "x-lib:\n  '" + c.key + "':\n    type: object\n" +
+			"    discriminator: {propertyName: k, mapping: {bad: '#/x-lib/Bad'}}\n" +
+			"  Bad: {type: object, minLength: abc}\n"
+		want := []string{"/x-lib/" + c.key + "/discriminator/mapping/bad openapi/validation/validation-type-mismatch"}
+		for _, schemas := range []string{petMapping("r: '#/x-lib/" + c.spelled + "'"),
+			"    Holder: {$ref: '#/x-lib/" + c.spelled + "'}\n"} {
+			_, diags := loadTargets(t, "spec.yaml", mappingSpec(schemas, lib), false)
+			assert.Empty(t, cmp.Diff(want, diagLines(diags)), "%s: %s", c.key, schemas)
+		}
+	}
+}
+
 // TestMappings_EverySpellingReachesOneObject pins that two spellings of one
 // position resolve to one object, the one an internal $ref to it is cached as,
 // in either order. Resolved as written, the file name spelling built an object
