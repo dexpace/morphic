@@ -129,15 +129,13 @@ func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI)
 
 // unheld is the references of defsRefs the resolver reads for itself: those
 // load did not hold out of its pass. A held one resolves to its own definition,
-// so it searches no ancestor and moves no document.
+// so it searches no ancestor and moves no document. It filters defsRefs in
+// place.
 func (r *reach) unheld(defsRefs []*yaml.Node) []*yaml.Node {
-	var out []*yaml.Node
-	for _, n := range defsRefs {
-		if _, held := r.held[n]; !held {
-			out = append(out, n)
-		}
-	}
-	return out
+	return slices.DeleteFunc(defsRefs, func(n *yaml.Node) bool {
+		_, held := r.held[n]
+		return held
+	})
 }
 
 // emptyReach is a check over root that has read nothing yet.

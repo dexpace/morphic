@@ -109,8 +109,8 @@ func resolverTarget(t *testing.T, spec string, idx int) (jsontext.Pointer, bool)
 }
 
 // TestHeldRefs_AgreeWithTheResolverOnTheFirstReferenceItMeets pins the claim the
-// rule rests on: for a reference the resolver meets first, defs.Target names the
-// definition the resolver reads, and none exactly where it reads none. What the
+// rule rests on: for a reference the resolver meets first, Reader.Target names
+// the definition the resolver reads, and none exactly where it reads none. What the
 // resolver does with a later reference to the same pointer is order-dependent,
 // which is why load holds these references out; this is the one reading that is
 // not. A change to the library that moves the resolver's reading fails here

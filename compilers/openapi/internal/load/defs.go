@@ -34,6 +34,7 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, rule *defs.Reader) []heldRe
 	}
 	var out []heldRef
 	for item := range soa.Walk(ctx, doc) {
+		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Schema: func(js *schemaRef) error {
 			pointer, ok := heldDefsPointer(js)
 			if !ok {
@@ -59,15 +60,32 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, rule *defs.Reader) []heldRe
 // definition the rule names in its own place.
 func withDefsHeld(refs []heldRef, f func()) {
 	for _, r := range refs {
-		r.js.GetSchema().Ref = nil
+		r.hold()
 	}
 	defer restoreDefs(refs)
 	f()
 }
 
+// restoreDefs puts every held reference back as written.
 func restoreDefs(refs []heldRef) {
 	for _, r := range refs {
-		r.js.GetSchema().Ref = r.written
+		r.restore()
+	}
+}
+
+// hold takes the reference out of the resolver's reach.
+func (r heldRef) hold() { r.js.GetSchema().Ref = nil }
+
+// restore puts the reference back as written.
+func (r heldRef) restore() { r.js.GetSchema().Ref = r.written }
+
+// retarget gives the reference the pointer of its definition, for the resolver
+// to read, or leaves it out of reach when the rule names none.
+func (r heldRef) retarget() {
+	r.hold()
+	if r.target != nil {
+		ref := references.Reference("#" + fragmentOf(r.at))
+		r.js.GetSchema().Ref = &ref
 	}
 }
 
@@ -82,23 +100,24 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 	defer recovered(&err, resolverPanics)
 	defer restoreDefs(refs)
 	for _, r := range refs {
-		s := r.js.GetSchema()
-		s.Ref = nil
-		if r.target != nil {
-			ref := references.Reference("#" + fragmentOf(r.at))
-			s.Ref = &ref
-		}
+		r.retarget()
 	}
 	for _, r := range refs {
 		site = r.site
 		if r.target == nil {
-			p.failures = append(p.failures, failureDiag(p.at(site), *r.written, trail{},
-				fmt.Errorf("definition not found: %s", *r.written)))
+			p.missing(site, *r.written)
 			continue
 		}
 		p.visit(site, r.js, *r.written)
 	}
 	return "", nil
+}
+
+// missing reports ref, written at site, as a definition the resolver cannot
+// find, in the resolver's own words.
+func (p *resolution) missing(site jsontext.Pointer, ref references.Reference) {
+	p.failures = append(p.failures,
+		failureDiag(p.at(site), ref, trail{}, fmt.Errorf("definition not found: %s", ref)))
 }
 
 // fragmentOf spells pointer as a URI fragment the resolver decodes back to
@@ -124,12 +143,8 @@ func fragmentOf(pointer jsontext.Pointer) string {
 // the resolver decodes it. reach reads the same set, so the edges it checks
 // are the ones resolveHeld hands the resolver.
 func heldDefsPointer(js *schemaRef) (jsontext.Pointer, bool) {
-	if js == nil || !js.IsReference() || js.GetRef().GetURI() != "" {
+	if js == nil || !js.IsReference() {
 		return "", false
 	}
-	pointer := jsontext.Pointer(js.GetRef().GetJSONPointer())
-	if !defs.IsPointer(pointer) {
-		return "", false
-	}
-	return pointer, true
+	return defs.PointerOf(js.GetRef())
 }

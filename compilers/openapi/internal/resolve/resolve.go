@@ -72,7 +72,7 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 	if !ok || !defs.IsPointer(pointer) {
 		return pointer, ok
 	}
-	if references.Reference(ref).GetURI() != "" {
+	if _, held := defs.PointerOf(references.Reference(ref)); !held {
 		return "", false // left to the resolver, as load leaves it: see load.heldRefs
 	}
 	_, at, found := s.reader().Target(js, pointer)
@@ -81,8 +81,8 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 
 // MappingPointer is TargetPointer for a discriminator mapping value: the
 // pointer it names, which for a "#/$defs/..." value is the definition read from
-// the discriminator d that holds it (defs.Reader.TargetFrom), as a $ref in the
-// same schema reads one (GitHub #557). ok is false for a value into another
+// the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
+// the same schema reads one (GitHub #557). ok is false for a value into another
 // document, for a $defs value the rule finds nothing for, and for no
 // discriminator.
 func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
@@ -90,15 +90,10 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 	if !ok || !defs.IsPointer(pointer) {
 		return pointer, ok
 	}
-	rule := s.reader()
-	if d == nil || rule.Doc() == nil || references.Reference(value).GetURI() != "" {
+	if _, held := defs.PointerOf(references.Reference(value)); !held {
 		return "", false
 	}
-	from := jsontext.Pointer(d.GetCore().GetJSONPointer(rule.Doc().GetRootNode()))
-	if from == "" {
-		return "", false
-	}
-	_, at, found := rule.TargetFrom(from, pointer)
+	_, at, found := s.reader().MappingTarget(d, pointer)
 	return at, found
 }
 

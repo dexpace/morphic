@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -267,17 +268,9 @@ components:
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "root.yaml", Data: []byte(spec)}, Options{})
 	require.NoError(t, err)
 
-	for _, site := range []jsontext.Pointer{"/components/schemas/A/not", "/components/schemas/A/properties/p"} {
-		var atSite []ir.Diagnostic
-		for _, d := range diags {
-			if d.Provenance.Pointer == site {
-				atSite = append(atSite, d)
-			}
-		}
-		require.Len(t, atSite, 1, "one report at %s: %v", site, diags)
-		assert.Equal(t, diag.UnresolvedRef, atSite[0].Code, site)
-		assert.Equal(t, ir.SeverityError, atSite[0].Severity, site)
-		assert.Equal(t, `unresolved $ref "#/$defs/missing": definition not found: #/$defs/missing`, atSite[0].Message, site)
+	const want = `unresolved $ref "#/$defs/missing": definition not found: #/$defs/missing`
+	for _, site := range []string{"/components/schemas/A/not", "/components/schemas/A/properties/p"} {
+		assert.Equal(t, want, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, site), site)
 	}
 }
 
@@ -285,7 +278,7 @@ components:
 // defensive path for a rule answer the resolver itself cannot stand behind: at
 // is deliberately overwritten to a position nothing sits at, so resolving the
 // concrete pointer the rule handed the resolver fails on its own terms rather
-// than through defs.Target disagreeing with the resolver's own navigation. The
+// than through defs.Reader.Target disagreeing with the resolver's own navigation. The
 // failure is placed at the reference and quotes it as written, not the pointer
 // it was handed.
 func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
@@ -503,14 +496,7 @@ func TestLoad_AHeldReferenceThatCannotBeResolvedIsReportedAsWritten(t *testing.T
 	_, diags, err := Load(t.Context(), 0, src, Options{})
 
 	require.NoError(t, err)
-	var atP []ir.Diagnostic
-	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/A/properties/p" {
-			atP = append(atP, d)
-		}
-	}
-	require.Len(t, atP, 1, "one failure at the held reference: %v", diags)
-	assert.Equal(t, diag.UnresolvedRef, atP[0].Code)
-	assert.Contains(t, atP[0].Message, `unresolved $ref "#/$defs/n"`)
-	assert.NotContains(t, atP[0].Message, "/components/schemas/A/$defs/n")
+	msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/A/properties/p")
+	assert.Contains(t, msg, `unresolved $ref "#/$defs/n"`)
+	assert.NotContains(t, msg, "/components/schemas/A/$defs/n")
 }

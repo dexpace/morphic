@@ -1116,7 +1116,7 @@ func landings(r *reach, n *yaml.Node) []*yaml.Node {
 }
 
 // TestReach_DefsEdgeIsTheRulesTarget pins that a held "#/$defs/..." reference's
-// edge is the one definition the resolver's rule names for it (defs.Target),
+// edge is the one definition the resolver's rule names for it (defs.Reader.Target),
 // the edge resolveHeld later hands the resolver — not every node holding the
 // path. A nested reference reaches its schema's own definition; the schema's
 // own sibling $ref does not, because the rule starts at the reference's parent

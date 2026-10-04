@@ -73,7 +73,8 @@ var rules = map[string][]string{
 	// and nothing of the compiler, so the loader that hands the resolver its
 	// answer and the lowering that names the target can both reach the one rule.
 	"compilers/openapi/internal/defs": {"github.com/speakeasy-api/openapi/jsonpointer",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not

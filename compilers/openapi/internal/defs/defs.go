@@ -7,8 +7,11 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 )
+
+type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
 // defsPrefix opens every pointer the resolver reads relative to the schema that
 // spells it rather than to the document (oas3 resolveDefsReference, v1.25.2).
@@ -24,6 +27,18 @@ type Navigable interface {
 // the schema that spells it (GitHub #557).
 func IsPointer(pointer jsontext.Pointer) bool {
 	return strings.HasPrefix(string(pointer), defsPrefix)
+}
+
+// PointerOf returns the "#/$defs/..." pointer ref spells, decoded as the
+// resolver decodes it, and whether the resolver reads it relative to the schema
+// that spells it. It does not when ref names a document, even this one: the
+// resolver reads such a pointer for itself, which is what load leaves to it.
+func PointerOf(ref references.Reference) (jsontext.Pointer, bool) {
+	pointer := jsontext.Pointer(ref.GetJSONPointer())
+	if ref.GetURI() != "" || !IsPointer(pointer) {
+		return "", false
+	}
+	return pointer, true
 }
 
 // Reader reads "#/$defs/..." pointers by the rule the resolver applies to a
@@ -85,29 +100,52 @@ func (r *Reader) Doc() Navigable {
 // The resolver also hands the first definition found for a pointer to every
 // later reference spelling it, so its answer depends on declaration order. The
 // position is where the definition is written (GitHub #557).
-func (r *Reader) Target(js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, bool) {
-	if r.Doc() == nil || js == nil || !IsPointer(pointer) {
+func (r *Reader) Target(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, jsontext.Pointer, bool) {
+	if js == nil || !IsPointer(pointer) {
 		return nil, "", false
 	}
-	from := jsontext.Pointer(js.GetCore().GetJSONPointer(r.doc.GetRootNode()))
+	from := r.positionOf(js.GetCore())
 	if from == "" {
 		return nil, "", false
 	}
 	if t, ok := localDef(js, pointer); ok {
 		return t, from + pointer, true
 	}
-	return r.TargetFrom(from, pointer)
+	return r.targetFrom(from, pointer)
 }
 
-// TargetFrom is Target for a pointer written at the position from rather than
-// on a schema object: the document itself, then each ancestor of from, nearest
-// first. A discriminator mapping value is read this way, from the discriminator
-// that holds it; the resolver never reads one, so the reading a $ref in the
-// same schema gets is the one it gets too.
-func (r *Reader) TargetFrom(from, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], jsontext.Pointer, bool) {
-	if r.Doc() == nil || !IsPointer(pointer) {
+// MappingTarget is Target for a "#/$defs/..." value of the mapping of d, read
+// from the discriminator's own position. The resolver never reads a mapping
+// value, so it is read as a $ref written in the same schema would be.
+func (r *Reader) MappingTarget(d *oas3.Discriminator, pointer jsontext.Pointer) (*schemaRef, jsontext.Pointer, bool) {
+	if d == nil || !IsPointer(pointer) {
 		return nil, "", false
 	}
+	from := r.positionOf(d.GetCore())
+	if from == "" {
+		return nil, "", false
+	}
+	return r.targetFrom(from, pointer)
+}
+
+// positioned is a parsed object that can say where it sits in a document.
+type positioned interface {
+	GetJSONPointer(root *yaml.Node) string
+}
+
+// positionOf returns the pointer to where obj sits in r's document, or "" when
+// r has no document or obj is not in it. The document itself sits at "" too,
+// and no $defs pointer is read from there.
+func (r *Reader) positionOf(obj positioned) jsontext.Pointer {
+	if r.Doc() == nil {
+		return ""
+	}
+	return jsontext.Pointer(obj.GetJSONPointer(r.doc.GetRootNode()))
+}
+
+// targetFrom reads pointer as written at the position from, which is in the
+// document: the document itself, then each ancestor of from, nearest first.
+func (r *Reader) targetFrom(from, pointer jsontext.Pointer) (*schemaRef, jsontext.Pointer, bool) {
 	// The document itself first, as the resolver asks it before any ancestor. An
 	// OpenAPI document has no $defs of its own, so this only answers for a
 	// standalone schema document.
@@ -115,20 +153,15 @@ func (r *Reader) TargetFrom(from, pointer jsontext.Pointer) (*oas3.JSONSchema[oa
 	if t, ok := defAt(r.doc, pointer); ok {
 		return t, pointer, true
 	}
-	anc := parentPointer(from)
-	if anc == "" {
-		return nil, "", false
-	}
-	here := r.placeAt(anc)
-	if !here.hasDefs {
-		anc = here.holder
-	}
-	// Each holder is closer to the root than the last, which bounds the walk.
-	for anc != "" {
-		here = r.placeAt(anc)
-		r.reads++
-		if t, ok := defAt(here.value, pointer); ok {
-			return t, anc + pointer, true
+	// Only an object with a $defs of its own can answer, and each holder is
+	// closer to the root than the last, which bounds the walk.
+	for anc := parentPointer(from); anc != ""; {
+		here := r.placeAt(anc)
+		if here.hasDefs {
+			r.reads++
+			if t, ok := defAt(here.value, pointer); ok {
+				return t, anc + pointer, true
+			}
 		}
 		anc = here.holder
 	}
@@ -136,10 +169,8 @@ func (r *Reader) TargetFrom(from, pointer jsontext.Pointer) (*oas3.JSONSchema[oa
 }
 
 // placeAt returns what the document holds at pos. Each position is read from
-// the one at its parent, one token at a time, and remembered, so the walk down
-// to a position starts at the closest one already read. A position the document
-// lacks has no object below it either, as the resolver reading a path from the
-// root finds. Every step shortens the position.
+// the one at its parent and remembered, so the walk down to a position starts
+// at the closest one already read. Every step shortens the position.
 func (r *Reader) placeAt(pos jsontext.Pointer) place {
 	var unread []jsontext.Pointer
 	here := place{value: r.doc, held: true}
@@ -151,26 +182,32 @@ func (r *Reader) placeAt(pos jsontext.Pointer) place {
 		unread = append(unread, at)
 	}
 	for i := len(unread) - 1; i >= 0; i-- {
-		at := unread[i]
-		parent := parentPointer(at)
-		next := place{}
-		if here.held {
-			r.reads++
-			value, err := jsonpointer.GetTarget(here.value, jsonpointer.JSONPointer(at[len(parent):]), jsonpointer.WithStructTags("key"))
-			next.value, next.held = value, err == nil
-		}
-		if next.held {
-			r.reads++
-			next.hasDefs = definesDefs(next.value)
-		}
-		next.holder = here.holder
-		if here.hasDefs { // never the root, whose place is not read for one
-			next.holder = parent
-		}
-		r.places[at] = next
-		here = next
+		here = r.read(here, unread[i])
+		r.places[unread[i]] = here
 	}
 	return here
+}
+
+// read returns the place at, one token below parent. A position the document
+// lacks has no object below it either, as the resolver reading a path from the
+// root finds.
+func (r *Reader) read(parent place, at jsontext.Pointer) place {
+	above := parentPointer(at)
+	next := place{holder: parent.holder}
+	if parent.hasDefs { // never the root, whose place is not read for one
+		next.holder = above
+	}
+	if !parent.held {
+		return next
+	}
+	r.reads++
+	value, err := jsonpointer.GetTarget(parent.value, jsonpointer.JSONPointer(at[len(above):]), jsonpointer.WithStructTags("key"))
+	if err != nil {
+		return next
+	}
+	r.reads++
+	next.value, next.held, next.hasDefs = value, true, definesDefs(value)
+	return next
 }
 
 // definesDefs reports whether obj has a $defs of its own. An object that does
@@ -191,19 +228,19 @@ func definesDefs(obj any) bool {
 
 // defAt navigates pointer from obj, as the resolver does with obj as the
 // document; a result that is no schema is no answer.
-func defAt(obj any, pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], bool) {
+func defAt(obj any, pointer jsontext.Pointer) (*schemaRef, bool) {
 	t, err := jsonpointer.GetTarget(obj, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {
 		return nil, false
 	}
-	js, ok := t.(*oas3.JSONSchema[oas3.Referenceable])
+	js, ok := t.(*schemaRef)
 	return js, ok && js != nil
 }
 
 // localDef is tryResolveLocalDefs: a schema carrying its own $id, or sitting
 // in a resource whose base differs from its document's, reads "#/$defs/k" in
 // its own definitions — k alone, with no path beyond it.
-func localDef(js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (*oas3.JSONSchema[oas3.Referenceable], bool) {
+func localDef(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, bool) {
 	s := js.GetSchema()
 	if s == nil || !ownResource(s) {
 		return nil, false
@@ -221,6 +258,8 @@ func localDef(js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer)
 	return d, ok && d != nil
 }
 
+// ownResource reports whether s is a schema resource of its own: it carries an
+// $id, or sits in a resource whose base differs from its document's.
 func ownResource(s *oas3.Schema) bool {
 	if s.GetID() != "" {
 		return true

@@ -10,12 +10,13 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // schemaFromYAML unmarshals body as a standalone JSON Schema document. Nothing
-// here calls Resolve: Target and TargetFrom read the parsed tree directly, so a
+// here calls Resolve: Target and MappingTarget read the parsed tree directly, so a
 // raw, unresolved schema is everything a case needs. The schema itself doubles
 // as the Navigable document — its own GetRootNode is the whole tree's root,
 // exactly as an OpenAPI document's is for a compiled spec.
@@ -53,10 +54,37 @@ func TestIsPointer(t *testing.T) {
 	assert.False(t, IsPointer("/$defs"), "no trailing slash names the map itself, not an entry")
 }
 
+// TestPointerOf pins what the resolver reads relative to the schema that spells
+// it: a "#/$defs/..." pointer with no document part, decoded as the resolver
+// decodes it, and nothing, as an empty pointer, for any other reference.
+func TestPointerOf(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		ref  references.Reference
+		want jsontext.Pointer
+	}{
+		{"#/$defs/n", "/$defs/n"},
+		{"#/%24defs/a%20b", "/$defs/a b"},
+		{"#/$defs/n/properties/x", "/$defs/n/properties/x"},
+		{"other.yaml#/$defs/n", ""},
+		{"#/components/schemas/A", ""},
+		{"#$defs", ""},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.ref), func(t *testing.T) {
+			t.Parallel()
+			got, ok := PointerOf(tc.ref)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want != "", ok)
+		})
+	}
+}
+
 // TestTarget_LocalIDRuleAndEscapes pins tryResolveLocalDefs: a schema that
 // itself carries $id and its own sibling $defs is read from ITS OWN
 // definitions directly, without ever walking to an ancestor. That is the one
-// case the generic ancestor search (TargetFrom) can never reach by itself,
+// case the generic ancestor search can never reach by itself,
 // since it always starts one level above the referencing schema, never at it
 // (GitHub #557). Without the rule, p's own reference is unresolved: the
 // ancestor loop starting above p never walks back down into p's own $defs.
@@ -91,11 +119,11 @@ properties:
 	assert.Same(t, defEntry(t, p, "x~y"), got)
 }
 
-// TestTargetFrom_DocumentItselfStep pins the step standard resolution takes
+// TestTarget_DocumentItselfStep pins the step standard resolution takes
 // before ever walking an ancestor: the pointer is read from the document
 // itself first. An OpenAPI document has no $defs of its own, so only a
 // standalone schema document — its own root — ever answers here.
-func TestTargetFrom_DocumentItselfStep(t *testing.T) {
+func TestTarget_DocumentItselfStep(t *testing.T) {
 	t.Parallel()
 	const src = `
 $defs:
@@ -112,12 +140,12 @@ properties:
 	assert.Equal(t, jsontext.Pointer("/$defs/k"), at, "found at the document's own position, no ancestor prefix")
 }
 
-// TestTargetFrom_NearestAncestor pins the fallback for a schema that is not
+// TestTarget_NearestAncestor pins the fallback for a schema that is not
 // itself a resource: the search walks up one JSON-pointer segment at a time
 // from the reference's own position — the properties container first, which
 // holds no $defs, then the enclosing schema, which does — never the
 // reference's own position.
-func TestTargetFrom_NearestAncestor(t *testing.T) {
+func TestTarget_NearestAncestor(t *testing.T) {
 	t.Parallel()
 	const src = `
 type: object
@@ -139,10 +167,10 @@ properties:
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
 }
 
-// TestTargetFrom_ParentThatHoldsTheDefinition pins the search's first step: a
+// TestTarget_ParentThatHoldsTheDefinition pins the search's first step: a
 // reference that is a schema keyword's own value, rather than an entry of a map
 // or list, has the schema that holds the $defs as its parent, and reads them.
-func TestTargetFrom_ParentThatHoldsTheDefinition(t *testing.T) {
+func TestTarget_ParentThatHoldsTheDefinition(t *testing.T) {
 	t.Parallel()
 	const src = `
 properties:
@@ -160,15 +188,15 @@ properties:
 	assert.Same(t, defEntry(t, outer, "k"), got)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at)
 
-	_, at, ok = NewReader(root).TargetFrom("/properties/outer/not", "/$defs/k")
+	_, at, ok = NewReader(root).targetFrom("/properties/outer/not", "/$defs/k")
 	require.True(t, ok)
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), at, "read from the position alone")
 }
 
-// TestTargetFrom_RestPath pins that a pointer deeper than the bare key
+// TestTarget_RestPath pins that a pointer deeper than the bare key
 // navigates on past it once the owning schema is found: the definition itself
 // is a container the rest of the pointer descends into.
-func TestTargetFrom_RestPath(t *testing.T) {
+func TestTarget_RestPath(t *testing.T) {
 	t.Parallel()
 	const src = `
 type: object
@@ -193,9 +221,9 @@ properties:
 	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k/properties/x"), at)
 }
 
-// TestTargetFrom_NoMatch pins that an absent definition, with the loop running
+// TestTarget_NoMatch pins that an absent definition, with the loop running
 // out of ancestors, reports ok=false rather than a stale or partial match.
-func TestTargetFrom_NoMatch(t *testing.T) {
+func TestTarget_NoMatch(t *testing.T) {
 	t.Parallel()
 	root := schemaFromYAML(t, "properties:\n  p: {type: string}\n")
 	p := prop(t, root, "p")
@@ -228,20 +256,48 @@ func TestTarget_GuardClauses(t *testing.T) {
 	assert.False(t, ok, "a schema this document's tree does not contain has no position to read the pointer from")
 }
 
-// TestTargetFrom_GuardClauses drives the two guards Target's own filtering
-// normally shields TargetFrom from: it is called directly elsewhere
-// (resolve.Scope.MappingPointer, for a discriminator mapping value), always with a
-// pointer already known to be $defs-shaped, so only a direct call exercises
-// these two branches.
-func TestTargetFrom_GuardClauses(t *testing.T) {
+// TestMappingTarget_ReadsFromTheDiscriminator pins that a mapping value is read
+// from the discriminator's own position: the schema that holds it is the
+// discriminator's parent, so its $defs answer.
+func TestMappingTarget_ReadsFromTheDiscriminator(t *testing.T) {
 	t.Parallel()
-	root := schemaFromYAML(t, "$defs:\n  k: {type: string}\n")
+	const src = `
+properties:
+  pet:
+    $defs:
+      cat: {type: object}
+    discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+`
+	root := schemaFromYAML(t, src)
+	pet := prop(t, root, "pet")
 
-	_, _, ok := NewReader(nil).TargetFrom("/properties/p", "/$defs/k")
+	got, at, ok := NewReader(root).MappingTarget(pet.GetSchema().Discriminator, "/$defs/cat")
+	require.True(t, ok)
+	assert.Same(t, defEntry(t, pet, "cat"), got)
+	assert.Equal(t, jsontext.Pointer("/properties/pet/$defs/cat"), at)
+}
+
+// TestMappingTarget_GuardClauses drives MappingTarget's early returns, each
+// isolated from the others: no discriminator, no document, a pointer that is not
+// $defs-shaped, and a discriminator the document's tree does not contain.
+func TestMappingTarget_GuardClauses(t *testing.T) {
+	t.Parallel()
+	const src = "properties:\n  pet:\n    $defs: {cat: {type: object}}\n    discriminator: {propertyName: kind}\n"
+	root := schemaFromYAML(t, src)
+	d := prop(t, root, "pet").GetSchema().Discriminator
+
+	_, _, ok := NewReader(root).MappingTarget(nil, "/$defs/cat")
+	assert.False(t, ok, "no discriminator")
+
+	_, _, ok = NewReader(nil).MappingTarget(d, "/$defs/cat")
 	assert.False(t, ok, "no document to navigate")
 
-	_, _, ok = NewReader(root).TargetFrom("/properties/p", "/properties/p")
+	_, _, ok = NewReader(root).MappingTarget(d, "/properties/pet")
 	assert.False(t, ok, "not a $defs pointer")
+
+	other := schemaFromYAML(t, src)
+	_, _, ok = NewReader(root).MappingTarget(prop(t, other, "pet").GetSchema().Discriminator, "/$defs/cat")
+	assert.False(t, ok, "a discriminator this document's tree does not contain has no position to read from")
 }
 
 // TestLocalDef drives tryResolveLocalDefs' own branches directly: a schema
@@ -327,7 +383,7 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 		ok  bool
 	}
 	ask := func(r *Reader, q [2]jsontext.Pointer) result {
-		def, at, ok := r.TargetFrom(q[0], q[1])
+		def, at, ok := r.targetFrom(q[0], q[1])
 		return result{def, at, ok}
 	}
 
@@ -357,7 +413,7 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 // has no document, answers no question rather than faulting on one.
 func TestReader_NilReaderFindsNothing(t *testing.T) {
 	t.Parallel()
-	root := schemaFromYAML(t, readerDoc)
+	root := schemaFromYAML(t, readerDoc+"discriminator: {propertyName: kind}\n")
 	p := prop(t, root, "f")
 
 	for name, r := range map[string]*Reader{"nil": nil, "no document": NewReader(nil)} {
@@ -365,7 +421,7 @@ func TestReader_NilReaderFindsNothing(t *testing.T) {
 		assert.Zero(t, r.Reads(), name)
 		_, _, ok := r.Target(p, "/$defs/top")
 		assert.False(t, ok, name)
-		_, _, ok = r.TargetFrom("/properties/f", "/$defs/top")
+		_, _, ok = r.MappingTarget(root.GetSchema().Discriminator, "/$defs/top")
 		assert.False(t, ok, name)
 	}
 }
@@ -461,7 +517,7 @@ func TestReader_WorkAndMemoryGrowLinearlyWithDepth(t *testing.T) {
 				body, levels := deepChain(depth, definitions)
 				r := NewReader(schemaFromYAML(t, body))
 				for i, at := range levels {
-					_, found, ok := r.TargetFrom(at, jsontext.Pointer("/$defs/m"+strconv.Itoa(i%definitions)))
+					_, found, ok := r.targetFrom(at, jsontext.Pointer("/$defs/m"+strconv.Itoa(i%definitions)))
 					require.True(t, ok, at)
 					require.Equal(t, jsontext.Pointer("/properties/top/$defs/m"+strconv.Itoa(i%definitions)), found)
 				}
