@@ -224,8 +224,6 @@ func (m *mappings) pointerOf(target string) (jsontext.Pointer, bool) {
 		return pointer, true
 	}
 	abs, err := references.ResolveAbsoluteReference(references.Reference(uri), m.self.path)
-	if err != nil {
-		return "", false
-	}
-	return pointer, slices.Contains(m.self.keys(), abs.AbsoluteReference) || m.self.names(abs.AbsoluteReference)
+	return pointer, err == nil && (slices.Contains(m.self.keys(), abs.AbsoluteReference) ||
+		m.self.names(abs.AbsoluteReference))
 }

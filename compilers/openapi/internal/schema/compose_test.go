@@ -3453,6 +3453,19 @@ func discriminatorOf(t *testing.T, doc *ir.Document, id ir.TypeID) *ir.Discrimin
 	}
 }
 
+// TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow pins where the
+// read-through stops short of a target: a $ref into another document names no
+// position here, so the mapping keeps naming the position that $ref sits at,
+// and the $ref is reported unresolved.
+func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    Pet:\n      oneOf: [{$ref: 'other.yaml#/X'}]\n"+
+		"      discriminator: {propertyName: kind, mapping: {c: '#/components/schemas/Pet/oneOf/0'}}\n"))
+
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Pet/oneOf/0"), discriminatorOf(t, doc, componentID("Pet")).Mapping["c"])
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"))
+}
+
 // TestDiscriminatorMapping_ToASubtypeThroughAPureRefTagsIt pins the subtype's
 // side of GitHub #758: the mapping key that names a subtype through a pure
 // $ref position is its discriminatorValue, in either order, not its name.

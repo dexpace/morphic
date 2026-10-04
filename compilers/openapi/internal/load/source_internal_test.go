@@ -180,7 +180,7 @@ func TestHold_ABackReferenceResolvesAsItDoesInEitherOrder(t *testing.T) {
 	back := backPath("/back", "back.yaml#/components/responses/Back")
 	internal := backPath("/internal", "#/components/responses/R")
 
-	var reports [][]string
+	reports := make([][]string, 0, 2)
 	for _, root := range []string{backRoot(back + internal), backRoot(internal + back)} {
 		got, diags := loadExternal(t, dir, root, Options{})
 		reports = append(reports, diagLines(diags))

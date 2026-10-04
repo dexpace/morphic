@@ -118,7 +118,7 @@ func TestSettle_AChainTargetIsValidatedInEitherOrder(t *testing.T) {
 	base := "    Base: {$ref: './other.yaml#/components/schemas/Base'}\n"
 	alias := "    Alias: {$ref: './other.yaml#/components/schemas/Alias'}\n"
 
-	var reports [][]string
+	reports := make([][]string, 0, 2)
 	for _, root := range []string{rootOfSchemas(base, alias), rootOfSchemas(alias, base)} {
 		_, diags := loadExternal(t, dir, root, Options{})
 		var got []string
