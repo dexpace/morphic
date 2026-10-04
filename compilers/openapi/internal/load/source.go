@@ -2,9 +2,10 @@ package load
 
 import (
 	"path/filepath"
-	"strings"
 
 	yaml "gopkg.in/yaml.v3"
+
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
@@ -43,25 +44,15 @@ func (s sourceDocument) keys() []string {
 		return nil
 	}
 	clean := filepath.Clean(s.path)
-	if clean == s.path || isURL(s.path) {
+	if clean == s.path || refscope.IsURL(s.path) {
 		return []string{s.path}
 	}
 	return []string{s.path, clean}
 }
 
-// names reports whether the resolver opening the file name opens the source:
-// both name one path once made absolute. A source keys holds under none, or
-// named by a URL, is no file.
+// names reports whether the resolver opening the file name opens the source,
+// as the lowering reads a document part naming it (refscope.SameDocument). A
+// source keys holds under none, or named by a URL, is no file.
 func (s sourceDocument) names(name string) bool {
-	if len(s.keys()) == 0 || isURL(s.path) {
-		return false
-	}
-	self, errSelf := filepath.Abs(s.path)
-	other, errOther := filepath.Abs(name)
-	return errSelf == nil && errOther == nil && self == other
-}
-
-// isURL reports whether path names a document by URL rather than as a file.
-func isURL(path string) bool {
-	return strings.Contains(path, "://")
+	return len(s.keys()) > 0 && !refscope.IsURL(s.path) && refscope.SameDocument(s.path, name)
 }

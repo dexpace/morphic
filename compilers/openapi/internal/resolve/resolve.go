@@ -15,6 +15,7 @@ package resolve
 import (
 	"encoding/json/jsontext"
 	"path"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -54,10 +55,14 @@ type Scope struct {
 	// Mapped returns the schema the load phase resolved at a pointer a
 	// discriminator mapping target names, or nil; see DeclaredAt.
 	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
-	// Foreign marks a scope over content another document holds, where a
-	// reference names a position in that document, which this compile cannot
-	// address (GitHub #74): no reference is internal (GitHub #762).
+	// Foreign marks a scope over content another document holds, read where
+	// that document holds it (GitHub #762). A reference there is internal only
+	// when its document part, resolved against Holder as the resolver resolves
+	// it, names the source. Any other names a position in that document or a
+	// third, which this compile cannot address (GitHub #74).
 	Foreign bool
+	// Holder is the path the resolver read that document by.
+	Holder string
 }
 
 // reader returns the reader s reads "#/$defs/..." pointers through.
@@ -172,8 +177,8 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 
 // InternalPointer returns the same-document JSON pointer a $ref (or
 // discriminator mapping) target addresses, and ok=false for a cross-document
-// reference, a bare schema name, a malformed ref, or any ref in a Foreign
-// scope. A document part naming this source file is internal.
+// reference, a bare schema name or a malformed ref. A document part naming this
+// source file is internal (see namesSelf).
 //
 // It uses the resolver's own references.Reference, since fragments are
 // percent-encoded: comparing them raw missed resolvable references and interned
@@ -184,13 +189,69 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 // ID derived from it would be a path no coordinate spells (GitHub #141).
 func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	pointer, ok := FragmentPointer(ref)
-	if !ok || s.Foreign {
-		return "", false
-	}
-	if doc := references.Reference(ref).GetURI(); doc != "" && !s.sameFile(doc) {
+	if !ok || !s.namesSelf(references.Reference(ref)) {
 		return "", false
 	}
 	return pointer, true
+}
+
+// namesSelf reports whether ref names a position in the source. In the
+// source's own content, one with no document part does, as does one whose part
+// names this file (sameFile). In a Foreign scope, one does when the document it
+// names there (foreignDocument) is the source.
+func (s Scope) namesSelf(ref references.Reference) bool {
+	if !s.Foreign {
+		doc := ref.GetURI()
+		return doc == "" || s.sameFile(doc)
+	}
+	doc, ok := s.foreignDocument(ref)
+	return ok && SameDocument(s.SelfPath, doc)
+}
+
+// NamesHolder reports whether ref, in a Foreign scope, names a position in the
+// document holding it, which this compile cannot lower (GitHub #74).
+func (s Scope) NamesHolder(ref string) bool {
+	doc, ok := s.foreignDocument(references.Reference(ref))
+	return ok && SameDocument(s.Holder, doc)
+}
+
+// foreignDocument returns the path of the document ref names in a Foreign
+// scope: its document part resolved against Holder, as the resolver resolves
+// it, or Holder for none. It reports false outside a Foreign scope, and for a
+// reference the resolver could not place.
+func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
+	if !s.Foreign || s.Holder == "" {
+		return "", false
+	}
+	abs, err := references.ResolveAbsoluteReference(ref, s.Holder)
+	if err != nil {
+		return "", false
+	}
+	return abs.AbsoluteReference, true
+}
+
+// SameDocument reports whether the resolver reading the document at path b
+// reads the one at path a: b spells a, or names the same file. A document named
+// by URL is named only as spelled.
+func SameDocument(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	if IsURL(a) || IsURL(b) {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	return errA == nil && errB == nil && absA == absB
+}
+
+// IsURL reports whether location names a document by URL rather than as a
+// file.
+func IsURL(location string) bool {
+	return strings.Contains(location, "://")
 }
 
 // ComponentRef resolves an internal pointer addressing a top-level component

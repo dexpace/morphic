@@ -16,9 +16,10 @@ import (
 )
 
 // TestWithin pins the copy Within returns for lowering what an entry names:
-// marked Foreign, with a scope reading no reference as internal, when another
-// document holds it, and c as it was otherwise. A copy already Foreign stays
-// so for an entry written inline in that content.
+// when another document holds it, a scope marked Foreign that reads each
+// reference against that document, so only one naming the source is internal,
+// and c as it was otherwise. A copy already Foreign stays so for an entry
+// written inline in that content.
 func TestWithin(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -40,11 +41,15 @@ paths:
 	ext, ok := doc.Doc.Paths.Get("/ext")
 	require.True(t, ok)
 
-	assert.False(t, lowering.Within[soa.PathItem](c, inline).Foreign())
-	foreign := lowering.Within[soa.PathItem](c, ext)
-	require.True(t, foreign.Foreign())
-	assert.False(t, c.Foreign(), "c itself is left as it was")
-	_, internal := foreign.RefScope().InternalPointer("#/paths/~1inline")
-	assert.False(t, internal, "the copy's scope reads no reference as internal")
-	assert.True(t, lowering.Within[soa.PathItem](foreign, inline).Foreign(), "content within stays foreign")
+	assert.False(t, lowering.Within[soa.PathItem](c, inline).RefScope().Foreign)
+	foreign := lowering.Within[soa.PathItem](c, ext).RefScope()
+	require.True(t, foreign.Foreign)
+	assert.Equal(t, filepath.Join(dir, "ext.yaml"), foreign.Holder)
+	assert.False(t, c.RefScope().Foreign, "c itself is left as it was")
+	_, internal := foreign.InternalPointer("#/paths/~1inline")
+	assert.False(t, internal, "a pointer alone names a position in the other document")
+	_, internal = foreign.InternalPointer("root.yaml#/paths/~1inline")
+	assert.True(t, internal, "the source's file name, read beside ext.yaml, names the source")
+	within := lowering.Within[soa.PathItem](lowering.Within[soa.PathItem](c, ext), inline).RefScope()
+	assert.True(t, within.Foreign, "content within stays foreign")
 }

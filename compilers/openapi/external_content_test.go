@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -81,12 +82,12 @@ paths:
 `
 }
 
-// TestExternalContent_ARefInItNamesItsOwnDocument pins GitHub #762. A $ref in
-// an object another document holds names a position in that document, which the
-// compile cannot lower (GitHub #74): it is reported unresolved, never resolved
-// to what the source declares at the same pointer. Each row reaches the object
-// by a kind of entry the operation walk follows. The last comes back into the
-// source, whose Thing it does name.
+// TestExternalContent_ARefInItNamesItsOwnDocument pins GitHub #762. A pointer
+// $ref in an object another document holds names a position in that document,
+// which the compile cannot lower (GitHub #74): it is reported unresolved, never
+// resolved to what the source declares at the same pointer. Each row reaches
+// the object by a kind of entry the operation walk follows. The last comes back
+// into the source, whose Thing it does name.
 func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	op := func(lines string) string { return "  /op:\n    get:\n" + lines }
@@ -136,10 +137,10 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 
 // TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
 // GitHub #762 draws inside another document's content. A mapping value that is
-// a URI reference names a position in that document, so it is unresolved, as
-// a $ref is. One that is a component's name is an implicit connection, which
-// the specification recommends resolving against the entry document, so it
-// names the source's component.
+// a pointer names a position in that document, so it is unresolved, as such a
+// $ref is. One that is a component's name is an implicit connection, which the
+// specification recommends resolving against the entry document, so it names
+// the source's component.
 func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -159,4 +160,53 @@ func TestExternalContent_AMappingNamesAsTheSpecificationSays(t *testing.T) {
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Code == "openapi/unresolved-ref" && string(d.Provenance.Pointer) == schema+"/discriminator/mapping/byRef"
 	}), "the URI reference is reported unresolved: %+v", diags)
+}
+
+// TestExternalContent_ARefNamingTheSourceNamesIt pins the other half of
+// GitHub #762's line: a $ref in another document's content is read where that
+// document sits, as the resolver reads it. One whose document part names the
+// source, however spelled from there, names the source's own Thing. One that
+// names a file beside a document in a subdirectory names that file, not the
+// source, so it is unresolved as any other cross-document $ref is.
+func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
+	t.Parallel()
+	item := func(ref string) string {
+		return "      get:\n        operationId: op\n        responses:\n          \"200\":\n" +
+			"            description: ok\n" +
+			"            content: {application/json: {schema: {$ref: '" + ref + "#/components/schemas/Thing'}}}\n"
+	}
+	for _, c := range []struct {
+		name, file, ref string
+		names           bool
+	}{
+		{"its file name, beside it", "ext.yaml", "root.yaml", true},
+		{"through the current directory", "ext.yaml", "./root.yaml", true},
+		{"from a subdirectory, through its parent", "sub/ext.yaml", "../root.yaml", true},
+		{"its file name, from a subdirectory", "sub/ext.yaml", "root.yaml", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, c.file), []byte("paths:\n  /x:\n"+item(c.ref)), 0o600))
+			root := foreignRoot("  /p: {$ref: './" + c.file + "#/paths/~1x'}\n")
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+
+			if !c.names {
+				want := ir.Diagnostic{Severity: ir.SeverityError, Code: "openapi/unresolved-ref",
+					Message:    `unresolved $ref "` + c.ref + `#/components/schemas/Thing"`,
+					Provenance: ir.Provenance{Pointer: "/paths/~1p/get/responses/200/content/application~1json/schema"}}
+				assert.Contains(t, diags, want, "the $ref names another file, not a position in ext.yaml")
+				return
+			}
+			openapitest.RequireNoErrorDiags(t, diags)
+			op, ok := opByName(doc, "op")
+			require.True(t, ok)
+			require.Len(t, op.Responses, 1)
+			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
+		})
+	}
 }

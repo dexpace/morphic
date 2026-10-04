@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,7 +37,7 @@ components:
   schemas:
     Thing: {type: object}
 `
-	_, diags, err := openapi.New().Compile(t.Context(),
+	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
 		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
@@ -46,4 +47,11 @@ components:
 			"holding it, which is not lowered",
 		Provenance: ir.Provenance{Pointer: "/paths/~1p/get/responses/200/content/application~1json/schema"}}
 	assert.Contains(t, diags, want)
+	require.NotNil(t, doc)
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Groups, 1)
+	require.Len(t, doc.Services[0].Groups[0].Operations, 1)
+	op := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, op.Responses, 1)
+	assert.Equal(t, ir.TypeID("t/prim/any"), openapitest.BodyTarget(t, op.Responses[0].Payload))
 }

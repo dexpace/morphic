@@ -84,9 +84,11 @@ type Ctx struct {
 	schemas map[string]bool
 
 	// foreign marks a lowering of content another document holds, read in that
-	// document's scope (see Within). Unexported and set only by Within, which
-	// scopes it to the subtree that copy is threaded through.
+	// document's scope, and holder is the path the resolver read it by (see
+	// Within). Unexported and set only by Within, which scopes them to the
+	// subtree that copy is threaded through.
 	foreign bool
+	holder  string
 
 	// namesByReference marks a lowering running under a $ref that named a
 	// coordinate, whose names are placeholders. Unexported and read through
@@ -240,24 +242,21 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 // Within returns c for lowering what the entry ref resolves to: c itself, or a
 // copy marked Foreign when another document holds it (resolve.HeldElsewhere).
 //
-// A URI reference in that content names a position in its own document, which
-// this compile cannot lower (GitHub #74), so the copy's RefScope reads none as
-// internal. Read as the source's, it resolved to whatever the source declared
-// at the same pointer, when that had lowered first (GitHub #762). A name, such
-// as a component's in a mapping, still names the entry document's, as the
+// A URI reference in that content is read against that document, so the
+// copy's RefScope reads one as internal only when it names the source. Read as
+// the source's, `#/...` resolved to whatever the source declared at the same
+// pointer, when that had lowered first (GitHub #762). A name, such as a
+// component's in a mapping, still names the entry document's, as the
 // specification recommends for such implicit connections.
 func Within[T, S any, R interface {
 	*S
 	resolve.Referenced[T, S]
 }](c Ctx, ref R) Ctx {
-	if resolve.HeldElsewhere[T, S](c.RefScope(), ref) {
-		c.foreign = true
+	if holder, elsewhere := resolve.HeldElsewhere[T, S](c.RefScope(), ref); elsewhere {
+		c.foreign, c.holder = true, holder
 	}
 	return c
 }
-
-// Foreign reports whether c lowers content another document holds. See Within.
-func (c Ctx) Foreign() bool { return c.foreign }
 
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.
@@ -312,7 +311,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At,
-		Foreign: c.foreign}
+		Foreign: c.foreign, Holder: c.holder}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}
