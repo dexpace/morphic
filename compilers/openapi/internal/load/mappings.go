@@ -53,7 +53,7 @@ type mappings struct {
 	doc    *soa.OpenAPI
 	opts   references.ResolveOptions
 	reader *external
-	// view reads the source's tree when a chain's end is asked after.
+	// view reads the $ref a raw node carries, when a chain's end is asked after.
 	view *nodeview.View
 	// lowering tracks the region of each model the walk yields.
 	lowering *regions
@@ -436,7 +436,7 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 // is left out (see provablyEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
 	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
-	if !m.self.provablyEnds(m.view, ref.GetRef()) {
+	if !m.self.provablyEnds(m.doc, m.view, ref.GetRef()) {
 		return
 	}
 	vErrs, err := ref.Resolve(ctx, m.opts)
@@ -472,7 +472,7 @@ func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
 // which reports the reference unresolved, and so is a chain that does not
 // provably end (see provablyEnds).
 func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, site jsontext.Pointer, js *schemaRef) {
-	if _, ok := sourcePointer(m.self.path, string(js.GetRef())); !ok || !m.self.provablyEnds(m.view, js.GetRef()) {
+	if _, ok := sourcePointer(m.self.path, string(js.GetRef())); !ok || !m.self.provablyEnds(m.doc, m.view, js.GetRef()) {
 		return
 	}
 	vErrs, err := js.Resolve(ctx, m.opts)

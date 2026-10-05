@@ -526,6 +526,31 @@ func TestMappings_ASelfReferenceNoPointerNamesIsNotResolved(t *testing.T) {
 	}
 }
 
+// TestMappings_AKeyWrittenTwiceIsReadAsTheResolverReadsIt pins that the chain a
+// target starts is read as the resolver will read it. It reads a key written
+// twice the first time, and a merged key as the mapping that merges it does.
+// Read otherwise, a chain the resolver loops in looked as though it ended, and
+// the mapping killed the process.
+func TestMappings_AKeyWrittenTwiceIsReadAsTheResolverReadsIt(t *testing.T) {
+	t.Parallel()
+	const cycle = "{$anchor: a, $ref: '#a'}"
+	for name, lib := range map[string]string{
+		"the target's key, whose first is a loop": "  E: {$ref: '#/x-lib/F'}\n  E: {type: object}\n  F: " + cycle + "\n",
+		"a hop's key, whose first is a loop":      "  E: {$ref: '#/x-lib/F'}\n  F: " + cycle + "\n  F: {type: object}\n",
+		"a key merged from a loop":                "  base: &b " + cycle + "\n  E: {<<: *b}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := mappingSpec(petMapping("m: '#/x-lib/E'"), "x-lib:\n"+lib)
+
+			got, diags := loadTargets(t, "spec.yaml", spec, false)
+
+			assert.Empty(t, diags)
+			assert.Nil(t, got.Targets.At("/x-lib/E"), "left to the lowering, as a target that does not resolve is")
+		})
+	}
+}
+
 // TestMappings_AChainThroughTheSourcesFileNameIsResolved is the control for
 // the test above: a target whose chain leaves by the source's own file name and
 // ends, which the load phase shows ends as the lowering reads the name, is

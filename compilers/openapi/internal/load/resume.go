@@ -49,34 +49,67 @@ func (e external) resumable(r resolvable, c chain, err error) bool {
 // library does is no answer (see withinDocument): a chain leaving the document
 // is not resumed, and fails as it would without settle.
 func ends(tree *yaml.Node, ref references.Reference) bool {
-	return endsWithin(nodeview.New(), tree, ref, withinDocument)
+	view := nodeview.New()
+	return endsWithin(ref, func(ref references.Reference) (references.Reference, hopKind) {
+		pointer, ok := withinDocument(ref)
+		if !ok {
+			return "", hopUnread
+		}
+		return readHop(view, tree, pointer)
+	})
 }
 
-// endsWithin is ends reading each hop's pointer as within does, which says
-// where a reference names a position in the document tree holds, and false for
-// one the walk cannot follow there. It reads tree through view, which indexes
-// each wide mapping once, so callers asking about many references share one.
-func endsWithin(view *nodeview.View, tree *yaml.Node, ref references.Reference,
-	within func(references.Reference) (string, bool),
-) bool {
-	root := nodeview.DocumentRoot(tree)
+// hopKind is what reading one hop of a chain found.
+type hopKind int
+
+const (
+	hopEnds    hopKind = iota // the target carries no $ref, or there is no target
+	hopFollows                // the target carries a $ref, which the read returns
+	hopUnread                 // the walk cannot read the hop as the resolver does
+)
+
+// endsWithin follows the chain from ref, reading each hop with read, and
+// reports whether it ends within maxResolutionHops. A cycle never ends, nor
+// does a hop the walk cannot read.
+func endsWithin(ref references.Reference, read func(references.Reference) (references.Reference, hopKind)) bool {
 	for range maxResolutionHops {
-		pointer, ok := within(ref)
-		if !ok {
-			return false
-		}
-		path, complete := view.PointerPath(root, jsontext.Pointer(pointer))
-		if !complete {
-			return true // the resumed hop fails where it stands
-		}
-		node := path[len(path)-1]
-		next := refOf(view, node)
-		if next == "" {
+		next, found := read(ref)
+		switch found {
+		case hopEnds:
 			return true
+		case hopUnread:
+			return false
+		default:
+			ref = next
 		}
-		ref = references.Reference(next)
 	}
 	return false
+}
+
+// readHop reads the hop naming pointer in document with the call the resolver
+// makes, so it finds the target the resolver finds, and returns the $ref the
+// target carries. A target that is no schema is one the resolver fails to
+// cast, so the chain stops there.
+func readHop(view *nodeview.View, document any, pointer string) (references.Reference, hopKind) {
+	target, err := jsonpointer.GetTarget(document, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if err != nil {
+		return "", hopEnds
+	}
+	var next string
+	switch t := target.(type) {
+	case *yaml.Node:
+		next = refOf(view, t)
+	case *schemaRef:
+		if t.IsReference() {
+			next = string(t.GetRef())
+		}
+	default:
+		// Not a schema, so it carries no $ref the resolver follows.
+	}
+	if next == "" {
+		return "", hopEnds
+	}
+	return references.Reference(next), hopFollows
 }
 
 // withinDocument returns the pointer ref names in the document holding it,

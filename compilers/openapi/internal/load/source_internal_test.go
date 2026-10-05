@@ -358,43 +358,104 @@ func TestSourceDocument_Names(t *testing.T) {
 	}
 }
 
-// TestSourceDocument_ProvablyEnds pins what the source can show of a chain: it
-// ends where it reaches a node with no $ref or none at all, and not where it
-// loops or leaves the tree by a hop the lowering reads otherwise, such as an
-// anchor, a definition or another file. A source with no tree shows nothing.
+// provablyEndsSpec is a source holding chains in the model, in raw YAML, and
+// through its own file name, which the first hop of a chain leaves the model by.
+const provablyEndsSpec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: object}
+    B: {$ref: '#/components/schemas/A'}
+    C: {$ref: '#/components/schemas/D'}
+    D: {$ref: '#/components/schemas/C'}
+x-lib:
+  a: {type: object}
+  b: {$ref: '#/x-lib/a'}
+  c: {$ref: '#/x-lib/d'}
+  d: {$ref: '#/x-lib/c'}
+  toModel: {$ref: '#/components/schemas/B'}
+  byName: {$ref: 'root.yaml#/x-lib/a'}
+  throughName: {$ref: 'root.yaml#/components/schemas/B'}
+  loopsInTree: {$ref: 'root.yaml#/x-lib/tree2'}
+  tree2: {$ref: '#/x-lib/loopsInTree'}
+  byDirectory: {$ref: './root.yaml#/x-lib/a'}
+  elsewhere: {$ref: 'other.yaml#/x-lib/a'}
+  anchored: {$ref: '#a'}
+  defined: {$ref: '#/$defs/a'}
+`
+
+// provablyEndsDuplicates repeats keys. The resolver reads a raw node's, and a
+// document it reads by its file name, the first time a key is written. It
+// reads the model, which a $ref within the source goes to, the last time.
+const provablyEndsDuplicates = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    X: {$ref: '#/components/schemas/Y'}
+    X: {type: object}
+    Y: {$ref: '#/components/schemas/X'}
+x-lib:
+  first: {$ref: '#/x-lib/loop'}
+  first: {type: object}
+  loop: {$ref: '#/x-lib/first'}
+  last: {type: object}
+  last: {$ref: '#/x-lib/loop'}
+  viaModel: {$ref: '#/components/schemas/X'}
+  viaTree: {$ref: 'root.yaml#/components/schemas/X'}
+`
+
+// TestSourceDocument_ProvablyEnds pins what the source can show of a chain,
+// read with the call the resolver makes: in the model, and in the source's tree
+// once a hop names the source by its file name. A chain ends where it reaches a
+// node with no $ref or none at all, and not where it loops or leaves by a hop
+// the lowering reads otherwise, such as an anchor, a definition or another
+// file. A key written twice is read as the document read holds it. Without a
+// tree or a model, nothing is shown.
 func TestSourceDocument_ProvablyEnds(t *testing.T) {
 	t.Parallel()
-	root, _, err := decodeStream([]byte(`a: {type: object}
-b: {$ref: '#/a'}
-c: {$ref: '#/d'}
-d: {$ref: '#/c'}
-byName: {$ref: 'root.yaml#/a'}
-byDirectory: {$ref: './root.yaml#/a'}
-elsewhere: {$ref: 'other.yaml#/a'}
-anchored: {$ref: '#a'}
-defined: {$ref: '#/$defs/a'}
-`))
-	require.NoError(t, err)
-	self := sourceDocument{path: "root.yaml", root: root}
+	open := func(spec string) (sourceDocument, *soa.OpenAPI) {
+		root, _, err := decodeStream([]byte(spec))
+		require.NoError(t, err)
+		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+		require.NoError(t, err)
+		return sourceDocument{path: "root.yaml", root: root}, doc
+	}
+	self, model := open(provablyEndsSpec)
+	dupSelf, dupModel := open(provablyEndsDuplicates)
 	for _, c := range []struct {
-		name string
-		self sourceDocument
-		ref  string
-		want bool
+		name  string
+		self  sourceDocument
+		model *soa.OpenAPI
+		ref   string
+		want  bool
 	}{
-		{"a node holding no $ref", self, "#/a", true},
-		{"a chain of pointers", self, "#/b", true},
-		{"a position nothing is at", self, "#/missing", true},
-		{"a hop by the source's file name", self, "#/byName", true},
-		{"a loop", self, "#/c", false},
-		{"a hop through a directory", self, "#/byDirectory", false},
-		{"a hop into another file", self, "#/elsewhere", false},
-		{"a hop to an anchor", self, "#/anchored", false},
-		{"a hop to a definition", self, "#/defined", false},
-		{"an anchor", self, "#a", false},
-		{"from a source with no tree", sourceDocument{path: "root.yaml"}, "#/a", false},
+		{"a schema in the model", self, model, "#/components/schemas/A", true},
+		{"a chain of schemas in the model", self, model, "#/components/schemas/B", true},
+		{"a loop in the model", self, model, "#/components/schemas/C", false},
+		{"a position that is no schema", self, model, "#/info", true},
+		{"a position nothing is at", self, model, "#/components/schemas/Missing", true},
+		{"a node of raw YAML", self, model, "#/x-lib/a", true},
+		{"a chain of raw nodes", self, model, "#/x-lib/b", true},
+		{"a loop of raw nodes", self, model, "#/x-lib/c", false},
+		{"a raw node naming a schema", self, model, "#/x-lib/toModel", true},
+		{"a hop by the source's file name", self, model, "#/x-lib/byName", true},
+		{"a hop by the file name into a schema's chain", self, model, "#/x-lib/throughName", true},
+		{"a loop read in the tree", self, model, "#/x-lib/loopsInTree", false},
+		{"a hop through a directory", self, model, "#/x-lib/byDirectory", false},
+		{"a hop into another file", self, model, "#/x-lib/elsewhere", false},
+		{"a hop to an anchor", self, model, "#/x-lib/anchored", false},
+		{"a hop to a definition", self, model, "#/x-lib/defined", false},
+		{"an anchor", self, model, "#a", false},
+		{"a key written twice, whose first is a loop", dupSelf, dupModel, "#/x-lib/first", false},
+		{"a key written twice, whose first is an object", dupSelf, dupModel, "#/x-lib/last", true},
+		{"a schema written twice, read in the model", dupSelf, dupModel, "#/x-lib/viaModel", true},
+		{"a schema written twice, read in the tree", dupSelf, dupModel, "#/x-lib/viaTree", false},
+		{"from a source with no tree", sourceDocument{path: "root.yaml"}, model, "#/x-lib/a", false},
+		{"from a source with no model", self, nil, "#/x-lib/a", false},
 	} {
-		assert.Equal(t, c.want, c.self.provablyEnds(nodeview.New(), references.Reference(c.ref)), c.name)
+		assert.Equal(t, c.want, c.self.provablyEnds(c.model, nodeview.New(), references.Reference(c.ref)), c.name)
 	}
 }
 
