@@ -109,6 +109,9 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 
 // visit resolves r, the reference written as ref at site, and notes what the
 // resolution found. A reference an earlier $ref's chain resolved is only noted.
+// The library counts one resolved once a chain that failed passed through it,
+// so which members of a failing chain are reported follows the walk's order
+// (GitHub #767).
 func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.Reference) {
 	var vErrs []error
 	var err error
