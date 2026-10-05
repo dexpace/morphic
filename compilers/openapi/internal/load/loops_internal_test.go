@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/ir"
 )
 
 // loopsSpec writes a source holding chains in the model and in raw YAML, spelled
@@ -150,39 +153,93 @@ func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	})
 }
 
-// TestNewResolution_NoLoopsWhereTheWalkCannotReadThem pins when the pass reads
-// no chain for a loop: external references off, where no reference reaches the
-// source by its file name, and a source that spells $id, which rebases the
-// references under it in a way the walk does not read.
-func TestNewResolution_NoLoopsWhereTheWalkCannotReadThem(t *testing.T) {
+// TestNewResolution_ReadsChainsWhereExternalReferencesAreRead pins when the
+// pass reads chains for a loop: with external references on, where a reference
+// can reach the source by its file name, and not otherwise.
+func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "root.yaml")
-	for _, c := range []struct {
-		name, extra string
-		external    bool
-		want        bool
-	}{
-		{"external references on", "", true, true},
-		{"external references off", "", false, false},
-		{"a source that spells $id", "x-id: {$id: 'http://example.com/a'}\n", true, false},
-	} {
-		spec := rootOfSchemas("    A: {type: object}\n") + c.extra
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	for _, allow := range []bool{true, false} {
+		spec := rootOfSchemas("    A: {type: object}\n")
 		root, _, err := decodeStream([]byte(spec))
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
 		self := newSourceDocument(path, []byte(spec), root, nil)
-		opts := Options{AllowExternalRefs: c.external}
+		opts := Options{AllowExternalRefs: allow}
 		var reader *external
-		if c.external {
+		if allow {
 			r := newExternal(doc, opts, newExternalReads(self))
 			reader = &r
 		}
 
 		got := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, reader)
 
-		assert.Equal(t, c.want, got.loops != nil, c.name)
+		assert.Equal(t, allow, got.loops != nil, "external references %t", allow)
+	}
+}
+
+// TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt pins that a read cut by
+// maxLoopReads is reported, once, at the document, as a warning that the
+// protection against a cycle is incomplete, as the cycle scans report theirs,
+// and that a read within the bound, and no reader, report nothing.
+func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
+	t.Parallel()
+	at := pointerAt(0, overlay.Origin{})
+	l := newLoops(sourceDocument{}, nil)
+
+	assert.Empty(t, l.incomplete(at))
+	l.reads = maxLoopReads
+	assert.Empty(t, l.incomplete(at), "reads up to the bound are all read")
+	l.reads = maxLoopReads + 1
+	diags := l.incomplete(at)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer(""), diags[0].Provenance.Pointer)
+	assert.Contains(t, diags[0].Message, "protection is incomplete")
+	assert.Empty(t, (*loops)(nil).incomplete(at), "no reader, no report")
+
+	t.Run("surfaced by the pass", func(t *testing.T) {
+		t.Parallel()
+		doc, pass := heldResolution(t, rootOfSchemas("    A: {type: object}\n"), filepath.Join(t.TempDir(), "root.yaml"))
+		pass.loops.reads = maxLoopReads + 1
+
+		_, diags := pass.run(doc)
+
+		assert.Equal(t, []string{" " + diag.CycleScanFailed}, diagLines(diags))
+	})
+}
+
+// TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld pins when the source is
+// held under its file name: not where a mapping of it has a $id key, which
+// rebases the references under it in a way loops does not read. A key an anchor
+// supplies counts, and the word as a value, in a list or in a key's text does
+// not.
+func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name, extra string
+		holdless    bool
+	}{
+		{"nothing of the kind", "", false},
+		{"a $id at the top", "$id: 'http://example.com/root'\n", true},
+		{"a $id in a schema", "x-s: {type: object, $id: 'http://example.com/a'}\n", true},
+		{"a $id in an anchored mapping", "x-a: &a {$id: 'http://example.com/a'}\nx-b: *a\n", true},
+		{"a $id merged in", "x-a: &a {$id: 'http://example.com/a'}\nx-b: {<<: *a}\n", true},
+		{"the word as a value", "x-d: {description: '$id'}\n", false},
+		{"the word in a list", "x-l: ['$id', b]\n", false},
+		{"a key that only starts with it", "x-i: {$idx: 1, '$id ': 2}\n", false},
+	} {
+		spec := rootOfSchemas("    A: {type: object}\n") + c.extra
+		root, _, err := decodeStream([]byte(spec))
+		require.NoError(t, err)
+
+		self := newSourceDocument("root.yaml", []byte(spec), root, nil)
+
+		assert.Equal(t, c.holdless, self.holdless, c.name)
+		assert.Equal(t, !c.holdless, len(self.keys()) > 0, "%s: held under its keys unless it spells $id", c.name)
+		assert.Equal(t, !c.holdless, self.names("root.yaml"), "%s: opened as the source unless it spells $id", c.name)
 	}
 }
 
@@ -190,9 +247,10 @@ func TestNewResolution_NoLoopsWhereTheWalkCannotReadThem(t *testing.T) {
 // #768 end to end: with external references on, a schema $ref cycle closing
 // through the source's file, however it is spelled, is reported as a cycle at
 // each reference on it, where the resolver followed it until the stack ran
-// out. Each document is loaded in a child, in the order written and reversed:
-// the report is the same in both, and an overflow fails this test, not the
-// binary.
+// out. A source that spells $id is not held, so its file is read as on main and
+// nothing there is followed that was not. Each document is loaded in a child,
+// in the order written and reversed: the report is the same in both, and an
+// overflow fails this test, not the binary.
 func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T) {
 	if dir := os.Getenv(settleChildEnv); dir != "" {
 		printLoad(t, dir)
@@ -204,17 +262,22 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 		name    string
 		entries func(dir string) []string
 		want    []string
+		// extra is written after the entries.
+		extra string
 	}{
 		{"through the file's name", func(string) []string {
 			return []string{"    A: {$ref: 'root.yaml#/components/schemas/D'}\n", "    D: {$ref: './root.yaml#/x-lib/D'}\n",
 				"    C: {$ref: './root.yaml#/components/schemas/D'}\n"}
-		}, []string{"/components/schemas/A", "/components/schemas/C", "/components/schemas/D"}},
+		}, []string{"/components/schemas/A", "/components/schemas/C", "/components/schemas/D"}, ""},
 		{"through the absolute path", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/E'}\n", "    E: {$ref: '#/components/schemas/A'}\n"}
-		}, []string{"/components/schemas/A", "/components/schemas/E"}},
+		}, []string{"/components/schemas/A", "/components/schemas/E"}, ""},
 		{"a reference into the cycle", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/A'}\n", "    In: {$ref: '#/components/schemas/A'}\n"}
-		}, []string{"/components/schemas/A", "/components/schemas/In"}},
+		}, []string{"/components/schemas/A", "/components/schemas/In"}, ""},
+		{"in a source that spells $id, which is not held", func(dir string) []string {
+			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/E'}\n", "    E: {$ref: '#/components/schemas/A'}\n"}
+		}, nil, "x-id: {$id: 'http://example.com/a'}\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -223,7 +286,7 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 			reversed := slices.Clone(entries)
 			slices.Reverse(reversed)
 			for _, order := range [][]string{entries, reversed} {
-				writeFile(t, dir, "root.yaml", rootOfSchemas(order...)+"x-lib:\n  D: {$ref: './root.yaml#/components/schemas/A'}\n")
+				writeFile(t, dir, "root.yaml", rootOfSchemas(order...)+"x-lib:\n  D: {$ref: './root.yaml#/components/schemas/A'}\n"+c.extra)
 
 				var cyclic []string
 				for _, line := range loadInChild(t, "TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed", dir) {
@@ -235,5 +298,28 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 				assert.Equal(t, c.want, cyclic, "each reference on the cycle is reported as one")
 			}
 		})
+	}
+}
+
+// TestHold_ASourceThatSpellsIDIsNotHeld pins that hold stores nothing for a
+// source that spells $id, as for one with no path: the resolver reads the file
+// for each reference naming it, as it does where nothing is held.
+func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		extra string
+		held  bool
+	}{{"", true}, {"x-id: {$id: 'http://example.com/a'}\n", false}} {
+		spec := rootOfSchemas("    A: {type: object}\n") + c.extra
+		root, _, err := decodeStream([]byte(spec))
+		require.NoError(t, err)
+		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+		require.NoError(t, err)
+		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil)))
+
+		reader.hold(t.Context())
+
+		_, held := doc.GetCachedExternalDocument("root.yaml")
+		assert.Equal(t, c.held, held, "spelling $id: %t", !c.held)
 	}
 }

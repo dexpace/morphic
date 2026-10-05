@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
@@ -18,11 +19,13 @@ import (
 // A $ref from another document back into the source is answered from here,
 // not from the file, so it reaches what the compile holds: the tree an overlay
 // patched, and nodes a finding is reported for once (GitHub #759).
+// One that spells $id is not held (see keys).
 type sourceDocument struct {
-	path  string
-	data  []byte
-	root  *yaml.Node
-	found map[findingKey]bool
+	path     string
+	data     []byte
+	root     *yaml.Node
+	found    map[findingKey]bool
+	holdless bool
 }
 
 // newSourceDocument returns the source at path, built from data into root,
@@ -35,15 +38,40 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 			found[keyOf(ve, "")] = true
 		}
 	}
-	return sourceDocument{path: path, data: data, root: root, found: found}
+	return sourceDocument{path: path, data: data, root: root, found: found, holdless: spellsID(root)}
+}
+
+// spellsID reports whether a mapping in the tree under root has a $id key, the
+// keyword that rebases the references under it. A key an alias or a merge key
+// supplies is still written somewhere in the tree, so each node is read once
+// and an alias, which holds no content, reads as none.
+func spellsID(root *yaml.Node) bool {
+	stack := []*yaml.Node{root}
+	for visited := 0; len(stack) > 0 && visited < sourceindex.MaxIndexedNodes; visited++ {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if n == nil {
+			continue
+		}
+		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
+			if key := n.Content[i]; key.Kind == yaml.ScalarNode && key.Value == "$id" {
+				return true
+			}
+		}
+		stack = append(stack, n.Content...)
+	}
+	return false
 }
 
 // keys returns the keys the resolver looks the source up by: its path, as an
 // internal $ref resolves against it, and its path cleaned, as a relative $ref
 // from another document reaches it. A source with no path or no tree is held
-// under none, and one named by a URL is kept as spelled.
+// under none, and one named by a URL is kept as spelled. So is one that spells
+// $id: it rebases the references under it, which loops does not read, so a
+// chain through the source's file would go unchecked, and a reference naming
+// that file reads it instead.
 func (s sourceDocument) keys() []string {
-	if s.path == "" || s.root == nil {
+	if s.holdless || s.path == "" || s.root == nil {
 		return nil
 	}
 	clean := filepath.Clean(s.path)

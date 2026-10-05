@@ -57,6 +57,7 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	p.fail(p.resolveHeld(held))
 	p.fail(p.resolveTargets(held))
 	p.failures = append(p.failures, p.targets.exhausted(p.at)...)
+	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
 	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
 }
 
@@ -84,9 +85,7 @@ type resolution struct {
 	targets *mappings
 	// loops finds the schema references whose chain never ends, which the
 	// resolver is not asked to follow. It is nil unless external references are
-	// read, since no other chain reaches the source by its file name, and when the
-	// source spells a $id, which rebases the references under it in a way the
-	// walk does not read.
+	// read, since no other chain reaches the source by its file name.
 	loops    *loops
 	failures []ir.Diagnostic
 	found    reachedFindings
@@ -110,7 +109,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader,
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found:   reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}}
-	if reader != nil && !anyScalar(self.root, func(v string) bool { return v == "$id" }) {
+	if reader != nil {
 		p.loops = newLoops(self, doc)
 	}
 	return p

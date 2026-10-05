@@ -8,7 +8,9 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/ir"
 )
 
 // maxLoopReads bounds the hops loops reads in a compile. A hop is read once,
@@ -121,6 +123,18 @@ func (l *loops) into(ref references.Reference) bool {
 		}
 	}
 	return looped
+}
+
+// incomplete reports the bound the reads stopped at, once, at the document, as
+// the cycle scans report theirs: the compile goes on, and says its protection
+// against a reference cycle is incomplete.
+func (l *loops) incomplete(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
+	if l == nil || l.reads <= maxLoopReads {
+		return nil
+	}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, at(""),
+		"reference-chain read stopped at its %d-hop bound; reference-cycle protection is incomplete for this source",
+		maxLoopReads)}
 }
 
 // document returns what a hop reads: the source's tree once a hop has named it
