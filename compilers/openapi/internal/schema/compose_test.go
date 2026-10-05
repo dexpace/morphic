@@ -3453,6 +3453,47 @@ func discriminatorOf(t *testing.T, doc *ir.Document, id ir.TypeID) *ir.Discrimin
 	}
 }
 
+// TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap pins the
+// read-through's cap as behaviour rather than as a comment, as
+// TestAllOf_DiscriminatorValueChainDeeperThanCap does for the ancestor walk. A
+// chain of $ref positions longer than the cap that is no cycle stops at the
+// position the cap reached, so the mapping names that position's alias. The
+// chain exactly the cap long is the control: it reads through to the component.
+func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
+	t.Parallel()
+	// maxTypePositionHops is unexported; 64 is its committed value, and the two
+	// cases below straddle it.
+	const hopCap = 64
+	for _, tc := range []struct {
+		name  string
+		links int
+		want  ir.TypeID
+	}{
+		{"as long as the cap", hopCap, componentID("Dog")},
+		{"beyond the cap", hopCap + 1, "t/anon/components/schemas/Kennel/properties/a64"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var kennel strings.Builder
+			kennel.WriteString("    Kennel:\n      type: object\n      properties:\n")
+			for i := range tc.links - 1 {
+				fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Kennel/properties/a%d'}\n", i, i+1)
+			}
+			fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Dog'}\n", tc.links-1)
+			spec := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+				"      discriminator: {propertyName: kind, mapping: {woofer: '#/components/schemas/Kennel/properties/a0'}}\n" +
+				"    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}\n" +
+				kennel.String()
+
+			doc, diags := parseFull(t, openapitest.ComponentSpec(spec))
+
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, map[string]ir.TypeID{"woofer": tc.want}, discriminatorOf(t, doc, componentID("Pet")).Mapping,
+				"a0 is %d $ref positions above the component", tc.links)
+		})
+	}
+}
+
 // TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow pins where the
 // read-through stops short of a target: a $ref into another document names no
 // position here, so the mapping keeps naming the position that $ref sits at,

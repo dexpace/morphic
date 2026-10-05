@@ -1213,9 +1213,9 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads
-// through (styleguide bounded-everything rule). Each hop names another
-// position, and a cycle of them is one the resolver reports circular; the
-// bound only keeps the walk finite on one.
+// through (styleguide bounded-everything rule). A cycle of them is one the
+// resolver reports circular. A longer chain that is none stops at the position
+// the bound reached, so the mapping names that position's alias.
 const maxTypePositionHops = 64
 
 // typePosition returns the position whose type a mapping target naming
