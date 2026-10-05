@@ -63,8 +63,10 @@ type external struct {
 // heldSource is what the resolver of one document is handed as the source:
 // each object of a referenced kind its model holds, at the pointer naming it,
 // the one key under which a reference object is held as itself, and the keys
-// it is held under.
+// it is held under. Every copy of the reader shares one, and mu guards the
+// objects and the keys, which Open adds to while the resolver reads.
 type heldSource struct {
+	mu      sync.Mutex
 	objects []heldObject
 	itself  string
 	keys    map[string]bool
@@ -122,6 +124,8 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 	if len(keys) == 0 {
 		return
 	}
+	e.held.mu.Lock()
+	defer e.held.mu.Unlock()
 	for _, key := range keys {
 		e.holdDocument(key)
 	}
@@ -143,6 +147,8 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 // holdUnder stores the source under key, unless it is held there already: its
 // document (see holdDocument) and each object hold collected.
 func (e external) holdUnder(key string) {
+	e.held.mu.Lock()
+	defer e.held.mu.Unlock()
 	if e.held.keys[key] {
 		return
 	}
@@ -158,6 +164,7 @@ func (e external) holdUnder(key string) {
 // whole whenever it reads the document through them, as it does for every
 // schema $ref naming the source's file, so the source's own would cost a copy
 // of the source each time. The tree is recorded as read from the bytes held.
+// The caller holds e.held.mu.
 func (e external) holdDocument(key string) {
 	e.held.keys[key] = true
 	e.doc.StoreExternalDocumentInCache(key, e.read.self.root)

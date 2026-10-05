@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -621,6 +622,31 @@ func TestHold_ASpellingHeldAlreadyIsNotHeldAgain(t *testing.T) {
 	again, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/RA")
 	require.True(t, ok)
 	assert.Same(t, stand, again)
+}
+
+// TestHold_SpellingsAskedForTogetherAreEachHeld pins that the source can be
+// handed under several spellings at once, as a resolver reading references on
+// more than one goroutine would ask: the keys it records are guarded, so each
+// spelling is held and none is lost to a concurrent write.
+func TestHold_SpellingsAskedForTogetherAreEachHeld(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
+	spellings := make([]string, 0, 16)
+	for i := range 16 {
+		spellings = append(spellings, dir+strings.Repeat("/.", i+1)+"/root.yaml")
+	}
+
+	var wg sync.WaitGroup
+	for _, spelled := range spellings {
+		wg.Go(func() { pass.reader.holdUnder(spelled) })
+	}
+	wg.Wait()
+
+	for _, spelled := range spellings {
+		_, ok := doc.GetCachedReferencedObject(spelled + "#/components/responses/R")
+		assert.True(t, ok, spelled)
+	}
 }
 
 // TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound pins that the source
