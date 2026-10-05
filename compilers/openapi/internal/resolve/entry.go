@@ -3,6 +3,8 @@ package resolve
 import (
 	"encoding/json/jsontext"
 
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 )
 
@@ -127,6 +129,21 @@ func EndOf[T, S any, R interface {
 	*S
 	Referenced[T, S]
 }](ref R) (End, bool) {
+	return endOf[S](ref)
+}
+
+// chained is what endOf reads of a reference: the one it is written as, and
+// what its resolution recorded. A schema holds both, though it is no Referenced.
+type chained[S any] interface {
+	GetReference() references.Reference
+	GetReferenceResolutionInfo() *references.ResolveResult[S]
+}
+
+// endOf is EndOf for any reference, a schema's included.
+func endOf[S any, R interface {
+	*S
+	chained[S]
+}](ref R) (End, bool) {
 	var last *references.ResolveResult[S]
 	var written references.Reference
 	for range maxRefChain {
@@ -141,4 +158,37 @@ func EndOf[T, S any, R interface {
 	}
 	return End{Document: last.ResolvedDocument, Path: last.AbsoluteDocumentPath,
 		Pointer: jsontext.Pointer(written.GetJSONPointer())}, true
+}
+
+// ReferenceEnd is EndOf for a reference of each of the library's kinds, a
+// schema's included, which a walk through the document meets as values of any
+// type, and false for any other value. It is the one place this package lists
+// them, for the readers of a chain that cannot name its kind: the load phase
+// and the lowering each ask where the walk to a pointer passes into another
+// document.
+func ReferenceEnd(node any) (End, bool) {
+	switch r := node.(type) {
+	case *soa.ReferencedPathItem:
+		return endOf[soa.ReferencedPathItem](r)
+	case *soa.ReferencedParameter:
+		return endOf[soa.ReferencedParameter](r)
+	case *soa.ReferencedHeader:
+		return endOf[soa.ReferencedHeader](r)
+	case *soa.ReferencedRequestBody:
+		return endOf[soa.ReferencedRequestBody](r)
+	case *soa.ReferencedResponse:
+		return endOf[soa.ReferencedResponse](r)
+	case *soa.ReferencedExample:
+		return endOf[soa.ReferencedExample](r)
+	case *soa.ReferencedLink:
+		return endOf[soa.ReferencedLink](r)
+	case *soa.ReferencedCallback:
+		return endOf[soa.ReferencedCallback](r)
+	case *soa.ReferencedSecurityScheme:
+		return endOf[soa.ReferencedSecurityScheme](r)
+	case *oas3.JSONSchema[oas3.Referenceable]:
+		return endOf[oas3.JSONSchema[oas3.Referenceable]](r)
+	default:
+		return End{}, false
+	}
 }

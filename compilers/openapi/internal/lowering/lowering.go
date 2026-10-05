@@ -266,34 +266,6 @@ func (c Ctx) At(pointer jsontext.Pointer) Ctx {
 	return c
 }
 
-// referenceEnd is resolve.EndOf for an entry of each of the library's reference
-// kinds, which a walk through the document meets as values of any type, and
-// false for any other value.
-func referenceEnd(node any) (resolve.End, bool) {
-	switch r := node.(type) {
-	case *soa.ReferencedPathItem:
-		return resolve.EndOf[soa.PathItem](r)
-	case *soa.ReferencedParameter:
-		return resolve.EndOf[soa.Parameter](r)
-	case *soa.ReferencedHeader:
-		return resolve.EndOf[soa.Header](r)
-	case *soa.ReferencedRequestBody:
-		return resolve.EndOf[soa.RequestBody](r)
-	case *soa.ReferencedResponse:
-		return resolve.EndOf[soa.Response](r)
-	case *soa.ReferencedExample:
-		return resolve.EndOf[soa.Example](r)
-	case *soa.ReferencedLink:
-		return resolve.EndOf[soa.Link](r)
-	case *soa.ReferencedCallback:
-		return resolve.EndOf[soa.Callback](r)
-	case *soa.ReferencedSecurityScheme:
-		return resolve.EndOf[soa.SecurityScheme](r)
-	default:
-		return resolve.End{}, false
-	}
-}
-
 // declaredSchemaNames collects the names under components/schemas, or nil when
 // the document declares none.
 func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
@@ -347,7 +319,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At,
-		Foreign: c.foreign, Holder: c.holder, Ends: referenceEnd}
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

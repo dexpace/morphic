@@ -436,3 +436,35 @@ func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
 	require.NotNil(t, obj)
 	assert.Equal(t, jsontext.Pointer("/components/pathItems/P"), pointer)
 }
+
+// TestReferenceEnd_NamesWhereEachKindOfReferenceEnds pins ReferenceEnd for a
+// resolved reference of each kind the library has, reached as a walk meets one,
+// as a value of any type: each ends at the component it names, in the source,
+// and nothing else is a reference. Driving the compiler is what makes the
+// resolution info real (see parseFull).
+func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
+	t.Parallel()
+	got, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(openapitest.EveryKindOfReference), load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, got, "%+v", diags)
+
+	ends := map[jsontext.Pointer]bool{}
+	for item := range soa.Walk(t.Context(), got.Doc) {
+		_ = item.Match(soa.Matcher{Any: func(model any) error {
+			if end, ok := resolve.ReferenceEnd(model); ok {
+				assert.Same(t, got.Doc, end.Document, "%T ends in the source's model", model)
+				ends[end.Pointer] = true
+			}
+			return nil
+		}})
+	}
+
+	assert.Equal(t, map[jsontext.Pointer]bool{
+		"/components/pathItems/P": true, "/components/parameters/Q": true, "/components/requestBodies/B": true,
+		"/components/callbacks/C": true, "/components/headers/H": true, "/components/links/L": true,
+		"/components/schemas/S": true, "/components/examples/E": true, "/components/responses/R": true,
+		"/components/securitySchemes/K": true,
+	}, ends)
+	_, ok := resolve.ReferenceEnd(got.Doc)
+	assert.False(t, ok, "a document is no reference")
+}

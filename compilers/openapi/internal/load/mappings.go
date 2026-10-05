@@ -178,21 +178,7 @@ func inSource(doc *soa.OpenAPI, r record) bool {
 	if _, ok := (*r.document).(*soa.OpenAPI); !ok || !r.reached {
 		return false
 	}
-	return !refscope.Scope{Doc: doc, Ends: referenceEnd}.At(pointerIn(r)).Foreign
-}
-
-// referenceEnd returns where the chain of the reference node ends, as the
-// records of its hops say once mended, and false for a node that is no
-// reference or whose chain reached nothing.
-func referenceEnd(node any) (refscope.End, bool) {
-	var end refscope.End
-	reached := false
-	for _, r := range resolutionChain(node).records {
-		if r.reached {
-			end, reached = refscope.End{Document: *r.document, Path: r.path, Pointer: pointerIn(r)}, true
-		}
-	}
-	return end, reached
+	return !refscope.Scope{Doc: doc, Ends: refscope.ReferenceEnd}.At(pointerIn(r)).Foreign
 }
 
 // pointerIn returns the pointer r's hop reached, in its document. The absolute
