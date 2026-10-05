@@ -644,3 +644,44 @@ func TestMappings_ADiscriminatorPastARefIntoAnotherDocumentIsNotTheSources(t *te
 		assert.Empty(t, cmp.Diff(c.want, diagLines(diags)), c.name)
 	}
 }
+
+// externalResolverOver is resolverOver with external references allowed: the
+// source, at spec.yaml in a directory of its own, read through a reader that
+// holds it, as Load reads one.
+func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic) {
+	t.Helper()
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs)
+	opts := Options{AllowExternalRefs: true}
+	reader := newExternal(doc, opts, newExternalReads(self))
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
+	_, diags := pass.run(doc)
+	return pass.targets, diags
+}
+
+// TestMappings_ACopyOfTheSourcesObjectIsReadAsTheModels pins what a $ref
+// naming the source by its file name reaches: a copy of what it names, built
+// anew each time. A copy of a position the model holds is read as the model's
+// own, which the walk reads already, and one of raw YAML is read once per
+// position. Read as raw YAML, a chain of components each naming the next by the
+// source's file name walked every copy down the chain, which on a thousand of
+// them never finished.
+func TestMappings_ACopyOfTheSourcesObjectIsReadAsTheModels(t *testing.T) {
+	t.Parallel()
+	var chain strings.Builder
+	for i := range 30 {
+		fmt.Fprintf(&chain, "    N%d: {type: object, properties: {next: {$ref: 'spec.yaml#/components/schemas/N%d'}}}\n", i, i+1)
+	}
+	chain.WriteString("    N30: {type: object}\n")
+	m, diags := externalResolverOver(t, mappingSpec(chain.String(), ""))
+	require.Empty(t, diagLines(diags))
+	assert.Empty(t, m.walked, "each copy is of a component the model holds")
+
+	m, diags = externalResolverOver(t, mappingSpec("    A: {$ref: 'spec.yaml#/x-lib/W'}\n    B: {$ref: '#/x-lib/W'}\n",
+		"x-lib:\n  W: {type: object, properties: {v: {$ref: 'spec.yaml#/x-lib/V'}}}\n  V: {type: string}\n"))
+	require.Empty(t, diagLines(diags))
+	assert.Len(t, m.walked, 2, "W, reached by two spellings, and V, which W's $ref reaches, once each")
+}

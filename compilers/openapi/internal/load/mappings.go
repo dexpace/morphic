@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"iter"
+	"reflect"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -53,8 +54,11 @@ type mappings struct {
 	reader *external
 	// lowering tracks the region of each model the walk yields.
 	lowering *regions
-	// model holds each object the walk saw; walked, each other object read.
-	model, walked map[any]bool
+	// model holds each object the walk saw, and modelAt each site it saw one of
+	// a kind at; walked holds each position and kind of other object read.
+	model   map[any]bool
+	modelAt map[builtKey]bool
+	walked  map[builtKey]bool
 	// refRegions holds, by site, the region of each reference sighted outside
 	// the document's own.
 	refRegions map[jsontext.Pointer]jsontext.Pointer
@@ -101,8 +105,9 @@ type target struct {
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
 	return &mappings{self: self, doc: doc, opts: opts, reader: reader, lowering: newRegions(map[*schemaRef]bool{}),
-		model: map[any]bool{}, walked: map[any]bool{}, refRegions: map[jsontext.Pointer]jsontext.Pointer{},
-		pending: map[jsontext.Pointer][]sighting{}, released: map[jsontext.Pointer]bool{},
+		model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
+		refRegions: map[jsontext.Pointer]jsontext.Pointer{},
+		pending:    map[jsontext.Pointer][]sighting{}, released: map[jsontext.Pointer]bool{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},
 		out: map[jsontext.Pointer]*schemaRef{}, limit: maxMappingWork}
 }
@@ -128,6 +133,7 @@ func (m *mappings) see(site jsontext.Pointer, loc soa.Locations, model any) {
 		m.pending[region] = append(m.pending[region], sighting{site: site, region: region, discriminator: v})
 	case resolvable:
 		m.model[v] = true
+		m.modelAt[builtKey{pointer: site, kind: reflect.TypeOf(v)}] = true
 		// Anything but a schema fails the assertion, and no nil is held.
 		js, _ := v.(*schemaRef)
 		if region != "" && (v.IsReference() || m.lowering.held[js]) {
@@ -304,17 +310,29 @@ func (m *mappings) take(s sighting) {
 }
 
 // arrive reads the object q reaches: the sightings a model position releases,
-// or, once, what an object built from raw YAML holds.
+// or, once per position and kind, what an object built from raw YAML holds.
+//
+// A $ref naming the source by its file name reaches a copy of what it names,
+// built anew each time. A copy of what the model holds there, as that kind, is
+// read as the model's own, which the walk reads already: walked as raw YAML, a
+// chain of components each naming the next so walked every copy down it.
 func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival) {
-	if m.model[q.record.object] {
-		m.release(pointerIn(q.record))
+	at := builtKey{pointer: pointerIn(q.record), kind: reflect.TypeOf(q.record.object)}
+	if m.model[q.record.object] || m.modelAt[at] {
+		m.release(at.pointer)
 		return
 	}
-	if m.walked[q.record.object] {
+	if m.walked[at] {
 		return
 	}
-	m.walked[q.record.object] = true
-	m.walk(ctx, found, pointerIn(q.record), q.record)
+	m.walked[at] = true
+	m.walk(ctx, found, at.pointer, q.record)
+}
+
+// builtKey is an object's kind and the position it is at.
+type builtKey struct {
+	pointer jsontext.Pointer
+	kind    reflect.Type
 }
 
 // walk reads the object r reached at base, built from raw YAML, which the
