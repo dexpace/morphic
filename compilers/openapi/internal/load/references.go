@@ -44,11 +44,10 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 // run is resolveWith's work over doc, the document p was made for.
 func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	held := heldRefs(p.ctx, doc, defs.NewReader(doc))
-	p.targets.hold(held)
 	withDefsHeld(held, func() {
 		p.fail(eachSighting(soa.Walk(p.ctx, doc), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
-				p.targets.see(site, loc, model)
+				p.targets.see(site, model)
 				if r, ok := model.(resolvable); ok && r.IsReference() {
 					p.visit(site, r, r.GetReference())
 				}
@@ -137,7 +136,7 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.R
 		vErrs, err = p.reader.settle(p.ctx, r, p.opts, vErrs, err)
 	}
 	c := resolutionChain(r)
-	p.targets.reached(site, c)
+	p.targets.enqueue(site, c)
 	t := c.trail()
 	p.found.note(site, t, vErrs)
 	if err != nil {

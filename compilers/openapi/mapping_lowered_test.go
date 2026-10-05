@@ -1,6 +1,6 @@
 // This file is a package-level suite, not a per-source-file test: it holds the
-// load phase's reading of which discriminators the lowering reads to the
-// lowering itself, so it has no single source file to pair with.
+// load phase's resolution of mapping targets to what the lowering reads, so it
+// has no single source file to pair with.
 package openapi_test // external test package — exercises only the public API
 
 import (
@@ -25,11 +25,11 @@ const namesT = "{type: object, properties: {k: {type: string}}, " +
 	"discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}"
 
 // readCase is a document placing namesT somewhere: its paths, component
-// schemas, other components and further x-lib entries. residue, when set, is
-// why the load phase still resolves a target the lowering never reads.
+// schemas, other components and further x-lib entries. unreached is set for a
+// document in which nothing the load phase resolves reaches namesT.
 type readCase struct {
 	name, paths, schemas, components, lib string
-	residue                               string
+	unreached                             bool
 }
 
 // doc writes c's document. T carries a finding, which the load phase reports
@@ -169,46 +169,34 @@ func structureCases() []readCase {
 			lib: "  W: {type: object, not: " + namesT + "}\n"},
 		{name: "a raw object only not reaches", schemas: "    A: {type: object, not: {$ref: '#/x-lib/W'}}\n",
 			lib: "  W: {type: object, properties: {p: " + namesT + "}}\n"},
-		{name: "a raw object nothing reaches", lib: "  W: {type: object, properties: {p: " + namesT + "}}\n"},
-	}
-}
-
-// residueCases are discriminators the lowering never reads whose targets the
-// load phase still resolves. Whether the lowering reads one turns on what the
-// schema holding it lowers to, a model or a union, which only its own
-// dispatch can tell; the load phase reads the document's structure alone.
-func residueCases() []readCase {
-	const why = "the schema holding it lowers to neither a model nor a union"
-	return []readCase{
-		{name: "a scalar's", residue: why,
-			schemas: "    A: {type: string, discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}\n"},
-		{name: "an untyped schema's", residue: why,
-			schemas: "    A: {discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}\n"},
-		{name: "a nullable union's that collapses", residue: why,
+		{name: "a raw object nothing reaches", unreached: true,
+			lib: "  W: {type: object, properties: {p: " + namesT + "}}\n"},
+		{name: "a scalar's", schemas: "    A: {type: string, discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}\n"},
+		{name: "an untyped schema's", schemas: "    A: {discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}\n"},
+		{name: "a nullable union's that collapses",
 			schemas: "    A: {oneOf: [{type: object, properties: {k: {type: string}}}, {type: 'null'}], " +
 				"discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}\n"},
 	}
 }
 
-// TestMappingTargets_TheLoadPhaseResolvesWhatTheLoweringReads holds the load
-// phase's choice of the discriminators whose targets it resolves to what the
-// lowering reads, wherever one stands: a finding in a target is reported
-// exactly when the lowering reads the entry naming it (GitHub #757). The keyword
-// rows come from the parser's model, so a keyword the lowering comes to lower,
-// or the parser to read, reddens a row until the load phase agrees. A residue
-// row must still disagree, so a change on either side reddens it too.
-func TestMappingTargets_TheLoadPhaseResolvesWhatTheLoweringReads(t *testing.T) {
+// TestMappingTargets_TheLoadPhaseResolvesEveryEntryItReaches holds the load
+// phase's resolution of mapping targets to what the lowering reads: wherever a
+// discriminator stands that the model or a $ref's chain reaches, the finding in
+// a target is reported, as a $ref's is. The lowering reads some of those
+// positions and not others, as each row's answer shows, and what it reads is
+// never left to what it lowered first (GitHub #757). The keyword rows come from
+// the parser's model, so a keyword it comes to read reddens a row.
+func TestMappingTargets_TheLoadPhaseResolvesEveryEntryItReaches(t *testing.T) {
 	t.Parallel()
-	cases := slices.Concat(schemaKeywordCases(t), structureCases(), residueCases())
+	cases := slices.Concat(schemaKeywordCases(t), structureCases())
 	seen := map[bool]bool{}
 	for _, c := range cases {
 		read, reported := readAndReported(t, c.doc())
 		seen[read] = true
-		if c.residue != "" {
-			assert.Equal(t, []bool{false, true}, []bool{read, reported}, "%s: %s", c.name, c.residue)
-			continue
+		assert.Equal(t, !c.unreached, reported, "%s: the finding in T is reported unless nothing reaches the entry", c.name)
+		if read {
+			assert.True(t, reported, "%s: the lowering read the entry, so its target is resolved", c.name)
 		}
-		assert.Equal(t, read, reported, "%s: the lowering read the entry: %t", c.name, read)
 	}
 	assert.Equal(t, map[bool]bool{false: true, true: true}, seen, "the rows tell both answers apart")
 }

@@ -14,9 +14,11 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
@@ -104,13 +106,14 @@ func TestMappings_ATargetHeldAsRawYAMLIsResolvedAtLoad(t *testing.T) {
 const badDiscriminator = "{type: object, properties: {k: {type: string}}, " +
 	"discriminator: {propertyName: k, mapping: {x: '#/x-lib/Bad'}}}"
 
-// TestMappings_ADiscriminatorNothingLowersIsNotResolved pins that the load
-// phase resolves no target of a discriminator the lowering never reads: under
-// a keyword it keeps verbatim (ir-design §4.7), in a definition or component
-// nothing it lowers references, beside a $ref, or in an inline allOf branch,
-// whose properties alone it merges. Resolving such a target reported the
-// finding in Bad, failing a compile over content nothing lowers.
-func TestMappings_ADiscriminatorNothingLowersIsNotResolved(t *testing.T) {
+// TestMappings_ADiscriminatorIsResolvedWhereverItIsWritten pins that an entry
+// is resolved wherever its discriminator is written, as a $ref is: under a
+// keyword the lowering keeps verbatim (ir-design §4.7), in a definition or
+// component nothing it lowers references, beside a $ref, or in an inline allOf
+// branch. Which positions the lowering reads follows what each lowers to, so
+// no list of them stays in step with it; what an entry reaches is reported once,
+// at the least entry naming it, whether or not it is lowered, as a $ref's is.
+func TestMappings_ADiscriminatorIsResolvedWhereverItIsWritten(t *testing.T) {
 	t.Parallel()
 	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
 	d := badDiscriminator
@@ -187,16 +190,25 @@ func TestMappings_ADiscriminatorNothingLowersIsNotResolved(t *testing.T) {
 			}
 			got, diags := loadTargets(t, "spec.yaml", spec, false)
 
-			assert.ElementsMatch(t, c.source, diagLines(diags), "the finding in Bad is in content nothing lowers")
-			assert.Nil(t, got.Targets.At("/x-lib/Bad"))
+			var found, rest []string
+			for _, line := range diagLines(diags) {
+				if strings.HasSuffix(line, "/discriminator/mapping/x openapi/validation/validation-type-mismatch") {
+					found = append(found, line)
+				} else {
+					rest = append(rest, line)
+				}
+			}
+			assert.ElementsMatch(t, c.source, rest)
+			assert.Len(t, found, 1, "Bad's finding is reported once, at the entry that names it")
+			assert.NotNil(t, got.Targets.At("/x-lib/Bad"))
 		})
 	}
 }
 
-// TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved pins the other
-// half: content the lowering reaches only through a reference, or a mapping
-// target, is lowered from there, so the targets of a discriminator in it are
-// resolved, wherever that reference stands in the document.
+// TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved pins that the
+// targets of a discriminator in content the lowering reaches only through a
+// reference, or a mapping target, are resolved, wherever that reference stands
+// in the document.
 func TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved(t *testing.T) {
 	t.Parallel()
 	d := "{type: object, properties: {k: {type: string}}, discriminator: {propertyName: k, mapping: {x: '#/x-lib/T'}}}"
@@ -254,12 +266,12 @@ func TestMappings_ADiscriminatorALoweredReferenceReachesIsResolved(t *testing.T)
 }
 
 // TestMappings_AReferenceInABuiltObjectIsResolved pins that a schema $ref
-// inside an object the load phase builds from raw YAML is resolved where the
-// lowering lowers it, as the model's own are. Left unresolved, it resolved
-// only through a node a mapping, or another $ref, happened to intern first, so
-// whether it resolved followed declaration order. One under a keyword the
-// lowering keeps verbatim, a "#/$defs/..." one (GitHub #570) and one naming
-// another document stay as they were: unresolved, and other.yaml unread.
+// inside an object the load phase builds from raw YAML is resolved wherever it
+// is written, as the model's own are. Left unresolved, it resolved only through
+// a node a mapping, or another $ref, happened to intern first, so whether it
+// resolved followed declaration order. A "#/$defs/..." one (GitHub #570) and
+// one naming another document stay as they were: unresolved, and other.yaml
+// unread.
 func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": "X: {type: object, minLength: abc}\n"})
@@ -275,7 +287,8 @@ func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
   Bad: {type: object, minLength: abc}
 `)
 	got, diags := loadTargets(t, filepath.Join(dir, "root.yaml"), spec, true)
-	require.Empty(t, diagLines(diags), "nothing past the lowered reference is resolved")
+	assert.Equal(t, []string{"/x-lib/Wrapper/not openapi/validation/validation-type-mismatch"}, diagLines(diags),
+		"the $ref under not is resolved as the model's own is, and draws Bad's finding")
 
 	box, ok := got.Doc.GetComponents().GetSchemas().Get("Box")
 	require.True(t, ok)
@@ -292,7 +305,7 @@ func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
 		"the $ref reaches the object Pet's mapping does")
 	assert.False(t, property("def").IsResolved(), "a definition is read by GitHub #557's rule, which reads the model only")
 	assert.False(t, property("far").IsResolved(), "another document is not read for content the source holds")
-	assert.False(t, wrapper.GetNot().IsResolved(), "nothing lowers what not holds")
+	assert.True(t, wrapper.GetNot().IsResolved(), "a $ref is resolved wherever it is written")
 }
 
 // TestMappings_AChainThatFailsPastItsFirstHopRecordsTheHop pins that a target
@@ -385,6 +398,114 @@ func TestMappings_TheWorkIsBounded(t *testing.T) {
 		"some bound stops the work before each target, and one only after both")
 }
 
+// TestMappings_TheKeysTheResolverScansAreCharged pins that resolving a target
+// costs the keys of the object holding it, which the library scans to find a
+// position under an extension: n targets in one extension of n keys take n
+// squared steps, where the same n in n objects of one key take n. The bound is
+// set between the two, so only the first crosses it. Each row names the targets
+// a different way: by mapping entries, and by $refs in a raw object.
+func TestMappings_TheKeysTheResolverScansAreCharged(t *testing.T) {
+	t.Parallel()
+	const n = 64
+	// spec writes n targets under one extension, or each under an object of its
+	// own, named by the route.
+	spec := func(route string, nestedLayout bool) string {
+		var names, library, targets strings.Builder
+		for i := range n {
+			target := fmt.Sprintf("#/x-lib/T%d", i)
+			if nestedLayout {
+				target = fmt.Sprintf("#/x-lib/G%d/T%d", i, i)
+				fmt.Fprintf(&library, "  G%d:\n    T%d: {type: object, description: d}\n", i, i)
+			} else {
+				fmt.Fprintf(&library, "  T%d: {type: object, description: d}\n", i)
+			}
+			if route == "mapping" {
+				fmt.Fprintf(&names, "t%d: '%s', ", i, target)
+			} else {
+				fmt.Fprintf(&targets, "p%d: {$ref: '%s'}, ", i, target)
+			}
+		}
+		if route == "mapping" {
+			return mappingSpec(petMapping(strings.TrimSuffix(names.String(), ", ")), "x-lib:\n"+library.String())
+		}
+		return mappingSpec("    Box: {$ref: '#/x-lib/W'}\n", "x-lib:\n  W: {type: object, properties: {"+
+			strings.TrimSuffix(targets.String(), ", ")+"}}\n"+library.String())
+	}
+	for _, route := range []string{"mapping", "nested $ref"} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+			flatSpec, nestedSpec := spec(route, false), spec(route, true)
+			flatFree, _ := resolverOver(t, flatSpec, maxMappingWork)
+			nestedFree, _ := resolverOver(t, nestedSpec, maxMappingWork)
+			require.Greater(t, flatFree.work, nestedFree.work+n*n/2, "the scan is what separates them")
+
+			limit := nestedFree.work
+			_, flatDiags := resolverOver(t, flatSpec, limit)
+			_, nestedDiags := resolverOver(t, nestedSpec, limit)
+
+			require.Len(t, flatDiags, 1, "the flat extension crosses the bound")
+			assert.Equal(t, diag.BudgetExceeded, flatDiags[0].Code)
+			assert.Empty(t, nestedDiags, "the nested one does not")
+		})
+	}
+}
+
+// TestReadsAsSchema pins which values a schema is read from: a mapping, and a
+// boolean written as one, whether through an alias or not. A string, a quoted
+// boolean, a number, a null and a sequence are none, and neither is no node.
+func TestReadsAsSchema(t *testing.T) {
+	t.Parallel()
+	parse := func(src string) *yaml.Node {
+		var doc yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(src), &doc))
+		return doc.Content[0]
+	}
+	aliased := parse("a: &x {type: object}\nb: *x\n")
+	for _, c := range []struct {
+		name string
+		node *yaml.Node
+		want bool
+	}{
+		{"a mapping", parse("{type: object}"), true},
+		{"a true", parse("true"), true},
+		{"a false", parse("false"), true},
+		{"a string", parse("just a string"), false},
+		{"a quoted boolean", parse("'true'"), false},
+		{"a number", parse("5"), false},
+		{"a null", parse("null"), false},
+		{"a sequence", parse("[1]"), false},
+		{"an alias", nodeview.Deref(aliased.Content[3]), true},
+		{"no node", nil, false},
+	} {
+		assert.Equal(t, c.want, readsAsSchema(c.node), c.name)
+	}
+}
+
+// TestMappings_KeysHoldingCountsTheObjectThatHoldsAPosition pins what resolving
+// a position costs (see maxMappingWork): one, and a step for each key of the
+// object holding it in the source's tree. A position whose holder is not in
+// the tree, or a source with no tree, costs one.
+func TestMappings_KeysHoldingCountsTheObjectThatHoldsAPosition(t *testing.T) {
+	t.Parallel()
+	spec := mappingSpec("    Z: {type: object}\n", "x-lib:\n  a: {type: object}\n  b: {type: object}\n  c: {type: object}\n")
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	m := newMappings(newSourceDocument("spec.yaml", []byte(spec), root, nil), &soa.OpenAPI{}, oas3.ResolveOptions{}, nil)
+	for _, c := range []struct {
+		pointer jsontext.Pointer
+		want    int
+	}{
+		{"/x-lib/a", 1 + 3},
+		{"/x-lib", 1 + 5}, // the document's own keys
+		{"/missing/a", 1},
+		{"/x-lib/a/type/deeper", 1},
+	} {
+		assert.Equal(t, c.want, m.keysHolding(c.pointer), c.pointer)
+	}
+	assert.Equal(t, 1, newMappings(sourceDocument{}, &soa.OpenAPI{}, oas3.ResolveOptions{}, nil).keysHolding("/x-lib/a"),
+		"a source with no tree")
+}
+
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
 // phase resolves: those the lowering reads as naming a position in the source,
 // spelled internally or by the source's file name, whether or not external
@@ -448,12 +569,28 @@ func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 
 // TestMappings_ATargetThatDoesNotResolveIsLeftToTheLowering pins that the load
 // phase records nothing for a target that does not resolve, and reports
-// nothing either: the lowering reports every target it cannot resolve.
+// nothing either: the lowering reports every target it cannot resolve. That
+// holds for a position nothing is at, one that holds no schema, whose finding
+// says no more than the lowering does, and one named with a trailing '/', which
+// names an empty key the resolver would read as the parent.
 func TestMappings_ATargetThatDoesNotResolveIsLeftToTheLowering(t *testing.T) {
 	t.Parallel()
-	got, diags := loadTargets(t, "spec.yaml", mappingSpec(petMapping("m: '#/x-lib/Missing'"), "x-lib: {}\n"), false)
-	assert.Empty(t, diags)
-	assert.Nil(t, got.Targets.At("/x-lib/Missing"))
+	for _, c := range []struct{ name, target, lib string }{
+		{"a position nothing is at", "#/x-lib/Missing", "x-lib: {}\n"},
+		{"a string", "#/x-lib/S", "x-lib: {S: just a string}\n"},
+		{"a null", "#/x-lib/S", "x-lib: {S: null}\n"},
+		{"an empty key", "#/x-lib/S/", "x-lib: {S: {type: object, description: marker}}\n"},
+		{"every key of a mapping", "#/x-lib/", "x-lib: {S: {type: object, description: marker}}\n"},
+		{"the document's empty key", "#/", "x-lib: {S: {type: object, description: marker}}\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags := loadTargets(t, "spec.yaml", mappingSpec(petMapping("m: '"+c.target+"'"), c.lib), false)
+			assert.Empty(t, diags)
+			assert.Nil(t, got.Targets.At(jsontext.Pointer(strings.TrimPrefix(c.target, "#"))))
+			assert.Nil(t, got.Targets.At("/x-lib/S"))
+		})
+	}
 }
 
 // TestMappings_AChainThatDoesNotProvablyEndIsNotResolved pins that the load
