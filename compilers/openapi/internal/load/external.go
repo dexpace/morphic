@@ -115,7 +115,8 @@ func (e external) hold(ctx context.Context) {
 //
 // No schema is held: the resolver follows a schema's chain through a hop it
 // finds resolved without tracking where the chain has been, so a chain reaching
-// a held schema it resolved already loops until the stack runs out.
+// a held schema it resolved already loops until the stack runs out. One closing
+// through the source's file name is not refused (GitHub #768).
 func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 	keys := e.read.sourceKeys()
 	if len(keys) == 0 {

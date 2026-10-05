@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -52,6 +53,8 @@ type mappings struct {
 	doc    *soa.OpenAPI
 	opts   references.ResolveOptions
 	reader *external
+	// view reads the source's tree when a chain's end is asked after.
+	view *nodeview.View
 	// lowering tracks the region of each model the walk yields.
 	lowering *regions
 	// model holds each object the walk saw, and modelAt each site it saw one of
@@ -104,8 +107,9 @@ type target struct {
 // self, which resolves each with opts, through reader when external references
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
-	return &mappings{self: self, doc: doc, opts: opts, reader: reader, lowering: newRegions(map[*schemaRef]bool{}),
-		model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
+	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(),
+		lowering: newRegions(map[*schemaRef]bool{}),
+		model:    map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
 		refRegions: map[jsontext.Pointer]jsontext.Pointer{},
 		pending:    map[jsontext.Pointer][]sighting{}, released: map[jsontext.Pointer]bool{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},
@@ -428,9 +432,13 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 // A chain that fails further on is recorded all the same, as a $ref to the
 // position lowers what its first hop reached; one that reaches nothing is
 // recorded nowhere. The lowering reports every target it cannot resolve, so
-// reporting the failure here too would report it twice.
+// reporting the failure here too would report it twice. One not provably ending
+// is left out (see provablyEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
 	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
+	if !m.self.provablyEnds(m.view, ref.GetRef()) {
+		return
+	}
 	vErrs, err := ref.Resolve(ctx, m.opts)
 	if m.reader != nil {
 		vErrs, err = m.reader.settle(ctx, ref, m.opts, vErrs, err)
@@ -461,9 +469,10 @@ func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
 // the walk resolves the model's: unless it names another document, which the
 // lowering never lowers, or a "#/$defs/..." pointer, which GitHub #557's rule
 // reads in the model alone (GitHub #570). A failure is left to the lowering,
-// which reports the reference unresolved.
+// which reports the reference unresolved, and so is a chain that does not
+// provably end (see provablyEnds).
 func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, site jsontext.Pointer, js *schemaRef) {
-	if _, ok := sourcePointer(m.self.path, string(js.GetRef())); !ok {
+	if _, ok := sourcePointer(m.self.path, string(js.GetRef())); !ok || !m.self.provablyEnds(m.view, js.GetRef()) {
 		return
 	}
 	vErrs, err := js.Resolve(ctx, m.opts)

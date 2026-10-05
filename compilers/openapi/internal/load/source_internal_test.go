@@ -23,6 +23,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -354,6 +355,46 @@ func TestSourceDocument_Names(t *testing.T) {
 			"https://example.com/a.yaml", false},
 	} {
 		assert.Equal(t, c.want, c.self.names(c.file), c.name)
+	}
+}
+
+// TestSourceDocument_ProvablyEnds pins what the source can show of a chain: it
+// ends where it reaches a node with no $ref or none at all, and not where it
+// loops or leaves the tree by a hop the lowering reads otherwise, such as an
+// anchor, a definition or another file. A source with no tree shows nothing.
+func TestSourceDocument_ProvablyEnds(t *testing.T) {
+	t.Parallel()
+	root, _, err := decodeStream([]byte(`a: {type: object}
+b: {$ref: '#/a'}
+c: {$ref: '#/d'}
+d: {$ref: '#/c'}
+byName: {$ref: 'root.yaml#/a'}
+byDirectory: {$ref: './root.yaml#/a'}
+elsewhere: {$ref: 'other.yaml#/a'}
+anchored: {$ref: '#a'}
+defined: {$ref: '#/$defs/a'}
+`))
+	require.NoError(t, err)
+	self := sourceDocument{path: "root.yaml", root: root}
+	for _, c := range []struct {
+		name string
+		self sourceDocument
+		ref  string
+		want bool
+	}{
+		{"a node holding no $ref", self, "#/a", true},
+		{"a chain of pointers", self, "#/b", true},
+		{"a position nothing is at", self, "#/missing", true},
+		{"a hop by the source's file name", self, "#/byName", true},
+		{"a loop", self, "#/c", false},
+		{"a hop through a directory", self, "#/byDirectory", false},
+		{"a hop into another file", self, "#/elsewhere", false},
+		{"a hop to an anchor", self, "#/anchored", false},
+		{"a hop to a definition", self, "#/defined", false},
+		{"an anchor", self, "#a", false},
+		{"from a source with no tree", sourceDocument{path: "root.yaml"}, "#/a", false},
+	} {
+		assert.Equal(t, c.want, c.self.provablyEnds(nodeview.New(), references.Reference(c.ref)), c.name)
 	}
 }
 

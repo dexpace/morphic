@@ -49,17 +49,27 @@ func (e external) resumable(r resolvable, c chain, err error) bool {
 // library does is no answer (see withinDocument): a chain leaving the document
 // is not resumed, and fails as it would without settle.
 func ends(tree *yaml.Node, ref references.Reference) bool {
-	view := nodeview.New()
+	return endsWithin(nodeview.New(), tree, ref, withinDocument)
+}
+
+// endsWithin is ends reading each hop's pointer as within does, which says
+// where a reference names a position in the document tree holds, and false for
+// one the walk cannot follow there. It reads tree through view, which indexes
+// each wide mapping once, so callers asking about many references share one.
+func endsWithin(view *nodeview.View, tree *yaml.Node, ref references.Reference,
+	within func(references.Reference) (string, bool),
+) bool {
+	root := nodeview.DocumentRoot(tree)
 	for range maxResolutionHops {
-		pointer, ok := withinDocument(ref)
+		pointer, ok := within(ref)
 		if !ok {
 			return false
 		}
-		target, err := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-		node, isNode := target.(*yaml.Node)
-		if err != nil || !isNode {
+		path, complete := view.PointerPath(root, jsontext.Pointer(pointer))
+		if !complete {
 			return true // the resumed hop fails where it stands
 		}
+		node := path[len(path)-1]
 		next := refOf(view, node)
 		if next == "" {
 			return true

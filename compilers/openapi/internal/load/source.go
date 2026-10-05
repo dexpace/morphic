@@ -3,8 +3,10 @@ package load
 import (
 	"path/filepath"
 
+	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
@@ -55,4 +57,24 @@ func (s sourceDocument) keys() []string {
 // source keys holds under none, or named by a URL, is no file.
 func (s sourceDocument) names(name string) bool {
 	return len(s.keys()) > 0 && !refscope.IsURL(s.path) && refscope.SameDocument(s.path, name)
+}
+
+// provablyEnds reports whether the chain of ref, a schema $ref resolved here
+// in the source, ends in its tree, read through view. The resolver follows a
+// hop it resolved before without tracking where the chain has been, so a chain
+// closing on such hops recurses until the stack runs out, which nothing
+// recovers from (GitHub #558). The cycle scan refuses neither every cycle in a
+// position the model holds as raw YAML nor one closing through the source's
+// file name (GitHub #768), and a mapping names either wherever the input says,
+// so the chain is read first.
+func (s sourceDocument) provablyEnds(view *nodeview.View, ref references.Reference) bool {
+	return s.root != nil && endsWithin(view, s.root, ref, s.within)
+}
+
+// within is withinDocument for the source's own tree, where a reference naming
+// the source by its file name names a position in it too, as the lowering
+// reads it (sourcePointer).
+func (s sourceDocument) within(ref references.Reference) (string, bool) {
+	pointer, ok := sourcePointer(s.path, string(ref))
+	return string(pointer), ok
 }

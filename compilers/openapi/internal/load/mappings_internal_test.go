@@ -314,9 +314,13 @@ func TestMappings_AChainThatFailsPastItsFirstHopRecordsTheHop(t *testing.T) {
 // mapping target resolver and what the pass reported.
 func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnostic) {
 	t.Helper()
-	doc, valErrs := parseSpec(t, spec)
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "spec.yaml"}, Options{}, nil)
+	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs)
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, Options{}, nil)
 	pass.targets.limit = limit
 	_, diags := pass.run(doc)
 	return pass.targets, diags
@@ -450,6 +454,95 @@ func TestMappings_ATargetThatDoesNotResolveIsLeftToTheLowering(t *testing.T) {
 	got, diags := loadTargets(t, "spec.yaml", mappingSpec(petMapping("m: '#/x-lib/Missing'"), "x-lib: {}\n"), false)
 	assert.Empty(t, diags)
 	assert.Nil(t, got.Targets.At("/x-lib/Missing"))
+}
+
+// TestMappings_AChainThatDoesNotProvablyEndIsNotResolved pins that the load
+// phase resolves no chain it cannot show ends. The resolver follows a hop it
+// resolved before without tracking where the chain has been, so a mapping into
+// a cycle closing through the source's file name, or another file, recursed
+// until the stack ran out (GitHub #558, #768), where the document compiled
+// before the load phase read mapping targets. Each row enters such a cycle by
+// a mapping or by a $ref in the object one names. The walk reports the cycle.
+func TestMappings_AChainThatDoesNotProvablyEndIsNotResolved(t *testing.T) {
+	t.Parallel()
+	dir := externalDir(t, map[string]string{
+		"other.yaml": "components:\n  schemas:\n    Y: {$ref: 'root.yaml#/components/schemas/S2'}\n",
+	})
+	for _, c := range []struct {
+		name, mapping, lib string
+		pointer            jsontext.Pointer
+	}{
+		{"a mapping into a cycle through the source's file name", "'#/x-lib/E/oneOf/0'",
+			"x-lib:\n  E: {oneOf: [{$ref: '#/x-lib/F'}]}\n  F: {$ref: './root.yaml#/components/schemas/S2'}\n",
+			"/x-lib/E/oneOf/0"},
+		{"a mapping into a cycle through another file", "'#/x-lib/E/oneOf/0'",
+			"x-lib:\n  E: {oneOf: [{$ref: '#/x-lib/F'}]}\n  F: {$ref: './other.yaml#/components/schemas/Y'}\n",
+			"/x-lib/E/oneOf/0"},
+		{"a $ref in the object a mapping names", "'#/x-lib/H'",
+			"x-lib:\n  H: {type: object, properties: {p: {$ref: '#/x-lib/F'}}}\n  F: {$ref: './root.yaml#/components/schemas/S2'}\n",
+			"/x-lib/H"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			spec := mappingSpec(petMapping("m: "+c.mapping)+"    S2: {$ref: '#/x-lib/F'}\n", c.lib)
+
+			got, diags := loadExternal(t, dir, spec, Options{})
+
+			assert.Empty(t, cmp.Diff([]string{"/components/schemas/S2 openapi/unresolved-ref"}, diagLines(diags)),
+				"the walk's own report of the cycle, and nothing from the mapping")
+			target := got.Targets.At(c.pointer)
+			if c.pointer == "/x-lib/H" {
+				require.NotNil(t, target, "H ends, so it is resolved")
+				p, found := target.GetSchema().GetProperties().Get("p")
+				require.True(t, found)
+				assert.False(t, p.IsResolved(), "its $ref enters the cycle, so it is left alone")
+				return
+			}
+			assert.Nil(t, target, "a chain into the cycle is left to the lowering")
+		})
+	}
+}
+
+// TestMappings_ASelfReferenceNoPointerNamesIsNotResolved pins the same bound
+// with external references off, which is how a document is read by default. A
+// schema that references the $anchor or $id it declares is a cycle the
+// resolver never leaves, and one the cycle scan does not read in a position
+// the model holds as raw YAML, so a mapping naming it killed the process.
+func TestMappings_ASelfReferenceNoPointerNamesIsNotResolved(t *testing.T) {
+	t.Parallel()
+	for name, schema := range map[string]string{
+		"a $ref to the $anchor its schema declares": "{$anchor: a, $ref: '#a'}",
+		"a $ref to the $id its schema declares":     "{$id: 'http://example.com/a', $ref: 'http://example.com/a'}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := mappingSpec(petMapping("m: '#/x-lib/A'"), "x-lib:\n  A: "+schema+"\n")
+
+			got, diags := loadTargets(t, "spec.yaml", spec, false)
+
+			assert.Empty(t, diags)
+			assert.Nil(t, got.Targets.At("/x-lib/A"), "left to the lowering, as a target that does not resolve is")
+		})
+	}
+}
+
+// TestMappings_AChainThroughTheSourcesFileNameIsResolved is the control for
+// the test above: a target whose chain leaves by the source's own file name and
+// ends, which the load phase shows ends as the lowering reads the name, is
+// resolved at load as a $ref to it is.
+func TestMappings_AChainThroughTheSourcesFileNameIsResolved(t *testing.T) {
+	t.Parallel()
+	spec := mappingSpec(petMapping("m: '#/x-lib/E'"),
+		"x-lib:\n  E: {$ref: 'root.yaml#/x-lib/V'}\n  V: {description: v, type: object}\n")
+
+	got, diags := loadExternal(t, t.TempDir(), spec, Options{})
+
+	assert.Empty(t, diags)
+	target := got.Targets.At("/x-lib/E")
+	require.NotNil(t, target)
+	require.True(t, target.IsResolved())
+	assert.Equal(t, "v", target.GetReferenceResolutionInfo().Object.GetSchema().GetDescription(),
+		"the chain went through the file name to V")
 }
 
 // TestMappings_AFindingInATargetIsReportedOnce pins where what resolving a
