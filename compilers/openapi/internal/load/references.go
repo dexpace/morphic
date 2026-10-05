@@ -78,11 +78,17 @@ func (p *resolution) resolveTargets(held []heldRef) (jsontext.Pointer, error) {
 // resolved, what the pass has found so far, and the mapping targets it
 // collects.
 type resolution struct {
-	ctx      context.Context
-	at       func(jsontext.Pointer) ir.Provenance
-	opts     references.ResolveOptions
-	reader   *external
-	targets  *mappings
+	ctx     context.Context
+	at      func(jsontext.Pointer) ir.Provenance
+	opts    references.ResolveOptions
+	reader  *external
+	targets *mappings
+	// loops finds the schema references whose chain never ends, which the
+	// resolver is not asked to follow. It is nil unless external references are
+	// read, since no other chain reaches the source by its file name, and when the
+	// source spells a $id, which rebases the references under it in a way the
+	// walk does not read.
+	loops    *loops
 	failures []ir.Diagnostic
 	found    reachedFindings
 }
@@ -102,9 +108,13 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		resolveOpts.HTTPClient = *reader
 		reader.hold(ctx)
 	}
-	return &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader,
+	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader,
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found:   reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}}
+	if reader != nil && !anyScalar(self.root, func(v string) bool { return v == "$id" }) {
+		p.loops = newLoops(self, doc)
+	}
+	return p
 }
 
 // visit resolves r, the reference written as ref at site, and notes what the
@@ -113,6 +123,11 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 // so which members of a failing chain are reported follows the walk's order
 // (GitHub #767).
 func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.Reference) {
+	if js, schema := r.(*schemaRef); schema && p.loops != nil && !js.IsResolved() && p.loops.into(ref) {
+		p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.CyclicRef, p.at(site),
+			"cyclic $ref: reference chain never reaches a node without a $ref"))
+		return
+	}
 	var vErrs []error
 	var err error
 	if !r.IsResolved() {

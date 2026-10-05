@@ -471,16 +471,19 @@ func TestMappings_AChainThatDoesNotProvablyEndIsNotResolved(t *testing.T) {
 	for _, c := range []struct {
 		name, mapping, lib string
 		pointer            jsontext.Pointer
+		// reported is the walk's report of S2's cycle: the source's own is a
+		// cycle the walk reads, and one through another file is the resolver's.
+		reported string
 	}{
 		{"a mapping into a cycle through the source's file name", "'#/x-lib/E/oneOf/0'",
 			"x-lib:\n  E: {oneOf: [{$ref: '#/x-lib/F'}]}\n  F: {$ref: './root.yaml#/components/schemas/S2'}\n",
-			"/x-lib/E/oneOf/0"},
+			"/x-lib/E/oneOf/0", "cyclic-ref"},
 		{"a mapping into a cycle through another file", "'#/x-lib/E/oneOf/0'",
 			"x-lib:\n  E: {oneOf: [{$ref: '#/x-lib/F'}]}\n  F: {$ref: './other.yaml#/components/schemas/Y'}\n",
-			"/x-lib/E/oneOf/0"},
+			"/x-lib/E/oneOf/0", "unresolved-ref"},
 		{"a $ref in the object a mapping names", "'#/x-lib/H'",
 			"x-lib:\n  H: {type: object, properties: {p: {$ref: '#/x-lib/F'}}}\n  F: {$ref: './root.yaml#/components/schemas/S2'}\n",
-			"/x-lib/H"},
+			"/x-lib/H", "cyclic-ref"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -488,7 +491,7 @@ func TestMappings_AChainThatDoesNotProvablyEndIsNotResolved(t *testing.T) {
 
 			got, diags := loadExternal(t, dir, spec, Options{})
 
-			assert.Empty(t, cmp.Diff([]string{"/components/schemas/S2 openapi/unresolved-ref"}, diagLines(diags)),
+			assert.Empty(t, cmp.Diff([]string{"/components/schemas/S2 openapi/" + c.reported}, diagLines(diags)),
 				"the walk's own report of the cycle, and nothing from the mapping")
 			target := got.Targets.At(c.pointer)
 			if c.pointer == "/x-lib/H" {
