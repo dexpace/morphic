@@ -212,10 +212,12 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 }
 
 // TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld pins when the source is
-// held under its file name: not where a mapping of it has a $id key, which
-// rebases the references under it in a way loops does not read. A key an anchor
-// supplies counts, and the word as a value, in a list or in a key's text does
-// not.
+// held under its file name: not where it has a scalar spelling $id, which
+// rebases the references under it in a way loops does not read. The match is
+// wider than a key, since reading the tree as the parser does is not certain
+// and a source held less only reads as it did where nothing was held: the word
+// as a value, in a list, and as a key an alias supplies all count, and text
+// that merely contains it does not.
 func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -227,9 +229,11 @@ func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		{"a $id in a schema", "x-s: {type: object, $id: 'http://example.com/a'}\n", true},
 		{"a $id in an anchored mapping", "x-a: &a {$id: 'http://example.com/a'}\nx-b: *a\n", true},
 		{"a $id merged in", "x-a: &a {$id: 'http://example.com/a'}\nx-b: {<<: *a}\n", true},
-		{"the word as a value", "x-d: {description: '$id'}\n", false},
-		{"the word in a list", "x-l: ['$id', b]\n", false},
+		{"a $id key an alias supplies", "x-k: &k '$id'\nx-h: {*k : 'http://example.com/a'}\n", true},
+		{"the word as a value", "x-d: {description: '$id'}\n", true},
+		{"the word in a list", "x-l: ['$id', b]\n", true},
 		{"a key that only starts with it", "x-i: {$idx: 1, '$id ': 2}\n", false},
+		{"text that contains it", "x-t: {description: 'the $id of a schema'}\n", false},
 	} {
 		spec := rootOfSchemas("    A: {type: object}\n") + c.extra
 		root, _, err := decodeStream([]byte(spec))

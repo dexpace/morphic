@@ -9,7 +9,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
@@ -38,30 +37,14 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 			found[keyOf(ve, "")] = true
 		}
 	}
-	return sourceDocument{path: path, data: data, root: root, found: found, holdless: spellsID(root)}
+	return sourceDocument{path: path, data: data, root: root, found: found, holdless: anyScalar(root, isID)}
 }
 
-// spellsID reports whether a mapping in the tree under root has a $id key, the
-// keyword that rebases the references under it. A key an alias or a merge key
-// supplies is still written somewhere in the tree, so each node is read once
-// and an alias, which holds no content, reads as none.
-func spellsID(root *yaml.Node) bool {
-	stack := []*yaml.Node{root}
-	for visited := 0; len(stack) > 0 && visited < sourceindex.MaxIndexedNodes; visited++ {
-		n := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if n == nil {
-			continue
-		}
-		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if key := n.Content[i]; key.Kind == yaml.ScalarNode && key.Value == "$id" {
-				return true
-			}
-		}
-		stack = append(stack, n.Content...)
-	}
-	return false
-}
+// isID reports whether a scalar is the keyword that rebases the references
+// under it. Any scalar of that text counts, written as a key, a value, or an
+// anchor an alias supplies as a key: reading the tree as the parser does is
+// not certain, and a match that is too wide only holds the source less.
+func isID(v string) bool { return v == "$id" }
 
 // keys returns the keys the resolver looks the source up by: its path, as an
 // internal $ref resolves against it, and its path cleaned, as a relative $ref
