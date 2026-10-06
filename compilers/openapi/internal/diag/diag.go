@@ -40,10 +40,12 @@ const (
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan, load's reach, or load's reading of the chains that name the
-	// source by its file name either aborted (a detector bug) or hit one of its
-	// bounds. It is a warning, never a refusal: the compile still proceeds, and
-	// every cycle the check did classify is still caught.
+	// pre-parse scan, load's reach, or load's reading of schema chains for one
+	// closing through the source's file name either aborted (a detector bug) or
+	// hit one of its bounds. It is a warning: the compile still proceeds, and
+	// every cycle the check did classify is still caught. Past the chain read's
+	// bound, a $ref it did not read is left unresolved where the source is held,
+	// since its chain could close through the held file and run the stack out.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
