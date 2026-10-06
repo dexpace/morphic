@@ -77,10 +77,11 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/marshaller", "gopkg.in/yaml.v3"},
 	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
-	// spells it. It reads the parsed model through the library's own navigation
-	// and nothing of the compiler, so the loader that hands the resolver its
-	// answer and the lowering that names the target can both reach the one rule.
-	"compilers/openapi/internal/defs": {"github.com/speakeasy-api/openapi/jsonpointer",
+	// spells it. It reads the parsed model as the library's walk does, through
+	// navigation, and nothing of the compiler, so the loader that hands the
+	// resolver its answer and the lowering that names the target can both reach
+	// the one rule.
+	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
