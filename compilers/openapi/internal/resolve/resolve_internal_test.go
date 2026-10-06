@@ -14,6 +14,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -386,9 +387,9 @@ x-lib:
   list: [{type: object}]
 `
 
-// wholeModelAt is ModelAt as one read of the whole pointer, which it answers
-// as.
-func wholeModelAt(doc *soa.OpenAPI, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+// wholeModelAt reads the whole pointer in one library call: the answer ModelAt
+// must give though it reads the pointer a token at a time.
+func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
 		return js
@@ -442,8 +443,8 @@ func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
 // prefixesOf yields pointer and each pointer it extends, longest first.
 func prefixesOf(pointer jsontext.Pointer) func(func(jsontext.Pointer) bool) {
 	return func(yield func(jsontext.Pointer) bool) {
-		for p := pointer; ; p = p[:strings.LastIndex(string(p), "/")] {
-			if !yield(p) || !strings.Contains(string(p), "/") {
+		for p := pointer; ; p = p.Parent() {
+			if !yield(p) || p == "" {
 				return
 			}
 		}
