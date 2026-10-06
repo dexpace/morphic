@@ -422,12 +422,12 @@ func (f *fielded) GetRootNode() *yaml.Node { return f.built }
 // indexed is fielded that the library also reads by index.
 type indexed struct{ fielded }
 
-// NavigateWithIndex answers index 0 with the tagged field.
+// NavigateWithIndex answers index 0 with a map holding k.
 func (x *indexed) NavigateWithIndex(i int) (any, error) {
 	if i != 0 {
 		return nil, errors.New("no such index")
 	}
-	return x.Tagged, nil
+	return map[string]any{"k": x.Tagged}, nil
 }
 
 // unbuilt is a struct that is no model and was built from no mapping.
@@ -450,7 +450,7 @@ func (e *endless) GetNavigableNode() (any, error) { return e, nil }
 func TestLeaves_ReadsAStructThatIsNoModelAsTheLibraryDoes(t *testing.T) {
 	t.Parallel()
 	var built yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("{hidden: {k: 1}, other: {k: 2}, x: {k: 3}, '00': {k: 4}}"), &built))
+	require.NoError(t, yaml.Unmarshal([]byte("{hidden: {k: 1}, other: {k: 2}, x: {k: 3}, '00': {k: 4}, '0': {j: 5}}"), &built))
 	mapping := built.Content[0]
 	for _, c := range []struct {
 		node   any
@@ -573,3 +573,56 @@ func (*keyedBuilt) NavigateWithKey(key string) (any, error) { return nil, errors
 
 // GetRootNode returns the mapping k was built from.
 func (k *keyedBuilt) GetRootNode() *yaml.Node { return k.built }
+
+// TestWalk_LeavesAnIndexTheLibraryRetriesToIt pins the one read a walk of
+// steps cannot make: a struct that is no model and is read by index has the
+// token read as a key, and the rest below it, before the index is tried, so
+// what the index answers turns on the rest. Walk leaves that read to the
+// library, which finds k past the index where the key's 0 holds none, for a
+// struct read by its mapping and for a map.
+func TestWalk_LeavesAnIndexTheLibraryRetriesToIt(t *testing.T) {
+	t.Parallel()
+	var built yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{'0': {j: 5}}"), &built))
+	node := &indexed{fielded{Tagged: 7, built: built.Content[0]}}
+	for _, pointer := range []jsontext.Pointer{"/0/k", "/0/j", "/0", "/1/k", "/0/z"} {
+		want, wantErr := whole(node, pointer)
+		got, gotErr := walked(node, pointer)
+		if wantErr != nil {
+			require.Error(t, gotErr, "%q", pointer)
+			continue
+		}
+		require.NoError(t, gotErr, "%q", pointer)
+		requireSameTarget(t, want, got, pointer)
+	}
+	got, err := walked(node, "/0/k")
+	require.NoError(t, err)
+	assert.Equal(t, 7, got, "the index answers k, which the mapping's 0 does not hold")
+
+	both := keyedIndexed{}
+	want, err := whole(both, "/0/k")
+	require.NoError(t, err)
+	got, err = walked(both, "/0/k")
+	require.NoError(t, err)
+	assert.Equal(t, want, got, "a map read by index too is tried by index once the key's rest fails")
+}
+
+// keyedIndexed is a map that is no model and is read by index as well: its key
+// 0 holds j, and its index 0 holds k.
+type keyedIndexed struct{}
+
+// NavigateWithKey answers 0 with a map holding j.
+func (keyedIndexed) NavigateWithKey(key string) (any, error) {
+	if key != "0" {
+		return nil, errors.New("no " + key)
+	}
+	return map[string]any{"j": 1}, nil
+}
+
+// NavigateWithIndex answers 0 with a map holding k.
+func (keyedIndexed) NavigateWithIndex(i int) (any, error) {
+	if i != 0 {
+		return nil, errors.New("no such index")
+	}
+	return map[string]any{"k": 2}, nil
+}
