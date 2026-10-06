@@ -40,9 +40,10 @@ const (
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan or load's reach either aborted (a detector bug) or hit one of
-	// its bounds. It is a warning, never a refusal: the compile still
-	// proceeds, and every cycle the check did classify is still caught.
+	// pre-parse scan, load's reach, or load's reading of the chains that name the
+	// source by its file name either aborted (a detector bug) or hit one of its
+	// bounds. It is a warning, never a refusal: the compile still proceeds, and
+	// every cycle the check did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
@@ -200,18 +201,17 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
-	// BudgetExceeded reports an input that crossed a cardinality budget: a source
-	// or overlay document past the byte budget, a source past the node budget (or
-	// an overlay action that would build it past that), aliases in either that add
-	// more nodes than the alias budget, or one enum past the member budget (GitHub
-	// #75).
+	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
+	// most: a document past the byte or node budget (or an overlay action that
+	// would build it past that), aliases adding more nodes than the alias budget,
+	// an enum past the member budget (GitHub #75). Load bounds two kinds of work
+	// itself: resolving the mapping targets, and resuming chains through other
+	// documents.
 	//
 	// Unlike AliasAmplification's bomb, these are documents legitimately that
-	// large, past the budget this compile was given; openapi.Limits raises them.
-	//
-	// Error at every site: load-phase budgets refuse the document, and the enum
-	// budget leaves the top type with every declared member gone, a losslessness
-	// failure (UnpreservableConstruct).
+	// large. Every site reports an error: the document is refused, its
+	// validation stops, an enum loses its members (UnpreservableConstruct), or
+	// what the work did not reach is left unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none

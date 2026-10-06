@@ -18,8 +18,8 @@ import (
 // maxScanMerges bounds how many merged mappings a read counted by treeReads is
 // inside at once, along the whole pointer, which bounds its recursion. The
 // library has no such bound. A read past it is priced past any limit, so the
-// resumption reading it is refused and the budget reported crossed; no
-// document reaches it without a thousand `<<` keys along one pointer.
+// work that would make it stops at its own bound, and says so; no document
+// reaches it without a thousand `<<` keys along one pointer.
 const maxScanMerges = 1 << 10
 
 // treeReads counts what jsonpointer.GetTarget's read of a pointer in a YAML
