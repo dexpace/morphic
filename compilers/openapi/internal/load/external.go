@@ -230,6 +230,8 @@ func (e external) holdSpelling(ref references.Reference, base string, checked ma
 // reference names, and a hop resolved against bytes fails (GitHub #761). Each
 // resumption starts past the hop the last stalled at, so maxResolutionHops
 // bounds them. A hop left stalled keeps its record (see chain.withoutStall).
+// The hops it reads and resumes scan their mappings' keys, which nothing
+// charges (GitHub #773).
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
 	vErrs []error, err error,
 ) ([]error, error) {
