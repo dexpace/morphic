@@ -58,6 +58,8 @@ type external struct {
 	// held is the source as hold hands it to the resolver of doc, which Open
 	// hands it again under each other spelling the resolver opens it by.
 	held *heldSource
+	// work is what settle has spent resuming resolutions in doc's pass.
+	work *resumeWork
 }
 
 // heldSource is what the resolver of one document is handed as the source:
@@ -85,7 +87,7 @@ type heldObject struct {
 func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
 	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{},
-		held: &heldSource{keys: map[string]bool{}}}
+		held: &heldSource{keys: map[string]bool{}}, work: newResumeWork()}
 }
 
 // hold stores the source where the resolver of e.doc looks for a document it
@@ -229,15 +231,18 @@ func (e external) holdSpelling(ref references.Reference, base string, checked ma
 // reports a document as its bytes when it holds both them and the object a
 // reference names, and a hop resolved against bytes fails (GitHub #761). Each
 // resumption starts past the hop the last stalled at, so maxResolutionHops
-// bounds them. A hop left stalled keeps its record (see chain.withoutStall).
-// The hops it reads and resumes scan their mappings' keys, which nothing
-// charges (GitHub #773).
+// bounds them, and is charged to e.work before it reads anything. A hop left
+// stalled keeps its record (see chain.withoutStall).
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions,
 	vErrs []error, err error,
 ) ([]error, error) {
 	for range maxResolutionHops {
 		c := resolutionChain(r)
-		if !e.resumable(r, c, err) {
+		resume, refused := e.resumable(r, c, err)
+		if refused != nil {
+			err = refused
+		}
+		if !resume {
 			break
 		}
 		e.read.mend(c, e.doc)

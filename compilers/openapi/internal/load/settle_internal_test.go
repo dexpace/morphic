@@ -546,7 +546,9 @@ func TestResumable(t *testing.T) {
 		{"another kind, which holds no record of a stalled hop", other,
 			chain{records: []record{hop(slices.Clone(data), false)}, stopped: "#/components/schemas/Base"}, walked, false},
 	} {
-		assert.Equal(t, c.want, reader.resumable(c.r, c.c, c.err), c.name)
+		got, refused := reader.resumable(c.r, c.c, c.err)
+		assert.Equal(t, c.want, got, c.name)
+		assert.NoError(t, refused, "%s: the budget holds", c.name)
 	}
 }
 

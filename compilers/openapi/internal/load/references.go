@@ -58,6 +58,9 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	p.fail(p.resolveTargets(held))
 	p.failures = append(p.failures, p.targets.exhausted(p.at)...)
 	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
+	if p.reader != nil {
+		p.failures = append(p.failures, p.reader.work.exhausted(p.at)...)
+	}
 	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
 }
 
