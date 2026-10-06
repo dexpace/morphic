@@ -68,6 +68,14 @@ var rules = map[string][]string{
 	// key predicate tests against, and is below both the scans that first wanted
 	// it and the schema lowering that wants the same view.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// How the library's walk reads a pointer through the parsed model, a token at
+	// a time, and where it leaves the model for raw YAML. It reaches the library's
+	// navigation and the root node a model was built from, and nothing of the
+	// compiler, so the $defs rule, the reference scope and the loader all read a
+	// pointer as the resolver does, without the key scan its read of raw YAML
+	// costs.
+	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
+		"github.com/speakeasy-api/openapi/marshaller", "gopkg.in/yaml.v3"},
 	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
 	// spells it. It reads the parsed model through the library's own navigation
 	// and nothing of the compiler, so the loader that hands the resolver its
@@ -114,12 +122,14 @@ var rules = map[string][]string{
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches resolve to read which mapping values name a position in the source
-	// as the lowering will, and the library's pointer walk to tell a hop that
-	// walked a document's bytes and to walk a document as it does. It reaches
-	// nothing that lowers — at this point there is no document to lower.
+	// as the lowering will, and the library's pointer walk, directly and through
+	// navigation, to tell a hop that walked a document's bytes and to walk a
+	// document as it does. It reaches nothing that lowers — at this point there
+	// is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
@@ -135,17 +145,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches annotation to ask whether a
-	// referenced position declares a body at all, jsonpointer to find that
-	// schema as the resolver does, compile for the registry it looks IDs up in,
-	// the library's openapi package to name each kind of reference once
-	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
-	// reaches nothing that lowers — following a reference far enough to lower
+	// referenced position declares a body at all, navigation and jsonpointer to
+	// find that schema as the resolver does, compile for the registry it looks
+	// IDs up in, the library's openapi package to name each kind of reference
+	// once (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none.
+	// It reaches nothing that lowers — following a reference far enough to lower
 	// its target recurses back into the schema walk, so that stays with the
 	// walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",

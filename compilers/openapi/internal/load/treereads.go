@@ -11,8 +11,8 @@ import (
 	"github.com/speakeasy-api/openapi/marshaller"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // maxScanMerges bounds how many merged mappings a read counted by treeReads is
@@ -85,7 +85,7 @@ func (t *treeReads) modelCost(doc any, pointer jsontext.Pointer, limit int) int 
 	node := doc
 	tokens := slices.Collect(pointer.Tokens())
 	for i, token := range tokens {
-		next, ok := refscope.Step(node, token)
+		next, ok := navigation.Step(node, token)
 		raw, leaves := next.(*yaml.Node)
 		if ok && !leaves {
 			node, steps = next, steps+1

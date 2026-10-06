@@ -16,7 +16,6 @@ import (
 	"encoding/json/jsontext"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -139,7 +139,7 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 		if _, raw := node.(*yaml.Node); raw {
 			break
 		}
-		next, ok := Step(node, token)
+		next, ok := navigation.Step(node, token)
 		if !ok {
 			break
 		}
@@ -149,35 +149,6 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 		node = next
 	}
 	return end, passes
-}
-
-// Step returns what node holds under the one token, as the resolver's walk
-// reads it on to the next, and false where it holds nothing. The library reads
-// the pointer "/" as the root, so the empty token is read below an envelope
-// keyed by the empty string; any other is read alone, which costs less. A
-// model the model holds by value, such as an operation's responses, comes back
-// as a pointer to a copy: the walk reads on from its address, where its methods
-// navigate it, and read as a last token it answers less (GitHub #779).
-func Step(node any, token string) (any, bool) {
-	source := node
-	pointer := "/" + jsonpointer.EscapeString(token)
-	if token == "" {
-		source, pointer = map[string]any{"": node}, "//"
-	}
-	next, err := jsonpointer.GetTarget(source, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-	if v := reflect.ValueOf(next); v.Kind() == reflect.Struct && reflect.PointerTo(v.Type()).Implements(reflect.TypeFor[coreModel]()) {
-		p := reflect.New(v.Type())
-		p.Elem().Set(v)
-		next = p.Interface()
-	}
-	return next, err == nil
-}
-
-// coreModel is what the library walks on from a field's address rather than
-// its value: a model, which navigates by its core's keys.
-type coreModel interface {
-	GetCoreAny() any
-	SetCoreAny(core any)
 }
 
 // reader returns the reader s reads "#/$defs/..." pointers through.
@@ -273,7 +244,7 @@ func (s Scope) modelTarget(pointer jsontext.Pointer) (any, bool) {
 	}
 	var node any = s.Doc
 	for token := range pointer.Tokens() {
-		next, ok := Step(node, token)
+		next, ok := navigation.Step(node, token)
 		if _, raw := next.(*yaml.Node); !ok || raw {
 			return nil, false
 		}

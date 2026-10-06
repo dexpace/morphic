@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -476,7 +477,7 @@ func TestScope_ModelAt_ReadsNothingBelowRawYAML(t *testing.T) {
 func walkTo(doc *soa.OpenAPI, pointer jsontext.Pointer) any {
 	var node any = doc
 	for token := range pointer.Tokens() {
-		node, _ = Step(node, token)
+		node, _ = navigation.Step(node, token)
 	}
 	return node
 }
@@ -613,50 +614,6 @@ func unmarshalWalkDoc(t *testing.T) *soa.OpenAPI {
 // elsewhere is an Ends that reads every node it is asked about as a reference
 // ending in another document, so any node a walk steps past shows.
 func elsewhere(any) (End, bool) { return End{Document: "elsewhere", Path: "x.yaml"}, true }
-
-// TestStep_ReadsOneToken pins the one step the walk takes: what a node holds
-// under a token, the empty token included, which the library reads as the root
-// when it is the only one; and nothing where the node holds nothing.
-func TestStep_ReadsOneToken(t *testing.T) {
-	t.Parallel()
-	doc := unmarshalWalkDoc(t)
-	empty, ok := doc.Components.Responses.Get("")
-	require.True(t, ok)
-
-	next, ok := Step(doc.Components.Responses, "")
-	require.True(t, ok)
-	assert.Same(t, empty, next, "the empty token names the entry keyed by the empty string")
-	next, ok = Step(doc, "components")
-	require.True(t, ok)
-	assert.Same(t, doc.Components, next)
-	_, ok = Step(doc, "nope")
-	assert.False(t, ok, "a token the node holds nothing under")
-}
-
-// TestStep_HandsOnAStructHeldByValue pins what a step hands on where the model
-// holds a model by value, as an operation holds its responses: a pointer, from
-// which the next step reads what only its methods answer, as the library's walk
-// reads on from the field's address. Any other struct is handed on as itself.
-func TestStep_HandsOnAStructHeldByValue(t *testing.T) {
-	t.Parallel()
-	doc := unmarshalWalkDoc(t)
-	op, ok := Step(walkTo(doc, "/paths/~1a"), "get")
-	require.True(t, ok)
-	responses, ok := Step(op, "responses")
-	require.True(t, ok)
-	require.IsType(t, &soa.Responses{}, responses, "the responses, which the operation holds by value")
-
-	next, ok := Step(responses, "default")
-	require.True(t, ok, "the default response, which the responses' methods answer")
-	whole, err := jsonpointer.GetTarget(doc, "/paths/~1a/get/responses/default", jsonpointer.WithStructTags("key"))
-	require.NoError(t, err)
-	assert.Same(t, whole, next, "as the whole read finds it")
-
-	type plain struct{ K int }
-	held, ok := Step(map[string]any{"v": plain{K: 1}}, "v")
-	require.True(t, ok)
-	assert.Equal(t, plain{K: 1}, held, "a struct that is no model stays a value, as the library reads on from it")
-}
 
 // TestScopeAt_PassesAReferenceUnderADefaultResponse pins that the walk goes on
 // past an operation's responses, which the model holds by value: a default
