@@ -152,12 +152,16 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 
 // Step returns what node holds under the one token, as the resolver's walk
 // reads it, and false where it holds nothing. The library reads the
-// one-token pointer "/" as the root rather than the empty token, so the token
+// one-token pointer "/" as the root rather than the empty token, so that token
 // is read as the second of two, below an envelope keyed by the empty string.
+// Any other is read alone, which is the same read without the envelope's cost.
 func Step(node any, token string) (any, bool) {
-	envelope := map[string]any{"": node}
-	next, err := jsonpointer.GetTarget(envelope, jsonpointer.JSONPointer("//"+jsonpointer.EscapeString(token)),
-		jsonpointer.WithStructTags("key"))
+	source := node
+	pointer := "/" + jsonpointer.EscapeString(token)
+	if token == "" {
+		source, pointer = map[string]any{"": node}, "//"
+	}
+	next, err := jsonpointer.GetTarget(source, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	return next, err == nil
 }
 
