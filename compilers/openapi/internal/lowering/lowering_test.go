@@ -304,7 +304,7 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	ask(c, "/none")
 	ask(c, "/none")
 	assert.Equal(t, 2, reads, "a position naming none is remembered too")
-	foreign := c.At("/paths/~1ext/get/responses/200")
+	foreign := c.InScope(c.RefScope().At("/paths/~1ext/get/responses/200"))
 	require.True(t, foreign.RefScope().Foreign)
 	ask(foreign, "/x")
 	assert.Equal(t, 3, reads, "the position is read again in another document's scope")

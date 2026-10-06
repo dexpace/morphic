@@ -398,38 +398,41 @@ func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema
 	return nil
 }
 
+// modelPointers are the pointers modelDoc is asked about: the model's schemas,
+// raw YAML, an index token the library retries, no position, and a pointer the
+// library refuses, though a property is named by what its token decodes to.
+var modelPointers = []jsontext.Pointer{
+	"/components/schemas/S/properties/p/properties/q",
+	"/components/schemas/S/properties/0/properties/q",
+	"/components/schemas/S/properties/01",
+	"/components/schemas/S/allOf/1/properties/p",
+	"/components/schemas/S/allOf/2",
+	"/components/schemas/S/x-ext/k",
+	"/components/schemas/T/properties/p",
+	"/components/schemas/V",
+	"/components/schemas/Nope/properties/x",
+	"/x-lib/a/b",
+	"/x-lib/0/type",
+	"/x-lib/list/0",
+	"/paths/~1a/get/responses/default/content/application~1json/schema/x-k/a",
+	"/paths/~1a/get/responses/200/content/application~1json/schema",
+	"/info/title",
+	"/nope/x",
+	"/components/schemas/S/properties/~2",
+	"/",
+	"",
+}
+
 // TestScope_ModelAt_AnswersAsTheWholeReadDoes pins that reading a token at a
-// time answers as reading the pointer whole, for each pointer below and each
-// of its prefixes: the model's schemas, raw YAML, an index token the library
-// retries, no position, and a pointer the library refuses, though a property
-// is named by what its token decodes to.
+// time answers as reading the pointer whole, for each of modelPointers and
+// each of its prefixes.
 func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
 	require.NoError(t, err)
 	sc := Scope{Doc: doc}
 	found := 0
-	for _, pointer := range []jsontext.Pointer{
-		"/components/schemas/S/properties/p/properties/q",
-		"/components/schemas/S/properties/0/properties/q",
-		"/components/schemas/S/properties/01",
-		"/components/schemas/S/allOf/1/properties/p",
-		"/components/schemas/S/allOf/2",
-		"/components/schemas/S/x-ext/k",
-		"/components/schemas/T/properties/p",
-		"/components/schemas/V",
-		"/components/schemas/Nope/properties/x",
-		"/x-lib/a/b",
-		"/x-lib/0/type",
-		"/x-lib/list/0",
-		"/paths/~1a/get/responses/default/content/application~1json/schema/x-k/a",
-		"/paths/~1a/get/responses/200/content/application~1json/schema",
-		"/info/title",
-		"/nope/x",
-		"/components/schemas/S/properties/~2",
-		"/",
-		"",
-	} {
+	for _, pointer := range modelPointers {
 		for prefix := range prefixesOf(pointer) {
 			want := wholeModelAt(doc, prefix)
 			assert.Same(t, want, sc.ModelAt(prefix), "%q", prefix)
@@ -452,25 +455,118 @@ func prefixesOf(pointer jsontext.Pointer) func(func(jsontext.Pointer) bool) {
 	}
 }
 
-// TestScope_ModelAt_ReadsNothingBelowRawYAML pins GitHub #778: ModelAt answers
-// a pointer into raw YAML without reading the raw mappings below where it
-// leaves the model. Each pointer passes a mapping whose first key is no node,
-// which the library's read of it faults on, as the whole read shows.
-func TestScope_ModelAt_ReadsNothingBelowRawYAML(t *testing.T) {
+// TestScope_ReadsNoRawMappingAPointerPasses pins GitHub #778 for ModelAt, At
+// and Locate: none scans the mapping where a pointer leaves the model, the
+// object's own, nor any raw mapping below. Each such mapping is given a first
+// key that is no node, which the library's read of it faults on, as the whole
+// read shows.
+func TestScope_ReadsNoRawMappingAPointerPasses(t *testing.T) {
+	t.Parallel()
+	for _, at := range []struct{ mapping, pointer jsontext.Pointer }{
+		{"", "/x-lib/a/b"},
+		{"/x-lib", "/x-lib/a/b"},
+		{"/components/schemas/S", "/components/schemas/S/x-ext/k"},
+		{"/components/schemas/S/x-ext", "/components/schemas/S/x-ext/k"},
+	} {
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+		require.NoError(t, err)
+		mapping := builtAt(t, doc, at.mapping)
+		mapping.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, mapping.Content...)
+
+		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %q", at.mapping)
+		sc := Scope{Doc: doc, Ends: ReferenceEnd}
+		assert.NotPanics(t, func() {
+			assert.Nil(t, sc.ModelAt(at.pointer))
+			assert.False(t, sc.At(at.pointer).Foreign)
+			assert.Nil(t, sc.Locate(at.pointer).Model())
+		}, "%q", at.pointer)
+	}
+}
+
+// builtAt returns the mapping the model holds at pointer: raw YAML itself, or
+// the one the object there was built from.
+func builtAt(t *testing.T, doc *soa.OpenAPI, pointer jsontext.Pointer) *yaml.Node {
+	t.Helper()
+	switch v := walkTo(doc, pointer).(type) {
+	case *yaml.Node:
+		return v
+	case *oas3.JSONSchema[oas3.Referenceable]:
+		return v.GetSchema().GetRootNode()
+	case *soa.OpenAPI:
+		return v.GetRootNode()
+	default:
+		require.Failf(t, "no mapping", "%q holds %T", pointer, v)
+		return nil
+	}
+}
+
+// TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes pins the two pointers the
+// library reads by a rule of its own, on a document that is itself a schema,
+// the one kind whose root ModelAt can answer: "/" is the root, not the entry
+// keyed by the empty string, and "" is no pointer.
+func TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes(t *testing.T) {
+	t.Parallel()
+	js := schemaFromYAML(t, "type: object\nproperties:\n  a: {type: string}\n")
+	sc := Scope{Doc: js}
+
+	assert.Same(t, js, sc.ModelAt("/"), "the root")
+	assert.Nil(t, sc.ModelAt(""), "no pointer")
+	for _, pointer := range []jsontext.Pointer{"/", "", "/properties/a", "/properties/a/", "/properties", "/~2"} {
+		assert.Same(t, wholeModelAt(js, pointer), sc.ModelAt(pointer), "%q", pointer)
+	}
+}
+
+// TestScope_Locate_ReadsTheScopeAsAtDoes pins that the scope Locate's one walk
+// reads a position in is At's, whose own walk notes references only up to a
+// schema, for each pointer of modelDoc and its prefixes, with nothing read as
+// a reference, every node, and the references the library resolves.
+func TestScope_Locate_ReadsTheScopeAsAtDoes(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
 	require.NoError(t, err)
-	for _, at := range []struct{ raw, pointer jsontext.Pointer }{
-		{"/x-lib", "/x-lib/a/b"},
-		{"/components/schemas/S/x-ext", "/components/schemas/S/x-ext/k"},
-	} {
-		node, ok := walkTo(doc, at.raw).(*yaml.Node)
-		require.True(t, ok, "%s is raw YAML", at.raw)
-		node.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, node.Content...)
-
-		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %s", at.raw)
-		assert.NotPanics(t, func() { assert.Nil(t, Scope{Doc: doc}.ModelAt(at.pointer)) }, at.pointer)
+	for _, ends := range []func(any) (End, bool){nil, elsewhere, ReferenceEnd} {
+		sc := Scope{Doc: doc, Ends: ends}
+		for _, base := range modelPointers {
+			for pointer := range prefixesOf(base) {
+				located := sc.Locate(pointer)
+				assert.Equal(t, pointer, located.Pointer())
+				want, got := sc.At(pointer), located.At()
+				assert.Equal(t, want.Foreign, got.Foreign, "%q", pointer)
+				assert.Equal(t, want.Holder, got.Holder, "%q", pointer)
+			}
+		}
 	}
+}
+
+// TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom pins a walk that
+// leaves the model at a reference, for raw YAML its target holds: the
+// reference is passed when the target holds the next token, as the resolver
+// steps past it into that YAML, and not when it holds nothing there.
+func TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    R: {$ref: '#/components/responses/S'}
+    S: {description: s, x-foo: {a: 1}}
+`))
+	require.NoError(t, err)
+	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: "spec.yaml"})
+	require.NoError(t, err)
+	references := func(node any) (End, bool) {
+		if r, ok := node.(*soa.ReferencedResponse); ok && r.IsReference() {
+			return End{Document: "elsewhere", Path: "x.yaml"}, true
+		}
+		return End{}, false
+	}
+	sc := Scope{Doc: doc, Ends: references}
+
+	assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
+	assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
+	assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
+	assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
 }
 
 // walkTo returns what the model holds at pointer, a step at a time.
@@ -634,9 +730,9 @@ func TestScopeAt_PassesAReferenceUnderADefaultResponse(t *testing.T) {
 	}
 }
 
-// TestScopeAt_StopsAtASchema pins where the walk stops: at the first schema,
-// since the resolver reads a schema's own $ref as a keyword, so a schema
-// pointer costs the steps to its schema rather than one per token.
+// TestScopeAt_StopsAtASchema pins where the walk stops reading references: at
+// the first schema, since the resolver reads a schema's own $ref as a keyword,
+// so nothing past it is asked whether it is one.
 func TestScopeAt_StopsAtASchema(t *testing.T) {
 	t.Parallel()
 	asked := 0
@@ -657,6 +753,13 @@ func TestScopeAt_StopsAtRawYAML(t *testing.T) {
 
 	assert.False(t, sc.At("/x-lib/a/b/c").Foreign)
 	assert.Equal(t, 1, asked, "the document, then the extension's value stops it")
+
+	rawAsReference := func(node any) (End, bool) {
+		_, raw := node.(*yaml.Node)
+		return End{Document: "elsewhere", Path: "x.yaml"}, raw
+	}
+	at := Scope{Doc: unmarshalWalkDoc(t), Ends: rawAsReference}.At("/extensions/x-lib/a/b")
+	assert.False(t, at.Foreign, "raw YAML a field holds is passed by no walk, though Ends would read it as a reference")
 }
 
 // TestScopeAt_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
@@ -694,6 +797,12 @@ func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 	assert.True(t, past.Foreign, "past the bound, no document's")
 	assert.Empty(t, past.Holder, "so no reference there names a document")
 	assert.Equal(t, maxRefChain, turns, "each turn follows one $ref")
+
+	turns = 0
+	past = sc.Locate("/paths/~1a/get").At()
+	assert.True(t, past.Foreign, "Locate's walk is the first of the same turns")
+	assert.Empty(t, past.Holder)
+	assert.Equal(t, maxRefChain, turns)
 }
 
 // TestScopeReached_AnEndInTheSourcesFileIsTheSources pins a hop that resolved

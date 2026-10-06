@@ -146,11 +146,11 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches annotation to ask whether a
-	// referenced position declares a body at all, navigation and jsonpointer to
-	// find that schema as the resolver does, compile for the registry it looks
-	// IDs up in, the library's openapi package to name each kind of reference
-	// once (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none.
-	// It reaches nothing that lowers — following a reference far enough to lower
+	// referenced position declares a body at all, navigation to find that schema
+	// as the resolver does, compile for the registry it looks IDs up in, the
+	// library's openapi package to name each kind of reference once
+	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
+	// reaches nothing that lowers — following a reference far enough to lower
 	// its target recurses back into the schema walk, so that stays with the
 	// walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
@@ -158,7 +158,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
-		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",

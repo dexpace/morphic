@@ -41,3 +41,39 @@ func TestScope_ModelAt_AnswersAsTheWholeReadDoesAcrossTheCorpus(t *testing.T) {
 	assert.Greater(t, specs, 100, "the corpus is read")
 	assert.Greater(t, schemas, 500, "and its pointers reach schemas, not only nothing")
 }
+
+// TestScope_Locate_AnswersAsAtDoesAcrossTheCorpus holds the scope Locate's one
+// walk reads a position in to the one At's own walk does, at every position the
+// corpus's specs hold. Every reference the loader resolved is read as ending in
+// another document, so each one a walk passes shows in the scope.
+func TestScope_Locate_AnswersAsAtDoesAcrossTheCorpus(t *testing.T) {
+	t.Parallel()
+	elsewhere := func(node any) (resolve.End, bool) {
+		if _, ok := resolve.ReferenceEnd(node); !ok {
+			return resolve.End{}, false
+		}
+		return resolve.End{Document: "elsewhere", Path: "x.yaml"}, true
+	}
+	asked, passed := 0, 0
+	for _, file := range openapitest.SpecFiles(t, "../../../../testdata") {
+		data, err := os.ReadFile(file)
+		require.NoError(t, err)
+		got, _, err := load.Load(t.Context(), 0, compilers.Source{Path: file, Data: data},
+			load.Options{AllowExternalRefs: true})
+		if err != nil || got == nil {
+			continue // not a document the loader builds a model of
+		}
+		sc := resolve.Scope{SelfPath: file, Doc: got.Doc, Ends: elsewhere}
+		for _, pointer := range openapitest.Positions(t.Context(), t, got.Doc) {
+			want, located := sc.At(pointer), sc.Locate(pointer).At()
+			assert.Equal(t, want.Foreign, located.Foreign, "%s %q", file, pointer)
+			assert.Equal(t, want.Holder, located.Holder, "%s %q", file, pointer)
+			asked++
+			if want.Foreign {
+				passed++
+			}
+		}
+	}
+	assert.Greater(t, asked, 10000, "the corpus is read")
+	assert.Greater(t, passed, 100, "and hundreds of positions lie past a reference")
+}

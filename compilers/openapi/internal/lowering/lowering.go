@@ -299,11 +299,11 @@ func Within[T, S any, R interface {
 	return c
 }
 
-// At returns c for lowering what an internal pointer names, in the scope
-// resolve.Scope.At reads it in: the source's own, or, where the resolver's walk
-// to it passes a $ref into another document, that document's.
-func (c Ctx) At(pointer jsontext.Pointer) Ctx {
-	scope := c.RefScope().At(pointer)
+// InScope returns c for lowering what is read in scope, which c's own
+// reference scope answered for a position (resolve.Scope.At, Location.At): the
+// source's own content, or, where the resolver's walk to it passes a $ref into
+// another document, that document's.
+func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	c.foreign, c.holder = scope.Foreign, scope.Holder
 	return c
 }
