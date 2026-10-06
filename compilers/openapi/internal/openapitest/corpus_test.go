@@ -48,20 +48,25 @@ func TestSpecFiles_FailsWhereItFindsNoSpec(t *testing.T) {
 }
 
 // positionsDoc has a schema the model's walk reaches, a path whose key needs
-// escaping, and an extension only the tree reaches.
+// escaping, an extension only the tree reaches, and a response written as a
+// reference, internal and external.
 const positionsDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {get: {responses: {"200": {description: ok}}}}
+  /a: {get: {responses: {"200": {description: ok}, "201": {$ref: '#/components/responses/R'}, "202": {$ref: 'other.yaml#/R'}, "203": {$ref: '#anchor'}}}}
 components:
   schemas:
     A: {type: object}
+  responses:
+    R: {description: r, x-k: {a: 1}}
 x-ext: {k: [v]}
 `
 
 // TestPositions_ReadsTheWalkTheTreeAndAStrayToken pins what a differential is
 // asked about: a place the walk reaches, a path only the tree has, an escaped
-// key, a list index, and each with a stray token appended.
+// key, a list index, a path of an internal reference's target read through
+// it, though not of an external one's nor an anchor's, and each with a stray
+// token appended.
 func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(positionsDoc))
@@ -70,8 +75,14 @@ func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 	for _, want := range []jsontext.Pointer{
 		"/components/schemas/A", "/x-ext/k/0", "/paths/~1a/get", "/x-ext/k/0/0", "/components/schemas/A/properties",
 		"/paths/~1a/x", "/x-ext/", "//~1",
+		"/paths/~1a/get/responses/201/x-k/a", "/paths/~1a/get/responses/201/description/0",
 	} {
 		assert.Contains(t, got, want)
+	}
+	for _, p := range got {
+		for _, unread := range []string{"/paths/~1a/get/responses/202/", "/paths/~1a/get/responses/203/"} {
+			assert.False(t, strings.HasPrefix(string(p), unread+"description"), "%q: no target is read there", p)
+		}
 	}
 	seen := map[jsontext.Pointer]bool{}
 	for _, p := range got {

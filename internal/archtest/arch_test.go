@@ -240,6 +240,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
