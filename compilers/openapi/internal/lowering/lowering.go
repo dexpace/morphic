@@ -128,6 +128,27 @@ type Ctx struct {
 	// the load phase resolved as a $ref to it is. Its zero value holds none.
 	// Unexported for the reason schemas is, and read only through RefScope.
 	targets load.MappingTargets
+
+	// typePositions remembers each answer TypePosition read. Copies share it on
+	// purpose, as they share defsReader: an answer reads only the document and
+	// targets, which no lowering changes, so what one copy remembers is what
+	// another would read. Nil in a zero context.
+	typePositions map[typePositionKey]typePositionAt
+}
+
+// typePositionKey is a position a discriminator mapping target names, and the
+// scope it is read in (see Within), which a TypePosition answer is kept under.
+type typePositionKey struct {
+	foreign bool
+	holder  string
+	pointer jsontext.Pointer
+}
+
+// typePositionAt is a TypePosition answer: the position, and whether it names
+// one.
+type typePositionAt struct {
+	pointer jsontext.Pointer
+	ok      bool
 }
 
 // New derives the immutable context for one loaded source.
@@ -156,6 +177,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		promotions: promotionSet(promotions),
 		overlay:    origin,
 		defsReader: reader,
+
+		typePositions: map[typePositionKey]typePositionAt{},
 	}
 }
 
@@ -193,10 +216,29 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // WithMappingTargets returns a copy of c carrying the schemas the load phase
 // resolved for the document's discriminator mapping targets. They come with
 // the document rather than being derived from it, since resolving one runs the
-// resolver, which only the load phase may (GitHub #757).
+// resolver, which only the load phase may (GitHub #757). The copy remembers no
+// TypePosition answer of c's, which read c's targets.
 func (c Ctx) WithMappingTargets(targets load.MappingTargets) Ctx {
-	c.targets = targets
+	c.targets, c.typePositions = targets, map[typePositionKey]typePositionAt{}
 	return c
+}
+
+// TypePosition returns read's answer for pointer in c's scope, read once and
+// remembered for every copy of c. read is where a discriminator mapping target
+// naming pointer names a type, which must follow from the document and the
+// mapping targets alone. Each subtype asks it of every entry of its base's
+// mapping, so n subtypes read each n times. A zero context reads it every time.
+func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() (jsontext.Pointer, bool)) (jsontext.Pointer, bool) {
+	if c.typePositions == nil {
+		return read()
+	}
+	key := typePositionKey{foreign: c.foreign, holder: c.holder, pointer: pointer}
+	if at, seen := c.typePositions[key]; seen {
+		return at.pointer, at.ok
+	}
+	at, ok := read()
+	c.typePositions[key] = typePositionAt{pointer: at, ok: ok}
+	return at, ok
 }
 
 // NamingByReference returns a copy of c marking everything lowered under it as
@@ -318,7 +360,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At,
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
 		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader

@@ -22,6 +22,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -55,6 +56,10 @@ type Scope struct {
 	// Mapped returns the schema the load phase resolved at a pointer a
 	// discriminator mapping target names, or nil; see DeclaredAt.
 	Mapped func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
+	// Built returns the schema the load phase walked at a raw position, or nil:
+	// the one whose $refs it resolved, which a $ref to the position may not
+	// reach when spelled so the resolver built it a copy.
+	Built func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable]
 	// Foreign marks a scope over content another document holds, read where
 	// that document holds it (GitHub #762). A reference there is internal only
 	// when its document part, resolved against Holder as the resolver resolves
@@ -89,30 +94,34 @@ func (s Scope) At(pointer jsontext.Pointer) Scope {
 }
 
 // reached returns s for reading what a hop ending at end found: a Foreign scope
-// over the document it resolved against, unless that is the source, where the
+// over the document it resolved against, unless that is the source (its model,
+// or its file read again where the load phase does not hold it), where the
 // position its pointer names is read as At reads it. A $ref the walk to that
-// position passes is followed to where its own chain ends, so each turn takes
-// one; maxRefChain bounds them, and the source's own is the answer past it.
+// position passes is followed to where its own chain ends, a turn each. Past
+// maxRefChain turns, and for a chain endOf cut, it is no document's: Foreign
+// with no Holder, so none of its references reads as internal.
 func (s Scope) reached(end End) Scope {
 	for range maxRefChain {
-		if end.Document != any(s.Doc) {
+		if end.Document != any(s.Doc) && !SameDocument(s.SelfPath, end.Path) {
 			s.Foreign, s.Holder = true, end.Path
 			return s
 		}
 		next, passed := s.passed(end.Pointer)
 		if !passed {
-			break
+			return s.InSource()
 		}
 		end = next
 	}
-	return s.InSource()
+	s.Foreign, s.Holder = true, ""
+	return s
 }
 
 // passed returns where the chain of the last $ref the resolver's walk to
 // pointer through Doc passes ends, and false when it passes none. The walk
 // reads a reference it passes as what that resolved to (GetNavigableNode), so
 // what lies past one is the content its chain ends in. A schema's own $ref is
-// read as a keyword instead, so nothing past a schema is passed.
+// read as a keyword instead, so nothing past a schema is passed. Nor is
+// anything past raw YAML, which holds no reference the resolver resolved.
 func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 	if s.Ends == nil {
 		return End{}, false
@@ -126,7 +135,10 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
 			break
 		}
-		next, ok := step(node, token)
+		if _, raw := node.(*yaml.Node); raw {
+			break
+		}
+		next, ok := Step(node, token)
 		if !ok {
 			break
 		}
@@ -138,11 +150,11 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 	return end, passes
 }
 
-// step returns what node holds under the one token, as the resolver's walk
+// Step returns what node holds under the one token, as the resolver's walk
 // reads it, and false where it holds nothing. The library reads the
 // one-token pointer "/" as the root rather than the empty token, so the token
 // is read as the second of two, below an envelope keyed by the empty string.
-func step(node any, token string) (any, bool) {
+func Step(node any, token string) (any, bool) {
 	envelope := map[string]any{"": node}
 	next, err := jsonpointer.GetTarget(envelope, jsonpointer.JSONPointer("//"+jsonpointer.EscapeString(token)),
 		jsonpointer.WithStructTags("key"))
@@ -198,24 +210,34 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 // annotation.DeclaredSchema for a followed $ref.
 //
 // It is for a mapping value, which the resolver never follows, so it carries no
-// declaration of its own (GitHub #530). Mapped answers first: the load phase
-// resolves each value as a $ref, which parses a position the model holds as
-// raw YAML, such as an extension's value or an enum member (GitHub #757). The
-// model answers for a value spelled so the load phase does not resolve it.
+// declaration of its own (GitHub #530). The model's schema answers first: the
+// load phase's may be a copy a $ref by the source's file name built, whose own
+// $refs nothing resolved. Mapped answers where the model holds raw YAML, such
+// as an extension's value or an enum member (GitHub #757).
 func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	if s.Mapped != nil {
-		if js := s.Mapped(pointer); js != nil {
-			return js
-		}
+	if js := s.ModelAt(pointer); js != nil {
+		return js
 	}
+	if s.Mapped == nil {
+		return nil
+	}
+	return s.Mapped(pointer)
+}
+
+// ModelAt returns the schema the source's model holds at a same-document
+// pointer, found the way the resolver finds a $ref's target, or nil where it
+// holds none, as at a position it holds as raw YAML.
+func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {
 		return nil
 	}
-	// Anything but a schema fails the assertion and leaves js nil, and so does a
-	// keyword the schema leaves unset, which the walk reaches as a typed nil.
-	js, _ := target.(*oas3.JSONSchema[oas3.Referenceable])
-	return js
+	// Anything but a schema fails the assertion, and so does a keyword the
+	// schema leaves unset, which the walk reaches as a typed nil.
+	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && js != nil {
+		return js
+	}
+	return nil
 }
 
 // sameFile reports whether a $ref document part names this compilation's own
@@ -301,8 +323,8 @@ func (s Scope) NamesHolder(ref string) bool {
 
 // foreignDocument returns the path of the document ref names in a Foreign
 // scope: its document part resolved against Holder, as the resolver resolves
-// it, or Holder for none. It reports false outside a Foreign scope, and for a
-// reference the resolver could not place.
+// it, or Holder for none. It reports false outside a Foreign scope, in one with
+// no Holder (see reached), and for a reference the resolver could not place.
 func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
 	if !s.Foreign || s.Holder == "" {
 		return "", false

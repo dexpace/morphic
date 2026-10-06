@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"reflect"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -23,8 +25,12 @@ import (
 // (GitHub #757). The resolver follows no mapping value, so a schema the model
 // holds as raw YAML, such as an extension's value or an enum member, was
 // otherwise found only once a $ref had lowered it. Its zero value holds none.
+//
+// It also holds the schema walked at each raw position (see arrive), so every
+// reference to one reaches the object whose own $refs were resolved.
 type MappingTargets struct {
 	byPointer map[jsontext.Pointer]*schemaRef
+	built     map[jsontext.Pointer]*schemaRef
 }
 
 // At returns the schema a mapping target resolved to at pointer, or nil.
@@ -32,13 +38,25 @@ func (t MappingTargets) At(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Refer
 	return t.byPointer[pointer]
 }
 
+// Built returns the schema the load phase walked at a raw position, or nil.
+// A $ref spelled with the source's file name builds a copy of what it names,
+// and the walk resolves the $refs in one object per position alone.
+func (t MappingTargets) Built(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	return t.built[pointer]
+}
+
 // maxMappingWork bounds the steps resolving the mapping targets takes: each
-// entry it reads, object it reaches, walk item it reads and position it
-// resolves, and for each position the keys of the object holding it, which the
-// library may scan to find it. Each object is walked once and each position
-// resolved once, so the steps follow what the library builds for the targets,
-// which is what a $ref to each would build.
+// entry it reads, hop of a chain it reads, object it reaches, walk item it
+// reads and position it resolves, and for each position the keys the library
+// scans to find it (see keysHolding). Each is done once, so the steps follow
+// what the library builds for the targets, which is what a $ref to each would
+// build.
 const maxMappingWork = 1 << 28
+
+// farHops is a distance past maxResolutionHops, at which chainEnds remembers a
+// chain no nearer its end: one that never ends is as far. Saturating there keeps
+// "ends within maxResolutionHops reads" exact for every hop before it.
+const farHops = maxResolutionHops + 1
 
 // mappings resolves, at load, the targets of every discriminator mapping in the
 // source, and the schema $refs inside the raw objects it builds, so what the
@@ -55,11 +73,17 @@ type mappings struct {
 	reader *external
 	// view reads the $ref a raw node carries, when a chain's end is asked after.
 	view *nodeview.View
+	// ends holds, for each hop chainEnds read, the reads from it to its chain's
+	// end, at most farHops.
+	ends map[hop]int
 	// model holds each object the walk saw, and modelAt each site it saw one of
-	// a kind at; walked holds each position and kind of other object read.
+	// a kind at; walked holds each position and kind of other object arrived at.
 	model   map[any]bool
 	modelAt map[builtKey]bool
 	walked  map[builtKey]bool
+	// built holds the schema walked at each raw position, which a reference to
+	// the position is to reach whatever object its own resolution built.
+	built map[jsontext.Pointer]*schemaRef
 	// named holds each entry read.
 	named     map[jsontext.Pointer]bool
 	queue     []arrival
@@ -79,27 +103,30 @@ type arrival struct {
 }
 
 // target is a position mapping entries name: the least entry naming it, and,
-// once resolved, what its resolution drew.
+// once resolved, what its resolution drew and the nodes it reached that hold
+// no schema (see noSchemaNodes).
 type target struct {
 	least    jsontext.Pointer
 	resolved bool
 	trail    trail
 	found    []error
+	noSchema map[*yaml.Node]bool
 }
 
 // newMappings returns the resolver of the mapping targets of doc, the model of
 // self, which resolves each with opts, through reader when external references
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
-	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(),
+	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), ends: map[hop]int{},
 		model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
+		built: map[jsontext.Pointer]*schemaRef{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},
 		out: map[jsontext.Pointer]*schemaRef{}, limit: maxMappingWork}
 }
 
 // targets returns what resolve resolved.
 func (m *mappings) targets() MappingTargets {
-	return MappingTargets{byPointer: m.out}
+	return MappingTargets{byPointer: m.out, built: m.built}
 }
 
 // see notes a model the walk reached at site: a discriminator's entries are
@@ -114,39 +141,6 @@ func (m *mappings) see(site jsontext.Pointer, model any) {
 	default:
 		// Any other kind of model holds no mapping and resolves nothing.
 	}
-}
-
-// inSourceRecords returns the records of c's hops that reached an object in
-// doc, the source's model.
-func inSourceRecords(doc *soa.OpenAPI, c chain) []record {
-	var in []record
-	for _, r := range c.records {
-		if inSource(doc, r) {
-			in = append(in, r)
-		}
-	}
-	return in
-}
-
-// inSource reports whether r's hop reached an object in doc, the source's
-// model: one it resolved against once mended, at a pointer whose walk passes no
-// $ref into another document. The resolver reports such a pointer resolved
-// against the source too, but what it reaches is that document's content
-// (refscope.Scope.At, GitHub #762).
-func inSource(doc *soa.OpenAPI, r record) bool {
-	if _, ok := (*r.document).(*soa.OpenAPI); !ok || !r.reached {
-		return false
-	}
-	return !refscope.Scope{Doc: doc, Ends: refscope.ReferenceEnd}.At(pointerIn(r)).Foreign
-}
-
-// pointerIn returns the pointer r's hop reached, in its document. The absolute
-// reference holds it decoded already, as the resolver read it, so it is taken
-// as written: GetJSONPointer would decode it again, reading a key's '+' as a
-// space and its '%41' as 'A'.
-func pointerIn(r record) jsontext.Pointer {
-	_, pointer, _ := strings.Cut(string(r.target), "#")
-	return jsontext.Pointer(pointer)
 }
 
 // resolve reads each object a reference's chain reaches and resolves each
@@ -199,24 +193,33 @@ func (m *mappings) exhausted(at func(jsontext.Pointer) ir.Provenance) []ir.Diagn
 func (m *mappings) note(found *reachedFindings) {
 	for _, pointer := range m.order {
 		if t := m.byPointer[pointer]; t.resolved {
-			found.note(t.least, t.trail, t.found)
+			found.noteEntry(t.least, t.trail, t.found, t.noSchema)
 		}
 	}
 }
 
 // arrive reads the object q reaches, once per position and kind, when it is
-// built from raw YAML: what the model holds the walk has read already.
+// built from raw YAML and is the source's: the walk read what the model holds,
+// and past a $ref into another document a pointer reaches that document's
+// content, though the resolver reports the source (GitHub #762).
 //
-// A $ref naming the source by its file name reaches a copy of what it names,
-// built anew each time. A copy of what the model holds there, as that kind, is
-// read as the model's own: walked as raw YAML, a chain of components each
-// naming the next so walked every copy down it.
+// A $ref naming the source by its file name reaches a new copy of what it
+// names each time. One of what the model holds there, as that kind, is read
+// as the model's own: walked as raw YAML, a chain of components each naming
+// the next walked every copy.
 func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival) {
-	at := builtKey{pointer: pointerIn(q.record), kind: reflect.TypeOf(q.record.object)}
+	at := builtKey{pointer: q.record.pointer, kind: reflect.TypeOf(q.record.object)}
 	if m.model[q.record.object] || m.modelAt[at] || m.walked[at] {
 		return
 	}
 	m.walked[at] = true
+	if (refscope.Scope{Doc: m.doc, Ends: refscope.ReferenceEnd}).At(at.pointer).Foreign {
+		return
+	}
+	if js, ok := q.record.object.(*schemaRef); ok && !namesEmptyKey(at.pointer) &&
+		readsAsSchema(nodeview.Deref(js.GetRootNode())) {
+		m.built[at.pointer] = js
+	}
 	m.walk(ctx, found, at.pointer, q.record)
 }
 
@@ -311,10 +314,10 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 // fails further on is recorded all the same. One whose first hop reaches no
 // schema is recorded nowhere, and its findings go unreported, which say only
 // that the position is no schema: the lowering reports every target it cannot
-// resolve. One not provably ending is left out (see provablyEnds).
+// resolve. One not provably ending is left out (see chainEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
 	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
-	if !m.self.provablyEnds(m.doc, m.view, ref.GetRef()) {
+	if !m.chainEnds(ref.GetRef()) {
 		return
 	}
 	if !m.spend(m.keysHolding(pointer)) {
@@ -329,10 +332,8 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	t := m.byPointer[pointer]
 	if declared := firstSchema(c); declared != nil {
 		m.out[pointer] = declared
-	} else {
-		vErrs = nil
 	}
-	t.resolved, t.trail, t.found = true, c.trail(), vErrs
+	t.resolved, t.trail, t.found, t.noSchema = true, c.trail(), vErrs, noSchemaNodes(c)
 	if err == nil {
 		m.enqueue(t.least, c)
 	}
@@ -352,6 +353,21 @@ func firstSchema(c chain) *schemaRef {
 	return declared
 }
 
+// noSchemaNodes returns the nodes c's hops reached that hold no schema (see
+// readsAsSchema). A finding about one says only that, and the lowering reports
+// a target or $ref it cannot resolve, so such a finding an entry's resolution
+// draws is reported only where a $ref of the model's own drew it too (see
+// reachedFindings.noteEntry).
+func noSchemaNodes(c chain) map[*yaml.Node]bool {
+	noSchema := map[*yaml.Node]bool{}
+	for _, r := range c.records {
+		if js, ok := r.object.(*schemaRef); ok && r.reached && !readsAsSchema(nodeview.Deref(js.GetRootNode())) {
+			noSchema[js.GetRootNode()] = true
+		}
+	}
+	return noSchema
+}
+
 // readsAsSchema reports whether node, a schema's source, is a value a schema
 // is read from: a mapping, or a boolean. The library builds an empty schema
 // from any other, which holds neither side of the union, and IsSchema is true
@@ -363,11 +379,15 @@ func readsAsSchema(node *yaml.Node) bool {
 	return node.Kind == yaml.MappingNode || node.Kind == yaml.ScalarNode && node.Tag == "!!bool"
 }
 
-// enqueue queues each object c's hops reached in the source, for the work at
-// site.
+// enqueue queues each object c's hops reached in doc, the source's model, for
+// the work at site: one resolved against it once mended. Whether the object is
+// the source's content is left to arrive, which asks once a position rather
+// than once for each hop of every chain reaching it.
 func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
-	for _, r := range inSourceRecords(m.doc, c) {
-		m.queue = append(m.queue, arrival{site: site, record: r})
+	for _, r := range c.records {
+		if _, ok := (*r.document).(*soa.OpenAPI); ok && r.reached {
+			m.queue = append(m.queue, arrival{site: site, record: r})
+		}
 	}
 }
 
@@ -376,39 +396,176 @@ func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
 // lowering never lowers, or a "#/$defs/..." pointer, which GitHub #557's rule
 // reads in the model alone (GitHub #570). A failure is left to the lowering,
 // which reports the reference unresolved, and so is a chain that does not
-// provably end (see provablyEnds).
+// provably end (see chainEnds). As for a target, a finding about a position
+// holding no schema is noted as an entry's (see noSchemaNodes).
 func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, site jsontext.Pointer, js *schemaRef) {
 	pointer, ok := sourcePointer(m.self.path, string(js.GetRef()))
-	if !ok || !m.self.provablyEnds(m.doc, m.view, js.GetRef()) || !m.spend(m.keysHolding(pointer)) {
+	if !ok || !m.chainEnds(js.GetRef()) || !m.spend(m.keysHolding(pointer)) {
 		return
 	}
+	readInModel(js, m.doc, m.opts.TargetLocation)
 	vErrs, err := js.Resolve(ctx, m.opts)
 	if m.reader != nil {
 		vErrs, err = m.reader.settle(ctx, js, m.opts, vErrs, err)
 	}
 	c := resolutionChain(js)
-	found.note(site, c.trail(), vErrs)
+	found.noteEntry(site, c.trail(), vErrs, noSchemaNodes(c))
 	if err == nil {
 		m.enqueue(site, c)
 	}
 }
 
+// readInModel has js, a $ref naming the source in an object built from raw
+// YAML, resolve against doc, the model, at location, as the lowering reads it.
+// The library resolves it against the document its object's own resolution
+// read: the model after an internal $ref, the source's tree after one naming
+// its file. The two read a pointer through a $ref, or ending in '/',
+// differently, so whether it resolved followed which copy was walked first.
+func readInModel(js *schemaRef, doc *soa.OpenAPI, location string) {
+	if info := js.GetReferenceResolutionInfo(); info != nil && info.Object == nil {
+		info.ResolvedDocument, info.AbsoluteDocumentPath = doc, location
+	}
+}
+
+// chainEnds reports whether the chain of ref, a schema $ref resolved in the
+// source, ends within maxResolutionHops reads. The resolver follows a hop it
+// resolved before without tracking where the chain has been, so a chain closing
+// on such hops recurses until the stack runs out (GitHub #558), and the cycle
+// scan misses a cycle in raw YAML or through the source's file name (GitHub
+// #768). A mapping names either wherever the input says, so each hop is read as
+// the resolver reads it (see hopOf, readAt), once, for a step, and remembered.
+// A walk the step bound cuts remembers nothing.
+func (m *mappings) chainEnds(ref references.Reference) bool {
+	if m.self.root == nil || m.doc == nil {
+		return false
+	}
+	var path []hop
+	onPath := map[hop]bool{}
+	toEnd, named := farHops, false
+	for {
+		pointer, ok := m.self.within(ref)
+		if !ok {
+			break
+		}
+		named = named || ref.GetURI() != ""
+		h := m.hopOf(pointer, ref.GetURI() != "", named)
+		if known, seen := m.ends[h]; seen {
+			toEnd = known
+			break
+		}
+		if onPath[h] {
+			break
+		}
+		if !m.spend(1) {
+			return false
+		}
+		onPath[h] = true
+		path = append(path, h)
+		next, kind := m.readAt(h)
+		if kind == hopEnds {
+			toEnd = 0
+			break
+		}
+		if kind == hopUnread {
+			break
+		}
+		ref = next
+	}
+	for i := len(path) - 1; i >= 0; i-- {
+		toEnd = min(toEnd+1, farHops)
+		m.ends[path[i]] = toEnd
+	}
+	return toEnd <= maxResolutionHops
+}
+
+// hopOf returns the hop a chain reads at pointer, from a reference with a
+// document part or not (byName), after a hop naming the source by its file name
+// or not (named). Without external references, every hop from the first so
+// named on reads the tree. With them, a hop so named reads the tree and any
+// other the model, checked against the tree (see readAt), whatever came
+// before: inTree says which reading the hop takes.
+func (m *mappings) hopOf(pointer string, byName, named bool) hop {
+	if m.reader != nil {
+		return hop{pointer: pointer, inTree: byName}
+	}
+	return hop{pointer: pointer, inTree: named}
+}
+
+// readAt reads the hop h with the call the resolver makes (readHop), in the
+// source's tree or its model. With external references allowed, a hop read in
+// the model is read in the tree too, and is no answer where the two find
+// different $refs, or one finds none: the resolver answers a hop from its cache
+// first, and a reference back into the source through the tree it holds can
+// leave a copy built from the tree there, so either reading may be the one it
+// follows.
+func (m *mappings) readAt(h hop) (references.Reference, hopKind) {
+	if h.inTree {
+		return readHop(m.view, m.self.root, h.pointer)
+	}
+	next, kind := readHop(m.view, m.doc, h.pointer)
+	if m.reader == nil {
+		return next, kind
+	}
+	if inTree, _ := readHop(m.view, m.self.root, h.pointer); inTree != next {
+		return "", hopUnread
+	}
+	return next, kind
+}
+
 // keysHolding returns the steps resolving the position pointer costs: one, and
-// one for each key of the object that holds it in the source's tree, which the
-// library scans to find a position under an extension. The tree is not the
-// model's, so the count is an upper bound for a position the model holds in a
-// map.
+// the keys of each mapping the library scans to find it. The model finds a
+// field or an entry by name, so a position it holds, such as a component,
+// costs one however wide its map. Where it holds raw YAML, or nothing, the
+// mapping its object was built from is charged, which it scans for a key it
+// holds in no field, and so is each level of raw YAML below (see keysScanned).
 func (m *mappings) keysHolding(pointer jsontext.Pointer) int {
-	root := m.self.root
-	if root != nil && root.Kind == yaml.DocumentNode && len(root.Content) == 1 {
-		root = root.Content[0]
+	tokens := slices.Collect(pointer.Tokens())
+	var node any = m.doc
+	for i, token := range tokens {
+		next, ok := refscope.Step(node, token)
+		raw, leaves := next.(*yaml.Node)
+		if ok && !leaves {
+			node = next
+			continue
+		}
+		// raw is nil where the model holds nothing, and nothing below is scanned.
+		return 1 + keysIn(builtFrom(node)) + m.keysScanned(raw, tokens[i+1:])
 	}
-	holder := pointer[:max(strings.LastIndexByte(string(pointer), '/'), 0)]
-	path, complete := m.view.DocumentPath(root, holder)
-	if !complete || len(path) == 0 {
-		return 1
+	return 1
+}
+
+// keysScanned returns the keys of each mapping the library scans to find the
+// position tokens name below node, raw YAML: a scan of each level for its
+// token, down to the last or the first it misses, below which there is no node
+// and so no key.
+func (m *mappings) keysScanned(node *yaml.Node, tokens []string) int {
+	keys := 0
+	for _, token := range tokens {
+		node = nodeview.Deref(node)
+		keys += keysIn(node)
+		node = m.view.ChildByToken(node, token)
 	}
-	return 1 + len(path[len(path)-1].Content)/2
+	return keys
+}
+
+// builtFrom returns the mapping the model object node was built from, which the
+// library scans for a key the object holds in no field or entry, or nil for an
+// object built from none: a map or list, or a nil one.
+func builtFrom(node any) *yaml.Node {
+	built, ok := node.(marshaller.RootNodeAccessor)
+	if v := reflect.ValueOf(node); !ok || v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	return built.GetRootNode()
+}
+
+// keysIn returns how many keys the mapping node holds, read through an alias,
+// and none for a node of any other kind.
+func keysIn(node *yaml.Node) int {
+	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
+		return 0
+	}
+	return len(node.Content) / 2
 }
 
 // pointerOf returns the position target names in the source, and whether it
@@ -416,14 +573,13 @@ func (m *mappings) keysHolding(pointer jsontext.Pointer) int {
 // targets resolved here are exactly those it asks DeclaredAt about. A declared
 // component's name is the component, and a "#/$defs/..." pointer is the
 // definition the lowering reads relative to the discriminator (GitHub #557),
-// which no $ref to the pointer resolves. One ending in '/' names an empty key,
-// which the resolver cannot read: it trims the slash and reads the parent.
+// which no $ref to the pointer resolves.
 func (m *mappings) pointerOf(target string) (jsontext.Pointer, bool) {
 	if _, declared := m.doc.GetComponents().GetSchemas().Get(target); declared {
 		return "", false
 	}
 	pointer, ok := sourcePointer(m.self.path, target)
-	return pointer, ok && !strings.HasSuffix(string(pointer), "/")
+	return pointer, ok && !namesEmptyKey(pointer)
 }
 
 // sourcePointer returns the position ref names in the source at self, as the
@@ -432,4 +588,12 @@ func (m *mappings) pointerOf(target string) (jsontext.Pointer, bool) {
 func sourcePointer(self, ref string) (jsontext.Pointer, bool) {
 	pointer, ok := refscope.Scope{SelfPath: self}.InternalPointer(ref)
 	return pointer, ok && !defs.IsPointer(pointer)
+}
+
+// namesEmptyKey reports whether pointer ends in '/', so names an empty key,
+// which the resolver cannot read: it trims the slash and reads the parent
+// (GitHub #770). A mapping value so spelled is left to the lowering, and the
+// parent is held as no object walked there.
+func namesEmptyKey(pointer jsontext.Pointer) bool {
+	return strings.HasSuffix(string(pointer), "/")
 }

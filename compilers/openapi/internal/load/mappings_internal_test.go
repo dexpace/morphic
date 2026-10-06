@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"iter"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -294,6 +296,8 @@ func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
 	require.True(t, ok)
 	wrapper := box.GetResolvedSchema().GetSchema()
 	require.NotNil(t, wrapper, "Box's $ref builds Wrapper")
+	assert.Same(t, box.GetReferenceResolutionInfo().Object, got.Targets.Built("/x-lib/Wrapper"),
+		"the object walked at Wrapper's position is the one Box's $ref built")
 	property := func(name string) *schemaRef {
 		js, found := wrapper.GetProperties().Get(name)
 		require.True(t, found, name)
@@ -306,6 +310,52 @@ func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
 	assert.False(t, property("def").IsResolved(), "a definition is read by GitHub #557's rule, which reads the model only")
 	assert.False(t, property("far").IsResolved(), "another document is not read for content the source holds")
 	assert.True(t, wrapper.GetNot().IsResolved(), "a $ref is resolved wherever it is written")
+}
+
+// TestMappings_AReferenceInABuiltObjectToNoSchemaDrawsNoFinding pins that a
+// $ref inside a built object naming a position that holds no schema draws no
+// finding of the load phase's, as a mapping target naming it does not (GitHub
+// #769). Reported, it failed a compile that never read the position.
+func TestMappings_AReferenceInABuiltObjectToNoSchemaDrawsNoFinding(t *testing.T) {
+	t.Parallel()
+	_, diags := loadTargets(t, "spec.yaml", openapitest.ComponentSpec("    A: {type: object}\n")+
+		"  parameters:\n    Unused: {$ref: '#/x-lib/P'}\n"+
+		"x-lib:\n  P: {name: p, in: query, schema: {$ref: '#/x-lib/str'}}\n  str: just a string\n", false)
+	assert.Empty(t, diags)
+}
+
+// TestMappings_APointerEndingInSlashNamesNoWalkedObject pins that the parent a
+// $ref ending in '/' reaches (GitHub #770), in the model or in a built object,
+// is not held as the object walked at that pointer. Held there, a mapping value
+// spelling the same pointer lowered the parent, where it is otherwise reported
+// unresolved.
+func TestMappings_APointerEndingInSlashNamesNoWalkedObject(t *testing.T) {
+	t.Parallel()
+	for _, schema := range []string{"    Y: {$ref: '#/x-lib/T/'}\n", "    Y: {$ref: '#/x-lib/S'}\n"} {
+		got, diags := loadTargets(t, "spec.yaml", mappingSpec(schema,
+			"x-lib:\n  S: {type: object, properties: {a: {$ref: '#/x-lib/T/'}}}\n  T: {type: object}\n"), false)
+		require.Empty(t, diags)
+
+		assert.True(t, got.Targets.Built("/x-lib/T/") == nil, "no object is held at a pointer ending in '/': %s", schema)
+	}
+}
+
+// TestMappings_ANoSchemaFindingIsDroppedWhicheverHopBuiltThePosition pins that a
+// position holding no schema draws no finding of the load phase's, whichever
+// resolution reached it first: an entry naming it, a later hop of another
+// entry's chain, or a $ref in an object another entry reaches. The library
+// builds the position once, and only the first resolution draws its finding,
+// so dropping it for an entry's first hop alone made the report follow order.
+func TestMappings_ANoSchemaFindingIsDroppedWhicheverHopBuiltThePosition(t *testing.T) {
+	t.Parallel()
+	lib := "x-lib:\n  N: null\n  R: {$ref: '#/x-lib/N'}\n  O: {type: object, properties: {p: {$ref: '#/x-lib/N'}}}\n"
+	for _, mapping := range []string{
+		"a: '#/x-lib/N', b: '#/x-lib/R'", "b: '#/x-lib/R', a: '#/x-lib/N'",
+		"a: '#/x-lib/N', b: '#/x-lib/O'", "b: '#/x-lib/O', a: '#/x-lib/N'",
+	} {
+		_, diags := loadTargets(t, "spec.yaml", mappingSpec(petMapping(mapping), lib), false)
+		assert.Empty(t, diags, mapping)
+	}
 }
 
 // TestMappings_AChainThatFailsPastItsFirstHopRecordsTheHop pins that a target
@@ -399,25 +449,29 @@ func TestMappings_TheWorkIsBounded(t *testing.T) {
 }
 
 // TestMappings_TheKeysTheResolverScansAreCharged pins that resolving a target
-// costs the keys of the object holding it, which the library scans to find a
-// position under an extension: n targets in one extension of n keys take n
-// squared steps, where the same n in n objects of one key take n. The bound is
-// set between the two, so only the first crosses it. Each row names the targets
-// a different way: by mapping entries, and by $refs in a raw object.
+// costs the keys of each mapping the library scans to find it: n targets in
+// one extension of n keys take n squared steps, and so do n a level below one,
+// where n component schemas, which the model finds by name, take n. The bound
+// is set at what the components take, so only the scanned layouts cross it.
+// Each row names the targets a different way: by mapping entries, and by $refs
+// in a raw object.
 func TestMappings_TheKeysTheResolverScansAreCharged(t *testing.T) {
 	t.Parallel()
 	const n = 64
-	// spec writes n targets under one extension, or each under an object of its
-	// own, named by the route.
-	spec := func(route string, nestedLayout bool) string {
-		var names, library, targets strings.Builder
+	// spec writes n targets in the layout named, named by the route.
+	spec := func(route, layout string) string {
+		var names, schemas, library, targets strings.Builder
 		for i := range n {
-			target := fmt.Sprintf("#/x-lib/T%d", i)
-			if nestedLayout {
+			target := fmt.Sprintf("#/components/schemas/T%d", i)
+			switch layout {
+			case "flat":
+				target = fmt.Sprintf("#/x-lib/T%d", i)
+				fmt.Fprintf(&library, "  T%d: {type: object, description: d}\n", i)
+			case "nested":
 				target = fmt.Sprintf("#/x-lib/G%d/T%d", i, i)
 				fmt.Fprintf(&library, "  G%d:\n    T%d: {type: object, description: d}\n", i, i)
-			} else {
-				fmt.Fprintf(&library, "  T%d: {type: object, description: d}\n", i)
+			default:
+				fmt.Fprintf(&schemas, "    T%d: {type: object, description: d}\n", i)
 			}
 			if route == "mapping" {
 				fmt.Fprintf(&names, "t%d: '%s', ", i, target)
@@ -426,26 +480,27 @@ func TestMappings_TheKeysTheResolverScansAreCharged(t *testing.T) {
 			}
 		}
 		if route == "mapping" {
-			return mappingSpec(petMapping(strings.TrimSuffix(names.String(), ", ")), "x-lib:\n"+library.String())
+			return mappingSpec(petMapping(strings.TrimSuffix(names.String(), ", "))+schemas.String(),
+				"x-lib:\n"+library.String())
 		}
-		return mappingSpec("    Box: {$ref: '#/x-lib/W'}\n", "x-lib:\n  W: {type: object, properties: {"+
+		return mappingSpec("    Box: {$ref: '#/x-lib/W'}\n"+schemas.String(), "x-lib:\n  W: {type: object, properties: {"+
 			strings.TrimSuffix(targets.String(), ", ")+"}}\n"+library.String())
 	}
 	for _, route := range []string{"mapping", "nested $ref"} {
 		t.Run(route, func(t *testing.T) {
 			t.Parallel()
-			flatSpec, nestedSpec := spec(route, false), spec(route, true)
-			flatFree, _ := resolverOver(t, flatSpec, maxMappingWork)
-			nestedFree, _ := resolverOver(t, nestedSpec, maxMappingWork)
-			require.Greater(t, flatFree.work, nestedFree.work+n*n/2, "the scan is what separates them")
+			byName, diags := resolverOver(t, spec(route, "component"), maxMappingWork)
+			require.Empty(t, diags)
+			for _, layout := range []string{"flat", "nested"} {
+				scanned, _ := resolverOver(t, spec(route, layout), maxMappingWork)
+				require.Greater(t, scanned.work, byName.work+n*n/2, "%s: the scan is what separates them", layout)
 
-			limit := nestedFree.work
-			_, flatDiags := resolverOver(t, flatSpec, limit)
-			_, nestedDiags := resolverOver(t, nestedSpec, limit)
-
-			require.Len(t, flatDiags, 1, "the flat extension crosses the bound")
-			assert.Equal(t, diag.BudgetExceeded, flatDiags[0].Code)
-			assert.Empty(t, nestedDiags, "the nested one does not")
+				_, diags := resolverOver(t, spec(route, layout), byName.work)
+				require.Len(t, diags, 1, "the %s layout crosses the bound", layout)
+				assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+			}
+			_, diags = resolverOver(t, spec(route, "component"), byName.work)
+			assert.Empty(t, diags, "the components do not")
 		})
 	}
 }
@@ -481,29 +536,58 @@ func TestReadsAsSchema(t *testing.T) {
 	}
 }
 
-// TestMappings_KeysHoldingCountsTheObjectThatHoldsAPosition pins what resolving
-// a position costs (see maxMappingWork): one, and a step for each key of the
-// object holding it in the source's tree. A position whose holder is not in
-// the tree, or a source with no tree, costs one.
-func TestMappings_KeysHoldingCountsTheObjectThatHoldsAPosition(t *testing.T) {
+// TestMappings_KeysHoldingCountsTheMappingsTheLibraryScans pins what resolving
+// a position costs (see maxMappingWork): one, and the keys of each mapping the
+// library scans to find it. The model finds a component or a field by name, so
+// its map's width costs nothing, hit or miss. A key it holds as raw YAML, or not
+// at all, costs the keys of the mapping its object was built from, and each
+// level of raw YAML below costs its own, down to the one the pointer ends or
+// misses in, read through an alias as the library reads it.
+func TestMappings_KeysHoldingCountsTheMappingsTheLibraryScans(t *testing.T) {
 	t.Parallel()
-	spec := mappingSpec("    Z: {type: object}\n", "x-lib:\n  a: {type: object}\n  b: {type: object}\n  c: {type: object}\n")
-	root, _, err := decodeStream([]byte(spec))
-	require.NoError(t, err)
-	m := newMappings(newSourceDocument("spec.yaml", []byte(spec), root, nil), &soa.OpenAPI{}, oas3.ResolveOptions{}, nil)
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Z: &z {type: object, x-ext: {k: {type: object}}}
+    Z2: *z
+  examples:
+    E:
+      summary: one level below a wide mapping
+      value: {G0: {T: {}}, G1: {T: {}}, G2: {T: {}}, G3: {T: {}}, G4: {T: {}}, G5: {T: {}}}
+x-lib:
+  a: {type: object}
+  b: {type: object}
+  list: [{type: object}, {type: object}, {type: object}, {type: object}]
+  anchored: &a {k1: {x: 1, y: 2}, k2: 3}
+  aliased: *a
+x-alias: *a
+`
+	const document, lib = 6, 5 // the keys of the document and of x-lib
+	m := chainResolver(t, spec, false)
 	for _, c := range []struct {
 		pointer jsontext.Pointer
 		want    int
 	}{
-		{"/x-lib/a", 1 + 3},
-		{"/x-lib", 1 + 5}, // the document's own keys
-		{"/missing/a", 1},
-		{"/x-lib/a/type/deeper", 1},
+		{"/components/schemas/Z", 1},
+		{"/components/schemas/Missing", 1},
+		{"/x-lib", 1 + document},
+		{"/missing/a", 1 + document}, // scanned for a key it does not hold
+		{"/x-lib/a", 1 + document + lib},
+		{"/x-lib/missing/a", 1 + document + lib},
+		{"/x-lib/a/type/deeper", 1 + document + lib + 1}, // and a's, whose type holds no keys
+		{"/x-lib/list/3", 1 + document + lib},            // a list is read by index
+		{"/x-lib/aliased/k1/x", 1 + document + lib + 2 + 2},
+		{"/x-alias/k1/x", 1 + document + 2 + 2},
+		{"/components/schemas/Z/x-ext/k", 1 + 2 + 1}, // Z's own keys, then its extension's
+		{"/components/schemas/Z2/x-ext/k", 1 + 2 + 1},
+		{"/components/examples/E/value/G1/T", 1 + 2 + 6 + 1}, // E's keys, the wide value's, then G1's
 	} {
 		assert.Equal(t, c.want, m.keysHolding(c.pointer), c.pointer)
 	}
-	assert.Equal(t, 1, newMappings(sourceDocument{}, &soa.OpenAPI{}, oas3.ResolveOptions{}, nil).keysHolding("/x-lib/a"),
-		"a source with no tree")
+	bare := chainResolver(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", false)
+	assert.Equal(t, 1, bare.keysHolding("/components/schemas/Z"), "the model holds no components to scan")
 }
 
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
@@ -710,6 +794,194 @@ func TestMappings_AChainThroughTheSourcesFileNameIsResolved(t *testing.T) {
 		"the chain went through the file name to V")
 }
 
+// chainSpec is a source holding chains in the model, in raw YAML, and through
+// its own file name, which the first hop of a chain leaves the model by.
+const chainSpec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: object}
+    B: {$ref: '#/components/schemas/A'}
+    C: {$ref: '#/components/schemas/D'}
+    D: {$ref: '#/components/schemas/C'}
+x-lib:
+  a: {type: object}
+  b: {$ref: '#/x-lib/a'}
+  c: {$ref: '#/x-lib/d'}
+  d: {$ref: '#/x-lib/c'}
+  toModel: {$ref: '#/components/schemas/B'}
+  byName: {$ref: 'root.yaml#/x-lib/a'}
+  throughName: {$ref: 'root.yaml#/components/schemas/B'}
+  loopsInTree: {$ref: 'root.yaml#/x-lib/tree2'}
+  tree2: {$ref: '#/x-lib/loopsInTree'}
+  byDirectory: {$ref: './root.yaml#/x-lib/a'}
+  elsewhere: {$ref: 'other.yaml#/x-lib/a'}
+  anchored: {$ref: '#a'}
+  defined: {$ref: '#/$defs/a'}
+`
+
+// chainDuplicates repeats keys. The resolver reads a raw node's, and a
+// document it reads by its file name, the first time a key is written. It
+// reads the model, which a $ref within the source goes to, the last time.
+const chainDuplicates = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    X: {$ref: '#/components/schemas/Y'}
+    X: {type: object}
+    Y: {$ref: '#/components/schemas/X'}
+    Z: {type: object}
+    Z: {$ref: '#/components/schemas/Y'}
+x-lib:
+  first: {$ref: '#/x-lib/loop'}
+  first: {type: object}
+  loop: {$ref: '#/x-lib/first'}
+  last: {type: object}
+  last: {$ref: '#/x-lib/loop'}
+  viaModel: {$ref: '#/components/schemas/X'}
+  viaTree: {$ref: 'root.yaml#/components/schemas/X'}
+  byNameToZ: {$ref: 'root.yaml#/components/schemas/Z'}
+  afterName: {$ref: 'root.yaml#/x-lib/toZ'}
+  toZ: {$ref: '#/components/schemas/Z'}
+`
+
+// chainResolver returns the resolver of the mapping targets of spec, read at
+// root.yaml with external references allowed or not.
+func chainResolver(t *testing.T, spec string, external bool) *mappings {
+	t.Helper()
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	self := sourceDocument{path: "root.yaml", root: root}
+	if !external {
+		return newMappings(self, doc, oas3.ResolveOptions{}, nil)
+	}
+	reader := newExternal(doc, Options{AllowExternalRefs: true}, newExternalReads(self))
+	return newMappings(self, doc, oas3.ResolveOptions{}, &reader)
+}
+
+// TestMappings_ChainEnds pins what the source can show of a chain, read as the
+// resolver reads it: in the model, and in the tree from a hop naming the source
+// by its file name. A chain ends at a node with no $ref, or none, and not where
+// it loops or leaves by a hop the lowering reads otherwise. A key written twice
+// is read as the document read holds it; with external references allowed, a
+// hop the model and the tree read differently is no answer. One resolver asked
+// every chain, in either order, answers each as it does alone.
+func TestMappings_ChainEnds(t *testing.T) {
+	t.Parallel()
+	type row struct {
+		name, spec, ref string
+		// off and on are the answers without and with external references.
+		off, on bool
+	}
+	rows := []row{
+		{"a schema in the model", chainSpec, "#/components/schemas/A", true, true},
+		{"a chain of schemas in the model", chainSpec, "#/components/schemas/B", true, true},
+		{"a loop in the model", chainSpec, "#/components/schemas/C", false, false},
+		{"a position that is no schema", chainSpec, "#/info", true, true},
+		{"a position nothing is at", chainSpec, "#/components/schemas/Missing", true, true},
+		{"a node of raw YAML", chainSpec, "#/x-lib/a", true, true},
+		{"a chain of raw nodes", chainSpec, "#/x-lib/b", true, true},
+		{"a loop of raw nodes", chainSpec, "#/x-lib/c", false, false},
+		{"a raw node naming a schema", chainSpec, "#/x-lib/toModel", true, true},
+		{"a hop by the source's file name", chainSpec, "#/x-lib/byName", true, true},
+		{"a hop by the file name into a schema's chain", chainSpec, "#/x-lib/throughName", true, true},
+		{"a loop read in the tree", chainSpec, "#/x-lib/loopsInTree", false, false},
+		{"a hop through a directory", chainSpec, "#/x-lib/byDirectory", false, false},
+		{"a hop into another file", chainSpec, "#/x-lib/elsewhere", false, false},
+		{"a hop to an anchor", chainSpec, "#/x-lib/anchored", false, false},
+		{"a hop to a definition", chainSpec, "#/x-lib/defined", false, false},
+		{"an anchor", chainSpec, "#a", false, false},
+		{"a key written twice, whose first is a loop", chainDuplicates, "#/x-lib/first", false, false},
+		{"a key written twice, whose first is an object", chainDuplicates, "#/x-lib/last", true, true},
+		{"a schema written twice, read in the model", chainDuplicates, "#/x-lib/viaModel", true, false},
+		{"a schema written twice, read in the tree", chainDuplicates, "#/x-lib/viaTree", false, false},
+		{"a schema written twice, read by file name", chainDuplicates, "#/x-lib/byNameToZ", true, true},
+		{"a schema written twice, read after a hop by file name", chainDuplicates, "#/x-lib/afterName", true, false},
+	}
+	reversed := slices.Clone(rows)
+	slices.Reverse(reversed)
+	for _, external := range []bool{false, true} {
+		want := func(r row) bool {
+			if external {
+				return r.on
+			}
+			return r.off
+		}
+		for _, r := range rows {
+			got := chainResolver(t, r.spec, external).chainEnds(references.Reference(r.ref))
+			assert.Equal(t, want(r), got, "%s alone, external references %v", r.name, external)
+		}
+		for _, order := range [][]row{rows, reversed} {
+			shared := map[string]*mappings{chainSpec: chainResolver(t, chainSpec, external),
+				chainDuplicates: chainResolver(t, chainDuplicates, external)}
+			for _, r := range order {
+				got := shared[r.spec].chainEnds(references.Reference(r.ref))
+				assert.Equal(t, want(r), got, "%s in one resolver, external references %v", r.name, external)
+			}
+		}
+	}
+	noTree := chainResolver(t, chainSpec, false)
+	noTree.self.root = nil
+	assert.False(t, noTree.chainEnds("#/x-lib/a"), "from a source with no tree")
+	noModel := chainResolver(t, chainSpec, false)
+	noModel.doc = nil
+	assert.False(t, noModel.chainEnds("#/x-lib/a"), "from a source with no model")
+}
+
+// TestMappings_ChainEndsReadsEachHopOnce pins what reading chains costs: a
+// step for each hop the first time it is read and none after, so references
+// into one long chain cost the chain once between them. What each hop
+// remembers keeps the answer exact at the bound: in either order of asking, a
+// hop maxResolutionHops reads from the end ends, and one a read further does
+// not.
+func TestMappings_ChainEndsReadsEachHopOnce(t *testing.T) {
+	t.Parallel()
+	const n = maxResolutionHops + 8
+	var lib strings.Builder
+	for i := range n {
+		fmt.Fprintf(&lib, "  L%d: {$ref: '#/x-lib/L%d'}\n", i, i+1)
+	}
+	fmt.Fprintf(&lib, "  L%d: {type: object}\n", n)
+	spec := mappingSpec("", "x-lib:\n"+lib.String())
+	for _, ascending := range []bool{true, false} {
+		m := chainResolver(t, spec, false)
+		for k := range n + 1 {
+			i := k
+			if !ascending {
+				i = n - k
+			}
+			// L<i> is n-i+1 reads from the end, the last of them L<n>'s own.
+			assert.Equal(t, n-i+1 <= maxResolutionHops, m.chainEnds(references.Reference(fmt.Sprintf("#/x-lib/L%d", i))),
+				"L%d, ascending %v", i, ascending)
+		}
+		assert.Equal(t, n+1, m.work, "each hop is read once, ascending %v", ascending)
+		assert.Equal(t, farHops, m.ends[hop{pointer: "/x-lib/L0"}], "a hop past the bound is remembered as far")
+	}
+}
+
+// TestMappings_ChainEndsPastTheBoundRemembersNothing pins chainEnds at the step
+// bound: a chain whose reading crosses it is no answer, and none of its hops
+// is remembered, so no later answer is one a cut walk left.
+func TestMappings_ChainEndsPastTheBoundRemembersNothing(t *testing.T) {
+	t.Parallel()
+	spec := mappingSpec("", "x-lib:\n  a: {$ref: '#/x-lib/b'}\n  b: {type: object}\n")
+	cut := chainResolver(t, spec, false)
+	cut.limit = 1
+	assert.False(t, cut.chainEnds("#/x-lib/a"), "the second hop crosses the bound")
+	assert.Empty(t, cut.ends)
+
+	within := chainResolver(t, spec, false)
+	within.limit = 2
+	assert.True(t, within.chainEnds("#/x-lib/a"))
+	assert.Len(t, within.ends, 2)
+	assert.Equal(t, 2, within.ends[hop{pointer: "/x-lib/a"}], "a is two reads from the end")
+	assert.Equal(t, 1, within.ends[hop{pointer: "/x-lib/b"}], "b is the end")
+}
+
 // TestMappings_AFindingInATargetIsReportedOnce pins where what resolving a
 // target draws is reported: at the mapping entry, once, or at the least of the
 // sites that reach the target when a $ref reaches it too, in either order.
@@ -756,18 +1028,22 @@ func TestMappings_AFindingIsPlacedWhateverTheEntryOrder(t *testing.T) {
 // object built from raw YAML is placed: under the key as written. The resolver
 // records the pointer it reached decoded already, so decoding it again read a
 // '+' in the key as a space and '%41' as 'A', siting the finding at a pointer
-// that names nothing. Each row reaches the object by a mapping and by a $ref.
+// that names nothing. Cutting the absolute reference at its first '#' read a
+// source path holding one, such as a C# directory, into the pointer. Each row
+// reaches the object by a mapping and by a $ref, from each path.
 func TestMappings_AnEntryInABuiltObjectIsSitedAtItsKey(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct{ key, spelled string }{{"a+b", "a%2Bb"}, {"a%41", "a%2541"}} {
+	for _, c := range []struct{ key, spelled string }{{"a+b", "a%2Bb"}, {"a%41", "a%2541"}, {"plain", "plain"}} {
 		lib := "x-lib:\n  '" + c.key + "':\n    type: object\n" +
 			"    discriminator: {propertyName: k, mapping: {bad: '#/x-lib/Bad'}}\n" +
 			"  Bad: {type: object, minLength: abc}\n"
 		want := []string{"/x-lib/" + c.key + "/discriminator/mapping/bad openapi/validation/validation-type-mismatch"}
 		for _, schemas := range []string{petMapping("r: '#/x-lib/" + c.spelled + "'"),
 			"    Holder: {$ref: '#/x-lib/" + c.spelled + "'}\n"} {
-			_, diags := loadTargets(t, "spec.yaml", mappingSpec(schemas, lib), false)
-			assert.Empty(t, cmp.Diff(want, diagLines(diags)), "%s: %s", c.key, schemas)
+			for _, path := range []string{"spec.yaml", "sdk/C#/spec.yaml"} {
+				_, diags := loadTargets(t, path, mappingSpec(schemas, lib), false)
+				assert.Empty(t, cmp.Diff(want, diagLines(diags)), "%s: %s from %s", c.key, schemas, path)
+			}
 		}
 	}
 }
@@ -942,4 +1218,22 @@ func TestMappings_ACopyOfTheSourcesObjectIsReadAsTheModels(t *testing.T) {
 		"x-lib:\n  W: {type: object, properties: {v: {$ref: 'spec.yaml#/x-lib/V'}}}\n  V: {type: string}\n"))
 	require.Empty(t, diagLines(diags))
 	assert.Len(t, m.walked, 2, "W, reached by two spellings, and V, which W's $ref reaches, once each")
+}
+
+// TestMappingTargets_BuiltIsTheObjectTheWalkResolved pins what Built hands the
+// lowering: at a raw position the walk read, the object whose own $refs it
+// resolved, whichever spelling reached the position first, and at a position
+// the model holds, nothing.
+func TestMappingTargets_BuiltIsTheObjectTheWalkResolved(t *testing.T) {
+	t.Parallel()
+	m, diags := externalResolverOver(t, mappingSpec("    A: {$ref: 'spec.yaml#/x-lib/W'}\n    B: {$ref: '#/x-lib/W'}\n",
+		"x-lib:\n  W: {type: object, properties: {v: {$ref: 'spec.yaml#/x-lib/V'}}}\n  V: {type: string}\n"))
+	require.Empty(t, diagLines(diags))
+
+	built := m.targets().Built("/x-lib/W")
+	require.NotNil(t, built)
+	v, ok := built.GetSchema().GetProperties().Get("v")
+	require.True(t, ok)
+	assert.True(t, v.IsResolved(), "the walk resolved the $ref in the object it kept")
+	assert.Nil(t, m.targets().Built("/components/schemas/A"), "the model's own object is read where it is")
 }

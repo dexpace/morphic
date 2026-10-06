@@ -508,14 +508,19 @@ type chain struct {
 	cut     bool
 }
 
-// record is one hop's record: the document it read, by path, what it reached,
-// the object built there and a walk over it, and where it notes the document
-// it resolved against and that document's path, which a later hop resolves
-// against in turn. replace puts an object of the hop's kind in place of the
-// one it reached, and reports whether obj was of that kind.
+// record is one hop's record: the document it read, by path, where its
+// reference points there, what it reached, the object built there and a walk
+// over it, and where it notes the document it resolved against and that
+// document's path, which a later hop resolves against in turn. replace puts an
+// object of the hop's kind in place of the one it reached, and reports whether
+// obj was of that kind.
+//
+// pointer is read off the reference, decoded once as the resolver decoded it,
+// not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
 	path         string
 	target       references.Reference
+	pointer      jsontext.Pointer
 	object       any
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
 	document     *any
@@ -592,7 +597,8 @@ func recordsOf[S any, R interface {
 		if info == nil {
 			break
 		}
-		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference, document: &info.ResolvedDocument,
+		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
+			pointer: jsontext.Pointer(hop.GetReference().GetJSONPointer()), document: &info.ResolvedDocument,
 			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
 		if info.Object == nil {
 			c.records = append(c.records, r)

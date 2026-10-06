@@ -348,13 +348,13 @@ components:
 	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
 }
 
-// TestScope_DeclaredAt_MappedAnswersFirst pins the order of DeclaredAt's two
-// sources: the schema Mapped holds for a pointer wins, even over one the model
-// declares there, since the load phase resolved it the way a $ref would. The
-// model answers when Mapped holds nothing or the Scope has no Mapped, so a
-// value the load phase did not resolve still finds its declaration (GitHub
-// #757).
-func TestScope_DeclaredAt_MappedAnswersFirst(t *testing.T) {
+// TestScope_DeclaredAt_TheModelAnswersFirst pins the order of DeclaredAt's two
+// sources: a schema the model declares at a pointer wins, even over one Mapped
+// holds there, which a $ref by the source's file name may have left a copy of,
+// whose own $refs nothing resolved. Mapped answers where the model declares no
+// schema, such as a position it holds as raw YAML (GitHub #757), and only
+// there is it asked.
+func TestScope_DeclaredAt_TheModelAnswersFirst(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -384,11 +384,11 @@ components:
 
 	sc := Scope{Doc: doc, Mapped: answering(raw, mapped)}
 	assert.Same(t, mapped, sc.DeclaredAt(raw), "a position only Mapped holds resolves to its answer")
-	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "a nil answer falls back to the model")
-	assert.Equal(t, []jsontext.Pointer{raw, "/components/schemas/Pet"}, asked, "Mapped is asked for each pointer")
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "the model answers for its own declaration")
+	assert.Equal(t, []jsontext.Pointer{raw}, asked, "Mapped is asked only where the model declares no schema")
 
 	shadowed := Scope{Doc: doc, Mapped: answering("/components/schemas/Pet", mapped)}
-	assert.Same(t, mapped, shadowed.DeclaredAt("/components/schemas/Pet"), "Mapped wins over the model's own declaration")
+	assert.Same(t, pet, shadowed.DeclaredAt("/components/schemas/Pet"), "the model's own declaration wins over Mapped")
 
 	assert.Same(t, pet, Scope{Doc: doc}.DeclaredAt("/components/schemas/Pet"), "no Mapped leaves the model to answer")
 	assert.Nil(t, Scope{Doc: doc}.DeclaredAt(raw), "no Mapped and no declaration resolves nothing")
@@ -453,7 +453,8 @@ components:
 }
 
 // walkDoc is a document whose positions a walk reaches past a path item, into a
-// schema, and through a response keyed by the empty string.
+// schema, through a response keyed by the empty string, and into an
+// extension's value, which the model holds as raw YAML.
 const walkDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -463,6 +464,8 @@ components:
     S: {type: object, properties: {p: {type: object, properties: {q: {type: string}}}}}
   responses:
     "": {description: keyed by the empty string}
+x-lib:
+  a: {b: {c: deep}}
 `
 
 // unmarshalWalkDoc parses walkDoc.
@@ -486,13 +489,13 @@ func TestStep_ReadsOneToken(t *testing.T) {
 	empty, ok := doc.Components.Responses.Get("")
 	require.True(t, ok)
 
-	next, ok := step(doc.Components.Responses, "")
+	next, ok := Step(doc.Components.Responses, "")
 	require.True(t, ok)
 	assert.Same(t, empty, next, "the empty token names the entry keyed by the empty string")
-	next, ok = step(doc, "components")
+	next, ok = Step(doc, "components")
 	require.True(t, ok)
 	assert.Same(t, doc.Components, next)
-	_, ok = step(doc, "nope")
+	_, ok = Step(doc, "nope")
 	assert.False(t, ok, "a token the node holds nothing under")
 }
 
@@ -506,6 +509,19 @@ func TestScopeAt_StopsAtASchema(t *testing.T) {
 
 	assert.False(t, sc.At("/components/schemas/S/properties/p/properties/q").Foreign)
 	assert.Equal(t, 3, asked, "the document, its components and its schemas, then the schema stops it")
+}
+
+// TestScopeAt_StopsAtRawYAML pins the other place the walk stops: at a value
+// the model holds as raw YAML, which holds no reference the resolver resolved,
+// so a pointer into an extension costs one step rather than a key scan for
+// each token past it.
+func TestScopeAt_StopsAtRawYAML(t *testing.T) {
+	t.Parallel()
+	asked := 0
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
+
+	assert.False(t, sc.At("/x-lib/a/b/c").Foreign)
+	assert.Equal(t, 1, asked, "the document, then the extension's value stops it")
 }
 
 // TestScopeAt_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
@@ -524,8 +540,9 @@ func TestScopeAt_PassesOnlyWhatTheWalkStepsPast(t *testing.T) {
 
 // TestScopeAt_FollowsAtMostMaxRefChainRefs pins the bound on the $refs a walk
 // follows, each to where its chain ends: a chain ending back at a position its
-// own walk passes it again is followed maxRefChain times, then read as the
-// source's own.
+// own walk passes it again is followed maxRefChain times, then read as no
+// document's. Read as the source's own, content past the bound that another
+// document holds read its references against the source (GitHub #762).
 func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 	t.Parallel()
 	doc := unmarshalWalkDoc(t)
@@ -538,8 +555,33 @@ func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
 		return End{Document: doc, Pointer: "/paths/~1a/get"}, true
 	}}
 
-	assert.False(t, sc.At("/paths/~1a/get").Foreign, "past the bound, the source's own")
+	past := sc.At("/paths/~1a/get")
+	assert.True(t, past.Foreign, "past the bound, no document's")
+	assert.Empty(t, past.Holder, "so no reference there names a document")
 	assert.Equal(t, maxRefChain, turns, "each turn follows one $ref")
+}
+
+// TestScopeReached_AnEndInTheSourcesFileIsTheSources pins a hop that resolved
+// against the source's file read again rather than its model, as the resolver
+// reads it when the load phase does not hold the source: it is the source's
+// own content, under any spelling of its path, and not another document's.
+func TestScopeReached_AnEndInTheSourcesFileIsTheSources(t *testing.T) {
+	t.Parallel()
+	abs, err := filepath.Abs("dir/root.yaml")
+	require.NoError(t, err)
+	sc := Scope{SelfPath: "dir/root.yaml"}
+	for _, path := range []string{"dir/root.yaml", "dir/./root.yaml", "dir/x/../root.yaml", abs} {
+		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/components/pathItems/Own"})
+		assert.False(t, got.Foreign, path)
+		assert.Empty(t, got.Holder, path)
+	}
+	for _, path := range []string{"dir/other.yaml", "other/root.yaml", "https://example.com/dir/root.yaml"} {
+		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/x"})
+		assert.True(t, got.Foreign, path)
+		assert.Equal(t, path, got.Holder, path)
+	}
+	none := Scope{}.reached(End{Document: new(int), Path: "dir/root.yaml", Pointer: "/x"})
+	assert.True(t, none.Foreign, "a scope with no source path names no source file")
 }
 
 // TestScopeAt_WithoutEndsPassesNothing pins a scope with no Ends: nothing can

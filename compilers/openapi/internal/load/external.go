@@ -188,7 +188,9 @@ func (e external) holdObject(key string, o heldObject) {
 // base as the resolver reads it, names the source by, before the resolver
 // looks one up. Spelled otherwise, a back reference is not found held, and the
 // resolver builds a copy of what it names (see Open). It visits each node of
-// tree once, following no alias.
+// tree once, following no alias. Nothing bounds the keys but the $refs, and
+// each key holds every object, so memory grows as spellings times objects
+// (GitHub #772).
 func (e external) holdSpellings(tree *yaml.Node, base string) {
 	checked := map[string]bool{}
 	stack := []*yaml.Node{tree}

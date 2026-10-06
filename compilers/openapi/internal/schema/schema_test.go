@@ -5057,3 +5057,16 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 	assert.Empty(t, typeByName(doc, "Alias").Common().Unmodeled)
 	assert.Empty(t, propertyOf(t, doc, "Holder", "low").Unmodeled)
 }
+
+// TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt pins that a
+// $ref ending in '/' lowers the object the resolver built for it, the parent it
+// reads (GitHub #770): neither the model nor the load phase's walk
+// holds a schema at that pointer for the reference to settle on instead.
+func TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: {type: object, properties: {p: {$ref: '#/x-lib/T/'}}}\n")+
+		"x-lib:\n  T: {type: object, properties: {t: {type: string}}}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Contains(t, doc.Types, ir.TypeID("t/anon/x-lib/T/"))
+}

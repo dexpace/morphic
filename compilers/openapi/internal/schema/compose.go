@@ -463,7 +463,7 @@ func mappingTagsFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id
 	scope := c.RefScope()
 	var tags []string
 	for tag, target := range m.All() {
-		if tid, ok := mappingTargetID(scope, ts, d, target); ok && tid == id {
+		if tid, ok := mappingTargetID(c, scope, ts, d, target); ok && tid == id {
 			tags = append(tags, tag)
 		}
 	}
@@ -1208,7 +1208,10 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", false, nil
 	}
-	pointer, decl := typePosition(scope, pointer, variantTypes)
+	pointer, decl, ok := typePosition(scope, pointer, variantTypes)
+	if !ok {
+		return "", false, nil
+	}
 	return resolvePointer(c, ts, anchors, depth, pointer, decl)
 }
 
@@ -1219,19 +1222,18 @@ func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 const maxTypePositionHops = 64
 
 // typePosition returns the position whose type a mapping target naming
-// pointer names, and the schema declared there, unread at a component, whose
-// ID needs none. It is pointer itself unless the position reads through
-// (readsThrough): a $ref holding nothing an alias would, where no component is
-// declared, is only a use of its target's type, so it names the position the
-// $ref does, as a union variant written there names its target (GitHub #758).
-// Each hop is read as its $ref resolves, where it is written
-// (resolve.Scope.At), so the two cannot drift. A keyword beside a property's
-// $ref stops it (GitHub #764).
-func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes map[ir.TypeID]bool) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable]) {
+// pointer names, and the schema declared there, unread at a component. It is
+// pointer itself unless the position reads through (readsThrough): a $ref
+// holding nothing an alias would is only a use of its target's type, so it
+// names the position the $ref does, as a union variant there does (GitHub
+// #758). Each hop is read where it is written (resolve.Scope.At). A keyword
+// beside a property's $ref stops it (GitHub #764). A $ref the loader did not
+// follow names no schema, so ok is false unless it names a component.
+func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes map[ir.TypeID]bool) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable], bool) {
 	if _, named := ids.ComponentSchemaName(pointer); named {
 		// Most targets name a component, and resolve.Scope.ComponentRef answers
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
-		return pointer, nil
+		return pointer, nil, true
 	}
 	decl := scope.DeclaredAt(pointer)
 	for range maxTypePositionHops {
@@ -1242,9 +1244,14 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes ma
 		if !ok {
 			break
 		}
-		pointer, decl = next, annotation.DeclaredSchema(decl)
+		target := annotation.DeclaredSchema(decl)
+		if _, named := ids.ComponentSchemaName(next); target == nil && !named {
+			// Found at all, it was only through whatever interned next first.
+			return "", nil, false
+		}
+		pointer, decl = next, target
 	}
-	return pointer, decl
+	return pointer, decl, true
 }
 
 // readsThrough reports whether a mapping target naming pointer, where decl is
@@ -1282,8 +1289,9 @@ func componentIDByName(name string) ir.TypeID {
 // Otherwise the target must be a same-file $ref, read at the position whose
 // type it names (typePosition), to a declared component or an already-interned
 // node. Anything else yields ok=false: this half never lowers anything, and
-// resolveMappingTarget hoists the inline position it cannot reach.
-func mappingTargetID(scope resolve.Scope, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
+// resolveMappingTarget hoists the inline position it cannot reach. scope is
+// c's, derived once by the caller.
+func mappingTargetID(c lowering.Ctx, scope resolve.Scope, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
 	if scope.Declares(target) {
 		return componentIDByName(target), true
 	}
@@ -1292,12 +1300,19 @@ func mappingTargetID(scope resolve.Scope, ts *compile.Types, d *oas3.Discriminat
 		return "", false
 	}
 	// No variant types: a tag asks whether the mapping reaches the subtype, so
-	// it reads through whatever a union's variants name (readsThrough).
-	pointer, _ = typePosition(scope, pointer, nil)
-	if id, resolved, handled := scope.ComponentRef(pointer); handled {
+	// it reads through whatever a union's variants name (readsThrough). Each
+	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
+	at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
+		position, _, found := typePosition(scope, pointer, nil)
+		return position, found
+	})
+	if !ok {
+		return "", false
+	}
+	if id, resolved, handled := scope.ComponentRef(at); handled {
 		return id, resolved
 	}
-	return resolve.InternedID(ts, pointer)
+	return resolve.InternedID(ts, at)
 }
 
 // propIDByName returns the PropID of the model property with the given source

@@ -137,10 +137,11 @@ var rules = map[string][]string{
 	// the type already interned there. It reaches annotation to ask whether a
 	// referenced position declares a body at all, jsonpointer to find that
 	// schema as the resolver does, compile for the registry it looks IDs up in,
-	// and the library's openapi package to name each kind of reference once
-	// (ReferenceEnd). It reaches nothing that lowers — following a reference
-	// far enough to lower its target recurses back into the schema walk, so
-	// that stays with the walk.
+	// the library's openapi package to name each kind of reference once
+	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
+	// reaches nothing that lowers — following a reference far enough to lower
+	// its target recurses back into the schema walk, so that stays with the
+	// walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
@@ -148,7 +149,8 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
-		"github.com/speakeasy-api/openapi/references"},
+		"github.com/speakeasy-api/openapi/references",
+		"gopkg.in/yaml.v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
 	// redeclaration unions rather than intersects, and takes everything else it
 	// needs from lowering — the registry lookup and the recorder — as function

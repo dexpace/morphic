@@ -3,11 +3,9 @@ package load
 import (
 	"path/filepath"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
@@ -37,7 +35,29 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 			found[keyOf(ve, "")] = true
 		}
 	}
-	return sourceDocument{path: path, data: data, root: root, found: found, holdless: anyScalar(root, isID)}
+	return sourceDocument{path: path, data: data, root: root, found: found,
+		holdless: anyScalar(root, isID) || spellsManyRefs(root)}
+}
+
+// maxHeldRefs is the most $ref scalars a source held under its file name may
+// write. loops reads each hop of their chains once, and a pending one again per
+// reference, so about three reads a $ref; past this the guard could run out of
+// reads and answer nothing, and a held source lets a cycle through its file
+// name run the stack out (GitHub #768). A larger source is not held, so a
+// reference naming its file reads the file.
+const maxHeldRefs = maxLoopReads / 4
+
+// spellsManyRefs reports whether the tree under root writes more than
+// maxHeldRefs scalars spelling $ref, as a key or otherwise: counted widely, a
+// source is only held less.
+func spellsManyRefs(root *yaml.Node) bool {
+	n := 0
+	return anyScalar(root, func(v string) bool {
+		if v == "$ref" {
+			n++
+		}
+		return n > maxHeldRefs
+	})
 }
 
 // isID reports whether a scalar is the keyword that rebases the references
@@ -50,9 +70,9 @@ func isID(v string) bool { return v == "$id" }
 // internal $ref resolves against it, and its path cleaned, as a relative $ref
 // from another document reaches it. A source with no path or no tree is held
 // under none, and one named by a URL is kept as spelled. So is one that spells
-// $id: it rebases the references under it, which loops does not read, so a
-// chain through the source's file would go unchecked, and a reference naming
-// that file reads it instead.
+// $id, which rebases the references under it in a way loops does not read, or
+// more $refs than its reads bound (maxHeldRefs): a chain through the source's
+// file would go unchecked, so a reference naming that file reads it instead.
 func (s sourceDocument) keys() []string {
 	if s.holdless || s.path == "" || s.root == nil {
 		return nil
@@ -64,35 +84,12 @@ func (s sourceDocument) keys() []string {
 	return []string{s.path, clean}
 }
 
-// names reports whether the resolver opening the file name opens the source,
-// as the lowering reads a document part naming it (refscope.SameDocument). A
-// source keys holds under none, or named by a URL, is no file.
+// names reports whether the resolver reading the document name reads the
+// source as held (see keys), as the lowering reads a document part naming it
+// (refscope.SameDocument). A source named by a URL is held, and so named,
+// under its own spelling alone; one keys holds under none is never named.
 func (s sourceDocument) names(name string) bool {
-	return len(s.keys()) > 0 && !refscope.IsURL(s.path) && refscope.SameDocument(s.path, name)
-}
-
-// provablyEnds reports whether the chain of ref, a schema $ref resolved in the
-// source whose model is model, ends. The resolver follows a hop it resolved
-// before without tracking where the chain has been, so a chain closing on such
-// hops recurses until the stack runs out (GitHub #558), and the cycle scan
-// misses a cycle in raw YAML or through the source's file name (GitHub #768).
-// A mapping names either wherever the input says, so the chain is read as the
-// resolver reads it: in the model, and in the tree after a hop by file name.
-func (s sourceDocument) provablyEnds(model *soa.OpenAPI, view *nodeview.View, ref references.Reference) bool {
-	if s.root == nil || model == nil {
-		return false
-	}
-	var document any = model
-	return endsWithin(ref, func(ref references.Reference) (references.Reference, hopKind) {
-		pointer, ok := s.within(ref)
-		if !ok {
-			return "", hopUnread
-		}
-		if ref.GetURI() != "" {
-			document = s.root
-		}
-		return readHop(view, document, pointer)
-	})
+	return len(s.keys()) > 0 && refscope.SameDocument(s.path, name)
 }
 
 // within is withinDocument for the source, where a reference naming it by its

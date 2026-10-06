@@ -45,10 +45,13 @@ func Object[T, S any, R interface {
 	return ref.GetResolvedObject()
 }
 
-// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration. A
-// $ref cycle among the non-schema components it walks is refused before
-// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
-// resolves to nothing, so the bound only fires on an absurd alias chain.
+// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration, and
+// how many a chain's end (endOf) and a pointer's scope (Scope.reached) are
+// followed through. A $ref cycle among the non-schema components it walks is
+// refused before lowering by speakeasy's resolver, not by internal/scan, and a
+// refused chain resolves to nothing, so the bound only fires on an absurd alias
+// chain. Past it, ObjectAt keeps the use site, and what the chain reaches is
+// read in no document's scope.
 //
 // It stays unexported: only the test that holds the walk to the bound needs it,
 // and reaches it through export_test.go.
@@ -116,7 +119,8 @@ func ScopeOf[T, S any, R interface {
 
 // End is where the last hop of a reference's chain resolved: the document it
 // resolved against, the path the resolver read that document by, and the
-// position its pointer names there.
+// position its pointer names there. One with no Document is a chain cut at
+// maxRefChain, whose end was never read.
 type End struct {
 	Document any
 	Path     string
@@ -139,7 +143,9 @@ type chained[S any] interface {
 	GetReferenceResolutionInfo() *references.ResolveResult[S]
 }
 
-// endOf is EndOf for any reference, a schema's included.
+// endOf is EndOf for any reference, a schema's included. A chain still going
+// after maxRefChain hops ends nowhere it read, so it is cut, not taken to end at
+// the last hop read: that hop's document need not be the one holding its end.
 func endOf[S any, R interface {
 	*S
 	chained[S]
@@ -155,6 +161,9 @@ func endOf[S any, R interface {
 	}
 	if last == nil {
 		return End{}, false
+	}
+	if info := ref.GetReferenceResolutionInfo(); info != nil && info.Object != nil {
+		return End{}, true
 	}
 	return End{Document: last.ResolvedDocument, Path: last.AbsoluteDocumentPath,
 		Pointer: jsontext.Pointer(written.GetJSONPointer())}, true

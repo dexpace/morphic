@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,9 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -103,8 +106,23 @@ func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 		require.NoError(t, err)
 		l := newLoops(sourceDocument{path: "root.yaml", root: rebasedRoot}, rebasedDoc)
 
-		assert.False(t, l.into("root.yaml#/components/schemas/ByName"), "root.yaml is a file beside the $self URL, not the source")
+		assert.True(t, l.into("root.yaml#/components/schemas/ByName"),
+			"a schema $ref resolves against the source's path, which $self does not rebase")
 		assert.True(t, l.into("#/components/schemas/Loop"), "a pointer within the document is the source's")
+	})
+
+	t.Run("a source whose name the resolver reads as a URL", func(t *testing.T) {
+		t.Parallel()
+		named := strings.ReplaceAll(spec, "'root.yaml#/components/schemas/ByName'", "'x:root.yaml#/components/schemas/ByName'")
+		namedRoot, _, err := decodeStream([]byte(named))
+		require.NoError(t, err)
+		namedDoc, _, err := unmarshal(t.Context(), []byte(named), namedRoot)
+		require.NoError(t, err)
+		l := newLoops(sourceDocument{path: "x:root.yaml", root: namedRoot}, namedDoc)
+
+		assert.True(t, l.into("x:root.yaml#/components/schemas/ByName"),
+			"the source is held under its own spelling, which the resolver reads it by")
+		assert.False(t, l.into("y:root.yaml#/components/schemas/ByName"), "another URL is another document")
 	})
 }
 
@@ -247,6 +265,58 @@ func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 	}
 }
 
+// TestNewSourceDocument_ASourceWritingMoreRefsThanTheGuardReadsIsNotHeld pins
+// the size past which the source is not held: more $ref scalars than
+// maxHeldRefs, which loops could run out of reads on. Held, a source that size
+// let the resolver follow a cycle through its file name once the guard had no
+// answer left.
+func TestNewSourceDocument_ASourceWritingMoreRefsThanTheGuardReadsIsNotHeld(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{maxHeldRefs, maxHeldRefs + 1} {
+		root := &yaml.Node{Kind: yaml.MappingNode}
+		for range n {
+			root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "$ref"},
+				&yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"})
+		}
+
+		self := newSourceDocument("root.yaml", nil, root, nil)
+
+		assert.Equal(t, n > maxHeldRefs, self.holdless, "%d $refs", n)
+	}
+}
+
+// TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved pins what visit does
+// once loops has spent its reads: in a held source, a schema $ref it could not
+// read is not resolved, since its chain could close through the source's file
+// name, which the resolver would follow until the stack ran out. Read, or in a
+// source that is not held, it is resolved as ever.
+func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
+	t.Parallel()
+	spec := rootOfSchemas("    A: {$ref: '#/components/schemas/B'}\n    B: {type: object}\n")
+	for _, c := range []struct {
+		name     string
+		spent    bool
+		extra    string
+		resolved bool
+	}{
+		{"within the bound", false, "", true},
+		{"past the bound, in a held source", true, "", false},
+		{"past the bound, in a source not held", true, "x-id: {$id: 'http://example.com/a'}\n", true},
+	} {
+		doc, pass := heldResolution(t, spec+c.extra, filepath.Join(t.TempDir(), "root.yaml"))
+		if c.spent {
+			pass.loops.reads = maxLoopReads
+		}
+		a, ok := doc.GetComponents().GetSchemas().Get("A")
+		require.True(t, ok)
+
+		pass.visit("/components/schemas/A", a, a.GetRef())
+
+		assert.Equal(t, c.resolved, a.IsResolved(), c.name)
+		assert.Empty(t, pass.failures, c.name)
+	}
+}
+
 // TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed pins GitHub
 // #768 end to end: with external references on, a schema $ref cycle closing
 // through the source's file, however it is spelled, is reported as a cycle at
@@ -279,6 +349,18 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 		{"a reference into the cycle", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/A'}\n", "    In: {$ref: '#/components/schemas/A'}\n"}
 		}, []string{"/components/schemas/A", "/components/schemas/In"}, ""},
+		{"through a definition two held references name", func(string) []string {
+			return []string{"    H:\n      $defs:\n        X: {$ref: 'root.yaml#/components/schemas/G'}\n" +
+				"      properties:\n        p: {$ref: '#/$defs/X'}\n        q: {$ref: '#/$defs/X'}\n",
+				"    G: {$ref: '#/components/schemas/H/$defs/X'}\n"}
+		}, []string{"/components/schemas/G", "/components/schemas/H/$defs/X",
+			"/components/schemas/H/properties/p", "/components/schemas/H/properties/q"}, ""},
+		{"through a held definition a walked reference read first", func(string) []string {
+			return []string{"    H:\n      $defs:\n        X: {$ref: 'root.yaml#/components/schemas/G'}\n        Y: {$ref: '#/$defs/X'}\n" +
+				"      properties:\n        p: {$ref: '#/$defs/Y'}\n        q: {$ref: '#/$defs/Y'}\n",
+				"    G: {$ref: '#/components/schemas/H/$defs/X'}\n", "    K: {$ref: '#/components/schemas/H/$defs/Y'}\n"}
+		}, []string{"/components/schemas/G", "/components/schemas/H/$defs/X", "/components/schemas/H/$defs/Y",
+			"/components/schemas/H/properties/p", "/components/schemas/H/properties/q"}, ""},
 		{"in a source that spells $id, which is not held", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/E'}\n", "    E: {$ref: '#/components/schemas/A'}\n"}
 		}, nil, "x-id: {$id: 'http://example.com/a'}\n"},
@@ -302,6 +384,116 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 				assert.Equal(t, c.want, cyclic, "each reference on the cycle is reported as one")
 			}
 		})
+	}
+}
+
+// TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain pins a schema chain
+// whose pointer passes a reference the walk resolves only after it has read the
+// chain once: there, the model reads no target. Settled as ending, the hop kept
+// answering so once the reference resolved, the guard let the cycle through,
+// and the resolver followed it until the stack ran out. Each document is loaded
+// in a child, in both orders of the responses, by '#' and by the file's name.
+func TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain(t *testing.T) {
+	if dir := os.Getenv(settleChildEnv); dir != "" {
+		printLoad(t, dir)
+		return
+	}
+	t.Parallel()
+	for _, spelled := range []string{"#", "root.yaml#"} {
+		t.Run(spelled, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			responses := []string{"    R: {$ref: '" + spelled + "/components/responses/R2'}\n",
+				"    R2:\n      description: ok\n      content: {application/json: {schema: {$ref: '#/components/schemas/A'}}}\n"}
+			for _, order := range [][]string{responses, {responses[1], responses[0]}} {
+				writeFile(t, dir, "root.yaml", rootOfSchemas(
+					"    A: {$ref: '#/components/responses/R/content/application~1json/schema'}\n")+
+					"  responses:\n"+strings.Join(order, ""))
+				lines := loadInChild(t, "TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain", dir)
+				assert.NotEmpty(t, lines, "the cycle is reported, and the load ends")
+			}
+		})
+	}
+}
+
+// TestLoops_ATreeHopThroughAReferenceReadsTheModel pins a chain that names the
+// source by its file name, then a pointer through a path item's $ref, where
+// the tree holds no node. The resolver answers that pointer from its cache, with
+// the model's object past the reference, so the chain closes there; read in the
+// tree alone it seemed to end, and the resolver followed it until the stack ran
+// out. Each document is loaded in a child, in both orders of the paths.
+func TestLoops_ATreeHopThroughAReferenceReadsTheModel(t *testing.T) {
+	if dir := os.Getenv(settleChildEnv); dir != "" {
+		printLoad(t, dir)
+		return
+	}
+	t.Parallel()
+	for _, spelled := range []string{"root.yaml#", "./root.yaml#"} {
+		t.Run(spelled, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			paths := []string{"  /c: {$ref: 'root.yaml#/paths/~1d'}\n", "  /d: {get: {responses: {'200': {description: ok, " +
+				"content: {application/json: {schema: {$ref: '" + spelled + "/components/schemas/A'}}}}}}}\n"}
+			for _, order := range [][]string{paths, {paths[1], paths[0]}} {
+				writeFile(t, dir, "root.yaml", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths:\n"+strings.Join(order, "")+
+					"components:\n  schemas:\n    A: {$ref: '#/paths/~1c/get/responses/200/content/application~1json/schema'}\n")
+				var cyclic []string
+				for _, line := range loadInChild(t, "TestLoops_ATreeHopThroughAReferenceReadsTheModel", dir) {
+					if site, rest, _ := strings.Cut(line, " "); strings.HasPrefix(rest, diag.CyclicRef+" ") {
+						cyclic = append(cyclic, site)
+					}
+				}
+				assert.Contains(t, cyclic, "/components/schemas/A", "the chain is refused as the cycle it is")
+			}
+		})
+	}
+}
+
+// TestLoops_APendingHopIsReadAgainAlone pins what a chain ending in a pending
+// read costs when asked again: the hops it followed are taken unread, and only
+// the pending one is read, so a chain shared by many references is not read
+// once per reference until the walk resolves what it passes.
+func TestLoops_APendingHopIsReadAgainAlone(t *testing.T) {
+	t.Parallel()
+	const n = 20
+	var schemas strings.Builder
+	for i := range n {
+		fmt.Fprintf(&schemas, "    S%d: {$ref: '#/components/schemas/S%d'}\n", i, i+1)
+	}
+	fmt.Fprintf(&schemas, "    S%d: {$ref: '#/components/responses/R/content/application~1json/schema'}\n", n)
+	spec := rootOfSchemas(schemas.String()) + "  responses:\n    R: {$ref: '#/components/responses/R2'}\n" +
+		"    R2: {description: ok, content: {application/json: {schema: {type: object}}}}\n"
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+
+	require.False(t, l.into("#/components/schemas/S0"), "R is not resolved, so the chain reads no further")
+	first := l.reads
+	require.Equal(t, n+2, first, "each hop is read, the pending one last")
+	assert.Empty(t, l.known, "a pending chain is not settled")
+
+	assert.False(t, l.into("#/components/schemas/S0"))
+	assert.Equal(t, first+1, l.reads, "asked again, only the pending hop is read")
+}
+
+// TestSettledRead pins which failed reads settle a hop as ending: a pointer
+// that names nothing, or one the document cannot be read through, does; one
+// through a reference the walk has not resolved yet reads on once it is.
+func TestSettledRead(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name string
+		err  error
+		want hopKind
+	}{
+		{"no target", jsonpointer.ErrNotFound, hopEnds},
+		{"through a scalar", jsonpointer.ErrInvalidPath, hopEnds},
+		{"a malformed pointer", jsonpointer.ErrValidation, hopEnds},
+		{"through a reference not yet resolved", errors.New("unresolved reference"), hopPending},
+	} {
+		assert.Equal(t, c.want, settledRead(c.err), c.name)
 	}
 }
 

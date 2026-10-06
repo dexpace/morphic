@@ -4,6 +4,8 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -230,4 +232,115 @@ func TestMappingTargets_ARawReferenceResolvesInEitherOrder(t *testing.T) {
 	}
 	assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
 	assert.Contains(t, types[0], ir.TypeID("t/anon/x-defs/Dog"))
+}
+
+// TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder pins
+// that the schema walked at a raw position answers only a $ref that reached a
+// copy of it: C's $ref, spelled with the file's name and external references
+// off, is refused, and whether the load phase reports it follows whether M's
+// chain passed it first. Answered by the walked schema, C resolved in the
+// order where the load phase reported nothing, so its report followed order.
+func TestMappingTargets_AReferenceTheLoadPhaseRefusedIsReportedInEitherOrder(t *testing.T) {
+	t.Parallel()
+	schemas := []string{"    C: {$ref: 'spec.yaml#/components/schemas/H/default'}\n",
+		"    H: {default: {$ref: '#/components/schemas/C', description: d}}\n",
+		"    M: {not: {$ref: '#/components/schemas/H/default'}}\n"}
+	reversed := slices.Clone(schemas)
+	slices.Reverse(reversed)
+	reports := make([][]string, 0, 2)
+	for _, order := range [][]string{schemas, reversed} {
+		src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+			strings.Join(order, "")
+		_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+			compilers.Options{})
+		require.NoError(t, err)
+		var errs []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityError {
+				errs = append(errs, string(d.Provenance.Pointer)+" "+d.Code)
+			}
+		}
+		slices.Sort(errs)
+		reports = append(reports, errs)
+	}
+	assert.Empty(t, cmp.Diff(reports[0], reports[1]), "declaration order changed the report")
+	assert.Contains(t, reports[1], "/components/schemas/C openapi/unresolved-ref")
+}
+
+// TestMappingTargets_AReferenceInACopyResolvesInEitherOrder pins a $ref inside
+// a raw object two references reach: an internal one, which builds the object
+// from the model, and one from another document by the source's file name,
+// which builds it from the source's tree. Its pointer passes a path item's
+// $ref, which the tree does not read through, so resolved against whichever
+// copy was walked first, Y's $ref was reported unresolved in one order only.
+func TestMappingTargets_AReferenceInACopyResolvesInEitherOrder(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"),
+		[]byte("components:\n  schemas:\n    V: {$ref: 'root.yaml#/x-lib/Y0'}\n"), 0o600))
+	schemas := []string{"    W: {$ref: 'other.yaml#/components/schemas/V'}\n", "    Z: {$ref: '#/x-lib/Y'}\n"}
+	const rest = "  pathItems:\n    P:\n      get:\n        responses:\n          '200':\n" +
+		"            description: ok\n            content: {application/json: {schema: {type: string}}}\n" +
+		"x-lib:\n  Y0: {$ref: '#/x-lib/Y'}\n  Y:\n    type: object\n" +
+		"    properties:\n      q: {$ref: '#/paths/~1p/get/responses/200/content/application~1json/schema'}\n"
+	for _, order := range [][]string{schemas, {schemas[1], schemas[0]}} {
+		src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /p: {$ref: '#/components/pathItems/P'}\n" +
+			"components:\n  schemas:\n" + strings.Join(order, "") + rest
+		_, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}},
+			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+		for _, d := range diags {
+			assert.NotEqual(t, "/x-lib/Y/properties/q", string(d.Provenance.Pointer), "%s: %s", d.Code, d.Message)
+		}
+	}
+}
+
+// TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder pins a
+// position two references reach as two objects: a $ref spelled with the
+// source's file name, or one from another document, builds a copy of what it
+// names, beside the object an internal $ref or a mapping reaches. The load
+// phase resolved the $refs in one of them, and the lowering hoisted whichever
+// it met first, so Cat's own $ref resolved in one order only.
+func TestMappingTargets_ARawPositionACopyReachesResolvesInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const lib = "x-lib:\n  Cat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, " +
+		"properties: {friend: {$ref: '#/x-lib/Dog'}}}\n  Dog: {type: object}\n" +
+		"  Via: {$ref: '#/components/schemas/Home/properties/cat'}\n"
+	pet := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+		"      discriminator: {propertyName: kind, mapping: {cat: '#/x-lib/Cat'}}\n"
+	for name, components := range map[string][]string{
+		"a mapping and a $ref by the file's name": {pet, "    Box: {$ref: 'spec.yaml#/x-lib/Cat'}\n"},
+		"a $ref and one from another document": {"    Box: {$ref: '#/x-lib/Cat'}\n",
+			"    Far: {$ref: 'other.yaml#/components/schemas/Back'}\n"},
+		"a mapping and a chain by the file's name to a position the model declares": {
+			strings.Replace(pet, "'#/x-lib/Cat'", "'#/components/schemas/Home/properties/cat'", 1),
+			"    Y: {$ref: 'spec.yaml#/x-lib/Via'}\n    Home:\n      type: object\n      properties:\n" +
+				"        cat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {friend: {$ref: '#/x-lib/Dog'}}}\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(
+				"components:\n  schemas:\n    Back: {$ref: 'spec.yaml#/x-lib/Cat'}\n"), 0o600))
+			orders := [][]string{components, {components[1], components[0]}}
+			types := make([]ir.TypeRegistry, 0, len(orders))
+			for _, order := range orders {
+				src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+					strings.Join(order, "") + lib
+				doc, diags, err := openapi.New().Compile(t.Context(),
+					[]compilers.Source{{Path: filepath.Join(dir, "spec.yaml"), Data: []byte(src)}},
+					compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+				require.NoError(t, err)
+				for _, d := range diags {
+					if strings.HasSuffix(string(d.Provenance.Pointer), "/properties/friend") {
+						assert.Fail(t, "Cat's own $ref is unresolved", "%s: %s", d.Code, d.Message)
+					}
+				}
+				types = append(types, doc.Types)
+			}
+			assert.Empty(t, cmp.Diff(types[0], types[1]), "declaration order changed the registry")
+			assert.Contains(t, types[0], ir.TypeID("t/anon/x-lib/Dog"))
+		})
+	}
 }

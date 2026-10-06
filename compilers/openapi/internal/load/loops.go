@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"strings"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 
@@ -25,36 +26,38 @@ const maxLoopReads = 1 << 18
 // reads a $ref that names the source by its file name as a reference to
 // another document, so it never sees such a chain close.
 //
-// Each hop is read as the resolver reads it (see readHop) and settled once, so
+// Each hop is read as the resolver reads it (see readAt) and settled once, so
 // the references of a long chain cost the chain once between them.
 type loops struct {
 	self  sourceDocument
 	model *soa.OpenAPI
 	view  *nodeview.View
-	// base is what a relative document part is read against.
+	// base is what a relative document part is read against: the source's
+	// path, which a schema $ref resolves against whatever $self says.
 	base string
-	// known holds, for each hop read, whether it leads into a loop.
+	// known holds, for each hop read, whether it leads into a loop, and next
+	// the $ref each hop read followed to, which a later chain through it takes
+	// unread: only a hop whose read is pending (see settledRead) is read again.
 	known map[hop]bool
+	next  map[hop]references.Reference
 	// reads counts the hops read, against maxLoopReads.
 	reads int
 }
 
-// hop is a position a chain reaches, and whether it read the source's tree or
-// its model: a hop naming the source by its file name reads the tree from there
-// on, so one pointer is two positions.
+// hop is a position a chain reaches, and whether it is read in the source's
+// tree or its model, so one pointer is two positions: a hop naming the source
+// by its file name reads the tree (see loops.readAt, mappings.hopOf).
 type hop struct {
 	pointer string
 	inTree  bool
 }
 
 // newLoops returns the reader of the chains in the source self, whose model is
-// model.
+// model. The library rebases a reference by $self only for the kinds that are
+// not schemas, and loops reads schema chains alone, so its base is the path.
 func newLoops(self sourceDocument, model *soa.OpenAPI) *loops {
-	base := model.GetSelf()
-	if base == "" {
-		base = self.path
-	}
-	return &loops{self: self, model: model, view: nodeview.New(), base: base, known: map[hop]bool{}}
+	return &loops{self: self, model: model, view: nodeview.New(), base: self.path, known: map[hop]bool{},
+		next: map[hop]references.Reference{}}
 }
 
 // within returns the pointer ref names in the source, as the resolver reads it:
@@ -81,14 +84,22 @@ func (l *loops) within(ref references.Reference) (string, bool) {
 // into reports whether the chain of ref, a schema $ref written in the model,
 // provably never ends: some hop of it reached a position an earlier hop did. A
 // hop the walk cannot read as the resolver does, one past the bound, and a
-// source with no tree or model are no answer, and report false.
+// source with no tree or model are no answer, and report false. A hop into
+// another document is one, so a cycle entered from there is not refused, and a
+// second $ref entering it runs the stack out (GitHub #771).
 func (l *loops) into(ref references.Reference) bool {
+	looped, _ := l.read(ref)
+	return looped
+}
+
+// read is into, and whether the bound cut the read short of an answer.
+func (l *loops) read(ref references.Reference) (looped, cut bool) {
 	if l.self.root == nil || l.model == nil {
-		return false
+		return false, false
 	}
 	var path []hop
 	onPath := map[hop]bool{}
-	looped, settled := false, true
+	settled := true
 	inTree := false
 	for {
 		pointer, ok := l.within(ref)
@@ -105,24 +116,45 @@ func (l *loops) into(ref references.Reference) bool {
 			looped = true
 			break
 		}
-		if l.reads++; l.reads > maxLoopReads {
-			settled = false
-			break
-		}
 		onPath[h] = true
 		path = append(path, h)
+		if next, read := l.next[h]; read {
+			ref = next
+			continue
+		}
+		if l.reads++; l.reads > maxLoopReads {
+			settled, cut = false, true
+			break
+		}
 		var kind hopKind
-		ref, kind = readHop(l.view, l.document(inTree), pointer)
+		ref, kind = l.readAt(pointer, inTree)
+		settled = settled && kind != hopPending
 		if kind != hopFollows {
 			break
 		}
+		l.next[h] = ref
 	}
 	if settled {
 		for _, h := range path {
 			l.known[h] = looped
 		}
 	}
-	return looped
+	return looped, cut
+}
+
+// held reports whether the source is held under its file name, where a chain
+// through that name reaches what the resolver has resolved already.
+func (l *loops) held() bool {
+	return len(l.self.keys()) > 0
+}
+
+// forget drops every verdict the reads settled, but not the hops they followed.
+// A held "#/$defs/..." reference has no $ref while the walk reads, and names
+// its definition once retargeted, so a chain read through it may go on now.
+func (l *loops) forget() {
+	if l != nil {
+		clear(l.known)
+	}
 }
 
 // incomplete reports the bound the reads stopped at, once, at the document, as
@@ -137,11 +169,17 @@ func (l *loops) incomplete(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnos
 		maxLoopReads)}
 }
 
-// document returns what a hop reads: the source's tree once a hop has named it
-// by its file name, and its model before.
-func (l *loops) document(inTree bool) any {
+// readAt reads the hop naming pointer: in the source's tree once a hop has
+// named it by its file name, and in its model before. A pointer the tree holds
+// no node at is read in the model too, as the resolver may: it answers one it
+// resolved in the model from its cache, and the model reads through a
+// reference where the tree stops at the $ref.
+func (l *loops) readAt(pointer string, inTree bool) (references.Reference, hopKind) {
 	if inTree {
-		return l.self.root
+		if _, err := jsonpointer.GetTarget(l.self.root, jsonpointer.JSONPointer(pointer),
+			jsonpointer.WithStructTags("key")); err == nil {
+			return readHop(l.view, l.self.root, pointer)
+		}
 	}
-	return l.model
+	return readHop(l.view, l.model, pointer)
 }

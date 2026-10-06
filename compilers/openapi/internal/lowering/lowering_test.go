@@ -2,6 +2,7 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -268,6 +269,50 @@ x-lib:
 	carrying := bare.WithMappingTargets(loaded.Targets)
 	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
+}
+
+// TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
+// shares: a position is read once in each scope it is read in, whatever its
+// answer, and a copy reads what another remembered. A copy carrying other
+// mapping targets starts afresh, since an answer reads them, and a zero
+// context remembers nothing.
+func TestTypePosition_IsReadOncePerScope(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
+		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /ext: {$ref: './ext.yaml#/paths/~1x'}\n"
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	reads := 0
+	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
+		t.Helper()
+		at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
+			reads++
+			return pointer + "/there", pointer != "/none"
+		})
+		assert.Equal(t, pointer+"/there", at)
+		assert.Equal(t, pointer != "/none", ok)
+	}
+
+	ask(c, "/x")
+	ask(c.NamingByReference(), "/x")
+	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
+	ask(c, "/none")
+	ask(c, "/none")
+	assert.Equal(t, 2, reads, "a position naming none is remembered too")
+	foreign := c.At("/paths/~1ext/get/responses/200")
+	require.True(t, foreign.RefScope().Foreign)
+	ask(foreign, "/x")
+	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
+	ask(c.WithMappingTargets(load.MappingTargets{}), "/x")
+	assert.Equal(t, 4, reads, "a copy carrying other targets remembers nothing of c's")
+	ask(lowering.Ctx{}, "/x")
+	ask(lowering.Ctx{}, "/x")
+	assert.Equal(t, 6, reads, "a zero context remembers nothing")
 }
 
 // referenceKinds is a source declaring one component of each kind the library

@@ -66,6 +66,9 @@ const (
 	hopEnds    hopKind = iota // the target carries no $ref, or there is no target
 	hopFollows                // the target carries a $ref, which the read returns
 	hopUnread                 // the walk cannot read the hop as the resolver does
+	// hopPending is hopEnds for now: the pointer passes a reference the walk
+	// has not resolved yet, which the model reads as no target until it does.
+	hopPending
 )
 
 // endsWithin follows the chain from ref, reading each hop with read, and
@@ -75,7 +78,7 @@ func endsWithin(ref references.Reference, read func(references.Reference) (refer
 	for range maxResolutionHops {
 		next, found := read(ref)
 		switch found {
-		case hopEnds:
+		case hopEnds, hopPending:
 			return true
 		case hopUnread:
 			return false
@@ -93,7 +96,7 @@ func endsWithin(ref references.Reference, read func(references.Reference) (refer
 func readHop(view *nodeview.View, document any, pointer string) (references.Reference, hopKind) {
 	target, err := jsonpointer.GetTarget(document, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 	if err != nil {
-		return "", hopEnds
+		return "", settledRead(err)
 	}
 	var next string
 	switch t := target.(type) {
@@ -110,6 +113,17 @@ func readHop(view *nodeview.View, document any, pointer string) (references.Refe
 		return "", hopEnds
 	}
 	return references.Reference(next), hopFollows
+}
+
+// settledRead is what a read that failed with err found: no target, unless the
+// pointer passes a reference the walk has not resolved yet, which the model
+// refuses to read through until it does, and which a later read passes.
+func settledRead(err error) hopKind {
+	if errors.Is(err, jsonpointer.ErrNotFound) || errors.Is(err, jsonpointer.ErrInvalidPath) ||
+		errors.Is(err, jsonpointer.ErrValidation) {
+		return hopEnds
+	}
+	return hopPending
 }
 
 // withinDocument returns the pointer ref names in the document holding it,

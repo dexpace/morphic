@@ -119,12 +119,23 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 // resolution found. A reference an earlier $ref's chain resolved is only noted.
 // The library counts one resolved once a chain that failed passed through it,
 // so which members of a failing chain are reported follows the walk's order
-// (GitHub #767).
+// (GitHub #767). A schema's chain is read for a loop from the $ref r carries
+// now, which for a held "#/$defs/..." reference is its definition's pointer
+// (see retarget); ref is only quoted.
 func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.Reference) {
-	if js, schema := r.(*schemaRef); schema && p.loops != nil && !js.IsResolved() && p.loops.into(ref) {
-		p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.CyclicRef, p.at(site),
-			"cyclic $ref: reference chain never reaches a node without a $ref"))
-		return
+	if js, schema := r.(*schemaRef); schema && p.loops != nil && !js.IsResolved() {
+		looped, cut := p.loops.read(js.GetRef())
+		if looped {
+			p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.CyclicRef, p.at(site),
+				"cyclic $ref: reference chain never reaches a node without a $ref"))
+			return
+		}
+		if cut && p.loops.held() {
+			// Unread, the chain could close through the held source's file and
+			// run the stack out, so it is left to the lowering, which reports it
+			// unresolved, and incomplete says why.
+			return
+		}
 	}
 	var vErrs []error
 	var err error
@@ -232,17 +243,28 @@ type reachedFindings struct {
 }
 
 // pendingFinding is a finding as the $ref at site drew it, along a trail ending
-// at target, or at no target.
+// at target, or at no target. An entry's finding about a position holding no
+// schema is optional (see noteEntry).
 type pendingFinding struct {
-	site   jsontext.Pointer
-	target references.Reference
-	place  string
-	err    error
+	site     jsontext.Pointer
+	target   references.Reference
+	place    string
+	err      error
+	optional bool
 }
 
 // note records that the $ref at site has trail t, and the findings vErrs its
 // resolution drew, less any the source's own findings would drop (dropped).
 func (f *reachedFindings) note(site jsontext.Pointer, t trail, vErrs []error) {
+	f.noteEntry(site, t, vErrs, nil)
+}
+
+// noteEntry is note for a mapping entry's resolution, or a $ref's in an object
+// built from raw YAML, which marks optional each finding about a node in
+// noSchema. One is reported only where a $ref of the model's own drew it as
+// well: the library draws a finding once, for whichever resolution built its
+// node first, so dropping one drawn first would make the report follow order.
+func (f *reachedFindings) noteEntry(site jsontext.Pointer, t trail, vErrs []error, noSchema map[*yaml.Node]bool) {
 	if t.target != "" {
 		if least, ok := f.sites[t.target]; !ok || site < least {
 			f.sites[t.target] = site
@@ -253,21 +275,25 @@ func (f *reachedFindings) note(site jsontext.Pointer, t trail, vErrs []error) {
 	}
 	place := findingPlace(t)
 	for _, ve := range vErrs {
-		if verr, ok := asValidationError(ve); ok && dropped(verr) {
+		verr, ok := asValidationError(ve)
+		if ok && dropped(verr) {
 			continue
 		}
-		f.pending = append(f.pending, pendingFinding{site: site, target: t.target, place: place, err: ve})
+		f.pending = append(f.pending, pendingFinding{site: site, target: t.target, place: place, err: ve,
+			optional: ok && noSchema[verr.Node]})
 	}
 }
 
 // diags reports each finding once, at its target's least $ref, or at its own
-// $ref when its trail ended at no target, and none that is known. A finding
-// drawn more than once is kept at the least of its places: the library caches
-// no object it builds from a document whose bytes it already holds, so it
-// builds a target again for each $ref once another read that document.
+// $ref when its trail ended at no target, and none that is known, nor one only
+// ever drawn as optional (see noteEntry). A finding drawn more than once is
+// kept at the least of its places: the library caches no object it builds from
+// a document whose bytes it already holds, so it builds a target again for each
+// $ref once another read that document.
 func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
 	placed := make([]jsontext.Pointer, len(f.pending))
 	kept := make(map[findingKey]int, len(f.pending))
+	required := make(map[findingKey]bool, len(f.pending))
 	for i, p := range f.pending {
 		placed[i] = p.site
 		if least, ok := f.sites[p.target]; ok {
@@ -277,10 +303,11 @@ func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Di
 		if j, seen := kept[key]; !seen || placed[i] < placed[j] {
 			kept[key] = i
 		}
+		required[key] = required[key] || !p.optional
 	}
 	out := make([]ir.Diagnostic, 0, len(kept))
 	for i, p := range f.pending {
-		if key := keyOf(p.err, placed[i]); kept[key] == i && !f.known[key] {
+		if key := keyOf(p.err, placed[i]); kept[key] == i && required[key] && !f.known[key] {
 			out = append(out, reachedFinding(at(placed[i]), p.place, p.err))
 		}
 	}

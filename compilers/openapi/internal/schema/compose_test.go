@@ -3507,6 +3507,29 @@ func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"))
 }
 
+// TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved pins a
+// pure $ref position whose $ref the loader refused: with external references
+// off, one spelled with the source's file name. The mapping reads through it to
+// no schema, so it is unresolved in either order of its entries. Read through
+// all the same, it named whatever had interned the next position first.
+func TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved(t *testing.T) {
+	t.Parallel()
+	pet := func(mapping string) string {
+		return "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: {propertyName: kind, mapping: {" + mapping + "}}\n"
+	}
+	const lib = "x-lib:\n  Cat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}\n" +
+		"  CatAlias: {$ref: 'spec.yaml#/x-lib/Cat'}\n"
+	for _, mapping := range []string{"cat: '#/x-lib/Cat', alias: '#/x-lib/CatAlias'",
+		"alias: '#/x-lib/CatAlias', cat: '#/x-lib/Cat'"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(pet(mapping))+lib)
+		got := discriminatorOf(t, doc, componentID("Pet")).Mapping
+		assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, got, mapping)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/discriminator/mapping/alias"),
+			mapping)
+	}
+}
+
 // TestDiscriminatorMapping_ToASubtypeThroughAPureRefTagsIt pins the subtype's
 // side of GitHub #758: the mapping key that names a subtype through a pure
 // $ref position is its discriminatorValue, in either order, not its name.

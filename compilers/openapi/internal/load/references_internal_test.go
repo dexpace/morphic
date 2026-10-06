@@ -728,3 +728,36 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	assert.GreaterOrEqual(t, checked, 10,
 		"most of the corpus reaches the comparison; a filter this tight would check nothing")
 }
+
+// TestReachedFindings_AnOptionalFindingIsKeptOnlyWhereARequiredOneIsToo pins
+// that an entry's finding about a position holding no schema is dropped unless
+// a $ref of the model's own drew it too, and is then kept at the least of its
+// places, whichever drew it first: the entry's own place here.
+func TestReachedFindings_AnOptionalFindingIsKeptOnlyWhereARequiredOneIsToo(t *testing.T) {
+	t.Parallel()
+	node, alone := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 4, Column: 1}
+	at := func(n *yaml.Node) error {
+		return &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: n}
+	}
+	noSchema := map[*yaml.Node]bool{node: true, alone: true}
+	for _, entryFirst := range []bool{true, false} {
+		f := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
+		entry := func() {
+			f.noteEntry("/components/schemas/A/properties/p", trail{stopped: "#/a"}, []error{at(node), at(alone)}, noSchema)
+		}
+		if entryFirst {
+			entry()
+		}
+		f.note("/components/schemas/M", trail{stopped: "#/b"}, []error{at(node)})
+		if !entryFirst {
+			entry()
+		}
+
+		diags := f.diags(func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} })
+		got := make([]jsontext.Pointer, 0, len(diags))
+		for _, d := range diags {
+			got = append(got, d.Provenance.Pointer)
+		}
+		assert.Equal(t, []jsontext.Pointer{"/components/schemas/A/properties/p"}, got, "entry first: %t", entryFirst)
+	}
+}

@@ -159,6 +159,28 @@ func TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
 		"an over-long chain keeps the one pointer that is certainly addressable")
 }
 
+// TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments pins the scope of an entry
+// whose chain outruns maxRefChain: none, so no reference in what it reaches
+// reads as internal. Taken to end at the last hop read, it was read in that
+// hop's document, which need not hold the end (GitHub #762).
+func TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments(t *testing.T) {
+	t.Parallel()
+	for hops, foreign := range map[int]bool{resolve.MaxRefChain - 1: false, resolve.MaxRefChain + 4: true} {
+		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		op, ok := doc.Doc.Paths.Get("/a")
+		require.True(t, ok)
+		params := op.GetObject().Get().GetParameters()
+		require.Len(t, params, 1)
+
+		scope := resolve.ScopeOf[soa.Parameter](resolve.Scope{Doc: doc.Doc, SelfPath: doc.Source.Path}, params[0])
+
+		assert.Equal(t, foreign, scope.Foreign, "%d hops", hops)
+		assert.Empty(t, scope.Holder, "%d hops", hops)
+	}
+}
+
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
 // alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
 // parameter declaration. The walk therefore takes hops+1 steps: one from the
