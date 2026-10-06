@@ -629,6 +629,44 @@ func TestMappings_AKeyWrittenTwiceIsPricedAsTheLibraryReadsIt(t *testing.T) {
 	assert.GreaterOrEqual(t, twice.work, once.work, "the same scans, under the first of two equal keys")
 }
 
+// TestMappings_ContentUnderADefaultResponseIsTheOtherDocuments pins GitHub
+// #779 at load: a mapping target under an operation's default response, which
+// is a reference into another document, reaches that document's content, so
+// its own $ref is not read against the source. Read against the source, it
+// reached the source's x-lib/X, whose finding was reported there. A default
+// response answers as one under a status code does.
+func TestMappings_ContentUnderADefaultResponseIsTheOtherDocuments(t *testing.T) {
+	t.Parallel()
+	const other = `components:
+  responses:
+    R:
+      description: r
+      content:
+        application/json:
+          schema: {type: object, properties: {p: {$ref: '#/x-lib/X'}}}
+x-lib:
+  X: {type: integer}
+`
+	root := func(code string) string {
+		return "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths:\n  /a:\n    get:\n      responses:\n" +
+			"        \"" + code + "\": {$ref: 'other.yaml#/components/responses/R'}\n" +
+			"components:\n  schemas:\n" + petMapping("a: '#/paths/~1a/get/responses/"+code+"/content/application~1json/schema'") +
+			"x-lib:\n  X: {type: string, minLength: abc}\n"
+	}
+	dir := externalDir(t, map[string]string{"other.yaml": other})
+	got := map[string][]string{}
+	for _, code := range []string{"default", "200"} {
+		_, diags := loadExternal(t, dir, root(code), Options{})
+		for _, d := range diags {
+			got[code] = append(got[code], strings.ReplaceAll(d.Code+" "+string(d.Provenance.Pointer), code, "<code>"))
+		}
+		assert.NotContains(t, diagLines(diags),
+			"/paths/~1a/get/responses/"+code+"/content/application~1json/schema/properties/p "+
+				"openapi/validation/validation-type-mismatch", "%s: the source's x-lib/X is not reached", code)
+	}
+	assert.Equal(t, got["200"], got["default"], "a default response answers as one under a status code")
+}
+
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
 // phase resolves: those the lowering reads as naming a position in the source,
 // spelled internally or by the source's file name, whether or not external
