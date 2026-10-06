@@ -337,7 +337,7 @@ func checkUniqueKeys(n *yaml.Node) error {
 			first[k] = j
 			continue
 		}
-		// A key's later repeats share its first line, so only its first is kept.
+		// A key's later repeats share its first index, so its first repeat is kept.
 		if earliest < 0 || i < earliest {
 			earliest, next = i, j
 		}

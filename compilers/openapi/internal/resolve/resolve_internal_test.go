@@ -633,9 +633,9 @@ func TestStep_ReadsOneToken(t *testing.T) {
 }
 
 // TestStep_HandsOnAStructHeldByValue pins what a step hands on where the model
-// holds a struct by value, as an operation holds its responses: a pointer, from
-// which the next step reads what only the struct's methods answer, as the
-// library's walk reads on from the field's address.
+// holds a model by value, as an operation holds its responses: a pointer, from
+// which the next step reads what only its methods answer, as the library's walk
+// reads on from the field's address. Any other struct is handed on as itself.
 func TestStep_HandsOnAStructHeldByValue(t *testing.T) {
 	t.Parallel()
 	doc := unmarshalWalkDoc(t)
@@ -650,6 +650,11 @@ func TestStep_HandsOnAStructHeldByValue(t *testing.T) {
 	whole, err := jsonpointer.GetTarget(doc, "/paths/~1a/get/responses/default", jsonpointer.WithStructTags("key"))
 	require.NoError(t, err)
 	assert.Same(t, whole, next, "as the whole read finds it")
+
+	type plain struct{ K int }
+	held, ok := Step(map[string]any{"v": plain{K: 1}}, "v")
+	require.True(t, ok)
+	assert.Equal(t, plain{K: 1}, held, "a struct that is no model stays a value, as the library reads on from it")
 }
 
 // TestScopeAt_PassesAReferenceUnderADefaultResponse pins that the walk goes on

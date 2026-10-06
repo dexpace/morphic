@@ -190,8 +190,8 @@ func (c chain) withoutStall() chain {
 
 // maxResumeWork bounds the steps settle takes in a resolution pass: one for
 // each resolution it resumes, one for each hop the resumed resolution reads in
-// a document's tree, and the steps the library's read of that hop takes there
-// (see treeReads), each time it is read. The library finds a key by comparing a
+// a document's tree, the steps the library's read of that hop takes there (see
+// treeReads), each time it is read, and the keys indexed to count them. The library finds a key by comparing a
 // mapping's keys in order, so n chains into one mapping of n keys take n
 // squared steps (GitHub #773).
 const maxResumeWork = 1 << 28
