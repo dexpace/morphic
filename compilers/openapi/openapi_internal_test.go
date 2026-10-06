@@ -110,6 +110,11 @@ func TestWithoutRereported(t *testing.T) {
 			loaded:  []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
 			want:    []ir.Diagnostic{},
 		},
+		"unresolved-ref where the load phase refused a cycle is dropped": {
+			lowered: []ir.Diagnostic{{Code: diag.UnresolvedRef, Provenance: at}},
+			loaded:  []ir.Diagnostic{{Code: diag.CyclicRef, Provenance: at}},
+			want:    []ir.Diagnostic{},
+		},
 		"an empty loaded list keeps everything": {
 			lowered: []ir.Diagnostic{
 				{Code: diag.UnresolvedRef, Provenance: at},

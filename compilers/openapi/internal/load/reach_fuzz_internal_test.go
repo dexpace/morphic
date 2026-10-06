@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/internal/leakcheck"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,12 +43,13 @@ const reachFuzzOracleEnv = "MORPHIC_REACH_FUZZ_ORACLE_SPEC"
 
 // TestMain lets this package act as its own crash-oracle subprocess. Every
 // other test in the package is unaffected: the environment variable is unset
-// unless reachFuzzSubprocessCrashed sets it for a child process it spawns.
+// unless reachFuzzSubprocessCrashed sets it for a child process it spawns. They
+// run through leakcheck.Main, for the tests that start goroutines.
 func TestMain(m *testing.M) {
 	if specPath := os.Getenv(reachFuzzOracleEnv); specPath != "" {
 		os.Exit(runReachFuzzOracle(specPath))
 	}
-	os.Exit(m.Run())
+	leakcheck.Main(m)
 }
 
 // runReachFuzzOracle runs this package's own load pipeline over the spec at

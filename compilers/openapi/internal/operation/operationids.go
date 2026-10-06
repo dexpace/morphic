@@ -121,11 +121,10 @@ func declarations(claims []operationIDClaim, written *writtenTree) []declaration
 
 // byDeclaration partitions claims by the declaration they mount. Claims mount
 // one when they share the node declaring it (a $ref, YAML alias or merge key
-// reuse) or resolve to one declaration pointer. The second covers a reference
-// naming this document by its file name: the resolver reparses the document, so
-// the node is a copy. A self-reference through a directory, like ./spec.yaml,
-// is read as another document (GitHub #576) and shares neither, so it reads as
-// a conflict.
+// reuse) or resolve to one declaration pointer. A reference naming this
+// document by its file name does both. One through a directory, like
+// ./spec.yaml, is given another document's pointer (GitHub #576), and shares
+// the node, since the resolver answers it from the source as held.
 //
 // Neither test can turn a conflict into a reuse, since each identifies one
 // declaration.

@@ -113,15 +113,20 @@ var rules = map[string][]string{
 	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
-	// reaches nothing that lowers — at this point there is no document to lower.
+	// reaches resolve to read which mapping values name a position in the source
+	// as the lowering will, and the library's pointer walk to tell a hop that
+	// walked a document's bytes and to walk a document as it does. It reaches
+	// nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
@@ -131,17 +136,21 @@ var rules = map[string][]string{
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches annotation to ask whether a
 	// referenced position declares a body at all, jsonpointer to find that
-	// schema as the resolver does, and compile for the registry it looks IDs up
-	// in. It reaches nothing that lowers — following a reference far enough to
-	// lower its target recurses back into the schema walk, so that stays with
-	// the walk.
+	// schema as the resolver does, compile for the registry it looks IDs up in,
+	// the library's openapi package to name each kind of reference once
+	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
+	// reaches nothing that lowers — following a reference far enough to lower
+	// its target recurses back into the schema walk, so that stays with the
+	// walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/references"},
+		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/references",
+		"gopkg.in/yaml.v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
 	// redeclaration unions rather than intersects, and takes everything else it
 	// needs from lowering — the registry lookup and the recorder — as function
@@ -152,9 +161,10 @@ var rules = map[string][]string{
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
-	// one. It reaches load for the version grammar alone — the dialect question is
-	// asked of the document, and the grammar that answers it is the loader's —
-	// and defs for the reader its scope reads "#/$defs/..." pointers through.
+	// one. It reaches load for the version grammar — the dialect question is asked
+	// of the document, and the grammar that answers it is the loader's — and for
+	// the mapping targets the load phase resolved, which its scope reads; and defs
+	// for the reader its scope reads "#/$defs/..." pointers through.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",

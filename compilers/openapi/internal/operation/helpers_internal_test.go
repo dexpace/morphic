@@ -52,7 +52,8 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})), diags
+		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).
+		WithMappingTargets(loadedDoc.Targets)), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing

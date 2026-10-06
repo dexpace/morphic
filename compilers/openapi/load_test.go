@@ -43,7 +43,7 @@ func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
 // another document but cannot lower any further — is the one case the load
 // phase has nothing to report, so the lowering's own report survives
 // withoutRereported instead of being dropped as the duplicate it is everywhere
-// else.
+// else. A cycle the load phase refuses is reported once, as one.
 func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -92,6 +92,25 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/S")
 		assert.Equal(t, `unresolved $ref "other.yaml#/components/schemas/X"`, msg,
 			"the lowering's own report survives: the load phase resolved this reference successfully")
+	})
+
+	t.Run("a cycle the load phase refuses is reported once, as a cycle", func(t *testing.T) {
+		t.Parallel()
+		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+			"components:\n  schemas:\n    A: {$ref: 'root.yaml#/x-a'}\nx-a: {$ref: '#/components/schemas/A'}\n"
+
+		_, diags, err := New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(root)}},
+			compilers.Options{FormatOptions: Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+
+		var at []string
+		for _, d := range diags {
+			if d.Provenance.Pointer == "/components/schemas/A" {
+				at = append(at, d.Code)
+			}
+		}
+		assert.Equal(t, []string{diag.CyclicRef}, at, "the lowering's unresolved $ref there is the same failure")
 	})
 }
 

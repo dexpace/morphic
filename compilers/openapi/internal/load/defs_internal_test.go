@@ -178,7 +178,7 @@ func TestWithDefsHeld_RestoresEvenWhenFPanics(t *testing.T) {
 // external reader.
 func heldPass(t *testing.T, doc *soa.OpenAPI) *resolution {
 	t.Helper()
-	return newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, "spec.yaml", Options{}, nil)
+	return newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "spec.yaml"}, Options{}, nil)
 }
 
 // TestResolveHeld_ResolvesToTheRulesTarget drives the success path end to end:

@@ -1761,13 +1761,12 @@ paths:
 
 // TestOperations_SelfReferencesByFileName pins the reuse a reference naming
 // this document by its file name makes. The compiler reads it as internal, so
-// its claim has the plain reference's pointer, but the resolver returns a
-// re-parsed copy, so node identity alone would report an error naming one
-// pointer twice.
+// its claim has the plain reference's pointer.
 //
 // The last case is a self-reference the compiler does not read as one, since
-// its document part carries a directory (GitHub #576). It stays a conflict
-// until that is fixed, which turns the row red.
+// its document part carries a directory (GitHub #576), so its pointer is
+// another. The resolver answers it from the source as held (GitHub #759), so
+// it shares the declaring node, and that is what makes it a reuse.
 //
 // AllowExternalRefs is needed because the resolver counts a document part as
 // leaving the document.
@@ -1794,11 +1793,11 @@ func TestOperations_SelfReferencesByFileName(t *testing.T) {
 			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 		{
-			name: "a self-reference through a directory, read as another document (GitHub #576)",
+			name: "a self-reference through a directory, read as another document's pointer (GitHub #576)",
 			paths: `  /a: {$ref: '#/components/pathItems/Shared'}
   /b: {$ref: './self.yaml#/components/pathItems/Shared'}
 `,
-			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

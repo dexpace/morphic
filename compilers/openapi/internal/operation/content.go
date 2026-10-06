@@ -395,7 +395,7 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		if h == nil {
 			continue
 		}
-		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
+		p, headerDiags := lowerHeader(lowering.Within[soa.Header](c, rh), ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		out = append(out, p)
@@ -708,6 +708,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if rb == nil {
 		return nil
 	}
+	c = lowering.Within[soa.RequestBody](c, src.GetRequestBody())
 	// requestBodyHint spells this operation's ID, which names the shared node
 	// after this mount when the body is declared under another operation. Marking
 	// the lowering lets that operation's own pass replace the placeholder, in

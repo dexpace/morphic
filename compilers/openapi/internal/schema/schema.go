@@ -239,6 +239,15 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}, diags
 }
 
+// refSiteHomesNothing reports whether a $ref position written as s holds
+// nothing an alias would: no keyword beside the $ref that refSiteRef keeps on
+// one (refSiteUnhomedKeywords, declaresUnion), and none hoistDeclarationHome
+// homes on one (declaresPositionScoped). Such a position lowers to its
+// target's type alone.
+func refSiteHomesNothing(s *oas3.Schema) bool {
+	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(s)
+}
+
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
 // attachDeclaredAnnotations records, a value constraint internAlias carries, or
@@ -1021,7 +1030,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
-		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -1542,8 +1551,8 @@ const maxDynamicAnchorDepth = 512
 const maxDynamicAnchorNodes = 1 << 20
 
 // dynamicExpansion resolves the $dynamicRef s writes at pointer to the type it
-// names, or reports why it is irreducible. The expanding and the preserving
-// caller both decide through it.
+// names, or reports why it is irreducible. Expansion and preservation both
+// decide through it.
 //
 // Dynamic scope is static per document (ir-design §4.7), so a $dynamicAnchor
 // declared once is the only match, provided the document is one schema
@@ -1552,11 +1561,18 @@ const maxDynamicAnchorNodes = 1 << 20
 //
 // Only an anchor on a top-level component schema resolves, since only its
 // TypeID is stable whatever lowers first (ir-design §4.3). A $dynamicRef
-// co-declared with a $ref, oneOf/anyOf or a shape is irreducible too.
+// co-declared with a $ref, oneOf/anyOf or a shape is irreducible too, as is
+// one another document holds.
 func dynamicExpansion(c lowering.Ctx, anchors *AnchorIndex, s *oas3.Schema, pointer jsontext.Pointer) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {
 		return "", why, false, nil
+	}
+	if c.RefScope().Foreign {
+		// Its fragment names that document's anchor, and the index holds the
+		// source's alone: expanding it read the source's anchor of that name
+		// (GitHub #762).
+		return "", "it is written in another document, whose $dynamicAnchor it names and which is not lowered", false, nil
 	}
 	at, why, ok, diags := soleAnchorSite(c, anchors, name)
 	if !ok {

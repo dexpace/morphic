@@ -3364,62 +3364,326 @@ func TestDiscriminatorMapping_InlineTargetResolvesInEitherOrder(t *testing.T) {
 	}
 }
 
-// TestDiscriminatorMapping_ToAnAliasIsReportedByValidation pins the one target
-// GitHub #530's fix does not make a subtype: a position that is itself a pure
-// $ref. The mapping resolves, in either order, to the alias hoistSubSchema
-// builds there, as an outside $ref to it would. That alias is a Scalar, not a
-// subtype of the base, and pass.Validate does not read through an alias at a
-// mapping target, so it reports pass/discriminator-missing-variant naming the
-// alias. That rule is pass.Validate's, and this fix leaves it unchanged
-// (GitHub #758).
-func TestDiscriminatorMapping_ToAnAliasIsReportedByValidation(t *testing.T) {
+// TestDiscriminatorMapping_ToAPureRefNamesItsTarget pins GitHub #758. A
+// mapping names a type, and a position that is only a $ref to another is a use
+// of that one's type, so a mapping to it names what the $ref names, as a union
+// variant written there does. A component is a declaration of its own and
+// keeps its own node. Each row is compiled base-first and reversed: both must
+// map each tag to the same type, with nothing reported, pass.Validate included.
+func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 	t.Parallel()
-	const dogComponent = `    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}
-`
+	const subtype = "{allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}"
+	pet := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+		"      discriminator: {propertyName: kind, mapping: {%s}}\n"
+	union := "    Pet:\n      oneOf: [%s]\n" +
+		"      discriminator: {propertyName: kind, mapping: {%s}}\n"
+	for _, c := range []struct {
+		name  string
+		base  string
+		owner string
+		want  map[string]ir.TypeID
+	}{
+		{
+			name:  "a model base's mapping to a property",
+			base:  fmt.Sprintf(pet, "woofer: '#/components/schemas/Kennel/properties/Dog'"),
+			owner: "    Dog: " + subtype + "\n    Kennel: {type: object, properties: {Dog: {$ref: '#/components/schemas/Dog'}}}\n",
+			want:  map[string]ir.TypeID{"woofer": componentID("Dog")},
+		},
+		{
+			name: "a union's mapping to its branches",
+			base: fmt.Sprintf(union, "{$ref: '#/components/schemas/Cat'}, {type: object, properties: {kind: {type: string}}}",
+				"c: '#/components/schemas/Pet/oneOf/0', d: '#/components/schemas/Pet/oneOf/1'"),
+			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n",
+			want: map[string]ir.TypeID{"c": componentID("Cat"),
+				"d": "t/anon/components/schemas/Pet/oneOf/1"},
+		},
+		{
+			name: "a chain of such positions",
+			base: fmt.Sprintf(pet, "woofer: '#/components/schemas/Kennel/properties/a'"),
+			owner: "    Dog: " + subtype + "\n    Kennel:\n      type: object\n      properties:\n" +
+				"        a: {$ref: '#/components/schemas/Kennel/properties/b'}\n" +
+				"        b: {$ref: '#/components/schemas/Dog'}\n",
+			want: map[string]ir.TypeID{"woofer": componentID("Dog")},
+		},
+		{
+			name: "a union branch naming a component alias",
+			base: fmt.Sprintf(union, "{$ref: '#/components/schemas/CatAlias'}",
+				"c: '#/components/schemas/Pet/oneOf/0'"),
+			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n" +
+				"    CatAlias: {$ref: '#/components/schemas/Cat'}\n",
+			want: map[string]ir.TypeID{"c": componentID("CatAlias")},
+		},
+		{
+			name: "a union branch naming the component keyed by the empty string",
+			base: fmt.Sprintf(union, "{$ref: '#/components/schemas/'}", "c: '#/components/schemas/'"),
+			owner: "    Cat: {type: object, properties: {kind: {type: string}}}\n" +
+				"    '': {$ref: '#/components/schemas/Cat'}\n",
+			want: map[string]ir.TypeID{"c": "t/anon/components/schemas/"},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			first, diags := parseFull(t, openapitest.ComponentSpec(c.base+c.owner))
+			openapitest.RequireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, openapitest.ComponentSpec(c.owner+c.base))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...))
+			for _, doc := range []*ir.Document{first, last} {
+				assert.Equal(t, c.want, discriminatorOf(t, doc, componentID("Pet")).Mapping)
+				assert.Empty(t, pass.Validate(doc), "every target is a variant")
+			}
+		})
+	}
+}
+
+// discriminatorOf returns the discriminator the model or union id declares.
+func discriminatorOf(t *testing.T, doc *ir.Document, id ir.TypeID) *ir.Discriminator {
+	t.Helper()
+	switch td := doc.Types[id].(type) {
+	case *ir.Model:
+		require.NotNil(t, td.Discriminator, id)
+		return td.Discriminator
+	case *ir.Union:
+		require.NotNil(t, td.Discriminator, id)
+		return td.Discriminator
+	default:
+		require.Failf(t, "not a discriminated type", "%s is a %T", id, td)
+		return nil
+	}
+}
+
+// TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap pins the
+// read-through's cap as behaviour rather than as a comment, as
+// TestAllOf_DiscriminatorValueChainDeeperThanCap does for the ancestor walk. A
+// chain of $ref positions longer than the cap that is no cycle stops at the
+// position the cap reached, so the mapping names that position's alias. The
+// chain exactly the cap long is the control: it reads through to the component.
+func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
+	t.Parallel()
+	// maxTypePositionHops is unexported; 64 is its committed value, and the two
+	// cases below straddle it.
+	const hopCap = 64
+	for _, tc := range []struct {
+		name  string
+		links int
+		want  ir.TypeID
+	}{
+		{"as long as the cap", hopCap, componentID("Dog")},
+		{"beyond the cap", hopCap + 1, "t/anon/components/schemas/Kennel/properties/a64"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var kennel strings.Builder
+			kennel.WriteString("    Kennel:\n      type: object\n      properties:\n")
+			for i := range tc.links - 1 {
+				fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Kennel/properties/a%d'}\n", i, i+1)
+			}
+			fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Dog'}\n", tc.links-1)
+			spec := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+				"      discriminator: {propertyName: kind, mapping: {woofer: '#/components/schemas/Kennel/properties/a0'}}\n" +
+				"    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}\n" +
+				kennel.String()
+
+			doc, diags := parseFull(t, openapitest.ComponentSpec(spec))
+
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, map[string]ir.TypeID{"woofer": tc.want}, discriminatorOf(t, doc, componentID("Pet")).Mapping,
+				"a0 is %d $ref positions above the component", tc.links)
+		})
+	}
+}
+
+// TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow pins where the
+// read-through stops short of a target: a $ref into another document names no
+// position here, so the mapping keeps naming the position that $ref sits at,
+// and the $ref is reported unresolved.
+func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    Pet:\n      oneOf: [{$ref: 'other.yaml#/X'}]\n"+
+		"      discriminator: {propertyName: kind, mapping: {c: '#/components/schemas/Pet/oneOf/0'}}\n"))
+
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Pet/oneOf/0"), discriminatorOf(t, doc, componentID("Pet")).Mapping["c"])
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"))
+}
+
+// TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved pins a
+// pure $ref position whose $ref the loader refused: with external references
+// off, one spelled with the source's file name. The mapping reads through it to
+// no schema, so it is unresolved in either order of its entries. Read through
+// all the same, it named whatever had interned the next position first.
+func TestDiscriminatorMapping_ThroughARefTheLoaderDidNotFollowIsUnresolved(t *testing.T) {
+	t.Parallel()
+	pet := func(mapping string) string {
+		return "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: {propertyName: kind, mapping: {" + mapping + "}}\n"
+	}
+	const lib = "x-lib:\n  Cat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}\n" +
+		"  CatAlias: {$ref: 'spec.yaml#/x-lib/Cat'}\n"
+	for _, mapping := range []string{"cat: '#/x-lib/Cat', alias: '#/x-lib/CatAlias'",
+		"alias: '#/x-lib/CatAlias', cat: '#/x-lib/Cat'"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(pet(mapping))+lib)
+		got := discriminatorOf(t, doc, componentID("Pet")).Mapping
+		assert.Equal(t, map[string]ir.TypeID{"cat": "t/anon/x-lib/Cat"}, got, mapping)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/discriminator/mapping/alias"),
+			mapping)
+	}
+}
+
+// TestDiscriminatorMapping_ToASubtypeThroughAPureRefTagsIt pins the subtype's
+// side of GitHub #758: the mapping key that names a subtype through a pure
+// $ref position is its discriminatorValue, in either order, not its name.
+func TestDiscriminatorMapping_ToASubtypeThroughAPureRefTagsIt(t *testing.T) {
+	t.Parallel()
 	const base = `    Pet:
       type: object
       required: [kind]
       properties: {kind: {type: string}}
-      discriminator:
-        propertyName: kind
-        mapping: {woofer: '#/components/schemas/Kennel/properties/Dog'}
+      discriminator: {propertyName: kind, mapping: {woofer: '#/components/schemas/Kennel/properties/Dog'}}
 `
-	const owner = `    Kennel:
-      type: object
-      properties:
-        Dog: {$ref: '#/components/schemas/Dog'}
+	const owner = `    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}
+    Kennel: {type: object, properties: {Dog: {$ref: '#/components/schemas/Dog'}}}
 `
-	const aliasID = ir.TypeID("t/anon/components/schemas/Kennel/properties/Dog")
-
-	first, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+base+owner))
-	openapitest.RequireNoErrorDiags(t, diags)
-	last, diags := parseFull(t, openapitest.ComponentSpec(dogComponent+owner+base))
-	openapitest.RequireNoErrorDiags(t, diags)
-
-	assert.Empty(t, cmp.Diff(first, last, orderInvariantIR()...),
-		"the alias is hoisted the same way whichever order the base or the owner is declared in")
-
-	for _, doc := range []*ir.Document{first, last} {
-		pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	for _, spec := range []string{base + owner, owner + base} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(spec))
+		openapitest.RequireNoErrorDiags(t, diags)
+		dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
 		require.True(t, ok)
-		assert.Equal(t, aliasID, pet.Discriminator.Mapping["woofer"],
-			"the mapping resolves to the alias the position hoists, not to Dog directly")
+		assert.Equal(t, "woofer", dog.DiscriminatorValue)
+	}
+}
 
-		alias, ok := doc.Types[aliasID].(*ir.Scalar)
-		require.True(t, ok, "the hoisted position is an alias scalar, not a model")
-		require.NotNil(t, alias.Base)
-		assert.Equal(t, componentID("Dog"), alias.Base.Target, "the alias's own target is Dog")
-
-		var msgs []string
-		for _, d := range pass.Validate(doc) {
-			if d.Code == "pass/discriminator-missing-variant" && d.Severity == ir.SeverityError &&
-				d.Provenance.Node == string(componentID("Pet")) {
-				msgs = append(msgs, d.Message)
-			}
+// TestDiscriminatorMapping_NamesWhatAVariantWrittenThereNames pins that the
+// read-through stops exactly where the lowering gives a $ref position a node of
+// its own. A branch carries the $ref beside one keyword at a time, and the
+// mapping to it must name what the union's variant there names: the target,
+// or the alias holding what the keyword says. A keyword the lowering keeps on
+// an alias, but the read-through did not stop for, makes them differ.
+func TestDiscriminatorMapping_NamesWhatAVariantWrittenThereNames(t *testing.T) {
+	t.Parallel()
+	for _, sibling := range []string{
+		"", "description: d", "title: t", "deprecated: true", "example: {}", "examples: [{}]",
+		"x-ext: 1", "minProperties: 1", "readOnly: true", "not: {required: [x]}",
+		"oneOf: [{type: object}]", "allOf: [{type: object}]", "if: {required: [x]}",
+		"$comment: c", "externalDocs: {url: 'https://example.com'}", "nullable: true",
+		"properties: {extra: {type: string}}", "required: [kind]", "type: object",
+	} {
+		branch := "{$ref: '#/components/schemas/Cat'}"
+		if sibling != "" {
+			branch = "{$ref: '#/components/schemas/Cat', " + sibling + "}"
 		}
-		require.Len(t, msgs, 1, "pass.Validate reports the alias once, on the base")
-		assert.Contains(t, msgs[0], string(aliasID),
-			"the diagnostic names the alias pass.Validate refused, not the schema it aliases")
+		doc, _ := parseFull(t, openapitest.ComponentSpec(
+			"    Pet:\n      oneOf: ["+branch+"]\n      discriminator: {propertyName: kind, mapping: {c: '#/components/schemas/Pet/oneOf/0'}}\n"+
+				"    Cat: {type: object, properties: {kind: {type: string}}}\n"))
+		pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
+		require.True(t, ok, sibling)
+		require.Len(t, pet.Variants, 1, sibling)
+		assert.Equal(t, pet.Variants[0].Type.Target, pet.Discriminator.Mapping["c"], "beside %q", sibling)
+	}
+}
+
+// TestDiscriminatorMapping_NamesTheVariantNamingThePosition pins a union whose
+// variant is a $ref to the position its mapping names, or to a position on the
+// way there. That $ref hoists an alias at the position, as a $ref to any
+// position does, so the mapping names that alias and not the target past it,
+// which is no variant (GitHub #758). Where no variant names the position, the
+// mapping still reads through it. Each row is compiled with the union first and
+// again last: both must map the tag to the variant's type, which pass.Validate
+// accepts, and build the same registry.
+func TestDiscriminatorMapping_NamesTheVariantNamingThePosition(t *testing.T) {
+	t.Parallel()
+	const (
+		cat    = "    Cat: {type: object, properties: {kind: {type: string}}}\n"
+		catRef = "x-lib:\n  CatRef: {$ref: '#/components/schemas/Cat'}\n"
+	)
+	union := func(branch, discriminator string) string {
+		return "    Pet:\n      oneOf: [{$ref: '" + branch + "'}]\n" +
+			"      discriminator: {propertyName: kind, " + discriminator + "}\n"
+	}
+	tests := []struct {
+		name       string
+		version    string
+		components []string
+		tail       string
+		variant    ir.TypeID // what the variant names, as on main
+		isDefault  bool      // the discriminator's defaultMapping, not its mapping c
+	}{
+		{
+			name:       "an extension's value",
+			components: []string{union("#/x-lib/CatRef", "mapping: {c: '#/x-lib/CatRef'}"), cat},
+			tail:       catRef,
+			variant:    "t/anon/x-lib/CatRef",
+		},
+		{
+			name: "a property",
+			components: []string{union("#/components/schemas/Lib/properties/c",
+				"mapping: {c: '#/components/schemas/Lib/properties/c'}"), cat,
+				"    Lib: {type: object, properties: {c: {$ref: '#/components/schemas/Cat'}}}\n"},
+			variant: "t/anon/components/schemas/Lib/properties/c",
+		},
+		{
+			name: "a $defs entry",
+			components: []string{union("#/$defs/C", "mapping: {c: '#/$defs/C'}") +
+				"      $defs: {C: {$ref: '#/components/schemas/Cat'}}\n", cat},
+			variant: "t/anon/components/schemas/Pet/$defs/C",
+		},
+		{
+			name: "another union's branch",
+			components: []string{union("#/components/schemas/Other/oneOf/0",
+				"mapping: {c: '#/components/schemas/Other/oneOf/0'}"), cat,
+				"    Other: {oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]}\n"},
+			variant: "t/anon/components/schemas/Other/oneOf/0",
+		},
+		{
+			name:       "a 3.2 defaultMapping",
+			version:    "3.2.0",
+			components: []string{union("#/x-lib/CatRef", "defaultMapping: '#/x-lib/CatRef'"), cat},
+			tail:       catRef,
+			variant:    "t/anon/x-lib/CatRef",
+			isDefault:  true,
+		},
+		{
+			name:       "the union's own branch, through to the position its $ref names",
+			components: []string{union("#/x-lib/A", "mapping: {c: '#/components/schemas/Pet/oneOf/0'}"), cat},
+			tail:       "x-lib:\n  A: {$ref: '#/x-lib/B'}\n  B: {$ref: '#/components/schemas/Cat'}\n",
+			variant:    "t/anon/x-lib/A",
+		},
+		{
+			name: "a position no variant names, read through to the variant",
+			components: []string{"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat'}]\n" +
+				"      discriminator: {propertyName: kind, mapping: {c: '#/x-lib/CatRef'}}\n", cat},
+			tail:    catRef,
+			variant: componentID("Cat"),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			version := tc.version
+			if version == "" {
+				version = "3.1.0"
+			}
+			first, diags := parseFull(t, rawSpec(version, tc.components, tc.tail, false))
+			openapitest.RequireNoErrorDiags(t, diags)
+			last, diags := parseFull(t, rawSpec(version, tc.components, tc.tail, true))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, doc := range []*ir.Document{first, last} {
+				pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
+				require.True(t, ok, "Pet is a union")
+				require.Len(t, pet.Variants, 1)
+				require.NotNil(t, pet.Discriminator)
+				assert.Equal(t, tc.variant, pet.Variants[0].Type.Target)
+				got := pet.Discriminator.Mapping["c"]
+				if tc.isDefault {
+					got = pet.Discriminator.Default
+				}
+				assert.Equal(t, pet.Variants[0].Type.Target, got, "the mapping names what the variant names")
+				assert.Empty(t, pass.Validate(doc), "every target is a variant")
+			}
+			assert.Empty(t, cmp.Diff(first.Types, last.Types),
+				"declaring the union before or after what its variant names must not change the registry")
+		})
 	}
 }
 

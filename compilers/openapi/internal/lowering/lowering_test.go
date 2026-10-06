@@ -1,6 +1,9 @@
 package lowering_test
 
 import (
+	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -10,10 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -233,6 +239,134 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 	assert.Same(t, c.RefScope().Defs, c.RefScope().Defs)
 	assert.Same(t, c.RefScope().Defs, c.NamingByReference().RefScope().Defs, "a copy shares it")
 	assert.Nil(t, lowering.Ctx{}.RefScope().Defs, "a context with no document has none")
+}
+
+// TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
+// the load phase resolved reaches the scope through the context. The target is
+// an extension's value, a position the parsed model holds as raw YAML, so the
+// scope finds it only if WithMappingTargets handed it over (GitHub #757).
+func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      discriminator: {propertyName: k, mapping: {c: '#/x-lib/Cat'}}
+x-lib:
+  Cat: {type: object}
+`
+	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+	require.NotNil(t, loaded.Targets.At("/x-lib/Cat"), "the load phase resolved the target")
+
+	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
+	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the model holds the target as raw YAML")
+
+	carrying := bare.WithMappingTargets(loaded.Targets)
+	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
+	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
+}
+
+// TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
+// shares: a position is read once in each scope it is read in, whatever its
+// answer, and a copy reads what another remembered. A copy carrying other
+// mapping targets starts afresh, since an answer reads them, and a zero
+// context remembers nothing.
+func TestTypePosition_IsReadOncePerScope(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
+		[]byte("paths:\n  /x: {get: {responses: {\"200\": {description: ok}}}}\n"), 0o600))
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /ext: {$ref: './ext.yaml#/paths/~1x'}\n"
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(root)}, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	reads := 0
+	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
+		t.Helper()
+		at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
+			reads++
+			return pointer + "/there", pointer != "/none"
+		})
+		assert.Equal(t, pointer+"/there", at)
+		assert.Equal(t, pointer != "/none", ok)
+	}
+
+	ask(c, "/x")
+	ask(c.NamingByReference(), "/x")
+	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
+	ask(c, "/none")
+	ask(c, "/none")
+	assert.Equal(t, 2, reads, "a position naming none is remembered too")
+	foreign := c.At("/paths/~1ext/get/responses/200")
+	require.True(t, foreign.RefScope().Foreign)
+	ask(foreign, "/x")
+	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
+	ask(c.WithMappingTargets(load.MappingTargets{}), "/x")
+	assert.Equal(t, 4, reads, "a copy carrying other targets remembers nothing of c's")
+	ask(lowering.Ctx{}, "/x")
+	ask(lowering.Ctx{}, "/x")
+	assert.Equal(t, 6, reads, "a zero context remembers nothing")
+}
+
+// referenceKinds is a source declaring one component of each kind the library
+// models as a reference, and beside each an alias naming it.
+const referenceKinds = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  pathItems: {P: {get: {responses: {"200": {description: ok}}}}, A: {$ref: '#/components/pathItems/P'}}
+  parameters: {P: {name: q, in: query, schema: {type: string}}, A: {$ref: '#/components/parameters/P'}}
+  headers: {P: {schema: {type: string}}, A: {$ref: '#/components/headers/P'}}
+  requestBodies: {P: {content: {application/json: {schema: {type: string}}}}, A: {$ref: '#/components/requestBodies/P'}}
+  responses: {P: {description: ok}, A: {$ref: '#/components/responses/P'}}
+  examples: {P: {value: 1}, A: {$ref: '#/components/examples/P'}}
+  links: {P: {operationRef: '#/paths/~1x/get'}, A: {$ref: '#/components/links/P'}}
+  callbacks: {P: {'{$request.body#/u}': {post: {responses: {"200": {description: ok}}}}}, A: {$ref: '#/components/callbacks/P'}}
+  securitySchemes: {P: {type: http, scheme: basic}, A: {$ref: '#/components/securitySchemes/P'}}
+`
+
+// TestRefScope_EndsReadsEachReferenceKind pins the dispatch a walk through the
+// document asks about each node it passes: every kind the library models as a
+// reference is read as one, so a pointer passing an alias of any kind is read
+// where that alias's chain ends. A kind left out would pass unread. An inline
+// entry, and a value of no reference kind, are no reference.
+func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "root.yaml")
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
+	require.NoError(t, err)
+	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	ends := c.RefScope().Ends
+	require.NotNil(t, ends)
+	cs := doc.Doc.Components
+	for kind, entries := range map[string][2]any{
+		"pathItems":       {cs.PathItems.GetOrZero("A"), cs.PathItems.GetOrZero("P")},
+		"parameters":      {cs.Parameters.GetOrZero("A"), cs.Parameters.GetOrZero("P")},
+		"headers":         {cs.Headers.GetOrZero("A"), cs.Headers.GetOrZero("P")},
+		"requestBodies":   {cs.RequestBodies.GetOrZero("A"), cs.RequestBodies.GetOrZero("P")},
+		"responses":       {cs.Responses.GetOrZero("A"), cs.Responses.GetOrZero("P")},
+		"examples":        {cs.Examples.GetOrZero("A"), cs.Examples.GetOrZero("P")},
+		"links":           {cs.Links.GetOrZero("A"), cs.Links.GetOrZero("P")},
+		"callbacks":       {cs.Callbacks.GetOrZero("A"), cs.Callbacks.GetOrZero("P")},
+		"securitySchemes": {cs.SecuritySchemes.GetOrZero("A"), cs.SecuritySchemes.GetOrZero("P")},
+	} {
+		end, ok := ends(entries[0])
+		require.True(t, ok, "%s: the alias is read as a reference", kind)
+		assert.Equal(t, resolve.End{Document: any(doc.Doc), Path: path,
+			Pointer: jsontext.Pointer("/components/" + kind + "/P")}, end, kind)
+		_, ok = ends(entries[1])
+		assert.False(t, ok, "%s: an inline entry is no reference", kind)
+	}
+	_, ok := ends(doc.Doc)
+	assert.False(t, ok, "a value of no reference kind is no reference")
 }
 
 // TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee

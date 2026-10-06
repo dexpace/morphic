@@ -102,6 +102,7 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 	for _, r := range refs {
 		r.retarget()
 	}
+	p.loops.forget()
 	for _, r := range refs {
 		site = r.site
 		if r.target == nil {

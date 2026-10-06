@@ -156,6 +156,9 @@ const maxSchemaScanDepth = 512
 type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
 	Source ir.SourceInfo // format tag, path, content hash
+	// Targets holds the schema each discriminator mapping target names,
+	// resolved as a $ref to it is.
+	Targets MappingTargets
 	// Overlay attributes the positions an applied overlay is answerable for. Its
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
@@ -258,14 +261,16 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		again, _, err := rebuildDoc(ctx, src.Data, root)
 		return again, err
 	}
-	doc, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, src.Path, opts, rebuild)
+	self := newSourceDocument(src.Path, src.Data, root, valErrs)
+	doc, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, self, opts, rebuild)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
 	diags = append(diags, resolveDiags...)
 
 	return &Document{
-		Doc: doc,
+		Doc:     doc,
+		Targets: targets,
 		Source: ir.SourceInfo{
 			Format: "openapi@" + minor,
 			Path:   src.Path,
@@ -325,17 +330,18 @@ func compilerOwned(verr validation.Error) bool {
 // resolution's objects are discarded when a rebuild replaces it, so validating
 // them would be work whose findings are thrown away, or findings reported
 // about objects the IR is not built from.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, path string,
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
 	opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, []ir.Diagnostic, error) {
+) (*soa.OpenAPI, MappingTargets, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
-		return doc, resolveWith(ctx, at, doc, path, opts, nil), nil
+		targets, diags := resolveWith(ctx, at, doc, self, opts, nil)
+		return doc, targets, diags, nil
 	}
-	resolved, diags, err := resolveExternal(ctx, at, doc, path, opts, rebuild)
+	resolved, targets, diags, err := resolveExternal(ctx, at, doc, self, opts, rebuild)
 	if err != nil {
-		return nil, nil, err
+		return nil, MappingTargets{}, nil, err
 	}
-	return resolved, append(diags, validateReached(ctx, at, resolved, opts)...), nil
+	return resolved, targets, append(diags, validateReached(ctx, at, resolved, opts, self.found)...), nil
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

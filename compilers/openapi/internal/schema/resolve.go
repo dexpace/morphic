@@ -152,9 +152,20 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
 		return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-			"unresolved $ref %q", ref))
+			"unresolved $ref %q%s", ref, namesHolderWhy(c, ref)))
 	}
 	return ir.TypeRef{Target: id, Nullable: refNullable(js)}, diags
+}
+
+// namesHolderWhy is the reason an unresolved reference reports when, in another
+// document's content, it names a position in that document (GitHub #762), and
+// empty for any other. The position may well exist there, so without it the
+// report reads as though the reference named nothing.
+func namesHolderWhy(c lowering.Ctx, ref string) string {
+	if c.RefScope().NamesHolder(ref) {
+		return ": it names a position in the other document holding it, which is not lowered"
+	}
+	return ""
 }
 
 // resolveSchemaRef resolves a schema-position $ref to an interned TypeID, never
@@ -174,21 +185,46 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, d
 // resolvePointer resolves a same-document pointer to the ID of the schema it
 // addresses: a component by its stable ID, an interned node by its own, and
 // otherwise decl, the schema declared there, hoisted at the pointer. A nil decl
-// declares nothing to hoist.
+// declares nothing to hoist, and a decl that is a copy yields to the schema the
+// position settles on (see settledDecl).
 //
 // It is where a $ref and a discriminator mapping target meet once each has its
 // pointer: they differ only in how decl is found, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool, []ir.Diagnostic) {
-	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
+	scope := c.RefScope()
+	if id, resolved, handled := scope.ComponentRef(pointer); handled {
 		return id, resolved, nil
 	}
 	if id, ok := resolve.InternedID(ts, pointer); ok {
 		return id, true, nil
 	}
+	decl = settledDecl(scope, pointer, decl)
 	if decl == nil {
 		return "", false, nil
 	}
 	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
+}
+
+// settledDecl returns what to hoist at pointer for decl, the schema a followed
+// $ref reached there: the model's own where it holds one, and at a raw
+// position the schema the load phase walked. A $ref spelled with the source's
+// file name, or written in another document, builds a copy of what it names,
+// whose own $refs nothing resolved. A nil decl stays nil: nothing followed the
+// $ref, and which positions the load phase walked follows which chains it
+// resolved, so an answer from them would follow those too.
+func settledDecl(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
+	if decl == nil {
+		return decl
+	}
+	if js := scope.ModelAt(pointer); js != nil {
+		return js
+	}
+	if scope.Built != nil {
+		if built := scope.Built(pointer); built != nil {
+			return built
+		}
+	}
+	return decl
 }
 
 // hoistSubSchema lowers the internal sub-schema declared at pointer and
@@ -209,8 +245,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// coordinate, not through the declaration that owns it, so the names minted
 	// below are placeholders the declaration replaces (GitHub #372). It covers the
 	// subtree rather than this coordinate alone: a reference to an object body
-	// interns its children too, and their names hang off this one.
-	c = c.NamingByReference()
+	// interns its children too, and their names hang off this one. It is read
+	// where the coordinate lies, whichever document's content held the reference:
+	// the source's own, or another document's past a $ref the pointer passes.
+	c = c.At(pointer).NamingByReference()
 
 	hint := subSchemaHint(decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)

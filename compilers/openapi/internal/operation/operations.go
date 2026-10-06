@@ -190,6 +190,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if pi == nil {
 			continue
 		}
+		c := lowering.Within[soa.PathItem](c, rp)
 		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, pi, declPtr)...)
 	}
 	return diags
@@ -249,6 +250,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 		if pi == nil {
 			continue
 		}
+		c := lowering.Within[soa.PathItem](c, rp)
 		var mounted int
 		for _, po := range pathOperations(pi) {
 			ptrs := opPointers{mount: hookPtr + po.seg, decl: declPtr + po.seg}
@@ -725,6 +727,7 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		if r == nil {
 			continue
 		}
+		c := lowering.Within[soa.Response](c, rr)
 		rng, named := statusRange(code)
 		if !named {
 			diags = append(diags, invalidStatusKeyDiag(c, code, entry))
@@ -749,7 +752,8 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	}
 	def, dptr := resolve.ObjectAt[soa.Response](c.RefScope(), resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def != nil {
-		ec, ecDiags := lowerErrorCase(c, ts, anchors, def, defaultResponseKey, ir.StatusRange{}, dptr)
+		ec, ecDiags := lowerErrorCase(lowering.Within[soa.Response](c, resps.GetDefault()), ts, anchors, def,
+			defaultResponseKey, ir.StatusRange{}, dptr)
 		diags = append(diags, ecDiags...)
 		errs = append(errs, ec)
 	}
@@ -906,6 +910,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		if cb == nil {
 			continue
 		}
+		c := lowering.Within[soa.Callback](c, rcb)
 		// A Callback Object's own x-* describe the callback rather than any
 		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
 		// binding does, and is where the callbacks themselves live, so they are kept
@@ -919,6 +924,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 			if pi == nil {
 				continue
 			}
+			c := lowering.Within[soa.PathItem](c, rp)
 			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
 			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, claims, pi, cbPtrs, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)

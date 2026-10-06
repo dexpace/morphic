@@ -68,7 +68,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	doc, valErrs := parseSpec(t, sitedFailuresSpec)
 	require.Empty(t, valErrs, "the fixture is otherwise well-formed")
 
-	got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, "root.yaml", Options{}, nil)
+	_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -157,7 +157,7 @@ components:
 `)
 		require.Empty(t, valErrs)
 
-		got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, "root.yaml", Options{}, nil)
+		_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -195,6 +195,44 @@ components:
 				`through "#/components/responses/Missing" in ` + filepath.Join(dir, "ext.yaml") + ": not found",
 		})
 	})
+}
+
+// TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind pins that a
+// mapping target is resolved with every "#/$defs/..." reference as resolveHeld
+// left it: one GitHub #557's rule finds no definition for stays out of the
+// resolver's reach, so a chain through it ends there, as a $ref's does. Put
+// back as written, it sent the chain to the document-root $defs the rule
+// rejects, reporting X's finding at the entry, and with external references on
+// reading the document X names.
+func TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "other.yaml", "Y: {type: object, minLength: abc}\n")
+	const schemas = "    Pet:\n      type: object\n      properties: {k: {type: string}}\n" +
+		"      discriminator: {propertyName: k, mapping: {c: '#/components/schemas/Holder/properties/p'}}\n" +
+		"    Holder: {type: object, properties: {p: {$ref: '#/$defs/X'}}}\n"
+	for name, x := range map[string]string{
+		"a definition with a finding":          "{type: object, minLength: abc}",
+		"a definition naming another document": "{$ref: 'other.yaml#/Y'}",
+	} {
+		src := openapitest.ComponentSpec(schemas) + "$defs:\n  X: " + x + "\n"
+		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)},
+			Options{AllowExternalRefs: true})
+		require.NoError(t, err, name)
+
+		assert.Equal(t, []string{"/components/schemas/Holder/properties/p error " + diag.UnresolvedRef},
+			severityLines(diags), name)
+	}
+}
+
+// severityLines renders diags as "pointer severity code", sorted.
+func severityLines(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Severity, d.Code))
+	}
+	slices.Sort(out)
+	return out
 }
 
 // assertFailures requires got to hold exactly one unresolved-ref error per
@@ -680,7 +718,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 			want[pointer] = true
 		}
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, path, Options{}, nil)
+		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
@@ -689,4 +727,37 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, checked, 10,
 		"most of the corpus reaches the comparison; a filter this tight would check nothing")
+}
+
+// TestReachedFindings_AnOptionalFindingIsKeptOnlyWhereARequiredOneIsToo pins
+// that an entry's finding about a position holding no schema is dropped unless
+// a $ref of the model's own drew it too, and is then kept at the least of its
+// places, whichever drew it first: the entry's own place here.
+func TestReachedFindings_AnOptionalFindingIsKeptOnlyWhereARequiredOneIsToo(t *testing.T) {
+	t.Parallel()
+	node, alone := &yaml.Node{Line: 3, Column: 5}, &yaml.Node{Line: 4, Column: 1}
+	at := func(n *yaml.Node) error {
+		return &validation.Error{Severity: validation.SeverityError, Rule: "r", UnderlyingError: errors.New("m"), Node: n}
+	}
+	noSchema := map[*yaml.Node]bool{node: true, alone: true}
+	for _, entryFirst := range []bool{true, false} {
+		f := reachedFindings{sites: map[references.Reference]jsontext.Pointer{}}
+		entry := func() {
+			f.noteEntry("/components/schemas/A/properties/p", trail{stopped: "#/a"}, []error{at(node), at(alone)}, noSchema)
+		}
+		if entryFirst {
+			entry()
+		}
+		f.note("/components/schemas/M", trail{stopped: "#/b"}, []error{at(node)})
+		if !entryFirst {
+			entry()
+		}
+
+		diags := f.diags(func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} })
+		got := make([]jsontext.Pointer, 0, len(diags))
+		for _, d := range diags {
+			got = append(got, d.Provenance.Pointer)
+		}
+		assert.Equal(t, []jsontext.Pointer{"/components/schemas/A/properties/p"}, got, "entry first: %t", entryFirst)
+	}
 }
