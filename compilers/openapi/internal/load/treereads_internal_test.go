@@ -148,6 +148,35 @@ func TestTreeReads_CountsWhatTheLibraryReadTakes(t *testing.T) {
 	}
 }
 
+// FuzzTreeReads_ReadEndsWhereGetTargetEnds carries the test above past its
+// eight seeds: for every tree treeGen builds from a fuzzed seed and every
+// pointer it draws into it, both of treeReads' walks end where GetTarget ends,
+// or fail where it fails. loops answers from read, so a read ending elsewhere
+// is a chain it follows apart from the resolver.
+func FuzzTreeReads_ReadEndsWhereGetTargetEnds(f *testing.F) {
+	for seed := range uint64(8) {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, seed uint64) {
+		g := &treeGen{rng: rand.New(rand.NewPCG(seed, 775))}
+		tree := g.root()
+		reads := newTreeReads()
+		for range 25 {
+			pointer := g.pointer(tree)
+			lib, libErr := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+			_, read := reads.read(tree, pointer, math.MaxInt)
+			_, priced := reads.cost(tree, pointer, math.MaxInt)
+			if libErr != nil {
+				require.Nil(t, read, "seed %d %q: %v", seed, pointer, libErr)
+				require.Nil(t, priced, "seed %d %q: %v", seed, pointer, libErr)
+				continue
+			}
+			require.Same(t, lib, read, "seed %d %q", seed, pointer)
+			require.Same(t, lib, priced, "seed %d %q", seed, pointer)
+		}
+	})
+}
+
 // treeGen builds random YAML trees and pointers into them. Every alias names a
 // node built before it, so a tree has no cycle, as a parsed one has none.
 type treeGen struct {
