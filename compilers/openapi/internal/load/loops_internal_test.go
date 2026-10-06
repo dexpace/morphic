@@ -171,27 +171,40 @@ func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	})
 }
 
-// TestLoops_AReadIsPricedTheKeysItScans pins GitHub #775: a hop read in the
-// source's tree is charged the keys the library compares there, so n $refs
-// naming entries of one mapping by the source's file name take about n squared
-// steps, where the same $refs into a tree of four-key mappings take about n.
-func TestLoops_AReadIsPricedTheKeysItScans(t *testing.T) {
+// TestLoops_AReadCostsItsDepthNotItsWidth pins GitHub #775 and the loop read
+// it priced: a hop costs its depth, and a mapping its width once, however many
+// hops read it. n $refs into one mapping of n keys cost about n whether they
+// read it in the source's tree, by its file name, or in its model, past an
+// extension or at the document's own keys, where the library's own read scans
+// the mapping for each, so doubling n at most doubles the work. A bound priced
+// by those scans left valid chains unresolved past it.
+func TestLoops_AReadCostsItsDepthNotItsWidth(t *testing.T) {
 	t.Parallel()
-	// work returns what loops spends reading n such $refs in the layout named.
+	// work returns what loops spends reading n $refs laid out as named.
 	work := func(n int, layout string) int {
 		var lib strings.Builder
 		refs := make([]string, n)
 		for i := range n {
-			refs[i] = fmt.Sprintf("root.yaml#/d/D%d", i)
-			if layout == "tree" {
-				refs[i] = fmt.Sprintf("root.yaml#/d/%d/%d/%d/%d", i/64, i/16%4, i/4%4, i%4)
-				continue
+			switch layout {
+			case "by file name":
+				refs[i] = fmt.Sprintf("root.yaml#/d/D%d", i)
+				fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
+			case "in an extension":
+				refs[i] = fmt.Sprintf("#/x-lib/D%d", i)
+				fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
+			default:
+				refs[i] = fmt.Sprintf("#/x-D%d", i)
+				fmt.Fprintf(&lib, "x-D%d: {type: object}\n", i)
 			}
-			fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
 		}
-		spec := rootOfSchemas("    A: {type: object}\n") + "d:\n" + lib.String()
-		if layout == "tree" {
-			spec = rootOfSchemas("    A: {type: object}\n") + schemaTree(n)
+		spec := rootOfSchemas("    A: {type: object}\n")
+		switch layout {
+		case "by file name":
+			spec += "d:\n" + lib.String()
+		case "in an extension":
+			spec += "x-lib:\n" + lib.String()
+		default:
+			spec += lib.String()
 		}
 		root, _, err := decodeStream([]byte(spec))
 		require.NoError(t, err)
@@ -201,51 +214,89 @@ func TestLoops_AReadIsPricedTheKeysItScans(t *testing.T) {
 		for _, ref := range refs {
 			require.False(t, l.into(references.Reference(ref)), ref)
 		}
-		require.Equal(t, n, l.reads, "%s: each $ref is read, in the tree", layout)
+		require.Equal(t, n, l.reads, "%s: each $ref is read", layout)
 		return l.work
 	}
-	const n = 64
-	assert.Greater(t, work(2*n, "wide"), 3*work(n, "wide"), "one mapping holding them all")
-	assert.LessOrEqual(t, 4*work(2*n, "tree"), 9*work(n, "tree"), "mappings four keys wide")
+	const n = 256
+	for _, layout := range []string{"by file name", "in an extension", "at the document's own keys"} {
+		small, large := work(n, layout), work(2*n, layout)
+		assert.LessOrEqual(t, large, 2*small+64, "%s: %d steps, then %d", layout, small, large)
+	}
 }
 
-// TestLoops_Priced pins what a hop's read is charged: a step and the library's
-// read of the tree for a hop read there, and the model's too where the tree
-// holds no node, as readAt then reads it; and the keys indexed to count it.
-func TestLoops_Priced(t *testing.T) {
+// TestLoops_ReadAtChargesItsOwnSteps pins what a hop's read is charged: a
+// step, then its own steps reading the tree, for a hop read there, and the
+// model's where the tree holds no node: a step for each token the model
+// answers or fails, and its own steps reading the raw YAML the model leaves
+// for, the token that leaves included; and the keys indexed to read them, each
+// mapping once. A pointer the library refuses costs the step alone.
+func TestLoops_ReadAtChargesItsOwnSteps(t *testing.T) {
 	t.Parallel()
-	spec := rootOfSchemas("    A: {type: object}\n") + "x-lib: {a: {type: object}, b: {type: object}}\n"
+	spec := rootOfSchemas("    A: {type: object}\n") + "x-lib: {a: {type: object}, b: {$ref: '#/x-lib/a'}}\n"
 	root, _, err := decodeStream([]byte(spec))
 	require.NoError(t, err)
 	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
-	tree := func(pointer string) int {
-		steps, _ := newTreeReads().cost(root, pointer, maxLoopWork)
+	tree := func(node *yaml.Node, pointer string) int {
+		steps, _ := newTreeReads().read(node, pointer, maxLoopWork)
 		return steps
 	}
-	model := func(pointer string) int {
-		return newTreeReads().modelCost(doc, jsontext.Pointer(pointer), maxLoopWork)
-	}
 	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
-	l.priced("/components/schemas/A", true)
-	l.priced("/x-lib/b", false) // indexes every mapping the reads below meet
+	l.readAt("/components/schemas/A", true, maxLoopWork)
+	l.readAt("/x-lib/b", false, maxLoopWork) // indexes every mapping the reads below meet
 	for _, c := range []struct {
 		pointer string
 		inTree  bool
+		next    references.Reference
 		want    int
 	}{
-		{"/x-lib/b", true, 1 + tree("/x-lib/b")},
-		{"/x-lib/missing", true, 1 + tree("/x-lib/missing") + model("/x-lib/missing")},
-		{"/x-lib/b", false, 1 + model("/x-lib/b")},
-		{"/components/schemas/A", false, 1 + model("/components/schemas/A")},
+		{"/x-lib/b", true, "#/x-lib/a", 1 + tree(root, "/x-lib/b")},
+		{"/x-lib/missing", true, "", 1 + tree(root, "/x-lib/missing") + tree(doc.GetRootNode(), "/x-lib/missing")},
+		{"/x-lib/b", false, "#/x-lib/a", 1 + tree(doc.GetRootNode(), "/x-lib/b")},
+		{"/components/schemas/A", false, "", 1 + 3},
+		{"/components/schemas/~2", false, "", 1},
+		{"/components/nope/A", false, "", 1 + 1 + tree(doc.Components.GetRootNode(), "/nope/A")},
+		{"/components/schemas/B", false, "", 1 + 2 + 1},
 	} {
-		assert.Equal(t, c.want, l.priced(c.pointer, c.inTree), "%s in the tree %t", c.pointer, c.inTree)
+		next, _, steps := l.readAt(c.pointer, c.inTree, maxLoopWork)
+		assert.Equal(t, c.next, next, "%s in the tree %t", c.pointer, c.inTree)
+		assert.Equal(t, c.want, steps, "%s in the tree %t", c.pointer, c.inTree)
 	}
-	fresh := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
-	indexed := newTreeReads()
-	indexed.cost(root, "/x-lib/b", maxLoopWork)
-	assert.Equal(t, 1+tree("/x-lib/b")+indexed.drain(), fresh.priced("/x-lib/b", true),
-		"the first read of a mapping indexes it, too")
+	for _, inTree := range []bool{true, false} {
+		fresh := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+		indexed := newTreeReads()
+		indexed.read(root, "/x-lib/b", maxLoopWork)
+		_, _, steps := fresh.readAt("/x-lib/b", inTree, maxLoopWork)
+		assert.Equal(t, 1+tree(root, "/x-lib/b")+indexed.drain(), steps,
+			"the first read of a mapping indexes it, too, in the tree %t", inTree)
+	}
+}
+
+// TestLoops_AReadStopsAtTheBoundItHasLeft pins that a hop's read is given the
+// budget left, not the whole of it: a read near the end of the bound stops a
+// few steps past it, and the keys of the mappings it met, indexed once each,
+// though reading on through a thousand `<<` keys would cost far more, as the
+// same read within the bound shows.
+func TestLoops_AReadStopsAtTheBoundItHasLeft(t *testing.T) {
+	t.Parallel()
+	spec := rootOfSchemas("    A: {type: object}\n") + "x-m: &m {a: 1}\nx-lib:\n" + strings.Repeat("  <<: *m\n", 1000)
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+
+	whole := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	assert.False(t, whole.into("#/x-lib/missing"))
+	probe := newTreeReads()
+	probe.read(doc.GetRootNode(), "/x-lib/missing", 8)
+	indexed := probe.drain()
+	require.Greater(t, whole.work, indexed+1000, "read whole, the read tries every merge")
+
+	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	l.work = maxLoopWork - 5
+	_, cut := l.read("#/x-lib/missing")
+	assert.True(t, cut, "the bound cuts the read")
+	assert.LessOrEqual(t, l.work, maxLoopWork+16+indexed, "a few steps past it, and the mappings it indexed")
 }
 
 // TestNewResolution_ReadsChainsWhereExternalReferencesAreRead pins when the

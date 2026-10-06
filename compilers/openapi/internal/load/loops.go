@@ -10,15 +10,18 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
 // maxLoopWork bounds the steps loops takes reading hops in a compile: a step
-// for each hop it reads, and the steps of the library's read of it (see
-// loops.priced). A hop is read once, however many references lead through it,
-// so the bound counts the positions the source's references name, priced by
-// the widths their reads scan, not their chains (GitHub #775).
+// for each hop it reads, each token it reads in the model, and its own steps
+// reading raw YAML, with each mapping's keys once, when a read first indexes
+// them (see loops.readAt). A hop is read once, however many references lead
+// through it, so the work follows what the references name, not their chains
+// or the widths their reads pass (GitHub #775). The keys are charged after the
+// read that indexed them, so the last read can pass the bound by those.
 const maxLoopWork = 1 << 28
 
 // loops finds the schema references in the source whose chain never ends
@@ -43,9 +46,9 @@ type loops struct {
 	known map[hop]bool
 	next  map[hop]references.Reference
 	// reads counts the hops read, and work the steps they took against
-	// maxLoopWork; costs prices each read.
+	// maxLoopWork; rawReads reads raw YAML for them, and counts that work.
 	reads, work int
-	costs       *treeReads
+	rawReads    *treeReads
 }
 
 // hop is a position a chain reaches, and whether it is read in the source's
@@ -61,7 +64,7 @@ type hop struct {
 // not schemas, and loops reads schema chains alone, so its base is the path.
 func newLoops(self sourceDocument, model *soa.OpenAPI) *loops {
 	return &loops{self: self, model: model, view: nodeview.New(), base: self.path, known: map[hop]bool{},
-		next: map[hop]references.Reference{}, costs: newTreeReads()}
+		next: map[hop]references.Reference{}, rawReads: newTreeReads()}
 }
 
 // within returns the pointer ref names in the source, as the resolver reads it:
@@ -127,12 +130,13 @@ func (l *loops) read(ref references.Reference) (looped, cut bool) {
 			continue
 		}
 		l.reads++
-		if l.work += l.priced(pointer, inTree); l.work > maxLoopWork {
+		var kind hopKind
+		var steps int
+		ref, kind, steps = l.readAt(pointer, inTree, maxLoopWork-l.work)
+		if l.work += steps; l.work > maxLoopWork {
 			settled, cut = false, true
 			break
 		}
-		var kind hopKind
-		ref, kind = l.readAt(pointer, inTree)
 		settled = settled && kind != hopPending
 		if kind != hopFollows {
 			break
@@ -174,33 +178,49 @@ func (l *loops) incomplete(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnos
 		maxLoopWork)}
 }
 
-// readAt reads the hop naming pointer: in the source's tree once a hop has
-// named it by its file name, and in its model before. A pointer the tree holds
-// no node at is read in the model too, as the resolver may: it answers one it
-// resolved in the model from its cache, and the model reads through a
-// reference where the tree stops at the $ref. The tree is read once, for both
-// the node and whether there is one.
-func (l *loops) readAt(pointer string, inTree bool) (references.Reference, hopKind) {
+// readAt reads the hop naming pointer as the resolver reads it, and returns
+// the $ref its target carries and the steps the read took, past limit where it
+// stopped short: in the source's tree once a hop has named it by its file
+// name, and in its model before, or where the tree holds no node, as the
+// resolver may read it there too. Raw YAML is read through treeReads' index,
+// which finds what GetTarget finds without scanning each mapping, so n hops
+// into one mapping cost n reads and the mapping once.
+func (l *loops) readAt(pointer string, inTree bool, limit int) (references.Reference, hopKind, int) {
+	steps := 1
 	if inTree {
-		if target, err := readTarget(l.self.root, pointer); err == nil {
-			return hopTo(l.view, target)
+		read, target := l.rawReads.read(l.self.root, pointer, limit-steps)
+		steps += read
+		if target != nil || steps > limit {
+			next, kind := hopTo(l.view, target)
+			return next, kind, steps + l.rawReads.drain()
 		}
 	}
-	return readHop(l.view, l.model, pointer)
+	next, kind, read := l.readModel(pointer, limit-steps)
+	return next, kind, steps + read + l.rawReads.drain()
 }
 
-// priced returns the steps readAt takes on the hop naming pointer: a step, the
-// library's read of the tree, and of the model where it reads that too, with
-// the keys indexed to count them.
-func (l *loops) priced(pointer string, inTree bool) int {
-	steps := 1
-	var inTreeAt *yaml.Node
-	if inTree {
-		read, target := l.costs.cost(l.self.root, pointer, maxLoopWork-l.work)
-		steps, inTreeAt = steps+read, target
+// readModel is readAt's read of pointer in the model: a step a token, through
+// navigation.Walk, and where the walk leaves the model, the raw YAML it leaves
+// for, read through treeReads.
+func (l *loops) readModel(pointer string, limit int) (references.Reference, hopKind, int) {
+	tokens, ok := navigation.Tokens(jsontext.Pointer(pointer))
+	if !ok {
+		return "", hopEnds, 0
 	}
-	if inTreeAt == nil {
-		steps += l.costs.modelCost(l.model, jsontext.Pointer(pointer), maxLoopWork-l.work)
+	at, rest, err := navigation.Walk(l.model, tokens)
+	steps := len(tokens) - len(rest)
+	if err != nil {
+		return "", settledRead(err), steps + 1
 	}
-	return steps + l.costs.drain()
+	raw, leaves := at.(*yaml.Node)
+	if !leaves || len(rest) == 0 {
+		next, kind := hopTo(l.view, at)
+		return next, kind, steps
+	}
+	read, target := l.rawReads.read(raw, joinTokens(rest), limit-steps)
+	if target == nil {
+		return "", hopEnds, steps + read
+	}
+	next, kind := hopTo(l.view, target)
+	return next, kind, steps + read
 }

@@ -211,6 +211,17 @@ func TestWalk_LeavesTheModelWhereTheLibraryWouldScan(t *testing.T) {
 	}
 }
 
+// TestWalk_ReturnsTheTokensLeftWhereAStepFails pins what a failed walk says:
+// the library's error, and the tokens from the step that failed, so a caller
+// can tell how far the model answered.
+func TestWalk_ReturnsTheTokensLeftWhereAStepFails(t *testing.T) {
+	t.Parallel()
+	at, rest, err := navigation.Walk(parsed(t, navDoc), []string{"components", "schemas", "Nope", "x"})
+	require.ErrorIs(t, err, jsonpointer.ErrNotFound)
+	assert.Nil(t, at)
+	assert.Equal(t, []string{"Nope", "x"}, rest)
+}
+
 // schemaS returns navDoc's component schema S.
 func schemaS(t *testing.T, doc *soa.OpenAPI) *oas3.JSONSchema[oas3.Referenceable] {
 	t.Helper()

@@ -2,13 +2,10 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	"github.com/speakeasy-api/openapi/marshaller"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
@@ -22,16 +19,15 @@ import (
 // reaches it without a thousand `<<` keys along one pointer.
 const maxScanMerges = 1 << 10
 
-// treeReads counts what jsonpointer.GetTarget's read of a pointer in a YAML
-// tree costs the library, which compares a mapping's keys in order for the
-// first matching a token, then tries each `<<` key's mapping in turn. Each
-// mapping is answered from an index built once (see mappingKeys), so counting a
-// read costs its depth, not the widths it scans.
+// treeReads reads a pointer in a YAML tree as jsonpointer.GetTarget does, and
+// counts what that read costs: the library compares a mapping's keys in order
+// for the first matching a token, then tries each `<<` key's mapping in turn.
+// Each mapping is answered from an index built once (see mappingKeys), so a
+// read costs treeReads its depth, not the widths it passes. It prices the
+// library's reads (cost), and reads for loops, which charges its own (read).
 //
-// It only prices reads: GetTarget makes them, so a count that strayed from the
-// library would misprice a read, never misread one. It models
-// speakeasy-api/openapi v1.25.2: TestTreeReads_CountsWhatTheLibraryReadTakes
-// holds where it ends to GetTarget's; re-check its counting on a bump.
+// It models speakeasy-api/openapi v1.25.2: TestTreeReads_CountsWhatTheLibraryReadTakes
+// holds where it ends to GetTarget's; re-check it on a bump.
 type treeReads struct {
 	keys map[*yaml.Node]*mappingKeys
 	// indexed counts the pairs indexed since drain last answered: this
@@ -66,40 +62,49 @@ func newTreeReads() *treeReads {
 // pass, and the node it returns, or nil where it fails. It stops counting once
 // past limit.
 func (t *treeReads) cost(root *yaml.Node, pointer string, limit int) (int, *yaml.Node) {
+	return t.tally(root, pointer, limit, false)
+}
+
+// read is cost counting this reader's own steps rather than the library's: a
+// step for each node visited, each key looked up in a mapping's index and each
+// `<<` key tried, so a wide mapping costs a read no more than a narrow one.
+func (t *treeReads) read(root *yaml.Node, pointer string, limit int) (int, *yaml.Node) {
+	return t.tally(root, pointer, limit, true)
+}
+
+// tally is cost, or read where own.
+func (t *treeReads) tally(root *yaml.Node, pointer string, limit int, own bool) (int, *yaml.Node) {
 	parts, ok := partsOf(pointer)
 	if !ok {
 		return 0, nil
 	}
-	s := tally{reads: t, limit: limit}
+	s := tally{reads: t, limit: limit, own: own}
 	target, _ := s.walk(root, parts, 0)
 	return s.steps, target
 }
 
 // modelCost returns the steps GetTarget's read of pointer in doc, the source's
-// model, takes: one for each token the model answers, and where it holds raw
-// YAML instead, the read of that token in the mapping the object was built
-// from, which the library scans for a key in no field, then of the rest in the
-// raw node (see cost). Counting stops once past limit.
+// model, takes: none for a pointer the library refuses before reading, one for
+// each token the model answers or fails, and where the read leaves the model
+// (navigation.Walk), one more and the library's read of the tokens left in the
+// raw YAML it goes on in, which it reads together there (see cost). Counting
+// stops once past limit.
 func (t *treeReads) modelCost(doc any, pointer jsontext.Pointer, limit int) int {
-	steps := 0
-	node := doc
-	tokens := slices.Collect(pointer.Tokens())
-	for i, token := range tokens {
-		next, ok := navigation.Step(node, token)
-		raw, leaves := next.(*yaml.Node)
-		if ok && !leaves {
-			node, steps = next, steps+1
-			continue
-		}
-		scan, _ := t.cost(builtFrom(node), joinTokens(tokens[i:i+1]), limit-steps)
-		steps += 1 + scan
-		if ok {
-			below, _ := t.cost(raw, joinTokens(tokens[i+1:]), limit-steps)
-			steps += below
-		}
+	tokens, ok := navigation.Tokens(pointer)
+	if !ok {
+		return 0
+	}
+	at, rest, err := navigation.Walk(doc, tokens)
+	steps := len(tokens) - len(rest)
+	if err != nil {
+		return steps + 1
+	}
+	raw, leaves := at.(*yaml.Node)
+	if !leaves || len(rest) == 0 {
 		return steps
 	}
-	return steps
+	scan, _ := t.cost(raw, joinTokens(rest), limit-steps-1)
+	return steps + 1 + scan
 }
 
 // drain returns the pairs indexed since it last answered.
@@ -131,25 +136,11 @@ func (t *treeReads) index(n *yaml.Node) *mappingKeys {
 	return k
 }
 
-// builtFrom returns the mapping the model object node was built from, which the
-// library scans for a key the object holds in no field or entry, or nil for an
-// object built from none: a map or list, or a nil one.
-func builtFrom(node any) *yaml.Node {
-	built, ok := node.(marshaller.RootNodeAccessor)
-	if v := reflect.ValueOf(node); !ok || v.Kind() == reflect.Pointer && v.IsNil() {
-		return nil
-	}
-	return built.GetRootNode()
-}
-
 // joinTokens returns the pointer naming tokens, or "" for none, which reads
-// nothing.
+// nothing. It keeps each token's bytes, as the library reads them: jsontext
+// would spell a byte that is no UTF-8 as U+FFFD, a key the read never compares.
 func joinTokens(tokens []string) string {
-	var p jsontext.Pointer
-	for _, token := range tokens {
-		p = p.AppendToken(token)
-	}
-	return string(p)
+	return string(jsonpointer.PartsToJSONPointer(tokens))
 }
 
 // partsOf returns the tokens of pointer as the library's navigation stack
@@ -183,10 +174,33 @@ func unescaped(token string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
 }
 
-// tally is one counted read: the steps taken, and the limit past which it stops.
+// tally is one counted read: the steps taken, and the limit past which it
+// stops. own counts the reader's own work rather than the library's.
 type tally struct {
 	reads        *treeReads
 	steps, limit int
+	own          bool
+}
+
+// compared returns the steps a loop over a mapping's pairs takes, stopping at
+// the n-th: n for the library's, which compares them in order, and one for this
+// reader's own, which looks the key up in the mapping's index.
+func (s *tally) compared(n int) int {
+	if s.own {
+		return 1
+	}
+	return n
+}
+
+// mergesLooped returns the steps the loop over a mapping's `<<` keys takes,
+// having passed pairs of its pairs and tried merges of the keys: the pairs for
+// the library, which compares every key, and the merges for this reader's own,
+// which knows where they are.
+func (s *tally) mergesLooped(pairs, merges int) int {
+	if s.own {
+		return merges
+	}
+	return pairs
 }
 
 // walk follows parts from n as getCurrentStackTarget does, a part at a time,
@@ -211,10 +225,10 @@ func (s *tally) walk(n *yaml.Node, parts []part, merges int) (*yaml.Node, bool) 
 			k := s.reads.index(n)
 			pos, ok := k.first[unescaped(p.value)]
 			if !ok {
-				s.steps += k.pairs
+				s.steps += s.compared(k.pairs)
 				return s.merged(n, k, p, rest, merges)
 			}
-			s.steps += pos + 1
+			s.steps += s.compared(pos + 1)
 			next = n.Content[2*pos+1]
 		case yaml.SequenceNode:
 			if next = element(n, p); next == nil {
@@ -265,7 +279,7 @@ func element(n *yaml.Node, p part) *yaml.Node {
 // until one holds the rest of the read. merges counts the merged mappings the
 // read is inside; past maxScanMerges it is past the limit.
 func (s *tally) merged(n *yaml.Node, k *mappingKeys, p part, rest []part, merges int) (*yaml.Node, bool) {
-	for _, pos := range k.merges {
+	for i, pos := range k.merges {
 		if s.steps > s.limit {
 			return nil, false
 		}
@@ -278,11 +292,11 @@ func (s *tally) merged(n *yaml.Node, k *mappingKeys, p part, rest []part, merges
 			return nil, false
 		}
 		if target, ok := s.inMapping(m, p, rest, merges+1); ok {
-			s.steps += pos + 1
+			s.steps += s.mergesLooped(pos+1, i+1)
 			return target, true
 		}
 	}
-	s.steps += k.pairs
+	s.steps += s.mergesLooped(k.pairs, len(k.merges))
 	return nil, false
 }
 
@@ -293,10 +307,10 @@ func (s *tally) inMapping(m *yaml.Node, p part, rest []part, merges int) (*yaml.
 	k := s.reads.index(m)
 	pos, ok := k.first[unescaped(p.value)]
 	if !ok {
-		s.steps += k.pairs
+		s.steps += s.compared(k.pairs)
 		return s.merged(m, k, p, rest, merges)
 	}
-	s.steps += pos + 1
+	s.steps += s.compared(pos + 1)
 	if len(rest) == 0 {
 		return m.Content[2*pos+1], true
 	}

@@ -89,8 +89,9 @@ func step(node any, token string) (any, error) {
 // walks them, a step at a time, until a step leaves the model. It returns where
 // the walk stopped and the tokens left there, which the library reads together
 // in that raw YAML: none when the model answered every token. Where a step
-// finds nothing, the error is the library's. An index the library tries only
-// once the rest fails is left to the library, which reads the rest itself.
+// finds nothing, the error is the library's, and the tokens left start at that
+// step. An index the library tries only once the rest fails is left to the
+// library, which reads the rest itself.
 func Walk(node any, tokens []string) (any, []string, error) {
 	for i, token := range tokens {
 		r, raw := dispatch(node, token)
@@ -105,7 +106,7 @@ func Walk(node any, tokens []string) (any, []string, error) {
 		}
 		next, err := step(node, token)
 		if err != nil {
-			return nil, nil, err
+			return nil, tokens[i:], err
 		}
 		node = next
 	}

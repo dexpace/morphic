@@ -539,13 +539,12 @@ func TestReadsAsSchema(t *testing.T) {
 }
 
 // TestMappings_PricedCountsTheLibrarysRead pins what reading a position costs
-// (see priced): a step for the read and one for each token the model answers,
-// so a component costs its depth however wide its map. A key the model holds
-// as raw YAML, or not at all, costs the library's read of it in the mapping its
-// object was built from, then of the rest in the raw node: a step for each
-// node it navigates to and each pair its loops pass (see treeReads). Each row
-// is counted with its mappings indexed; the first read of one is charged that
-// too.
+// (see priced): a step for the read and one for each token the model answers
+// or fails, so a component costs its depth however wide its map. Where the read
+// leaves the model, or a field holds raw YAML, a step into it and the library's
+// read there of the tokens left: a step for each node it navigates to and each
+// pair its loops pass (see treeReads). Rows are counted with their mappings
+// indexed; the first read of one is charged that too.
 func TestMappings_PricedCountsTheLibrarysRead(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -573,7 +572,7 @@ x-alias: *a
 		want    int
 	}{
 		{"/components/schemas/Z", 1 + 3},
-		{"/components/schemas/Missing", 1 + 2 + 1 + 1},
+		{"/components/schemas/Missing", 1 + 2 + 1},
 		{"/x-lib", 1 + 1 + (1 + 5)},
 		{"/missing/a", 1 + 1 + (1 + 6 + 6)},
 		{"/x-lib/a", 1 + 1 + (1 + 5) + (1 + 1)},
@@ -584,7 +583,7 @@ x-alias: *a
 		{"/x-alias/k1/x", 1 + 1 + (1 + 6) + (1 + 1 + 1 + 1)},
 		{"/components/schemas/Z/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1)},
 		{"/components/schemas/Z2/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1)},
-		{"/components/examples/E/value/G1/T", 1 + 3 + 1 + (1 + 2) + (1 + 2 + 1 + 1)},
+		{"/components/examples/E/value/G1/T", 1 + 4 + 1 + (1 + 2 + 1 + 1)},
 	}
 	for _, c := range rows {
 		m.priced(string(c.pointer), true, false) // indexes every mapping the reads meet
@@ -600,7 +599,7 @@ x-alias: *a
 	assert.Equal(t, m.priced("/x-lib/aliased/k1/x", true, false)+inTree, m.priced("/x-lib/aliased/k1/x", true, true),
 		"a read of both, as with external references allowed")
 	bare := chainResolver(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", false)
-	assert.Equal(t, 1+1+1+1, bare.priced("/components/schemas/Z", true, false), "the model holds no components to scan")
+	assert.Equal(t, 1+1+1, bare.priced("/components/schemas/Z", true, false), "the model holds no components to read in")
 }
 
 // TestMappings_AKeyWrittenTwiceIsPricedAsTheLibraryReadsIt pins GitHub #777:
