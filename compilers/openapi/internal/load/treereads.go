@@ -1,13 +1,18 @@
 package load
 
 import (
+	"encoding/json/jsontext"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
+	"github.com/speakeasy-api/openapi/marshaller"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // maxScanMerges bounds how many merged mappings a read counted by treeReads is
@@ -29,8 +34,9 @@ const maxScanMerges = 1 << 10
 // holds where it ends to GetTarget's; re-check its counting on a bump.
 type treeReads struct {
 	keys map[*yaml.Node]*mappingKeys
-	// built counts the pairs indexed, which is this reader's own work.
-	built int
+	// indexed counts the pairs indexed since drain last answered: this
+	// counter's own work, which its caller charges as its own.
+	indexed int
 }
 
 // mappingKeys is what a mapping's keys say to the library's read: the pair
@@ -69,6 +75,40 @@ func (t *treeReads) cost(root *yaml.Node, pointer string, limit int) (int, *yaml
 	return s.steps, target
 }
 
+// modelCost returns the steps GetTarget's read of pointer in doc, the source's
+// model, takes: one for each token the model answers, and where it holds raw
+// YAML instead, the read of that token in the mapping the object was built
+// from, which the library scans for a key in no field, then of the rest in the
+// raw node (see cost). Counting stops once past limit.
+func (t *treeReads) modelCost(doc any, pointer jsontext.Pointer, limit int) int {
+	steps := 0
+	node := doc
+	tokens := slices.Collect(pointer.Tokens())
+	for i, token := range tokens {
+		next, ok := refscope.Step(node, token)
+		raw, leaves := next.(*yaml.Node)
+		if ok && !leaves {
+			node, steps = next, steps+1
+			continue
+		}
+		scan, _ := t.cost(builtFrom(node), joinTokens(tokens[i:i+1]), limit-steps)
+		steps += 1 + scan
+		if ok {
+			below, _ := t.cost(raw, joinTokens(tokens[i+1:]), limit-steps)
+			steps += below
+		}
+		return steps
+	}
+	return steps
+}
+
+// drain returns the pairs indexed since it last answered.
+func (t *treeReads) drain() int {
+	n := t.indexed
+	t.indexed = 0
+	return n
+}
+
 // index returns the index of mapping n, building it the first time.
 func (t *treeReads) index(n *yaml.Node) *mappingKeys {
 	if k, ok := t.keys[n]; ok {
@@ -87,8 +127,29 @@ func (t *treeReads) index(n *yaml.Node) *mappingKeys {
 		}
 	}
 	t.keys[n] = k
-	t.built += k.pairs
+	t.indexed += k.pairs
 	return k
+}
+
+// builtFrom returns the mapping the model object node was built from, which the
+// library scans for a key the object holds in no field or entry, or nil for an
+// object built from none: a map or list, or a nil one.
+func builtFrom(node any) *yaml.Node {
+	built, ok := node.(marshaller.RootNodeAccessor)
+	if v := reflect.ValueOf(node); !ok || v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	return built.GetRootNode()
+}
+
+// joinTokens returns the pointer naming tokens, or "" for none, which reads
+// nothing.
+func joinTokens(tokens []string) string {
+	var p jsontext.Pointer
+	for _, token := range tokens {
+		p = p.AppendToken(token)
+	}
+	return string(p)
 }
 
 // partsOf returns the tokens of pointer as the library's navigation stack

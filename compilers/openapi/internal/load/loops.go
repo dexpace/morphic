@@ -4,9 +4,9 @@ import (
 	"encoding/json/jsontext"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonpointer"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -14,10 +14,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxLoopReads bounds the hops loops reads in a compile. A hop is read once,
-// however many references lead through it, so it is the number of positions
-// the source's references name that the bound counts, not their chains.
-const maxLoopReads = 1 << 18
+// maxLoopWork bounds the steps loops takes reading hops in a compile: a step
+// for each hop it reads, and the steps of the library's read of it (see
+// loops.priced). A hop is read once, however many references lead through it,
+// so the bound counts the positions the source's references name, priced by
+// the widths their reads scan, not their chains (GitHub #775).
+const maxLoopWork = 1 << 28
 
 // loops finds the schema references in the source whose chain never ends
 // (GitHub #768). The resolver follows a hop it resolved before without
@@ -40,8 +42,10 @@ type loops struct {
 	// unread: only a hop whose read is pending (see settledRead) is read again.
 	known map[hop]bool
 	next  map[hop]references.Reference
-	// reads counts the hops read, against maxLoopReads.
-	reads int
+	// reads counts the hops read, and work the steps they took against
+	// maxLoopWork; costs prices each read.
+	reads, work int
+	costs       *treeReads
 }
 
 // hop is a position a chain reaches, and whether it is read in the source's
@@ -57,7 +61,7 @@ type hop struct {
 // not schemas, and loops reads schema chains alone, so its base is the path.
 func newLoops(self sourceDocument, model *soa.OpenAPI) *loops {
 	return &loops{self: self, model: model, view: nodeview.New(), base: self.path, known: map[hop]bool{},
-		next: map[hop]references.Reference{}}
+		next: map[hop]references.Reference{}, costs: newTreeReads()}
 }
 
 // within returns the pointer ref names in the source, as the resolver reads it:
@@ -122,7 +126,8 @@ func (l *loops) read(ref references.Reference) (looped, cut bool) {
 			ref = next
 			continue
 		}
-		if l.reads++; l.reads > maxLoopReads {
+		l.reads++
+		if l.work += l.priced(pointer, inTree); l.work > maxLoopWork {
 			settled, cut = false, true
 			break
 		}
@@ -161,25 +166,41 @@ func (l *loops) forget() {
 // the cycle scans report theirs: the compile goes on, and says its protection
 // against a reference cycle is incomplete.
 func (l *loops) incomplete(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
-	if l == nil || l.reads <= maxLoopReads {
+	if l == nil || l.work <= maxLoopWork {
 		return nil
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, at(""),
-		"reference-chain read stopped at its %d-hop bound; reference-cycle protection is incomplete for this source",
-		maxLoopReads)}
+		"reference-chain read stopped at its %d-step bound; reference-cycle protection is incomplete for this source",
+		maxLoopWork)}
 }
 
 // readAt reads the hop naming pointer: in the source's tree once a hop has
 // named it by its file name, and in its model before. A pointer the tree holds
 // no node at is read in the model too, as the resolver may: it answers one it
 // resolved in the model from its cache, and the model reads through a
-// reference where the tree stops at the $ref.
+// reference where the tree stops at the $ref. The tree is read once, for both
+// the node and whether there is one.
 func (l *loops) readAt(pointer string, inTree bool) (references.Reference, hopKind) {
 	if inTree {
-		if _, err := jsonpointer.GetTarget(l.self.root, jsonpointer.JSONPointer(pointer),
-			jsonpointer.WithStructTags("key")); err == nil {
-			return readHop(l.view, l.self.root, pointer)
+		if target, err := readTarget(l.self.root, pointer); err == nil {
+			return hopTo(l.view, target)
 		}
 	}
 	return readHop(l.view, l.model, pointer)
+}
+
+// priced returns the steps readAt takes on the hop naming pointer: a step, the
+// library's read of the tree, and of the model where it reads that too, with
+// the keys indexed to count them.
+func (l *loops) priced(pointer string, inTree bool) int {
+	steps := 1
+	var inTreeAt *yaml.Node
+	if inTree {
+		read, target := l.costs.cost(l.self.root, pointer, maxLoopWork-l.work)
+		steps, inTreeAt = steps+read, target
+	}
+	if inTreeAt == nil {
+		steps += l.costs.modelCost(l.model, jsontext.Pointer(pointer), maxLoopWork-l.work)
+	}
+	return steps + l.costs.drain()
 }

@@ -226,10 +226,10 @@ func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Refere
 
 // ModelAt returns the schema the source's model holds at a same-document
 // pointer, found the way the resolver finds a $ref's target, or nil where it
-// holds none, as at a position it holds as raw YAML.
+// holds none, as at a position it holds as raw YAML (see modelTarget).
 func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-	if err != nil {
+	target, ok := s.modelTarget(pointer)
+	if !ok {
 		return nil
 	}
 	// Anything but a schema fails the assertion, and so does a keyword the
@@ -238,6 +238,29 @@ func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Reference
 		return js
 	}
 	return nil
+}
+
+// modelTarget returns what the resolver's read of pointer in the model finds,
+// and false where it finds nothing or raw YAML, which holds no schema. It walks
+// a token at a time and stops at raw YAML, as passed does: read whole, a
+// pointer into an extension scanned each raw mapping below for a node ModelAt
+// discarded (GitHub #778). A step reads a token as the whole read does. The
+// library retries an index token as one where its key leads nowhere below,
+// which only an IndexNavigable answers; v1.25.2 has none, and
+// TestScope_ModelAt_AnswersAsTheWholeReadDoes holds the two to one answer.
+func (s Scope) modelTarget(pointer jsontext.Pointer) (any, bool) {
+	if jsonpointer.JSONPointer(pointer).Validate() != nil {
+		return nil, false
+	}
+	var node any = s.Doc
+	for token := range pointer.Tokens() {
+		next, ok := Step(node, token)
+		if _, raw := next.(*yaml.Node); !ok || raw {
+			return nil, false
+		}
+		node = next
+	}
+	return node, true
 }
 
 // sameFile reports whether a $ref document part names this compilation's own

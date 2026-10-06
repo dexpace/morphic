@@ -41,11 +41,12 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 
 // maxHeldRefs is the most $ref scalars a source held under its file name may
 // write. loops reads each hop of their chains once, and a pending one again per
-// reference, so about three reads a $ref; past this the guard could run out of
-// reads and answer nothing, and a held source lets a cycle through its file
-// name run the stack out (GitHub #768). A larger source is not held, so a
-// reference naming its file reads the file.
-const maxHeldRefs = maxLoopReads / 4
+// reference, so about three reads a $ref; at this many, maxLoopWork still
+// affords reads of over a thousand steps each before the guard runs out and
+// answers nothing, and a held source lets a cycle through its file name run the
+// stack out (GitHub #768). A larger source is not held, so a reference naming
+// its file reads the file.
+const maxHeldRefs = 1 << 16
 
 // spellsManyRefs reports whether the tree under root writes more than
 // maxHeldRefs scalars spelling $ref, as a key or otherwise: counted widely, a

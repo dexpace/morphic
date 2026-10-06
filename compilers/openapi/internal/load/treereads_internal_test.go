@@ -361,7 +361,7 @@ func TestTreeReads_MergeDepth(t *testing.T) {
 }
 
 // TestTreeReads_IndexesAMappingOnce pins that a mapping's keys are indexed the
-// first time a read meets it, and counted as built once, whichever key and
+// first time a read meets it, and drained as work once, whichever key and
 // however many reads follow.
 func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	t.Parallel()
@@ -371,8 +371,10 @@ func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	for _, pointer := range []string{"/x/a", "/x/c", "/x/missing", "/y"} {
 		reads.cost(tree, pointer, math.MaxInt)
 	}
-	assert.Equal(t, 2+3, reads.built, "the root's two pairs and x's three, each once")
+	assert.Equal(t, 2+3, reads.drain(), "the root's two pairs and x's three, each once")
 	assert.Len(t, reads.keys, 2)
+	reads.cost(tree, "/x/b", math.MaxInt)
+	assert.Zero(t, reads.drain(), "drained once, and nothing indexed since")
 }
 
 // TestPartsOf pins how a pointer is split as the library splits it: a token is

@@ -107,13 +107,24 @@ func endsWithin(ref references.Reference, read func(references.Reference) (refer
 
 // readHop reads the hop naming pointer in document with the call the resolver
 // makes, so it finds the target the resolver finds, and returns the $ref the
-// target carries. A target that is no schema is one the resolver fails to
-// cast, so the chain stops there.
+// target carries.
 func readHop(view *nodeview.View, document any, pointer string) (references.Reference, hopKind) {
-	target, err := jsonpointer.GetTarget(document, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	target, err := readTarget(document, pointer)
 	if err != nil {
 		return "", settledRead(err)
 	}
+	return hopTo(view, target)
+}
+
+// readTarget returns what document holds at pointer, read with the call the
+// resolver makes.
+func readTarget(document any, pointer string) (any, error) {
+	return jsonpointer.GetTarget(document, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+}
+
+// hopTo returns the $ref target, a hop's target, carries. A target that is no
+// schema is one the resolver fails to cast, so the chain stops there.
+func hopTo(view *nodeview.View, target any) (references.Reference, hopKind) {
 	var next string
 	switch t := target.(type) {
 	case *yaml.Node:
@@ -218,9 +229,8 @@ func (w *resumeWork) charge(tree *yaml.Node, ref references.Reference, reads int
 	read := map[references.Reference]bool{}
 	for ref.GetURI() == "" && !read[ref] {
 		read[ref] = true
-		built := w.reads.built
 		steps, target := w.reads.cost(tree, string(ref.GetJSONPointer()), (w.limit-w.spent)/reads)
-		if !w.spend(1 + reads*steps + w.reads.built - built) {
+		if !w.spend(1 + reads*steps + w.reads.drain()) {
 			return false
 		}
 		next := refOf(w.view, target)

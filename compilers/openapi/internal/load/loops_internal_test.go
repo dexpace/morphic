@@ -128,7 +128,7 @@ func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 
 // TestLoops_ReadsEachHopOnce pins that loops settles a hop once, so the
 // references of a chain cost the chain once between them, and that it stops at
-// maxLoopReads without recording what it did not settle: a chain that is cut is
+// maxLoopWork without recording what it did not settle: a chain that is cut is
 // no answer, and a second ask must not read it as one.
 func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	t.Parallel()
@@ -161,14 +161,91 @@ func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	t.Run("a bound that cuts a chain", func(t *testing.T) {
 		t.Parallel()
 		l := newLoops(self, doc)
-		l.reads = maxLoopReads - 3
+		l.work = maxLoopWork - 10
 
 		assert.False(t, l.into("#/components/schemas/S0"), "a chain cut short is no answer")
 		assert.Empty(t, l.known, "and nothing it read is recorded as settled")
 
-		l.reads = 0
+		l.work = 0
 		assert.True(t, l.into("#/components/schemas/S0"), "asked again within the bound, it is read in full")
 	})
+}
+
+// TestLoops_AReadIsPricedTheKeysItScans pins GitHub #775: a hop read in the
+// source's tree is charged the keys the library compares there, so n $refs
+// naming entries of one mapping by the source's file name take about n squared
+// steps, where the same $refs into a tree of four-key mappings take about n.
+func TestLoops_AReadIsPricedTheKeysItScans(t *testing.T) {
+	t.Parallel()
+	// work returns what loops spends reading n such $refs in the layout named.
+	work := func(n int, layout string) int {
+		var lib strings.Builder
+		refs := make([]string, n)
+		for i := range n {
+			refs[i] = fmt.Sprintf("root.yaml#/d/D%d", i)
+			if layout == "tree" {
+				refs[i] = fmt.Sprintf("root.yaml#/d/%d/%d/%d/%d", i/64, i/16%4, i/4%4, i%4)
+				continue
+			}
+			fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
+		}
+		spec := rootOfSchemas("    A: {type: object}\n") + "d:\n" + lib.String()
+		if layout == "tree" {
+			spec = rootOfSchemas("    A: {type: object}\n") + schemaTree(n)
+		}
+		root, _, err := decodeStream([]byte(spec))
+		require.NoError(t, err)
+		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+		require.NoError(t, err)
+		l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+		for _, ref := range refs {
+			require.False(t, l.into(references.Reference(ref)), ref)
+		}
+		require.Equal(t, n, l.reads, "%s: each $ref is read, in the tree", layout)
+		return l.work
+	}
+	const n = 64
+	assert.Greater(t, work(2*n, "wide"), 3*work(n, "wide"), "one mapping holding them all")
+	assert.LessOrEqual(t, 4*work(2*n, "tree"), 9*work(n, "tree"), "mappings four keys wide")
+}
+
+// TestLoops_Priced pins what a hop's read is charged: a step and the library's
+// read of the tree for a hop read there, and the model's too where the tree
+// holds no node, as readAt then reads it; and the keys indexed to count it.
+func TestLoops_Priced(t *testing.T) {
+	t.Parallel()
+	spec := rootOfSchemas("    A: {type: object}\n") + "x-lib: {a: {type: object}, b: {type: object}}\n"
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	tree := func(pointer string) int {
+		steps, _ := newTreeReads().cost(root, pointer, maxLoopWork)
+		return steps
+	}
+	model := func(pointer string) int {
+		return newTreeReads().modelCost(doc, jsontext.Pointer(pointer), maxLoopWork)
+	}
+	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	l.priced("/components/schemas/A", true)
+	l.priced("/x-lib/b", false) // indexes every mapping the reads below meet
+	for _, c := range []struct {
+		pointer string
+		inTree  bool
+		want    int
+	}{
+		{"/x-lib/b", true, 1 + tree("/x-lib/b")},
+		{"/x-lib/missing", true, 1 + tree("/x-lib/missing") + model("/x-lib/missing")},
+		{"/x-lib/b", false, 1 + model("/x-lib/b")},
+		{"/components/schemas/A", false, 1 + model("/components/schemas/A")},
+	} {
+		assert.Equal(t, c.want, l.priced(c.pointer, c.inTree), "%s in the tree %t", c.pointer, c.inTree)
+	}
+	fresh := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	indexed := newTreeReads()
+	indexed.cost(root, "/x-lib/b", maxLoopWork)
+	assert.Equal(t, 1+tree("/x-lib/b")+indexed.drain(), fresh.priced("/x-lib/b", true),
+		"the first read of a mapping indexes it, too")
 }
 
 // TestNewResolution_ReadsChainsWhereExternalReferencesAreRead pins when the
@@ -198,7 +275,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 }
 
 // TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt pins that a read cut by
-// maxLoopReads is reported, once, at the document, as a warning that the
+// maxLoopWork is reported, once, at the document, as a warning that the
 // protection against a cycle is incomplete, as the cycle scans report theirs,
 // and that a read within the bound, and no reader, report nothing.
 func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
@@ -207,9 +284,9 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 	l := newLoops(sourceDocument{}, nil)
 
 	assert.Empty(t, l.incomplete(at))
-	l.reads = maxLoopReads
+	l.work = maxLoopWork
 	assert.Empty(t, l.incomplete(at), "reads up to the bound are all read")
-	l.reads = maxLoopReads + 1
+	l.work = maxLoopWork + 1
 	diags := l.incomplete(at)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
@@ -221,7 +298,7 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 	t.Run("surfaced by the pass", func(t *testing.T) {
 		t.Parallel()
 		doc, pass := heldResolution(t, rootOfSchemas("    A: {type: object}\n"), filepath.Join(t.TempDir(), "root.yaml"))
-		pass.loops.reads = maxLoopReads + 1
+		pass.loops.work = maxLoopWork + 1
 
 		_, diags := pass.run(doc)
 
@@ -305,7 +382,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 	} {
 		doc, pass := heldResolution(t, spec+c.extra, filepath.Join(t.TempDir(), "root.yaml"))
 		if c.spent {
-			pass.loops.reads = maxLoopReads
+			pass.loops.work = maxLoopWork
 		}
 		a, ok := doc.GetComponents().GetSchemas().Get("A")
 		require.True(t, ok)

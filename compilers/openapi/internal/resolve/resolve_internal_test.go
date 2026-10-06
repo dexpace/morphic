@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -346,6 +348,128 @@ components:
 	}
 
 	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
+}
+
+// modelDoc is a document whose pointers ModelAt is asked about: schemas the
+// model holds, through properties, a $ref, an alias and a branch list, and raw
+// YAML under extensions, one of them written twice. S's property "0" makes the
+// library retry that token as an index where the key leads nowhere below,
+// which a step does not do.
+const modelDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {responses: {"200": {description: ok}}}}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        p: {type: object, properties: {q: {type: string}}}
+        "0": {type: string}
+        "01": {type: integer}
+        "~2": {type: boolean}
+      allOf: [{type: object}, {$ref: '#/components/schemas/T'}]
+      x-ext: {k: {type: object}}
+    T: {$ref: '#/components/schemas/S'}
+    U: &u {type: string}
+    V: *u
+x-lib:
+  a: {b: {type: object}}
+  a: {b: {type: string}}
+  "0": {type: object}
+  list: [{type: object}]
+`
+
+// wholeModelAt is ModelAt as one read of the whole pointer, which it answers
+// as.
+func wholeModelAt(doc *soa.OpenAPI, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
+		return js
+	}
+	return nil
+}
+
+// TestScope_ModelAt_AnswersAsTheWholeReadDoes pins that reading a token at a
+// time answers as reading the pointer whole, for each pointer below and each
+// of its prefixes: the model's schemas, raw YAML, an index token the library
+// retries, no position, and a pointer the library refuses, though a property
+// is named by what its token decodes to.
+func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+	require.NoError(t, err)
+	sc := Scope{Doc: doc}
+	found := 0
+	for _, pointer := range []jsontext.Pointer{
+		"/components/schemas/S/properties/p/properties/q",
+		"/components/schemas/S/properties/0/properties/q",
+		"/components/schemas/S/properties/01",
+		"/components/schemas/S/allOf/1/properties/p",
+		"/components/schemas/S/allOf/2",
+		"/components/schemas/S/x-ext/k",
+		"/components/schemas/T/properties/p",
+		"/components/schemas/V",
+		"/components/schemas/Nope/properties/x",
+		"/x-lib/a/b",
+		"/x-lib/0/type",
+		"/x-lib/list/0",
+		"/paths/~1a/get/responses/200",
+		"/nope/x",
+		"/components/schemas/S/properties/~2",
+		"/",
+		"",
+	} {
+		for prefix := range prefixesOf(pointer) {
+			want := wholeModelAt(doc, prefix)
+			assert.Same(t, want, sc.ModelAt(prefix), "%q", prefix)
+			if want != nil {
+				found++
+			}
+		}
+	}
+	assert.Greater(t, found, 8, "the pointers reach schemas, not only nothing")
+}
+
+// prefixesOf yields pointer and each pointer it extends, longest first.
+func prefixesOf(pointer jsontext.Pointer) func(func(jsontext.Pointer) bool) {
+	return func(yield func(jsontext.Pointer) bool) {
+		for p := pointer; ; p = p[:strings.LastIndex(string(p), "/")] {
+			if !yield(p) || !strings.Contains(string(p), "/") {
+				return
+			}
+		}
+	}
+}
+
+// TestScope_ModelAt_ReadsNothingBelowRawYAML pins GitHub #778: ModelAt answers
+// a pointer into raw YAML without reading the raw mappings below where it
+// leaves the model. Each pointer passes a mapping whose first key is no node,
+// which the library's read of it faults on, as the whole read shows.
+func TestScope_ModelAt_ReadsNothingBelowRawYAML(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+	require.NoError(t, err)
+	for _, at := range []struct{ raw, pointer jsontext.Pointer }{
+		{"/x-lib", "/x-lib/a/b"},
+		{"/components/schemas/S/x-ext", "/components/schemas/S/x-ext/k"},
+	} {
+		node, ok := walkTo(doc, at.raw).(*yaml.Node)
+		require.True(t, ok, "%s is raw YAML", at.raw)
+		node.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, node.Content...)
+
+		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %s", at.raw)
+		assert.NotPanics(t, func() { assert.Nil(t, Scope{Doc: doc}.ModelAt(at.pointer)) }, at.pointer)
+	}
+}
+
+// walkTo returns what the model holds at pointer, a step at a time.
+func walkTo(doc *soa.OpenAPI, pointer jsontext.Pointer) any {
+	var node any = doc
+	for token := range pointer.Tokens() {
+		node, _ = Step(node, token)
+	}
+	return node
 }
 
 // TestScope_DeclaredAt_TheModelAnswersFirst pins the order of DeclaredAt's two
