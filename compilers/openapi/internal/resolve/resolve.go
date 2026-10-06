@@ -16,6 +16,7 @@ import (
 	"encoding/json/jsontext"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -151,10 +152,12 @@ func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
 }
 
 // Step returns what node holds under the one token, as the resolver's walk
-// reads it, and false where it holds nothing. The library reads the
-// one-token pointer "/" as the root rather than the empty token, so that token
-// is read as the second of two, below an envelope keyed by the empty string.
-// Any other is read alone, which is the same read without the envelope's cost.
+// reads it on to the next, and false where it holds nothing. The library reads
+// the pointer "/" as the root, so the empty token is read below an envelope
+// keyed by the empty string; any other is read alone, which costs less. A
+// struct the model holds by value, such as an operation's responses, comes back
+// as a pointer to a copy: the walk reads on from its address, where its methods
+// navigate it, and read as a last token it answers less (GitHub #779).
 func Step(node any, token string) (any, bool) {
 	source := node
 	pointer := "/" + jsonpointer.EscapeString(token)
@@ -162,6 +165,11 @@ func Step(node any, token string) (any, bool) {
 		source, pointer = map[string]any{"": node}, "//"
 	}
 	next, err := jsonpointer.GetTarget(source, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if v := reflect.ValueOf(next); v.Kind() == reflect.Struct {
+		p := reflect.New(v.Type())
+		p.Elem().Set(v)
+		next = p.Interface()
+	}
 	return next, err == nil
 }
 

@@ -351,15 +351,21 @@ components:
 }
 
 // modelDoc is a document whose pointers ModelAt is asked about: schemas the
-// model holds, through properties, a $ref, an alias and a branch list, and raw
-// YAML under extensions, one of them written twice. S's property "0" makes the
-// library retry that token as an index where the key leads nowhere below,
-// which a step does not do.
+// model holds, through properties, a $ref, an alias, a branch list and an
+// operation's responses, which it holds by value, and raw YAML under
+// extensions, one of them written twice. S's property "0" makes the library
+// retry that token as an index where the key leads nowhere below.
 const modelDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {get: {responses: {"200": {description: ok}}}}
+  /a:
+    get:
+      responses:
+        "200": {$ref: '#/components/responses/R'}
+        default: {description: ok, content: {application/json: {schema: {type: object, x-k: {a: 1}}}}}
 components:
+  responses:
+    R: {description: r, content: {application/json: {schema: {type: string}}}}
   schemas:
     S:
       type: object
@@ -414,7 +420,9 @@ func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
 		"/x-lib/a/b",
 		"/x-lib/0/type",
 		"/x-lib/list/0",
-		"/paths/~1a/get/responses/200",
+		"/paths/~1a/get/responses/default/content/application~1json/schema/x-k/a",
+		"/paths/~1a/get/responses/200/content/application~1json/schema",
+		"/info/title",
 		"/nope/x",
 		"/components/schemas/S/properties/~2",
 		"/",
@@ -576,13 +584,14 @@ components:
 	assert.False(t, ok, "no position to read the pointer from")
 }
 
-// walkDoc is a document whose positions a walk reaches past a path item, into a
-// schema, through a response keyed by the empty string, and into an
-// extension's value, which the model holds as raw YAML.
+// walkDoc is a document whose positions a walk reaches past a path item and an
+// operation's responses, which the model holds by value, into a schema,
+// through a response keyed by the empty string, and into an extension's value,
+// which the model holds as raw YAML.
 const walkDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {get: {responses: {"200": {description: ok}}}}
+  /a: {get: {responses: {"200": {description: ok}, default: {description: otherwise}}}}
 components:
   schemas:
     S: {type: object, properties: {p: {type: object, properties: {q: {type: string}}}}}
@@ -621,6 +630,45 @@ func TestStep_ReadsOneToken(t *testing.T) {
 	assert.Same(t, doc.Components, next)
 	_, ok = Step(doc, "nope")
 	assert.False(t, ok, "a token the node holds nothing under")
+}
+
+// TestStep_HandsOnAStructHeldByValue pins what a step hands on where the model
+// holds a struct by value, as an operation holds its responses: a pointer, from
+// which the next step reads what only the struct's methods answer, as the
+// library's walk reads on from the field's address.
+func TestStep_HandsOnAStructHeldByValue(t *testing.T) {
+	t.Parallel()
+	doc := unmarshalWalkDoc(t)
+	op, ok := Step(walkTo(doc, "/paths/~1a"), "get")
+	require.True(t, ok)
+	responses, ok := Step(op, "responses")
+	require.True(t, ok)
+	require.IsType(t, &soa.Responses{}, responses, "the responses, which the operation holds by value")
+
+	next, ok := Step(responses, "default")
+	require.True(t, ok, "the default response, which the responses' methods answer")
+	whole, err := jsonpointer.GetTarget(doc, "/paths/~1a/get/responses/default", jsonpointer.WithStructTags("key"))
+	require.NoError(t, err)
+	assert.Same(t, whole, next, "as the whole read finds it")
+}
+
+// TestScopeAt_PassesAReferenceUnderADefaultResponse pins that the walk goes on
+// past an operation's responses, which the model holds by value: a default
+// response that is a reference is passed, as one under a status code is.
+func TestScopeAt_PassesAReferenceUnderADefaultResponse(t *testing.T) {
+	t.Parallel()
+	responses := func(node any) (End, bool) {
+		if _, ok := node.(*soa.ReferencedResponse); ok {
+			return End{Document: "elsewhere", Path: "x.yaml"}, true
+		}
+		return End{}, false
+	}
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: responses}
+	for _, code := range []string{"default", "200"} {
+		at := sc.At(jsontext.Pointer("/paths/~1a/get/responses/" + code + "/description"))
+		assert.True(t, at.Foreign, "the %s response is passed", code)
+		assert.Equal(t, "x.yaml", at.Holder, code)
+	}
 }
 
 // TestScopeAt_StopsAtASchema pins where the walk stops: at the first schema,

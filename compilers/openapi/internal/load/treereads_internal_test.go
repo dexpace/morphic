@@ -377,6 +377,29 @@ func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	assert.Zero(t, reads.drain(), "drained once, and nothing indexed since")
 }
 
+// TestTreeReads_ModelCostReadsOnThroughAStructHeldByValue pins that a read
+// priced in the model goes on past a struct the model holds by value, as the
+// library does: an operation's responses, whose default response only its
+// address answers, below which the response's raw extension of n keys is
+// scanned for a key it does not hold.
+func TestTreeReads_ModelCostReadsOnThroughAStructHeldByValue(t *testing.T) {
+	t.Parallel()
+	const n = 64
+	var ext strings.Builder
+	for i := range n {
+		fmt.Fprintf(&ext, "k%d: %d, ", i, i)
+	}
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n    get:\n      responses:\n" +
+		"        default: {description: ok, x-wide: {" + strings.TrimSuffix(ext.String(), ", ") + "}}\n"
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+
+	steps := newTreeReads().modelCost(doc, "/paths/~1a/get/responses/default/x-wide/missing", math.MaxInt)
+	assert.Greater(t, steps, 2*n, "the wide extension's keys are compared, then passed for a merge key")
+}
+
 // TestPartsOf pins how a pointer is split as the library splits it: a token is
 // an index when it is digits with no leading zero, '/' alone has no token, and
 // what the library's validation refuses is no pointer.
