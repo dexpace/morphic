@@ -1,20 +1,14 @@
 // Package componentreach partitions a document's component entries by what its
 // `$ref` strings reach.
 //
-// A compiler that lowers a component only where a reference finds it leaves
-// every entry nothing names lowering nowhere: no node, no Unmodeled entry and no
-// diagnostic, so the entry vanishes from the IR in silence. Deciding which
-// entries those are is a question about the source document alone — which
-// pointers a `$ref` written outside the component sections reaches, transitively
-// — and it is asked here, over the raw tree, rather than by threading a record
-// of what the lowering resolved through it (GitHub #616).
+// A compiler that lowers a component only where a reference finds it lets
+// every unnamed entry vanish from the IR in silence. Which entries those are is
+// a question about the source alone, so it is asked here over the raw tree
+// (GitHub #616).
 //
-// The rule this package answers is the caller's: an entry is *referenced* when
-// its pointer is reached by the transitive closure of `$ref` strings rooted at
-// every position outside the retained sections. A `$ref` written inside an entry
-// that is itself unreferenced is not a root, so the component it names is kept
-// too — the lossless reading, and the reason a syntactic "some `$ref` names it"
-// rule is not what this walks.
+// An entry is *referenced* when the transitive closure of `$ref` strings rooted
+// outside the retained sections reaches its pointer. A `$ref` inside an
+// unreferenced entry is not a root, so the component it names is kept too.
 package componentreach
 
 import (

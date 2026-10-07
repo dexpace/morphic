@@ -110,17 +110,15 @@ type idField struct {
 
 // checkEmptyRefs asserts no reference is empty where its position requires one.
 //
-// collectRefs skips an empty ID because it is no reference, and that is right;
-// but it left the positions that require one reported by nothing (GitHub #473),
-// the state the empty union variant was in before checkTypeRefs (GitHub #397).
-// Unlike TypeRef, the answer cannot be keyed by type: Discriminator.Default is
-// a TypeID whose empty value means "none". So it is per position, recorded in
-// idPositions and on each field's comment, and every position not documented
-// as admitting an empty value is held to naming something.
+// collectRefs skips an empty ID because it is no reference, which leaves a
+// position that requires one reported by nothing (GitHub #473). The answer
+// cannot be keyed by type: Discriminator.Default is a TypeID whose empty value
+// means "none". So it is per position, recorded in idPositions, and a position
+// not documented as admitting an empty value must name something.
 //
-// Positions are found by reflection over each struct type the walk reaches,
-// once per type per run, so every shape is covered — a field, a pointer, a slice
-// element, a map key and a map value. Paths spell each one as the walk would.
+// Reflection finds positions of every shape (field, pointer, slice element, map
+// key, map value) in each struct type the walk reaches. Paths match the walk's
+// spelling.
 func checkEmptyRefs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	fields := map[reflect.Type][]idField{}

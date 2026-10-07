@@ -749,15 +749,14 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 }
 
 // TestEncoding_PartNameWithSlashKeepsItsOwnKey pins that a part's name is one
-// scope segment however it is spelled. The scope is "encoding/<part>" and the
-// part is a schema property name, so a "/" in it used to read as a separator:
-// parts "q" and "q/x-a" spelled one key between them, the entry that survived
-// followed the order the properties were declared in, and neither order said
-// anything about it.
+// scope segment however it is spelled. The scope is "encoding/<part>" and a
+// property name can contain "/", which must not read as a separator: parts "q"
+// and "q/x-a" would otherwise share one key, and the surviving entry would
+// follow declaration order.
 //
-// Both halves are needed to state it. The two entries must be distinct, and each
-// must hold the value its own part declared — asserting only that two keys exist
-// would pass on a lowering that swapped them.
+// The two entries must be distinct and each must hold its own part's value;
+// asserting only that two keys exist would pass on a lowering that swapped
+// them.
 func TestEncoding_PartNameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.1.0", `  /form:
@@ -1439,19 +1438,14 @@ func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	assert.Empty(t, diags, "and nothing is announced about keywords the header never wrote")
 }
 
-// TestHeaders_ReservedContentTypeEntryIsReported covers the headers-map half of
-// the rule diag.ReservedHeaderName records. OpenAPI states "SHALL be ignored"
-// for a reserved header name at three positions, not one: a header parameter
-// (§4.8.12), a Content-Type entry in a response's headers map (§4.8.17), and a
-// Content-Type entry in an encoding's (§4.8.15). Morphic lowers all three
-// anyway, because dropping declared content is a loss and the choice belongs to
-// an emitter — but doing that in silence is what leaves an emitter unable to
-// tell such a header from any other, and generating one that restates the media
-// type the position already owns.
-//
-// Both headers-map positions are exercised, because the rule belongs to the
-// shared lowering rather than the response position: an encoding's per-part
-// headers reach lowerHeaders from the other caller.
+// TestHeaders_ReservedContentTypeEntryIsReported covers the response side of
+// the headers-map half of the rule diag.ReservedHeaderName records: a
+// Content-Type entry (§4.8.17), in any casing, is reported at the entry's own
+// pointer, and other names, Accept included, are not. The header lowers either
+// way, because dropping declared content is a loss and the choice belongs to an
+// emitter; the diagnostic is what lets an emitter tell it from any other
+// header. The encoding side is
+// TestHeaders_ReservedContentTypeInEncodingIsReported.
 func TestHeaders_ReservedContentTypeEntryIsReported(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

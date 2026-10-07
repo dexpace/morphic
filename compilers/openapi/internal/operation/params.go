@@ -36,7 +36,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		if p == nil {
 			continue
 		}
-		param, binding, paramDiags := lowerParameter(c, ts, anchors, p, pptr)
+		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A Reference Object may write summary and description beside its $ref, and
 		// they describe this use of the declaration rather than the declaration —
@@ -153,12 +153,10 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
-// Constraints stay use-site-only, exactly as fillPropertyConstraints keeps
-// them: a parameter must not inherit more from a referent than a property does.
-// The referent's bounds are not dropped, they are simply left where they were
-// declared — bounds conjoin rather than override, so copying one down under
-// use-site precedence would publish the wider bound as the whole truth
-// (ir-design §12.2).
+// Constraints stay use-site-only, as fillPropertyConstraints keeps them: the
+// referent's bounds are left where declared, since bounds conjoin rather than
+// override and copying one down under use-site precedence would publish the
+// wider bound as the whole truth (ir-design §12.2).
 func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil
@@ -210,16 +208,16 @@ func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, 
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
-// parameter itself. ir.Parameter is the carrier for this position the way
-// ir.Property is for a model property, so a schema that reduced to a shared
-// primitive still keeps what it wrote (GitHub #116); a schema that hoisted a node
-// of its own keeps them there instead, one home per declaration.
+// parameter itself. ir.Parameter is the carrier here as ir.Property is for a
+// model property, so a schema that reduced to a shared primitive still keeps
+// what it wrote (GitHub #116); one that hoisted a node of its own keeps them
+// there, one home per declaration.
 //
-// The parameter's own annotations are written afterwards by fillParamDetail and
-// win where both are set. tgt is the schema the use-site $ref resolves to, which
-// docs and deprecation fall back to when the use-site is silent about them
-// (ir-design §14); examples, xml and the visibility keywords stay site-only,
-// since they describe the position rather than the type.
+// fillParamDetail writes the parameter's own annotations afterwards, and they
+// win where both are set. tgt is the schema the use-site $ref resolves to,
+// which docs and deprecation fall back to (ir-design §14); examples, xml and
+// the visibility keywords stay site-only, since they describe the position, not
+// the type.
 func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
@@ -333,23 +331,17 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	return append(diags, c.PromoteDeprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
 }
 
-// preserveAllowEmptyValue keeps a parameter's allowEmptyValue flag. It says a
-// query parameter may be sent with an empty value — a wire fact about how the
-// parameter serializes, alongside style, explode and allowReserved, which
-// ir.HTTPParamBinding does hold. It holds no field for this one, and nothing
-// else on this path read the flag either, so a document declaring it lost it
-// outright (GitHub #39).
+// preserveAllowEmptyValue keeps a parameter's allowEmptyValue flag, which says
+// a query parameter may be sent with an empty value: a wire fact about how it
+// serializes, like style, explode and allowReserved, which ir.HTTPParamBinding
+// holds. The binding has no field for this one (GitHub #39).
 //
-// ReasonNoIRHome rather than a boundary, for the same reason as its neighbours:
-// the IR can close the gap by adding the field. It is kept on ir.Parameter
-// because that is the carrier at this position with an Unmodeled map at all —
-// ir.HTTPParamBinding has none.
+// ReasonNoIRHome, not a boundary, since the IR can close the gap by adding the
+// field. It is kept on ir.Parameter because that, not ir.HTTPParamBinding, is
+// the carrier here with an Unmodeled map.
 //
-// A parameter that does not declare it records nothing: RawChildNode returns nil
-// for an absent keyword and PreserveNode keeps nothing for a nil node. That is
-// deliberately presence, not truth — allowEmptyValue: false is a declared fact
-// too, and a compiler that kept only the true spelling would decide for the
-// reader which declarations count.
+// It keeps presence, not truth: allowEmptyValue: false is a declared fact too,
+// and keeping only the true spelling would decide which declarations count.
 func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
 	at := pptr + ids.Ptr("allowEmptyValue")
 	kept, diags := schema.PreserveNode(c, &param.Unmodeled, "openapi:allowEmptyValue",

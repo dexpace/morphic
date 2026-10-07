@@ -1,14 +1,13 @@
 // Package lowering holds the immutable context every OpenAPI lowering reads.
 //
-// It is the substrate the lowering packages share rather than a stage of its
-// own: it lowers nothing and reports nothing on its own behalf. What it owns is
-// the answer to "what is being lowered, and what does the document say about
-// itself" — the parsed document, the identity of the source, the indexes derived
-// from it once at entry, and the two constructors that stamp provenance.
+// It is the substrate the lowering packages share, not a stage: it lowers and
+// reports nothing itself. It owns the answer to "what is being lowered, and
+// what does the document say about itself": the parsed document, the source's
+// identity, the indexes derived once at entry, and the constructors that stamp
+// provenance.
 //
-// It is a package because the schema walk and the operation walk both need those
-// answers and neither may reach the other (micro-compiler-design §5.1). Keeping
-// the context with either one would make the other import it.
+// It is a package because the schema walk and the operation walk both need
+// those answers and neither may reach the other (micro-compiler-design §5.1).
 package lowering
 
 import (
@@ -16,6 +15,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -24,19 +24,16 @@ import (
 )
 
 // Ctx is everything a lowering may read and none may change: the parsed
-// document, the grouping policy the caller chose, the identity of the source
-// being lowered, and the indexes derived from them once at entry.
+// document, the caller's policies, the identity of the source, and the indexes
+// derived from them once at entry.
 //
-// It is a value rather than a pointer, so a function that takes one takes a
-// copy. Every lowering takes it as a parameter (#177), which is what makes
-// "immutable" enforceable rather than conventional: there is no shared holder
-// left to write through. The maps below stay unexported for the other half of
-// it — a copy shares a map rather than copying it, so an exported one would be
-// the single part of a by-value context a callee could still reach.
+// It is a value, so a function that takes one takes a copy, and every lowering
+// takes it as a parameter (#177): there is no shared holder to write through.
+// The maps stay unexported because a copy shares a map, so an exported one
+// would let a callee write through it.
 //
-// Call sites bind it to c, never to ctx: the styleguide reserves that identifier
-// for the context.Context a Compile takes, and operations.go spends it again on
-// an opContext local, so a third meaning would be shadowed at both sites.
+// Call sites bind it to c, never ctx, which the styleguide reserves for the
+// context.Context a Compile takes.
 type Ctx struct {
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.
@@ -57,27 +54,23 @@ type Ctx struct {
 	// by tags, which is what makes the unnormalized zero value harmless rather
 	// than a second spelling of the default to keep in step.
 	Grouping GroupingStrategy
-	// Limits is the caller's budget for the constructs the walk builds. It is the
-	// other fact about the caller, and like Grouping it arrives already resolved:
-	// the compiler's Options fills the unset budgets in and translates its own
-	// spelling of "unbounded" before building a context, so the zero value here
-	// simply bounds nothing.
+	// Limits is the caller's budget for the constructs the walk builds. Like
+	// Grouping it arrives already resolved: the compiler's Options fills the
+	// unset budgets in and translates its own spelling of "unbounded" before
+	// building a context, so the zero value here simply bounds nothing.
 	Limits Limits
 
 	// streaming is the media-type streaming policy, normalized into the set
 	// MediaTypeStreams answers from, and nil when the caller disabled it.
 	//
-	// It is the second caller policy, and it is unexported where Grouping is not
-	// because it holds a map: a struct copy would share it, which is the one
-	// thing keeping the other maps here unexported is for.
+	// Unlike Grouping it is unexported, because it holds a map, which a struct
+	// copy would share, as with the other maps here.
 	streaming map[string]bool
 
 	// promotions is the vendor-extension promotion policy, normalized into the
 	// map PromoteDeprecation reads, and nil when the caller disabled it.
 	//
-	// It is the second caller policy, and it is unexported where Grouping is not
-	// because it holds a map: a struct copy would share it, which is the one
-	// thing keeping the other maps here unexported is for.
+	// Unexported for the reason streaming is: it holds a map.
 	promotions map[string]ExtensionTarget
 
 	// schemas is the set of component-schema names the document declares.
@@ -89,6 +82,13 @@ type Ctx struct {
 	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
 	// holds the struct to.
 	schemas map[string]bool
+
+	// foreign marks a lowering of content another document holds, read in that
+	// document's scope, and holder is the path the resolver read it by (see
+	// Within). Unexported and set only by Within and At, which scope them to the
+	// subtree that copy is threaded through.
+	foreign bool
+	holder  string
 
 	// namesByReference marks a lowering running under a $ref that named a
 	// coordinate, whose names are placeholders. Unexported and read through
@@ -116,35 +116,56 @@ type Ctx struct {
 	// "provenance is built in exactly one place" true of the source index as well
 	// as of the pointer.
 	overlay overlay.Origin
+
+	// defsReader reads the document's "#/$defs/..." pointers and remembers what
+	// it has read. Copies of the context share it on purpose: it only caches
+	// reads of a document lowering never writes, so what one copy remembers
+	// cannot change another's answer, and it keeps a reference's cost from
+	// growing with how deep its schema sits. Nil when there is no document.
+	defsReader *defs.Reader
+
+	// targets holds the schema each discriminator mapping target names, which
+	// the load phase resolved as a $ref to it is. Its zero value holds none.
+	// Unexported for the reason schemas is, and read only through RefScope.
+	targets load.MappingTargets
+
+	// typePositions remembers each answer TypePosition read. Copies share it on
+	// purpose, as they share defsReader: an answer reads only the document and
+	// targets, which no lowering changes, so what one copy remembers is what
+	// another would read. Nil in a zero context.
+	typePositions map[typePositionKey]typePositionAt
+}
+
+// typePositionKey is a position a discriminator mapping target names, and the
+// scope it is read in (see Within), which a TypePosition answer is kept under.
+type typePositionKey struct {
+	foreign bool
+	holder  string
+	pointer jsontext.Pointer
+}
+
+// typePositionAt is a TypePosition answer: the position, and whether it names
+// one.
+type typePositionAt struct {
+	pointer jsontext.Pointer
+	ok      bool
 }
 
 // New derives the immutable context for one loaded source.
 //
-// It takes the document and its identity rather than the loader's own result
-// type, which is what keeps this package below the loader for everything but
-// the version grammar, and what lets a test build a context without a load.
+// The schema-name index is built here, not on first use, so every reader sees
+// the same set whatever the source order: a $ref resolved mid-lowering must see
+// a component declared later. The streaming policy is normalized here so
+// readers cannot disagree about a media type, and the promotion policy is
+// copied so no lowering can write through the context into the caller's map.
 //
-// The schema-name index is built here rather than on first use so that every
-// reader sees the same set regardless of source order: a $ref or a discriminator
-// mapping resolved mid-lowering must see a component declared later in the
-// document as a valid target. It stays nil for a document that declares no
-// components, which reads the same as an empty set.
-//
-// The streaming policy is normalized into its lookup set here for a related
-// reason: normalizing at each reader would be as many places for the comparison
-// to differ as there are readers, and a media type that matched at one of them
-// and not another would classify one direction of an operation and not the
-// other.
-//
-// The promotion policy is normalized here too, and copied rather than shared,
-// so no lowering can write through the context into the map the caller passed.
-//
-// The $dynamicAnchor index is deliberately not derived here, though GitHub #172
-// asked for it. Building it emits a diagnostic when the walk hits its bounds, so
-// building it is a lowering action rather than context: done at entry, that
-// warning would reach documents that never write $dynamicRef, changing what the
-// compiler reports about them. It stays where it is, built on first use.
+// The $dynamicAnchor index is built on first use instead (GitHub #172): its
+// bounds diagnostic would warn about documents that never write $dynamicRef.
 func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, origin overlay.Origin) Ctx {
+	var reader *defs.Reader
+	if doc != nil {
+		reader = defs.NewReader(doc)
+	}
 	return Ctx{
 		Doc:        doc,
 		Source:     src,
@@ -155,6 +176,9 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		streaming:  streamingSet(streaming),
 		promotions: promotionSet(promotions),
 		overlay:    origin,
+		defsReader: reader,
+
+		typePositions: map[typePositionKey]typePositionAt{},
 	}
 }
 
@@ -189,22 +213,46 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 	return c
 }
 
+// WithMappingTargets returns a copy of c carrying the schemas the load phase
+// resolved for the document's discriminator mapping targets. They come with
+// the document rather than being derived from it, since resolving one runs the
+// resolver, which only the load phase may (GitHub #757). The copy remembers no
+// TypePosition answer of c's, which read c's targets.
+func (c Ctx) WithMappingTargets(targets load.MappingTargets) Ctx {
+	c.targets, c.typePositions = targets, map[typePositionKey]typePositionAt{}
+	return c
+}
+
+// TypePosition returns read's answer for pointer in c's scope, read once and
+// remembered for every copy of c. read is where a discriminator mapping target
+// naming pointer names a type, which must follow from the document and the
+// mapping targets alone. Each subtype asks it of every entry of its base's
+// mapping, so n subtypes read each n times. A zero context reads it every time.
+func (c Ctx) TypePosition(pointer jsontext.Pointer, read func() (jsontext.Pointer, bool)) (jsontext.Pointer, bool) {
+	if c.typePositions == nil {
+		return read()
+	}
+	key := typePositionKey{foreign: c.foreign, holder: c.holder, pointer: pointer}
+	if at, seen := c.typePositions[key]; seen {
+		return at.pointer, at.ok
+	}
+	at, ok := read()
+	c.typePositions[key] = typePositionAt{pointer: at, ok: ok}
+	return at, ok
+}
+
 // NamingByReference returns a copy of c marking everything lowered under it as
-// reached through a reference naming a coordinate rather than through the
-// declaration that owns it.
+// reached through a reference naming a coordinate, not through the declaration
+// that owns it.
 //
-// A $ref can spell a pointer inside another declaration's body, and the node
-// interned there is then named by whichever of the two lowerings arrives first.
-// A name belongs to a declaration rather than to a reference to it, so a lowering
-// running under this context names provisionally and the declaration replaces the
-// name when it arrives (GitHub #372).
+// A $ref can spell a pointer inside another declaration's body, so the node
+// interned there would be named by whichever lowering arrives first. A name
+// belongs to a declaration, so a lowering under this context names
+// provisionally and the declaration replaces the name when it arrives (GitHub
+// #372).
 //
-// It marks the whole subtree, not just the referenced coordinate: a reference to
-// an object body interns its children too, and their names are derived from the
-// enclosing one, so they are placeholders for the same reason.
-//
-// A copy, not a fresh context: everything below still needs the document, its
-// identity and index, and the declared-name index.
+// It marks the whole subtree: a referenced object body interns its children
+// too, named from the enclosing one, so they are placeholders as well.
 func (c Ctx) NamingByReference() Ctx {
 	c.namesByReference = true
 	return c
@@ -215,32 +263,49 @@ func (c Ctx) NamingByReference() Ctx {
 func (c Ctx) NamesByReference() bool { return c.namesByReference }
 
 // NamingByReferenceAt is NamingByReference for a reference-or-declaration
-// position: it marks c when declPtr is not the position usePtr addressed, and
-// leaves it alone when the two agree.
+// position: it marks c only when declPtr differs from usePtr.
 //
-// The two pointers agree exactly when the construct is declared where it is
-// used. They differ when a $ref carried this lowering into a declaration some
-// other position owns — a request body written under another operation, a
-// header written under another response — and that is the case
-// NamingByReference describes: the hint this lowering derives is a use-site
-// name (an operationId, a headers-map key) for a node the use site does not own.
+// They differ when a $ref reached a declaration another position owns, such as
+// a request body written under another operation: a use-site hint (an
+// operationId, a headers-map key) would name a node the use site does not own.
 //
-// It exists because $ref is resolved at these positions before the lowering
-// starts, so the marking hoistSubSchema does for a schema-level $ref has no
-// counterpart here: by the time a body or header is lowered, nothing downstream
-// can still tell that a reference is what reached it. Without the mark both
-// lowerings claim to be the declaration, and Intern — first-write-wins — hands
-// the shared node to whichever ran first (GitHub #433).
-//
-// DeclarationHint already covers the case where the declaration is a top-level
-// component entry, which is named the same from every use site. This covers the
-// rest: a $ref may spell any pointer, and one naming a construct declared inline
-// elsewhere is just as shared while matching no component shape.
+// $ref is resolved at these positions before lowering starts, so nothing
+// downstream can tell a reference reached the declaration, unlike a
+// schema-level $ref, which hoistSubSchema marks. Without the mark, whichever
+// lowering ran first would name the shared node, since Intern is
+// first-write-wins (GitHub #433).
 func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	if declPtr == usePtr {
 		return c
 	}
 	return c.NamingByReference()
+}
+
+// Within returns c for lowering what the entry ref resolves to, in the scope
+// resolve.ScopeOf reads it in: Foreign when another document holds it,
+// InSource when its chain ends in the source, and c itself for an inline entry.
+//
+// A URI reference in another document's content is read against that
+// document. Read as the source's, `#/...` resolved to whatever the source
+// declared at the same pointer, when that had lowered first (GitHub #762). A
+// name, such as a component's in a mapping, still names the entry document's,
+// as the specification recommends for such implicit connections.
+func Within[T, S any, R interface {
+	*S
+	resolve.Referenced[T, S]
+}](c Ctx, ref R) Ctx {
+	scope := resolve.ScopeOf[T, S](c.RefScope(), ref)
+	c.foreign, c.holder = scope.Foreign, scope.Holder
+	return c
+}
+
+// At returns c for lowering what an internal pointer names, in the scope
+// resolve.Scope.At reads it in: the source's own, or, where the resolver's walk
+// to it passes a $ref into another document, that document's.
+func (c Ctx) At(pointer jsontext.Pointer) Ctx {
+	scope := c.RefScope().At(pointer)
+	c.foreign, c.holder = scope.Foreign, scope.Holder
+	return c
 }
 
 // declaredSchemaNames collects the names under components/schemas, or nil when
@@ -291,28 +356,29 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // the tag hierarchy, Response.summary, xml nodeType, components/mediaTypes and
 // the nested encoding fields.
 //
-// It exists because each of those is a key the bundled parser's model names no
-// field for, so the compiler reads it off the raw node and the census has to be
-// told the key was read. One answer, asked once here, is what keeps the reader
-// and the census from disagreeing about which keys those are (GitHub #615).
-//
-// A document whose version is unrecognized answers false, as ExclusiveBoundIsBoolean
-// does for its own question: the raw-node readers are refused rather than let to
-// run on a dialect nobody has said anything about.
+// The parser's model has no field for those keys, so the compiler reads them
+// raw and the census must be told; one answer keeps the two agreeing (GitHub
+// #615). An unrecognized version answers false, as ExclusiveBoundIsBoolean
+// does, so the raw readers never run on an unknown dialect.
 func (c Ctx) Is32() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.2"
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
-// own path, and what it declares.
+// own path, what it declares, and the parsed document itself.
 //
 // It is derived on use rather than stored beside the context. A stored copy
-// would be a second place the same two facts live, free to disagree with the
+// would be a second place the same facts live, free to disagree with the
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	return resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema}
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd}
+	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
+		scope.Doc, scope.Defs = c.Doc, c.defsReader
+	}
+	return scope
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source
@@ -333,20 +399,14 @@ func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, form
 // ProvenanceAt is where a Provenance is built, and the only place this compiler
 // spells the source index into one.
 //
-// It covers the entities as well as the diagnostics. GitHub #86 scoped itself to
-// diagnostic sites because that is where the defect it chased showed up, but the
-// defect is hand-writing the pair at all: a Provenance whose source index is
-// wrong misattributes a node just as surely as it misattributes a report.
+// It serves entities as well as diagnostics (GitHub #86). Being the one place
+// also traces an overlay's contribution without touching any lowering: a
+// position the overlay introduced or rewrote names the overlay as its source.
 //
-// Being the one place is also what makes an overlay's contribution traceable
-// without touching a single lowering: a position the overlay introduced or
-// rewrote names the overlay as its source, because the question is asked here
-// rather than answered from a field each caller reads.
-//
-// from is for a record no single position addresses: a §4.7 entry folding
-// several keywords into one object is located at the schema declaring them, and
-// from names the keywords' own positions, so the entry names the document that
-// wrote all of them when one did (see overlay.Origin.IndexOf).
+// from is for a record no single position addresses, such as a §4.7 entry
+// folding several keywords. The entry is located at the declaring schema, and
+// from lists the keywords' positions, so the entry names the document that
+// wrote all of them, when one did (see overlay.Origin.IndexOf).
 func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
 }

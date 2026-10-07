@@ -123,16 +123,12 @@ type Payload struct {
 	// request body can be omitted, and pass/validate reports one that is set
 	// anywhere else (ir/payload-required-outside-request).
 	Required *bool `json:"required,omitzero"`
-	// Docs is the payload's own documentation — the summary and description a
-	// Request Body Object writes beside its content, which describe the body
-	// rather than any media type inside it. It is a pointer for the reason
-	// Required is one: the three states are distinct, and only a source object
-	// that can write docs sets it. A request body does today; a response or
-	// message payload leaves it nil, and a future compiler may document a
-	// message payload's body the same way without the field having to change.
-	// No pass rule forbids it outside a request: ir.Payload is the body of a
-	// request, a response *or* a message, so "outside-request" would forbid a
-	// legitimate use.
+	// Docs is the payload's own documentation: the summary and description a
+	// Request Body Object writes beside its content, describing the body
+	// rather than a media type in it. A pointer, as Required is, since only a
+	// source object that can write docs sets it. A response or message payload
+	// leaves it nil today, though a future compiler may set it; no pass rule
+	// forbids that, since ir.Payload is also a response's and a message's body.
 	Docs *Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`

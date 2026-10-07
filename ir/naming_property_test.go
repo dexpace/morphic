@@ -11,59 +11,46 @@ import (
 // adversarialRunes seeds the fuzzer with the spellings that make the grammar's
 // hard cases reachable at all. A fuzzer exploring bytes is unlikely to construct
 // a titlecase digraph or a letter with no lowercase form on its own, and the
-// defect these properties were written for lived on exactly such a rune
-// (GitHub #187).
-//
-// Each entry names why it is here, because a seed nobody can justify is a seed
-// nobody will maintain:
-//
-//   - ℤ, ϒ: IsUpper reports true and ToLower returns them unchanged — a letter
-//     with no lowercase form.
-//   - ℤℤA: two of those before one that does lowercase. The seed beside it,
-//     ℤℤa, was already here and passed; the input that broke idempotence was
-//     the uppercase spelling one mutation away from it, because lowercasing the
-//     A is what supplied the lowercase letter the tail rule looks for
-//     (GitHub #336).
-//   - ǅ: titlecase, which is neither IsUpper nor IsLower.
-//   - ẞ: uppercase whose lowercase ß is a different letter.
-//   - İ: uppercase whose lowercase is two runes, so lowercasing changes length.
-//   - the decomposed é: one letter written as a letter and a combining mark.
-//   - the scripts: a grammar can mishandle exactly one of them, so Latin alone
-//     would not show it. Cherokee and Deseret are cased and rarely tested,
-//     Greek and Cyrillic are the common non-Latin cased scripts, and Han and
-//     Hebrew are cased by nothing at all.
-//   - the rest: the boundaries the grammar splits on, and names with no words.
+// defect these properties were written for lived on exactly such a rune (#187).
+// Each entry's reason sits beside it, because a seed nobody can justify is a
+// seed nobody will maintain.
 var adversarialRunes = []string{
+	// ℤ: IsUpper reports true and ToLower returns it unchanged, a letter with
+	// no lowercase form. ℤℤA is two of those before one that does lowercase.
+	// ℤℤa passed, but the uppercase spelling one mutation away broke
+	// idempotence: lowercasing the A supplied the lowercase letter the tail
+	// rule looks for (#336).
 	"Aℤ", "aℤ", "COUNTℤ", "ℤℤa", "ℤℤA", "aℤℤb",
+	// ϒ is another letter with no lowercase form. ǅ is titlecase, neither
+	// IsUpper nor IsLower. ẞ is uppercase and its lowercase ß is a different
+	// letter. İ is uppercase and lowercases to two runes, so lowercasing
+	// changes length.
 	"Aϒ", "xǅy", "aẞb", "İstanbul", "ǅungla",
+	// A decomposed é: one letter written as a letter and a combining mark.
 	"café_v2", "́x", "x́",
+	// The scripts: a grammar can mishandle exactly one of them, so Latin alone
+	// would not show it. Cherokee and Deseret are cased and rarely tested,
+	// Greek and Cyrillic are the common non-Latin cased scripts, and Han and
+	// Hebrew are cased by nothing at all.
 	"ᎠᎡ", "ꭰx", "𐐀𐐨", "Δε", "Жx", "中文", "אב",
+	// The boundaries the grammar splits on, and names with no words.
 	"userID", "HTTPServer", "APIKey2", "v2Beta", "foo2bar",
 	"com.example.User", "get /pets/{petId}", "filter[name]",
 	"", "***", "_", "__", "a_1", "1a", "  ", "--",
 }
 
 // FuzzCanonicalWords_Properties asserts what must hold of the grammar's answer
-// for *any* input, as opposed to what its answer should be for a listed one.
+// for any input, not only a listed one: canonicalCases pins the answers, but a
+// table covers only the rows someone wrote, and the defect in #187 sat in a
+// spelling no row contained (#186).
 //
-// The distinction is the point. canonicalCases pins the answers — that userID
-// becomes user_id is a specification decision and a table is the right shape for
-// it. But a table only covers the rows someone thought to write, and these are
-// not rows: they are claims about every input at once, and the defect in #187 sat
-// in a spelling no row contained (GitHub #186).
+// None of these says the grammar is right, since a property computed through it
+// moves with it. They say its output is self-consistent and acceptable to the
+// rest of the IR.
 //
-// None of these can say the grammar is *right*; a property computed through the
-// grammar moves with it. They say the grammar is self-consistent and that its
-// output is something the rest of the IR will accept, which is a different
-// question and the one nothing was asking.
-//
-// The seeds still carry most of the weight: an ordinary `go test` executes them
-// and does not search, and the gate's per-target search is bounded to seconds
-// (see scripts/fuzz.sh). So the standing coverage is the spellings listed above
-// plus the table's, plus what a short mutation run reaches from them. That is
-// why the seeds are chosen adversarially rather than drawn from real specs — a
-// grammar mishandling one script is invisible to a corpus that only contains
-// Latin.
+// The seeds carry most of the weight: an ordinary `go test` runs them without
+// searching, and the gate's per-target search is bounded to seconds
+// (scripts/fuzz.sh).
 func FuzzCanonicalWords_Properties(f *testing.F) {
 	for _, seed := range adversarialRunes {
 		f.Add(seed)
