@@ -93,16 +93,14 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
-// It declares none — it keys responses by status code — so Response.Name carries
-// the hint ir-design §7.2 calls for there, derived from the key the response is
-// filed under. Every response used to reach the IR with all three name channels
-// empty, leaving an emitter naming a per-response result type nothing to build
-// one from (GitHub #259).
+// It declares no name and keys responses by status code, so Response.Name
+// carries the hint ir-design §7.2 calls for, derived from that key; without it
+// an emitter has nothing to name a per-response result type from (GitHub #259).
 //
-// The error half of the same map is named the same way and by the same
-// function (GitHub #422), which is what "404" and "default" below assert: the
-// spelling a wildcard or catch-all key was written under is recorded nowhere
-// else, since StatusRange renders both {500,599} and {0,0} with no trace of it.
+// The error half of the map is named the same way, by the same function (GitHub
+// #422), as "404" and "default" assert: the spelling of a wildcard or catch-all
+// key is recorded nowhere else, since StatusRange renders {500,599} and {0,0}
+// without it.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -945,17 +943,11 @@ components:
           responses: {"200": {description: ok}}
 `
 
-// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the fix's core
-// scenario for a referenced callback (issue #107): two parent operations
-// $ref'ing one #/components/callbacks/Shared must keep distinct callback
-// operation identities per parent while the callback's own request schema
-// interns once, at the shared component's own pointer.
 // TestCallbacks_NameWithSlashKeepsItsOwnKey is the encoding case's twin: the
-// callback scope is "callbacks/<name>" and the name is a map key the document
-// chooses, so a "/" in it read as a separator and two callbacks spelled one key
-// between them on the HTTP binding. Both sites take their scope from ids.Scope
-// for that reason, and each needs its own case — the fix was applied at one and
-// would have been just as easy to leave standing at the other.
+// callback scope is "callbacks/<name>" and the name is a document-chosen map
+// key, so a "/" in it must not read as a separator and merge two callbacks into
+// one key on the HTTP binding. Both sites take their scope from ids.Scope, and
+// each needs its own case, since a fix at one can leave the other standing.
 func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -984,6 +976,11 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
 }
 
+// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the core scenario
+// for a referenced callback (issue #107): two parent operations $ref'ing one
+// #/components/callbacks/Shared must keep distinct callback operation
+// identities per parent while the callback's own request schema interns once,
+// at the shared component's own pointer.
 func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedCallbackSpec)
@@ -1421,18 +1418,17 @@ components:
           schema: {type: object}
 `
 
-// TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
-// lowering a referenced component at its declaration: both operations reach the
-// same request body — whose scalar schema carries a `required` the lowered node
-// has no field for — and the same error response, whose header declares an
-// `explode` ir.Property has no field for, so each defect has one pointer and one
-// message. Reported per use site they would arrive as byte-identical copies —
-// nothing a reader could act on twice — and a component shared by twenty
-// operations would repeat each line twenty times.
+// TestDiag_SharedDeclarationReportsEachDefectOnce pins that lowering a
+// referenced component at its declaration reports each defect once. Both
+// operations reach the same request body, whose scalar schema carries a
+// `required` the lowered node has no field for, and the same error response,
+// whose header declares an `explode` ir.Property has no field for. Reported per
+// use site, a component shared by twenty operations would repeat each line
+// twenty times.
 //
-// The second defect sits on an error response's header on purpose: those reach
-// lowerHeaders only since GitHub #422, so the case covers the shared-declaration
-// rule on the path that gained them rather than on the success side alone.
+// The second defect sits on an error response's header on purpose, so the case
+// covers the shared-declaration rule on the path GitHub #422 added, not only on
+// the success side.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
@@ -1547,17 +1543,15 @@ func renderOperationIDDiags(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestOperations_OperationIDUniqueness is the end-to-end table over the
-// operationId reuse and repeat shapes. One declaration mounted more than once —
-// by a $ref, a YAML alias, a merge key, or a chain of them — is a warning at
-// each mount but one: the mount it is written at where it has one, and the
-// first by pointer where it does not. A second declaration writing the same id
-// is an error where it is written, whether the two are both paths or a path
-// against a callback, a webhook or a component.
+// TestOperations_OperationIDUniqueness is the end-to-end table over operationId
+// reuse. One declaration mounted more than once, by $ref, YAML alias or merge
+// key, warns at every mount but the one it is written at, else the first by
+// pointer. A second declaration writing the same id is an error where it is
+// written, against a path, callback, webhook or component alike.
 //
-// Several rows name their paths so that the mount a declaration is written at
-// sorts after the mount reusing it. Pointer order alone would warn at the
-// declaration there, and anchor a conflict at an alias that writes no id.
+// Several rows name their paths so the mount a declaration is written at sorts
+// after the one reusing it; pointer order alone would warn at the declaration
+// there and anchor a conflict at an alias that writes no id.
 func TestOperations_OperationIDUniqueness(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1898,20 +1892,16 @@ paths:
 }
 
 // TestOperations_SelfReferencesByFileName pins the reuse a reference naming
-// this document by its file name makes. The compiler reads such a reference as
-// internal, so the claim resolves to the declaration pointer the plain
-// reference does. The resolver, though, parses the document again to follow
-// it, so the node it hands back is a copy: node identity alone read the two as
-// two declarations and reported an error naming one pointer twice.
+// this document by its file name makes. The compiler reads it as internal, so
+// its claim has the plain reference's pointer.
 //
 // The last case is a self-reference the compiler does not read as one, since
-// its document part carries a directory (GitHub #576). Its claim resolves to a
-// pointer of its own as well as a node of its own, so it stays a conflict
-// until that is fixed, and fixing it turns the row red.
+// its document part carries a directory (GitHub #576), so its pointer is
+// another. The resolver answers it from the source as held (GitHub #759), so
+// it shares the declaring node, and that is what makes it a reuse.
 //
-// The file is written to disk because that is where the resolver reads it
-// from, and the compile needs AllowExternalRefs because the resolver counts a
-// document part in the reference as leaving the document.
+// AllowExternalRefs is needed because the resolver counts a document part as
+// leaving the document.
 func TestOperations_SelfReferencesByFileName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1935,11 +1925,11 @@ func TestOperations_SelfReferencesByFileName(t *testing.T) {
 			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 		{
-			name: "a self-reference through a directory, read as another document (GitHub #576)",
+			name: "a self-reference through a directory, read as another document's pointer (GitHub #576)",
 			paths: `  /a: {$ref: '#/components/pathItems/Shared'}
   /b: {$ref: './self.yaml#/components/pathItems/Shared'}
 `,
-			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2140,14 +2130,26 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	doc, diags := parseFull(t, ghostRefsSpec)
 	require.NotEmpty(t, diags, "unresolved refs reported")
 
-	// And the skips themselves are silent: every diagnostic here is the resolve
-	// phase's own report of a component that does not exist, which is why none
-	// carries a pointer — that phase runs before the walk that would know one. A
-	// skip lowering an empty stand-in instead would report on a construct the
-	// document never wrote, and would report it from the walk, sited.
-	for _, d := range diags {
-		assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
-		assert.Empty(t, d.Provenance.Pointer, "reported by the resolve phase, not the walk: %+v", d)
+	// And the skips themselves are silent: every diagnostic here is the load
+	// phase's report of a $ref it followed to nothing, at the $ref itself
+	// (GitHub #385). A skip lowering an empty stand-in instead would report on a
+	// construct the document never wrote, beside the one report per $ref below.
+	wantRefs := map[string]string{
+		"/paths/~1a/parameters/0":                                             "#/components/parameters/GhostParam",
+		"/paths/~1a/get/callbacks/good/{$url}":                                "#/components/pathItems/GhostInner",
+		"/paths/~1a/get/callbacks/bad":                                        "#/components/callbacks/GhostCb",
+		"/paths/~1a/get/requestBody":                                          "#/components/requestBodies/GhostBody",
+		"/paths/~1a/get/responses/200":                                        "#/components/responses/GhostResp",
+		"/paths/~1a/get/responses/201/headers/X-H":                            "#/components/headers/GhostHeader",
+		"/paths/~1a/get/responses/201/content/application~1json/examples/one": "#/components/examples/GhostEx",
+		"/paths/~1ref":                                                        "#/components/pathItems/GhostItem",
+		"/webhooks/hook":                                                      "#/components/pathItems/GhostHook",
+	}
+	require.Len(t, diags, len(wantRefs),
+		"one report per ghost reference, not a second added by a lowering resolver: %+v", diags)
+	for pointer, ref := range wantRefs {
+		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, pointer)
+		assert.Contains(t, msg, fmt.Sprintf("unresolved $ref %q", ref), "names the reference that failed")
 	}
 
 	// What each skip has to do is contribute nothing — not an empty stand-in.
@@ -2251,25 +2253,13 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 }
 
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
-// each of the three path items a document can declare, valued with the route it
-// sits on so an entry recovered from the wrong item cannot pass for the right
-// one.
+// each of the three path items a document can declare, valued with its route so
+// an entry recovered from the wrong item cannot pass for the right one.
 //
-// The value is a whole operation because that is what the position accepts:
-// the library folds a key it does not recognize into the item's operations map
-// and unmarshals it as an Operation, so a scalar there is a validation error
-// rather than a key with a value to keep. It is also the case that used to be
-// lost in silence — a well-formed operation under an undefined key raised no
-// finding at all.
-//
-// Each item writes a second such key whose value carries a YAML anchor. That one
-// never reaches the operations map — the library skips an anchored value before
-// folding it — so it is read off the raw mapping instead (GitHub #412), and the
-// raw reading has to reach every route exactly as the map reading does. The two
-// forms part company on a scalar: `bogus: 1` is folded and draws the library's
-// type-mismatch error, while `bogus: &a 1` bypasses the fold and is kept
-// verbatim with the warning alone. That divergence is the lossless outcome, not
-// a gap to close by rejecting the anchored one.
+// Each value is an operation, because the library folds an unrecognized key
+// into the item's operations map as one. Each item also writes a second such
+// key whose value carries a YAML anchor, which must be kept and reported as the
+// plain one is, on every route (GitHub #412, #459).
 const pathItemUnknownKeySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -2329,17 +2319,14 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
-// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422.
-// ir.ErrorCase held one bare TypeRef and no media type, so a 404 declaring only
-// application/problem+json reached the IR indistinguishable from one declaring
-// application/json, and a 400 declaring both kept the first schema and lost the
-// second entirely — the whole map going verbatim to Unmodeled in either case.
-// Both now lower to ErrorCase.Payload.Contents, one entry per media type, the
-// same shape and by the same function as a success response's.
+// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422:
+// an error response lowers to ErrorCase.Payload.Contents, one entry per media
+// type, in the same shape and by the same function as a success response's. A
+// 404 declaring only application/problem+json must be distinguishable from one
+// declaring application/json, and a 400 declaring both must keep both schemas.
 //
-// The 409 is the control: an error declaring no content at all still gets no
-// payload, so a Contents entry marks a declaration rather than appearing on
-// every error case.
+// The 409 is the control: an error declaring no content still gets no payload,
+// so a Contents entry marks a declaration rather than appearing on every case.
 func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
@@ -2432,20 +2419,15 @@ webhooks:
 `
 
 // TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
-// the servers pair, on every route that lowers an operation. OpenAPI says an
-// Operation Object's servers override the Path Item Object's, but only the path
-// item's were read: a document declaring both kept the superseded list and
-// dropped the effective one outright, so an emitter reading openapi:servers
-// would route to a host the operation had replaced — and nothing reported it.
+// the servers pair, on every route that lowers an operation. An Operation
+// Object's servers override the Path Item Object's, so both lists must be kept:
+// keeping only the path item's would send an emitter to a host the operation
+// had replaced, with nothing reporting it.
 //
-// All three routes are asserted because the path-item half of this same pair was
-// missing on two of its three, and preserving from lowerOperation is what is
-// claimed to make that unrepeatable. A single-route case cannot see a fix that
-// skips the other two, which is the whole shape of GitHub #39 item 2.
-//
-// The two levels are asserted under separate keys because they are two
-// declarations at two pointers. One key for both would make the surviving list
-// depend on which lowering ran last, which no single-order test could see.
+// All three routes are asserted because a single-route case cannot see a fix
+// that skips the other two (GitHub #39). The two levels sit under separate keys
+// because they are two declarations at two pointers; one key would make the
+// surviving list depend on which lowering ran last.
 func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
@@ -2853,15 +2835,11 @@ paths:
 	}
 }
 
-// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's half
-// of the orphan branch, and the one it was missing.
-//
-// A callback expression maps to a Path Item Object like any other, so an
-// expression whose item mounts no operation reached applyPathItem through
-// nothing and lost everything it wrote — the same mechanism as the paths and
-// webhooks walks, on the route that had no branch for it. That is the shape
-// GitHub #39 already cost this compiler twice, which is why the entry point is
-// shared and why this asserts the third route rather than assuming it.
+// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's
+// half of the orphan branch: a callback expression is a Path Item Object like
+// any other, so an item that mounts no operation must still keep what it wrote,
+// as on the paths and webhooks walks (GitHub #39). The entry point is shared,
+// and this asserts the third route rather than assuming it.
 //
 // The parent's HTTP binding is the carrier: a callback lowers to no node holding
 // an Unmodeled map, and the binding is where the Callback Object's own

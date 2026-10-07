@@ -74,18 +74,16 @@ func writeCommandUsage(w io.Writer, c command) {
 	emitf(w, "usage:\n  %s\nrun \"morphic help %s\" for details.\n", c.usage, c.name)
 }
 
-// filterHelpTokens returns args with every help-flag token removed. help
-// takes only a bare positional command name and defines no flags of its own,
-// so a help-flag token can never be a legitimate value for it — stripping
-// these tokens first lets the argument-count and lookup logic in runHelp run
-// on whatever command name, if any, remains. This filtering approach is safe
-// here specifically because help has no flags; dispatch must keep detecting a
-// subcommand's help request via errors.Is(err, flag.ErrHelp) from that
-// subcommand's own Parse instead of pre-scanning argv.
+// filterHelpTokens returns args with every help-flag token removed. help takes
+// only a bare command name and defines no flags, so such a token is never a
+// legitimate value; stripping them lets runHelp's argument-count and lookup
+// logic run on whatever name remains. That is safe only because help has no
+// flags: dispatch must keep detecting a subcommand's help request through
+// errors.Is(err, flag.ErrHelp) from its own Parse, not by pre-scanning argv.
 //
 // A "--" stops the filtering, since past it a help-flag token is a command name
 // like any other: "morphic help -- --help" reports an unknown command called
-// "--help" rather than dropping the token and being left with the marker.
+// "--help".
 func filterHelpTokens(args []string) []string {
 	names := make([]string, 0, len(args))
 	for i, arg := range args {

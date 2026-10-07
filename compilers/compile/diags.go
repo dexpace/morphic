@@ -5,19 +5,15 @@ import "github.com/dexpace/morphic/ir"
 // Diags accumulates a compile's diagnostics, dropping any whose full identity —
 // severity, code, message and provenance — repeats one already recorded.
 //
-// Dedup is what makes lowering a referenced component once at its declaration
-// safe to report on: every use site then produces an identical diagnostic, and
-// the second copy tells a reader nothing the first did not. Because identity
-// includes provenance, two positions that genuinely differ still both surface;
-// this collapses repeats, never distinct findings. The key is the whole value,
-// as it is in the engine's merge, so a field Diagnostic gains joins the
-// identity without an edit here.
+// Dedup makes lowering a referenced component once at its declaration safe to
+// report on: every use site would otherwise repeat the diagnostic. The key is
+// the whole value, as in the engine's merge, so a field Diagnostic gains joins
+// the identity automatically.
 //
-// Suppression that is broader than identity — silencing a whole pointer once any
-// diagnostic lands there — is compiler policy rather than a framework guarantee,
-// and stays with the compiler that wants it.
+// Suppression broader than identity, such as silencing a pointer once any
+// diagnostic lands there, is compiler policy, not part of Diags.
 //
-// The zero value is ready to use. It is single-compile state and is not safe for
+// The zero value is ready to use. It is single-compile state, not safe for
 // concurrent use.
 type Diags struct {
 	list    []ir.Diagnostic

@@ -113,21 +113,14 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 }
 
 // TestUnknownKeys_SchemaAndObjectAreGradedApart pins the one distinction the
-// census turns on, at the two keys the fixture picks for it: a draft-07
-// additionalItems in a schema, and an operationId with the case wrong on an
-// operation.
+// census turns on, at two keys: a draft-07 additionalItems in a schema, and an
+// operationId with the case wrong on an operation.
 //
-// JSON Schema states that an implementation must ignore a keyword it does not
-// recognize, so an unrecognized keyword in a schema is legal input and may carry
-// meaning for other tooling; OpenAPI states that an extension key must be
-// prefixed x-, so an undefined key on one of its objects is not an extension but
-// a defect in the document.
-//
-// Both are kept — invariant 2 does not bend for invalid input — and both carry
-// the same reason, because "no IR node is coming" is true of each. What differs
-// is what the document did, which is the diagnostic channel's subject: an
-// unrecognized keyword records a decision at info, and an undefined key reports
-// a fault at warning.
+// JSON Schema says an implementation must ignore a keyword it does not
+// recognize, so one in a schema is legal input; OpenAPI says an extension key
+// must be prefixed x-, so an undefined key on one of its objects is a defect.
+// Both are kept, and differ only in the diagnostic: info for an unrecognized
+// keyword, warning for an undefined key.
 func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "unknown-keys", unknownKeysSpec(t))
@@ -152,21 +145,16 @@ func TestUnknownKeys_SchemaAndObjectAreGradedApart(t *testing.T) {
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1widgets/get/operationid"))
 }
 
-// TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier holds the census to the
-// two spellings that used to lose a key outright, each of which put a document
-// writing it and a document writing nothing at all into the same IR.
+// TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier holds the census to two
+// spellings that could lose a key.
 //
-// An aliased key is reported by the parser under the name it resolves to, while
-// the mapping node it was written on still holds an alias whose own value is the
-// anchor. Searching that mapping for the resolved name found nothing, and a key
-// with no node kept nothing and said nothing.
-//
-// A key holding a "/" collided with the scope of the object that path names:
-// entries for the objects with no Unmodeled map of their own are keyed by the
-// path from the carrier down, so a root key spelled "info/contact/slack" was the
-// same entry as the contact object's own "slack", and the site that reached the
-// carrier second found it taken and dropped its key in silence. Escaping the key
-// as one segment is what separates them, per ids.Scope.
+// An aliased key is reported under the name it resolves to, while the mapping
+// node it was written on holds an alias, so a search for the resolved name
+// finds nothing. A key holding a "/" must not collide with the scope of the
+// object that path names: entries for objects with no Unmodeled map of their
+// own are keyed by the path from the carrier down, so a root key
+// "info/contact/slack" would equal contact's own "slack". Escaping the key as
+// one segment separates them, per ids.Scope.
 func TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "spellings", specFile(t, "unknown_key_spellings.yaml"))
@@ -196,14 +184,14 @@ func TestUnknownKeys_SpellingDecidesNeitherEntryNorCarrier(t *testing.T) {
 
 // TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped covers the one
 // carrier the census cannot key its way out of. A parameter and its schema are
-// two objects at two pointers whose entries share one unscoped map, so a key both
-// of them write is one entry, and the schema's reaches it first.
+// two objects at two pointers whose entries share one unscoped map, so a key
+// both write is one entry, and the schema's reaches it first.
 //
 // The key that loses is announced with the pointer of the construct holding the
-// entry, rather than skipped by the branch meant for a keyword another reader
-// already said better. It is still in the IR in no form at all: separating the
-// namespaces moves keys #345, #348 and the validation-only reader already
-// publish, which is GitHub #396 and not this census's to settle.
+// entry, not skipped by the branch meant for a keyword another reader already
+// said better. It is still in the IR in no form: separating the namespaces
+// moves keys #345, #348 and the validation-only reader already publish, which
+// is GitHub #396's to settle.
 func TestUnknownKeys_ClashingCarrierEntryIsReportedNotDropped(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "clash", specFile(t, "unknown_key_carrier_clash.yaml"))
@@ -249,22 +237,17 @@ components:
 	}
 }
 
-// TestUnknownKeys_SchemaSubObjects covers the three objects that hang off a
-// schema — its xml, its discriminator and its externalDocs — which the fixture
-// above deliberately leaves out.
+// TestUnknownKeys_SchemaSubObjects covers a schema's xml, discriminator and
+// externalDocs objects, which the fixture above leaves out: the OpenAPI dialect
+// meta-schema closes all three to anything but an x- key, so the library
+// reports an error on each and harness.Check returns at the first, before the
+// oracles that fixture exists to reach. The keys are kept and announced
+// regardless, graded as OpenAPI objects' keys at warning, not as schema
+// keywords at info.
 //
-// It leaves them out because the OpenAPI dialect meta-schema closes all three to
-// anything but an x- key, so the library reports a validation error on each and
-// harness.Check returns at the first one, before the oracles that fixture exists
-// to reach. The keys are kept and announced all the same, which is what this
-// asserts: an invalid document is still not a document whose keys may vanish.
-//
-// Graded as an OpenAPI object's keys rather than as schema keywords, at warning
-// rather than info: JSON Schema's rule that an unrecognized keyword is legal
-// governs the schema, and these three are OpenAPI objects the schema vocabulary
-// says nothing about. All three ride on the schema's own map, since none of
-// ir.XMLHints, ir.Discriminator or ir.Link holds one, and the keyword each was
-// written under is what keeps them apart there.
+// All three ride on the schema's own map, since none of ir.XMLHints,
+// ir.Discriminator or ir.Link holds one; the keyword each was written under
+// keeps them apart.
 func TestUnknownKeys_SchemaSubObjects(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "schema-sub-objects", `openapi: 3.1.0
@@ -335,24 +318,18 @@ paths:
 	assert.True(t, isError, "the library still rejects the scalar the key was written with")
 }
 
-// TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared is the control the path
-// item's census needs, and the one that decides whether reading its operations
-// map is sound at all.
+// TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared is the path item
+// census's control: it decides whether reading the operations map is sound.
 //
-// `query` is the case that decides it. OpenAPI 3.2 adds the method, and the
-// library puts it in the same map as every other operation, so a census taken
-// against the eight methods this compiler lowers would report a valid operation
-// as a key the specification does not define. Taking it against the library's own
-// method vocabulary is what keeps the two questions apart: whether a key names a
-// method, and whether this compiler lowers it — the second being GitHub #293.
+// `query`, which OpenAPI 3.2 adds, decides it: the library puts it in the same
+// map as every other operation, so a census against the methods this compiler
+// lowers would report a valid operation as an undefined key. Using the
+// library's own method vocabulary separates naming a method from lowering it
+// (GitHub #293).
 //
-// The rest of a path item's fields are here because a census is only evidence
-// about the keys it leaves alone. Each is a field of the library's model and so
-// never reaches the operations map, which is the property being pinned —
-// additionalOperations included, and independently of whether the compiler
-// lowers what it holds. It does lower it now (#293), so `PURGE` below is a real
-// operation rather than a dropped one; the row would read the same either way,
-// because what keeps it out of the census is the field, not the lowering.
+// The other declared fields never reach the operations map,
+// additionalOperations included, whether or not the compiler lowers what it
+// holds; a census is only evidence about the keys it leaves alone.
 func TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-fields", `openapi: 3.2.0
@@ -404,20 +381,16 @@ func requireNoErrorDiagnostics(t *testing.T, diags []ir.Diagnostic) {
 	require.False(t, ok, "unexpected error diagnostic: %+v", d)
 }
 
-// TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote covers the one place
-// the census had no carrier at all.
+// TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote covers a path item
+// that produces no operation, because it declares no method this compiler
+// lowers or holds only keys the Path Item Object does not define. applyPathItem
+// runs once per operation, so it never reaches such an item.
 //
-// applyPathItem runs once per operation an item produces, so an item producing
-// none — because it declares no method this compiler lowers, or because the only
-// keys it holds are ones the Path Item Object does not define — reached the
-// census through nothing, and its servers, extensions and undeclared keys were
-// dropped whole with no diagnostic naming the loss.
-//
-// The service is where they go, which is where the Paths Object's own extensions
-// already go for the same reason: a path item lowers to no node, so the nearest
-// node holding an Unmodeled map is what holds them. The key carries the item's
-// own pointer, because one service holds every such item and a bare prefix would
-// let two of them collide.
+// Its servers, extensions and undeclared keys go to the service, as the Paths
+// Object's own extensions do: a path item lowers to no node, so the nearest
+// node holding an Unmodeled map holds them. The key carries the item's own
+// pointer, since one service holds every such item and a bare prefix would let
+// two collide.
 func TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-unmounted", `openapi: 3.1.0

@@ -140,14 +140,12 @@ func TestCheckDuplicateIDs_TwoDifferentPropertiesOnOnePropID(t *testing.T) {
 }
 
 // TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean holds the
-// fingerprint to being no wider than it has to be, which is a claim the corpus
-// cannot make: today the three copies in component-reuse.yaml are equal in every
-// field, so a fingerprint over the whole property would pass it. Nothing
-// guarantees they stay that way — a position-carried field such as provenance or
-// a required flag is exactly what a later lowering would differ on — and the
-// day one does, a wider fingerprint reports every document that reuses a
-// component, which is the failure the class-wide skip was avoiding. Only what a
-// duplicate ID actually costs is read: which property a lookup for that ID
+// fingerprint to being no wider than it has to be, which the corpus cannot: the
+// three copies in component-reuse.yaml are equal in every field today, so a
+// fingerprint over the whole property would pass. A later lowering may differ
+// in a position-carried field such as provenance or a required flag, and a
+// wider fingerprint would then report every document that reuses a component.
+// Only what a duplicate ID costs is read: which property a lookup for it
 // reaches.
 func TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean(t *testing.T) {
 	base := ir.Property{ID: "p/x/dup", Name: ir.Naming{Source: "alpha"}, WireName: "alpha",
@@ -177,20 +175,15 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 	assert.Contains(t, codes, "ir/duplicate-op-id")
 }
 
-// identityClasses classifies every named string type the ir package declares by
-// whether it is an identity — a class of ID that references resolve against —
-// and, where it is, by what resolves those references and what holds the class to
-// being declared once.
+// identityClasses classifies every named string type the ir package declares as
+// an identity or not, and for an identity, what resolves its references and
+// holds it to being declared once.
 //
 // Both checkers reach a reference by its Go type, so a class nothing resolves
-// against goes unchecked in silence rather than failing: that is how every OpID
-// and ServiceID reference in the IR went unchecked entirely (GitHub #50). Nothing
-// derives the classification. An ID-keyed map on Document is recognizable from
-// Document's own shape, but a class with no map is indistinguishable from a class
-// nobody has got to yet, and a named string type that is an enum is
-// indistinguishable from one that is an identity. This is where that judgement is
-// written down, and the test below fails when ir grows a named string type it
-// does not account for.
+// against goes unchecked in silence, as every OpID and ServiceID reference once
+// did (GitHub #50). Nothing derives the answer: a class with no map looks like
+// one nobody has reached, and an enum looks like an identity. The test below
+// fails when ir grows a type this does not account for.
 var identityClasses = map[string]string{
 	"TypeID":    "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
 	"ChannelID": "identity: Document.Channels keys it; resolved and held as TypeID is",
