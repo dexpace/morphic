@@ -1,6 +1,9 @@
 package irverify_test
 
 import (
+	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 	"unicode/utf8"
 
@@ -469,4 +472,188 @@ func TestVerify_ValueCarrierCasesCoverEveryCarrier(t *testing.T) {
 	require.NotEmpty(t, declared, "the ir sources must declare Value carriers")
 	assert.ElementsMatch(t, declared, carriers,
 		"valueCarrierCases must plant a value in exactly the fields the ir sources declare")
+}
+
+// ctorCycleDoc builds GitHub #573's exact reproducer: a constructor value whose
+// argument is a value holding the same constructor, so the walk meets that
+// *ir.CtorValue at doc.Types[t/x/M].Examples[0].Value.Ctor and again from inside
+// itself. Its Scalar is declared in Types so the document is otherwise sound.
+func ctorCycleDoc() (*ir.Document, *ir.CtorValue) {
+	s := &ir.Scalar{ID: "t/x/S", Name: ir.Naming{Source: "S", Canonical: "s"},
+		Base: &ir.TypeRef{Target: "t/prim/string"}}
+	prim := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
+	c := &ir.CtorValue{Scalar: s.ID, Name: "from"}
+	v := ir.Value{Kind: ir.ValueCtor, Ctor: c}
+	c.Args = []ir.Value{v} // c.Args[0].Ctor == c
+	m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"},
+		Examples: []ir.Example{{Value: &v}}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{s.ID: s, m.ID: m, prim.ID: prim}}
+	return doc, c
+}
+
+// TestVerify_ValueCycleIsAViolation is GitHub #573's reproducer: a document
+// whose value graph reaches a pointer it is already inside verifies clean and
+// then cannot be encoded, the defect class #507 names. One violation reports the
+// second meeting — at the walk's current path — and names the path the pointer
+// was entered at.
+func TestVerify_ValueCycleIsAViolation(t *testing.T) {
+	t.Parallel()
+	doc, _ := ctorCycleDoc()
+	vs := irverify.Verify(doc)
+	require.Len(t, vs, 1, "the pointer cycle is the document's one defect")
+	assert.Equal(t, "ir/value-cycle", vs[0].Code)
+	assert.Equal(t, "doc.Types[t/x/M].Examples[0].Value.Ctor.Args[0].Ctor", vs[0].Path)
+	assert.Contains(t, vs[0].Message, strconv.Quote("doc.Types[t/x/M].Examples[0].Value.Ctor"),
+		"the message must name the quoted path the pointer was entered at")
+}
+
+// TestVerify_SharedAcyclicPointerIsClean is the other side of the rule: a
+// pointer two places share but that never reaches itself is not a cycle — the
+// walk meets it twice off one path and the document encodes twice without
+// trouble. Meeting the second example is also what trims the first example's
+// frames from the on-path stack, so a stack that never popped would report it.
+func TestVerify_SharedAcyclicPointerIsClean(t *testing.T) {
+	t.Parallel()
+	s := &ir.Scalar{ID: "t/x/S", Name: ir.Naming{Source: "S", Canonical: "s"},
+		Base: &ir.TypeRef{Target: "t/prim/string"}}
+	prim := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
+	c := &ir.CtorValue{Scalar: s.ID, Name: "from"}
+	m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "m"},
+		Examples: []ir.Example{
+			{Value: &ir.Value{Kind: ir.ValueCtor, Ctor: c}},
+			{Value: &ir.Value{Kind: ir.ValueCtor, Ctor: c}},
+		}}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{s.ID: s, m.ID: m, prim.ID: prim}}
+
+	assert.Empty(t, irverify.Verify(doc), "a shared but acyclic pointer encodes clean")
+}
+
+// TestVerify_ValueCyclePathIsSpelledAsTheWalkWould holds the violation's path to
+// the walk's own spelling: the walk hands the cycled *ir.CtorValue over at two
+// paths, and the violation is the second — the meeting from inside the pointer —
+// not the first.
+func TestVerify_ValueCyclePathIsSpelledAsTheWalkWould(t *testing.T) {
+	t.Parallel()
+	doc, c := ctorCycleDoc()
+	ctorType := reflect.TypeFor[*ir.CtorValue]()
+	addr := reflect.ValueOf(c).Pointer()
+
+	var meetings []string
+	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Kind() == reflect.Pointer && v.Type() == ctorType && v.Pointer() == addr {
+			meetings = append(meetings, path)
+		}
+		return true
+	})
+	require.Len(t, meetings, 2, "the walk must hand the cycled constructor over twice")
+
+	vs := irverify.Verify(doc)
+	require.Len(t, vs, 1)
+	assert.Equal(t, meetings[1], vs[0].Path, "the violation must be spelled as the second meeting")
+	assert.NotEqual(t, meetings[0], vs[0].Path)
+}
+
+// typeDefImplementers are the concrete types behind ir.TypeDef, which a walk over
+// reflect.Type cannot reach through the interface: the marker method that seals
+// the sum is unexported and ir exports no list of its kinds. So the list is
+// hand-kept, and the ir package's own
+// TestTypeDef_EverySealedImplementationHasAKind holds the sealed set to the
+// declared TypeKind constants — a kind added there without a line here is a kind
+// this survey stops covering, which is the limit the survey runs under.
+var typeDefImplementers = []ir.TypeDef{
+	&ir.Primitive{},
+	&ir.Scalar{},
+	&ir.Model{},
+	&ir.Union{},
+	&ir.Enum{},
+	&ir.List{},
+	&ir.MapT{},
+	&ir.Tuple{},
+	&ir.Literal{},
+	&ir.External{},
+	&ir.Any{},
+}
+
+// typeChildren returns the types directly reachable from t in the IR's type
+// graph: a pointer, slice, array or map's element types, a struct's field types,
+// and ir.TypeDef's implementers. A named type is followed by its kind, so
+// ir.TypeID (a string) reaches nothing while ir.Model reaches its fields. No
+// other interface is expanded: ir.TypeDef is the one interface the graph holds
+// whose implementers a type walk cannot see.
+func typeChildren(t reflect.Type) []reflect.Type {
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Array:
+		return []reflect.Type{t.Elem()}
+	case reflect.Map:
+		return []reflect.Type{t.Key(), t.Elem()}
+	case reflect.Struct:
+		out := make([]reflect.Type, 0, t.NumField())
+		for i := range t.NumField() {
+			out = append(out, t.Field(i).Type)
+		}
+		return out
+	case reflect.Interface:
+		if t != reflect.TypeFor[ir.TypeDef]() {
+			return nil
+		}
+		out := make([]reflect.Type, 0, len(typeDefImplementers))
+		for _, td := range typeDefImplementers {
+			out = append(out, reflect.TypeOf(td))
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// reachableFrom returns every type reachable from root through the IR's type
+// graph, root included.
+func reachableFrom(root reflect.Type) map[reflect.Type]bool {
+	seen := map[reflect.Type]bool{}
+	queue := []reflect.Type{root}
+	for len(queue) > 0 {
+		t := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if seen[t] {
+			continue
+		}
+		seen[t] = true
+		queue = append(queue, typeChildren(t)...)
+	}
+	return seen
+}
+
+// selfReachable returns, sorted, the names of the types of the given kind that a
+// value of their own element type can reach — the property a cycle needs and a
+// value two places merely share lacks.
+func selfReachable(kind reflect.Kind) []string {
+	var out []string
+	for t := range reachableFrom(reflect.TypeFor[*ir.Document]()) {
+		if t.Kind() != kind {
+			continue
+		}
+		if reachableFrom(t.Elem())[t] {
+			out = append(out, t.String())
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestValueCycle_OnlyCtorValueReachesItself is the executable survey behind
+// checkValues' cycle rule: it walks the IR's type graph and reports which
+// pointer and slice types can reach themselves, so a new self-reachable type
+// reddens here rather than shipping a check that names the wrong shape.
+//
+// The one self-reachable pointer is ir.CtorValue, through Value.Ctor and
+// CtorValue.Args. The three self-reachable slices are []ir.Value, []ir.Field and
+// []ir.OperationGroup: the first two are the list mechanism GitHub #736 tracks,
+// and the third is the same mechanism through the service tree, named so that
+// issue's scope is not read as complete.
+func TestValueCycle_OnlyCtorValueReachesItself(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"*ir.CtorValue"}, selfReachable(reflect.Pointer),
+		"a pointer that newly reaches itself needs a review of ir/value-cycle's name and its follow-up")
+	assert.Equal(t, []string{"[]ir.Field", "[]ir.OperationGroup", "[]ir.Value"}, selfReachable(reflect.Slice),
+		"slice cycles are out of scope for ir/value-cycle and tracked separately")
 }

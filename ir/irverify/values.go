@@ -3,6 +3,7 @@ package irverify
 import (
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -48,17 +49,83 @@ var valuePayloads = map[ir.ValueKind]payloadRule{
 // payload while another is populated gives a consumer two answers (GitHub
 // #506), and the JSON form hides it, since every empty payload is omitted.
 //
-// The walk reaches values rather than the fields that carry them, so a new
-// carrier is held at once.
+// The walk reaches values, not their carriers, so a new carrier is held at once.
+// A pointer met again inside itself is ir/value-cycle (valuePointer).
 func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
+	var stack []valuePointer
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		stack = trimPointerStack(stack, path)
+		if v.Kind() == reflect.Pointer && !v.IsNil() {
+			if entered, onPath := pointerOnPath(stack, v); onPath {
+				vs = append(vs, Violation{
+					Code: "ir/value-cycle",
+					Message: "value reaches a pointer it is already inside (entered at " +
+						strconv.Quote(entered) + "), so the document cannot be encoded",
+					Path: path,
+				})
+			} else {
+				stack = append(stack, valuePointer{typ: v.Type(), addr: v.Pointer(), path: path})
+			}
+		}
 		if v.Type() == valueType {
 			vs = appendValueViolations(vs, v, path)
 		}
 		return true
 	})
 	return vs, truncated
+}
+
+// valuePointer is one pointer the walk is inside, and path is where the walk
+// entered it. checkValues stacks these because [ir.WalkValues] hands a pointer
+// over before the seen set that stops a second descent, so a pointer met again
+// on the way down is a cycle the JSON encoder refuses and the walk's guard would
+// hide. The rule is generic over pointers, not special-cased to ir.CtorValue,
+// the one that reaches itself today. Self-containing slices hold no pointer;
+// GitHub #736 tracks them. Type and address together identify the pointer: an
+// address alone can be reused, and a type alone names every value.
+type valuePointer struct {
+	typ  reflect.Type
+	addr uintptr
+	path string
+}
+
+// trimPointerStack drops the frames the walk has left so the stack holds exactly
+// the pointers enclosing path. Frames are pushed in the order the walk enters
+// them, so their paths run outermost to innermost and only the innermost can be
+// the one just left: popping while the top does not enclose path stops at the
+// first frame that does, and every frame below that one encloses it too. The
+// stack needs no bound of its own, since the walk stops at ir.MaxWalkDepth.
+func trimPointerStack(stack []valuePointer, path string) []valuePointer {
+	for len(stack) > 0 && !enclosesPath(stack[len(stack)-1].path, path) {
+		stack = stack[:len(stack)-1]
+	}
+	return stack
+}
+
+// pointerOnPath reports whether v's pointer is already one the walk is inside,
+// returning the path it was entered at.
+func pointerOnPath(stack []valuePointer, v reflect.Value) (entered string, onPath bool) {
+	for _, frame := range stack {
+		if frame.typ == v.Type() && frame.addr == v.Pointer() {
+			return frame.path, true
+		}
+	}
+	return "", false
+}
+
+// enclosesPath reports whether path is ancestor itself or a path nested under
+// it, the way [ir.WalkValues] spells the two: an equal path, ancestor followed
+// by ".", or ancestor followed by "[".
+//
+// Reading rendered paths has two limits. A map key containing "." or "[" can
+// make a sibling read as nested, reporting a cycle only when that sibling also
+// shares the pointer; and an embedded pointer field would share its owner's
+// path, though the document graph has none.
+func enclosesPath(ancestor, path string) bool {
+	return path == ancestor ||
+		strings.HasPrefix(path, ancestor+".") ||
+		strings.HasPrefix(path, ancestor+"[")
 }
 
 // appendValueViolations reports one value's defects. An undeclared kind selects
