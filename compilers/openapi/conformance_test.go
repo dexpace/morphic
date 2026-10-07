@@ -35,28 +35,13 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // capability-specific assertion plus a byte-exact golden IR snapshot. Regenerate
 // the goldens with `go test ./compilers/openapi -run TestConformance -update`.
 //
-// What this corpus does *not* cover is derived rather than described:
-// TestConformance_UnwitnessedIRFields snapshots every ir field no committed spec
-// drives to a non-zero value, so the gap is a file in the corpus that -update
-// recomputes and review reads as a diff. A case landing here shrinks it; a new IR
-// field, or a compiler that stops writing one, grows it.
+// What the corpus does not cover is derived, not described, so nothing about
+// its reach is claimed by hand: TestConformance_UnwitnessedIRFields snapshots
+// every ir field no committed spec drives to a non-zero value. Some of what it
+// lists no spec can reach, such as a field only another source format writes.
 //
-// Some of what remains listed there no spec can reach — a field only another
-// source format writes, or one the compiler assigns a zero value that IsZero
-// cannot tell from never being written. That test's doc comment says which
-// weaknesses are structural; the point of the file is that nothing about the
-// corpus's reach is claimed here by hand.
-//
-// It is deliberately *not* parallel, the one test in this package that is not,
-// because it writes the corpus directory. Its subtests are parallel and, under
-// -update, each one writes its golden into testdata/conformance/openapi; the
-// scheduler only waits for a test's parallel subtests before that test itself
-// finishes, so a sequential parent is what makes those writes complete before
-// any later test reads the directory. TestConformance_TableNamesEveryCorpusSpec
-// reads it and is declared after this test in this file; running the two
-// concurrently is the race that made a first -update run over a newly added spec
-// report the spec as having no golden while this test's subtest was still
-// writing it. Its comment carries the reader's half of the ordering.
+// Not parallel: its -update subtests write the corpus, which
+// TestConformance_TableNamesEveryCorpusSpec, declared after it, reads.
 func TestConformance(t *testing.T) {
 	for _, tc := range conformanceCases() {
 		t.Run(tc.file, func(t *testing.T) {
@@ -78,22 +63,12 @@ func TestConformance(t *testing.T) {
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
-// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
-// it looks covered; a row naming a deleted spec fails the other way. Comparing
-// sorted lists rather than sets also catches a spec named by two rows.
+// still read it, so it looks covered; a row naming a deleted spec fails the
+// other way. Comparing sorted lists also catches a spec named by two rows.
 //
-// This test is deliberately *not* parallel, and is declared after TestConformance
-// in this file, which is likewise not parallel. It reads the corpus directory,
-// and under -update TestConformance's parallel subtests write goldens into that
-// same directory: run concurrently with them — which is what t.Parallel gave
-// before this was fixed — corpusSpecNames reads a spec whose golden has not been
-// written yet as a spec with no golden, and this test reports "corpus specs and
-// goldens disagree" for a race rather than a defect. A newly added spec fails
-// that way on the first -update run and passes on the next, which is exactly the
-// kind of intermittency a reviewer should not have to diagnose. Both tests being
-// sequential orders the writer ahead of this reader by declaration order;
-// TestConformance's comment says why the writer is the one that cannot be
-// parallel, since only it writes.
+// Not parallel, and declared after TestConformance: run beside its -update
+// subtests, it read a spec whose golden was not yet written and failed a newly
+// added spec's first -update run for a race, not a defect.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 	onDisk := corpusSpecNames(t)
 	cases := conformanceCases()
@@ -111,13 +86,11 @@ func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
 // corpusSpecNames returns the base name of every spec in the corpus directory,
 // failing on any file that is neither a .yaml spec nor a golden beside one.
 //
-// The .yaml-only restriction is asserted here rather than assumed by a narrower
-// glob. parseCorpus reads "<name>.yaml", so a spec committed as .yml or .json
-// cannot be named by a table row at all — while the corpus-wide sweep in
-// conformance_unwitnessed_test.go reads all three extensions and counts the
-// fields such a spec exercises as witnessed. Left to a glob, that spec would
-// pass through carrying neither a capability assertion nor a golden: the hole
-// this test exists to close, reached by a different spelling.
+// The .yaml-only restriction is asserted rather than left to a narrower glob.
+// parseCorpus reads only "<name>.yaml", so a spec committed as .yml or .json
+// could not be named by a table row, yet the corpus-wide walk in
+// conformance_unwitnessed_test.go reads all three extensions and would count its
+// fields as witnessed, leaving it with neither assertion nor golden.
 func corpusSpecNames(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(conformanceDir)
@@ -150,26 +123,18 @@ func corpusSpecNames(t *testing.T) []string {
 	return specs
 }
 
-// conformanceCase pairs one corpus spec with the assertion that says what
-// capturing its capability losslessly means, and with the capability rows of
-// ir-spec-matrix.md it witnesses.
+// conformanceCase pairs one corpus spec with the assertion that its capability
+// is captured losslessly, and with the ir-spec-matrix.md rows it witnesses.
 //
-// rows may be empty. The corpus also holds specs pinning a construct the matrix
-// has no row for — a JSON Schema dialect keyword, an XML hint, a residue that
-// must survive with no IR home — and a row invented to receive one of those
-// would make the matrix describe the corpus instead of the source formats. The
-// direction the contract runs in is row → spec, checked in
-// conformance_matrix_test.go; the reverse direction is already covered, by
-// TestConformance_TableNamesEveryCorpusSpec.
+// rows may be empty: a spec pinning a construct the matrix has no row for, such
+// as a dialect keyword, needs none, since an invented row would make the matrix
+// describe the corpus. The contract runs row to spec, checked in
+// conformance_matrix_test.go; TestConformance_TableNamesEveryCorpusSpec covers
+// the reverse.
 //
-// Naming a row claims the spec's *golden* shows that capability captured, and
-// no test can check that much — it is read by a reviewer. Reaching for a
-// construct on the way to a different subject is not witnessing it: this table
-// claimed constraints from a spec whose whole subject is keywords with no IR
-// home, and encoding hints from one whose format keyword lowers to a primitive
-// type rather than to ir.Encoding. Both rows were witnessed elsewhere, so
-// nothing went red; had they not been, the corpus would have reported coverage
-// it did not have.
+// Naming a row claims the golden shows that capability captured, which only a
+// person reading the golden can check. Touching a construct on the way to
+// another subject is not witnessing it.
 type conformanceCase struct {
 	file   string
 	assert func(*testing.T, *ir.Document, []ir.Diagnostic)
@@ -374,20 +339,12 @@ func assertNamedTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertNeutralNaming covers invariant 4's second half: Naming.Canonical is a
-// neutral word sequence whatever the source spelled the word boundaries as. Real
-// specs name things with dots (a namespaced component, a versioned field, an
-// enum value), brackets (a deep-object query parameter) and hyphens (a header),
-// and each of those characters used to reach Canonical verbatim.
-//
-// The corpus needed a spec that writes them at all: every other fixture names
-// things in plain identifiers, so the compiler and the goldens shared one blind
-// spot and the segmentation could not be wrong in a way any of them saw.
-//
-// Naming.Hint is covered by the same spec and for the same reason: a hint is
-// built from a context string the source spelled, so this is the fixture whose
-// context strings carry the punctuation. The enum property's hoisted node used
-// to be hinted "rollout.state" verbatim, which is a name no emitter can render
-// (GitHub #54).
+// neutral word sequence whatever the source spelled the word boundaries as.
+// Real specs use dots (namespaced components, versioned fields, enum values),
+// brackets (deep-object query parameters) and hyphens (headers), so this spec
+// writes each where a segmentation fault would show. Naming.Hint is covered by
+// the same spec: its context strings carry the punctuation, and a hint such as
+// "rollout.state" is a name no emitter can render (GitHub #54).
 func assertNeutralNaming(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	svc := doc.Services[0]
@@ -534,28 +491,17 @@ var composedHints = []struct {
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
 }
 
-// assertEmptyDerivedHints is the case minting at the node alone does not reach.
-// A child named after its position inside another has its hint built out of the
-// enclosing node's, and concatenating onto an empty one used to yield a leading
-// "_": non-empty, so the presence rule passes it, but a shape no grammar
-// produces and one that disagrees with the node it hangs off. The enclosing hint
-// is minted before the child is composed from it.
+// assertEmptyDerivedHints covers hints a child composes from an enclosing
+// node's. Concatenating onto an empty hint once yielded a leading "_", which is
+// non-empty so irverify's presence check passes it, yet no grammar produces it.
 //
-// The composition sites are the callers of compile.SubHint:
-//
-//	grep -rn 'compile\.SubHint(' compilers/openapi
-//
-// composedHints covers every one an unnamed position can reach. The single
-// exception is the sequential media type's 3.2 itemSchema, and it is not a gap:
-// both callers of lowerPayload pass an enclosing hint that cannot be empty —
-// "response" is a literal, and the request-body side falls back to "request"
-// because ids.ComponentEntry refuses a component keyed "". SubHint there is
-// uniformity rather than a fix.
-//
-// A composed variant of an *inline* branch is likewise absent by construction,
-// not by omission: ir-design §4.8 keeps that union verbatim instead of
-// distributing it, so the $ref form the Host case uses is the only form that
-// reaches composedVariant at all.
+// composedHints has no row for contentSchema, which an empty-named property
+// reaches (#743). The sequential media type's itemSchema cannot need one: both
+// callers of lowerPayload pass a non-empty hint, since ids.ComponentEntry
+// refuses a component keyed "" and the fallbacks are "response" and "request".
+// A composed variant of an inline branch is absent too: ir-design §4.8 keeps
+// that union verbatim, so only the $ref form the Host case uses reaches
+// composedVariant.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[namedID("Mixed")].(*ir.Model)
@@ -587,22 +533,16 @@ func assertInlineTypes(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertInlineHoistPositions pins the six operation-side positions an inline
-// composite can be declared at, against the ID each one's source pointer
-// derives.
+// composite can be declared at against the ID each one's source pointer derives.
+// Neither inline-types.yaml nor the inlinePositions table in
+// compilers/openapi/internal/schema reaches a parameter, response header,
+// webhook or callback, which are lowered a layer up.
 //
-// inline-types.yaml pins one position, a schema property; the inlinePositions
-// table in compilers/openapi/internal/schema pins the ones that package reaches
-// on its own. Neither reaches a parameter, a response header, a webhook or a
-// callback, which are lowered a layer up — and the callback operation body had
-// no anonymous node anywhere in the corpus, so a hoist that mis-derived its ID
-// changed no golden at all.
-//
-// Two things are asserted, and the second is not spare. The referring site must
-// point at the derived ID, which a moved position changes. Then the six targets
-// must be six distinct nodes — the check that survives a *synchronized* edit,
-// where a hoist collapsing identical bodies onto one node and an expectation
-// updated to match would agree with each other and leave the diff green. The
-// fixture writes the same body at all six so a collapse is reachable at all.
+// The referring site must point at the derived ID, which a moved position
+// changes. The six targets must also be six distinct nodes, which survives a
+// synchronized edit: a hoist collapsing identical bodies and an updated
+// expectation would otherwise agree. The fixture writes one body at all six so a
+// collapse is reachable.
 func assertInlineHoistPositions(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	got := inlineHoistPositionRefs(t, doc)
 	if diff := cmp.Diff(inlineHoistPositionIDs(), got); diff != "" {
@@ -677,25 +617,14 @@ func inlinePropTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string)
 	return prop.Type.Target
 }
 
-// assertComponentReuse covers the non-schema half of `$ref`: OpenAPI lets a
-// parameter, requestBody, response, header, callback, or whole path item be
-// declared once under components and referenced from many operations. Each
-// lowers at its declaration, so the shared node is interned once however many
-// operations reach it, while the operations that reach it stay distinct.
-
 // assertSharedResponseAcrossStatus reads the one shape that puts lowerResponse
 // and lowerErrorCase on the same declaration: a components/responses entry
 // mounted at both a success and an error status. Both intern the body type at
-// the component's own pointer, so the two mints race for it and the loser's
-// naming hint is discarded — the type came out hinted "response" or "error"
-// depending on which status was written first, which the order-invariance oracle
-// reports as an order-dependent registry.
-//
-// Nothing else in the corpus reaches one response component from both sides of
-// that boundary (component-reuse.yaml mounts Listed only at 200s and Failure
-// only at default), so without this spec the oracle never asks. The hint is now
-// derived from the declaration pointer, which is one pointer whichever side
-// reaches it first.
+// the component's pointer, so the two mints race for it and the loser's naming
+// hint is discarded, which the order-invariance oracle reports as an
+// order-dependent registry. The hint derives from the declaration pointer, the
+// same whichever side reaches it first. No other corpus spec reaches one
+// response component from both sides, so the oracle needs this one to ask.
 func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op := operationAt(t, doc, "GET", "/widgets")
 	require.Len(t, op.Responses, 1, "the success mount")
@@ -719,6 +648,11 @@ func assertSharedResponseAcrossStatus(t *testing.T, doc *ir.Document, _ []ir.Dia
 		"with no component to name it, both sides fall back to the one word")
 }
 
+// assertComponentReuse covers the non-schema half of `$ref`: OpenAPI lets a
+// parameter, requestBody, response, header, callback, or whole path item be
+// declared once under components and referenced from many operations. Each
+// lowers at its declaration, so the shared node is interned once however many
+// operations reach it, while the operations that reach it stay distinct.
 func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	widgets := operationAt(t, doc, "GET", "/widgets")
 	gadgets := operationAt(t, doc, "GET", "/gadgets")
@@ -879,19 +813,14 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	assertInlineBranchHint(t, doc)
 }
 
-// assertInlineBranchHint pins the hint an inline composition branch takes when an
-// outside reference names its pointer too.
-//
-// Both lowerings reach that node — the union through its composition, the
-// reference through hoistSubSchema — and only the first to arrive interns it, so
-// the two must derive the same hint. A $ref branch has a target to take a name
-// from and both already read it; an inline branch has only its position, and the
-// reference path used to name it after the bare ordinal, "0" (GitHub #181).
-//
-// The value is asserted rather than left to the golden because the golden records
-// whichever hint won without saying the two agree, which is the property at
-// stake. The corpus carries the shape so the two-order oracle covers it: the
-// oracle detects this class, and until now no committed spec put it in reach.
+// assertInlineBranchHint pins the hint an inline composition branch takes when
+// an outside reference names its pointer too. The union reaches that node
+// through its composition and the reference through hoistSubSchema, and only the
+// first to arrive interns it, so both must derive the same hint. An inline
+// branch has only its position to be named by, and the reference path once used
+// the bare ordinal "0" (GitHub #181). The value is asserted because the golden
+// records whichever hint won without saying the two agree, and the corpus
+// carries the shape so the two-order oracle covers it.
 func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	const branchID = ir.TypeID("t/anon/components/schemas/InlineHost/oneOf/0")
@@ -1013,16 +942,11 @@ func assertDiscriminatorInlineSubtype(t *testing.T, doc *ir.Document, _ []ir.Dia
 // assertDiscriminatorTransitive covers a hierarchy deeper than the two levels
 // discriminator-inheritance reaches: the subtype's own allOf branch names an
 // intermediate schema that declares no discriminator, so the tag value can only
-// come from an ancestor further up (GitHub #305).
-//
-// Depth is the whole point, so what each subtype composes is pinned beside its
-// tag: Puppy and Whelp answer to the hierarchy while naming a base that anchors
-// none. The undiscriminated chain beside them is the boundary — depth on its own
-// must not manufacture a value.
-//
-// Both spellings of a tag at depth are covered: Puppy is named by the mapping,
-// which is a base routing a wire value straight onto a grandchild, and Whelp is
-// named by nothing and answers to its own schema name three hops down.
+// come from an ancestor further up (GitHub #305). What each subtype composes is
+// pinned beside its tag, since depth is the point. The undiscriminated chain
+// beside them is the boundary: depth alone must not manufacture a value. Puppy
+// is named by the mapping, routing a wire value straight onto a grandchild;
+// Whelp is named by nothing and answers to its own schema name three hops down.
 func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
 	require.True(t, ok, "the root of the hierarchy is a Model")
@@ -1143,19 +1067,12 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
-// no member, so the position it is written at accepts no instance. The
-// capability claimed is that the IR says that exactly rather than approximating
-// it — a closed Enum admits its members and nothing else, so a closed Enum with
-// none admits nothing.
-//
-// It used to say the opposite. The keyword was read off `len(enum) > 0`, which
-// cannot tell an empty member list from an absent one, so the position widened
-// to whatever its siblings admitted — the top type where nothing else was
-// written — reporting nothing and keeping nothing (GitHub #278).
-//
-// Holder's `colour` is in the corpus for the same reason the empty spellings
-// are: a populated enum must go on lowering as it did, so this reddens for a
-// change reaching every enum rather than the degenerate one.
+// no member, so the position accepts no instance. The IR says that exactly,
+// since a closed Enum admits its members and nothing else. Reading the keyword
+// off `len(enum) > 0` cannot tell an empty list from an absent one, so the
+// position would widen to what its siblings admit (GitHub #278). Holder's
+// `colour` is in the corpus so that a change reaching every enum, not only the
+// empty one, reddens this.
 func assertEmptyEnum(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	empty := map[string]ir.PrimKind{
 		"Nothing":          ir.PrimString,
@@ -1419,18 +1336,14 @@ func assertNullable31Ref(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertCollapsedBranchHint(t, doc)
 }
 
-// assertCollapsedBranchHint covers the {X, null} collapse's naming of the branch
-// it keeps. The branch pointer is nameable from outside — BranchRef names it —
-// and only the first lowering to reach it interns the node, so the collapse and
-// an outside $ref must derive the same hint or the document depends on which
-// component is declared first. The collapse used to hand the branch the
-// *enclosing* schema's hint, which is neither what its composition would give it
-// nor what the pointer walk derives (GitHub #281).
-//
-// The spec declares Collapsed before BranchRef on purpose: that is the order in
-// which the collapse reaches the pointer first, and so the order that carried
-// the enclosing name. The permutation half is the corpus-wide two-order oracle's
-// (internal/harness), which compares hints with nothing excluded.
+// assertCollapsedBranchHint covers the {X, null} collapse's naming of the
+// branch it keeps. The branch pointer is nameable from outside (BranchRef names
+// it) and only the first lowering to reach it interns the node, so the collapse
+// and an outside $ref must derive the same hint, or the document depends on
+// which component is declared first (GitHub #281). The spec declares Collapsed
+// before BranchRef on purpose: that is the order in which the collapse reaches
+// the pointer first. The permutation half is the two-order oracle's
+// (internal/harness).
 func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	const branchID = ir.TypeID("t/anon/components/schemas/Collapsed/oneOf/0")
@@ -1455,13 +1368,10 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 // assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed
 // among the members of a null-admitting type array. The member is normalized
 // onto the Nullable bit of every reference to the enum rather than degrading the
-// declaration to a union of literals, so the capability being claimed is the
-// pair — a closed Enum of the scalar members, and null admitted at each use.
-//
-// The golden beside this case cannot pin the strip on its own: the type array
-// already carries the bit, so deleting the `null` member from the spec leaves
-// the IR body byte-identical and moves only the source hash. The member count
-// below is what pins it.
+// declaration to a union of literals, so the claim is the pair: a closed Enum of
+// the scalar members, and null admitted at each use. The golden cannot pin the
+// strip, since the type array already carries the bit and deleting the `null`
+// member moves only the source hash; the member count below does.
 func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	e, ok := doc.Types[namedID("Color")].(*ir.Enum)
 	require.True(t, ok, "the null member does not cost the declaration its enum-ness")
@@ -1519,17 +1429,16 @@ func assertNullableEnum31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 		"an enum excluding null must not admit it, whatever the type keyword names")
 }
 
-// assertNullabilityConjunction covers the rule that decides null admission for a
-// schema whose keywords disagree: JSON Schema conjoins them, so a position
-// admits null when something declares it and nothing takes it away. The
-// capability claimed is agreement — the same constraint written two ways reaches
-// one Nullable bit — which is what a target language can act on, since an
-// emitter reads the bit and never the spelling.
+// assertNullabilityConjunction covers how null admission is decided for a schema
+// whose keywords disagree: JSON Schema conjoins them, so a position admits null
+// when something declares it and nothing takes it away. The claim is agreement:
+// the same constraint written two ways reaches one Nullable bit, which is all an
+// emitter reads.
 //
 // Base and Mixins are asserted to stay bare on purpose. They name one side of a
-// conjunction, so the bit belongs to the usage that names the whole of it; a
-// composition carrying its own would put the same fact in two places that can
-// then disagree.
+// conjunction, so the bit belongs to the usage that names the whole; a
+// composition carrying its own would state one fact in two places that can
+// disagree.
 func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("Holder")].(*ir.Model)
 	require.True(t, ok)
@@ -2186,19 +2095,12 @@ func paramStyleExplodeDefault(style string) bool {
 }
 
 // paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
-// from the two tables above, instead of restating it beside them.
-//
-// Generating it is what closes the hole a literal expectation leaves. A literal
-// and the fixture are two copies of one claim, so deleting a row from both
-// leaves nothing to disagree — and the counts that were supposed to notice
-// counted a deduplicated set, which a shrunk fixture still reaches whenever some
-// other parameter happens to resolve the same way. Every row of every location
-// defaulting its style was shadowed that way, including the cookie row this
-// fixture exists for.
-//
-// Generating it moves the question up rather than answering it: the table and
-// the fixture can still shrink together. TestParamStyleTable_MatchesTheSpecification
-// is what stops there being a third place to shrink, by holding the table to a
+// from the two tables above, rather than restating it beside them. A literal
+// expectation and the fixture are two copies of one claim, so deleting a row
+// from both leaves nothing to disagree, and counts over a deduplicated set can
+// still pass a shrunk fixture when another parameter resolves the same way.
+// Generating moves the question up: the table and the fixture can still shrink
+// together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
 func paramStyleMatrixWant() map[paramID]paramWire {
 	want := map[paramID]paramWire{}
@@ -2222,20 +2124,15 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 }
 
 // TestParamStyleTable_MatchesTheSpecification anchors the (in, style) table to
-// OpenAPI's own — the one thing a generated expectation cannot do for itself.
+// OpenAPI's own, which a generated expectation cannot do for itself. Deleting a
+// pair and the parameters it generated, then regenerating the golden, leaves
+// every check agreeing with the smaller world; only the specification is outside
+// that loop. 3.2 tabulates the legal combinations and says "Combinations not
+// represented in this table are not permitted", so this count is OpenAPI's and
+// changing it is a claim about the format.
 //
-// Generating the expectation stops the fixture shrinking alone. It does not stop
-// the table and the fixture shrinking together: delete a pair, delete the
-// parameters it generated, regenerate the golden, and every check agrees with
-// the smaller world. That is the same failure one level up, and the only thing
-// outside the loop is the specification. 3.2 tabulates the legal combinations
-// and says "Combinations not represented in this table are not permitted", so
-// this count is OpenAPI's; changing it is a claim about the format that a
-// reviewer reads rather than a quiet edit.
-//
-// It also holds the two halves of the table to each other. A location's default
-// style has to be a style that location legally takes, and nothing else would
-// notice a default naming a pair the table does not have.
+// It also holds the two halves of the table to each other: a location's default
+// style must be a style that location legally takes.
 func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 	t.Parallel()
 	pairs := paramStyleLegalPairs()
@@ -2296,14 +2193,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // one-entry content map names is the whole of its stated serialization.
 //
 // It has an operation to itself because 3.2 forbids a querystring parameter from
-// sharing one — or its path item — with any `in: query` parameter, in both
-// directions. Asserting the operation binds exactly one parameter is how that
-// stays true: the location cannot be reached by picking it out of a crowd.
+// sharing one, or its path item, with any `in: query` parameter; the test
+// asserts the operation binds exactly one.
 //
 // It carries neither style nor explode: 3.2 gives the location no style, and
-// explode qualifies a style there is none of (GitHub #334). Both are pinned
-// rather than left unasserted so the arm that once stamped form/true here cannot
-// come back without reddening this case and its golden.
+// explode qualifies a style there is none of (GitHub #334). Both are pinned so a
+// stamped form/true default cannot return.
 func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	op, ok := opByName(doc, "querystringOnly")
@@ -2323,18 +2218,15 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 
 // assertParamQuerystring pins the 3.2 querystring location, where the whole
 // query string binds from the parameter's content: the binding carries that
-// media type and neither style nor explode, the two keywords the location
-// forbids (GitHub #334). The ordinary query parameter beside it keeps the
-// defaults its own location does admit, so what separates them is the location
-// rather than the presence of content.
+// media type and neither style nor explode, which the location forbids (GitHub
+// #334).
 //
-// The third operation is what this spec holds that param-style-matrix does not:
-// only the *default* is suppressed here, so an explode the document declares
-// survives at a location that takes no style. That case declares neither keyword
-// there, so reverting the early return that used to drop a declared explode
-// reddens this golden and leaves that one green. It also pins the one
-// diag.InvalidLocationKeyword this fixture raises — see that code's GoDoc for
-// why it is a warning; querystring-forbidden-keywords pairs both keywords.
+// The third operation holds what param-style-matrix does not: only the default
+// is suppressed, so a declared explode survives at a location that takes no
+// style. param-style-matrix declares neither keyword there, so reverting the
+// early return that dropped a declared explode leaves it green. This case also
+// pins the one diag.InvalidLocationKeyword this fixture raises; see that code's
+// GoDoc for why it is a warning.
 func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	report, ok := opByName(doc, "runReport")
 	require.True(t, ok)
@@ -2407,16 +2299,12 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
-// $ref: docs, deprecation and default come from the referent when the use site is
-// silent, and from the use site when it is not. Constraints inherit at neither
-// carrier, so the identical property is asserted beside it — a parameter must not
-// take more from a referent than a property does (GitHub #131).
-//
-// The bound the use site declares beside the $ref is asserted at both carriers
-// too, against the referent's own: it is what makes the split observable rather
-// than merely absent, and it is the case use-site precedence would get wrong,
-// publishing 100 as the whole truth while the document enforces 64 (§12.2,
-// GitHub #428).
+// $ref: docs, deprecation and default come from the referent when the use site
+// is silent, and from the use site when it is not. Constraints inherit at
+// neither carrier, so the identical property is asserted beside it (GitHub
+// #131). The bound the use site declares beside the $ref is asserted at both
+// carriers against the referent's own: use-site precedence would publish 100 as
+// the whole truth while the document enforces 64 (§12.2, GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)
@@ -2774,12 +2662,8 @@ func assertPerStatusErrors(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertErrorCaseIsAResponse holds the three fields ir.ErrorCase gained in
-// GitHub #422 to the same claim ir.Response already carried: every status
-// spelling, every header and every media type survives, whatever the status
-// class. Before them an error case held one bare TypeRef, so a 429 lost its
-// Retry-After outright, an error declaring two media types kept the first schema
-// and no media-type key at all, and "5XX" and "default" were told apart only by
-// ranges that render {500,599} and {0,0}.
+// GitHub #422 to the claim ir.Response already carried: every status spelling,
+// every header and every media type survives, whatever the status class.
 //
 // The 5XX case doubles as the control: an error response declaring no headers
 // and no content gets neither, so what the other two carry marks a declaration
@@ -2907,13 +2791,8 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // assertPathItemAnchoredKey pins that an undeclared path-item key whose value
 // carries a YAML anchor is kept and reported exactly as a plainly-valued one
-// beside it is (GitHub #412).
-//
-// The two used to part company at the fold: the library folds a plain undeclared
-// key into the item's operations map, where the census read it, but skips a key
-// whose value is anchored before that fold, so the anchored one reached the IR
-// in no form at all — no entry, no diagnostic — while its neighbour was kept and
-// warned about. Each key is asserted with its own marker so an entry recovered
+// beside it is (GitHub #412), rather than reaching the IR in no form and with no
+// diagnostic. Each key is asserted with its own marker so an entry recovered
 // under the wrong key cannot pass for the right one.
 func assertPathItemAnchoredKey(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "getX")
@@ -3159,22 +3038,15 @@ func assertExtensionsX(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertRawPreservedBinary(t, m)
 }
 
-// assertEveryObjectKeepsItsExtensions holds the whole rule rather than the
+// assertEveryObjectKeepsItsExtensions holds the whole contract, not the
 // positions that happened to be noticed: every OpenAPI object that admits an
-// x-* keeps it. The fixture writes `x-mark` on each, with a value naming the
-// object, so a row that stops arriving names exactly which lowering stopped
-// reading — and a lowering that never read one fails here before it ships.
+// x-* keeps it. The fixture writes `x-mark` on each with a value naming the
+// object, so a row that stops arriving names the lowering that stopped reading.
 //
-// Carriers are derived from the value graph, not named: the row says which
-// Unmodeled map the entry must land on by the path the walk reaches it at, so a
-// carrier that moves still matches and an entry written to the wrong one does
-// not.
-//
-// A carrier has to narrow the document, since the match is a substring one: a
-// bare ".Unmodeled" ends every path the walk produces, so a row spelled that way
-// admits every map there is and checks nothing. carrierNarrows holds each row to
-// that rather than leaving it to whoever writes the next one — four rows were
-// spelled the vacuous way and passed.
+// Carriers are derived from the value graph: a row says which Unmodeled map the
+// entry must land on by the path the walk reaches it at. The match is a
+// substring one, so a bare ".Unmodeled" ends every path and checks nothing;
+// carrierNarrows holds each row to narrowing the document.
 func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	sites := unmodeledSites(doc)

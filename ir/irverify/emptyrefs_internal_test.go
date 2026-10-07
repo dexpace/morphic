@@ -28,16 +28,13 @@ func idClassNames() map[string]bool {
 // followDecls follows expr through decls until it reaches a shape other than
 // an identifier: a pointer, slice, map, struct, or a name decls does not
 // declare (a builtin, or a type from outside the ir package). An identifier
-// naming one of classes is also a stop, not a name to keep resolving: idTypes
-// compares a reflect.Type by identity, never by what the named type is
-// declared as underneath (every one of the seven is a defined string type),
-// so continuing past "TypeID" to "string" would make it indistinguishable
-// from any other named string and defeat the very check this mirrors.
+// naming one of classes also stops the walk: idTypes compares a reflect.Type by
+// identity, so resolving "TypeID" to "string" would defeat the check this
+// mirrors.
 //
-// depth bounds the walk (the bounded-recursion rule), mirroring
-// mentionsInteger in indices_test.go: Go forbids a cycle among type
+// depth bounds the walk, as in mentionsInteger: Go forbids a cycle among type
 // declarations except through a pointer, slice or map, so exceeding it means
-// the parse went wrong rather than that the IR grew deep.
+// the parse went wrong.
 func followDecls(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, expr ast.Expr, depth int) ast.Expr {
 	t.Helper()
 	require.Less(t, depth, maxTypeChain, "resolving a field type exceeded %d steps", maxTypeChain)

@@ -64,27 +64,18 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 	m.Properties = append(m.Properties, p)
 }
 
-// reconcileProperty folds a redeclaration src into the already-present property
-// dst under allOf intersection semantics: required and secret are OR-ed, dst
-// keeps its position/identity/type shape (first declaration wins), visibility
-// narrows to the lifecycles both branches admit (mergeVisibility — this is an
-// intersection, not a plain adopt-if-absent, since either side may already be
-// restricted, and narrowing it to nothing is warned about rather than merely
-// recorded), and every optional detail dst lacks — docs, default,
-// constraints (merged per keyword via mergeConstraints), deprecation, XML,
-// examples — is adopted from src.
+// reconcileProperty folds a redeclaration src into the property dst already
+// holds, under allOf intersection semantics: required and secret are OR-ed,
+// visibility narrows to what both branches admit (mergeVisibility), and
+// optional details dst lacks are adopted from src. dst, the first declaration,
+// keeps its identity and type shape.
 //
-// Unmodeled is the one field where a later branch wins: its entries are keyed
-// and namespaced, so the two branches' keys union rather than compete, and a key
-// both branches write is the same construct written twice.
+// Unmodeled is the exception: its keys are namespaced, so entries union and a
+// later branch wins a shared key.
 //
-// Whatever of src the fold cannot carry — an incompatible type, a contradictory
-// constraint keyword, or a description, default, examples, deprecation or XML
-// hint that dst already holds differently — is reported where it is dropped
-// rather than silently losing to the first declaration, and the redeclaration
-// is then kept whole beside the winner (keepLosingDeclaration), so what it said
-// survives in the document and not only in the diagnostic stream. source
-// renders it, and is called only when there is something to keep.
+// What src has that the fold cannot carry is reported where it is dropped, and
+// the redeclaration is kept whole beside the winner (keepLosingDeclaration, the
+// only place source is rendered).
 func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source func() (ir.RawValue, error)) {
 	pointer := src.Provenance.Pointer
 	dropped, lost := g.recordRedeclarationConflict(dst, &src)
@@ -143,14 +134,14 @@ func (g *Merger) foldDocs(dst, src *ir.Property) bool {
 
 // foldShapeDetail adopts src's default, constraints and examples where dst
 // lacks them, and reports whether a default or examples dst already held were
-// held differently by src — which the fold cannot carry, so src's are lost.
-// A constraint keyword both declare differently is recordRedeclarationConflict's
-// to report; mergeConstraints keeps dst's.
+// held differently by src, so src's are lost. A constraint keyword both declare
+// differently is recordRedeclarationConflict's to report; mergeConstraints
+// keeps dst's.
 //
-// A Value is a tree and an Example holds several, so "held differently" is a
-// deep comparison. reflect.DeepEqual tells a nil slice from an empty one, but
-// both sides here were lowered by the same code from the same document, so two
-// spellings the source wrote alike cannot come out on opposite sides of that.
+// "Held differently" is a deep comparison, since a Value is a tree.
+// reflect.DeepEqual tells a nil slice from an empty one, but both sides were
+// lowered by the same code, so two spellings the source wrote alike cannot land
+// on opposite sides.
 func (g *Merger) foldShapeDetail(dst, src *ir.Property) bool {
 	lost := false
 	if dst.Default == nil {
@@ -202,17 +193,14 @@ func (g *Merger) detailDiffersDiag(dst *ir.Property, pointer jsontext.Pointer, d
 }
 
 // mergeConstraints folds src's constraint keywords into dst under allOf
-// intersection semantics: dst keeps every keyword it already sets, and adopts
-// from src any keyword dst leaves unset (nil/""/false) — a keyword only one
-// branch constrains still applies to the merged field, so it is never dropped.
+// intersection semantics: dst keeps every keyword it sets and adopts any it
+// leaves unset (nil, "" or false), so a keyword only one branch constrains is
+// never dropped.
 //
-// The four numeric bounds are four keywords, not two bounds with an
-// exclusivity flag apiece, so each is adopted on its own: a branch declaring
-// only exclusiveMinimum contributes it to a merged field whose minimum came
-// from elsewhere, and neither displaces the other. UniqueItems has no absent
-// state to detect via cmp.Or, but under intersection a true from either branch
-// is always correct, so adopting it via cmp.Or never wrongly downgrades dst
-// from true to false.
+// The four numeric bounds are separate keywords, so each is adopted on its own:
+// a branch declaring only exclusiveMinimum contributes it beside a minimum from
+// elsewhere. UniqueItems has no absent state, but under intersection a true
+// from either branch is always correct, so cmp.Or never wrongly downgrades dst.
 func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
@@ -239,35 +227,17 @@ func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
 	return dst
 }
 
-// mergeVisibility folds redeclaration src's lifecycle visibility into dst
-// under allOf intersection semantics (ir-design §5.2): an instance must
-// satisfy every branch, so the merged property is visible only in a
-// lifecycle both branches admit.
+// mergeVisibility folds src's lifecycle visibility into dst under allOf
+// intersection semantics (ir-design §5.2): the merged property is visible only
+// in a lifecycle both branches admit.
 //
-// This cannot be a plain append: an empty Only (None false) means "visible in
-// every lifecycle," not "visible in none," so each side must be read as the
-// set it actually admits — ∅ under None, the open universal set under an
-// unrestricted empty Only, or its own Only otherwise — before intersecting.
-// A None on either side already denotes ∅, which intersected with anything
-// stays ∅.
-//
-// Two branches admitting disjoint lifecycles (readOnly paired with writeOnly
-// on the same field) intersect to ∅ too: every lifecycle is excluded. That is
-// recorded as None — the shape the IR already has for "invisible everywhere"
-// (TypeSpec's @invisible) — rather than raised through
-// recordRedeclarationConflict. Unlike an incompatible-type redeclaration,
-// nothing here is arbitrarily discarded: ∅ is the exact intersection, not a
-// guess between two unrepresentable shapes.
-//
-// Exact is not the same as unremarkable, though, so reconcileProperty pairs
-// that result with a diag.DisjointVisibility warning. The IR keeps the honest
-// answer; the document still gets told that its composition left a field no
-// request or response can carry.
+// An empty Only (None false) means visible in every lifecycle, not none, so
+// each side is read as the set it admits before intersecting. Disjoint sets
+// (readOnly with writeOnly) intersect to none, recorded as None rather than a
+// conflict because nothing is discarded; reconcileProperty adds a warning.
 //
 // The result is the same whichever branch arrives as dst, down to the order of
-// Only — allOf orders its branches but gives that order no meaning, so a merge
-// answering differently under a swap would make the IR depend on how the
-// composition was spelled. intersectLifecycles is what carries that through.
+// Only, since allOf gives branch order no meaning (intersectLifecycles).
 func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 	switch {
 	case dst.None || src.None:
@@ -285,19 +255,15 @@ func mergeVisibility(dst, src ir.Visibility) ir.Visibility {
 }
 
 // intersectLifecycles returns the lifecycles present in both a and b, or nil
-// when they share none. mergeVisibility is the only caller, and it maps a nil
-// result to None rather than an empty-but-unrestricted Only.
+// when they share none; mergeVisibility maps nil to None, not to an
+// empty-but-unrestricted Only.
 //
-// Both operands are source order, so which of them the result inherits its
-// order from is settled by value rather than by which branch was declared
-// first: two branches naming the same lifecycles in different orders would
-// otherwise intersect to two different slices depending on the spelling.
-// annotation.EffectiveVisibility yields one of two fixed sets, either identical
-// or disjoint — and None outright where a position is in both, which
-// mergeVisibility settles before reaching here — so no OpenAPI document reaches
-// a partial overlap today. But this helper is the contract a second visibility
-// source would inherit, and an ordering rule that reads off dst is the kind that
-// surfaces only once something already depends on it.
+// Both operands are in source order, so the result takes its order from
+// whichever sorts first by value, not from which branch was declared first, or
+// two spellings of the same lifecycles would intersect to different slices. No
+// OpenAPI document reaches a partial overlap today, since
+// annotation.EffectiveVisibility yields only identical or disjoint sets, but a
+// second visibility source would inherit this contract.
 func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 	if slices.Compare(a, b) > 0 {
 		a, b = b, a
@@ -321,42 +287,22 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 // guards a pathological or malformed registry.
 const maxTypeResolveDepth = 64
 
-// recordRedeclarationConflict folds src's type into dst and reports what the
-// fold could not represent: an incompatible target type, or a constraint keyword
-// both branches pin to different values. It alters dst — intersecting
-// nullability, and keeping a dropped type under Unmodeled — as well as
-// diagnosing, which is why it is named for recording rather than for diagnosis.
+// recordRedeclarationConflict folds src's type into dst and diagnoses what the
+// fold could not represent: an incompatible target type or a contradictory
+// constraint keyword. At most one diagnostic fires, a type conflict subsuming a
+// constraint one. When the targets match it also intersects dst's nullability.
 //
-// It returns whether src's type was dropped — the target differs, so dst keeps
-// its own and src's goes nowhere — which is what tells reconcileProperty not to
-// carry that shape's details onto the winner; and whether anything of src was
-// lost at all, the type or a constraint keyword, which is what tells it to keep
-// the redeclaration whole.
-//
-// Dropped is a wider set than the conflicts worth reporting: typesConflict
-// deliberately does not guess about two composites of one kind, an
-// unresolvable target, or the top type against anything, and in each of those
-// dst keeps its own type while src's vanishes. Keeping the declaration there
-// too is what stops a consumer diffing two versions from seeing no change
-// (GitHub #424); the diagnostic stays on the narrower predicate, because
-// "dropped" and "contradictory" are different claims.
-//
-// A target that differs only because one declaration hoisted a node for a format
-// is the standing case: `{type: string, format: password}` resolves to a Scalar
-// of its own while a bare `{type: string}` stays on the shared primitive, so the
-// two no longer compare like-for-like and the format declaration is dropped —
-// silently, since typesConflict does not fire when both sides still name a
-// string. GitHub #446 owns the format-narrowing question, whether a pairing
-// narrower than the bare type is a conflict at all.
-//
-// A type conflict is genuinely unsatisfiable; a
-// constraint conflict is usually satisfiable alone, but the merge can't
-// represent the true intersection and may keep the looser bound
-// (diag.ConflictingRedecl). At most one diagnostic fires: a type conflict
-// subsumes any constraint conflict.
+// dropped reports that the targets differ, so src's type is lost. lost reports
+// that src's type or a constraint keyword was lost, so the redeclaration is
+// kept whole (GitHub #424). dropped is wider than the reported conflicts, since
+// typesConflict does not guess about composites of one kind, unresolvable
+// targets or the top type.
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
 	pointer := src.Provenance.Pointer
 	if dst.Type.Target != src.Type.Target {
+		// A format hoist alone differs here: `{type: string, format: password}`
+		// owns a Scalar while a bare string stays on the shared primitive, so the
+		// format drops without a diagnostic. GitHub #446 owns whether it should.
 		dropped = true
 	} else {
 		// Same referent, and the only thing left for the two to disagree about
@@ -386,42 +332,18 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 // composition's keys.
 const losingDeclarationKey = "openapi:conflicting-redeclaration"
 
-// keepLosingDeclaration keeps the redeclaration verbatim beside the merged
-// property, so a consumer reading the document rather than the diagnostic
-// stream can still see what the losing declaration said (GitHub #424).
+// keepLosingDeclaration keeps the redeclaration verbatim under Unmodeled beside
+// the merged property, so a document consumer sees what the loser said (GitHub
+// #424).
 //
-// ReasonDegradedLowering is the reason: the IR has no combinator for "string
-// here, integer there", or for two defaults, so the pair is lowered to the
-// first declaration's shape with the other kept beside it, which is that
-// reason's own definition (ir-design §4.8). Not ReasonNoIRHome — the position
-// has a field and it is holding the winner, so nothing is waiting on an IR gap
-// to close; not ReasonValidationOnly, since a redeclaration is data shape
-// rather than validation.
+// The value is the construct source renders, not the dropped IR values (GitHub
+// #445): Unmodeled holds what the document wrote (ir-design §12), and a TypeID
+// in a byte slice is invisible to irverify. The key ends in src's pointer, so
+// each loser keeps its own entry.
 //
-// The value is the source construct, rendered by source, and not the IR
-// values the merge dropped (GitHub #445): §12 defines an Unmodeled value as
-// what the document wrote, a TypeID is a compiler-minted registry ID that
-// irverify's reference walk cannot see dangle inside a byte slice, and one
-// verbatim node covers every field the fold drops at once where an IR value
-// covers one. It is also the whole of what was said — a `$ref` as the `$ref`
-// the position wrote, a nullability, a default — with nothing left to lose
-// on a field the fold has not learned to compare yet.
-//
-// The redeclaration's pointer is part of the key rather than only of the
-// provenance, so a field three branches type three incompatible ways keeps all
-// three entries; a fixed key would leave whichever branch ran last. Provenance
-// locates the losing declaration itself, which is the entry's own position and
-// not the merged property's. Both are read off src, so the key and the
-// provenance cannot disagree about where the loser was written.
-//
-// A loser with no pointer is not recorded: the key would collapse to the bare
-// prefix, and PreserveInto is a plain overwrite, so a second such loser would
-// silently replace the first. No production path produces one — ProvenanceAt
-// always stamps the pointer it was given — which is why this is a guard rather
-// than a diagnostic. A source that will not render is a diagnostic, and an
-// error: the merge has already said the redeclaration is kept, and what
-// reached the IR in no form must not be left to that announcement (GitHub
-// #144).
+// A loser with no pointer is skipped, since PreserveInto overwrites a collapsed
+// key; no production path produces one. A source that will not render is
+// reported as an error (GitHub #144).
 func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.RawValue, error)) {
 	pointer := src.Provenance.Pointer
 	if pointer == "" {
@@ -435,21 +357,22 @@ func (g *Merger) keepLosingDeclaration(dst, src *ir.Property, source func() (ir.
 				"in no form at all: %s", key, err.Error())
 		return
 	}
+	// Degraded lowering (ir-design §4.8): the IR has no combinator for two
+	// shapes or two defaults at one position.
 	annotation.PreserveInto(&dst.Unmodeled, key, raw,
 		ir.ReasonDegradedLowering, src.Provenance)
 }
 
 // redeclarationConflictDiag emits the shared conflicting-redeclaration warning,
 // naming the field and both declaration sites (dst's own, and the redeclaration
-// at pointer). detail is the caller-formatted disagreement — two type IDs, or a
-// constraint keyword and its two values — so one wording serves both callers.
-// It says "declarations", not "allOf branches": dst's declaration is not always
-// inside an allOf branch (a property can also be declared directly alongside
-// allOf), so the message must read correctly either way. Severity is warning —
-// the merged model is still usable — leaving escalation to the consumer via
-// the stable code. Either way the redeclaration is kept whole beside the
-// winner (keepLosingDeclaration), which the message says so a reader knows
-// where to look.
+// at pointer). detail is the caller-formatted disagreement, so one wording
+// serves both callers.
+//
+// It says "declarations", not "allOf branches", because dst's declaration can
+// sit directly beside allOf rather than inside a branch. Severity is warning,
+// as the merged model is still usable, leaving escalation to the consumer via
+// the stable code. The message says the redeclaration is kept whole beside the
+// winner (keepLosingDeclaration), so a reader knows where to look.
 func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Pointer, detail string) {
 	g.Report(ir.SeverityWarning, diag.ConflictingRedecl, pointer,
 		"declarations of field %q disagree: %s; kept the first declaration (%s) over the redeclaration (%s), "+
@@ -458,19 +381,15 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 }
 
 // typesConflict reports whether two reconciled property types describe an
-// unsatisfiable intersection. Identical interned targets and the schemaless top
-// type never conflict. Types resolving to different underlying primitives conflict
-// (string vs integer, string vs uuid), as does a scalar against a structural type.
-// Two distinct composite types of the same kind (two models, two lists) are not
-// provably contradictory, so they are never reported — conflict detection does
-// not guess.
-// KNOWN GAP (GitHub #446): PrimKinds are compared for equality with no notion
-// of narrowing, so {string, format: uri} against a bare {string} reads as a
-// conflict though the intersection is exactly the url the merge keeps — nothing
-// is lost, and both a diagnostic and a preserved entry claim otherwise. The same
-// holds for every format-narrowing pair (date-time/string, int32/integer,
-// double/number, uuid/string), which the published GitHub spec writes
-// throughout.
+// unsatisfiable intersection. Identical targets and the schemaless top type
+// never conflict. Different underlying primitives conflict, as does a scalar
+// against a structural type. Two distinct composites of one kind are not
+// provably contradictory, so they are never reported.
+//
+// KNOWN GAP (GitHub #446): PrimKinds compare for equality with no notion of
+// narrowing, so {string, format: uri} against a bare {string} reads as a
+// conflict though the merge loses nothing, and the diagnostic and preserved
+// entry claim otherwise. Every format-narrowing pair is affected.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false
@@ -493,12 +412,10 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 // primitive or an Any node). The top type imposes no constraint under allOf
 // intersection, so it never conflicts with a sibling redeclaration.
 //
-// It follows the Base chain rather than reading only the target node, because a
+// It follows the Base chain rather than reading only the target node: a
 // position that wrote something only a node can hold gets an alias over the top
-// type instead of resolving straight to it. Reading the alias alone would let
-// resolvePrimKind answer PrimAny below and then compare it unequal to the
-// sibling's kind — reporting the top type as a conflict, which is the one thing
-// this function exists to rule out.
+// type, and reading the alias alone would compare PrimAny unequal to the
+// sibling's kind and report the top type as a conflict.
 func (g *Merger) isAnyType(ref ir.TypeRef) bool {
 	if k, ok := g.resolvePrimKind(ref); ok {
 		return k == ir.PrimAny
@@ -579,15 +496,12 @@ func (g *Merger) isStructuralType(ref ir.TypeRef) bool {
 }
 
 // constraintsConflict reports whether two constraint sets pin the same keyword
-// to incompatible values, describing which keyword and both values when they
-// do (e.g. "conflicting maxLength (10 and 20)"). A keyword set on only one
-// side is not a conflict — mergeConstraints adopts it, narrowing the merged
-// field rather than discarding it — so only a keyword present and differing on
-// both sides counts; numeric bounds compare by magnitude, so 10 and 10.0
-// aren't a false conflict. UniqueItems is never compared: it's a plain bool
-// with no absent state, so a false on either side can't be told apart from
-// "not set". Keywords are checked in the fixed order below, so the keyword
-// named when several conflict at once is deterministic.
+// to different values, describing the keyword and both values (for example
+// "conflicting maxLength (10 and 20)"). A keyword set on one side only is not a
+// conflict, since mergeConstraints adopts it. Numeric bounds compare by
+// magnitude, so 10 and 10.0 do not conflict. UniqueItems is never compared: a
+// plain bool cannot tell false from unset. Keywords are checked in a fixed
+// order, so the one named when several conflict is deterministic.
 func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 	if a == nil || b == nil {
 		return "", false
@@ -622,17 +536,15 @@ func constraintsConflict(a, b *ir.Constraints) (string, bool) {
 }
 
 // bigValConflictDetail reports whether both branches pin the same
-// arbitrary-precision keyword and pin it to different magnitudes, formatting
-// the disagreement when they do. Every numeric keyword of ir.Constraints has
-// this one shape — each of the four bounds states its own restriction, with no
-// exclusivity sense to carry beside it — so one comparison serves them all, by
-// magnitude, which is what keeps 10 and 10.0 from reading as a disagreement.
+// arbitrary-precision keyword to different magnitudes, formatting the
+// disagreement when they do. Every numeric keyword of ir.Constraints has this
+// shape, each bound stating its own restriction, so one comparison serves them
+// all.
 //
-// A disagreement between two branches is usually still individually satisfiable
-// (minimum: 10 in one and minimum: 20 in the other together just mean ">= 20"),
-// but it's diagnosed anyway: the merge keeps dst's value (first declaration
-// wins) over the true intersection, and the discarded one may be the stricter —
-// staying silent would silently loosen the validation the spec intended.
+// A disagreement is usually still satisfiable (minimum 10 in one branch and 20
+// in the other together mean 20), but it is diagnosed anyway: the merge keeps
+// dst's value over the true intersection, and the discarded one may be the
+// stricter, so silence would loosen the validation the spec intended.
 func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
 	if a == nil || b == nil || annotation.BigValEqual(*a, *b) {
 		return "", false

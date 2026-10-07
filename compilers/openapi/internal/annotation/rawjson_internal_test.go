@@ -15,18 +15,15 @@ import (
 )
 
 // decodeAndMarshal is the conversion RawFromNode used before GitHub #32: decode
-// the node into Go's JSON model, then re-marshal it. It is kept here as the
-// differential oracle for TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded,
-// which is the only claim about it worth making — that everything came through
-// it unchanged except number spelling and the rows rawDivergences names.
+// the node into Go's JSON model, then re-marshal it. It is the differential
+// oracle for TestRawFromNode_DiffersFromTheOldDecodeOnlyWhereRecorded, which
+// lets RawFromNode differ from it only in number spelling and the rows
+// rawDivergences names.
 //
-// The old conversion went through v1's encoding/json, whose defaults this now
-// has to opt back into explicitly rather than inherit them for free:
-// Deterministic sorts map keys the way v1's Marshal always did; AllowInvalidUTF8
-// is what let a byte no UTF-8 can name through as U+FFFD instead of refusing
-// it, which is the loss rawDivergences' `!!binary` rows pin; and EscapeForHTML
-// matches the HTML-safe escaping v1 always applied, which the new walk's
-// minimal escaping no longer does.
+// The options reproduce v1's encoding/json defaults. Deterministic sorts map
+// keys. AllowInvalidUTF8 lets a byte no UTF-8 can name through as U+FFFD, the
+// loss rawDivergences' `!!binary` rows pin. EscapeForHTML matches v1's
+// HTML-safe escaping, which the new walk's minimal escaping does not apply.
 func decodeAndMarshal(node *yaml.Node) (jsontext.Value, error) {
 	var v any
 	if err := node.Decode(&v); err != nil {
@@ -35,20 +32,16 @@ func decodeAndMarshal(node *yaml.Node) (jsontext.Value, error) {
 	return json.Marshal(v, json.Deterministic(true), jsontext.AllowInvalidUTF8(true), jsontext.EscapeForHTML(true))
 }
 
-// throughFloat64 re-encodes raw JSON through Go's JSON model, which rounds every
-// number to float64 — the only transformation the old conversion applied that
-// the new walk does not, on a row rawDivergences does not name. A divergence is
-// compared unnormalized instead, since that spelling is what it pins.
+// throughFloat64 re-encodes raw JSON through Go's JSON model, which rounds
+// every number to float64: the only transformation the old conversion applied
+// that the new walk does not, outside the rows rawDivergences names. A
+// divergence is compared unnormalized, since that spelling is what it pins.
 //
-// Both sides of the comparison go through it, not just the new output: the trip
-// also canonicalizes how an escape is spelled (a "\ufffd" escape comes back as
-// the literal rune, and a raw HTML-special character decodes to the same rune
-// its escaped form does), and normalizing one side alone would report that as a
-// difference. Rounding an already-rounded number changes nothing, so applying
-// it to the old output costs the comparison none of its force. Deterministic
-// carries over from decodeAndMarshal for the same reason it is there: an
-// unsorted re-marshal of a JSON object would report a difference this helper
-// exists to cancel out.
+// Both sides go through it, not just the new output: the trip also
+// canonicalizes escape spelling (a "\ufffd" escape comes back as the literal
+// rune), so normalizing one side alone would report a difference. Rounding
+// twice changes nothing. Deterministic sorts keys, so member order never reads
+// as a difference.
 func throughFloat64(t *testing.T, raw jsontext.Value) string {
 	t.Helper()
 	var v any
@@ -358,10 +351,9 @@ func TestRawFromNode_WalksThroughADocumentNode(t *testing.T) {
 // row holds at least one scalar YAML gives a type and JSON does not, kept as
 // the text the source wrote rather than as the resolved form (GitHub #242).
 //
-// Both spellings are pinned. The new one is the preservation the change exists
-// for; the old one is what keeps the row honest — without it a divergence that
-// quietly stopped being one would leave this entry asserting nothing, which is
-// the same hole as excluding the row outright.
+// Both spellings are pinned. The new one is the preservation; the old one keeps
+// the row honest, since a divergence that quietly stopped being one would leave
+// the entry asserting nothing, the same hole as excluding the row.
 var rawDivergences = map[string]struct{ old, want string }{
 	"2021-1-1":            {`"2021-01-01T00:00:00Z"`, `"2021-1-1"`},
 	"2021-01-01 10:20:30": {`"2021-01-01T10:20:30Z"`, `"2021-01-01 10:20:30"`},
