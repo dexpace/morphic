@@ -42,6 +42,44 @@ func PathsSpecVer(version, paths string) string {
 		"paths:\n" + paths
 }
 
+// EveryKindOfReference is a document holding a resolvable reference of each
+// kind the library has: one in each position its walk meets one, and a schema's.
+// Each names the component of the same kind, whose name is its section's first
+// letter or, for the security scheme, K.
+const EveryKindOfReference = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: '#/components/pathItems/P'}
+  /b:
+    post:
+      parameters: [{$ref: '#/components/parameters/Q'}]
+      requestBody: {$ref: '#/components/requestBodies/B'}
+      callbacks: {cb: {$ref: '#/components/callbacks/C'}}
+      responses:
+        '200':
+          description: ok
+          headers: {X-H: {$ref: '#/components/headers/H'}}
+          links: {l: {$ref: '#/components/links/L'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/S'}
+              examples: {e: {$ref: '#/components/examples/E'}}
+        '201': {$ref: '#/components/responses/R'}
+components:
+  pathItems: {P: {get: {responses: {'200': {description: ok}}}}}
+  parameters: {Q: {name: q, in: query, schema: {type: string}}}
+  requestBodies: {B: {content: {application/json: {schema: {type: string}}}}}
+  callbacks: {C: {'{$url}': {post: {responses: {'200': {description: ok}}}}}}
+  headers: {H: {schema: {type: string}}}
+  links: {L: {operationId: none}}
+  examples: {E: {value: 1}}
+  responses: {R: {description: ok}}
+  schemas: {S: {type: string}}
+  securitySchemes:
+    K: {type: http, scheme: basic}
+    K2: {$ref: '#/components/securitySchemes/K'}
+`
+
 // DocDeclaring builds a document declaring the named component schemas, with no
 // parser and no fixture — the shape a test wants when what it needs from the
 // document is only which components it declares.

@@ -54,12 +54,10 @@ func commands() []command { return []command{newCompileCommand(), newValidateCom
 // to stdout and exits 0, and any other misuse prints one reason line and c's
 // usage pointer to stderr and exits 2.
 //
-// Both belong here rather than in c's own body because both are replies to
-// arguments rather than work done, and a body that owned them could get them
-// wrong in silence. The flag package reports a help request as an ordinary
-// error from Parse, so a command that does the obvious thing with that error
-// answers -h with "flag: help requested" on stderr and exit 2 — a divergence
-// from its neighbour that no golden records and no per-command test asks about.
+// Both live here because they are replies to arguments, not work. The flag
+// package reports a help request as an ordinary error from Parse, so a command
+// handling it itself would answer -h with "flag: help requested" and exit 2,
+// diverging from its neighbours.
 func dispatch(c command, args []string, stdout, stderr io.Writer) int {
 	todo, err := c.bind(args)
 	if errors.Is(err, flag.ErrHelp) {

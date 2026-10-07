@@ -258,15 +258,14 @@ func TestSniff_ReadsALargeDocumentWhole(t *testing.T) {
 	}
 }
 
-// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that decides
-// whose bytes these are. A name followed by a colon is a key wherever it sits,
-// so the guard has to say *whose* key: block style answers with column 0, flow
-// style with the root mapping's own depth. And a key there declares the format
-// only with a version beside it (GitHub #497). The cases answering no are
-// documents naming the word somewhere a document does not declare its format,
-// or declaring it there with prose, a collection or nothing beside it — a
-// compiler that says otherwise reports its own parse error over a file that was
-// never its own.
+// TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument pins the guard that
+// decides whose bytes these are. A name followed by a colon is a key wherever
+// it sits, so the guard says whose: block style answers with column 0, flow
+// style with the root mapping's own depth. A key there declares the format only
+// with a version beside it (GitHub #497). The cases answering no are documents
+// naming the word where none declares its format, or declaring it with prose, a
+// collection or nothing beside it; saying yes would report this compiler's
+// parse error over a file that was never its own.
 func TestDeclaresProbeKey_ScopesTheNameToItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -358,15 +357,13 @@ func codesOf(diags []ir.Diagnostic) []string {
 const dupRepeats = 512
 
 // TestDetect_RepeatedKeysDoNotDecideTheFormat pins the fix for the blow-up. A
-// document that repeats a top-level key is a document with a duplicate key —
-// the parser this compiler goes on to use says so, once per repeat and sited —
-// and it is not a document of another format, nor one that cannot be read.
-// Detection used to answer both of those, because it decoded the root mapping to
-// read two keys and yaml.v3 abandons a mapping that repeats any key at all.
+// document that repeats a top-level key has a duplicate key, which the parser
+// this compiler goes on to use reports once per repeat, sited. It is neither
+// another format's nor unreadable, yet decoding the root mapping to read two
+// keys said both, because yaml.v3 abandons a mapping that repeats any key.
 //
-// Both orders are pinned: where a writer put the version key says nothing about
-// what the document is, and a fixture that declares it first cannot see a
-// regression that loses it to the repeats that follow.
+// Both orders are pinned: a fixture that declares the version first cannot see
+// a regression that loses it to the repeats that follow.
 func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
 	t.Parallel()
 	repeats := strings.Repeat("x: y\n", dupRepeats)
@@ -497,16 +494,14 @@ func TestDecodeYAML_RefusesARootThatIsNoMapping(t *testing.T) {
 }
 
 // TestSniff_CostIsNotQuadraticInRepeatedKeys guards the half of the defect an
-// answer cannot see. Reading two keys off a parsed tree is linear in the
-// document; decoding the root mapping to read them is quadratic in how often a
-// key repeats, because yaml.v3 compares every pair of keys before it reads any
-// of them. Both spellings answer alike on a small fixture, and only one of them
-// still answers on a large one.
+// answer cannot see. Reading two keys off a parsed tree is linear; decoding the
+// root mapping to read them is quadratic in how often a key repeats, since
+// yaml.v3 compares every pair of keys before reading any.
 //
 // Allocation count is the probe because it is deterministic where wall time is
-// not. Doubling the repeats doubles the parse, so the bound is loose enough for
-// that and nowhere near a quadratic term: measured at this size the linear
-// reading grows by 1.97 and the quadratic one by 4.64.
+// not. Doubling the repeats doubles the parse, so the bound sits between that
+// and a quadratic term: at this size the linear reading grows by 1.97 and the
+// quadratic one by 4.64.
 func TestSniff_CostIsNotQuadraticInRepeatedKeys(t *testing.T) {
 	head := "openapi: 3.0.3\ninfo: {}\n"
 	small := []byte(head + strings.Repeat("x: y\n", dupRepeats))
@@ -646,63 +641,54 @@ func breadthMergeDoc(k int) []byte {
 }
 
 // TestProbeFromMapping_EntersEachNodeOnce pins the mechanism that bounds the
-// walk, deterministically and without a clock: the set it carries records what
-// it has entered, and holds no more entries than the tree has nodes.
+// walk, without a clock: the set records each anchored mapping the walk enters,
+// and a mapping already in it is not entered again.
 //
-// It is the half a timing test cannot state plainly, and the half that survives
-// if timing ever has to be distrusted. The test beside it measures the property
-// this produces.
+// Re-entry cannot show in the finished set, which only re-marks keys it already
+// holds. So each case seeds one anchor as already entered; a real walk would
+// have read the version through it on the first visit, so seeded, the version
+// must go unread.
 func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(breadthMergeDoc(64), &root))
 	content := documentRoot(&root)
+	anchors := map[string]*yaml.Node{}
+	for _, child := range content.Content {
+		if child.Anchor != "" {
+			anchors[child.Anchor] = child
+		}
+	}
+	require.Len(t, anchors, 2, "the document anchors the two mappings the walk enters")
 
 	seen := map[*yaml.Node]bool{}
 	probe, err := probeFromMapping(content, maxMergeDepth, seen)
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.0", probe.OpenAPI, "the version is still read")
-
-	assert.NotEmpty(t, seen, "the walk records what it entered")
-	assert.LessOrEqual(t, len(seen), treeNodes(content),
-		"and enters no more nodes than the tree holds, however many merge keys name them")
-}
-
-// treeNodes counts the nodes reachable from n, for a bound stated in the
-// document's own terms rather than in a number that would have to be maintained.
-func treeNodes(n *yaml.Node) int {
-	count := 1
-	for _, child := range n.Content {
-		count += treeNodes(child)
+	for _, name := range []string{"a0", "a1"} {
+		assert.True(t, seen[anchors[name]], "the walk records %s once it has entered it", name)
 	}
-	return count
+
+	for _, name := range []string{"a0", "a1"} {
+		t.Run("seeded "+name, func(t *testing.T) {
+			seeded := map[*yaml.Node]bool{anchors[name]: true}
+			got, err := probeFromMapping(content, maxMergeDepth, seeded)
+			require.NoError(t, err)
+			assert.Empty(t, got.OpenAPI, "a mapping already entered is not entered again")
+		})
+	}
 }
 
 // TestProbeFromMapping_CostIsLinearInMergeBreadth pins the bound GitHub #487
-// was about. maxMergeDepth bounds how deep a merge chain is followed and says
-// nothing about how wide it is, and the walk used to enter one anchored mapping
-// once per merge key that named it, so its cost was the product of the two.
+// was about: maxMergeDepth limits how deep a merge chain is followed, not how
+// wide, and the walk used to enter an anchored mapping once per merge key
+// naming it.
 //
-// It times the walk and not a compile. Parsing these documents costs fifteen to
-// thirty times what walking them does, and is itself linear, so a measurement
-// that included it would be reporting the parser with the walk's defect buried
-// inside the error bars. The trees are built outside the clock.
-//
-// The assertion is a ratio, not a duration: a wall-clock threshold is a
-// machine's number and this is a shape's. Doubling the merge keys doubles a
-// linear walk and quadruples a quadratic one, and the allowance of three sits
-// between them.
-//
-// Each size is read as the fastest of several walks, since interference only
-// ever adds time, and the walks alternate between the sizes so both minimums
-// come from the same stretch of time. An earlier version timed every walk of
-// the larger tree, then every walk of the smaller, and a burst of load landing
-// on one run of walks and not the other — which packages starting and stopping
-// under go test ./... produce — decided the ratio: it failed CI at 3.37.
-// Measured under that kind of load over 160 trials each, timing the sizes in
-// runs peaked at 3.38 and the median of paired ratios at 3.73, while
-// alternating minimums never crossed 3 and peaked at 2.51. On the quadratic
-// walk the same statistic reads 4.30.
+// It times the walk, not a compile, because parsing costs many times as much
+// and would bury the walk's defect. The assertion is a ratio: four times the
+// merge keys cost a linear walk four times as much and a quadratic one
+// sixteen, so the allowance is eight. Each size is the fastest of several
+// alternated walks, so a burst of load cannot hit one size.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	tree := func(k int) *yaml.Node {
 		var root yaml.Node
@@ -718,7 +704,7 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 			"the version sits at the innermost anchor, so a walk that stops early fails here rather than merely looking fast")
 		return elapsed
 	}
-	small, large := tree(8000), tree(16000)
+	small, large := tree(4000), tree(16000)
 
 	// One walk of each first, so neither minimum is the cold one.
 	walk(small)
@@ -729,8 +715,8 @@ func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 		bestLarge = min(bestLarge, walk(large))
 	}
 
-	assert.Less(t, bestLarge, 3*bestSmall,
-		"twice the merge keys must not cost four times the walk (small=%v large=%v)", bestSmall, bestLarge)
+	assert.Less(t, bestLarge, 8*bestSmall,
+		"four times the merge keys must not cost eight times the walk (small=%v large=%v)", bestSmall, bestLarge)
 }
 
 // TestDeclaresBlockKey_ReadsABoundedNumberOfLines pins maxVersionLines. The

@@ -52,17 +52,13 @@ func NewBigVal(s string) (BigVal, error) {
 	return BigVal(canonicalDecimal(s)), nil
 }
 
-// isDecimalLiteral reports whether s is exactly an optionally-signed decimal
-// mantissa with an optional e/E exponent — sign? mantissa (e sign? digits)?,
-// where mantissa is digits, digits "." digits*, or "." digits — and nothing
-// else. This is the grammar BigVal documents ("decimal or scientific-notation
-// numeric literal"); math/big's own base-10 parser accepts a strictly wider
-// one — hex is already excluded by forcing base 10, but a p/P binary exponent
-// is not (1p4 means 1×2⁴ = 16 in that grammar, not the unrelated decimal its
-// digits and dot suggest) — so this runs as an explicit pre-parse gate rather
-// than trusting ParseFloat's grammar at the call site. It delegates to
-// scanMantissa and scanExponent, one cursor pass each, so that no single
-// function has to hold the whole grammar's branching at once.
+// isDecimalLiteral reports whether s is exactly an optionally signed decimal
+// mantissa with an optional e/E exponent, and nothing else: sign? mantissa
+// (e sign? digits)?, where mantissa is digits, digits "." digits*, or "."
+// digits. math/big's base-10 parser accepts a wider grammar (it reads a p/P
+// binary exponent: "1p4" is 16), so this is an explicit pre-parse gate. It
+// delegates to scanMantissa and scanExponent so no single function holds the
+// whole grammar's branching.
 func isDecimalLiteral(s string) bool {
 	i, n := 0, len(s)
 	if i < n && (s[i] == '+' || s[i] == '-') {

@@ -9,18 +9,14 @@ import (
 )
 
 // canonicalCases is the conformance suite for the one canonical-naming grammar.
-// It is a suite rather than a handful of examples because Canonical is ABI: an
-// emitter cannot tell which compiler produced a name, so every compiler owes the
-// same answer for the same spelling, and the three copies this replaced gave
-// different ones (GitHub #163).
+// Canonical is ABI: an emitter cannot tell which compiler produced a name, so
+// every compiler owes the same answer for the same spelling, and the three
+// copies this replaced gave different ones (#163).
 //
-// Each row names the rule it pins. The rows drawn from a format other than
-// OpenAPI are the point of the suite: irverify rejects a canonical that is not a
-// word sequence, so a compiler leaving "." in place is already caught, but
-// irverify now recomputes a canonical from the source beside it, so a document it
-// is handed is held to every row here — but a table of expected answers is
-// still what says the grammar is *right*, since a check that recomputes moves
-// with the grammar it recomputes through.
+// Each row names the rule it pins; the rows from formats other than OpenAPI are
+// the point. irverify rejects a canonical that is not a word sequence and
+// recomputes one from the source, but only a table of expected answers says the
+// grammar is right: a check that recomputes moves with the grammar.
 var canonicalCases = []struct {
 	rule string
 	in   string

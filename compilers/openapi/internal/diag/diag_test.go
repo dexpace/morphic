@@ -179,15 +179,13 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 }
 
 // declaredCodeCount returns how many exported string constants the package
-// declares, read from its own source. A code is a string, so an exported
-// constant of any other kind — MaxQuotedErrorBytes is one — is not one and is
-// not counted; the kind is read off the declaration rather than the name, so a
-// code added here is counted whatever it is called.
+// declares, read from its own source. The kind is read off the declaration, not
+// the name, so MaxQuotedErrorBytes is not counted and a new code is counted
+// whatever it is called.
 //
-// It is parsed rather than written down because a maintained count is exactly
-// the claim that rots silently: a code added without touching this file would
-// leave the number right by accident until it was not. Reading the declarations
-// makes the fixture's completeness a property of the source.
+// It is parsed rather than written down because a maintained count rots
+// silently: a code added without touching this file would leave the number
+// right by accident until it was not.
 func declaredCodeCount(t *testing.T) int {
 	t.Helper()
 	entries, err := os.ReadDir(".")
@@ -303,14 +301,13 @@ func TestOneLine_CutsOnARuneBoundary(t *testing.T) {
 }
 
 // TestOneLine_IsBoundedInWorkNotOnlyOutput holds the cap to being a bound on
-// work. A message capped by collapsing the whole error and trimming the result
-// still walks the whole error, which is the half that costs the time: the 1.2 GB
-// case spent 7.4 s building the parts it was about to throw away.
+// work. Collapsing the whole error and trimming the result still walks all of
+// it, which is the half that costs time: the 1.2 GB case spent 7.4 s building
+// parts it threw away.
 //
-// Allocation count is the probe because the per-line work is what allocates —
-// one strings.Fields join per line — so a scan that stops at the cap allocates
-// the same for two errors that both exceed it, and one that does not scales with
-// the error. It is not run in parallel: AllocsPerRun measures the process.
+// Allocation count is the probe, since the per-line work is what allocates: a
+// scan that stops at the cap allocates the same for two errors that both exceed
+// it. It is not run in parallel: AllocsPerRun measures the process.
 func TestOneLine_IsBoundedInWorkNotOnlyOutput(t *testing.T) {
 	small := errors.New(strings.Repeat("line\n", 1<<10))
 	large := errors.New(strings.Repeat("line\n", 1<<20))
