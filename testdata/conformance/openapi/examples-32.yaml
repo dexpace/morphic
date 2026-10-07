@@ -1,0 +1,33 @@
+openapi: 3.2.0
+info: {title: Examples32, version: "1.0.0"}
+paths:
+  /a:
+    get:
+      operationId: list
+      parameters:
+        # A parameter's own plural examples: dataValue carries the data.
+        - name: limit
+          in: query
+          schema: {type: integer}
+          examples:
+            five: {summary: Five, dataValue: 5}
+      responses:
+        "200":
+          description: ok
+          headers:
+            # A header's plural examples: serializedValue has no ir.Example home.
+            X-Rate:
+              schema: {type: integer}
+              examples:
+                serial: {summary: Serial, serializedValue: '"7"'}
+          content:
+            application/json:
+              schema: {type: object, properties: {n: {type: string}}}
+              examples:
+                five: {summary: Five, dataValue: 5}
+                one: {$ref: '#/components/examples/One'}
+                serial: {$ref: '#/components/examples/Serial'}
+components:
+  examples:
+    One: {summary: One, dataValue: 1}
+    Serial: {summary: Serial, serializedValue: '"5"'}

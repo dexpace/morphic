@@ -1010,3 +1010,54 @@ func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
 			"/paths/~1x/get/parameters/0/schema"),
 		"bounds nothing", "and reading it is what reports on it")
 }
+
+// paramBySource returns the operation's logical parameter with the given source
+// name.
+func paramBySource(op ir.Operation, name string) (ir.Parameter, bool) {
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p, true
+		}
+	}
+	return ir.Parameter{}, false
+}
+
+// TestParams_RefSiteDocsOverrideTheDeclaration pins the parameter half of
+// GitHub #610: a Reference Object's summary and description describe this use of
+// the component and override the declaration's own description field by field.
+// One component is referenced twice — once with both siblings, once with neither
+// — so the override is shown to be per-mount rather than a mutation of the
+// declaration.
+func TestParams_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      parameters: [{$ref: '#/components/parameters/Limit', summary: S, description: D}]
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: b
+      parameters: [{$ref: '#/components/parameters/Limit'}]
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Limit: {name: limit, in: query, description: declared, schema: {type: integer}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	withSiblings, ok := paramBySource(openapitest.FindOp(t, doc, "a"), "limit")
+	require.True(t, ok)
+	assert.Equal(t, "S", withSiblings.Docs.Summary)
+	assert.Equal(t, "D", withSiblings.Docs.Description)
+
+	without, ok := paramBySource(openapitest.FindOp(t, doc, "b"), "limit")
+	require.True(t, ok)
+	assert.Empty(t, without.Docs.Summary, "no sibling means no summary is invented")
+	assert.Equal(t, "declared", without.Docs.Description,
+		"the other mount keeps the declaration's own description")
+}

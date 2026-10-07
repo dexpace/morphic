@@ -12,11 +12,14 @@
 package operation
 
 import (
+	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	yaml "gopkg.in/yaml.v3"
@@ -43,10 +46,12 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	var diags []ir.Diagnostic
 	payload := &ir.Payload{}
 	for mt, media := range content.All() {
-		if media == nil {
+		entry, fromRef, entryDiags := contentEntry(c, media, pointer+ids.Ptr("content", mt))
+		diags = append(diags, entryDiags...)
+		if entry == nil {
 			continue
 		}
-		one, contentDiags := lowerContent(c, ts, anchors, mt, media, pointer, hint)
+		one, contentDiags := lowerContent(c, ts, anchors, mt, entry, pointer, hint, fromRef)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -56,9 +61,98 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	return payload, diags
 }
 
+// contentEntry returns the Media Type Object a content-map entry names: the
+// entry itself, or the components/mediaTypes object a 3.2 `$ref` entry
+// addresses. ok reports that a `$ref` was followed, so the resolved object
+// lowers and the census leaves the `$ref` key alone.
+//
+// A target this compiler cannot resolve (external, missing, or itself a
+// `$ref`) leaves the entry to lower as written, with the `$ref` kept and one
+// `openapi/unresolved-ref` diagnostic (GitHub #615). A nil entry names nothing
+// and contributes no content.
+func contentEntry(c lowering.Ctx, media *soa.MediaType, entryPtr jsontext.Pointer) (*soa.MediaType, bool, []ir.Diagnostic) {
+	if media == nil {
+		return nil, false, nil
+	}
+	ref, isRef := rawRefOf(media)
+	if !isRef || !c.Is32() {
+		return media, false, nil
+	}
+	resolved, ok, message := resolveMediaTypeRef(c, ref)
+	if !ok {
+		return media, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entryPtr,
+			"media type $ref %q %s; the entry lowers as written with the reference kept verbatim",
+			ref, message)}
+	}
+	return resolved, true, nil
+}
+
+// resolveMediaTypeRef reads the components/mediaTypes object a `$ref` names and
+// unmarshals it into a Media Type Object. It reports a message naming what went
+// wrong rather than returning an error, because every failure lands in the same
+// diagnostic the caller builds.
+func resolveMediaTypeRef(c lowering.Ctx, ref string) (*soa.MediaType, bool, string) {
+	ptr, internal := c.RefScope().InternalPointer(ref)
+	if !internal {
+		return nil, false, "does not resolve inside this document"
+	}
+	kind, name, ok := ids.ComponentEntry(ptr)
+	if !ok || kind != ids.MediaTypesKind {
+		return nil, false, "does not name a components/" + ids.MediaTypesKind + " entry"
+	}
+	node := rawComponentNode(c.Doc.GetRootNode(), kind, name)
+	if node == nil {
+		return nil, false, "names an entry this document does not declare"
+	}
+	var out soa.MediaType
+	errs, err := marshaller.UnmarshalNode(context.Background(), "", node, &out)
+	// Unmarshalling reports a node it cannot read as a Media Type Object on errs,
+	// and its own failures on err. Joining the two keeps both handled without a
+	// branch no document can reach — every node a document can write comes back
+	// as a validation error on the first — and errors.Join drops the nil one.
+	if problems := errors.Join(append(errs, err)...); problems != nil {
+		return nil, false, "is not a media type object: " + diag.OneLine(problems)
+	}
+	if _, chained := rawRefOf(&out); chained {
+		// A one-hop reading, deliberately: the shapes are one entry, and following a
+		// chain would need the resolver state a standalone node does not carry.
+		return nil, false, "names an entry that is itself a $ref, which is not followed"
+	}
+	return &out, true, ""
+}
+
+// rawRefOf returns the `$ref` string a raw object writes, and whether it wrote
+// one. Both a content entry and a components/mediaTypes entry are read this way:
+// the library's Media Type model has no Reference wrapper, so a `$ref` reaches
+// the compiler as a key the model does not define.
+func rawRefOf(media *soa.MediaType) (string, bool) {
+	node := annotation.RawChildNode(media.GetRootNode(), "$ref")
+	if node == nil || node.Value == "" {
+		return "", false
+	}
+	return node.Value, true
+}
+
+// rawComponentNode returns the raw node of a /components/<kind>/<name> entry.
+func rawComponentNode(root *yaml.Node, kind, name string) *yaml.Node {
+	components := annotation.RawChildNode(root, "components")
+	return annotation.RawChildNode(annotation.RawChildNode(components, kind), name)
+}
+
+// contentDecidedKeys names the content-entry keys a reader has already taken for
+// this document, which the census must leave alone. An entry resolved from a
+// `$ref` has had its `$ref` read; an entry that was not resolved has not, and
+// the warning is owed.
+func contentDecidedKeys(fromRef bool) []string {
+	if !fromRef {
+		return nil
+	}
+	return []string{"$ref"}
+}
+
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, and extensions.
-func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mt string, media *soa.MediaType, pointer jsontext.Pointer, hint string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mt string, media *soa.MediaType, pointer jsontext.Pointer, hint string, fromRef bool) (ir.Content, []ir.Diagnostic) {
 	mediaPtr := pointer + ids.Ptr("content", mt)
 	mediaType, diags := schema.Ref(c, ts, anchors, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"), hint)
 	content := ir.Content{
@@ -89,7 +183,8 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
+		annotation.UnknownKeysDecided(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, "",
+			contentDecidedKeys(fromRef))...)
 }
 
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
@@ -373,10 +468,45 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
 	}
+	diags = append(diags, nestedEncodings(c, &out, enc, encPtr, scope)...)
 	ext, extDiags := schema.ExtensionsIn(c, enc.GetExtensions(), encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)
 	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.ProvenanceAt, encPtr, scope)...)
+}
+
+// nestedEncodingFields are the OpenAPI 3.2 Encoding Object fields that carry a
+// nested Encoding Object: the object's own encoding map, the positional prefix
+// encodings, and the item encoding governing what follows them. This compiler
+// lowers an Encoding Object to ir.PartEncoding, which has no encoding fields of
+// its own, so each reaches the IR in no modelled form.
+var nestedEncodingFields = []string{"encoding", "prefixEncoding", "itemEncoding"}
+
+// nestedEncodings keeps the nested Encoding Objects a 3.2 document writes,
+// verbatim under the scope the part's own entries ride on, one info each
+// (GitHub #615). Recording them at the census's own key and pointer suppresses
+// the `unknown-object-key` warning on 3.2 while keeping it below 3.2, where
+// these keys are misspellings.
+//
+// ReasonNoIRHome, since PartEncoding could grow the fields. Nothing is lowered:
+// a part inside a part has no shape here, and keeping the source is lossless.
+func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) []ir.Diagnostic {
+	if !c.Is32() {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, keyword := range nestedEncodingFields {
+		at := encPtr + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, out, "openapi:"+scope+"/"+ids.Scope(keyword),
+			annotation.RawChildNode(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"encoding %s has no ir.PartEncoding home; kept verbatim under Unmodeled", keyword))
+	}
+	return diags
 }
 
 // lowerHeaders lowers a header map into Properties in source order. Each
@@ -398,6 +528,10 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		p, headerDiags := lowerHeader(lowering.Within[soa.Header](c, rh), ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
+		// A header entry written as a Reference Object keeps its own summary and
+		// description: they describe this entry rather than the header declaration
+		// it names (GitHub #610).
+		p.Docs = resolve.RefDocs(rh, p.Docs)
 		out = append(out, p)
 	}
 	return out, diags
@@ -430,7 +564,8 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // and ir.Property has a field for each, so the header path had no reason to drop
 // them (GitHub #116).
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
-	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
+	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
+		"header", "ir.Property")
 	// name is this entry's map key, which names the shared node after this mount
 	// when the header is declared under another response (GitHub #433). A
 	// component header has no owning response, so a schema's $ref into it leaves
@@ -455,6 +590,11 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
 	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
+	// The media type object's own examples are more specific than the schema's,
+	// which FillPropertyDetail has just recorded, so they are applied after it.
+	if len(elected.examples) > 0 {
+		p.Examples = elected.examples
+	}
 	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
 	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
 }
@@ -484,15 +624,62 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	return diags
 }
 
+// contentOnlyFields are the Media Type Object fields the IR models at a body's
+// content position and gives a parameter or header no home for: the 3.2
+// sequential-media fields, and the multipart per-part encoding block. The
+// position lowers to one ir.Parameter or ir.Property holding one type and no
+// item or encoding fields, so each of these is kept verbatim instead of dropped
+// — the same one-field read electTypeSpelling used to make, widened from the
+// media type's schema to the whole object (GitHub #611).
+var contentOnlyFields = []string{"itemSchema", "itemEncoding", "prefixEncoding", "encoding"}
+
+// contentEntryFields returns everything a Media Type Object declares at a
+// parameter's or header's elected `content` position beyond the one type that
+// position lowers: its example/examples, its x-* and undeclared keys, and the
+// fields contentOnlyFields names. Nothing read them before, so they vanished
+// without a diagnostic (GitHub #611).
+//
+// scope is the content entry's own path, so several media types and the
+// enclosing object cannot collide on one key. carrier and home name the
+// position in each content-only field's info, with ReasonNoIRHome.
+func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer,
+	scope, carrier, home string,
+) ([]ir.Example, ir.Unmodeled, []ir.Diagnostic) {
+	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
+	var unmodeled ir.Unmodeled
+	ext, extDiags := schema.ExtensionsIn(c, media.GetExtensions(), mediaPtr, scope)
+	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
+	diags = append(diags, extDiags...)
+	for _, keyword := range contentOnlyFields {
+		at := mediaPtr + ids.Ptr(keyword)
+		kept, keptDiags := schema.PreserveNode(c, &unmodeled,
+			"openapi:"+scope+"/"+ids.Scope(keyword),
+			annotation.RawChildNode(media.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
+			carrier, keyword, home))
+	}
+	// Last, so the keys the readers above kept are already recorded and the census
+	// leaves them alone: it answers only for what nothing read.
+	return examples, unmodeled,
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope)...)
+}
+
 // typeSpelling is how a parameter or header stated its type: the schema node,
 // the pointer that node sits at, the media type serializing it — empty for the
-// `schema` spelling — and whatever the election passed over, for the carrier at
-// this position to merge onto its own Unmodeled.
+// `schema` spelling — the examples a content-style entry declares, and whatever
+// the election passed over, for the carrier at this position to merge onto its
+// own Unmodeled.
 type typeSpelling struct {
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
 	mediaType string
 	unmodeled ir.Unmodeled
+	examples  []ir.Example
 }
 
 // electTypeSpelling picks the spelling a parameter or header states its type
@@ -509,16 +696,23 @@ type typeSpelling struct {
 // unconditional, even where the entry names no schema (GitHub #320).
 func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
+	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
 	// singleContentEntry takes it and reports a document that declares more,
 	// rather than dropping the extras in silence (GitHub #139).
 	mt, media, ok, diags := singleContentEntry(c, content, at)
 	if ok {
+		mediaPtr := at + ids.Ptr("content", mt)
+		scope := ids.Scope("content", mt)
+		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
+		diags = append(diags, residueDiags...)
 		elected := typeSpelling{
 			js:        media.GetSchema(),
-			pointer:   at + ids.Ptr("content", mt, "schema"),
+			pointer:   mediaPtr + ids.Ptr("schema"),
 			mediaType: mt,
+			unmodeled: residue,
+			examples:  examples,
 		}
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags
@@ -651,10 +845,14 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	}
 	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.ProvenanceAt, decl)...)
+	// An entry written as a Reference Object carries its summary and description
+	// beside the $ref, and they override the declaration's; the fold reads the two
+	// through the same helper the other positions use (GitHub #610).
+	docs := resolve.RefDocs(re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
-		Summary:     ex.GetSummary(),
-		Description: ex.GetDescription(),
+		Summary:     docs.Summary,
+		Description: docs.Description,
 		ExternalURL: ex.GetExternalValue(),
 		Unmodeled:   ext,
 	}
@@ -663,33 +861,63 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 }
 
 // appendExampleValue appends the entry's value under the annotations proto
-// already carries, stamping the failure pointer where the value is written: at
-// the reference site for a $ref entry, which holds no `value` node of its own,
-// and at its own `value` for an inline one.
+// already carries, choosing the spelling the entry wrote it with: the 3.1
+// `value`, the 3.2 `dataValue` — the same example in data form, and the
+// parser's values.Value is a yaml node, so it lowers and is diagnosed exactly as
+// `value` is — the spec-legal `externalValue`, and last the 3.2 `serializedValue`
+// beside that.
 func appendExampleValue(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
 	re *soa.ReferencedExample, pointer jsontext.Pointer, name string,
 ) ([]ir.Example, []ir.Diagnostic) {
-	node := ex.GetValue()
-	if node == nil {
-		return appendValuelessExample(c, out, proto, pointer, name)
+	if node := ex.GetValue(); node != nil {
+		return appendExampleData(c, out, proto, re, node, pointer, name, "value")
 	}
+	// dataValue is not dropped: it carries the example's data, ir.Example.Value is
+	// its home, and the parser models the field so the census never saw it either
+	// (GitHub #612).
+	if data := ex.GetDataValue(); data != nil {
+		return appendExampleData(c, out, proto, re, data, pointer, name, "dataValue")
+	}
+	if proto.ExternalURL != "" {
+		return append(out, proto), nil
+	}
+	return appendSerializedExample(c, out, proto, ex, pointer, name)
+}
+
+// appendExampleData lowers one example node under keyword — the spelling it was
+// written with — stamping the failure pointer where the value is written: at the
+// reference site for a $ref entry, which holds no node of its own, and at its own
+// keyword for an inline one.
+func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
+	re *soa.ReferencedExample, node *yaml.Node, pointer jsontext.Pointer, name, keyword string,
+) ([]ir.Example, []ir.Diagnostic) {
 	if re.IsReference() {
 		return schema.AppendExample(c, out, proto, node, pointer, "examples", name)
 	}
-	return schema.AppendExample(c, out, proto, node, pointer, "examples", name, "value")
+	return schema.AppendExample(c, out, proto, node, pointer, "examples", name, keyword)
 }
 
-// appendValuelessExample records an entry that declares no inline `value`. The
-// spec-legal externalValue form is one of these, and ir.Example.ExternalURL is
-// its home, so it is kept whole. Any other value-less entry carries no example
-// at all — a 3.2 dataValue/serializedValue, or an empty stub — and is dropped
-// with a warning rather than in silence.
-func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
-	if proto.ExternalURL == "" {
-		return out, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
-			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue")}
+// appendSerializedExample records an entry that declares no value, no dataValue
+// and no externalValue. The 3.2 `serializedValue` is one format's spelling of
+// the example, and ir.Example has no field for it: a neutral node should not
+// carry a format-specific form, so it is kept verbatim with ReasonNoIRHome and
+// announced (GitHub #612, ir-design §12).
+//
+// The raw node's presence decides, not the getter. An entry declaring none of
+// the four is an empty stub and keeps its warning; one merged in through `<<`
+// is reported by PreserveNode itself.
+func appendSerializedExample(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
+	pointer jsontext.Pointer, name string,
+) ([]ir.Example, []ir.Diagnostic) {
+	at := pointer + ids.Ptr("examples", name, "serializedValue")
+	kept, diags := schema.PreserveNode(c, &proto.Unmodeled, "openapi:serializedValue",
+		annotation.RawChildNode(ex.GetRootNode(), "serializedValue"), ir.ReasonNoIRHome, at)
+	if !kept {
+		return out, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
+			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue"))
 	}
-	return append(out, proto), nil
+	return append(out, proto), append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"serializedValue has no ir.Example home; kept verbatim under Unmodeled"))
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
@@ -719,6 +947,18 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
 		return diags
+	}
+	// The body's own documentation describes the body rather than any media type
+	// inside it, and ir.Payload is where a request body's facts land. The parser
+	// models the field, so the unknown-key census never saw it either: a
+	// `description` here reached no field, no Unmodeled entry and no diagnostic
+	// (GitHub #609). A summary or description written beside a `$ref` to the body
+	// overrides the declaration's, through the same fold every other position uses
+	// (GitHub #610). Written only when something landed, so a body stating neither
+	// keeps Docs nil — the same three-state reading Required takes.
+	bodyDocs := resolve.RefDocs(src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	if bodyDocs.Summary != "" || bodyDocs.Description != "" {
+		payload.Docs = &bodyDocs
 	}
 	required := rb.GetRequired()
 	payload.Required = &required

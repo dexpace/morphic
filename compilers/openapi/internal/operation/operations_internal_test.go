@@ -658,3 +658,17 @@ func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
 	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
 }
+
+// TestDeclaredTags_SkipsANilEntry pins the guard on the tag list: a nil entry
+// indexes no name, so it can neither be read for a kind or a parent by the
+// grouping walk nor shadow a tag the document does declare. The parser produces
+// no such entry, which is why the guard is exercised at the list it guards.
+func TestDeclaredTags_SkipsANilEntry(t *testing.T) {
+	t.Parallel()
+	kept := &soa.Tag{Name: "kept"}
+
+	got := declaredTags([]*soa.Tag{nil, kept})
+
+	require.Len(t, got, 1)
+	assert.Same(t, kept, got["kept"])
+}

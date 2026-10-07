@@ -199,6 +199,34 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	}
 }
 
+// TestIs32_FollowsTheDeclaredVersion pins the one answer every 3.2 raw-node
+// reader and every 3.2 census suppression asks for (GitHub #615). Asking once
+// here is what keeps the reader and the census from disagreeing about which
+// dialect they are reading, and a version nobody recognizes answers false — the
+// raw-node readers are refused rather than let to run on a dialect nothing has
+// said anything about.
+func TestIs32_FollowsTheDeclaredVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.3", want: false},
+		{version: "3.1.0", want: false},
+		{version: "3.2.0", want: true},
+		{version: "3.2.1", want: true},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.Is32())
+		})
+	}
+}
+
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
 // reads, and that both come from the context rather than from a copy beside it:
 // the document's own path decides internal from external, and the declared set

@@ -1,0 +1,22 @@
+openapi: 3.2.0
+info: {title: TagsGrouping32, version: "1.0.0"}
+tags:
+  # The child is declared before its parent, and the operation below names the
+  # badge tag first in its `tags`: both are the orders that were wrong before the
+  # fix, so a revert reddens this case rather than agreeing with it.
+  - {name: books, parent: catalog, description: Book operations, kind: nav}
+  - {name: catalog, description: Everything the library holds, kind: nav}
+  - {name: beta, kind: badge}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses:
+        "200": {description: ok}
+  /catalog:
+    get:
+      operationId: showCatalog
+      tags: [catalog]
+      responses:
+        "200": {description: ok}

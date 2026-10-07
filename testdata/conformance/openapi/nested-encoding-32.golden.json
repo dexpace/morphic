@@ -1,0 +1,218 @@
+{
+  "irVersion": "0.6.0",
+  "name": "NestedEncoding32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "NestedEncoding32",
+        "canonical": "nested_encoding_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1upload/post",
+              "name": {
+                "source": "upload",
+                "canonical": "upload"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/note/encoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "inner": {
+                            "contentType": "text/plain"
+                          }
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/encoding"
+                        }
+                      },
+                      "openapi:encoding/note/prefixEncoding": {
+                        "reason": "no_ir_home",
+                        "value": [
+                          {
+                            "contentType": "text/plain"
+                          }
+                        ],
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "upload_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireName": "note",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/note"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding encoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/encoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding prefixEncoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "nested-encoding-32.yaml",
+      "hash": "f7e4226b54fc807230a5ec00ca92ff97d4978af060e62cd20575c3e4badbb6a7"
+    }
+  ]
+}

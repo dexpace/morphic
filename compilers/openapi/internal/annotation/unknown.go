@@ -114,8 +114,32 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Po
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last.
 func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string) []ir.Diagnostic {
+	return UnknownKeysDecided(p, model, locate, owner, scope, nil)
+}
+
+// UnknownKeysDecided is UnknownKeysUnder for an object one of whose keys a
+// reader has already read raw: `decided` names those keys, and the census leaves
+// them alone rather than reporting a key the document does define as undefined.
+//
+// The parser's model has no field for the keys OpenAPI 3.2 added, such as a
+// Response Object's `summary`, so each is read off the raw node (GitHub #615).
+// `decided` must be empty below 3.2, where the same key is a misspelling and
+// the warning is owed.
+func UnknownKeysDecided(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string, decided []string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return UnknownKeysNamed(p, keys, root, locate, owner, scope)
+	return census(p, keys, root, locate, owner, scope, objectKeyClass(decided))
+}
+
+// objectKeyClass grades a key the OpenAPI object it is written on does not
+// define, with the keys a reader has already taken raw left out.
+func objectKeyClass(decided []string) keyClass {
+	return keyClass{
+		code:     diag.UnknownObjectKey,
+		severity: ir.SeverityWarning,
+		skip:     decided,
+		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
+			"x- extension; kept verbatim under Unmodeled",
+	}
 }
 
 // UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no
@@ -131,12 +155,7 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	locate Locator, owner jsontext.Pointer, scope string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, locate, owner, scope, keyClass{
-		code:     diag.UnknownObjectKey,
-		severity: ir.SeverityWarning,
-		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
-			"x- extension; kept verbatim under Unmodeled",
-	})
+	return census(p, keys, root, locate, owner, scope, objectKeyClass(nil))
 }
 
 // keyClass is how a key the model does not name is graded: which diagnostic

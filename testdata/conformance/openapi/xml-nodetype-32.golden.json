@@ -1,0 +1,131 @@
+{
+  "irVersion": "0.6.0",
+  "name": "XMLNodeType32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "XMLNodeType32",
+        "canonical": "xml_node_type_32"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Report": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Report",
+      "name": {
+        "source": "Report",
+        "canonical": "report"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Report"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Report/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "xml": {
+            "nodeType": "attribute",
+            "wrapped": false
+          },
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Report/properties/id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Report/properties/body",
+          "name": {
+            "source": "body",
+            "canonical": "body"
+          },
+          "wireName": "body",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "xml": {
+            "nodeType": "text",
+            "wrapped": true
+          },
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Report/properties/body"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "xml-nodetype-32.yaml",
+      "hash": "d341aea6d2b8cf952809526d42ffb3af0f3e72e665115fbd54faacaeb753e761"
+    }
+  ]
+}

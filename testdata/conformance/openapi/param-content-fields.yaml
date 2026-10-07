@@ -1,0 +1,35 @@
+openapi: 3.2.0
+info: {title: ParamContentFields, version: "1.0.0"}
+paths:
+  /search:
+    get:
+      operationId: search
+      parameters:
+        # A content-style parameter lowers the elected media type's schema to its
+        # type. Everything else the Media Type Object declares has no
+        # ir.Parameter home and used to reach the IR in no form at all.
+        - name: filter
+          in: query
+          content:
+            application/json:
+              schema: {type: object, properties: {kind: {type: string}}}
+              examples:
+                one: {summary: One kind, value: {kind: a}}
+              itemSchema: {type: string}
+              x-note: note
+        # The schema spelling elects no media type, so it records none of the
+        # content-scoped fields beside it.
+        - name: plain
+          in: query
+          schema: {type: string}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Search:
+              content:
+                application/json:
+                  schema: {type: object, properties: {hits: {type: integer}}}
+                  examples:
+                    hit: {summary: One hit, value: {hits: 1}}
+                  x-hdr: hdr

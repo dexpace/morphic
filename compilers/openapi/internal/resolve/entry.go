@@ -6,6 +6,8 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+
+	"github.com/dexpace/morphic/ir"
 )
 
 // Referenced is the method set every soa "Referenced*" alias exposes: it
@@ -43,6 +45,38 @@ func Object[T, S any, R interface {
 	// fallback stays explicit rather than coupling this compiler to that
 	// undocumented nil-tolerance.
 	return ref.GetResolvedObject()
+}
+
+// SiblingDocs is the method set a speakeasy Reference wrapper exposes for the
+// summary and description a document may write beside a `$ref`: every
+// Referenced* alias is Reference[T, V, C], whose Populate reads these two only
+// when the entry actually holds a reference, so an inline entry reports both
+// empty whatever the object itself declares.
+//
+// It is exported because the sites that fold the pair over a declaration's docs
+// are a layer up, and one of them passes the wrapper into a shared lowering
+// rather than applying the fold itself.
+type SiblingDocs interface {
+	GetSummary() string
+	GetDescription() string
+}
+
+// RefDocs folds the summary and description written beside a `$ref` over the
+// docs the resolved declaration carries, field by field: a sibling the entry
+// writes wins because it describes *this* use, and one it omits leaves the
+// declaration's value. OpenAPI gives such a sibling "no effect" where the type
+// disallows one, but the IR has a docs field at every position this applies
+// to, and dropping it silently is the defect fixed here (ir-design §12.2).
+//
+// The getters are nil-receiver tolerant, so an inline entry needs no guard.
+func RefDocs(ref SiblingDocs, docs ir.Docs) ir.Docs {
+	if summary := ref.GetSummary(); summary != "" {
+		docs.Summary = summary
+	}
+	if description := ref.GetDescription(); description != "" {
+		docs.Description = description
+	}
+	return docs
 }
 
 // maxRefChain bounds how many $ref hops ObjectAt follows to a declaration, and

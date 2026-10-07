@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentreach"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -38,6 +39,64 @@ type docMeta struct {
 	Unmodeled      ir.Unmodeled
 }
 
+// retainedComponentSections returns the components sections nothing lowers
+// unless a `$ref` reaches them. None of them has a registry: components/schemas
+// is walked by the schema lowering and components/securitySchemes by the auth
+// lowering, both unconditionally, while these eight are reached only where a
+// reference finds an entry — so an entry no reference names would reach no node,
+// no Unmodeled entry and no diagnostic at all (GitHub #616).
+//
+// components/mediaTypes joins them only from 3.2, the version that defines the
+// section. Below it the key is one the dialect does not define, and the
+// components census already keeps the whole map verbatim under
+// openapi:components/mediaTypes.
+func retainedComponentSections(c lowering.Ctx) []string {
+	sections := []string{
+		"responses", "parameters", "examples", "requestBodies",
+		"headers", "links", "callbacks", "pathItems",
+	}
+	if c.Is32() {
+		sections = append(sections, ids.MediaTypesKind)
+	}
+	return sections
+}
+
+// retainUnreferencedComponents keeps every component entry no reference reaches
+// verbatim on the document, under openapi:components/<section>/<name> with
+// ReasonNoIRHome and no diagnostic.
+//
+// Keeping rather than dropping is invariant 2's default and the only lossless
+// answer: the entry is a declaration the document makes, and nothing about this
+// compiler's lowering says a consumer may not want it. The rule is the one
+// already recorded for a response's links map, generalized to every section with
+// no registry. ReasonNoIRHome rather than a boundary, because each of these is a
+// promotion candidate: a later reader that finds a use for one lowers it where it
+// stands.
+func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+	entries := componentreach.Unreferenced(c.Doc.GetRootNode(), retainedComponentSections(c))
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, entry := range entries {
+		kind, name, ok := ids.ComponentEntry(entry.Pointer)
+		if !ok {
+			// The name is empty. OpenAPI's component-name rule
+			// (^[a-zA-Z0-9._-]+$) makes such a key invalid, so
+			// ids.ComponentEntry refuses it, and an Unmodeled key with an
+			// empty name segment names no entry of that document. This is
+			// the one unreferenced entry the rule above does not retain.
+			continue
+		}
+		_, keptDiags := annotation.PreserveNodeInto(&out,
+			"openapi:components/"+ids.Scope(kind, name), entry.Node, ir.ReasonNoIRHome,
+			c.ProvenanceAt(entry.Pointer))
+		diags = append(diags, keptDiags...)
+	}
+	return out, diags
+}
+
 // lowerMeta lowers the document-level metadata that is not part of the type or
 // service graph: info, servers, and the extensions of every object around them
 // that lowers to no node of its own (ir-design §10, §12).
@@ -46,6 +105,10 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 
 	ext, diags := documentExtensions(c)
 	m.Unmodeled = ext
+
+	retained, retainDiags := retainUnreferencedComponents(c)
+	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
+	diags = append(diags, retainDiags...)
 
 	servers, serverDiags := lowerServers(c)
 	m.Servers = servers
@@ -68,17 +131,30 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(sites))
 	for _, site := range sites {
 		diags = append(diags,
-			annotation.UnknownKeysUnder(p, site.model, c.ProvenanceAt, site.owner, site.scope)...)
+			annotation.UnknownKeysDecided(p, site.model, c.ProvenanceAt, site.owner, site.scope, site.decided)...)
 	}
 	return diags
 }
 
 // unknownSite is one object's census: what it keys under on the carrier holding
-// it, the object's own source pointer, and the parsed object itself.
+// it, the object's own source pointer, the parsed object itself, and the keys a
+// reader has already taken raw for this document.
 type unknownSite struct {
-	scope string
-	owner jsontext.Pointer
-	model any
+	scope   string
+	owner   jsontext.Pointer
+	model   any
+	decided []string
+}
+
+// componentsDecidedKeys names the Components Object keys a reader takes raw for
+// this document: OpenAPI 3.2's `mediaTypes`, whose entries are resolved where a
+// content entry references one rather than kept as a whole map (GitHub #615).
+// Below 3.2 the key is undefined and the warning is owed.
+func componentsDecidedKeys(c lowering.Ctx) []string {
+	if !c.Is32() {
+		return nil
+	}
+	return []string{ids.MediaTypesKind}
 }
 
 // rootUnknownSites returns the census sites a document has exactly one of. The
@@ -94,12 +170,12 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
 	return []unknownSite{
-		{"", "", c.Doc},
-		{"info", infoPtr, info},
-		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
-		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
-		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
-		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
+		{"", "", c.Doc, nil},
+		{"info", infoPtr, info, nil},
+		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact(), nil},
+		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense(), nil},
+		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs(), nil},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents(), componentsDecidedKeys(c)},
 	}
 }
 
@@ -121,8 +197,8 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 		index := strconv.Itoa(i)
 		ptr := ids.Ptr("tags", index)
 		out = append(out,
-			unknownSite{"tags/" + index, ptr, t},
-			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
+			unknownSite{"tags/" + index, ptr, t, nil},
+			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs(), nil})
 	}
 	return out
 }

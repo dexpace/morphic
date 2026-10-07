@@ -2908,3 +2908,662 @@ components:
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
 	}
 }
+
+// TestResponses_RefSiteDocsOverrideTheDeclaration pins the response half of
+// GitHub #610 at both status classes, and the per-mount rule: one component
+// mounted three times — a success with a sibling description, an error with a
+// different one, and a success with none — must give each mount its own docs
+// and leave the declaration's description for the mount that writes none.
+func TestResponses_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', description: as a returns it}
+  /b:
+    get:
+      operationId: b
+      responses:
+        "404": {$ref: '#/components/responses/Ok', description: as b fails}
+  /c:
+    get:
+      operationId: c
+      responses:
+        "200": {$ref: '#/components/responses/Ok'}
+components:
+  responses:
+    Ok:
+      description: declared
+      content:
+        application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	a := openapitest.FindOp(t, doc, "a")
+	require.Len(t, a.Responses, 1)
+	assert.Equal(t, "as a returns it", a.Responses[0].Docs.Description)
+
+	b := openapitest.FindOp(t, doc, "b")
+	require.Len(t, b.Errors, 1)
+	assert.Equal(t, "as b fails", b.Errors[0].Docs.Description,
+		"an error case is lowered by the same shared function, so it folds too")
+
+	c := openapitest.FindOp(t, doc, "c")
+	require.Len(t, c.Responses, 1)
+	assert.Equal(t, "declared", c.Responses[0].Docs.Description,
+		"a mount with no siblings keeps the declaration's description")
+}
+
+// TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder is the hand-rolled two-order
+// diff for GitHub #610. A use-site summary or description is neither part of the
+// type registry nor a diagnostic, so the in-package order-invariance oracle does
+// not reach it. One component referenced by two operations with different
+// overrides, declared in both orders, must give each mount its own docs.
+func TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const first = `  /a:
+    get:
+      operationId: a
+      parameters: [{$ref: '#/components/parameters/Limit', description: from a}]
+      responses: {"200": {description: ok}}
+`
+	const second = `  /b:
+    get:
+      operationId: b
+      parameters: [{$ref: '#/components/parameters/Limit', description: from b}]
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  parameters:
+    Limit: {name: limit, in: query, description: declared, schema: {type: integer}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"a", "b"} {
+			p, ok := paramBySource(openapitest.FindOp(t, doc, name), "limit")
+			require.True(t, ok)
+			out[name] = p.Docs.Description
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(first+second), projection(second+first)),
+		"each mount keeps its own override whichever was lowered first")
+}
+
+// groupBySource returns the top-level group whose name source is name.
+func groupBySource(groups []ir.OperationGroup, name string) (ir.OperationGroup, bool) {
+	for _, g := range groups {
+		if g.Name.Source == name {
+			return g, true
+		}
+	}
+	return ir.OperationGroup{}, false
+}
+
+// TestGrouping_NonNavigationalTagIsSkipped pins GitHub #613's first half: an
+// operation's first tag may be a badge, which is not a section it belongs to, so
+// the group comes from the first *navigational* tag. The badge tag is declared
+// first in the operation's `tags` on purpose — the order that was wrong before
+// the fix, so reverting the skip groups under the badge and reddens this.
+func TestGrouping_NonNavigationalTagIsSkipped(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: books, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the badge tag contributes no group")
+	books, ok := groupBySource(svc.Groups, "books")
+	require.True(t, ok)
+	require.Len(t, books.Operations, 1)
+	assert.Equal(t, "listBooks", books.Operations[0].Name.Source)
+	_, badge := groupBySource(svc.Groups, "beta")
+	assert.False(t, badge, "a non-navigational tag never groups")
+}
+
+// TestGrouping_BadgeOnlyOperationFallsToDefault is the other arm: when every tag
+// an operation names is non-navigational there is no section to group it under,
+// and inventing one from a tag that does not group would be an inference.
+func TestGrouping_BadgeOnlyOperationFallsToDefault(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+paths:
+  /beta:
+    get:
+      operationId: betaOp
+      tags: [beta]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "default", svc.Groups[0].Name.Hint)
+	assert.Empty(t, svc.Groups[0].Name.Source)
+	require.Len(t, svc.Groups[0].Operations, 1)
+}
+
+// TestGrouping_NavigationalChildNestsUnderItsParent pins the tree: a group whose
+// tag declares a parent that is itself a navigational declared tag is nested
+// under that parent's group. The child is declared before the parent on purpose
+// — the parent chain must be built from the declarations rather than from the
+// order they arrive in.
+func TestGrouping_NavigationalChildNestsUnderItsParent(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, description: Everything, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the child is nested, not a second top-level group")
+	catalog := svc.Groups[0]
+	assert.Equal(t, "catalog", catalog.Name.Source)
+	assert.Empty(t, catalog.Operations, "the ancestor exists to hold its children")
+	require.Len(t, catalog.Groups, 1)
+	assert.Equal(t, "books", catalog.Groups[0].Name.Source)
+	require.Len(t, catalog.Groups[0].Operations, 1)
+	assert.Equal(t, "listBooks", catalog.Groups[0].Operations[0].Name.Source)
+}
+
+// TestGrouping_AncestorDeclaredAfterItsChildIsStillNested is the same tree with
+// the two declarations in the other order, so the nesting cannot depend on which
+// of them the document wrote first.
+func TestGrouping_AncestorDeclaredAfterItsChildIsStillNested(t *testing.T) {
+	t.Parallel()
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	assert.Empty(t, cmp.Diff(tree(childFirst), tree(parentFirst)),
+		"the group tree must not depend on the declaration order")
+}
+
+// TestGrouping_DanglingParentStaysTopLevel pins that a parent naming no declared
+// tag ends the walk: the group is top-level rather than nested under a group
+// invented for the missing name.
+func TestGrouping_DanglingParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: nope, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source, "the group is top-level")
+}
+
+// TestGrouping_NonNavigationalParentStaysTopLevel holds the parent side of the
+// kind rule: a parent that is declared but not navigational does not receive a
+// group, so its child stays top-level.
+func TestGrouping_NonNavigationalParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: beta, kind: nav}
+  - {name: beta, kind: badge}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_ParentCycleStaysFlat pins that a cycle among the declared parents
+// terminates and keeps every operation reachable: the walk stops at the cycle,
+// and neither member of it nests under the other.
+func TestGrouping_ParentCycleStaysFlat(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: a, parent: b, kind: nav}
+  - {name: b, parent: a, kind: nav}
+paths:
+  /a:
+    get:
+      operationId: opA
+      tags: [a]
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: opB
+      tags: [b]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	assert.True(t, openapitest.HasDiag(diags, "openapi/validation/validation-circular-reference"),
+		"the parser reports the cycle; the lowering only has to terminate")
+	require.Len(t, svc.Groups, 2, "both groups stay top-level rather than nesting on a cycle")
+	for _, g := range svc.Groups {
+		assert.Empty(t, g.Groups)
+		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
+	}
+}
+
+// TestGrouping_UndeclaredTagIsNavigational pins that a tag an operation uses
+// without declaring has no kind to read, so it groups exactly as every 3.0 and
+// 3.1 tag does and stays top-level.
+func TestGrouping_UndeclaredTagIsNavigational(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: x
+      tags: [adHoc]
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "adHoc", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_SameNameDeclaredTwiceIsDeterministic pins that two declarations
+// of one tag name resolve the same way whichever order the operations that name
+// them are lowered in: the first declaration wins, so a second one declaring a
+// different parent cannot move the group midway through the walk.
+func TestGrouping_SameNameDeclaredTwiceIsDeterministic(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the first declaration wins for both the kind and the parent")
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestTagDefs_RecordParentAndKind pins GitHub #613's second half: the declared
+// tag registry keeps the 3.2 parent and kind verbatim, and neither is invented
+// for a tag that declares none.
+func TestTagDefs_RecordParentAndKind(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: beta, kind: badge}
+  - {name: plain}
+paths: {}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, doc.TagDefs, 3)
+	assert.Equal(t, ir.TagDef{Name: "books", Docs: ir.Docs{}, Parent: "catalog", Kind: "nav"}, doc.TagDefs[0])
+	assert.Equal(t, "badge", doc.TagDefs[1].Kind)
+	assert.Empty(t, doc.TagDefs[1].Parent)
+	assert.Empty(t, doc.TagDefs[2].Parent, "a tag declaring neither keeps both empty")
+	assert.Empty(t, doc.TagDefs[2].Kind)
+}
+
+// TestGrouping_TreeIsIndependentOfDeclarationOrder is the two-order diff for
+// GitHub #613. The group tree is neither the type registry nor a diagnostic, so
+// the in-package order-invariance oracle does not see it. Both documents declare
+// the same tags and the same operations; only the order of the `tags` list and
+// of the badge tag within one operation's `tags` differs, and the tree — nesting,
+// sibling order and operations — must be identical.
+func TestGrouping_TreeIsIndependentOfDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+  /catalog:
+    get:
+      operationId: showCatalog
+      tags: [catalog]
+      responses: {"200": {description: ok}}
+`
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+  - {name: beta, kind: badge}
+` + paths
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+` + paths
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	got := tree(childFirst)
+	assert.Empty(t, cmp.Diff(tree(parentFirst), got), "the group tree must not depend on declaration order")
+	require.Len(t, got, 1, "catalog is the only top-level group")
+	require.Len(t, got[0].Groups, 1)
+	assert.Equal(t, "books", got[0].Groups[0].Name.Source)
+	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
+}
+
+// TestContent_MediaTypesRefIsOrderIndependent is the two-order diff for GitHub
+// #615. The entry a content `$ref` resolves through is read by pointer off the
+// raw tree, and the type registry it lowers into is not a diagnostic, so the
+// order-invariance oracle does not cover this pair: both documents below declare
+// the same components and the same path, and only the order of the two top-level
+// blocks differs. The contents, and the registry identity they carry, must be
+// identical.
+func TestContent_MediaTypesRefIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+	const header = `openapi: 3.2.0
+info: {title: T, version: "1"}
+`
+	const paths = `paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
+`
+	const components = `components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Json:
+      schema: {$ref: '#/components/schemas/N'}
+      examples:
+        one: {value: {k: 1}}
+`
+	lower := func(spec string) ([]ir.Content, []ir.Diagnostic) {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		op := openapitest.FirstOp(t, svc)
+		require.NotNil(t, op.Responses[0].Payload)
+		return op.Responses[0].Payload.Contents, diags
+	}
+	componentFirst, firstDiags := lower(header + components + paths)
+	componentLast, lastDiags := lower(header + paths + components)
+
+	assert.Empty(t, cmp.Diff(componentFirst, componentLast),
+		"where the media type is declared must not change what the content lowers to")
+	assert.Empty(t, cmp.Diff(firstDiags, lastDiags), "nor may the diagnostic list depend on it")
+	require.Len(t, componentFirst, 1)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), componentFirst[0].Type.Target,
+		"the reference resolved, so the two orders above compared a resolved content")
+}
+
+// TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
+// 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
+// dialect does not define, so it keeps warning rather than being silently
+// suppressed.
+func TestResponses_SummaryIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `  /a:
+    get:
+      operationId: a
+      responses:
+        "204":
+          summary: The item was deleted
+          description: Long form.
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	resp32 := openapitest.FindOp(t, doc32, "a").Responses[0]
+	assert.Equal(t, "The item was deleted", resp32.Docs.Summary)
+	assert.Equal(t, "Long form.", resp32.Docs.Description)
+	assert.NotContains(t, resp32.Unmodeled, "openapi:summary",
+		"a key the dialect defines is read, not also kept verbatim")
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
+		"3.2 defines the key, so the census must not call it undefined")
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the key is undefined and the warning is owed")
+	resp31 := openapitest.FindOp(t, doc31, "a").Responses[0]
+	assert.Empty(t, resp31.Docs.Summary, "nothing is invented for a version without the field")
+	assert.Contains(t, resp31.Unmodeled, "openapi:summary")
+}
+
+// TestResponses_SummaryUseSiteBeatsTheDeclaration holds the 3.2 field to the
+// same precedence the rest of a response's docs take: a summary written beside
+// the $ref describes this mount, so it wins over the declaration's own.
+func TestResponses_SummaryUseSiteBeatsTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', summary: As a sees it}
+components:
+  responses:
+    Ok:
+      summary: As declared
+      description: ok
+      content:
+        application/json: {schema: {type: string}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "As a sees it", openapitest.FindOp(t, doc, "a").Responses[0].Docs.Summary)
+}
+
+// TestXML_NodeTypeIsReadFor32Only pins the 3.2 XML nodeType: ir.XMLHints.NodeType
+// already existed and its GoDoc already named the version, so this is the wiring
+// — and below 3.2 the key keeps the warning it always drew.
+func TestXML_NodeTypeIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `    S:
+      type: object
+      properties:
+        n:
+          type: string
+          xml: {nodeType: text}
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	model, ok := doc32.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop, ok := propByWireTest(model, "n")
+	require.True(t, ok)
+	require.NotNil(t, prop.XML)
+	assert.Equal(t, "text", prop.XML.NodeType)
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey))
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the XML object defines no nodeType and the warning is owed")
+	model31, ok := doc31.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop31, ok := propByWireTest(model31, "n")
+	require.True(t, ok)
+	require.NotNil(t, prop31.XML)
+	assert.Empty(t, prop31.XML.NodeType)
+}
+
+// propByWireTest returns the property of m with the given wire name.
+func propByWireTest(m *ir.Model, wire string) (ir.Property, bool) {
+	for _, p := range m.Properties {
+		if p.WireName == wire {
+			return p, true
+		}
+	}
+	return ir.Property{}, false
+}
+
+// TestContent_MediaTypesRefIsResolved pins the 3.2 components/mediaTypes path:
+// a content entry written as a `$ref` into that section is read off the raw node
+// and lowered through the ordinary media-type lowering, so the body is what the
+// component declares rather than the top type with the reference kept beside it.
+func TestContent_MediaTypesRefIsResolved(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
+components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Json:
+      schema: {$ref: '#/components/schemas/N'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), content.Type.Target,
+		"the referenced media type's schema is what lowers, and its own $ref still resolves")
+	assert.NotContains(t, content.Unmodeled, "openapi:$ref",
+		"a reference this compiler resolved is not also kept as an undefined key")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+}
+
+// TestContent_MediaTypesRefFailuresLowerAsWritten covers every target the
+// resolver refuses: an entry the document does not declare, an external
+// document, a pointer naming another section, an entry that is not an object,
+// and an entry that is itself another `$ref` (the one-hop reading). Each keeps
+// the `$ref` verbatim and reports one unresolved-ref.
+func TestContent_MediaTypesRefFailuresLowerAsWritten(t *testing.T) {
+	t.Parallel()
+	refs := map[string]string{
+		"an undeclared entry":            "#/components/mediaTypes/Missing",
+		"another document":               "other.yaml#/components/mediaTypes/Json",
+		"another section":                "#/components/schemas/N",
+		"an entry that is not an object": "#/components/mediaTypes/Scalar",
+		"a chained $ref":                 "#/components/mediaTypes/Chained",
+	}
+	for name, ref := range refs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '`+ref+`'}
+components:
+  schemas:
+    N: {type: string}
+  mediaTypes:
+    Scalar: hello
+    Chained: {$ref: '#/components/mediaTypes/Scalar'}
+`)
+			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+			content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
+			assert.Equal(t, ir.TypeID("t/prim/any"), content.Type.Target,
+				"an unresolvable reference drops the position to the top type")
+			assert.Contains(t, content.Unmodeled, "openapi:$ref",
+				"...with the reference itself kept verbatim")
+		})
+	}
+}

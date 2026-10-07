@@ -1114,7 +1114,7 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	edges := [][2]string{
 		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
 		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
-		{"lowerPathItem", "serviceGroups.group"},   // a *serviceGroups parameter
+		{"lowerPathItem", "serviceGroups.place"},   // a *serviceGroups parameter
 		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
 		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
 		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller

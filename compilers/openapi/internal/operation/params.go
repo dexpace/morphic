@@ -38,6 +38,11 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		}
 		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, p, pptr)
 		diags = append(diags, paramDiags...)
+		// A Reference Object may write summary and description beside its $ref, and
+		// they describe this use of the declaration rather than the declaration —
+		// so they win over what the target's own object produced, field by field.
+		// The parser presents the siblings and nothing read them (GitHub #610).
+		param.Docs = resolve.RefDocs(sp.ref, param.Docs)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
@@ -126,13 +131,20 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // same schema position; the default comes from it too, falling back to its $ref
 // target (§14).
 func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) []ir.Diagnostic {
-	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr)
+	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
+		"parameter", "ir.Parameter")
 	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
 	diags = append(diags, typeDiags...)
 	param.Type = paramType
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
 	binding.ContentType = elected.mediaType
-	return append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
+	diags = append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
+	// After fillParamSchema, whose schema-derived examples describe the type rather
+	// than the position: the media type object's own examples are more specific.
+	if len(elected.examples) > 0 {
+		param.Examples = elected.examples
+	}
+	return diags
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
@@ -218,7 +230,8 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if schema.LoweredToOwnNode(ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt,
+		c.Is32())
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
