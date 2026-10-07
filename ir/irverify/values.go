@@ -81,8 +81,9 @@ func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
 // over before the seen set that stops a second descent, so a pointer met again
 // on the way down is a cycle the JSON encoder refuses and the walk's guard would
 // hide. The rule is generic over pointers, not special-cased to ir.CtorValue,
-// the one that reaches itself today. Type and address together identify the
-// pointer: an address alone can be reused, and a type alone names every value.
+// the one that reaches itself today. Self-containing slices hold no pointer;
+// GitHub #736 tracks them. Type and address together identify the pointer: an
+// address alone can be reused, and a type alone names every value.
 type valuePointer struct {
 	typ  reflect.Type
 	addr uintptr
