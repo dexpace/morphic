@@ -272,9 +272,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		Doc:     doc,
 		Targets: targets,
 		Source: ir.SourceInfo{
-			Format: "openapi@" + minor,
-			Path:   src.Path,
-			Hash:   parsed.Hash(),
+			Format:  "openapi@" + minor,
+			Path:    src.Path,
+			Hash:    parsed.Hash(),
+			SelfURI: doc.GetSelf(),
 		},
 		Overlay: origin,
 	}, diags, nil
