@@ -1810,12 +1810,57 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, ca.Additional)
 }
 
-func assertTuples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	p, ok := doc.Types[namedID("Pair")].(*ir.Tuple)
-	require.True(t, ok, "prefixItems hoists a Tuple")
-	require.Len(t, p.Elems, 2)
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Elems[0].Target)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), p.Elems[1].Target)
+// assertTuples pins the tail a prefixItems tuple declares past its positional
+// head, and the collection bounds beside it (GitHub #597).
+//
+// The fixture holds one schema per ir-design §4.8 state: `items: false` is
+// closed and keeps no entry; an absent `items`, `items: true` and a typed tail
+// are open, each kept under openapi:items-after-prefix and announced once. Only
+// the absent case is located at the tuple's own pointer, which is what tells it
+// from a written `items: true`. Bounds are asserted on the closed rows too,
+// since losing them there would leave nothing else missing.
+func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	const at = "/components/schemas/"
+	i64 := func(v int64) *int64 { return &v }
+	for _, tc := range []struct {
+		name    string
+		elems   int
+		bounds  *ir.Constraints
+		tail    string           // the raw payload kept; "" = closed
+		pointer jsontext.Pointer // where the tail entry is located
+	}{
+		{"ClosedPair", 2, nil, "", ""},
+		{"Pair", 2, nil, "true", at + "Pair"},
+		{"ExactPair", 2, &ir.Constraints{MinItems: i64(2)}, "", ""},
+		{"PairWithTail", 1, nil, `{"type":"boolean"}`, at + "PairWithTail/items"},
+		{"BoundedClosedPair", 2,
+			&ir.Constraints{MinItems: i64(1), MaxItems: i64(2), UniqueItems: true}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tup, ok := doc.Types[namedID(tc.name)].(*ir.Tuple)
+			require.True(t, ok, "prefixItems hoists a Tuple; got %T", doc.Types[namedID(tc.name)])
+			assert.Len(t, tup.Elems, tc.elems, "the positional head is the prefixItems list")
+			assert.Equal(t, tc.bounds, tup.Constraints, "the instance's bounds reach Tuple.Constraints")
+
+			entry, kept := tup.Unmodeled["openapi:items-after-prefix"]
+			if !kept {
+				assert.Empty(t, tup.Unmodeled,
+					"a closed tail keeps nothing: the head already states it")
+				assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", at+tc.name),
+					"and nothing is announced as open")
+				return
+			}
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.JSONEq(t, tc.tail, string(entry.Value))
+			assert.Equal(t, tc.pointer, entry.Provenance.Pointer,
+				"the entry locates the construct the tail came from")
+			assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+				diagsAt(diags, "openapi/degraded-construct", at+tc.name),
+				"an open tuple is announced once, at its own pointer")
+		})
+	}
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
