@@ -136,7 +136,7 @@ unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so
 way to widen one; and give it its own entry rather than letting it inherit a wider one, since an
 inherited allowlist says nothing about where the package sits.
 
-Two caps guard shape rather than the graph. No type under `compilers/` may carry more than 20
+Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
 (`.golangci.yml`, tests excluded). The method cap is the one that matters: the god object this
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
@@ -232,6 +232,15 @@ below are the ones most likely to bite in this codebase — the full guide gover
   (stdlib, external, local); no dot imports.
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
   comment on every package; comments explain *why*, not what.
+- **Doc comments: 100 words at most.** The cap is strict and holds for each doc comment on its
+  own — package, declaration, field or method, tests included. A word is a token with a letter
+  in it: `//` markers, directives, numbers and punctuation are not counted.
+  A comment may exceed it only when the excess is both *necessary* (a reader of that symbol cannot
+  do without it, and it has no better home in `docs/`, an issue or a commit message) and
+  *valuable* (it says what neither the code nor the names can). Narrative history, restated code
+  and a second telling of the why never qualify, and a longer comment nearby is not precedent.
+  `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
+  lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
   `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
@@ -350,6 +359,15 @@ context-switch between repos.
   the cap until the number was appended, which is the whole failure mode; to see that split rather
   than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
   `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+- **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
+  or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
+  or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a
+  reviewer reads and orphans their comments, and the squash merge keeps `main` clean whatever the
+  branch holds. To pick up `main`, merge it in rather than rebasing. The squash commit's *body* is
+  settled when merging, not by shaping the branch:
+  `gh api repos/dexpace/morphic --jq .squash_merge_commit_message` names what a default squash
+  pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
+  could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
   logical change; split unrelated changes into separate PRs.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal

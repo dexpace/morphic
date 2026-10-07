@@ -43,8 +43,9 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 
 	origin, diags := applyWithin(1, &root, Options{Data: []byte(budgetOverlay)}, 2)
 
-	assert.False(t, origin.Applied(), "no position is attributed to the overlay")
-	assert.Equal(t, 9, origin.IndexAt("/info/description", 9), "not even one it did introduce")
+	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
+	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
+	assert.Equal(t, 9, origin.IndexAt("/info/description", 9), "no position is attributed to it, not even one it introduced")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayOriginIncomplete, diags[0].Code)
@@ -101,20 +102,16 @@ func TestSnapshot_RecordsEveryNodeAgainstItsValue(t *testing.T) {
 }
 
 // TestApplyWithin_RecoversALibraryPanic pins the no-panics-escape invariant on
-// the overlay side, the way the barriers around the parser and the resolver pin
-// it on theirs.
+// the overlay side, as the barriers around the parser and the resolver do on
+// theirs.
 //
-// A document node holding no root is the shape that provokes it: yamlpath
-// indexes the first child of what it is handed without checking there is one, so
-// the selector faults before any action is applied. The refusal must leave as a
-// diagnostic like every other overlay problem, and nothing may be attributed to
-// an overlay that never ran.
+// A document node holding no root provokes it: yamlpath indexes the first child
+// without checking there is one, so the selector faults before any action is
+// applied. The refusal must leave as a diagnostic like every other overlay
+// problem, and nothing may be attributed to an overlay that never ran.
 //
-// yaml.v3 does not produce this shape today — an empty source leaves a
-// zero-valued node, which the library tolerates — so the node is built rather
-// than decoded. That is what holds the barrier to its claim instead of resting
-// on a third-party parser continuing to avoid the input a third-party selector
-// cannot take.
+// yaml.v3 does not produce this shape today, so the node is built rather than
+// decoded, and the barrier does not rest on the parser continuing to avoid it.
 func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode}
@@ -169,10 +166,9 @@ func nodeAt(t *testing.T, root *yaml.Node, keys ...string) string {
 // failure that refuses rather than degrades.
 //
 // Running out of tree to walk says only that the document is past what this
-// package reads, which is what the attribution walks already say and already
-// degrade for. Running out of room to substitute says a graft was found and
-// could not be made safe, and a tree repaired in part is worse than either
-// outcome — so the compile refuses instead of passing it on.
+// package reads, which the attribution walks already degrade for. Running out
+// of room to substitute says a graft could not be made safe, and a tree
+// repaired in part is worse than either outcome, so the compile refuses.
 //
 // The budget is set between the two: large enough to walk this small source,
 // small enough that resolving the alias the overlay grafts runs past it.

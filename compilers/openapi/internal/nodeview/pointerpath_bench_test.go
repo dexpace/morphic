@@ -29,26 +29,17 @@ func componentsDoc(n int) *yaml.Node {
 }
 
 // BenchmarkPointerPath_IntoAWideMapping resolves one pointer per component of a
-// components mapping, which is what the reference scan does to a document whose
-// every schema is referenced once.
+// components mapping, as the reference scan does when every schema is
+// referenced once.
 //
-// It guards a shape rather than a number. The walk descends the same mapping
-// once per reference, so the pairs it reads grow as references × components
-// without keyIndex — and those two grow together in a real document, making the
-// scan quadratic in the document's own size. Each width here does n times the
-// work of a single resolution, so the *per-component* cost is what to read:
-// divide by n and compare across widths. It should stay flat, and a run where it
-// grows with n is the index no longer being reached.
+// It guards a shape rather than a number. Each width does n times one
+// resolution's work, so read the per-component cost: it should stay flat across
+// widths, and growth with n means the index is no longer reached
+// (TestPointerPath_ReachesTheIndexOnAWideMapping asserts that without a
+// stopwatch). Without keyIndex the cost is quadratic.
 //
-// Nothing runs this in CI, so that reading is a human's. The half of it that can
-// be settled without a stopwatch is settled without one:
-// TestPointerPath_ReachesTheIndexOnAWideMapping asserts the walk leaves an index
-// on the mapping it descends, which is the condition a flat cost depends on.
-//
-// The narrow widths are here because they are what a real document is mostly
-// made of, and because they are the case an index loses: below minIndexedPairs
-// the walk scans, and a run where these regress is that gate having stopped
-// paying for itself.
+// The narrow widths show where an index loses: below minIndexedPairs the walk
+// scans, and a regression there means the gate has stopped paying for itself.
 func BenchmarkPointerPath_IntoAWideMapping(b *testing.B) {
 	for _, n := range []int{2, 8, 64, 256, 1024} {
 		root := componentsDoc(n)

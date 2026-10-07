@@ -20,15 +20,14 @@ type payloadRule struct {
 
 // valuePayloads is ir.Value's own contract, one row per declared kind: Kind
 // selects the payload field that carries meaning, and every other payload holds
-// its zero value (ir/value.go). A kind missing from this table is reported as
-// undeclared, so TestValuePayloads_CoverTheDeclaredKinds holds its keys to the
-// ir sources' const block.
+// its zero value (ir/value.go). A kind missing here is reported as undeclared;
+// TestValuePayloads_CoverTheDeclaredKinds holds the keys to the ir sources.
 //
-// zeroIsValue separates a kind whose empty payload is still a value — false, "",
-// an empty list — from one whose empty payload is nothing: a number with no
-// digits, a ref or ctor value with no reference or call at all. A reference or
-// call that is present but names nothing is an empty ID, which the reference
-// rules own rather than this table (GitHub #473).
+// zeroIsValue separates a kind whose empty payload is still a value (false, "",
+// an empty list) from one whose empty payload is nothing: a number with no
+// digits, or a ref or ctor with no reference or call at all. A present
+// reference naming nothing is an empty ID, which the reference rules own
+// (GitHub #473).
 var valuePayloads = map[ir.ValueKind]payloadRule{
 	ir.ValueNull:    {},
 	ir.ValueBool:    {field: "Bool", zeroIsValue: true},
@@ -47,42 +46,11 @@ var valuePayloads = map[ir.ValueKind]payloadRule{
 // present where an empty one would be no value at all.
 //
 // Nothing else holds the rule ir.Value states. A value whose kind names one
-// payload while another is populated gives a consumer two answers and no way to
-// tell which to trust (GitHub #506), and the JSON form no longer shows the
-// question: every payload is omitted when empty, so an encoded value spells
-// only the payloads that are set.
+// payload while another is populated gives a consumer two answers (GitHub
+// #506), and the JSON form hides it, since every empty payload is omitted.
 //
-// Values are reached through the walk rather than through the fields that carry
-// them — defaults, consts, literals, enum members, examples, constructor
-// arguments — so a new carrier is held the moment it exists. The walk continues
-// below each value, since lists, objects and constructor arguments nest more.
-//
-// The visitor also tracks every non-nil pointer it is handed, because the walk
-// hands a pointer over before the seen set that stops it descending twice
-// ([ir.WalkValues]): a pointer met again on the way down is a cycle the JSON
-// encoder refuses, and the walk's own guard would otherwise hide it. The rule is
-// generic over pointers rather than special-cased to ir.CtorValue — the one
-// pointer that reaches itself today (TestValueCycle_OnlyCtorValueReachesItself)
-// — so a future self-reachable pointer is held the moment it exists.
-//
-// It keeps a stack of the pointers it is currently inside: each one's type,
-// address and the path it was entered at. Before judging a visit the stack is
-// trimmed to the frames whose path encloses the current one (trimPointerStack),
-// and a pointer already on it is ir/value-cycle at the current walk path, naming
-// the quoted path it was entered at (pointerOnPath). A pointer met again off the
-// path is a value two places share, which encodes twice without trouble, and
-// stays clean. The stack needs no bound of its own: the walk never descends past
-// ir.MaxWalkDepth, so it cannot grow past that, and a guard for it would be a
-// statement no document reaches — the namingChannels precedent (naming.go).
-//
-// Two limits follow from the ancestor test reading rendered paths rather than
-// the values. A map key that itself contains "." or "[" could make a sibling
-// path read as nested under an unrelated pointer's path, reporting a cycle only
-// when that sibling also shares the pointer; and an embedded pointer field would
-// share its owner's path rather than add a segment, though the document graph
-// has no embedded pointer. A list whose element holds the same list is a second
-// cycle mechanism that involves no pointer at all; it hangs Verify and is left
-// out of scope here, tracked as its own issue (GitHub #736).
+// The walk reaches values, not their carriers, so a new carrier is held at once.
+// A pointer met again inside itself is ir/value-cycle (valuePointer).
 func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	var stack []valuePointer
@@ -108,10 +76,13 @@ func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	return vs, truncated
 }
 
-// valuePointer is one pointer the walk is inside: its type and address identify
-// the meeting, and path is where the walk entered it. Type and address together
-// are what make two meetings the same pointer — the address alone can be handed
-// back to a later allocation, and the type alone names every value of that type.
+// valuePointer is one pointer the walk is inside, and path is where the walk
+// entered it. checkValues stacks these because [ir.WalkValues] hands a pointer
+// over before the seen set that stops a second descent, so a pointer met again
+// on the way down is a cycle the JSON encoder refuses and the walk's guard would
+// hide. The rule is generic over pointers, not special-cased to ir.CtorValue,
+// the one that reaches itself today. Type and address together identify the
+// pointer: an address alone can be reused, and a type alone names every value.
 type valuePointer struct {
 	typ  reflect.Type
 	addr uintptr
@@ -122,7 +93,8 @@ type valuePointer struct {
 // the pointers enclosing path. Frames are pushed in the order the walk enters
 // them, so their paths run outermost to innermost and only the innermost can be
 // the one just left: popping while the top does not enclose path stops at the
-// first frame that does, and every frame below that one encloses it too.
+// first frame that does, and every frame below that one encloses it too. The
+// stack needs no bound of its own, since the walk stops at ir.MaxWalkDepth.
 func trimPointerStack(stack []valuePointer, path string) []valuePointer {
 	for len(stack) > 0 && !enclosesPath(stack[len(stack)-1].path, path) {
 		stack = stack[:len(stack)-1]
@@ -142,9 +114,13 @@ func pointerOnPath(stack []valuePointer, v reflect.Value) (entered string, onPat
 }
 
 // enclosesPath reports whether path is ancestor itself or a path nested under
-// it, the way [ir.WalkValues] spells the two: an equal path (a pointer's element
-// and its embedded fields share its own), ancestor followed by ".", or ancestor
-// followed by "[".
+// it, the way [ir.WalkValues] spells the two: an equal path, ancestor followed
+// by ".", or ancestor followed by "[".
+//
+// Reading rendered paths has two limits. A map key containing "." or "[" can
+// make a sibling read as nested, reporting a cycle only when that sibling also
+// shares the pointer; and an embedded pointer field would share its owner's
+// path, though the document graph has none.
 func enclosesPath(ancestor, path string) bool {
 	return path == ancestor ||
 		strings.HasPrefix(path, ancestor+".") ||

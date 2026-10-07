@@ -640,20 +640,16 @@ func selfReachable(kind reflect.Kind) []string {
 	return out
 }
 
-// TestValueCycle_OnlyCtorValueReachesItself is the executable survey behind the
-// rule checkValues enforces: it walks the IR's type graph and reports which
+// TestValueCycle_OnlyCtorValueReachesItself is the executable survey behind
+// checkValues' cycle rule: it walks the IR's type graph and reports which
 // pointer and slice types can reach themselves, so a new self-reachable type
-// reddens here rather than shipping a check whose message and follow-up name the
-// wrong shape.
+// reddens here rather than shipping a check that names the wrong shape.
 //
-// The survey finds exactly one self-reachable pointer — ir.CtorValue, through
-// Value.Ctor and CtorValue.Args — and exactly three self-reachable slices:
-// []ir.Value through Value.List, []ir.Field through Field.Value and
-// Value.Object, and []ir.OperationGroup through OperationGroup.Groups. The
-// first two are the value-carried list mechanism the follow-up issue (GitHub
-// #736) names; []ir.OperationGroup is the same mechanism reached through the
-// service tree rather than through a value, and is named here so that issue's
-// scope stays visible rather than being read as complete.
+// The one self-reachable pointer is ir.CtorValue, through Value.Ctor and
+// CtorValue.Args. The three self-reachable slices are []ir.Value, []ir.Field and
+// []ir.OperationGroup: the first two are the list mechanism GitHub #736 tracks,
+// and the third is the same mechanism through the service tree, named so that
+// issue's scope is not read as complete.
 func TestValueCycle_OnlyCtorValueReachesItself(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []string{"*ir.CtorValue"}, selfReachable(reflect.Pointer),

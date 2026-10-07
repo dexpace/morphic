@@ -57,24 +57,17 @@ type UnmodeledEntry struct {
 	// can take the subset it cares about — a validation emitter wants §4.7
 	// entries and not vendor noise; a linter wants the degradations.
 	Reason UnmodeledReason `json:"reason"`
-	// Value is the source construct, preserved whole rather than byte-for-byte:
-	// nothing here discards or reshapes it, but re-encodings sit between the
-	// source bytes and this field. Encoding a document reformats a RawValue with
-	// the rest of it, whitespace and string escapes alike, and a compiler that
-	// rebuilds the value from its parsed tree (the OpenAPI path does) also sorts
-	// object keys.
+	// Value is the source construct, preserved whole but not byte-for-byte:
+	// encoding reformats a RawValue's whitespace and string escapes, and a
+	// compiler that rebuilds the value from its parsed tree (the OpenAPI path
+	// does) also sorts object keys.
 	//
-	// A number's value survives exactly. Its spelling is canonicalized only
-	// where JSON and YAML disagree about how to write one — .5 becomes 0.5,
-	// 0o17 becomes 15 — while every significant digit stays (GitHub #32).
-	//
-	// A scalar the source format gives a type to and JSON does not is kept as
-	// the text the source wrote, as a JSON string: a YAML timestamp stays
-	// `2021-1-1` rather than becoming the RFC 3339 instant it resolves to, and
-	// a `!!binary` keeps its base64 spelling rather than the bytes it names
-	// (GitHub #242). Reading one means resolving it the way its source format
-	// would; what this field promises is that the text is still there to
-	// resolve, which the resolved form would not have been.
+	// A number's value survives exactly; its spelling is canonicalized only
+	// where JSON and YAML disagree (.5 becomes 0.5, 0o17 becomes 15), keeping
+	// every significant digit (#32). A scalar the source format types and JSON
+	// does not is kept as its source text, as a JSON string: a YAML timestamp
+	// stays `2021-1-1`, a `!!binary` keeps its base64 (#242). Reading one means
+	// resolving it as its source format would.
 	Value RawValue `json:"value"`
 	// Provenance locates the construct itself, which the owning node's own
 	// provenance cannot: a validation emitter reporting on a `not` must point at
@@ -89,14 +82,12 @@ type UnmodeledEntry struct {
 // origin so two formats never collide: "openapi:x-rate-limit",
 // "smithy:aws.api#arn", "graphql:@key", "erlang:opaque" (ir-design §12).
 //
-// The name states the one property every member shares — the IR does not model
-// it — rather than any one format's word for the concept. OpenAPI calls these
-// extensions, Protobuf options, GraphQL directives, Smithy traits, TypeSpec
-// decorators, and Protobuf's own "extensions" means something else entirely
-// (reserved field-number ranges), so a spec-agnostic IR can adopt none of those
-// names. Being unmodeled is the reason an entry is here; surviving verbatim is
-// what the field guarantees about it, and UnmodeledReason records which flavour
-// of unmodeled each entry is.
+// The name states the one property every member shares, that the IR does not
+// model it, rather than any one format's word. OpenAPI calls these extensions,
+// Protobuf options, GraphQL directives, Smithy traits, TypeSpec decorators, and
+// Protobuf's own "extensions" means something else entirely (reserved
+// field-number ranges), so a spec-agnostic IR can adopt none of those names.
+// UnmodeledReason records which flavour of unmodeled each entry is.
 type Unmodeled map[string]UnmodeledEntry
 
 // RawConfig is declared protocol configuration the IR models a field for but

@@ -46,19 +46,13 @@ func TestCompile_AliasBombDoesNotExhaustMemory(t *testing.T) {
 }
 
 // TestCompile_SharedCompositionAncestorsDoNotAmplify pins the visited set in the
-// discriminator ancestor walk (compilers/openapi/internal/schema/compose.go) at
-// the shape its cyclic counterpart does not reach: two allOf branches naming one
-// parent, with no cycle anywhere.
-//
-// TestAllOf_DiscriminatorValueCyclicComposition already stops finishing when the
-// set is dropped, so the set is not unheld — but a walk that never returns fails
-// as a package-wide timeout with no message, minutes later. This one fails in ten
-// seconds and names the cause, and it covers the acyclic half: branching is what
-// multiplies the frontier, and a chain of diamonds branches without ever
-// revisiting a schema by way of a cycle.
-//
-// It asserts a bound rather than only a value because the failure it exists to
-// catch is work: one visit per level with the dedup, 2^level without it.
+// discriminator ancestor walk (compilers/openapi/internal/schema/compose.go) on
+// an acyclic shape: a chain of diamonds, each allOf naming one parent twice.
+// TestAllOf_DiscriminatorValueCyclicComposition covers the cyclic half, but a
+// walk that never returns fails there as a silent package-wide timeout; this
+// fails in seconds and names the cause. Branching, not a cycle, is what
+// multiplies the frontier here. It asserts a bound because the defect is work:
+// one visit per level with the dedup, 2^level without it.
 func TestCompile_SharedCompositionAncestorsDoNotAmplify(t *testing.T) {
 	t.Parallel()
 	const levels = 30

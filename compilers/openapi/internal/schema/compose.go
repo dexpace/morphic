@@ -1,11 +1,14 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/base64"
 	"encoding/json/jsontext"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
@@ -29,12 +32,9 @@ import (
 // branches contribute their properties, each carrying provenance into the
 // allOf branch it came from.
 //
-// The composing position's own value constraints (minProperties, maxProperties,
-// ...) are read the same way lowerModel reads a plain object's: a bound written
-// beside the allOf constrains the composed model exactly as one written beside
-// `type: object` constrains it, so it belongs on the same field rather than
-// falling to Unmodeled for want of a fill this lowering forgot to do (GitHub
-// #407).
+// Value constraints written beside the allOf (minProperties, maxProperties,
+// ...) are read as lowerModel reads a plain object's, so they land on the same
+// field instead of falling to Unmodeled (GitHub #407).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -46,7 +46,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		diags = append(diags, applyCompositionRequired(c, m, s, pointer)...)
 		diags = append(diags, fillAdditional(c, ts, anchors, depth, m, s, pointer, hint)...)
 		diags = append(diags, applyFalseBranches(c, m, s, pointer)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, pointer)
+		d, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
@@ -133,33 +133,17 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 
 // fillAllOf classifies and lowers the allOf branches into m.
 //
-// An inline branch is merged in place rather than lowered through Ref, so
-// it has no node of its own and the merge reads only its `properties` — plus its
-// `required` list, which applyCompositionRequired collects separately. Whatever
-// else the branch declares is kept verbatim beside the composed model instead of
-// being dropped (preserveUnmergedBranch, GitHub #123).
+// An inline branch merges in place: only its `properties` and `required`
+// (applyCompositionRequired) merge, the rest staying verbatim beside the model
+// (preserveUnmergedBranch, GitHub #123). Merging more would need a precedence
+// rule between branches, and Model.Constraints has no home for a scalar
+// branch's maxLength.
 //
-// A $ref branch does own a node, so keywords written beside its $ref are modeled
-// rather than preserved: homeDeclaration hoists an alias at the branch position
-// to carry them, and the composition points at that (GitHub #143). A branch
-// writing nothing beside its $ref hoists nothing and composes straight to the
-// target, so this costs a node only where there is something to keep.
-//
-// The keywords an alias cannot model are kept on it instead, by the same census
-// every other $ref site runs (refSiteRef, through refSiteUnhomedKeywords).
-// `required` is left out of that census (branchCensusHandled) because this
-// composition reads it: applyCompositionRequired ORs every branch's required
-// list onto the composed model, so it is consumed here rather than lost. A
-// oneOf/anyOf co-declared with the branch's $ref is kept the same way
-// refSiteRef keeps one (preserveUnionSiblings): fillAllOf's branch census
-// never named oneOf/anyOf/allOf, so a $ref beside one inside an allOf branch
-// lost it the same way the component position did (GitHub #406).
-//
-// The merge itself is left as it is: merging a branch's own docs, constraints or
-// openness upward onto m would need a precedence rule for branches that disagree,
-// and some of it has no home to merge into at all — Model.Constraints bounds the
-// property set's cardinality, so a scalar branch's maxLength cannot go there.
-// Verbatim beside the model needs neither, and keeps the branch recoverable.
+// A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
+// that homeDeclaration hoists there, and the composition points at it (GitHub
+// #143). The census every $ref site runs keeps what the alias cannot model,
+// except `required` (branchCensusHandled); a co-declared oneOf/anyOf is kept
+// too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	branches := s.GetAllOf()
@@ -174,8 +158,9 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 		id, ok, refDiags := resolveSchemaRef(c, ts, anchors, depth, b, b.GetRef().String())
 		diags = append(diags, refDiags...)
 		if !ok {
+			ref := b.GetRef().String()
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q", b.GetRef().String()))
+				"unresolved allOf $ref %q%s", ref, namesHolderWhy(c, ref)))
 			continue
 		}
 		bs := b.GetSchema()
@@ -196,26 +181,16 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 	return diags
 }
 
-// applyFalseBranches applies the lowering a boolean `false` allOf branch calls
-// for. It runs after fillAdditional, whose result it overrides.
+// applyFalseBranches closes m for each boolean `false` allOf branch and keeps
+// the branch verbatim under Unmodeled. It runs after fillAdditional, whose
+// result it overrides.
 //
-// A `false` branch admits nothing, so the composition it joins admits nothing.
-// ir-design §4.8 already fixes the lowering of a `false` schema in its own right
-// — a closed empty Model with an info diagnostic, which falseSchema applies —
-// and the merge did not carry that rule across composition, so the same source
-// construct lowered two ways depending on where it appeared: `allOf: [false]`
-// became an *open* empty model, the most permissive shape the IR has, for a
-// source that admits nothing.
-//
-// The composed model keeps what the other branches contributed rather than being
-// emptied to match §4.8 literally: closing it is the nearest shape the IR has,
-// and discarding the rest would trade one silent loss for another. The branch is
-// kept verbatim beside it, which is what distinguishes a composition containing
-// `false` from a model that merely wrote `additionalProperties: false` — the
-// diagnostic says so too, but a diagnostic is not part of the document.
-//
-// A `true` branch admits everything, so contributing nothing from it is exact
-// and there is nothing to report.
+// A `false` branch admits nothing, so m must not stay open; ir-design §4.8
+// closes a bare `false` schema the same way. m keeps the other branches'
+// contributions, because emptying it would trade one silent loss for another.
+// The verbatim branch tells this from a plain `additionalProperties: false`; a
+// diagnostic does not, being no part of the document. A `true` branch
+// constrains nothing and is skipped.
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, b := range s.GetAllOf() {
@@ -238,17 +213,13 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, pointer jso
 }
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
-// composed model when the branch declares more than the merge consumes, under
-// ReasonDegradedLowering and located at the branch itself (ir-design §4.8).
-// branchIdx keys the entry, so sibling branches never overwrite one another.
+// composed model when it declares more than the merge consumes, under
+// ReasonDegradedLowering and located at the branch (ir-design §4.8). branchIdx
+// keys the entry, so sibling branches never overwrite one another.
 //
-// A boolean branch has no keywords for a residue to be derived from and is
-// handled by applyFalseBranches instead, which is a question about the composed
-// node's shape rather than about which of a branch's keywords survive.
-//
-// A $ref branch is not an inline branch at all and takes neither path: it owns a
-// node, so fillAllOf homes its `$ref`-adjacent siblings on an alias over the
-// target rather than preserving them here.
+// A boolean branch has no keywords to leave a residue; applyFalseBranches
+// handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
+// an alias over the target.
 func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, bs *oas3.Schema, branchIdx int, bptr jsontext.Pointer) []ir.Diagnostic {
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
@@ -337,16 +308,15 @@ func branchExcludesObject(bs *oas3.Schema) bool {
 }
 
 // rawMappingKeys returns the keys a YAML mapping effectively writes, in source
-// order, or nil when the node is no mapping. It is annotation.RawChildNode's
-// enumerating counterpart: that answers "what is written at this key", this one
-// "which keys are written".
+// order, or nil when the node is no mapping. It enumerates what
+// annotation.RawChildNode looks up one key at a time.
 //
 // Effective, not literal: a branch spelled `*anchor` writes the anchored
-// mapping's keys and one spelled `<<: *anchor` writes the merged-in keys, so
-// deriving a residue from the literal text would report `<<` — or, for a whole
-// branch replaced by an alias, no keys at all, which reads as "the merge consumed
-// everything" and drops the branch silently. nodeview.View is the package's statement
-// of how speakeasy reads a mapping, and bounds the expansion (maxMergeDepth).
+// mapping's keys, and `<<: *anchor` the merged-in keys. A residue derived from
+// the literal text would report `<<`, or for a whole-branch alias no keys at
+// all, which reads as "the merge consumed everything" and drops the branch
+// silently. nodeview.View defines how a mapping is read and bounds the
+// expansion (nodeview.MergeDepthLimit).
 func rawMappingKeys(root *yaml.Node) []string {
 	mapping := rawMapping(root)
 	if mapping == nil {
@@ -439,26 +409,16 @@ func refBranchTarget(b *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
 	return resolved.GetSchema()
 }
 
-// subtypeDiscriminatorValue returns the wire tag value this allOf subtype
-// carries within its discriminator hierarchy, or "" when no ancestor of it
-// anchors one. Per ir-design §4.3 the value is the mapping key that points at
-// this subtype, falling back to the subtype's own schema name (OpenAPI's
-// implicit mapping) when the mapping omits it — the name as declared, not the
-// pointer token spelling it, which escapes a '/' as ~1 (GitHub #505). An inline
-// subtype (a property, a body, a union branch, ...) has no schema name and so no
-// implicit tag; only a mapping entry can give it one (GitHub #517).
+// subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
+// its discriminator hierarchy, or "" when no ancestor anchors one (ir-design
+// §4.3): the mapping key naming the subtype, else its schema name as declared,
+// not as its escaped pointer token spells it (GitHub #505). An inline subtype
+// has no name, so only a mapping entry can tag it (GitHub #517).
 //
-// Every discriminated ancestor is asked, not only the immediate base: a
-// hierarchy deeper than two levels composes an intermediate schema that declares
-// no discriminator of its own, and reading one hop found nothing there and
-// dropped the key the ancestor spells for this subtype without a word
-// (GitHub #305).
-//
-// A mapping may spell several keys for one subtype — alias tags — and the field
-// holds one. The smallest key in byte order is elected, because a mapping is
-// unordered and the first key written is not a property of the document
-// (GitHub #410); the base's Discriminator keeps every key, so the election
-// narrows what this field shows and loses nothing, and it is reported as such.
+// Every discriminated ancestor is asked, since an intermediate may declare none
+// (GitHub #305). Of several mapping keys for the subtype the smallest in byte
+// order is elected, as a mapping is unordered (GitHub #410); the base's
+// Discriminator keeps them all, and an info diagnostic reports it.
 func subtypeDiscriminatorValue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
 	ds := ancestorDiscriminators(s)
 	if len(ds) == 0 {
@@ -498,9 +458,12 @@ func mappingTagsFor(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, id
 	if m == nil {
 		return nil
 	}
+	// Derived once, not per entry: every subtype reads its base's whole mapping,
+	// so n subtypes make n² lookups, and each derivation allocates.
+	scope := c.RefScope()
 	var tags []string
 	for tag, target := range m.All() {
-		if tid, ok := mappingTargetID(c, ts, target); ok && tid == id {
+		if tid, ok := mappingTargetID(c, scope, ts, d, target); ok && tid == id {
 			tags = append(tags, tag)
 		}
 	}
@@ -516,25 +479,14 @@ const maxDiscriminatorAncestorDepth = 256
 
 // ancestorDiscriminators returns the discriminators declared on s's composition
 // ancestors, nearest first: the resolved targets of s's own $ref branches in
-// source order, then those targets' $ref branches, and so on.
+// source order, then theirs, level by level. Nearest means fewest hops, which
+// decides between two ancestors whose mappings name the same subtype.
 //
-// Level by level rather than chain by chain, so "nearest" means fewest hops —
-// which is what decides between two ancestors whose mappings both name the same
-// subtype.
-//
-// The visited set is what bounds the work, and the depth cap does not stand in
-// for it wherever the walk branches. A schema more than one branch reaches is
-// walked once with the set and once per path without it, so the frontier
-// multiplies by the fan-out at every level: 2^level for a chain of diamonds,
-// 5^level for the six-schema cycle where each composes all the others. The cap
-// then bounds the number of levels, not the work, and the walk stops finishing.
-//
-// A cycle with no fan-out is the one shape the cap alone does handle — `A: allOf
-// [$ref B]`, `B: allOf [$ref A]` keeps a frontier of one and simply runs the cap
-// out. That is why the case is not the cycle but the branching, and why both
-// TestAllOf_DiscriminatorValueCyclicComposition (cyclic, fan-out 5) and
-// TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic, fan-out 2) are
-// needed to hold it: the first stops finishing, the second says so and names why.
+// The visited set bounds the work; the depth cap bounds only the levels. A
+// schema reached by several branches would be walked once per path, so the
+// frontier multiplies by the fan-out each level (2^level for a chain of
+// diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
+// TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
 func ancestorDiscriminators(s *oas3.Schema) []*oas3.Discriminator {
 	var out []*oas3.Discriminator
 	visited := make(map[*oas3.Schema]bool)
@@ -593,7 +545,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, anchors, depth, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, refDiags := Ref(c, ts, anchors, depth, b, vptr, vhint)
 				diags = append(diags, refDiags...)
@@ -684,16 +636,16 @@ const (
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
-// beside structural keywords. JSON Schema conjoins keywords, so such a schema is
-// an intersection of a structural body and a union, and the IR deliberately has
-// no intersection combinator (ir-design §15). Every outcome keeps both sides —
-// classified where the IR can express the conjunction, verbatim where it cannot.
+// beside structural keywords. JSON Schema conjoins keywords, so such a schema
+// is an intersection of a structural body and a union, which the IR
+// deliberately has no combinator for (ir-design §15). Every outcome keeps both
+// sides: classified where the IR can express the conjunction, verbatim where it
+// cannot.
 //
-// A declared discriminator rules distribution out: its mapping is written
-// against the branch schemas, which distribution replaces with synthesized
-// composed models the mapping cannot name (pass/validate's
-// discriminator-missing-variant rule states the same requirement from the other
-// side). ir-design §4.8 enumerates this and the other four residual shapes.
+// A declared discriminator rules distribution out: its mapping names the branch
+// schemas, which distribution replaces with synthesized composed models
+// (pass/validate's discriminator-missing-variant rule is the mirror). ir-design
+// §4.8 enumerates this and the other residual shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 	if !unionBranchesDeclareShape(s) {
 		return unionValidationOnly
@@ -779,6 +731,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // nothing is dropped — but a reference that resolves nowhere is a defect of the
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
+//
+// One in another document's content naming a position there says so, as
+// refTypeRef's report does (namesHolderWhy): that document may well declare
+// the position, so "nothing declared" would be false.
 func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
@@ -787,9 +743,13 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 		if c.RefScope().NamesReferent(b, ref) {
 			continue
 		}
+		why := " resolves to nothing this document declares"
+		if holder := namesHolderWhy(c, ref); holder != "" {
+			why = " is unresolved" + holder
+		}
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch $ref %q resolves to nothing this document declares; the branch is kept verbatim", ref))
+			"union branch $ref %q%s; the branch is kept verbatim", ref, why))
 	}
 	return diags
 }
@@ -871,7 +831,10 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
 // discriminator when one is declared. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
-func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
+//
+// The variants are lowered before the discriminator, so its mapping resolves
+// knowing what each variant names (readsThrough).
+func buildUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
 	variants := make([]ir.Variant, 0, len(branches))
@@ -892,9 +855,23 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		Exclusive:  exclusive,
 		WireTagged: false,
 	}
-	disc, discDiags := lowerDiscriminator(c, ts, s, nil, pointer)
+	disc, discDiags := lowerDiscriminator(c, ts, anchors, depth, s, nil, variants, pointer)
 	u.Discriminator = disc
 	return u, append(diags, discDiags...)
+}
+
+// variantTargets returns the set of types the variants name: the types a
+// union's discriminator may route to, as pass.Validate holds its mapping. It is
+// nil for none, which is a model's.
+func variantTargets(variants []ir.Variant) map[ir.TypeID]bool {
+	if len(variants) == 0 {
+		return nil
+	}
+	targets := make(map[ir.TypeID]bool, len(variants))
+	for _, v := range variants {
+		targets[v.Type.Target] = true
+	}
+	return targets
 }
 
 // otherCombinator names each union keyword's counterpart, so the branch set
@@ -906,18 +883,14 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // verbatim on the Union the position lowers to, and reports it. A schema
 // declaring only one combinator passes over nothing and is left alone.
 //
-// A schema writing both conjoins them — an instance must satisfy the oneOf *and*
-// the anyOf — and one ir.Union carries one branch set, so the loser had no place
-// in the node and was dropped in silence. It is the union half of the same §4.8
-// rule recordSkippedFamilies applies to the keyword families: the position keeps
-// lowering to the branch set unionBranches elects, because that Union is a shape
-// the IR can express and discarding it too would model nothing at all, and the
-// set it did not elect stays recoverable beside it.
+// A schema writing both conjoins them, but one ir.Union carries one branch set.
+// The position still lowers to the elected set, a shape the IR can express, and
+// the other stays recoverable beside it, as recordSkippedFamilies does for
+// keyword families (ir-design §4.8).
 //
-// Where a *structural* sibling is written as well, classifyUnionSiblings reaches
-// unionBothCombinators first and neither set is elected — there the sibling body
-// is the most the IR can express, and distributing either union across it would
-// drop the other (lowerBesideUnmodeledUnion).
+// Where a structural sibling is written as well, classifyUnionSiblings reaches
+// unionBothCombinators first and neither set is elected
+// (lowerBesideUnmodeledUnion).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(s.GetOneOf()) == 0 || len(s.GetAnyOf()) == 0 {
 		return nil
@@ -942,7 +915,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInd
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, pointer: pointer, hint: hint, id: common.ID}
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, anchors, depth, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, anchors, depth, body, b, vptr, vhint)
 				diags = append(diags, variantDiags...)
@@ -969,15 +942,13 @@ type composedBody struct {
 // composedVariant synthesizes the Model for one distributed variant: the
 // enclosing schema's composition and own properties conjoined with that
 // branch's referent. The branch is conjoined last so the enclosing composition
-// classifies first, keeping ir-design §4.3's "sole $ref becomes Base" reading of
-// the allOf the source actually wrote.
+// classifies first, keeping ir-design §4.3's "sole $ref becomes Base" reading
+// of the allOf the source actually wrote.
 //
-// The Model gets an ID of its own (ids.ComposedType) rather than the branch
-// pointer's, because the branch pointer already denotes the branch schema.
-// Interning the variant there made the two race for one pointer: whichever
-// lowered first won it, so a $ref to `…/oneOf/N` anywhere in the document could
-// leave that variant as a bare alias of the branch while its siblings carried
-// the body — order-dependent, and exactly the disagreement §4.3 forbids.
+// The Model gets an ID of its own (ids.ComposedType), not the branch pointer's,
+// which already denotes the branch schema. Interning there made the two race
+// for one pointer, so a $ref to the branch could find either the bare branch or
+// the full variant, depending on lowering order (§4.3).
 func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody,
 	b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, vhint string,
 ) (ir.TypeRef, []ir.Diagnostic) {
@@ -993,16 +964,12 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 		append(diags, variantDiags...)
 }
 
-// composedVariantNullable reports whether the union variant naming a
-// synthesized variant admits null: the variant is the enclosing body conjoined
-// with the branch, so it admits null exactly when the branch does and the body
-// does not forbid it. That is schemaNullVerdict's allOf rule applied to the one
-// conjunction the source does not spell as an allOf, which is what keeps a
-// distributed union answering what the plain union over the same branch does.
-//
-// The bit belongs on this TypeRef rather than on the variant model's Base or
-// Mixins for the reason conjoinBranch records: those name a conjunct, and
-// nullability is a property of the usage that names the conjunction.
+// composedVariantNullable reports whether a union variant naming a synthesized
+// variant admits null. The variant conjoins the enclosing body with the branch,
+// so it admits null exactly when the branch does and the body does not forbid
+// it: schemaNullVerdict's allOf rule, applied to a conjunction the source does
+// not spell as an allOf. The bit lives on this TypeRef, not on the variant's
+// Base or Mixins, for the reason conjoinBranch records.
 func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 	if !branch.Nullable {
 		return false
@@ -1014,15 +981,13 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
 // enclosing schema at the enclosing pointer, so the properties, their PropIDs
 // and any shared additionalProperties node are the single set the source
-// declared, named after the enclosing schema rather than after whichever branch
-// happened to build them first.
+// declared, named after the enclosing schema, not after whichever branch built
+// them first.
 //
-// The enclosing schema's own value constraints are read the same way, for the
-// same reason lowerAllOf reads them (GitHub #407): `S ∧ (X | Y)` distributes to
-// `(S ∧ X) | (S ∧ Y)`, and a bound S declares constrains both sides of that
-// disjunction, so each variant carries its own copy rather than the bound
-// reaching no field at all — this path never runs the pointer's own census, so
-// nothing else stamps it.
+// The enclosing schema's value constraints are read as lowerAllOf reads them
+// (GitHub #407). Each variant carries a copy, since a bound on the schema
+// constrains both sides of the disjunction and this path never runs the
+// pointer's own census.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := schemaConstraints(c, &common.Unmodeled, body.schema, body.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
@@ -1068,7 +1033,7 @@ func branchHint(b *oas3.JSONSchema[oas3.Referenceable], i int) string {
 	// GetSchema().Ref != "" for a non-bool branch, so a schema whose Ref pointer is
 	// set but empty (IsReference() false) suggests no name.
 	if b != nil && b.IsReference() {
-		if name := refHint(b.GetRef().String()); name != "" {
+		if name := targetHint(b); name != "" {
 			return name
 		}
 	}
@@ -1082,25 +1047,6 @@ var compositionKeywords = map[string]bool{"allOf": true, "oneOf": true, "anyOf":
 // positionalBranchHint names an inline composition branch by its position, which
 // is all there is to name it by: it has no $ref target to take a name from.
 func positionalBranchHint(index string) string { return "variant_" + index }
-
-// branchPointerHint returns the hint the branch at pointer takes, for a caller
-// holding only the pointer.
-//
-// It exists so hoistSubSchema answers what the composition would have
-// (GitHub #181). An outside $ref can name a branch's pointer, and only the first
-// lowering to arrive interns the node, so a hint derived differently there makes
-// the document depend on declaration order — silently, since either spelling is a
-// valid hint and nothing compares them. The $ref-branch half of that already
-// agrees; this is the inline half, where the composition knows the branch's
-// ordinal and a bare pointer walk knew only the last segment, which is the
-// ordinal with nothing to say it is one.
-func branchPointerHint(pointer jsontext.Pointer) (string, bool) {
-	keyword, index := pointer.Parent().LastToken(), pointer.LastToken()
-	if !compositionKeywords[keyword] || !isDecimalIndex(index) {
-		return "", false
-	}
-	return positionalBranchHint(index), true
-}
 
 // isDecimalIndex reports whether s is a non-empty run of ASCII digits — the
 // shape a composition branch's pointer segment takes.
@@ -1116,25 +1062,56 @@ func isDecimalIndex(s string) bool {
 	return true
 }
 
-// refHint returns the name a $ref suggests for its target: the last token of the
-// pointer its fragment spells, decoded at both layers a $ref encodes it in —
-// percent-decoding for the URI, RFC 6901 unescaping for the pointer — so
-// `#/components/schemas/Cat~1Dog` suggests "Cat/Dog", the name the component is
-// declared under (GitHub #505). A reference whose fragment is no pointer — a
-// whole-document URI, a $anchor, a fragment that decodes to bytes that are not
-// UTF-8 (GitHub #520) — suggests what follows its last '/', as written.
+// maxTargetHintHops bounds targetHint's walk along composition branches that
+// hold a $ref. A cycle of them inside the document never reaches it, since the
+// cycle scan refuses one before lowering; the cap is what bounds any other. An
+// acyclic chain longer than the cap is legal, though no real document writes
+// one: past it the walk keeps the name it has reached, so a union variant
+// naming the chain's first branch can be named apart from the node it holds.
+const maxTargetHintHops = 64
+
+// targetHint returns the hint of the node a $ref resolves to, so a union
+// variant or allOf branch is named as the type it holds is (GitHub #521).
 //
-// For a component the last token is its name. For a position deeper in a schema
-// it is a keyword or an ordinal, unlike the hint the target itself carries
-// (GitHub #521).
+// Each position on the way is read as subSchemaHint names it (ownHint); a
+// composition branch holding a $ref moves the walk on to its target, keeping
+// the last name found. The fragment is percent-decoded, then RFC 6901
+// unescaped, so `#/components/schemas/Cat~1Dog` suggests "Cat/Dog" (GitHub
+// #505); one spelling no pointer ends the walk with refHint's name. A position
+// under /paths keeps ownHint's guess, which the declaration replaces on the
+// node (GitHub #729).
+func targetHint(b *oas3.JSONSchema[oas3.Referenceable]) string {
+	hint := ""
+	for range maxTargetHintHops {
+		ref := b.GetRef().String()
+		pointer, ok := resolve.FragmentPointer(ref)
+		if !ok {
+			return cmp.Or(refHint(ref), hint)
+		}
+		decl := annotation.DeclaredSchema(b)
+		own, follow := ownHint(decl, pointer)
+		hint = cmp.Or(own, hint)
+		if !follow {
+			return hint
+		}
+		b = decl
+	}
+	return hint
+}
+
+// refHint returns the name a reference suggests when its fragment spells no
+// pointer — a whole-document URI, a $anchor, a fragment that decodes to bytes
+// that are not UTF-8 (GitHub #520): what follows its last '/', percent-decoded
+// when that decodes to UTF-8, so `./Fish%2DTank.yaml` suggests "Fish-Tank.yaml".
 func refHint(ref string) string {
-	if pointer, ok := resolve.FragmentPointer(ref); ok {
-		return pointer.LastToken()
+	name := ref
+	if _, after, ok := strings.CutLast(ref, "/"); ok {
+		name = after
 	}
-	if _, name, ok := strings.CutLast(ref, "/"); ok {
-		return name
+	if decoded, err := url.PathUnescape(name); err == nil && utf8.ValidString(decoded) {
+		return decoded
 	}
-	return ref
+	return name
 }
 
 // lowerDiscriminator lowers a schema's discriminator. Each mapping entry
@@ -1145,30 +1122,32 @@ func refHint(ref string) string {
 // discriminator is declared on, or nil for a oneOf/anyOf union, which has no
 // single model and so is named only by PropertyName; otherwise the tag
 // resolves to the declaring property's PropID, falling back to PropertyName
-// if undeclared.
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
+// if undeclared. variants are a union's, and nil for a model: what each names
+// decides what the mapping names (readsThrough).
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, m *ir.Model, variants []ir.Variant, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil, nil
 	}
-	mapping, diags := discriminatorMapping(c, ts, d, pointer)
+	variantTypes := variantTargets(variants)
+	mapping, diags := discriminatorMapping(c, ts, anchors, depth, d, variantTypes, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(c, ts, d, pointer)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, anchors, depth, d, variantTypes, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
 }
 
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
-// into TypeIDs, in source order. An entry that does not resolve to an interned
-// schema yields one error diagnostic and is dropped — never a synthesized ID
-// that nothing backs (issue #14). An all-dropped mapping collapses to nil,
-// preserving infer-by-name semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
+// into TypeIDs, in source order. An entry that does not resolve yields one
+// error diagnostic and is dropped — never a synthesized ID that nothing backs
+// (issue #14). An all-dropped mapping collapses to nil, preserving infer-by-name
+// semantics and a clean round-trip.
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil, nil
@@ -1176,11 +1155,12 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok := mappingTargetID(c, ts, target)
+		id, ok, targetDiags := resolveMappingTarget(c, ts, anchors, depth, d, target, variantTypes)
+		diags = append(diags, targetDiags...)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
-				"discriminator mapping %q references unresolved schema %q", tag, target))
+				"discriminator mapping %q references unresolved schema %q%s", tag, target, namesHolderWhy(c, target)))
 			continue
 		}
 		out[tag] = id
@@ -1192,44 +1172,147 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 }
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
-// dropping it with one diagnostic when it does not resolve to an interned schema.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// dropping it with one diagnostic when it does not resolve, as
+// discriminatorMapping drops an entry.
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
 		return "", nil
 	}
-	id, ok := mappingTargetID(c, ts, dm)
+	id, ok, diags := resolveMappingTarget(c, ts, anchors, depth, d, dm, variantTypes)
 	if !ok {
-		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
+		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q", dm)}
+			"discriminator defaultMapping references unresolved schema %q%s", dm, namesHolderWhy(c, dm)))
 	}
-	return id, nil
+	return id, diags
 }
 
-// mappingTargetID resolves a discriminator mapping target — a bare schema
-// name or a $ref string — to the stable TypeID of an interned schema. A bare
-// name (even one containing '/') that names a declared component resolves to
-// it via ids.ForPointer regardless of source order, since every declared
-// name is recorded before lowering begins — this also makes a degenerate
-// empty-named component resolve to its real (anonymous) ID rather than an
-// unbacked ids.NamedType. Otherwise the target must be a same-file $ref to a
-// declared component or an already-interned node; a target that resolves to
-// neither yields ok=false, since unlike a schema position, a discriminator
-// subtype cannot be hoisted from a bare pointer — the caller drops and
-// diagnoses it.
-func mappingTargetID(c lowering.Ctx, ts *compile.Types, target string) (ir.TypeID, bool) {
+// resolveMappingTarget resolves a mapping target, a mapping entry's or a
+// defaultMapping's, to the ID of the schema it names: a declared component's
+// bare name directly, and a reference as resolvePointer resolves a $ref at the
+// position whose type it names (typePosition), interning the schema there when
+// nothing has yet.
+//
+// The resolver never follows a mapping value, so DeclaredAt finds the schema
+// a $ref would have carried. Hoisting it resolves the target to the same
+// pointer-derived ID in either declaration order (GitHub #530), naming the
+// node provisionally until its declaration arrives. variantTypes is as
+// readsThrough takes it.
+func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, d *oas3.Discriminator, target string, variantTypes map[ir.TypeID]bool) (ir.TypeID, bool, []ir.Diagnostic) {
 	if c.DeclaresSchema(target) {
-		return ids.ForPointer(ids.Ptr("components", "schemas", target)), true
+		return componentIDByName(target), true, nil
 	}
-	pointer, ok := c.RefScope().InternalPointer(target)
+	scope := c.RefScope()
+	pointer, ok := scope.MappingPointer(d, target)
+	if !ok {
+		return "", false, nil
+	}
+	pointer, decl, ok := typePosition(scope, pointer, variantTypes)
+	if !ok {
+		return "", false, nil
+	}
+	return resolvePointer(c, ts, anchors, depth, pointer, decl)
+}
+
+// maxTypePositionHops bounds how many $ref positions typePosition reads
+// through (styleguide bounded-everything rule). A cycle of them is one the
+// resolver reports circular. A longer chain that is none stops at the position
+// the bound reached, so the mapping names that position's alias.
+const maxTypePositionHops = 64
+
+// typePosition returns the position whose type a mapping target naming
+// pointer names, and the schema declared there, unread at a component. It is
+// pointer itself unless the position reads through (readsThrough): a $ref
+// holding nothing an alias would is only a use of its target's type, so it
+// names the position the $ref does, as a union variant there does (GitHub
+// #758). Each hop is read where it is written (resolve.Scope.At). A keyword
+// beside a property's $ref stops it (GitHub #764). A $ref the loader did not
+// follow names no schema, so ok is false unless it names a component.
+func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes map[ir.TypeID]bool) (jsontext.Pointer, *oas3.JSONSchema[oas3.Referenceable], bool) {
+	if _, named := ids.ComponentSchemaName(pointer); named {
+		// Most targets name a component, and resolve.Scope.ComponentRef answers
+		// for one by name, so nothing is fetched for it (see mappingTagsFor).
+		return pointer, nil, true
+	}
+	decl := scope.DeclaredAt(pointer)
+	for range maxTypePositionHops {
+		if !readsThrough(pointer, decl, variantTypes) {
+			break
+		}
+		next, ok := scope.At(pointer).TargetPointer(decl, decl.GetRef().String())
+		if !ok {
+			break
+		}
+		target := annotation.DeclaredSchema(decl)
+		if _, named := ids.ComponentSchemaName(next); target == nil && !named {
+			// Found at all, it was only through whatever interned next first.
+			return "", nil, false
+		}
+		pointer, decl = next, target
+	}
+	return pointer, decl, true
+}
+
+// readsThrough reports whether a mapping target naming pointer, where decl is
+// declared, names the position decl's $ref names instead (typePosition): not at
+// a component, nor where a keyword beside the $ref gives the position an alias
+// (refSiteHomesNothing).
+//
+// Nor where the node at pointer is in variantTypes, the types a union's
+// variants name, nil for a model. That variant is a $ref to the position, which
+// hoisted an alias there as a $ref to any position does, and the mapping must
+// name what the variant names. Read through, it named a type no variant names
+// (GitHub #758).
+func readsThrough(pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable], variantTypes map[ir.TypeID]bool) bool {
+	if _, named := ids.ComponentSchemaName(pointer); named || ids.ComponentSchemaNamedEmpty(pointer) || decl == nil {
+		return false
+	}
+	s := decl.GetSchema()
+	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
+		return false
+	}
+	return len(variantTypes) == 0 || !variantTypes[ids.ForPointer(pointer)]
+}
+
+// componentIDByName is the ID a mapping target naming a declared component
+// resolves to: its pointer's, so a component keyed "" gets the anonymous ID it
+// is interned under rather than a named one nothing backs.
+func componentIDByName(name string) ir.TypeID {
+	return ids.ForPointer(ids.Ptr("components", "schemas", name))
+}
+
+// mappingTargetID resolves a discriminator mapping target, a bare schema name
+// or a $ref string, to the TypeID of an interned schema. A bare name (even one
+// containing '/') that names a declared component resolves regardless of source
+// order, since every declared name is recorded before lowering begins.
+// Otherwise the target must be a same-file $ref, read at the position whose
+// type it names (typePosition), to a declared component or an already-interned
+// node. Anything else yields ok=false: this half never lowers anything, and
+// resolveMappingTarget hoists the inline position it cannot reach. scope is
+// c's, derived once by the caller.
+func mappingTargetID(c lowering.Ctx, scope resolve.Scope, ts *compile.Types, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
+	if scope.Declares(target) {
+		return componentIDByName(target), true
+	}
+	pointer, ok := scope.MappingPointer(d, target)
 	if !ok {
 		return "", false
 	}
-	if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
+	// No variant types: a tag asks whether the mapping reaches the subtype, so
+	// it reads through whatever a union's variants name (readsThrough). Each
+	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
+	at, ok := c.TypePosition(pointer, func() (jsontext.Pointer, bool) {
+		position, _, found := typePosition(scope, pointer, nil)
+		return position, found
+	})
+	if !ok {
+		return "", false
+	}
+	if id, resolved, handled := scope.ComponentRef(at); handled {
 		return id, resolved
 	}
-	return resolve.InternedID(ts, pointer)
+	return resolve.InternedID(ts, at)
 }
 
 // propIDByName returns the PropID of the model property with the given source
@@ -1248,37 +1331,17 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 }
 
 // lowerEnum hoists a schema with `enum` as a closed Enum. A heterogeneous or
-// non-scalar member set has no Enum home, so it falls back to a Union of
-// Literals with an info diagnostic — nothing is dropped. An empty member list
-// takes neither path (emptyEnum).
+// non-scalar member set becomes a Union of Literals over the members, `null`
+// included, with an info diagnostic; an empty list takes emptyEnum.
 //
-// A member set past the caller's budget is the one case where something is: the
-// enum lowers as the top type with an error diagnostic naming the budget. The
-// count is checked before either branch below, because both are linear in it —
-// the Enum mints an EnumMember with a canonical word sequence per member, and
-// the fallback a hoisted Literal type and a union variant per member — and it is
-// that per-member cost, not the source's size, that GitHub #75 measured
-// amplifying 10.9 MB of one enum into 2.6 GB of peak RSS.
+// A member count past the budget lowers as the top type with an error
+// diagnostic, checked first because both paths cost per member, amplifying a
+// small source (GitHub #75).
 //
-// A schema that admits null spells its nullable enum by listing `null` among the
-// members, so that member is stripped and normalized onto the enclosing
-// reference's Nullable bit (ir-design §3.3) rather than degrading the whole
-// enum. schemaAdmitsNull is what decides that here *and* what a reference
-// re-derives the bit from (refNullable at a $ref site, lowerSchemaBody inline),
-// so the null this drops is exactly the null those put back; a spelling only one
-// of them recognized would lose it.
-//
-// A non-empty enum decides null admission by itself, so a bare
-// `{enum: [red, green, null]}` normalizes like the type-array spelling of the
-// same set. `{type: string, enum: [red, green, null]}` still does not: the type
-// keyword conjoins with the members and forbids the null they list, so
-// stripping there would widen the declared type rather than normalize it.
-//
-// A member set with no Enum home is unaffected by the stripping either way. It
-// falls back to a Union over the members as written, null included, beside a
-// reference that also says the position admits null — one fact stated twice,
-// which is what the type-array spelling of such a set already produced and what
-// the bare spelling now matches.
+// A listed `null` member is stripped onto the reference's Nullable bit
+// (ir-design §3.3) when schemaAdmitsNull holds, the predicate every Nullable
+// site shares. A sibling `type: string` forbids that null, so it stays and the
+// set becomes a Union.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -1313,33 +1376,16 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 	return id, diags
 }
 
-// emptyEnum lowers `enum: []` — a value space fixed to the empty set, so the
-// position accepts no instance — as the closed Enum over no member, with the one
-// warning that says so.
+// emptyEnum lowers `enum: []`, a value space that accepts no instance, as a
+// closed Enum with no member and one warning. The IR has no bottom type, but a
+// closed Enum admits only its members, so this is exact.
 //
-// This is the IR's exact spelling of an empty value space, not an approximation
-// of one. There is no bottom TypeKind to reach for, but a closed Enum admits its
-// members and nothing else, so a closed Enum with none admits nothing. The
-// neighbouring construct settles for less: a boolean `false` schema also matches
-// nothing and lowers to a closed empty Model (falseSchema), which still admits
-// the empty object.
+// It avoids enumAsUnion, which would yield a Union with no variants: a node
+// nothing rejects and no reader can act on (GitHub #318).
 //
-// It deliberately does not reach enumAsUnion. That fallback mints one variant
-// per member, so an empty member list would produce a Union with no variants —
-// a node nothing in the IR rejects and no reader can act on, which is a quieter
-// version of the same defect rather than a fix for it (GitHub #318).
-//
-// ValueType is the declared scalar type where one is written and the top type
-// otherwise: with no member to classify, nothing narrower is known, and nothing
-// narrower is needed either — the member list is what holds the values, and it
-// is empty whatever this says.
-//
-// What the position lowers to is settled here; whether a *reference* to it
-// admits null is not. That bit is computed by schemaAdmitsNull at each use site,
-// which reads the type keyword and not the value set, so
-// `{type: [T, "null"], enum: []}` still reads as nullable at its uses — a
-// nullable type array beside an enum listing no null member, which is GitHub
-// #288's shape exactly and is settled there rather than here.
+// ValueType is the declared scalar type, else the top type. Whether a
+// reference admits null is not settled here: schemaAdmitsNull reads the type
+// keyword at each use site (GitHub #288).
 func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
@@ -1350,20 +1396,14 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 	}, diags
 }
 
-// enumMembers converts enum nodes into scalar members, reporting ok=false on any
-// of three: a member that is non-scalar, members heterogeneous in kind, or a set
-// that keeps no member at all.
+// enumMembers converts enum nodes into scalar members, reporting ok=false for a
+// non-scalar member, members heterogeneous in kind, or a set that keeps none
+// (an all-null set degrades rather than becoming a memberless Enum).
 //
 // dropNull skips `null` members instead of refusing them, for a schema whose
-// nullability the enclosing reference already carries (see lowerEnum). Kind
-// agreement is read off the members actually kept, so a leading `null` fixes
-// nothing: `enum: [null, red, green]` is the same string enum as
-// `enum: [red, green, null]`.
-//
-// The third condition is the one an all-null set meets, and it is why such a set
-// degrades rather than becoming a memberless Enum. The returned PrimKind is the
-// one every kept member's kind maps to — meaningful only when ok, and since ok
-// requires a kept member, never the zero PrimKind there.
+// nullability the enclosing reference carries (see lowerEnum). Kind agreement
+// is read off the members kept, so a leading `null` fixes nothing. The PrimKind
+// is the one every kept member's kind maps to, meaningful only when ok.
 func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	var kind ir.ValueKind
@@ -1451,8 +1491,8 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer 
 }
 
 // enumValueType picks an Enum's ValueType from the schema's declared scalar
-// type, falling back to the primitive its members classified to. It no longer
-// re-derives that primitive from a ValueKind: enumMemberForm decided it once,
+// type, falling back to the primitive its members classified to. It does not
+// re-derive that primitive from a ValueKind: enumMemberForm decided it once,
 // for the same members, so there is nothing here to disagree with.
 func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 	if types := effectiveTypes(s); len(types) == 1 {
@@ -1470,23 +1510,15 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 	return memberPrim
 }
 
-// enumMemberForm classifies one lowered value as an Enum member: the PrimKind an
-// Enum over members of that kind declares, and the literal text the member takes
-// as its source name. ok=false means the kind has no place in an Enum at all, and
-// the caller degrades the whole enum to a Union of Literals with a diagnostic —
-// nothing is dropped and nothing is guessed.
+// enumMemberForm classifies one lowered value as an Enum member: the PrimKind
+// its kind declares and the literal text that names the member. ok=false means
+// the kind has no place in an Enum, and the caller degrades the whole enum to a
+// Union of Literals with a diagnostic.
 //
-// This is the compiler's single switch over ir.ValueKind. It replaced three that
-// each fell through to a guess, so a kind none of them named was described as a
-// string by one, given no text by another, and admitted by the third. Every kind
-// ir declares is named in exactly one arm here; the default is unreachable by
-// construction, and TestEnumMemberForm_NamesEveryValueKind derives the sealed set
-// from the ir sources so a kind added there without an arm reddens rather than
-// being reclassified in silence.
-//
-// The default arm is the conservative half — refusing a kind degrades an enum
-// with a diagnostic, where admitting one would assert a type the source never
-// wrote.
+// It is the compiler's single switch over ir.ValueKind, with one arm per kind;
+// TestEnumMemberForm_NamesEveryValueKind reddens when ir adds a kind without an
+// arm. The default arm refuses a kind rather than assert a type the source
+// never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {
 	case ir.ValueString:
