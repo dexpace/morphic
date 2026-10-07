@@ -329,6 +329,17 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// InvalidPathKey reports a Paths Object key that is not a path: one that
+	// omits the leading "/" (required at every version, so not version-gated),
+	// carries a "?" (RFC 3986 §3.4: the query is not the path; OpenAPI uses in:
+	// query), or holds a character outside RFC 3986 §3.3's pchar set plus "/" and
+	// the "{}" of path templating.
+	//
+	// Warning, as InvalidStatusKey is: the key still lowers as written
+	// (invariant 2), and an error would stop harness.Check before later findings.
+	// A "#" in the key is silent here: GitHub #602 strips and reports it, and a
+	// key needs one report, not two.
+	InvalidPathKey = "openapi/invalid-path-key"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

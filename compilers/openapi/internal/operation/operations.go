@@ -190,6 +190,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if pi == nil {
 			continue
 		}
+		diags = append(diags, pathKeyDiags(c, path)...)
 		c := lowering.Within[soa.PathItem](c, rp)
 		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, pi, declPtr)...)
 	}
