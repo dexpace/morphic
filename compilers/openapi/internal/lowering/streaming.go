@@ -12,11 +12,10 @@ const StreamingMediaTypeHeuristic = "streaming-media-type"
 //
 // It is a policy rather than a table in the lowering because the reading is a
 // guess (architecture principle 6). OpenAPI below 3.2 has no keyword for a
-// sequential body at all, so an SSE or NDJSON API says what it does only by
-// naming a media type — and a media type is a content encoding, not a promise
-// about framing. The vocabulary is declared here, below both walks, and
-// re-exported by the compiler's public options for the reason GroupingStrategy
-// is: one declaration cannot drift from itself.
+// sequential body, so an SSE or NDJSON API says what it does only by naming a
+// media type, which is a content encoding, not a promise about framing. The
+// vocabulary is declared here, below both walks, and re-exported by the
+// compiler's public options, as GroupingStrategy is.
 type StreamingMedia struct {
 	// Disabled turns the inference off. Off means off: an operation then carries
 	// the streaming fields a 3.2 itemSchema declares and nothing else, which is

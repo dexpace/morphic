@@ -306,18 +306,13 @@ func appliers() []func(lowering.Ctx) (bool, []ir.Diagnostic) {
 }
 
 // TestExtensionTarget_EveryDeclaredTargetHasAnApplier holds the vocabulary to
-// the appliers, which is the half of "a target is a constant and an applier"
-// that nothing else checks: the constant alone compiles, maps cleanly, and
-// promotes nothing — no field written, no diagnostic, no marker.
+// the appliers, the half of "a target is a constant and an applier" that
+// nothing else checks: a constant alone compiles, maps cleanly, and promotes
+// nothing, with no field written, no diagnostic and no marker.
 //
-// That is the shape every follow-up target arrives in — Pagination, Idempotency,
-// Sensitive and the rest are constants waiting for an applier apiece — so a
-// vocabulary entry that fills nothing is the likeliest way this seam breaks.
-//
-// A target belonging to a family this package cannot yet apply fails here on
-// purpose: adding one means adding its applier, and teaching appliers() which
-// promote function answers for it, exactly as a new census keyword means adding
-// its arm.
+// Every follow-up target (Pagination, Idempotency, Sensitive) arrives as a
+// constant first, so this fails on purpose until the new target gets its
+// applier and appliers() learns which promote function answers for it.
 func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
 	t.Parallel()
 	for _, target := range declaredTargets(t) {

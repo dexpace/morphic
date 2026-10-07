@@ -154,18 +154,15 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 	}
 }
 
-// integerFields classifies every integer-typed field the ir package declares.
+// integerFields classifies every integer-typed field the ir package declares as
+// a reference (an index into a slice, needing an explicit bounds check) or a
+// magnitude that addresses nothing. Neither checker's reflection walk can tell
+// them apart, so the test below fails when ir grows an integer field nobody has
+// classified.
 //
-// An integer field is either a reference — an index into a slice, which no
-// type-driven walk can recognize and which therefore needs an explicit bounds
-// check — or a magnitude that addresses nothing. The distinction is invisible to
-// both checkers' reflection walks, so it is recorded here and this test fails
-// when the ir package grows an integer field that nobody has classified.
-//
-// This is the last hand-written classification of a reference class either
-// checker keeps, and it stays hand-written because nothing can derive it: an
-// ID-keyed registry is recognizable from Document's own shape
-// (ir.DocumentRegistries), while an index is an int like any other.
+// It stays hand-written because nothing can derive it: an ID-keyed registry is
+// recognizable from Document's own shape (ir.DocumentRegistries), while an
+// index is an int like any other.
 var integerFields = map[string]string{
 	"Service.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
 	"Channel.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
@@ -268,21 +265,14 @@ func integerFieldsOf(t *testing.T, decls map[string]ast.Expr, ts *ast.TypeSpec) 
 
 // mentionsInteger reports whether a field's type expression is built from an
 // integer type, looking through pointers, slices, both halves of a map, and the
-// ir package's own declarations. Following declarations is what makes the guard
-// total: `type Ordinal int` is an integer field as much as a plain int is, and
-// matching only the builtin spelling would let a named index type into the IR
-// unclassified.
+// ir package's own declarations, so a named `type Ordinal int` index cannot
+// slip in unclassified. A declaration from another package is not followed
+// (that needs go/types); ir declares no integer type through one.
 //
-// A declaration whose underlying type comes from another package (a selector
-// such as jsontext.Value) is not followed: resolving that needs go/types rather
-// than a parse. The ir package imports only the standard library, and declares
-// no integer type through any of it.
-//
-// depth bounds the walk through declarations (the bounded-recursion rule). Go
-// forbids a cycle among type declarations except through a pointer, slice or
-// map, which the ir package has none of, so exceeding the cap means the parse
-// went wrong rather than that the IR grew deep — and failing is the point, since
-// giving up quietly would report the unresolved field as "not an integer".
+// depth bounds the walk through declarations. Go forbids a declaration cycle
+// except through a pointer, slice or map, which ir has none of, so exceeding
+// the cap means a misparse, and failing beats reporting the field as "not an
+// integer".
 func mentionsInteger(t *testing.T, decls map[string]ast.Expr, expr ast.Expr, depth int) bool {
 	t.Helper()
 	require.Less(t, depth, maxTypeChain, "resolving a field type exceeded %d steps", maxTypeChain)

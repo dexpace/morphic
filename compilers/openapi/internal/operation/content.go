@@ -2,15 +2,13 @@
 // webhooks and callbacks, the parameters merged onto each operation, and the
 // content of every request body, response and header.
 //
-// It sits above the schema walk and reaches down into it for every type
-// position it meets, and above auth for the requirements an operation names. It
-// reaches nothing above itself: the compiler assembles a Document from what
-// LowerService returns rather than the walk writing into one.
+// It sits above the schema walk, which it reaches for every type position, and
+// above auth, for the requirements an operation names. It reaches nothing above
+// itself: the compiler assembles a Document from what LowerService returns.
 //
-// The recursion here is callbacks — an operation may declare callbacks, each a
-// path item holding operations of its own — which is why lowerOperation,
-// lowerCallbacks and lowerCallbackOps cannot be separated. internal/archtest
-// pins that set.
+// The recursion is callbacks, each a path item holding operations of its own,
+// which is why lowerOperation, lowerCallbacks and lowerCallbackOps cannot be
+// separated. internal/archtest pins that set.
 package operation
 
 import (
@@ -252,12 +250,11 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 // partPropID returns the ID of the property carrying the given wire name on the
 // model body stands for, falling back to deriving one under schemaPtr.
 //
-// The IR is asked first because §4.3 stores only a model's *own* properties:
-// a composed body holds its parts on the Base it inherits them from, so a key
+// The IR is asked first because §4.3 stores only a model's own properties: a
+// composed body holds its parts on the Base it inherits them from, so a key
 // derived from the composed node's pointer would name a property that exists
-// nowhere. Deriving one remains the answer for a body the IR holds no model for
-// — a contradictory schema declaring properties beside an enum or a scalar type —
-// where no property was lowered for any pointer to name.
+// nowhere. Deriving is the answer for a body with no model in the IR, such as a
+// schema declaring properties beside an enum or scalar type.
 func partPropID(ts *compile.Types, body ir.TypeID, wire string, schemaPtr jsontext.Pointer) ir.PropID {
 	if id, ok := propIDByWire(ts, body, wire, 0); ok {
 		return id
@@ -355,20 +352,18 @@ func encodingConfig(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 }
 
 // encodingUnmodeled keeps what an Encoding Object declares that nothing in the
-// IR holds: `allowReserved`, which ir.PartEncoding has no field for even though
-// its neighbours style and explode do, the object's own x-*, and the keys the
-// specification defines for no encoding at all. Neither allowReserved nor the
-// extensions had reached an IR field, an Unmodeled entry or a diagnostic, so two
-// documents differing only in them compiled to one IR (GitHub #291).
+// IR holds: `allowReserved`, which ir.PartEncoding has no field for, the
+// object's own x-*, and the keys the specification defines for no encoding at
+// all. Otherwise documents differing only in those compile to one IR (GitHub
+// #291).
 //
-// Both ride on the owning ir.Content, since PartEncoding carries no Unmodeled
-// map, keyed under scope — "encoding/<part>" or "itemEncoding". One content can
-// hold an entry per multipart part plus a sequential item's, and they reach the
-// same map, so the part is what tells them apart.
+// Entries ride on the owning ir.Content, since PartEncoding carries no
+// Unmodeled map, keyed under scope: "encoding/<part>" or "itemEncoding". One
+// content can hold several such entries in the same map, so the part tells them
+// apart.
 //
 // allowReserved carries ReasonNoIRHome and announces itself only when something
-// was written, the shape preserveHeaderSerialization already uses for the pair
-// beside it.
+// was written, as preserveHeaderSerialization does.
 func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	at := encPtr + ids.Ptr("allowReserved")
@@ -400,7 +395,7 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		if h == nil {
 			continue
 		}
-		p, headerDiags := lowerHeader(c, ts, anchors, h, name, hptr, hdecl)
+		p, headerDiags := lowerHeader(lowering.Within[soa.Header](c, rh), ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		out = append(out, p)
@@ -409,21 +404,17 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 }
 
 // reservedHeaderEntryDiag reports a headers-map entry OpenAPI says SHALL be
-// ignored. Both maps this lowering serves reserve Content-Type and nothing else:
-// a response's (§4.8.17), whose media type its own `content` map already names,
-// and an encoding's (§4.8.15), which the encoding's own `contentType` describes
-// separately. The comparison is case-insensitive because HTTP field names are.
+// ignored. Both maps this lowering serves, a response's (§4.8.17) and an
+// encoding's (§4.8.15), reserve Content-Type and nothing else, because each has
+// its own place to state a media type. The comparison is case-insensitive, as
+// HTTP field names are.
 //
-// It reports at the entry's own pointer rather than the declaration's, because
-// the reserved thing is the key the header is mapped under, not the header
-// object: two keys $ref'ing one component are two declarations, and only the one
-// spelled Content-Type is reserved. That is the opposite choice from
-// preserveHeaderSerialization, which keeps keywords the header object itself
-// writes and so records them at the declaration.
+// It reports at the entry's own pointer, not the declaration's: the reserved
+// thing is the key the header is mapped under, so of two keys $ref'ing one
+// component only the one spelled Content-Type is reserved.
 //
 // This is the headers-map half of the rule; reservedHeaderParamDiag is the
-// parameter half. The header still lowers: see diag.ReservedHeaderName for why
-// keeping it and reporting it is the choice, rather than dropping it here.
+// parameter half. The header still lowers (see diag.ReservedHeaderName).
 func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer) []ir.Diagnostic {
 	if !strings.EqualFold(name, "Content-Type") {
 		return nil
@@ -441,7 +432,9 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl)
 	// name is this entry's map key, which names the shared node after this mount
-	// when the header is declared under another response (GitHub #433).
+	// when the header is declared under another response (GitHub #433). A
+	// component header has no owning response, so a schema's $ref into it leaves
+	// the subtree named by that reference (GitHub #747).
 	headerType, headerDiags := schema.CarriedRef(c.NamingByReferenceAt(hptr, hdecl), ts, anchors,
 		schema.TopLevelDepth, elected.js, elected.pointer, ids.DeclarationHint(hdecl, name))
 	diags = append(diags, headerDiags...)
@@ -468,16 +461,13 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 
 // preserveHeaderSerialization keeps the two serialization controls a header
 // object declares. OpenAPI §4.8.21 lets a header write `style` and `explode`,
-// and explode governs how an array or object header value is written on the
-// wire — a declared wire fact rather than a hint — but ir.Property has a field
-// for neither. ir.PartEncoding does, and that is a multipart part's own config,
-// not a header's; ir.Encoding, the one thing hanging off a Property here, names
-// a value-encoding scheme rather than a parameter style. So they are kept
-// verbatim instead of dropped, with ReasonNoIRHome since the IR can close the
-// gap by adding the fields, exactly as a parameter's xml hints are kept.
+// and explode governs how an array or object value is written on the wire, but
+// ir.Property has a field for neither. ir.PartEncoding does, but that is a
+// multipart part's config, and ir.Encoding names a value-encoding scheme, not a
+// style. They are kept verbatim with ReasonNoIRHome, since the IR can close the
+// gap by adding the fields, as with a parameter's xml hints.
 //
-// A header that declares neither records nothing: RawChildNode returns nil for
-// an absent keyword and PreserveNode keeps nothing for a nil node.
+// A header that declares neither records nothing.
 func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range []string{"style", "explode"} {
@@ -506,38 +496,17 @@ type typeSpelling struct {
 }
 
 // electTypeSpelling picks the spelling a parameter or header states its type
-// with, and keeps the other verbatim where the document writes both. root is the
-// declaring object's node and at is the pointer it sits at.
+// with, keeping the other verbatim where the document writes both.
 //
-// OpenAPI says a parameter — and a header, which follows the parameter rules —
-// MUST contain either a `schema` property or a `content` property, but not both.
-// Neither position can lower both, since ir.Parameter and ir.Property each hold
-// one type, so a document writing both needs the election §4.8 already applies
-// to competing keywords elsewhere (schema.dispatchOf): one form lowers and every
-// passed-over one is kept verbatim beside it rather than dropped.
+// OpenAPI forbids both `schema` and `content`, and neither position can lower
+// both, so one lowers and the other is kept beside it, as schema.dispatchOf
+// does for competing keywords.
 //
-// `content` wins because it is the more expressive of the two. A media-type
-// entry carries a schema *and* the media type serializing it, and both have IR
-// homes at these positions — HTTPParamBinding.ContentType and
-// Property.Encoding.MediaType — so electing it keeps in modelled form what
-// electing `schema` would push into an opaque Unmodeled payload: a declared wire
-// fact the IR does hold. The specification is no help in choosing: 3.1 names
-// `schema` first in the very sentence forbidding both and 3.2 names `content`
-// first, and a prohibition states no precedence in either order.
-//
-// The rule is unconditional, so it holds even where the elected entry states no
-// schema of its own: `{schema: {type: integer}, content: {application/json: {}}}`
-// lowers to `any` with the integer kept beside it, rather than to the integer.
-// Electing per entry instead would recover that one case and cost the property
-// the election exists for — two documents alike but for whether an entry names a
-// schema would elect different spellings, which is the shape of the bug being
-// fixed. Both keywords together is a document OpenAPI forbids; what matters is
-// that neither is dropped and the choice does not turn on how it was written.
-//
-// The two positions used to disagree, and only one of the orders was a decision:
-// fillParamType read `content` first from the start, while the header path read
-// `schema` first because it read nothing else until a content arm was appended
-// below it (GitHub #139). One order now governs both (GitHub #320).
+// `content` wins: its entry carries a schema and the media type serializing it,
+// both with IR homes here (HTTPParamBinding.ContentType,
+// Property.Encoding.MediaType), where `schema` would push the media type into
+// Unmodeled. The specification gives no precedence. The election is
+// unconditional, even where the entry names no schema (GitHub #320).
 func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
 ) (typeSpelling, []ir.Diagnostic) {
@@ -567,17 +536,14 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 
 // passedOverSpelling keeps verbatim the spelling the election passed over and
 // reports it once, naming both. A document that wrote only the elected one
-// records nothing and says nothing: RawChildNode returns nil for an absent
-// keyword and PreserveNode keeps nothing for a nil node.
+// records nothing and says nothing.
 //
-// ReasonDegradedLowering, as recordSkippedFamilies uses for the keyword families
-// its own election passes over — the position lowered to one of two co-declared
-// forms with the other kept beside it. Warning rather than the info announcing a
-// conjunction JSON Schema allows, because this is one OpenAPI forbids: the same
-// severity singleContentEntry reports a content map of more than one entry at,
-// for the same reason. Not an error, since the document lowers as well as an
-// election can make it and harness.Check stops at the first error diagnostic,
-// which would hide every later finding in the same spec.
+// The reason is ReasonDegradedLowering, as recordSkippedFamilies uses for the
+// keyword families its own election passes over. The severity is warning, not
+// the info announcing a conjunction JSON Schema allows, because OpenAPI forbids
+// this one; it matches singleContentEntry's. It is not an error: the document
+// lowers as well as an election can make it, and harness.Check stops at the
+// first error diagnostic, hiding later findings.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := schema.PreserveNode(c, u, "openapi:"+passed,
@@ -727,29 +693,28 @@ func appendValuelessExample(c lowering.Ctx, out []ir.Example, proto ir.Example, 
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
-// binding's RequestContentTypes. Body optionality lands on Payload.Required,
-// always set here because OpenAPI always states it — an undeclared `required`
-// means false by the specification's own default, not silence, so leaving the
-// field nil would report the format as unable to express optionality. opDeclPtr
-// is the operation's own declaration pointer, so a $ref'd body interns its
-// content once at its component pointer rather than once per mount site
-// (issue #107) — and under the component's name, since the operationId hint
-// would otherwise name the shared node after one arbitrary referencing site.
+// binding's RequestContentTypes. Payload.Required is always set, because an
+// undeclared `required` means false by the specification's own default, and nil
+// would report the format as unable to express optionality.
 //
-// A body $ref'd from anywhere else takes the second half of that rule: the
-// pointer is some other operation's, which DeclarationHint has no name for, so
-// the lowering names by reference and leaves the owning operation to settle it
-// (GitHub #433).
+// opDeclPtr is the operation's own declaration pointer. A $ref'd body interns
+// its content once at its declaration, not once per mount site, under the
+// component's name rather than the operationId hint (issue #107). A body $ref'd
+// from another operation has no component name, so the lowering names by
+// reference and leaves the owning operation to settle it (GitHub #433).
 func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
 	rb, bodyPtr := resolve.ObjectAt[soa.RequestBody](c.RefScope(), src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
+	c = lowering.Within[soa.RequestBody](c, src.GetRequestBody())
 	// requestBodyHint spells this operation's ID, which names the shared node
 	// after this mount when the body is declared under another operation. Marking
 	// the lowering lets that operation's own pass replace the placeholder, in
-	// whichever order the two run (GitHub #433).
+	// whichever order the two run (GitHub #433). A component body has no owning
+	// operation, so a schema's $ref into it leaves the subtree named by that
+	// reference (GitHub #747).
 	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
 		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
@@ -903,29 +868,22 @@ func bodyModelPointer(ts *compile.Types, body ir.TypeID) (jsontext.Pointer, bool
 	return "", false
 }
 
-// bodySchemaPointer returns the JSON pointer under which a body schema's
-// properties were interned: the ref target's pointer when
-// resolve.Scope.InternalPointer reads one from the media schema's $ref, else
-// localPtr.
+// bodySchemaPointer returns the pointer partEncodings keys encoding entries by
+// when the body has no model in the IR (bodyModelPointer): the ref target's,
+// when resolve.Scope.InternalPointer reads one from the media schema's $ref,
+// else localPtr. Such a schema declares properties beside a contradictory
+// `enum` or scalar `type`, so no property was interned under this pointer and
+// the keys address none (see preserveUnhomedKeywords).
 //
-// It is the fallback for a body the IR gives no model for (bodyModelPointer),
-// where the schema declares properties that nothing in the IR holds — a
-// contradictory `enum` or scalar `type` beside them — and no pointer can name a
-// property that was never lowered.
-//
-// The document half of the $ref decides, via resolve.Scope.InternalPointer, rather than being
-// cut off and discarded. A fragment lifted from a ref into another document
-// would otherwise become an identity in *this* one, naming whichever local
-// schema happened to share the path — a property of a different document
-// addressed as if it were ours. localPtr is the honest fallback there: it is
-// the position the reference itself occupies here. It is for a fragment that
-// decodes to bytes that are not UTF-8 too, which no key here spells and no
-// PropID can carry (GitHub #520).
+// InternalPointer refuses a ref into another document, whose fragment would
+// otherwise become an identity in this one and name whichever local schema
+// shared the path, and a non-UTF-8 fragment, which no PropID can carry (GitHub
+// #520). localPtr applies in both cases.
 func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], localPtr jsontext.Pointer) jsontext.Pointer {
 	if js == nil || !resolve.IsRefSite(js, js.GetSchema()) {
 		return localPtr
 	}
-	if pointer, ok := c.RefScope().InternalPointer(js.GetRef().String()); ok {
+	if pointer, ok := c.RefScope().TargetPointer(js, js.GetRef().String()); ok {
 		return pointer
 	}
 	return localPtr

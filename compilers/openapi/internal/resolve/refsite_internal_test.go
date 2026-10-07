@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 )
 
 // schemaFromYAML unmarshals body as a JSONSchema, keeping the reference form a
@@ -25,7 +28,15 @@ func schemaFromYAML(t *testing.T, body string) *oas3.JSONSchema[oas3.Referenceab
 // what gives a reference a target to be read through.
 func resolvedProperty(t *testing.T, body, p string) *oas3.JSONSchema[oas3.Referenceable] {
 	t.Helper()
-	root := schemaFromYAML(t, body)
+	_, prop := resolvedPropertyIn(t, body, p)
+	return prop
+}
+
+// resolvedPropertyIn is resolvedProperty that also returns the document the
+// property sits in, which a "#/$defs/..." pointer is navigated in.
+func resolvedPropertyIn(t *testing.T, body, p string) (root, prop *oas3.JSONSchema[oas3.Referenceable]) {
+	t.Helper()
+	root = schemaFromYAML(t, body)
 	prop, ok := root.GetSchema().GetProperties().Get(p)
 	require.True(t, ok, "the fixture declares property %q", p)
 	valErrs, err := prop.Resolve(t.Context(), oas3.ResolveOptions{
@@ -33,7 +44,7 @@ func resolvedProperty(t *testing.T, body, p string) *oas3.JSONSchema[oas3.Refere
 	})
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	return prop
+	return root, prop
 }
 
 // TestIsRefSite_IncludesTheDegenerateRef pins the deliberately broad test. A
@@ -92,12 +103,58 @@ func TestNamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	assert.False(t, declaresUser.NamesReferent(plain, "Bare"),
 		"a bare name addresses no pointer at all")
 
-	prop := resolvedProperty(t,
+	root, prop := resolvedPropertyIn(t,
 		"$defs:\n  Target: {type: string}\nproperties:\n  p: {$ref: '#/$defs/Target'}\n", "p")
-	assert.True(t, declaresUser.NamesReferent(prop, "#/$defs/Target"),
+	inRoot := declaresUser
+	inRoot.Doc = root
+	assert.True(t, inRoot.NamesReferent(prop, "#/$defs/Target"),
 		"a sub-schema pointer counts once it resolved to a body")
 
 	unresolved := schemaFromYAML(t, "{$ref: '#/$defs/Missing'}\n")
 	assert.False(t, declaresUser.NamesReferent(unresolved, "#/$defs/Missing"),
 		"a sub-schema pointer that resolved to nothing does not")
+}
+
+// TestTargetPointer_DocumentPartIsLeftToTheResolver pins TargetPointer's own
+// guard: a "#/$defs/..." pointer spelled with an explicit document part (even
+// one naming this same file) is not one load holds out of the resolver's pass
+// (load.heldRefs matches only a $ref with no document part), so the resolver
+// reads it itself and the rule has no answer for it.
+func TestTargetPointer_DocumentPartIsLeftToTheResolver(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "$defs:\n  Target: {type: string}\nproperties:\n  p: {type: string}\n")
+	p, ok := root.GetSchema().GetProperties().Get("p")
+	require.True(t, ok)
+
+	scope := Scope{SelfPath: "spec.yaml", Doc: root}
+	_, ok = scope.TargetPointer(p, "spec.yaml#/$defs/Target")
+	assert.False(t, ok, "a document part, even this document's own name, is left to the resolver")
+}
+
+// TestTargetPointer_ReadsThroughTheReaderItIsGiven pins that a Scope given a
+// reader reads "#/$defs/..." pointers through it: the answer is the one a Scope
+// with only a document gives, and the second question about the same position
+// probes the root and the one holder, and reads no position again.
+func TestTargetPointer_ReadsThroughTheReaderItIsGiven(t *testing.T) {
+	t.Parallel()
+	root := schemaFromYAML(t, "properties:\n  outer:\n    $defs:\n      k: {type: string}\n    properties:\n      p: {$ref: '#/$defs/k'}\n")
+	outer, ok := root.GetSchema().GetProperties().Get("outer")
+	require.True(t, ok)
+	p, ok := outer.GetSchema().GetProperties().Get("p")
+	require.True(t, ok)
+	reader := defs.NewReader(root)
+	scope := Scope{SelfPath: "spec.yaml", Doc: root, Defs: reader}
+
+	first, ok := scope.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+	afterFirst := reader.Reads()
+	second, ok := scope.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+
+	assert.Equal(t, jsontext.Pointer("/properties/outer/$defs/k"), first)
+	assert.Equal(t, first, second)
+	assert.Equal(t, afterFirst+2, reader.Reads(), "the second question probed the root and the holder, and read no position again")
+	plain, ok := Scope{SelfPath: "spec.yaml", Doc: root}.TargetPointer(p, "#/$defs/k")
+	require.True(t, ok)
+	assert.Equal(t, first, plain, "a scope with only a document answers the same")
 }

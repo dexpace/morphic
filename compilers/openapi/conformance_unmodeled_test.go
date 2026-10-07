@@ -303,25 +303,16 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
-// the document. allOf is an intersection, so a field one branch types `uri` and
-// another types `string` describes a shape the IR has no combinator for: the
-// merge keeps the first declaration and, under ir-design §4.8, keeps the loser
-// verbatim beside it rather than dropping it (GitHub #424).
+// the document. A field one allOf branch types `uri` and another `string` has
+// no IR combinator, so the merge keeps the first declaration and, under
+// ir-design §4.8, the loser verbatim (GitHub #424). The entry holds the
+// declaration as written, not the dropped IR value, because ir-design §12
+// defines an Unmodeled value as the source construct; that keeps the nullable
+// bit a target ID would lose (GitHub #445).
 //
-// The diagnostic is not what is being checked here. A consumer that diffs two
-// revisions of a document reads the document, and before this entry existed a
-// release in which the losing branch's type changed showed no change at all.
-//
-// The entry is the declaration as the document wrote it, not the IR value the
-// merge dropped (GitHub #445): ir-design §12 defines an Unmodeled value as the
-// source construct, and one verbatim node keeps everything a redeclaration said
-// at once. The nullable case is what that buys over a target ID: a
-// redeclaration says both what a field is and whether it admits null.
-//
-// Described is the same event on a field whose types agree: the fold has one
-// slot for a default and both branches fill it, so the second declaration is
-// kept whole and the disagreement named — before this a consumer diffing two
-// revisions that changed the second branch's default saw no change at all.
+// Described is the same event where the types agree but both branches fill the
+// fold's one default slot: the second declaration is kept whole and the
+// disagreement named.
 func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	repo, ok := doc.Types[namedID("Repository")].(*ir.Model)
 	require.True(t, ok)
@@ -369,13 +360,10 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
 // beside a `$ref` in an allOf branch bind that branch, not the schema it names,
 // so they cannot go on the shared target's node. The branch position gets a node
-// of its own to hold them — the alias any $ref position hoists when it carries no
-// Property or Parameter to hold them instead — and the composition points at that
-// (GitHub #143).
-//
-// The bare branch is here to pin the other half: a `$ref` that writes nothing
-// beside itself still composes straight to the target, so the fix costs no node
-// where there was nothing to keep.
+// of its own to hold them, the alias any $ref position hoists when no Property
+// or Parameter holds them, and the composition points at that (GitHub #143). The
+// bare branch pins the other half: a `$ref` writing nothing beside itself still
+// composes straight to the target, costing no node.
 func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	annotated, ok := doc.Types[namedID("Annotated")].(*ir.Model)
 	require.True(t, ok)
@@ -617,14 +605,11 @@ func assertDynamicRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // assertDynamicRefAcrossAnEmptyName pins the reference declared beside an $id on
 // the component schema keyed "". Its pointer, /components/schemas/, ends in an
 // empty reference token, and a walk that drops that token reads the
-// components/schemas map instead of the schema — a map declaring no $id, so the
-// resource boundary disappears and the reference expands across it (GitHub
-// #302).
-//
-// It lives in the corpus rather than only in a unit test because the oracles run
-// here: order-invariance, determinism, JSON round-trip and irverify each drive
-// this construct only if some committed spec writes it, and until this one did,
-// no spec combined an empty component name with $id and $dynamicRef at all.
+// components/schemas map instead, which declares no $id, so the resource
+// boundary disappears and the reference expands across it (GitHub #302). It
+// lives in the corpus because the oracles run here, and none drove this
+// construct until a committed spec combined an empty component name with $id and
+// $dynamicRef.
 func assertDynamicRefAcrossAnEmptyName(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	// An empty name earns no named TypeID, so the schema hoists anonymously.
@@ -787,17 +772,13 @@ func assertKeptRaw(t *testing.T, p ir.Unmodeled, key, want string) {
 }
 
 // assertNullOnlyUnion covers a oneOf/anyOf whose only branches are a bare
-// `type: null` schema — one branch, two, either combinator, and both
-// combinators declared at once with the elected one null-only. nullUnionCollapse
-// has no non-null branch to collapse a set like this onto, so without a guard
-// for this shape lowerOneOfAnyOf's buildUnion fallback strips every branch as a
-// null marker and interns a Union with none left, the empty value space
-// irverify's ir/union-no-variants rule rejects (GitHub #416). The branch set
-// admits exactly what a bare `{type: null}` schema at the same position admits
-// — null alone — so this position lowers the same way: the shared `any`
-// primitive with Nullable set, and the combinator(s) that produced it are kept
-// verbatim under Unmodeled since none carries a shape the Scalar's fields could
-// hold.
+// `type: null` schema: one branch, two, either combinator, and both declared at
+// once with the elected one null-only. With no non-null branch to collapse onto,
+// buildUnion would strip every branch as a null marker and intern a Union with
+// no variants, which irverify rejects as ir/union-no-variants (GitHub #416).
+// Such a set admits only null, as a bare `{type: null}` does, so it lowers the
+// same way: the shared `any` primitive with Nullable set, the combinators kept
+// verbatim under Unmodeled because the Scalar has no field for them.
 func assertNullOnlyUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	cases := []struct {
 		name string

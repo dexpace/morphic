@@ -13,15 +13,11 @@ import (
 // type node interned there, the coordinates interned beneath it, and every
 // diagnostic stamped at it.
 //
-// It answers "why did my example disappear" from the emitted document alone.
-// Every hoisted node records the coordinate it came from in Provenance.Pointer,
-// so the coordinate-to-node relation the compiler builds during lowering is
-// recoverable afterwards without widening the compiler contract to expose the
-// walk's internal map.
-//
-// What it does not report is which reader filled which field. That would need
-// the annotation readers to be separable units, which they are not; claiming it
-// here would describe a compiler this is not.
+// It answers "why did my example disappear" from the emitted document alone:
+// every hoisted node records its coordinate in Provenance.Pointer, so the
+// coordinate-to-node relation is recoverable without widening the compiler
+// contract. It does not report which reader filled which field; the annotation
+// readers are not separable units.
 func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) {
 	shown := string(pointer)
 	if pointer == "" {

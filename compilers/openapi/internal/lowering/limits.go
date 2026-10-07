@@ -1,18 +1,17 @@
 package lowering
 
 // Limits is the share of the compiler's resource budgets the lowering enforces:
-// the ones measuring a construct the walk builds, rather than the source
-// document the load phase measures before any of it is built.
+// those measuring a construct the walk builds, not the source document the load
+// phase measures first.
 //
-// It is a separate type from the compiler's public openapi.Limits for the reason
-// load.Options is separate from openapi.Options — that type's shape is a
-// published contract, and most of it describes phases this one cannot see. The
-// compiler projects one onto the other at entry.
+// It is separate from the public openapi.Limits, as load.Options is from
+// openapi.Options: that type is a published contract, and most of it describes
+// phases this one cannot see. The compiler projects one onto the other at
+// entry.
 //
-// Zero is unbounded in every field, which is the opposite of the public type's
-// spelling and deliberate: the projection resolves defaults and translates the
-// public spelling of "unbounded" before anything reaches here, so a budget still
-// zero at this point is one no caller set.
+// Zero is unbounded in every field, the opposite of the public spelling. The
+// projection resolves defaults and translates "unbounded" first, so a zero here
+// is a budget no caller set.
 type Limits struct {
 	// MaxEnumMembers bounds the members of a single enum.
 	MaxEnumMembers int

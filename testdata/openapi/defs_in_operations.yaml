@@ -1,0 +1,62 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                $defs: {n: {type: object, properties: {x: {type: string}}}}
+                properties: {p: {$ref: "#/$defs/n"}}
+  /b/{id}:
+    get:
+      operationId: getB
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                $defs: {n: {type: object, properties: {y: {type: integer}}}}
+                properties: {q: {$ref: "#/$defs/n"}}
+  "/a~b/{x y}/ü%41+1":
+    get:
+      operationId: getWeird
+      responses:
+        "200":
+          description: ok
+          content:
+            application/vnd.api+json:
+              schema:
+                type: object
+                $defs: {a/b: {type: object, properties: {z: {type: boolean}}}}
+                properties: {r: {$ref: "#/$defs/a~1b"}}
+  /c:
+    post:
+      operationId: subscribe
+      callbacks:
+        onEvent:
+          "{$request.body#/url}":
+            post:
+              requestBody:
+                content:
+                  application/json:
+                    schema: {$ref: "#/components/schemas/Wrapper"}
+              responses:
+                "200": {description: ok}
+      responses:
+        "200": {description: ok}
+components:
+  schemas:
+    Wrapper:
+      type: object
+      $defs: {w: {type: object, properties: {v: {type: string}}}}
+      properties: {inner: {$ref: "#/$defs/w"}}
