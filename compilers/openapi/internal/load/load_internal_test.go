@@ -1,6 +1,7 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"os"
@@ -131,34 +132,44 @@ paths:
 		"a rule the compiler does not own must still surface: %+v", diags)
 }
 
-// TestLoad_ExternalRefResolutionErrors drives the resErrs branch of load: an
-// external $ref to a malformed response yields per-reference validation errors
-// (not a single hard error), which load forwards as unresolved-ref diagnostics.
+// TestLoad_ExternalRefResolutionErrors pins how a finding inside a document an
+// external reference names is reported: under its own rule and severity, at the
+// $ref that brought the document in, with its position there in the message. It
+// used to arrive as openapi/unresolved-ref at error severity, with the external
+// document's line and column against the source's index (GitHub #537).
 //
-// It has to opt in to external references to get there at all, and the sited
-// assertion is what says it did: a refusal to leave the document comes back on
-// the joined-error branch with no location, so a diagnostic carrying a
-// position can only have come from the validation errors this test is named
-// for.
+// Severity, code and provenance are Morphic's own and are pinned exactly. The
+// message is matched with Contains, since the text before the position is the
+// library's rendering of the finding, which a later version could reword.
 func TestLoad_ExternalRefResolutionErrors(t *testing.T) {
 	t.Parallel()
 	path := "../../../../testdata/openapi/resolve_main_external.yaml"
+	target := "../../../../testdata/openapi/resolve_target_invalid.yaml" // as the resolver keys it
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	ld, diags, loadErr := Load(t.Context(), 0, compilers.Source{Path: path, Data: data},
 		Options{AllowExternalRefs: true})
 	require.NoError(t, loadErr)
 	require.NotNil(t, ld)
-	assert.GreaterOrEqual(t, countErrorsAt(diags, diag.UnresolvedRef), 1,
-		"external resolution validation errors surface as diagnostics")
 
-	sited := false
-	for _, d := range diags {
-		if d.Code == diag.UnresolvedRef && d.Provenance.Position != (ir.Position{}) {
-			sited = true
-		}
+	want := []struct {
+		severity ir.Severity
+		code     string
+		pointer  jsontext.Pointer
+		contains string
+	}{
+		{ir.SeverityError, "openapi/validation/validation-type-mismatch", "/paths/~1a/get/responses/200",
+			"cannot unmarshal !!str `notabool` into bool, at 10:21 of " + target},
+		{ir.SeverityError, "openapi/validation/validation-required-field", "/paths/~1a/get/responses/200",
+			"`response.description` is required, at 7:7 of " + target},
 	}
-	assert.True(t, sited, "the validation-error branch was reached, not the refusal: %+v", diags)
+	require.Len(t, diags, len(want), "%+v", diags)
+	for i, w := range want {
+		assert.Equal(t, w.severity, diags[i].Severity, "entry %d", i)
+		assert.Equal(t, w.code, diags[i].Code, "entry %d", i)
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: w.pointer}, diags[i].Provenance, "entry %d", i)
+		assert.Contains(t, diags[i].Message, w.contains, "entry %d", i)
+	}
 }
 
 // parseSpec runs the two steps Load runs back to back when no overlay comes
@@ -210,21 +221,6 @@ func TestUnmarshal_EmptySourceIsRejected(t *testing.T) {
 // response reference that points at it nil-dereferences inside speakeasy.
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
 const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
-
-// TestResolveAll_RecoversResolverPanic pins the resolve half of the
-// no-panics-escape invariant. unmarshal has guarded the parser since GitHub #12;
-// ResolveAllReferences was left bare, so a document that parses cleanly and
-// faults during resolution took the caller's process with it.
-func TestResolveAll_RecoversResolverPanic(t *testing.T) {
-	t.Parallel()
-	doc, _ := parseSpec(t, resolverPanicSpec)
-
-	resErrs, err := resolveAll(t.Context(), doc, soa.ResolveAllOptions{})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrParse)
-	assert.Contains(t, err.Error(), "reference resolver panicked")
-	assert.Nil(t, resErrs, "a partially-populated result never leaks")
-}
 
 func TestMapSeverity(t *testing.T) {
 	t.Parallel()
@@ -280,67 +276,6 @@ func TestValidationDiag(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, bare.Severity)
 	assert.Equal(t, diag.Validation, bare.Code)
 	assert.Equal(t, ir.Provenance{Source: 3}, bare.Provenance)
-}
-
-func TestResolveDiag(t *testing.T) {
-	t.Parallel()
-	at := &yaml.Node{Kind: yaml.ScalarNode, Line: 7, Column: 3}
-	structured := resolveDiag(scan.InSource(0),
-		validation.Error{Severity: "error", Rule: "bad-ref", UnderlyingError: errors.New("x"), Node: at})
-	assert.Equal(t, diag.UnresolvedRef, structured.Code)
-	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 7, Column: 3}}, structured.Provenance,
-		"anchored where the locator puts the finding's node")
-	assert.Equal(t, "x", structured.Message, "rendered the way validationDiag renders a finding")
-
-	bare := resolveDiag(scan.InSource(2), errors.New("io problem"))
-	assert.Equal(t, diag.UnresolvedRef, bare.Code)
-	assert.Equal(t, ir.Provenance{Source: 2}, bare.Provenance)
-}
-
-// TestResolveDiags covers what one diagnostic is allowed to carry.
-// ResolveAllReferences answers with errors.Join over every reference it could
-// not follow, so the whole failure list arrives as one error; rendering it whole
-// put N failures in a field that holds one, and a document with four external
-// $refs read as the same sentence stuttered four times.
-func TestResolveDiags(t *testing.T) {
-	t.Parallel()
-	tests := map[string]struct {
-		err       error
-		wantMsgs  []string
-		wantEmpty bool
-	}{
-		"nothing failed": {err: nil, wantEmpty: true},
-		"one failure per joined part": {
-			err:      errors.Join(errors.New("first"), errors.New("second")),
-			wantMsgs: []string{"first", "second"},
-		},
-		"parts that render alike collapse": {
-			err: errors.Join(errors.New("external reference not allowed"),
-				errors.New("external reference not allowed")),
-			wantMsgs: []string{"external reference not allowed"},
-		},
-		"an unjoined error is its own only part": {
-			err:      errors.New("resolver panicked"),
-			wantMsgs: []string{"resolver panicked"},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			got := resolveDiags(scan.InSource(7), tc.err)
-			if tc.wantEmpty {
-				assert.Empty(t, got)
-				return
-			}
-			msgs := make([]string, 0, len(got))
-			for _, d := range got {
-				assert.Equal(t, diag.UnresolvedRef, d.Code)
-				assert.Equal(t, 7, d.Provenance.Source)
-				msgs = append(msgs, d.Message)
-			}
-			assert.Equal(t, tc.wantMsgs, msgs)
-		})
-	}
 }
 
 // TestIsNumericBoundKeyword_UnderlyingNotTypeMismatch drives the errors.As guard:
@@ -490,14 +425,13 @@ func countErrorsAt(diags []ir.Diagnostic, code string) int {
 
 // TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot pins the model
 // build's other failure exit: the library refuses a document node that does not
-// wrap exactly one root, and that refusal is a Go error rather than a validation
-// finding about the spec.
+// wrap exactly one root, and that refusal is a Go error rather than a
+// validation finding about the spec.
 //
-// The node is built rather than decoded because yaml.v3 wraps exactly one root
-// in every tree it produces. What can hand this function another shape is an
-// overlay, which mutates the tree between the decode and the build — so the
-// branch is the compiler's to handle even though no source text reaches it
-// today, and building the node is the only way to hold it to that.
+// The node is built rather than decoded because yaml.v3 always wraps exactly
+// one root. An overlay mutates the tree between the decode and the build and
+// could hand over another shape, so the branch is the compiler's to handle, and
+// only a built node reaches it.
 func TestUnmarshal_RejectsADocumentNodeHoldingMoreThanOneRoot(t *testing.T) {
 	t.Parallel()
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{
