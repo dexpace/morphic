@@ -79,6 +79,7 @@ func TestEngine_RunEndToEnd(t *testing.T) {
 	require.NotNil(t, res.Document)
 	assert.Equal(t, "Tiny", res.Document.Name)
 	assert.Equal(t, "3.1", res.Format.Version)
+	assert.Equal(t, res.Document.Sources, res.Sources, "the result carries the document's own table")
 	for _, d := range res.Diagnostics {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
 	}
@@ -146,16 +147,14 @@ func TestEngine_RunMissingFile(t *testing.T) {
 }
 
 // TestEngine_RunDetectionProblemsAreDiagnostics covers every way a source can
-// defeat detection. None of them is an I/O failure or a programmer error, so
-// none may leave Run as a Go error: a caller that maps Go errors to "you invoked
-// me wrong" — which the CLI does — would report a spec it read and understood
-// well enough to name the problem in as a misuse of itself.
+// defeat detection. None is an I/O failure or a programmer error, so none may
+// leave Run as a Go error.
 //
 // The three rows are three different answers. A Swagger document is recognized
-// and unserved, so the format it declared survives into the Result. Bytes that
-// declare no key at all are nobody's, and no compiler has anything to say. Bytes
-// that declare an OpenAPI key and will not parse are the OpenAPI compiler's own,
-// and it — not the engine, which parses nothing — reports the parse error.
+// and unserved, so its declared format survives into the Result. Bytes that
+// declare no key at all are nobody's, and no compiler has anything to say.
+// Bytes that declare an OpenAPI key and will not parse are the OpenAPI
+// compiler's own, and it, not the engine, reports the parse error.
 func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -173,7 +172,8 @@ func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 			eng, err := engine.New()
 			require.NoError(t, err)
 
-			res, err := eng.Run(t.Context(), writeSpec(t, tt.spec), engine.RunOptions{})
+			spec := writeSpec(t, tt.spec)
+			res, err := eng.Run(t.Context(), spec, engine.RunOptions{})
 
 			require.NoError(t, err, "a spec problem is not a Go error")
 			require.NotNil(t, res)
@@ -181,22 +181,82 @@ func TestEngine_RunDetectionProblemsAreDiagnostics(t *testing.T) {
 			require.Len(t, res.Diagnostics, 1)
 			assert.Equal(t, tt.code, res.Diagnostics[0].Code)
 			assert.Equal(t, ir.SeverityError, res.Diagnostics[0].Severity)
-			assert.Equal(t, ir.NoSource, res.Diagnostics[0].Provenance.Source,
-				"the engine read a file it never lowered, so it can index no source table")
+			assert.Equal(t, ir.Provenance{Source: 0}, res.Diagnostics[0].Provenance,
+				"the finding is about the file as a whole, and names it")
+			assert.Equal(t, []ir.SourceInfo{{Path: spec}}, res.Sources,
+				"nothing was lowered, and the table still names the file")
 			assert.Equal(t, tt.wantFormat, res.Format)
 		})
 	}
+}
+
+// TestEngine_RunResultSourcesOnARefusedCompile pins the case #388 named and
+// #527 reproduced: a compile that refuses returns no Document, so the run's own
+// table is the only one a refusal's diagnostics can be resolved against. The
+// compiler is the real one — a stub would only prove the plumbing, not that an
+// actual refusal reaches it.
+func TestEngine_RunResultSourcesOnARefusedCompile(t *testing.T) {
+	t.Parallel()
+	const cyclic = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
+`
+	eng, err := engine.New()
+	require.NoError(t, err)
+	spec := writeSpec(t, cyclic)
+
+	res, err := eng.Run(t.Context(), spec, engine.RunOptions{})
+
+	require.NoError(t, err, "a cyclic spec is a document problem, not a Go error")
+	require.NotNil(t, res)
+	assert.Nil(t, res.Document, "the cycle refuses the compile")
+	assert.Equal(t, []ir.SourceInfo{{Path: spec}}, res.Sources,
+		"the compiler's own table, not the document's — there is no document")
+	require.NotEmpty(t, res.Diagnostics)
+	for _, d := range res.Diagnostics {
+		assert.Equal(t, 0, d.Provenance.Source, "the cycle is in the one source the run read: %+v", d)
+	}
+}
+
+// TestEngine_RunResultSourcesOnARefusedOverlay pins the gap #388 left: it
+// assumed the engine already knows every path a refusal could name, which
+// holds for the spec but not for an overlay, since that name reaches the
+// compiler only through RunOptions.CompilerOptions (or FormatOptions). The
+// compiler is what reports it, through SourceTable.
+func TestEngine_RunResultSourcesOnARefusedOverlay(t *testing.T) {
+	t.Parallel()
+	// The same recursive-anchor shape TestCompiler_SourceTableOnARefusal pins at
+	// the compiler's own level: an alias inside the update names one of its own
+	// ancestors, which gives the overlay library's clone no base case.
+	const anchorCycle = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
+		"actions:\n  - target: $.info\n    update: {p: &a [*a]}\n"
+
+	eng, err := engine.New()
+	require.NoError(t, err)
+	spec := writeSpec(t, testspec.Tiny)
+	overlay := writeNamed(t, "overlay.yaml", anchorCycle)
+
+	res, err := eng.Run(t.Context(), spec, engine.RunOptions{
+		CompilerOptions: map[string]string{"overlay": overlay},
+	})
+
+	require.NoError(t, err, "a cyclic overlay is a document problem, not a Go error")
+	require.NotNil(t, res)
+	assert.Nil(t, res.Document, "the overlay's own cycle refuses the compile")
+	assert.Equal(t, []ir.SourceInfo{{Path: spec}, {Path: overlay}}, res.Sources,
+		"the compiler's table: the spec, then the overlay its options named")
+	require.NotEmpty(t, res.Diagnostics)
+	assertSourcesInvariant(t, spec, res)
+	assert.True(t, slices.ContainsFunc(res.Diagnostics, func(d ir.Diagnostic) bool {
+		return d.Provenance.Source == 1
+	}), "the refusal names the overlay, source 1: %+v", res.Diagnostics)
 }
 
 // TestNewWith_RefusesAnEmptyCompilerSet pins that an engine which can compile
 // nothing cannot be built. There is no way to add a compiler to a built engine,
 // so the alternative is one that reports every source it is handed as
 // unrecognized — blaming the document for a misconfiguration of the caller.
-//
-// An earlier note here asked that this precondition not be added, on the grounds
-// that an empty engine was the only way to reach Run's nothing-recognized
-// branch. Detection belongs to the compilers now, so an ordinary source none of
-// them claims reaches that branch with a full registry; the tests above do it.
 func TestNewWith_RefusesAnEmptyCompilerSet(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +298,8 @@ func (stubFront) Detect(compilers.Source, compilers.Options) (compilers.Recognit
 
 func (stubFront) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (stubFront) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
+
 // collidingCompiler claims a single fixed format. Two of them registered
 // together make the second Register call fail, driving NewWith's error path.
 type collidingCompiler struct{ stubFront }
@@ -256,8 +318,8 @@ func TestNewWith_RegisterError(t *testing.T) {
 
 // TestNewWith_NilCompiler passes the nil second so the reported position proves
 // the index is the argument's own and not a constant. Reaching the assertions at
-// all is the point: a nil compiler used to segfault inside the registry, which
-// is a panic escaping two packages rather than an error the caller can handle.
+// all is the point: a nil compiler must come back as an error the caller can
+// handle, not a panic escaping the registry.
 func TestNewWith_NilCompiler(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(collidingCompiler{}, nil)
@@ -333,15 +395,14 @@ func (c splitDiagCompiler) Compile(context.Context, []compilers.Source, compiler
 }
 
 // TestEngine_RunKeepsDiagnosticsFromEitherChannel pins that neither diagnostic
-// channel is dropped in favour of the other. Three of these six rows lost a
-// finding before this was fixed — an error-severity one, in silence, on a
-// different combination of channel and validate mode each time.
+// channel is dropped in favour of the other, for each channel layout with and
+// without the validate pass.
 //
-// The returned-only row with the validate pass enabled — the default — is the
-// worst of them, and the reason the modes are a loop rather than a single case.
-// Assigning Document.Diagnostics over the returned list emptied the Result the
-// CLI gates its exit code on, so turning validation on *removed* findings and
-// the tool exited 0 on a spec its compiler had refused outright.
+// The returned-only row with validation on, the default, is the worst case and
+// the reason the modes are a loop: assigning Document.Diagnostics over the
+// returned list would empty the Result the CLI gates its exit code on, so
+// enabling validation would remove findings and the tool would exit 0 on a spec
+// its compiler had refused outright.
 func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 	t.Parallel()
 	want := ir.Diagnostic{
@@ -464,6 +525,8 @@ func (s *smithyCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
 	s.options = set
 	return set.Settings["shape"], nil
 }
+
+func (*smithyCompiler) SourceTable([]compilers.Source, compilers.Options) []ir.SourceInfo { return nil }
 
 func (*smithyCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	name, _ := opts.FormatOptions.(string)
@@ -680,16 +743,14 @@ func TestEngine_RunOnAnUnbuiltEngine(t *testing.T) {
 	}
 }
 
-// TestEngine_RunDiagnosticsAreOneLineEach pins the rendering contract the README
-// states — one diagnostic per line — across the ways a source can fail, rather
-// than at the one site where a multi-line message was first noticed.
+// TestEngine_RunDiagnosticsAreOneLineEach pins the README's rendering contract,
+// one diagnostic per line, across the ways a source can fail.
 //
 // A message carrying a newline splits one report into several, and every line
 // after the first has no severity, code or location: a reader takes it for
-// another finding, and a wrapper parsing stderr takes it for a malformed one.
-// Both libraries reported through here write multi-line errors, so the sites
-// that embed one are where this keeps breaking; the inputs below reach the
-// detection, parse, overlay and validation paths in turn.
+// another finding, a wrapper parsing stderr for a malformed one. Both libraries
+// reported through here write multi-line errors, so the inputs reach the
+// detection, parse, overlay and validation paths, where one gets embedded.
 func TestEngine_RunDiagnosticsAreOneLineEach(t *testing.T) {
 	t.Parallel()
 	const okSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"

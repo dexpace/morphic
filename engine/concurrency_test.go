@@ -25,20 +25,17 @@ const concurrencyCorpus = "../testdata/conformance/openapi"
 // stays well inside the gate's per-package timeout even under -race.
 const concurrentWorkers = 8
 
-// TestEngine_ConcurrentRunSharesOneEngine drives the whole conformance corpus
-// through a single *engine.Engine from several goroutines at once and requires
-// every document to be byte-identical to the one an unshared Engine produced.
-// One Engine, built outside the goroutines, is the whole point: a test that
-// constructs an Engine per goroutine shares nothing and proves nothing.
+// TestEngine_ConcurrentRunSharesOneEngine drives the conformance corpus through
+// one *engine.Engine from several goroutines at once and requires every
+// document to be byte-identical to the one an unshared Engine produced, which
+// also re-checks determinism (CLAUDE.md invariant 7). The Engine is built
+// outside the goroutines; one per goroutine would share nothing.
 //
-// Two properties are pinned, and only the first is the detector's. A data race
-// is not the only way concurrency corrupts output — a cache keyed on the wrong
-// thing can be perfectly synchronized and still hand one caller another's
-// answer — so the documents are compared, not merely produced, and the baseline
-// is built with a *fresh* Engine per spec: a baseline drawn from the shared
-// Engine would carry the same corruption and cancel it out. Matching it also
-// re-checks determinism (CLAUDE.md invariant 7). Run under -race for the first
-// property; the comparison holds either way.
+// Two properties are pinned: no data race (run under -race) and identical
+// documents. A cache keyed on the wrong thing can be perfectly synchronized and
+// still hand one caller another's answer. The baseline comes from a fresh
+// Engine per spec, since one drawn from the shared Engine would carry the same
+// corruption.
 func TestEngine_ConcurrentRunSharesOneEngine(t *testing.T) {
 	t.Parallel()
 

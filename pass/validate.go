@@ -44,47 +44,26 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// checkDanglingRefs reports every typed-ID reference in the document that
-// resolves to no entry in the registry that declares that class of ID — a
-// TypeRef.Target into doc.Types, a MessageBinding.Channel into doc.Channels, a
-// SchemeUse.Scheme into doc.Auth — wherever it sits.
+// checkDanglingRefs reports every typed-ID reference that resolves to no entry
+// in the registry declaring that class of ID — a TypeRef.Target into doc.Types,
+// a SchemeUse.Scheme into doc.Auth — wherever it sits.
 //
-// The sites and the registries both come from reflection over the document's own
-// shape (ir.WalkValues, ir.DocumentRegistries) rather than a list of field names:
-// referential integrity is the guarantee an emitter relies on, and a hand-written
-// enumeration drifts behind the IR without anything failing.
-//
-// What that leaves out is a category rather than a stray field. A reference
-// carried as an integer index is an int like any other: Service.Servers and
-// Channel.Servers into Document.Servers, and HTTPBinding.SuccessStatus's keys
-// into Operation.Responses, are enumerated by hand below; Provenance.Source into
-// Document.Sources is left to irverify, because a stale source index is a
-// compiler bug rather than a spec problem, and because this pass stamps
-// ir.NoSource on its own diagnostics, which the engine folds into
-// Document.Diagnostics — a document-wide check here would report its own previous
-// output. A new integer-index reference has to be added to those checks by hand
-// too; irverify's integerFields guard is what stops one being added unnoticed.
-// The other class the registries cannot resolve is ir.PropID, which names a
-// position inside a model: checkPropIDRefs resolves those against the properties
-// the same traversal saw.
-//
-// Not every ID class has a map on Document to be derived from. An ir.Operation is
-// declared in the Service→OperationGroup tree and an ir.Service in a slice, so an
-// OpID or ServiceID reference resolved against nothing at all (GitHub #50);
-// ir.Registries.WithDeclarations supplies both from the identities the document's
-// own nodes declare, under the same ir/dangling-<noun>-ref code every other class
-// is reported with.
-//
-// Those two classes are dropped when the declaration walk truncates. A registry
-// derived from a walk that saw a subset of the document answers "not declared"
-// for a node it simply never reached, so a reference to a legitimate operation
-// buried past the cap would be reported as dangling — a false error, where the
-// registries Document declares maps for can only ever under-report. The walk-
-// truncated diagnostic below says why nothing is claimed for them, as
-// checkArgsOutsideGraphQL does with the reachability it cannot trust.
+// Sites and registries come from reflection over the document's own shape
+// (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
+// would drift behind the IR unnoticed. Integer-index references are enumerated
+// by hand below, and ir.PropID is checkPropIDRefs's. Provenance.Source is
+// irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
+// diagnostics would make a document-wide check report its own output.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
+	// Document has no map for OpID or ServiceID: an ir.Operation is declared in
+	// the Service→OperationGroup tree and an ir.Service in a slice (GitHub
+	// #50), so their registries come from the identities the nodes declare.
 	decls, declTruncated := ir.DeclaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
+	// A registry built from a truncated walk says "not declared" of a node it
+	// never reached, so a legitimate operation past the depth bound would be
+	// reported as dangling. Dropping both classes can only under-report; the
+	// walk-truncated diagnostic below says why nothing is claimed for them.
 	if !declTruncated {
 		regs = regs.WithDeclarations(decls)
 	}
@@ -119,8 +98,10 @@ func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 //
 // These are references carried as integer indices, so nothing in their Go type
 // marks them as references and the walk in refs.go cannot reach them — they are
-// enumerated here instead. An emitter iterating them to render base URLs indexes
-// out of range on a document that is otherwise referentially closed.
+// enumerated here instead, and a new one has to be added by hand; irverify's
+// integerFields test is what notices it. An emitter iterating them to render
+// base URLs indexes out of range on a document that is otherwise referentially
+// closed.
 func checkServerIndices(doc *ir.Document) []ir.Diagnostic {
 	declared := len(doc.Servers)
 	var diags []ir.Diagnostic
@@ -183,33 +164,17 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 // checkPropIDRefs reports every PropID a document carries that names no property
 // it declares.
 //
-// Retyping Content.Encoding made one carrier of a PropID honest about its shape,
-// and checkEncodingKeys resolves those keys; every other carrier was resolved by
-// nothing. PropPath.Segments, ParamPath.Segments, HTTPParamBinding.ParamPath and
-// Discriminator.Property are all invisible to checkDanglingRefs, because that
-// walk is registry-driven and a PropID addresses no registry — a property is a
-// position inside its model, so resolving one means finding the model that owns
-// it. Nothing produces a bad one today, since each is derived from the pointer
-// that interned the thing it names; what was missing is that a bad one would have
-// gone unreported.
+// A property is a position inside its model and addresses no registry, so the
+// registry-driven checkDanglingRefs cannot see PropPath.Segments,
+// ParamPath.Segments, HTTPParamBinding.ParamPath or Discriminator.Property. The
+// claim is membership: the ID names a property declared somewhere. Reflection
+// supplies the sites but not the root each path is walked from, and
+// checkDiscriminators makes the model-scoped claim for the one carrier whose
+// root is written down.
 //
-// The claim is membership: the ID names a property the document declares
-// somewhere. Reflection supplies the sites but not the root each path is meant to
-// be walked from, and a root read off a field name would be the hand-maintained
-// enumeration this avoids. checkDiscriminators makes the tighter, model-scoped
-// claim for the one carrier whose root is written down.
-//
-// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
-// names the defect rather than the finder, so a second checker growing this check
-// adopts the code instead of forcing a rename. Only this pass reports it today —
-// irverify's walk is registry-driven and cannot reach the class at all.
-//
-// One member of the same class is deliberately left unchecked. Docs.Description
-// is CommonMark that may carry {t:TypeID} cross-reference tokens for emitters to
-// resolve (ir/docs.go, normative at ir-design §12), so a description naming a type
-// that does not exist is a broken reference inside a plain string, invisible here
-// for the same reason a PropID was. Reaching it needs a token parser rather than a
-// lookup, and a false positive inside prose is noisier than a missing check.
+// Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
+// a token parser, and a false positive in prose is noisier than a missing
+// check.
 func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 	sites, declared := collectPropIDs(doc, ir.DocumentPath)
 	var diags []ir.Diagnostic
@@ -227,16 +192,14 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 // checkEncodingKeys reports Content.Encoding keys that name no property of the
 // model the content's Type addresses.
 //
-// A key is a PropID, and a property is a position inside its model rather than an
-// entry in a document-level registry, so the type-driven walk has nothing to
-// resolve one against — the keys are enumerated here for the same reason the
-// indices above are. An emitter rendering multipart parts looks the key up among
-// the body's properties and silently renders no part for a key that misses.
+// A key is a PropID, which no document-level registry resolves, so the
+// type-driven walk has nothing to resolve it against and the keys are
+// enumerated here. An emitter rendering multipart parts looks the key up among
+// the body's properties and silently renders no part for a miss.
 //
-// The code carries the ir/ namespace because it names the defect, not the finder
-// (see the package doc): a key addressing nothing is a broken reference, so a
-// second checker growing this check adopts the code rather than forcing a rename.
-// Only this pass reports it today.
+// The code carries the ir/ namespace because it names the defect, not the
+// finder (see the package doc), so a second checker growing this check adopts
+// it. Only this pass reports it today.
 func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachPayload(doc, func(site payloadSite) {
@@ -248,15 +211,14 @@ func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 // checkPayloadRequired reports a Payload.Required set anywhere but on a request.
 //
 // Only a request body can be omitted, so ir.Payload defines the field for that
-// one position and says a response or message payload leaves it nil. Set there
-// it states something no exchange can honour, and an emitter that renders
-// "required" off the boolean prints it on a response — the reading GitHub #421
-// was filed about. No compiler produces the shape today; this is the rule's
-// guard rather than the repair of a lowering, and an error rather than a
-// warning because the document is wrong, not merely lossy.
+// one position and leaves it nil on a response or message payload. Set there it
+// states something no exchange can honour, and an emitter rendering "required"
+// off the boolean prints it on a response (GitHub #421). No compiler produces
+// the shape today; this guards the rule, and is an error because the document
+// is wrong, not merely lossy.
 //
-// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
-// names the defect, not the finder. Only this pass reports it today.
+// The ir/ code namespace is explained at checkEncodingKeys; only this pass
+// reports it today.
 func checkPayloadRequired(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachPayload(doc, func(site payloadSite) {
@@ -282,18 +244,13 @@ type payloadSite struct {
 // forEachPayload calls fn once per Payload the document carries, skipping the
 // positions that hold none.
 //
-// The fields that carry a Payload are named here — Operation.Request,
-// Response.Payload, ErrorCase.Payload and Message.Payload — because nothing in a
-// Payload's Go type says who owns one, so a new one has to be added by hand.
-// That coupling is guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
-// (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
-// the moment one of them is not walked here, and every check built on this walk
-// reaches a carrier the day it is added.
-//
-// ErrorCase.Payload is reached at both of the IR's error positions — an
-// operation's own Errors and its service's CommonErrors — because the field is
-// one field wherever the node hangs, and a walk that visited only the operation
-// list would leave a service-level error's payload unjudged in silence.
+// The carrying fields are named here, since nothing in a Payload's Go type says
+// who owns one, so a new one has to be added by hand: Operation.Request,
+// Response.Payload, ErrorCase.Payload and Message.Payload.
+// TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails the moment a
+// Payload-bearing field in the IR is not walked here. ErrorCase.Payload is
+// reached at both error positions, an operation's Errors and its service's
+// CommonErrors, since a walk of only the first would leave the second unjudged.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID)+"/commonErrors", fn)
@@ -354,21 +311,16 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.Prop
 	return dst
 }
 
-// exposedProps returns the property IDs a type exposes: its own, plus the ones it
-// composes in (§4.3), which is the flat set an emitter renders. A root naming no
-// model — one the registry does not declare, or the empty target — exposes none,
-// so every reference against such a root is reported beside whatever
-// checkDanglingRefs says about the root itself: the two make different claims, as
-// with checkMapping.
+// exposedProps returns the property IDs a type exposes: its own plus those it
+// composes in (§4.3), the flat set an emitter renders. A root naming no model,
+// undeclared or empty, exposes none, so every reference against it is reported
+// beside checkDanglingRefs's finding on it; the claims differ, as with
+// checkMapping.
 //
-// It answers the two checks with a root written down — a content's multipart
-// parts and a model discriminator's tag property. A body typed by an alias scalar
-// exposes the parts of the model its Base names; a $ref carrying siblings hoists
-// exactly that shape, so it is how an ordinary referenced multipart body arrives
-// here.
-//
-// The walk is iterative with a visited set, so a cyclic composition or alias
-// chain terminates and the finite registry bounds it.
+// It serves the two checks with a root written down: a content's multipart
+// parts and a model discriminator's tag property. An alias scalar exposes the
+// parts of the model its Base names, which is how a $ref carrying siblings
+// arrives. A visited set terminates cycles.
 func exposedProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
 	props := map[ir.PropID]bool{}
 	seen := map[ir.TypeID]bool{}
@@ -530,21 +482,15 @@ func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 
 // checkMapping validates every routing target a discriminator names — each
 // wire-value mapping entry and the Default an unrecognized tag falls back to.
-// All of them must resolve in the registry and satisfy member.
+// All of them must resolve in the registry and satisfy member. Default names
+// the type an instance deserializes into, so it is held to the same claim as a
+// mapping entry.
 //
-// Default is held to the same claim rather than a weaker one because it makes the
-// same decision: it names the type an instance deserializes into, so a Default
-// outside the discriminated set has an emitter's fallback branch constructing a
-// type the discriminator does not admit. Both callers share this function, so the
-// union and model arms are covered by checking it here rather than in either.
-//
-// A target that resolves nowhere is reported here and again by checkDanglingRefs,
-// and that double report is deliberate: the two codes make different claims.
-// ir/dangling-type-ref says the document is not referentially closed, which every
-// reference in it is held to; pass/discriminator-missing-variant says this
-// discriminator cannot route that wire value, which is what an emitter building a
-// polymorphic decoder subscribes to. Neither consumer should have to subscribe to
-// the other's code to get its own answer.
+// A target that resolves nowhere is reported here and again by
+// checkDanglingRefs, deliberately: ir/dangling-type-ref says the document is
+// not referentially closed, while pass/discriminator-missing-variant says this
+// discriminator cannot route that wire value, which a polymorphic decoder's
+// emitter subscribes to. Neither consumer should need the other's code.
 func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	report := func(target ir.TypeID, position string) {
@@ -583,20 +529,14 @@ func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bo
 // isSubtype reports whether target is a declared subtype of base at any distance
 // along the composition chain, via single inheritance or interface conformance.
 //
-// The relation is the transitive closure because that is what the discriminator
-// on the base routes: a three-level hierarchy is ordinary in every source format
-// the IR compiles, and a base tagging a grandchild is legal in each of them.
-// Reading one hop refused such a mapping with a severity error — a false report
-// on valid IR, which is fatal at the CLI.
+// The relation is the transitive closure, since a base tagging a grandchild is
+// legal in every source format.
 //
-// A composition parent naming an alias scalar is read through it: a `$ref`
-// carrying siblings composes the branch's own node rather than the referenced
-// schema directly (ir-design §4.3), so a subtype declared that way names its
-// parent one hop further away than the discriminator mapping spells it.
-// exposedProps reads composition the same way.
-//
-// The walk is iterative with a visited set, so a cyclic composition or alias
-// chain terminates and the finite registry bounds it.
+// A composition parent naming an alias scalar is read through it: a $ref
+// carrying siblings composes the branch's own node, not the referenced schema
+// (ir-design §4.3), so such a subtype names its parent one hop further away
+// than the mapping spells it. exposedProps reads composition the same way. A
+// visited set terminates cycles.
 func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
 	seen := map[ir.TypeID]bool{}
 	queue := []ir.TypeID{target}
@@ -752,18 +692,15 @@ func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) [
 // checkMessageBindings reports operations whose message binding uses a message
 // the channel it binds does not carry.
 //
-// Channel.Messages is the channel's contract — which messages may travel on it
-// (ir-design §8.3) — and an operation names the subset it uses. A binding naming
-// one outside that set is a well-formed reference: every id resolves, so the
-// reference walk has nothing to say, while an emitter generates a publisher for a
-// message the channel forbids. The code keeps the pass/ namespace for the reason
-// pass/discriminator-missing-variant does: this is a containment judgement the
-// pass owns outright, not a broken reference.
+// Channel.Messages is the channel's contract, which messages may travel on it
+// (ir-design §8.3), and an operation names the subset it uses. A binding naming
+// one outside that set is a well-formed reference, so the reference walk has
+// nothing to say, while an emitter generates a publisher for a message the
+// channel forbids. The code keeps the pass/ namespace: this is a containment
+// judgement the pass owns outright, not a broken reference.
 //
-// Channels are reached only by the reflective reference walk today, so this is
-// the first hand-written check to read doc.Channels; it enters through
-// forEachOperation like the other operation-scoped checks, and so inherits the
-// group-depth bound checkGroupWalkTruncated reports.
+// It enters through forEachOperation, so it inherits the group-depth bound that
+// checkGroupWalkTruncated reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {

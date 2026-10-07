@@ -31,36 +31,17 @@ const (
 	AnnotationValidationOnly  Annotation = "validationOnly"
 )
 
-// SiteKind distinguishes a position that declares a type from one that
-// references another type and may carry annotations of its own, and both from
-// a carrier — a position whose annotations land on an ir.Property or
-// ir.Parameter instead of on a type node at all.
+// SiteKind distinguishes a position that declares a type, one that references
+// another type and may carry annotations of its own, and a carrier: a position
+// whose annotations land on an ir.Property or ir.Parameter, not on a type node.
 //
-// Declaration further splits by the declaring component's own shape, because the
-// compiler routes an object-shaped body and a scalar-shaped body through
-// different lowering paths that do not honor the same keywords: an
-// annotation present on one shape is not evidence it survives on the other.
-//
-// SiteDeclarationModel and SiteDeclarationScalar do not cover every
-// declaration shape the OpenAPI compiler's schema dispatch (lower(), in
-// schema.go) produces — const (hoistLiteral -> Literal), enum (lowerEnum ->
-// Enum or a Union of Literals), a multi-type such as `type: [string,
-// integer]` (lowerUnion -> Union), a `type: array` body (lowerArray ->
-// List/Tuple), allOf (lowerAllOf -> Model), a sibling-less oneOf/anyOf
-// (lowerOneOfAnyOf -> Union), and a oneOf/anyOf co-declared with a structural
-// sibling (lowerWithUnionSiblings -> lowerModel) are destinations too. None of
-// them reads annotations: attachDeclaredAnnotations runs above the dispatch,
-// so retention is a property of the reading's position rather than of the
-// destination reached (GitHub #114).
-//
-// That claim is checked rather than assumed, but not at every destination.
-// TestAnnotationRetention_OtherDeclarationShapes (annotations_test.go) runs
-// the full nine-annotation grid at four of them — const, enum, array, and a
-// sibling-less oneOf — and pins the node kind each lowers to, so the four
-// rows stay four distinct destinations. allOf, a multi-type, and a
-// structurally co-declared oneOf/anyOf are still unexercised: each lands on a
-// Model or Union node the checked rows already cover, so nothing about them
-// is expected to differ, but nothing here proves it.
+// Declaration splits by the declaring component's shape, because object- and
+// scalar-shaped bodies lower through paths that do not honor the same
+// keywords. Other lowering destinations read no annotations:
+// attachDeclaredAnnotations runs above the dispatch, so retention follows the
+// position (#114). TestAnnotationRetention_OtherDeclarationShapes checks
+// const, enum, array and a sibling-less oneOf; allOf, a multi-type and a
+// co-declared oneOf/anyOf are unexercised.
 type SiteKind string
 
 // The kinds of position an annotation can be written at.
