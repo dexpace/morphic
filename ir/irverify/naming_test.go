@@ -357,15 +357,13 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 
 // TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard: the
 // exemption is recorded against one path, so it silences that node's own Naming
-// and no other. A checker that noted "an exempt node was seen" as a document-wide
-// flag instead passes every test that measures one node at a time, and goes
-// silent on the whole corpus.
+// and no other. A document-wide "an exempt node was seen" flag would pass every
+// test that measures one node at a time and silence the whole corpus.
 //
-// The sibling axis is what this can reach. The descendant axis — a nameless node
-// *inside* an exempt one — had ir.Response and its headers to measure it with,
-// and with ir.Primitive the only exemption left there is no such pair: nothing
-// under a primitive carries a Naming at all. Whoever adds the next exemption owns
-// that half again.
+// It reaches the sibling axis only. The descendant axis, a nameless node inside
+// an exempt one, has no pair to measure with while ir.Primitive is the only
+// exemption, since nothing under a primitive carries a Naming. Whoever adds the
+// next exemption owns that half again.
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
@@ -397,18 +395,15 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 }
 
 // TestVerify_IllFormedNameIsAViolation covers the one rule every channel of a
-// Naming shares, now checkUTF8's rather than a naming-specific one: it is
-// about the encoding rather than the spelling, and it reports at the precise
-// channel path (".Name.Source", not ".Name") rather than the coarser one the
-// removed, naming-specific rule it replaces used to report at.
+// Naming shares, checkUTF8's: it is about the encoding rather than the
+// spelling, and reports at the precise channel path (".Name.Source", not
+// ".Name").
 //
-// Canonical and Hint each draw two further violations without any UTF-8 rule
-// at all — the replacement rune neither Go's ToLower nor isWordSequence can
-// treat as a plain lowercase word character, so ir/naming-cased and
-// ir/naming-not-words both fire (GitHub #400, out of scope here). Source draws
-// nothing else, which is what makes its fixture the one that pins the count as
-// well as the code: restoring the deleted naming-specific rule alongside
-// checkUTF8 would redden it by reporting the same defect twice.
+// Canonical and Hint each also draw ir/naming-cased and ir/naming-not-words,
+// since neither ToLower nor isWordSequence can treat the replacement rune as a
+// plain lowercase word character (GitHub #400, out of scope here). Source draws
+// nothing else, so its fixture pins the count as well as the code: reporting
+// the same defect twice would redden it.
 func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})

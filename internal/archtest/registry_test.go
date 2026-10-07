@@ -23,18 +23,14 @@ var registryOwners = []string{"compilers/compile", "ir"}
 // TestRegistryWrites_StayInsideTheFramework asserts that no production package
 // outside registryOwners constructs or writes into an ir.TypeRegistry.
 //
-// This is the rule the compilers/compile package boundary exists to express: a
-// 120-line package earns its own directory only because "no one outside writes
-// this map" is inexpressible without an outside. Every compiler reaching the
-// registry through compile.Types is what keeps one-node-per-coordinate a
-// mechanical property rather than a convention each compiler re-honours.
+// Reaching the registry only through compile.Types is what makes
+// one-node-per-coordinate mechanical rather than a convention each compiler
+// re-honours; "no one outside writes this map" needs a package boundary to say.
 //
-// The check is syntactic — the import graph test parses imports only, and this
-// reuses that machinery rather than standing up a type checker. It matches two
-// shapes: a composite literal of ir.TypeRegistry, and an assignment whose target
-// indexes a .Types selector. A compiler that renamed its registry field would
-// slip past the second, which is why the first exists: building one is how a
-// package would obtain a registry to write in the first place.
+// The check is syntactic, with no type checker. It matches a composite literal
+// of ir.TypeRegistry and an assignment whose target indexes a .Types selector.
+// A renamed registry field would slip past the second, hence the first:
+// building one is how a package would obtain a registry to write in.
 func TestRegistryWrites_StayInsideTheFramework(t *testing.T) {
 	t.Parallel()
 	offenders := sweepProduction(t, repoRoot(t), "", registryOwners, registryWrites)

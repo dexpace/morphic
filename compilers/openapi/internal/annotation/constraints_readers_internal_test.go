@@ -208,20 +208,16 @@ func TestApplyExclusive_AMalformedNumericBoundIsReported(t *testing.T) {
 }
 
 // TestConstraints_CoDeclaredBoundsBothReachAField pins the 2020-12 rule that a
-// side's two keywords are independent and conjunctive: each is a restriction the
-// source wrote, ir.Constraints has a field for each, and neither is chosen over
-// the other.
+// side's two keywords are independent and conjunctive: ir.Constraints has a
+// field for each, and neither is chosen over the other.
 //
-// The rows come in pairs that swap which keyword is the tighter while leaving
-// the same two magnitudes on the side. One slot per side answers both rows of a
-// pair with the tighter bound alone, so a consumer diffing two revisions of a
-// spec across such a swap saw a change of a different kind than the one that
-// happened — and a revision that moved only the looser keyword read as no change
-// at all (GitHub #425). Two fields answer them differently, which is what these
-// pairs are here to hold.
+// The rows come in pairs that swap which keyword is the tighter while keeping
+// the same two magnitudes. One slot per side would answer both rows of a pair
+// with the tighter bound alone, so a swap would diff as a different kind of
+// change, and a revision moving only the looser keyword as none (GitHub #425).
 //
-// Nothing is kept verbatim and nothing is reported: with both keywords in the
-// document there is no residue to keep and no degradation to announce.
+// Nothing is kept verbatim or reported: with both keywords present there is no
+// residue and no degradation.
 func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -334,17 +330,14 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 }
 
 // TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound pins the 3.0 arm. There
-// exclusiveMinimum is not a bound but a boolean modifying the minimum beside it,
-// so "minimum: 10, exclusiveMinimum: true" is "x > 10" — which ir.Constraints
-// spells as ExclusiveMin, not as Min plus something. The literal therefore moves
-// into the exclusive field and the inclusive one is left empty: the 2020-12
-// spelling of the same restriction, so a 3.0 document and its 3.1 translation
-// lower to the same constraints rather than to two documents that diff.
+// exclusiveMinimum is a boolean modifying the minimum beside it, so "minimum:
+// 10, exclusiveMinimum: true" is "x > 10", which ir.Constraints spells as
+// ExclusiveMin. The literal moves into the exclusive field and the inclusive
+// one is left empty, so a 3.0 document and its 3.1 translation lower alike.
 //
-// The maximum stays inclusive in the second case for the reason the first case
-// cannot cover: flagging the wrong side is symmetric when both sides declare the
-// modifier, so only a schema exclusive on one side can tell a crossed-over read
-// from a correct one.
+// The second case is exclusive on one side only: flagging the wrong side is
+// symmetric when both sides declare the modifier, so only it can tell a
+// crossed-over read from a correct one.
 func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -385,15 +378,12 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 
 // TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported pins the 3.0
 // modifier that modifies nothing. Draft-4 requires minimum wherever
-// exclusiveMinimum appears, so the schema is invalid and there is no bound for
-// the IR to make exclusive — but the loader hands these two keywords to Morphic
-// unchecked, so dropping it here would lose a declared keyword with nothing
-// said. It is kept verbatim at its own pointer and reported instead.
+// exclusiveMinimum appears, but the loader hands the keywords over unchecked,
+// so dropping one would lose a declared keyword silently. It is kept verbatim
+// at its own pointer and reported instead.
 //
-// Both sides are declared at once because one boundResidue serves both calls to
-// applyExclusive: were it to write the map rather than add to it, the surviving
-// entry would be whichever side ran second, silently, since a schema writing
-// both modifiers is exactly as valid (which is to say not) as one writing either.
+// Both sides are declared because they share one boundResidue: a schema leaving
+// residue on each must keep both entries.
 func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	got, kept, diags := Constraints(schemaFromYAML(t,
