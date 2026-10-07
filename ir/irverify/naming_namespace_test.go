@@ -136,16 +136,13 @@ func TestVerify_NamespacePathIsSpelledAsTheWalkWould(t *testing.T) {
 
 // TestNamespaceOwners_CoverEveryNamespaceField holds namespaceOwners to the IR:
 // every []string field named Namespace a Document can reach must have a
-// declaring type with an entry in the map. Without this, a node type that
-// declares a namespace path without an entry is verified by nothing — and
-// nothing says so, because the map and the fields would simply disagree.
+// declaring type with an entry in the map, or that namespace is verified by
+// nothing and nothing says so.
 //
-// A promoted field is its declaring type's, not the kind's: every TypeDef kind
-// carries TypeCommon's Namespace at the owner path, and the walk matches the
-// TypeCommon there, so the map is keyed by the declaring type. Reading the
-// direct fields is what says so; FieldByName would report the eleven kinds as
-// owners of a field they never declared. The precondition is the other half: a
-// walk that reached no such field proves nothing about the ones it missed.
+// A promoted field is its declaring type's: the walk matches TypeCommon at
+// every TypeDef kind's owner path, so reading direct fields, not FieldByName,
+// keeps the eleven kinds from counting as owners. The precondition matters too:
+// a walk that reached no such field proves nothing about the ones it missed.
 func TestNamespaceOwners_CoverEveryNamespaceField(t *testing.T) {
 	t.Parallel()
 	var found int

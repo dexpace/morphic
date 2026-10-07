@@ -1,0 +1,85 @@
+# GitHub #749: a reference hoists a position whose body refers back to a
+# position above it that nothing has interned yet. Lowering that one walks down
+# into the first again while its build is still running, and the code that runs
+# after interning read a node that did not exist yet, crashing the compiler.
+# Every reference here is declared before the declaration it reaches into, the
+# order that crashed; the sweep's order oracle compiles the reversed document
+# as well, so both orders must agree.
+#
+# Y reaches a property, Z an array's items, Pet's discriminator mapping a
+# subtype, and /a a path's response item. Each revisited node declares a
+# description and a format beside an object, and Z's item also readOnly, so
+# every reader that runs after interning meets a node still being built.
+openapi: 3.1.0
+info: {title: Ref Back Into A Node Being Built, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: getA
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema/items'}
+  /b:
+    get:
+      operationId: getB
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: an item of /b
+                  format: wat
+                  properties:
+                    up: {$ref: '#/paths/~1b/get/responses/200/content/application~1json/schema'}
+components:
+  schemas:
+    Y: {$ref: '#/components/schemas/X/properties/p/properties/d'}
+    Z: {$ref: '#/components/schemas/X/properties/q/items'}
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          sub: '#/components/schemas/X/properties/r/properties/s'
+    X:
+      type: object
+      properties:
+        p:
+          type: object
+          properties:
+            d:
+              type: object
+              description: a property
+              format: wat
+              properties:
+                back: {$ref: '#/components/schemas/X/properties/p'}
+        q:
+          type: array
+          items:
+            type: object
+            description: an item
+            format: wat
+            readOnly: true
+            properties:
+              back: {$ref: '#/components/schemas/X/properties/q'}
+        r:
+          type: object
+          properties:
+            s:
+              allOf:
+                - $ref: '#/components/schemas/Pet'
+              type: object
+              description: a subtype
+              format: wat
+              properties:
+                back: {$ref: '#/components/schemas/X/properties/r'}

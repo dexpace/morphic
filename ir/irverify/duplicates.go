@@ -34,43 +34,15 @@ type declaredAt struct {
 }
 
 // checkDuplicateIDs asserts no two nodes declare the same identity (invariant
-// #3). It reads the declarations rather than walking for them, and passes on
-// whether the walk that produced them was cut short; Verify folds that into the
-// document's one ir/walk-truncated violation.
+// #3), reporting each later declaration against the first. The registry maps
+// cannot enforce it for classes they lack, such as operations and services, so
+// a shared ID resolves to whichever the reader reaches first.
 //
-// Uniqueness was enforced only by the registry maps, and they cannot express it
-// for a class they do not hold: an operation nests inside the
-// Service→OperationGroup tree and a service sits in a slice, so two of either
-// sharing an ID made every reference to it resolve to whichever the reader
-// reaches first, with nothing in the document saying which that is.
-//
-// A duplicate is a Violation rather than an ir.Diagnostic because an ID is
-// derived from the source pointer of the defining occurrence, so two nodes
-// sharing one means a compiler minted the same pointer twice — our bug, not
-// something a spec author wrote or can fix.
-//
-// ir.PropID is held to the same claim by way of a fingerprint, because a
-// repeated PropID is often not a second declaration. A response declared once in
-// components and referenced by three operations materializes into all three —
-// responses are embedded by value, not interned — so the header property it
-// declares appears at three paths under the one ID its defining occurrence
-// derives (testdata/conformance/openapi/component-reuse.yaml). That the ID stays
-// the declaration's rather than the use site's is what #107 fixed, so the repeat
-// is invariant 3 holding, not breaking: the copies are one property and a lookup
-// for that ID is unambiguous. Two *genuinely different* properties on one PropID
-// are the defect, and skipping the class outright hid them with the copies
-// (GitHub #280).
-//
-// The fingerprint is the property's wire identity and its type: source name,
-// wire name, and the ID its TypeRef targets. Copies of one declaration agree on
-// all three because they are copies; two properties agreeing on all three are
-// indistinguishable to a consumer that looks one up by ID, which is the only
-// thing a duplicate ID costs. Nothing wider is read, because a fingerprint that
-// separates two copies reports every document that reuses a component.
-//
-// The first declaration in walk order stands and every later one is reported, so
-// n nodes on one ID yield n-1 violations rather than n. Walk order is
-// deterministic (invariant 7), so which one stands does not vary between runs.
+// ir.PropID is held to a fingerprint instead: a response declared once in
+// components is embedded by value at every use, each copy keeping the
+// declaration's PropID (GitHub #107). Different properties on one PropID are
+// the defect (#280). The fingerprint is source name, wire name and TypeRef
+// target; a wider one flags every reused component.
 func checkDuplicateIDs(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	fingerprints, truncated := propertyFingerprints(doc)
 	first := make(map[identity]declaredAt, len(decls.ids))

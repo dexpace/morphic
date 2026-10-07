@@ -29,21 +29,15 @@ var typeCommonType = reflect.TypeFor[ir.TypeCommon]()
 const nameField = ".Name"
 
 // nameOptional are the nodes that carry no name of their own, so an empty
-// Naming on one is what the IR says to expect rather than the missing-name
-// defect below.
+// Naming on one is expected rather than the missing-name defect below.
 //
-// ir.Primitive is the only one, and it is exempt by design rather than pending
-// work: it is identified by its PrimKind, so there is no source name to record
-// and nothing for a hint to disambiguate — an emitter renders "string" from the
-// kind. ir.Server and ir.Response were here for the other reason, as gaps the
-// OpenAPI compiler had yet to fill, and each came off with the lowering that
-// named it (GitHub #258, #259). An entry added for that reason is a debt: it
-// makes every genuinely nameless node of that type invisible to this check for
-// as long as it stands, so it belongs on a tracked issue and not in this map
-// alone.
+// ir.Primitive is the only one, exempt by design: its PrimKind identifies it,
+// so there is no source name to record. An entry added for a gap a compiler has
+// yet to fill hides every genuinely nameless node of that type while it stands,
+// so it belongs on a tracked issue too.
 //
-// Keyed by node type rather than by path so a new node type is held to the rule
-// the moment it exists — the direction that fails loudly.
+// Keyed by node type rather than path so a new node type is held to the rule at
+// once.
 var nameOptional = map[reflect.Type]bool{
 	reflect.TypeFor[ir.Primitive](): true,
 }
@@ -71,35 +65,20 @@ var namespaceOwners = map[reflect.Type]bool{
 // name together.
 const namespaceField = ".Namespace"
 
-// checkNaming asserts every named entity has a name at all; that the names it
-// carries are what invariant #4 promises — neutral lower_snake word sequences,
-// carrying no casing an emitter should own and no character that is not part of
-// a word. Whether a channel's bytes decode at all is checkUTF8's, which holds
-// every string in the document to it. It reuses the shared bounded walk to
-// reach every ir.Naming value in the document, and reports whether that walk
-// was cut short so a name past the cap cannot go unchecked in silence.
+// checkNaming asserts every named entity has a name, and that the names it
+// carries are what invariant #4 promises: neutral lower_snake word sequences.
+// Bytes that do not decode are checkUTF8's. It reports whether the bounded walk
+// was cut short.
 //
-// Presence is separate from those content rules because each of them is
-// vacuously true of the empty string: an entirely empty Naming satisfied all
-// three while leaving an emitter nothing to name the entity by (GitHub #251).
+// Presence is separate because each content rule is vacuously true of the empty
+// string (GitHub #251).
 //
-// Canonical and Hint are both held. They differ in where the name came from —
-// one from a spelling the source wrote, the other from the position the entity
-// occupies — and not in what it has to be: a hint is the only name an anonymous
-// type has, so it is exactly what an emitter renders that type's identifier
-// from. A hint is still derived from a string the source spelled, though — a
-// component key, an operationId, a header name — so while nothing held it, that
-// spelling's casing and punctuation reached the IR through it (GitHub #54).
-// Only the grammar rule stays canonical-only, because a hint has no source
-// spelling beside it to be recomputed from.
+// Canonical and Hint are both held, since a hint derives from a source string
+// and would carry its casing (GitHub #54). Only the grammar rule is
+// canonical-only: a hint has no source spelling to recompute from.
 //
-// Naming.Aliases is held to none of those and to rules of its own instead,
-// because it is a verbatim channel rather than a name the IR decides — see
-// appendListViolations, and ir.Naming.Aliases for why.
-//
-// The Namespace path a node declares is held to the two list-intrinsic rules
-// instead — a blank segment and a repeated one are both defects (GitHub #399) —
-// on the node types namespaceOwners names, through appendNamespaceViolations.
+// Aliases and Namespace paths have list rules of their own
+// (appendListViolations).
 func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
@@ -135,17 +114,13 @@ func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 }
 
 // namingChannels reads every name channel off one Naming. It reads fields
-// rather than converting the value back to an ir.Naming because a value the walk
-// reached through an unexported field cannot be (see ir.WalkValues) — which is
-// also why the aliases are copied out element by element rather than through
-// Interface().
+// rather than converting back to an ir.Naming because a value the walk reached
+// through an unexported field cannot be (see ir.WalkValues), which is also why
+// aliases are copied element by element.
 //
-// Nothing guards the field lookups. A rename of any of these fields is a
-// compile-clean change that reddens the naming tests on the next run either way:
-// the three String() reads degrade to "<invalid Value>", and Len() on the
-// invalid Value panics. Neither is reachable from a document — checkNaming only
-// calls this for a value whose type is ir.Naming, so every field is present —
-// and a guard for the unreachable one would be a statement no test can cover.
+// Nothing guards the field lookups: renaming a field compiles clean and reddens
+// the naming tests. A guard would be a statement no test can cover, since
+// checkNaming calls this only for an ir.Naming.
 func namingChannels(naming reflect.Value) (source, canon, hint string, aliases []string) {
 	list := naming.FieldByName("Aliases")
 	aliases = make([]string, list.Len())
@@ -172,11 +147,12 @@ const aliasField = ".Aliases"
 const sourceField = ".Source"
 
 // listRules is how appendListViolations spells and judges one []string field:
-// which of the two list-intrinsic defects the field admits, the entity's own
-// source name for the redundancy rule, and the words a violation uses. It
-// carries the differences between the two lists that have a rule — what a
-// message calls an entry, which rules apply, and the Source to compare against —
-// so the implementation stays one function rather than one per list.
+// which list-intrinsic defects it admits, the Source for the redundancy rule,
+// and a violation's words. Only Aliases and Namespace have rules. A repeat in
+// Tags, Scopes or a server variable's Enum is the copying compiler's to report
+// (GitHub #399 follow-up), as is that Enum's legal ""; a repeat in
+// ContentTypes, RequestContentTypes or Encodings is undecided (GitHub #399);
+// Versions, Added/Removed and FieldPath may legitimately repeat.
 type listRules struct {
 	// noun is how a message names one entry: "alias", "namespace segment".
 	noun string
@@ -194,49 +170,21 @@ type listRules struct {
 	blankMessage string
 }
 
-// appendListViolations holds one []string field to the rules its own field
-// comment states, reporting each entry that breaks one. It is the one
-// implementation behind every such list the verifier checks, so the rules for
-// the lists it is *not* called with are recorded here rather than written as a
-// second, differently-worded check:
+// appendListViolations holds one []string field to the rules listRules selects.
 //
-//   - Namespace (TypeCommon, Service): blank and repeated segments are both
-//     defects — a blank segment names no package or module, and a repeat admits
-//     nothing the earlier segment did. Both callers below pass it.
-//   - Tags (Operation, TypeCommon, Channel, Message, Server) and Scopes
-//     (SchemeUse): a source may legally write a tag or a scope twice, so
-//     deduplicating and diagnosing a repeat belongs to the compiler that copied
-//     the list through, not to a structural check (GitHub #399 follow-up).
-//   - ContentTypes, RequestContentTypes and Encodings: the entries are ordered
-//     by priority, so a repeat is redundant rather than ambiguous; whether the
-//     IR should hold it at all is undecided (GitHub #399).
-//   - Server Enum: "" is a legal value for a server variable, so nothing here
-//     has a blank rule; a repeat is the compiler's, as for Tags.
-//   - Versions and Added/Removed: entries may legally repeat (a re-add cycle),
-//     so neither rule applies.
-//   - FieldPath: a path, not a set — a repeated segment is legitimate
-//     ("a.b.a") — so no rule applies.
-//
-// Every rule it does apply is decidable from the list and the entity carrying
-// it, with no grammar and no second node: whether an entry has anything visible
-// in it (isBlankName), whether it repeats an earlier entry, and whether it
-// repeats the entity's own Source. An entry whose bytes do not decode is
-// checkUTF8's to report and is judged by nothing here, since the rules after it
-// quote the entry and would repeat the bytes into their own message. A repeat is
-// reported at its later occurrence, naming the earlier one, so the message says
-// which to delete and which to keep. A blank repeat is reported blank: the
-// repair is to fill it in or drop it, not to distinguish it from the other
-// blank.
-//
-// Only Source is compared against. Canonical and Hint are names the IR derived
-// for an emitter to render, never names a writer schema could have spelled, so
-// an entry equal to one of those is not the redundancy this rule is about.
+// An entry is reported if it is blank (isBlankName) or repeats an earlier entry
+// or rules.source; a repeat is reported at its later occurrence, naming the
+// earlier. An entry that does not decode is checkUTF8's and skipped, since
+// later rules would quote it. Canonical and Hint are never compared: the IR
+// derived them, and no writer schema spelled them.
 func appendListViolations(vs []Violation, list []string, listPath, codePrefix string, rules listRules) []Violation {
 	seen := make(map[string]int, len(list))
 	for i, entry := range list {
 		at := listPath + "[" + strconv.Itoa(i) + "]"
 		switch first, repeated := seen[entry]; {
 		case rules.blank && isBlankName(entry):
+			// First, so a repeated blank is reported blank: the repair is to
+			// fill it in or drop it, not to tell it from the other blank.
 			vs = append(vs, Violation{
 				Code:    codePrefix + "-blank",
 				Message: rules.blankMessage,
@@ -318,34 +266,14 @@ type aliasClaim struct {
 }
 
 // checkAliasClaims asserts no two type-registry Namings claim one name: an alias
-// is what a reader resolves against exactly one entity, so two entities claiming
-// it make the match depend on which schema the reader was handed (GitHub #398).
+// is what a reader resolves against exactly one entity, so two claiming it make
+// the match depend on which schema the reader was handed (GitHub #398).
 //
-// The scope is the type registry — ir.TypeCommon.Name of each Document.Types
-// entry — and deliberately not the whole document. A Naming hangs off several
-// node types, but an alias is a schema-resolution name and a source that writes
-// one scopes it to its own record: an Avro field alias belongs to the record
-// that declares it, so two models in different namespaces legitimately stating
-// the same short alias are not a collision a document-wide compare could tell
-// from one that is. The registry is where a claim is matched across entities,
-// and TestVerify_PropertyAliasesAcrossModelsAreClean pins that a Property's
-// aliases stay outside this.
-//
-// A claim is a non-empty Source or one Aliases entry. A blank or ill-formed
-// entry is not one: it is already reported by the list rules or by checkUTF8,
-// and nothing can match it. Canonical and Hint never claim — they are names the
-// IR derived rather than names a writer schema could have spelled. Matching is
-// exact string equality, and the first claimant in walk order (sorted registry
-// keys) stands: a later alias is reported at itself, naming the first claimant,
-// and a later Source meeting an earlier alias is reported at the alias, naming
-// the Source. Source against Source is never reported — the IR does not rank two
-// declared names — and a repeat inside one Naming stays with -duplicate and
-// -redundant, which name the two repairs that belong to one list.
-//
-// One collision stays out of reach: an alias equal to another type's
-// namespace-qualified name (its Namespace path joined with its Source) is not
-// caught unless the Source holds that full name, because a namespace is a path
-// here rather than a string the comparison ever joins.
+// The scope is each Document.Types entry's TypeCommon.Name, not the whole
+// document: a source scopes an alias to its own record, so Property aliases are
+// not compared. A claim is a non-empty Source or a valid alias entry; matching
+// is exact, and the first claimant in sorted registry order stands. ir-design
+// §3.2 records the rule in full, including the collision it cannot reach.
 func checkAliasClaims(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	first := map[string]aliasClaim{}
 	var vs []Violation
@@ -378,6 +306,8 @@ func appendClaimViolations(vs []Violation, first map[string]aliasClaim, claims [
 			vs = append(vs, sharedAliasViolation(c.name, held.path, c.path))
 		case !c.source:
 			vs = append(vs, sharedAliasViolation(c.name, c.path, held.path))
+		default:
+			// Source against Source: the IR does not rank two declared names.
 		}
 	}
 	return vs
@@ -493,22 +423,14 @@ func appendContentViolations(vs []Violation, channel, name, path string) []Viola
 // appendGrammarViolation reports a canonical that is not what the grammar
 // derives from the source beside it.
 //
-// This is the complete statement of invariant 4's second half, and it is the only
-// check here that can see a camel-case boundary. Lowercasing erases the case
-// change that marked one, so "userid" and "user_id" are both lower-cased word
-// sequences with no letter/digit straddle: nothing decidable from Canonical alone
-// separates a compiler that neutralized "userID" without splitting it from one
-// that had a genuine single word. Recomputing from Source separates them
+// It is the only check here that can see a camel-case boundary: lowercasing
+// erases the case change that marked one, so nothing in Canonical alone
+// separates a "userID" neutralized without splitting from a genuine single word
 // (GitHub #164).
 //
-// Asked only of a Naming that carries a Source. An anonymous type has none — it
-// carries a Hint instead — and a Naming with neither is the zero value, which no
-// grammar produced and none should be measured against.
-//
-// The three checks below still stand on their own rather than being subsumed:
-// they hold a Canonical carried without a Source, which this one cannot ask
-// about, and they name the specific way a value is wrong where this one can only
-// say it disagrees.
+// Asked only of a Naming that carries a Source. The content rules are not
+// subsumed: they hold a Canonical carried without one, and name the specific
+// way a value is wrong.
 func appendGrammarViolation(vs []Violation, source, canon, path string) []Violation {
 	if source == "" {
 		return vs
@@ -580,23 +502,17 @@ func isWordSequence(s string) bool {
 	return true
 }
 
-// isBlankName reports whether s holds no rune a name could be made of. Every
-// rune it accepts as invisible is one Unicode itself classifies that way — a
-// space, a control, a format character, or a default-ignorable one — so the
-// judgement needs no format's grammar and this function decides nothing on its
-// own account.
+// isBlankName reports whether s holds no rune a name could be made of. It takes
+// as invisible only what Unicode itself classifies so, needing no format's
+// grammar.
 //
-// strings.TrimSpace is not that test, and neither is IsSpace-plus-Cf. IsSpace
-// reports false for the zero-width joiners, the soft hyphen and the BOM (all
-// Cf), and all three predicates report false for U+3164 HANGUL FILLER and its
-// two jamo siblings, which are default-ignorable and are the characters
-// conventionally used to pass off a name as empty. An alias of nothing but any
-// of these names exactly as little as " " does.
+// strings.TrimSpace is not that test: IsSpace misses the zero-width joiners,
+// the soft hyphen and the BOM (all Cf), and space, control and Cf all miss
+// U+3164 HANGUL FILLER and its two jamo siblings, default-ignorable characters
+// used to pass off a name as empty.
 //
-// It does not reach every rune that renders as whitespace: U+2800 BRAILLE
-// PATTERN BLANK is a graphic character Unicode does not call invisible, so it is
-// left alone rather than judged here — that is the boundary this test declines
-// to cross without knowing the grammar the name is read under.
+// U+2800 BRAILLE PATTERN BLANK is not so classified, so it is left alone:
+// judging it would need the grammar the name is read under.
 func isBlankName(s string) bool {
 	for _, r := range s {
 		if !isInvisible(r) {
@@ -615,8 +531,7 @@ func isInvisible(r rune) bool {
 // isCased reports whether s still carries casing an emitter should own. The test
 // is lowercase-idempotence, not unicode.IsUpper: a compiler neutralizes names
 // with strings.ToLower, so a rune that has no lowercase form (double-struck ℤ,
-// Mathematical Bold 𝐀, a Roman numeral) is already neutral even though IsUpper
-// reports true for it.
+// Mathematical Bold 𝐀) is already neutral though IsUpper reports true for it.
 func isCased(s string) bool {
 	return strings.ToLower(s) != s
 }

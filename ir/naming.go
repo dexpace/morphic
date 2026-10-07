@@ -29,57 +29,30 @@ type Naming struct {
 	// position it was derived from was spelled.
 	Hint string `json:"hint,omitempty"`
 	// Aliases are alternate names for schema-resolution matching (Avro
-	// aliases). Versionless — rename history tied to version labels lives in
+	// aliases). Versionless: rename history tied to version labels lives in
 	// Availability.RenamedFrom.
 	//
-	// An alias is a verbatim channel like Source, not a neutral one like
-	// Canonical: it is matched against a name another schema wrote, so the
-	// casing and punctuation are the value. An Avro alias is a full name
-	// ("com.example.User"), and neutralizing it to words would lose the
-	// separators and the case the match depends on. So no neutrality rule
-	// applies to an entry, and irverify holds only what is decidable without
-	// one:
+	// An alias is verbatim like Source, not neutral like Canonical: it is
+	// matched against a name another schema wrote, so casing and punctuation
+	// are the value ("com.example.User"). irverify holds an entry only to what
+	// needs no grammar: something visible, valid UTF-8, no repeat of another
+	// entry or of Source, and no claim by another type (ir-design §3.2).
 	//
-	//   - every entry names something, since one with nothing visible in it
-	//     matches nothing (ir/naming-alias-blank);
-	//   - every entry decodes, since a document holding ill-formed UTF-8
-	//     cannot be encoded at all (the shared byte rule, ir/invalid-utf8);
-	//   - no entry repeats another, or the entity's own Source, since either
-	//     admits no name that was not already admitted — so a producer that
-	//     wrote one built the list wrong (ir/naming-alias-duplicate,
-	//     ir/naming-alias-redundant);
-	//   - no entry is claimed by another type in the registry, since one alias
-	//     is what a reader resolves against exactly one entity
-	//     (ir/naming-alias-shared, scoped to TypeCommon.Name — see
-	//     irverify.checkAliasClaims).
-	//
-	// That such an entry is inert is also why a source declaring one is
-	// recorded once, with a Diagnostic naming it, rather than carried through:
-	// dropping it is not the lossy flattening invariant #2 forbids, because the
-	// same set of names resolves to this entity either way.
+	// A source's blank or repeated entry is recorded once in a Diagnostic and
+	// dropped, which loses no name, so invariant #2 does not forbid it.
 	Aliases []string `json:"aliases,omitempty"`
 }
 
 // CanonicalWords renders name as the neutral lower_snake word sequence
 // ir.Naming.Canonical promises: it splits on every non-word rune and on
-// camel-case and letter/digit boundaries, lowercases, and joins with "_". It
-// holds no acronym opinion beyond boundary detection; casing policy is an
-// emitter concern.
+// camel-case and letter/digit boundaries, lowercases, and joins with "_"
+// (ir-design §3.2). Acronym and casing policy are the emitter's.
 //
-// It lives beside the field it fills rather than in the compiler framework
-// because Canonical is ABI and the field's own doc comment above already states
-// this grammar in prose. Three copies of it disagreed about exactly that
-// (GitHub #163), and while an architecture test now stops a fourth being
-// written, that rule reaches only this repository's own compilers. A Document
-// arriving any other way — decoded from JSON, produced by a compiler outside
-// this tree, rewritten by a pass — is held by irverify alone, and irverify is
-// Layer 0: with the grammar here it can recompute a canonical from the source
-// beside it and see a segmentation that lowercasing had erased the evidence of.
-//
-// A name written with no word rune in it at all ("***") canonicalizes to the
-// empty string. Naming.Source keeps the spelling either way, so nothing is lost
-// — there is simply no word sequence to report, and inventing one from the
-// punctuation would be a naming opinion the IR does not hold.
+// The grammar lives here, not in the compiler framework, because Canonical is
+// ABI. A Document from outside this repository's compilers is held by irverify
+// alone, and as a Layer 0 package it can recompute a canonical from the source
+// beside it because the grammar is here (GitHub #163). A name with no word rune
+// ("***") canonicalizes to the empty string; Naming.Source keeps the spelling.
 func CanonicalWords(name string) string {
 	var words []string
 	var cur []rune
@@ -105,14 +78,12 @@ func CanonicalWords(name string) string {
 }
 
 // isWordRune reports whether r belongs to a word rather than separating two.
-// Letters and digits are the word characters, and a combining mark is part of
-// the letter it follows — a decomposed "é" is one letter written as two runes,
-// so reading the mark as a separator would split a word in half.
+// Letters and digits are word characters, and a combining mark belongs to the
+// letter it follows: a decomposed "é" is one letter written as two runes, so
+// reading the mark as a separator would split a word in half.
 //
-// Everything else separates, which is what makes the result a word sequence
-// whatever the source spelled the boundary as: a dot in a namespaced component
-// name or a proto package, a slash in a media type or a path template, brackets
-// around a query parameter, and the _/-/space a name may already use.
+// Everything else separates, so the result is a word sequence whatever the
+// source spelled the boundary as: a dot, a slash, brackets, _, - or a space.
 func isWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
 }
@@ -132,21 +103,17 @@ func wordBoundary(prev, r rune, runes []rune, i int) bool {
 	}
 }
 
-// acronymTail reports whether runes[i] is the last capital of a run and opens
-// the next word — the S of "HTTPServer" — which is two capitals followed by a
-// lowercase letter.
+// acronymTail reports whether runes[i] ends a run of capitals and opens the
+// next word, the S of "HTTPServer": two capitals followed by a lowercase
+// letter.
 //
-// At least one of the two capitals must be one lowercasing changes. That is what
-// keeps the rule from splitting its own output: a boundary between two runes
-// lowercasing leaves alone survives into the result still looking like a
-// boundary, so a second pass splits there again (GitHub #336). The lowercase
-// letter the rule looks for need not have been lowercase in the source — "ℤℤA"
-// has none, and lowercasing the A supplies one — so asking only about the source
-// runes either side is not enough to know the pattern will not reappear.
-//
-// Requiring case of both would be too strong in either direction: it would lose
-// ℤ_server, where only the S carries case, and http_ℤerver, where only the P
-// does. Both are pinned in canonicalCases.
+// At least one capital must be one lowercasing changes, or the rule splits its
+// own output: a boundary between runes lowercasing leaves alone survives into
+// the result, and a second pass splits there again (GitHub #336). The lowercase
+// letter after the pair need not be lowercase in the source — "ℤℤA" has none
+// until lowercasing supplies one — so the source runes cannot settle it.
+// Requiring case of both would lose ℤ_server and http_ℤerver; canonicalCases
+// pins both.
 func acronymTail(prev, r rune, runes []rune, i int) bool {
 	if !isCapital(prev) || !isCapital(r) {
 		return false
@@ -157,31 +124,21 @@ func acronymTail(prev, r rune, runes []rune, i int) bool {
 	return i+1 < len(runes) && unicode.IsLower(runes[i+1])
 }
 
-// The two boundary rules above ask different questions about a rune, and the
-// difference is what GitHub #187 turned on.
+// carriesCase reports whether lowercasing changes r, as irverify.isCased asks
+// of a whole canonical; the two must agree (GitHub #187). A rune the grammar
+// splits on but lowercasing leaves alone survives into the output still looking
+// like a boundary, and re-canonicalizing would split it again. Double-struck ℤ
+// and ϒ are IsUpper with no lowercase form; titlecase letters are not IsUpper
+// but do change.
 //
-// carriesCase asks whether lowercasing *changes* r, which is what a case
-// transition means and what irverify.isCased applies to a whole canonical. The
-// two must agree: a rune the grammar splits on but lowercasing leaves alone
-// survives into the output still looking like a boundary, so feeding that output
-// back through the grammar splits it again. Double-struck ℤ, GREEK UPSILON WITH
-// HOOK ϒ and the Roman numerals are IsUpper with no lowercase form of their own,
-// and made the grammar disagree with itself on the second pass. It also takes in
-// the titlecase letters, which IsUpper reports false for.
-//
-// isCapital asks whether r *belongs to a run of capitals*, which is a question
-// about the letter's form rather than about a transition — the acronym-tail rule
-// splits at the last capital of a run, and ℤ is one of those whether or not
-// lowercasing would change it. Using carriesCase alone there would lose
-// ℤ_server, and using IsUpper alone would lose the titlecase forms. Which is why
-// the tail rule asks both: isCapital of each rune, and carriesCase of the pair.
-//
-// The grammar is a fixed point because no rule can fire on its own output. One
-// pass lowercases every rune that carries case, so the two case rules — which
-// each require one at the boundary — have nothing left to fire on, and the
-// letter/digit rule is case-independent and has already been applied everywhere
-// it applies.
+// That makes the grammar a fixed point: one pass lowercases every rune that
+// carries case, leaving the two case rules nothing to fire on, and the
+// letter/digit rule is case-independent.
 func carriesCase(r rune) bool { return unicode.ToLower(r) != r }
 
-// isCapital reports whether r is a capital letter form — uppercase or titlecase.
+// isCapital reports whether r is a capital letter form — uppercase or
+// titlecase. It asks about the letter's form, not a transition: ℤ belongs to a
+// run of capitals whether or not lowercasing changes it, and so does a
+// titlecase letter, though IsUpper reports false. acronymTail pairs it with
+// carriesCase.
 func isCapital(r rune) bool { return unicode.IsUpper(r) || unicode.IsTitle(r) }

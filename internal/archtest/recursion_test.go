@@ -15,22 +15,15 @@ import (
 )
 
 // loweringRecursions are every recursion among the lowerings in
-// compilers/openapi, and why each one is allowed to be recursive.
+// compilers/openapi, and why each is allowed to be recursive.
 //
-// A set of more than one is mutual recursion, and none of its lowerings can be
-// tested or moved on its own: its callees include something that calls back to
-// it, so the whole set changes together or not at all. A set of one is a
-// lowering that calls itself — moveable, but pinned all the same, because
-// recursion is permitted here only against an explicit depth counter and this is
-// the check that says which functions need one.
+// A set of more than one is mutual recursion: none of its lowerings can be
+// tested or moved alone, so the set changes together. A set of one calls
+// itself; it is pinned too, because recursion is permitted only against an
+// explicit depth counter and this check says which functions need one.
 //
-// The sets are neither all methods nor all free functions. The schema walk
-// converted to free functions and is just as recursive for it, and the anchor
-// walk is a pair of methods; what binds a set together is the call graph, not
-// the receiver.
-//
-// The sets are listed longest first, ties broken by first member — the order the
-// pin produces, and also the order they matter in.
+// A set is bound by the call graph, not the receiver. Sets are listed longest
+// first, ties broken by first member, the order the pin produces.
 var loweringRecursions = [][]string{
 	// The schema walk. Lowering a schema resolves the references inside it, and
 	// resolving a reference lowers what it names. micro-compiler-design §5
@@ -70,22 +63,23 @@ var loweringRecursions = [][]string{
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it
-// directly and because #176's package split is sized by it. Its members are free
-// functions now; the set did not change when they stopped being methods.
-// The two exported names are the walk's entry points, which is what the
-// operation lowering reaches it by; the rest of the set is unexported because
-// nothing outside the schema package has any business entering mid-walk.
-// The scalar hoisters and the encoding reader joined it when contentSchema
-// gained an IR home: its value is a schema, so lowering it re-enters the walk
-// from a scalar position, which until then was the walk's one leaf.
+// directly and because #176's package split is sized by it. The two exported
+// names are the walk's entry points, which is how the operation lowering
+// reaches it; the rest is unexported because nothing outside the schema package
+// has any business entering mid-walk. The scalar hoisters and the encoding
+// reader are members because contentSchema's value is a schema, so lowering it
+// re-enters the walk from a scalar position. Discriminator lowering is one
+// because resolving a mapping target can hoist the position it names.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple",
-	"composedVariant", "contentSchemaRef", "fillAdditional", "fillAllOf",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
+	"composedVariant", "contentSchemaRef", "discriminatorDefault",
+	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
 	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDistributedUnion",
-	"lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
-	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "resolveSchemaRef",
+	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
+	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
+	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
+	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -101,20 +95,16 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/schema",
 }
 
-// TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are recursive,
-// and holds the answer to the sets above.
+// TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are
+// recursive, and holds the answer to the sets above.
 //
-// It exists because measuring this with a regex got it wrong by more than
-// double. A pattern ending a function at the first `}` in column zero runs past
-// any one-line method — `func (l *lowerer) appendDiag(d ir.Diagnostic) { … }` has
-// none — so every such method absorbed its successor's body and inherited its
-// calls. The diagnostic recorder came out calling schemaRef, which stitched the
-// whole diagnostic path into the schema cycle. A parser cannot make that mistake:
-// it is told where a function ends.
+// It parses rather than matching with a regex: a pattern ending a function at
+// the first `}` in column zero runs past any one-line method, so each absorbed
+// its successor's body and inherited its calls. A parser is told where a
+// function ends.
 //
-// Every cycle is asserted, not only the largest. Checking one would let a new
-// recursion appear anywhere else unnoticed, which is the same blindness as not
-// checking at all — and the smaller ones are as unconvertible as the big one.
+// Every cycle is asserted, not only the largest, or a new recursion could
+// appear anywhere else unnoticed.
 func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	t.Parallel()
 	calls := loweringCallGraph(t)
@@ -220,12 +210,11 @@ const maxResolveDepth = 8
 // against: the fields of each struct it defines, the type each of its
 // declarations returns, and the nodes the graph holds for it.
 //
-// It is deliberately not a type checker. Declarations are all it reads, so a
-// type they do not settle — an interface value's dynamic type, a type another
-// package declares, a range variable's element — resolves to nothing and the
-// selector on it stays unread. Matching such a selector on its bare method name
-// instead would tie every `.Ref` in the package to whatever lowering shares the
-// name, which is the resolution the one-namespace rule refuses.
+// It is deliberately not a type checker. A type its declarations do not settle
+// (an interface value's dynamic type, a type another package declares) resolves
+// to nothing, and the selector on it stays unread. Matching such a selector on
+// its bare method name would tie every `.Ref` in the package to whatever
+// lowering shares the name, which the one-namespace rule refuses.
 type pkgScope struct {
 	fields  map[string]map[string]string // struct type -> field -> the type it names
 	results map[string]string            // node name -> the single type it returns
@@ -358,16 +347,14 @@ func (s *pkgScope) nodeNamed(x ast.Expr, env map[string]string, depth int) strin
 
 // bindingsOf maps each identifier d's body can write to the type it holds.
 //
-// Only what d's own signature and body state outright is read: the receiver, the
+// Only what d's own signature and body state outright is read: the receiver,
 // parameters and named results, a var with a written type, and a short
 // declaration whose value is a composite literal or a call to something this
-// package declares. A package-level var, a range variable, a type switch's
-// binding and every other form a type checker would have to work out are left
-// out, so a selector on one resolves to nothing.
+// package declares. Every other form (a package-level var, a range variable, a
+// type switch's binding) is left out, so a selector on one resolves to nothing.
 //
-// An identifier bound twice to different types is dropped. Go scopes a shadowed
-// name and this does not, so the two bindings are indistinguishable here and
-// neither of them can be trusted.
+// An identifier bound twice to different types is dropped, since this does not
+// scope shadowing as Go does.
 func bindingsOf(d decl) map[string]string {
 	env := map[string]string{}
 	shadowed := map[string]bool{}
@@ -455,21 +442,17 @@ func bindAssign(bind func(name, named string), scope *pkgScope, env map[string]s
 
 // loweringCallGraph maps every lowering to the ones it depends on.
 //
-// Methods are read alongside free functions. Reading free functions alone left
-// the anchor walk's recursion out of the graph entirely and would have let any
-// new one join it unremarked (GitHub #224), which is the same silence the value
-// edges below were about.
+// Methods are read alongside free functions: free functions alone left the
+// anchor walk's recursion out of the graph (GitHub #224).
 //
-// The lowering spans packages now, and all of them are read into one namespace.
-// That is sound rather than convenient: a call from openapi into the schema
-// package is a selector this graph does not record — a package qualifier names
-// no value, so nothing resolves it — but no such edge can close a cycle, because
-// Go refuses the import that would let the schema package call back. Every cycle
-// there can be is inside one package.
+// All the lowering's packages share one namespace, which is sound: a call from
+// openapi into the schema package is a selector this graph does not record, but
+// no such edge can close a cycle, as Go refuses the import that would let the
+// schema package call back.
 //
-// The packages are named rather than globbed, and
-// TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the same set from
-// the tree so the naming cannot go stale in silence.
+// The packages are named, not globbed;
+// TestLoweringCallGraph_ReadsEveryPackageThatLowers derives the set from the
+// tree so the naming cannot go stale silently.
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	root := repoRoot(t)
@@ -549,46 +532,19 @@ func parseSources(t *testing.T, dir, pkg string) []*ast.File {
 }
 
 // calleesOf returns the lowerings d's body names, whether it calls them, hands
-// them on as a value, or reaches them through its own receiver.
+// them on as a value, or reaches them through a value whose type this package's
+// declarations settle ("<type>.<name>"). All are edges: the name is written
+// here, so d decides which lowering runs and cannot be moved without it (GitHub
+// #210, #323). A function d receives as a parameter is not; its caller records
+// it.
 //
-// All three are edges, and for the same reason: the name is written here, so
-// this function decides which lowering runs and cannot be moved without it. What
-// is not an edge is a function this one receives as a parameter — that name is
-// written by its caller, and the caller's own body is where it is recorded.
-// Reading call position alone missed three live handoffs to slices.ContainsFunc
-// (GitHub #210).
-//
-// An identifier only counts in value position. A selector's field, a composite
-// literal's key and a parameter's own name are identifiers too, and every one of
-// them collides with some lowering here — `.Ref` on a parsed schema is the
-// spelling that matters most, since it would otherwise tie the whole package to
-// the schema entry point.
-//
-// The exception is a selector whose base has a type this package's declarations
-// settle: `w.walkMapping` on the receiver, `w.walk` on a local built by a
-// constructor, `groups.group` on a parameter. That selector is an edge to
-// "<type>.<name>", because the method name is written here and this declaration
-// cannot be moved without it. Reading only the receiver left the first shape and
-// the second unread, which was GitHub #323.
-//
-// What stays unread is what the declarations do not settle: a call through an
-// interface, a value of a type another package declares, a range variable. Those
-// resolve to nothing and record nothing. The alternative — matching the bare
-// method name against the graph — is the resolution the one-namespace rule
-// refuses, and would tie every `.Ref` in the package to the schema entry point.
-//
-// A name may be d's own. Direct recursion is recursion, so the self edge is
-// recorded and TestLoweringRecursion_IsOnlyTheKnownCycles reads a self-loop as a
-// set of one. Dropping it would have kept anchorWalk.walk's descent into itself
-// out of the graph next to the sibling call, and left every self-recursive
-// lowering unpinned.
-//
-// Position is judged, scope is not: a local that shadowed a lowering's name
-// would read as an edge to it. Nothing here does that, and the error runs in the
-// safe direction for a pin whose job is to notice dependencies — a spurious
-// member shows up in a pinned set and gets read, where a missing one is the
-// silence #210 was about.
+// What the declarations do not settle (a call through an interface, another
+// package's type, a range variable) records nothing, because matching the bare
+// method name is what the one-namespace rule refuses.
 func calleesOf(d decl, known map[string]bool) map[string]bool {
+	// Identifiers outside value position: a selector's field, a composite
+	// literal's key and a parameter's own name. Counting them would read `.Ref`
+	// on a parsed schema as the schema entry point and tie the package to it.
 	skip := map[*ast.Ident]bool{}
 	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
 		switch v := n.(type) {
@@ -608,6 +564,9 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 
 	env := bindingsOf(d)
 	out := map[string]bool{}
+	// The self edge is kept: direct recursion is recursion, and
+	// TestLoweringRecursion_IsOnlyTheKnownCycles reads a self-loop as a set of
+	// one.
 	record := func(name string) {
 		if known[name] {
 			out[name] = true
@@ -629,6 +588,9 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 			}
 			return true
 		}
+		// Position is judged, scope is not: a local shadowing a lowering's name
+		// reads as an edge to it. That errs toward a spurious pinned member,
+		// which gets read, rather than a silent miss.
 		id, isIdent := n.(*ast.Ident)
 		if isIdent && !skip[id] {
 			record(id.Name)
@@ -848,12 +810,11 @@ func TestCalleesOf_ResolvesAMethodThroughItsReceiver(t *testing.T) {
 // a selector resolves whenever the package's own declarations settle its base's
 // type, not only when the base is the declaring method's receiver.
 //
-// The positive cases are the shapes the tree writes — a free function calling a
-// method on a local it constructed, on a parameter, on a var; a method calling
-// one on a field. The negative cases are the boundary, and they matter more:
-// each of them writes a method name the graph holds, and each must come back
-// empty. Resolving them would mean guessing, and a guess here attaches an edge
-// to a lowering that never names it.
+// The positive cases are the shapes the tree writes: a method called on a
+// local, a parameter, a var or a field. The negative cases are the boundary and
+// matter more: each writes a method name the graph holds and must come back
+// empty, since resolving them would be a guess that attaches an edge to a
+// lowering that never names it.
 func TestCalleesOf_ResolvesASelectorFromDeclarations(t *testing.T) {
 	t.Parallel()
 	// Declared by every case, so a case's own line is only what it is about.
@@ -1052,15 +1013,14 @@ func TestDeclOf_NamesAMethodByItsReceiverType(t *testing.T) {
 // TestTypeNameOf_RefusesWhatIsNotATypeName covers the guard declOf leans on and
 // the one every binding leans on.
 //
-// On a receiver it is a correctness guard: go/parser accepts a receiver go/types
-// would reject, so a source file can reach it, and keying such a method as
-// though it had no receiver would put it in the free functions' namespace where
-// a real free function of that name would collide with it.
+// On a receiver it is a correctness guard: go/parser accepts a receiver
+// go/types would reject, and keying such a method as though it had no receiver
+// would put it among the free functions, where a real one of that name would
+// collide with it.
 //
-// On a field or a parameter it is the refusal itself. A value of `[]U` or of
-// `elsewhere.U` is not a value of the type this graph would key from the inner
-// name, so reducing to that name would resolve a selector onto the wrong
-// receiver — quietly, and only for whichever lowering shares the spelling.
+// On a field or a parameter it is the refusal itself: a value of `[]U` or
+// `elsewhere.U` is not of the type the inner name would key, so reducing to it
+// would quietly resolve a selector onto the wrong receiver.
 func TestTypeNameOf_RefusesWhatIsNotATypeName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1138,21 +1098,15 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 }
 
 // TestLoweringCallGraph_ResolvesAMethodOnAValue holds the graph to the fix for
-// GitHub #323 on the tree. Each of these writes a method name and so decides
-// which lowering runs, and a graph resolving only the declaring method's own
-// receiver described every one of them as absent: dynamicAnchors reached
-// newAnchorWalk and nothing else, and LowerService reached neither of the two
-// methods that assemble its groups.
+// GitHub #323 on the tree. Each edge names a method and so decides which
+// lowering runs; a graph resolving only the declaring method's own receiver
+// described every one as absent. The bases cover the shapes these packages
+// write: a constructor's local, a pointer parameter, a composite literal.
 //
-// The bases are the shapes these packages write: a local a constructor
-// returned, a pointer parameter, and a composite literal. A resolution covering
-// one of them and not the rest would still fail here.
-//
-// Not every selector resolves, and one declaration next to these shows why.
-// anchorWalk.walkMapping reads its pairs through w.view.MappingPairs, and the
-// field's type is qualified — nodeview declares it, and no package this pin
-// reads holds a node for it. So it resolves to nothing, rather than to whatever
-// this flat namespace might hold under the same trailing name.
+// Not every selector resolves: anchorWalk.walkMapping reads its pairs through
+// w.view.MappingPairs, whose field type nodeview declares and no package this
+// pin reads holds a node for. It resolves to nothing, not to whatever the flat
+// namespace holds under the same trailing name.
 func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	t.Parallel()
 	graph := loweringCallGraph(t)

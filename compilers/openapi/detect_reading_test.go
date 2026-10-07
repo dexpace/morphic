@@ -39,21 +39,15 @@ type declarationRow struct {
 	reads     reading
 }
 
-// declarations are the shapes detection is held to. They were a table holding
-// two readers to one answer — a parse up to 64 KiB, a byte scan past it — with
-// a written reason for every row the two read differently (GitHub #486). The
-// parse is the one reader now, so each shape has one answer.
+// declarations are the shapes detection is held to; the parse is the one
+// reader, so each has one answer (GitHub #486).
 //
-// The corpus is kept whole. Most of these rows exist because some reading once
-// got them wrong: document markers in every position, flow collections and
-// quoted scalars left open across lines, node properties in front of a value,
-// block scalars carrying what looks like structure. That a single parser reads
-// them correctly is not a reason to stop asking.
+// The corpus is kept whole: most rows exist because some reading once got them
+// wrong, and a correct parser is no reason to stop asking.
 //
-// Each row says how it reads, not only what it declares. A row declaring
-// nothing would otherwise pass on a document that never parsed, and Detect's
-// answer to such a document — a complaint, or silence — is part of what the
-// row pins.
+// Each row says how it reads, not only what it declares. A row declaring nothing
+// would otherwise pass on a document that never parsed, and Detect's answer to
+// one, a complaint or silence, is part of what the row pins.
 func declarations() []declarationRow {
 	const v = "3.1.0"
 	return []declarationRow{
