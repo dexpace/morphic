@@ -113,19 +113,16 @@ func differentialOverlays() map[string]string {
 }
 
 // TestSequence_AppliesAnOverlayExactlyAsTheLibraryDoes is the check the design
-// rests on. Applying one action at a time is what lets a budget count each
-// action's matches on the tree it actually runs against, and it is only safe if
-// nothing about the outcome moves: every case here is applied both ways, and
-// the resulting trees and everything reported must agree to the byte.
+// rests on. One action at a time lets the budget count each action's matches on
+// the tree it runs against, and is safe only if nothing about the outcome
+// moves: every case is applied both ways, and the trees and reports must agree
+// to the byte.
 //
-// It is also what would notice the library changing: the sequence rebuilds the
-// library's numbering, notes and joined error from its strings, and a change to
-// any of them reddens here rather than drifting in silence.
+// It also reddens when the library changes the numbering, notes or joined error
+// the sequence rebuilds from its strings.
 //
-// Each case runs twice more than the reference: with no budget, and under a
-// budget it never reaches. The second is the one that counts every action's
-// cost, so it is what holds that charging an action — querying its selector,
-// weighing what it copies — changes nothing about what the action then does.
+// Each case also runs with no budget and under one it never reaches; the latter
+// holds that charging an action changes nothing about what it then does.
 func TestSequence_AppliesAnOverlayExactlyAsTheLibraryDoes(t *testing.T) {
 	t.Parallel()
 	at := ir.Provenance{Source: 1}

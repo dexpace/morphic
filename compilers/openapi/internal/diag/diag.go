@@ -28,17 +28,21 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref that could not be resolved.
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle — a recursive YAML anchor, a
-	// chain of $ref-only schemas that never reaches a concrete type, or a
-	// reference whose pointer resolves through a reference already being resolved
-	// — caught before it can crash the parser with a stack overflow or deadlock
-	// the resolver on a lock its own goroutine holds.
+	// CyclicRef reports a degenerate reference cycle, caught before it can crash
+	// the parser with a stack overflow or deadlock the resolver on a lock its own
+	// goroutine holds. Two checks report it: a pre-parse scan over the decoded
+	// tree, for a recursive YAML anchor or a chain of $ref-only schemas joined by
+	// ordinary same-document pointers; and load's reach, for a cycle that closes
+	// only through $anchor, $id or $defs-relative resolution. Reach
+	// over-approximates the resolver, so it can refuse a document the resolver
+	// survives; a $defs reference load holds out of the resolver is exact
+	// (GitHub #557).
 	CyclicRef = "openapi/cyclic-ref"
-	// CycleScanFailed reports that the pre-parse cycle scan did not run to
-	// completion — either it aborted (a detector bug) or the document exceeded one
-	// of its expansion bounds — leaving its stack-overflow protection incomplete
-	// for the source. It is a warning, never a refusal: the compile still
-	// proceeds, and every cycle the scan did classify is still caught.
+	// CycleScanFailed reports that a cycle check did not run to completion,
+	// leaving its stack-overflow protection incomplete for the source: the
+	// pre-parse scan or load's reach either aborted (a detector bug) or hit one of
+	// its bounds. It is a warning, never a refusal: the compile still
+	// proceeds, and every cycle the check did classify is still caught.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
@@ -46,20 +50,16 @@ const (
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
 	SourceTooLarge = "openapi/source-too-large"
-	// TaggedMapping reports a mapping carrying a YAML tag other than !!map — a
-	// local `!content:`, or a standard tag naming another type — which OpenAPI
-	// forbids: its YAML form limits tags to YAML 1.2's JSON schema ruleset, the
-	// one that round-trips to JSON. The parser degrades one at a plain object
-	// position to a type-mismatch finding, and at a path item or a callback,
-	// whose models embed a map, drops the tag without a word; but at a reference
-	// position whose model is a struct — a request body, a response, a
-	// parameter, a header, an example, a link, a security scheme — it leaves the
-	// model unbuilt and dereferences it, on a goroutine of its own that no
-	// recover in this compiler reaches (GitHub #474). The document is refused
-	// before the parser sees it, at every position rather than only the faulting
-	// ones: telling them apart means maintaining a copy of the parser's object
-	// model, and each place the copy drifted would be a crash again. A tagged
-	// scalar is a different question (GitHub #245) and not refused here.
+	// TaggedMapping reports a mapping carrying a YAML tag other than !!map, which
+	// OpenAPI forbids: its YAML form limits tags to YAML 1.2's JSON schema
+	// ruleset. At a reference position whose model is a struct (a request body,
+	// response, parameter and the like) the parser leaves the model unbuilt and
+	// dereferences it, on a goroutine no recover here reaches (GitHub #474).
+	//
+	// The document is refused before parsing, at every position, because telling
+	// the faulting ones apart would mean maintaining a copy of the parser's object
+	// model. A tagged scalar is a separate question (GitHub #245) and is not
+	// refused.
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -108,20 +108,15 @@ const (
 	ValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// FalseSchema reports a boolean `false` schema (matches nothing).
 	FalseSchema = "openapi/false-schema"
-	// EmptyEnum reports an `enum` whose member list is empty. JSON Schema allows
-	// it and gives it a meaning — the value space holds no member, so the
-	// position accepts no instance at all — which the IR states exactly, as a
-	// closed Enum with no members.
+	// EmptyEnum reports an `enum` whose member list is empty. JSON Schema gives it
+	// a meaning, a value space holding no member so the position accepts no
+	// instance, which the IR states exactly as a closed Enum with no members.
 	//
-	// Warning rather than info, and the split from FalseSchema beside it is the
-	// reason. A boolean `false` schema is the idiom for "forbid this here", so
-	// announcing the lowering is all a reader needs; an empty member list is the
-	// same statement written the way nobody writes it on purpose, and it is what
-	// a generator emitting a list it never filled produces. Every position
-	// reaching it is uncallable, so the document is told rather than merely
-	// recorded. Not an error: the document is well-formed, and harness.Check
-	// stops at the first error diagnostic, which would hide every later finding
-	// in the same spec.
+	// Warning where FalseSchema is info: a boolean `false` schema is the idiom for
+	// "forbid this here", but an empty member list is that statement written the
+	// way nobody does on purpose, usually a generator emitting a list it never
+	// filled. Not an error: the document is well-formed, and harness.Check stops
+	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
@@ -144,30 +139,15 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
-	// DuplicateServerName reports a name the document's own servers list
-	// declares more than once: a second entry whose Server.name repeats an
-	// earlier entry's. Both servers are kept — nothing is dropped or merged —
-	// but an emitter rendering one client per server, or a consumer keying by
-	// the name, cannot tell the two hosts apart, so the document is told.
+	// DuplicateServerName reports a Server.name the document's servers list
+	// declares more than once. Both servers are kept, but a consumer keying by
+	// name cannot tell the two hosts apart.
 	//
-	// Error rather than a warning, which is the same call ConflictingOperationID
-	// makes one field over: the document writes one name twice, and `name` is the
-	// server's identity ("an optional unique string to refer to the host
-	// designated by the URL", OAS 3.2.1 §4.5.1), so honouring the declared names
-	// and staying unambiguous are not both possible. That is the shape this repo
-	// refuses, unlike the tolerated collisions it warns about: DuplicateStatusKey
-	// warns because two spellings of one key collapse under this compiler's own
-	// neutralization, and a URL-hint collision is the compiler's canonicalization
-	// rather than a claim the document made. A caller who wants only the report
-	// without the refusal has --fail-on warning.
-	//
-	// Only the document's servers list is checked, and only declared names are
-	// compared to one another. A name is a claim the document wrote; a hint
-	// derived from a URL template is not, so a hint colliding with another hint
-	// or with a declared name is unreported by design. A path-item or operation
-	// servers list is preserved raw under Unmodeled
-	// (operations.go applyPathServers / applyOperationServers) and builds no
-	// ir.Server, so nothing there can be reached by this code.
+	// Error, as ConflictingOperationID is: `name` is the server's identity ("an
+	// optional unique string", OAS 3.2.1 §4.5.1), so the document's own claim is
+	// contradictory. Collisions this compiler makes, like DuplicateStatusKey's or
+	// a URL hint's, only warn. Only declared names in the document's servers
+	// list are compared; path-item and operation servers build no ir.Server.
 	DuplicateServerName = "openapi/duplicate-server-name"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
@@ -196,19 +176,16 @@ const (
 	// indirection was collapsed at compile time rather than left to evaluation.
 	DynamicRefExpanded = "openapi/dynamic-ref-expanded"
 	// ConflictingRedecl reports that inline allOf branches redeclare one field
-	// with values that disagree: an incompatible target type (string vs. integer)
-	// is unsatisfiable outright, while a conflicting constraint keyword (e.g.
-	// minimum: 10 vs. exclusiveMinimum: 10) is usually still satisfiable but not
-	// representable by a simple merge, so the merge keeps an arbitrary
-	// source-order winner — possibly the looser bound — and surfaces the
-	// disagreement instead of silently discarding it.
+	// with disagreeing values. An incompatible target type (string vs. integer) is
+	// unsatisfiable; a conflicting constraint keyword (minimum: 10 vs.
+	// exclusiveMinimum: 10) is usually satisfiable but not representable by a
+	// simple merge, so the merge keeps an arbitrary source-order winner, possibly
+	// the looser bound.
 	//
-	// Either way the losing declaration is kept whole under the merged
-	// property's Unmodeled, so it survives for a consumer reading the document
-	// rather than the diagnostic stream (merge.keepLosingDeclaration). A
-	// constraint conflict is kept there until the bounds are intersected
-	// instead (GitHub #10), which is the recorded direction; the entry records
-	// what the merge dropped, not what it should have kept.
+	// Either way the losing declaration is kept whole under the merged property's
+	// Unmodeled (merge.keepLosingDeclaration), so a consumer reading the document
+	// finds it. Intersecting the bounds instead is the recorded direction (GitHub
+	// #10).
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
@@ -223,8 +200,8 @@ const (
 	// AliasAmplification reports a document whose YAML aliases expand it past a
 	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
 	// for small documents) — a billion-laughs shape
-	// that would exhaust memory inside soa.Unmarshal before ResolveAllReferences
-	// ever runs (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
+	// that would exhaust memory inside soa.Unmarshal before any reference is
+	// resolved (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
 	// this is a positive, measured finding, so the document is refused outright
 	// rather than handed to the parser.
 	//
@@ -233,26 +210,18 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
-	// BudgetExceeded reports an input that crossed one of the compiler's
-	// cardinality budgets: a source or overlay document past the byte budget, a
-	// source document past the node budget or an overlay action that would build
-	// it past that, a source or overlay document whose aliases add more nodes
-	// than the alias budget, or a single enum past the member budget (GitHub #75).
+	// BudgetExceeded reports an input that crossed a cardinality budget: a source
+	// or overlay document past the byte budget, a source past the node budget (or
+	// an overlay action that would build it past that), aliases in either that add
+	// more nodes than the alias budget, or one enum past the member budget (GitHub
+	// #75).
 	//
-	// It is the size axis of the same family AliasAmplification belongs to, and
-	// deliberately a separate code, because what it refuses is different in kind.
-	// AliasAmplification names a document that is small until it is expanded — a
-	// bomb, and never a shape an author writes on purpose. These name a document
-	// that is honestly, legally that large, so the finding is "past the budget
-	// this compile was given", not "malicious": every one of them is raised
-	// through openapi.Limits by a caller who has the memory for it.
+	// Unlike AliasAmplification's bomb, these are documents legitimately that
+	// large, past the budget this compile was given; openapi.Limits raises them.
 	//
-	// Error rather than a degradation at every site. The load-phase budgets
-	// refuse the document outright — nothing is lowered, so there is no weaker
-	// shape to report. The enum budget does leave a node behind, the top type,
-	// but every member the source declared is gone from it, which is a
-	// losslessness failure rather than a lossy lowering (the distinction
-	// UnpreservableConstruct draws).
+	// Error at every site: load-phase budgets refuse the document, and the enum
+	// budget leaves the top type with every declared member gone, a losslessness
+	// failure (UnpreservableConstruct).
 	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none
@@ -278,45 +247,28 @@ const (
 	// document repeating it, so it is an error (GitHub #502).
 	ConflictingOperationID = "openapi/conflicting-operation-id"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
-	// field naming which authentication mechanism it is — `type`, or the RFC 7235
-	// `scheme` token that is the mechanism when the type is http. The entry
-	// declares a scheme without saying what it does, so nothing is interned for
-	// it and every requirement naming it is dropped (GitHub #294).
+	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
+	// token. Nothing is interned for it and every requirement naming it is dropped
+	// (GitHub #294).
 	//
-	// Error rather than a degradation, for the reason UnresolvedRef is one at the
-	// neighbouring shape: the entry reached the IR in no form at all, so a reader
-	// told only that it was degraded would go looking for a scheme that is not
-	// there. The document is invalid either way — OpenAPI requires both fields —
-	// so this hides no later finding the loader's own refusal would not have.
+	// Error, as for UnresolvedRef: the entry reached the IR in no form, so a
+	// reader told only that it was degraded would look for a scheme that is not
+	// there. The document is invalid either way, since OpenAPI requires both
+	// fields.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
-	// ignored, because the name restates something the protocol layer already
-	// owns. The specification states the rule at three positions, and this code
-	// covers all three rather than the one it was first noticed at:
+	// ignored, because the protocol layer already owns the name. Three positions:
 	//
-	//   - §4.8.12, a parameter with `in: header` named Accept, Content-Type or
-	//     Authorization — content negotiation, the request body's media type, the
-	//     security scheme's credential;
-	//   - §4.8.17, a Content-Type entry in a response's `headers` map, whose
-	//     media type the response's own `content` map already names;
-	//   - §4.8.15, a Content-Type entry in an encoding's `headers` map, which the
-	//     encoding's own `contentType` describes separately.
+	//   - §4.8.12, a parameter with in: header named Accept, Content-Type or
+	//     Authorization;
+	//   - §4.8.17, a Content-Type entry in a response's headers map;
+	//   - §4.8.15, a Content-Type entry in an encoding's headers map.
 	//
-	// The compiler keeps the declaration in every case, because dropping declared
-	// content is a loss and choosing between the two is an emitter's call, not a
-	// compiler's (invariant 2). The diagnostic is what makes the deviation from
-	// the SHALL visible, so an emitter can suppress the declaration rather than
-	// generate one that fights what it collides with (GitHub #39).
-	//
-	// Unconditional, and deliberately not behind an Options switch: invariant 6
-	// governs what is *inferred*, and nothing here is. The names are fixed by the
-	// specification, the comparison is against a declared name, and the document
-	// lowers byte-for-byte the same whether or not this fires — so there is no
-	// inference to mark Inferred and no semantics to disable. Warning rather than
-	// info because the document really did write something the spec says has no
-	// effect; error is wrong twice over, since the document is well-formed and
-	// harness.Check stops at the first error diagnostic, which would hide every
-	// later finding in the same spec.
+	// The declaration is kept, since dropping it is a loss and an emitter's call
+	// (invariant 2; GitHub #39); the diagnostic lets an emitter suppress it. It is
+	// unconditional, not an Options switch, because nothing is inferred (invariant
+	// 6). Warning, not error: the document is well-formed, and harness.Check stops
+	// at the first error, hiding later findings.
 	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
@@ -338,17 +290,12 @@ const (
 	// UnknownObjectKey reports a key on an OpenAPI object that the specification
 	// neither defines nor admits as an extension, kept verbatim under Unmodeled.
 	//
-	// Warning rather than info, because unlike its schema neighbour this one is a
-	// defect: OpenAPI gives its objects a closed key set and requires every
-	// extension to be prefixed x-, so a key that is neither is a document error —
-	// in practice a misspelling of the field beside it, which is precisely the
-	// class of mistake that survives when the compiler swallows the key in silence.
-	//
-	// Warning rather than error for the reason ReservedHeaderName is one: the
-	// document still lowers, everything the key was written beside is unaffected,
-	// and harness.Check stops at the first error diagnostic, which would hide every
-	// later finding in the same spec and make any fixture carrying a stray key
-	// unable to reach the invariant checks.
+	// Warning where its schema neighbour UnknownSchemaKeyword is info: OpenAPI
+	// gives its objects a closed key set and requires extensions to be prefixed
+	// x-, so such a key is a document error, usually a misspelling of the field
+	// beside it. Not an error, for the reason ReservedHeaderName is not: the
+	// document still lowers, and harness.Check stops at the first error
+	// diagnostic, which would hide every later finding.
 	UnknownObjectKey = "openapi/unknown-object-key"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
@@ -379,26 +326,18 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports a serialization keyword OpenAPI 3.2 forbids
-	// at the parameter location that declares it: explode or allowReserved at
-	// in: querystring, where the location binds the whole query string from the
-	// parameter's content and states its serialization through the media type
-	// alone, leaving nothing for either keyword to qualify.
+	// InvalidLocationKeyword reports explode or allowReserved at in: querystring.
+	// OpenAPI 3.2 binds the whole query string from the parameter's content there
+	// and states its serialization through the media type alone, so neither
+	// keyword has anything left to qualify.
 	//
-	// The bundled parser enforces this rule for style at that location but not
-	// for its two neighbours (GitHub #408), so this compiler reports the gap
-	// itself rather than relying on a validation finding that never arrives. The
-	// value still lowers as declared: dropping content the document states is an
-	// emitter's call, not a compiler's (invariant 2), the same choice already
-	// made for style at this position.
+	// The bundled parser enforces this for style at that location but not for
+	// these two (GitHub #408), so the compiler reports the gap itself. The value
+	// still lowers as declared: dropping stated content is an emitter's call
+	// (invariant 2).
 	//
-	// Warning, not the error style gets: style's finding is the parser's own
-	// refusal-class validation, raised before this compiler ever sees the
-	// document. This one is the opposite shape — the compiler already kept a
-	// value it lowered and is saying so — the same class as
-	// ReservedHeaderName and InvalidMethodKey beside it. All three keywords
-	// are reported; a caller who wants the document refused over it has
-	// --fail-on warning for that.
+	// Warning, not the error style gets: that is the parser's own validation
+	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 )
 
@@ -417,15 +356,13 @@ func HasError(diags []ir.Diagnostic) bool {
 }
 
 // MaxQuotedErrorBytes bounds what a foreign error contributes to a diagnostic
-// message. A diagnostic is read by a person and stored by a log, and an error
-// raised by a library obeys neither: yaml.v3 reports a duplicated mapping key
-// once per prior occurrence of it, so a 32 KB source repeating one key 6,553
-// times raises an error of 1.2 GB. Quoting that whole is not a report.
+// message. A library error obeys no size limit: yaml.v3 reports a duplicated
+// mapping key once per prior occurrence, so a 32 KB source repeating one key
+// 6,553 times raises a 1.2 GB error.
 //
-// The cap is generous because the errors worth quoting are lists — the overlay
-// validator writes one sentence per finding — and a list cut to its first entry
-// says less than the reader came for. What a cut costs is the tail; what it
-// buys is that a message is always a message.
+// The cap is generous because the errors worth quoting are lists, such as the
+// overlay validator's one sentence per finding, and a list cut to its first
+// entry says less than the reader came for.
 const MaxQuotedErrorBytes = 4 << 10
 
 // elidedMarker ends a message the cap cut. It carries no count: a marker whose
@@ -433,22 +370,17 @@ const MaxQuotedErrorBytes = 4 << 10
 // error again, which is the dependency the cap exists to remove.
 const elidedMarker = "… (elided)"
 
-// OneLine collapses err's text onto a single line, for a diagnostic that carries
-// an error raised by something else, and cuts it at MaxQuotedErrorBytes.
+// OneLine collapses err's text onto one line and cuts it at
+// MaxQuotedErrorBytes, for a diagnostic that carries an error raised by
+// something else.
 //
 // A diagnostic is rendered one per line, so an embedded newline splits one
-// report into several — and every line after the first carries no severity, code
-// or location, which reads as a malformed diagnostic to anything parsing stderr.
-// Both libraries this compiler reports through write multi-line errors: yaml.v3
-// as a header plus one indented line per finding, the overlay validator as a
-// flat list of sentences.
+// report into several, each after the first lacking severity, code and
+// location. yaml.v3 and the overlay validator both write multi-line errors.
 //
-// Parts are joined with "; " so a flat list reads as a list, except after a part
-// that already ends in a colon, where the next line is that header's content and
-// a semicolon would read as a break in it.
-//
-// The scan stops at the cap rather than trimming afterwards, so the work is
-// bounded by what is kept and not by what the library wrote.
+// Parts are joined with "; ", except after a part ending in a colon, whose next
+// line is that header's content. The scan stops at the cap, so the work is
+// bounded by what is kept, not by what the library wrote.
 func OneLine(err error) string {
 	var out strings.Builder
 	for rest := err.Error(); rest != "" && out.Len() < MaxQuotedErrorBytes; {

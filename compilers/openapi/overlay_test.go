@@ -504,20 +504,16 @@ actions:
 }
 
 // provenanceSpec and provenancePatch exercise GitHub #522's fix on every
-// annotation-package call path a clean 3.1 document reaches: component schemas
-// and a property of one, an operation and its externalDocs, a response with its
-// header, media type and example, a request body and its encoding, a parameter
-// and its schema, both security schemes and an OAuth flow, the document's info
-// and servers, and a path item the overlay mounts that no operation reaches.
-// The call paths only a 3.0 document or a failing read reaches are
+// annotation-package call path a clean 3.1 document reaches, including a path
+// item the overlay mounts that no operation reaches. The paths only a 3.0
+// document or a failing read reaches are
 // TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet's.
 //
-// They also carry GitHub #534's combined entries. The overlay writes Pet's
-// if/then/else and contains entries whole, and Tags' unevaluatedItems on the
-// array schema it describes. Widget's base declares then and the overlay adds
-// if, the arm the combining reader lists first, so a rule that read only the
-// first keyword would credit the overlay with the entry. A combined entry that
-// will not render is TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry's.
+// They also carry GitHub #534's combined entries. Widget's base declares then
+// and the overlay adds if, the arm the combining reader lists first, so a rule
+// reading only the first keyword would credit the overlay with the entry. A
+// combined entry that will not render is
+// TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry's.
 const provenanceSpec = `openapi: 3.1.0
 info:
   title: t
@@ -759,21 +755,16 @@ func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnos
 	return out
 }
 
-// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522 end to end.
-// The annotation package's readers sit below lowering.Ctx in the import graph
-// and used to be handed the base document's raw source index rather than the
-// context's own attribution, so an extension, an unknown key, a dialect
-// keyword or a validation-only keyword an overlay added claimed to come from
-// the base document it patched — and so did the diagnostics announcing them.
+// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522: what an
+// overlay adds, and the diagnostics announcing it, name the overlay as their
+// source. The annotation readers sit below lowering.Ctx, so they take a Locator
+// over its attribution rather than the base document's raw source index.
 //
-// Every row here names the production call path it exercises, so that
-// reverting the fix at any one of them reddens the row beside it. The
-// controls (x-base, x-obj) must stay with the base: crediting the overlay with
-// everything it touches, rather than with what it introduced or rewrote, would
-// be the opposite defect. GitHub #534's combined entries have no position of
-// their own and are credited by their keywords instead: to the overlay where
-// it wrote every one, and to the document declaring the schema where each
-// document wrote some, as on Widget.
+// Each row names its call path, so reverting the fix at any one reddens it. The
+// controls (x-base, x-obj) stay with the base: crediting the overlay with all
+// it touches would be the opposite defect. GitHub #534's combined entries are
+// credited by keyword: to the overlay where it wrote every one, otherwise to
+// the declaring document.
 func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),

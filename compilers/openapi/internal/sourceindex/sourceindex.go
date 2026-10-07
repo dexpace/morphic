@@ -1,17 +1,12 @@
 // Package sourceindex answers, in one walk, the questions asked of a decoded
-// source tree before any of it is lowered.
+// source tree before any of it is lowered: how many nodes the document
+// declares, whether an alias points back at one of its own ancestors, and
+// whether a mapping carries a tag the parser faults on. The answers are a value
+// the caller carries rather than a walk it repeats.
 //
-// The questions are small and unrelated to each other — how many nodes did the
-// document declare, does any alias point back at one of its own ancestors, and
-// does any mapping carry a tag the parser faults on — but each was answered by a
-// whole traversal of its own, so a compile walked the same tree once per
-// question. They share a walk here instead, and the answers become a value the
-// caller carries rather than a walk the caller repeats.
-//
-// The index is a value with no exported fields and no maps, so a copy is
-// independent of the original and nothing that receives one can write through it
-// to a holder. It is derived from the tree alone: two indexes built over the same
-// tree are equal, whatever order their answers are read in.
+// The index has no exported fields and no maps, so a copy is independent of the
+// original. It is derived from the tree alone, so equal trees give equal
+// indexes.
 package sourceindex
 
 import (
@@ -22,18 +17,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// MaxIndexedNodes bounds how many nodes one index walks.
+// MaxIndexedNodes bounds how many nodes one index walks. It is the explicit
+// loop limit, not a memory guard: the tree is already materialized by the
+// decode, and the index holds a fixed amount of state whatever its size. It
+// sits far above any document that could have been decoded.
 //
-// It is not a memory guard: the tree is already materialized by the decode that
-// produced it, and the index itself holds one counter and two node pointers
-// whatever the tree's size. It is the explicit limit the bounded-everything rule
-// requires of every loop, placed far above any document that could have been
-// decoded in the first place — the largest spec in this repository's corpora
-// parses to fewer than 5,000 nodes, and the largest public OpenAPI documents to
-// a few million. A document past it is refused by the caller rather than
-// half-counted, because a truncated count would understate the alias-expansion
-// allowance derived from it and could refuse a document on a bound it never
-// crossed.
+// A document past it is refused by the caller rather than half-counted: a
+// truncated count would understate the alias-expansion allowance derived from
+// it and could refuse a document on a bound it never crossed.
 const MaxIndexedNodes = 1 << 24 // 16,777,216
 
 // maxTrackedDepth bounds how deep the ancestor path is tracked, and so how deep
@@ -106,15 +97,14 @@ const MapTag = "!!map"
 
 // TaggedMapping is the first mapping, in document order, whose tag is not
 // MapTag. The parser degrades one at a plain object position to a type-mismatch
-// finding, but at a reference position whose model is a struct — a request
-// body, a response, a parameter — it leaves the model unbuilt and dereferences
-// it, on a goroutine of its own where no recover in this compiler reaches
-// (GitHub #474). The caller refuses the document on this answer before the
-// parser sees it.
+// finding, but at a reference position whose model is a struct (a request body,
+// a response, a parameter) it leaves the model unbuilt and dereferences it, on
+// a goroutine of its own where no recover in this compiler reaches (GitHub
+// #474). The caller refuses the document on this answer before the parser sees
+// it.
 //
-// A tag on a scalar or a sequence is a different question and not this one:
-// neither faults the parser, and what a tagged scalar keeps is decided
-// elsewhere (GitHub #245).
+// A tag on a scalar or sequence is not this question: neither faults the
+// parser (what a tagged scalar keeps is GitHub #245).
 func (x Index) TaggedMapping() (*yaml.Node, bool) {
 	return x.taggedMapping, x.taggedMapping != nil
 }
@@ -133,20 +123,15 @@ type frame struct {
 	exit  bool
 }
 
-// walk visits every node reachable through Content exactly once, in the
-// depth-first document order a recursive descent would take. It counts as it
-// goes, and records the first alias that points back into the path it arrived
-// by and the first mapping whose tag is not MapTag.
+// walk visits every node once, in document order, counting as it goes and
+// recording the first alias that points back into its own path and the first
+// mapping whose tag is not MapTag.
 //
-// The raw parse tree is a tree, not a graph: aliasing only adds edges this walk
-// never follows, so no node is reached twice and the ancestor set is exactly the
-// path from the root. That is what lets the walk be iterative and bounded by
-// maxNodes rather than by a recursion cap.
-//
-// It does not stop at the first anchor cycle or tagged mapping. A consumer that
-// refuses the document on one never reads the count, but an index that answered
-// one question only until another was answered would depend on which was asked
-// first.
+// The raw parse tree is a tree: aliasing adds only edges this walk never
+// follows, so no node is reached twice and the ancestor set is exactly the path
+// from the root. The walk is therefore iterative, bounded by maxNodes rather
+// than a recursion cap, and it does not stop at the first finding, or an answer
+// would depend on which question was asked first.
 func (x *Index) walk(maxNodes int64) {
 	ancestors := map[*yaml.Node]bool{}
 	stack := []frame{{n: x.root}}
