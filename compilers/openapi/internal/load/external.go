@@ -62,16 +62,27 @@ type external struct {
 	work *resumeWork
 }
 
+// maxOpenedSpellings is the most spellings Open holds every object of the
+// source under. A spelling the scan found holds only the objects its $refs
+// name, so they cost no more than the $refs. One Open meets is one no $ref
+// was found to write: the resolver reached it by rebasing and cleaning a path,
+// so a source has few. Past this, Open holds the document alone and the
+// resolver builds a copy of what a $ref names, as for any document.
+const maxOpenedSpellings = 16
+
 // heldSource is what the resolver of one document is handed as the source:
-// each object of a referenced kind its model holds, at the pointer naming it,
+// each object of a referenced kind its model holds, by the pointer naming it,
 // the one key under which a reference object is held as itself, and the keys
-// it is held under. Every copy of the reader shares one, and mu guards the
-// objects and the keys, which Open adds to while the resolver reads.
+// the document is held under, each saying whether every object is held there
+// too. Every copy of the reader shares one, and mu guards all but itself,
+// which Open adds to while the resolver reads.
 type heldSource struct {
-	mu      sync.Mutex
-	objects []heldObject
-	itself  string
-	keys    map[string]bool
+	mu     sync.Mutex
+	bySite map[jsontext.Pointer]heldObject
+	itself string
+	keys   map[string]bool
+	// opened counts the spellings Open held every object under.
+	opened int
 }
 
 // heldObject is an object the source's model holds, and the pointer naming it.
@@ -87,14 +98,14 @@ type heldObject struct {
 func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
 	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{},
-		held: &heldSource{keys: map[string]bool{}}, work: newResumeWork()}
+		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{}}, work: newResumeWork()}
 }
 
-// hold stores the source where the resolver of e.doc looks for a document it
-// has read, under each key it is looked up by and each spelling a $ref in it
-// names it by (see holdUnder, holdSpellings). A $ref back into the source from
-// another document then reaches the source's own objects, and no file is read
-// for it (GitHub #759).
+// hold stores the source where the resolver looks for a document it has read:
+// under each key it is looked up by with every object, and under each
+// spelling a $ref names it by with the objects those $refs name (see holdSite).
+// A $ref back into the source from another document reaches the source's own
+// objects, and no file is read (GitHub #759).
 //
 // A reference object is held as itself only under the key an internal $ref
 // resolves against, when no $self rebases it: the resolver resolves it there as
@@ -114,29 +125,32 @@ func (e external) hold(ctx context.Context) {
 
 // holdWalked is hold over the walk of e.doc the caller supplies, so a test can
 // hand it one that panics, which stops the walk where it stands, for the
-// resolution walk to report. It holds the source under each key it was
-// recorded under, a second resolution's included.
+// resolution walk to report. It holds the source under its keys, then each
+// spelling recorded (see holdRecorded): a second resolution's.
 //
 // No schema is held: the resolver follows a schema's chain through a hop it
 // finds resolved without tracking where the chain has been, so a chain reaching
 // a held schema it resolved already loops until the stack runs out. One closing
 // through the source's file name is not refused (GitHub #768).
 func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
-	keys := e.read.sourceKeys()
+	keys := e.read.self.keys()
 	if len(keys) == 0 {
 		return
 	}
 	e.held.mu.Lock()
 	defer e.held.mu.Unlock()
+	// Deferred so a walk that stops early still holds the recorded spellings,
+	// and before the unlock.
+	defer e.holdRecorded()
 	for _, key := range keys {
-		e.holdDocument(key)
+		e.holdDocument(key, true)
 	}
 	if _, err := eachModel(items, "source", func(site jsontext.Pointer, r resolvable) error {
 		if _, schema := r.(*oas3.JSONSchema[oas3.Referenceable]); schema {
 			return nil
 		}
 		o := heldObject{site: site, obj: r}
-		e.held.objects = append(e.held.objects, o)
+		e.held.bySite[site] = o
 		for _, key := range keys {
 			e.holdObject(key, o)
 		}
@@ -146,17 +160,59 @@ func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
 	}
 }
 
-// holdUnder stores the source under key, unless it is held there already: its
-// document (see holdDocument) and each object hold collected.
-func (e external) holdUnder(key string) {
+// holdRecorded holds the source under each spelling recorded, and under it the
+// objects recorded there that the walk collected. The caller holds e.held.mu.
+func (e external) holdRecorded() {
+	for _, key := range e.read.spelled.keys() {
+		e.holdDocument(key, false)
+		for _, site := range e.read.spelled.at(key) {
+			if o, ok := e.held.bySite[site]; ok {
+				e.holdObject(key, o)
+			}
+		}
+	}
+}
+
+// holdSite holds the source under key for a $ref spelled by it that names site:
+// its document, and the object at site where it has one, once for each pair.
+// The resolver asks the cache for exactly the spelling and pointer a $ref
+// writes, so these are all it can ask for. A key every object is held under
+// holds site already.
+func (e external) holdSite(key string, site jsontext.Pointer) {
 	e.held.mu.Lock()
 	defer e.held.mu.Unlock()
-	if e.held.keys[key] {
+	whole, held := e.held.keys[key]
+	if whole {
 		return
 	}
-	e.holdDocument(key)
-	for _, o := range e.held.objects {
+	if !held {
+		e.holdDocument(key, false)
+		e.read.spelled.note(key, "")
+	}
+	if o, ok := e.held.bySite[site]; ok && e.read.spelled.note(key, site) {
 		e.holdObject(key, o)
+	}
+}
+
+// holdOpened holds the source under name, a spelling Open was asked to open: its
+// document, and every object while maxOpenedSpellings allows.
+func (e external) holdOpened(name string) {
+	e.held.mu.Lock()
+	defer e.held.mu.Unlock()
+	if _, held := e.held.keys[name]; held {
+		return
+	}
+	whole := e.held.opened < maxOpenedSpellings
+	e.holdDocument(name, whole)
+	e.read.spelled.note(name, "")
+	if !whole {
+		return
+	}
+	e.held.opened++
+	for site, o := range e.held.bySite {
+		if e.read.spelled.note(name, site) {
+			e.holdObject(name, o)
+		}
 	}
 }
 
@@ -166,9 +222,9 @@ func (e external) holdUnder(key string) {
 // whole whenever it reads the document through them, as it does for every
 // schema $ref naming the source's file, so the source's own would cost a copy
 // of the source each time. The tree is recorded as read from the bytes held.
-// The caller holds e.held.mu.
-func (e external) holdDocument(key string) {
-	e.held.keys[key] = true
+// whole says every object is held under key too. The caller holds e.held.mu.
+func (e external) holdDocument(key string, whole bool) {
+	e.held.keys[key] = whole
 	e.doc.StoreExternalDocumentInCache(key, e.read.self.root)
 	e.doc.StoreReferenceDocumentInCache(key, []byte{})
 	e.read.recordTree(key, e.read.self.root, []byte{})
@@ -186,15 +242,13 @@ func (e external) holdObject(key string, o heldObject) {
 	e.doc.StoreReferencedObjectInCache(key+"#"+string(o.site), held)
 }
 
-// holdSpellings holds the source under each key a $ref in tree, read against
-// base as the resolver reads it, names the source by, before the resolver
-// looks one up. Spelled otherwise, a back reference is not found held, and the
-// resolver builds a copy of what it names (see Open). It visits each node of
-// tree once, following no alias. Nothing bounds the keys but the $refs, and
-// each key holds every object, so memory grows as spellings times objects
-// (GitHub #772).
+// holdSpellings holds the source under each spelling a $ref in tree, read
+// against base as the resolver reads it, names the source by, before the
+// resolver looks one up: for each such $ref, the object it names. Spelled
+// otherwise, a back reference is not found held, and the resolver builds a copy
+// of what it names (see Open). It visits each node of tree once, following no
+// alias.
 func (e external) holdSpellings(tree *yaml.Node, base string) {
-	checked := map[string]bool{}
 	stack := []*yaml.Node{tree}
 	for len(stack) > 0 {
 		n := stack[len(stack)-1]
@@ -202,27 +256,23 @@ func (e external) holdSpellings(tree *yaml.Node, base string) {
 		stack = append(stack, n.Content...)
 		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 			if key, value := n.Content[i], n.Content[i+1]; key.Value == "$ref" && value.Kind == yaml.ScalarNode {
-				e.holdSpelling(references.Reference(value.Value), base, checked)
+				e.holdSpelling(references.Reference(value.Value), base)
 			}
 		}
 	}
 }
 
 // holdSpelling holds the source under the key ref, read against base, names a
-// document by, when that document is the source. checked holds each key asked
-// about already.
-func (e external) holdSpelling(ref references.Reference, base string, checked map[string]bool) {
+// document by, for the pointer ref writes, when that document is the source.
+func (e external) holdSpelling(ref references.Reference, base string) {
 	if ref.GetURI() == "" {
 		return
 	}
 	abs, err := references.ResolveAbsoluteReference(ref, base)
-	if err != nil || checked[abs.AbsoluteReference] {
+	if err != nil || !e.read.self.names(abs.AbsoluteReference) {
 		return
 	}
-	checked[abs.AbsoluteReference] = true
-	if e.read.self.names(abs.AbsoluteReference) {
-		e.holdUnder(abs.AbsoluteReference)
-	}
+	e.holdSite(abs.AbsoluteReference, jsontext.Pointer(ref.GetJSONPointer()))
 }
 
 // settle finishes resolving r, whose resolution returned vErrs and err. It
@@ -259,10 +309,11 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 // The source, spelled as no key holds it, is held under name and served as
 // held, not read. That is a spelling no $ref the resolver met was found by
 // (see holdSpellings), such as one under a schema's relative $id: the
-// resolver builds a copy of what it names, as it does of any document's.
+// resolver builds a copy of what it names, as it does of any document's. Every
+// object is held under it, up to maxOpenedSpellings of them.
 func (e external) Open(name string) (fs.File, error) {
 	if e.read.self.names(name) {
-		e.holdUnder(name)
+		e.holdOpened(name)
 		return sourceFile{Reader: bytes.NewReader(nil)}, nil
 	}
 	if err := e.refusal(name); err != nil {
