@@ -147,8 +147,8 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 		{"through its parent", clean, "../" + filepath.Base(dir) + "/root.yaml"},
 		{"its absolute path", clean, clean},
 		{"an absolute path not cleaned", clean, dir + "/./root.yaml"},
-		// Read lexically, as resolve.SameDocument reads it, though no file system
-		// opens it (GitHub #780).
+		// Read lexically, as a URI reference is, though no file system walks it
+		// (GitHub #780).
 		{"through a directory that does not exist", clean, dir + "/nope/../root.yaml"},
 		{"its file name, from a source path not cleaned", dir + "/./root.yaml", "root.yaml"},
 	} {

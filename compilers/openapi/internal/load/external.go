@@ -13,6 +13,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -303,8 +304,8 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 	return vErrs, err
 }
 
-// Open reads the file name as the resolver's default file system would, and
-// prepares it under name. A file refused once fails again without being opened.
+// Open reads the file name names (see fileNamed), and prepares it under name.
+// A file refused once fails again without being opened.
 //
 // The source, spelled as no key holds it, is held under name and served as
 // held, not read. That is a spelling no $ref the resolver met was found by
@@ -319,7 +320,7 @@ func (e external) Open(name string) (fs.File, error) {
 	if err := e.refusal(name); err != nil {
 		return nil, err
 	}
-	f, err := os.Open(name) // the file a $ref names: what AllowExternalRefs opts into
+	f, err := os.Open(fileNamed(name)) // the file a $ref names: what AllowExternalRefs opts into
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +329,19 @@ func (e external) Open(name string) (fs.File, error) {
 		return nil, errors.Join(err, f.Close())
 	}
 	return preparedFile{File: f, data: bytes.NewReader(data)}, nil
+}
+
+// fileNamed returns the file the path name names: its dot segments removed, as
+// a URI reference's are before anything is read. The resolver cleans a relative
+// $ref this way and hands an absolute one over as written, so left to the
+// operating system, one through a directory that is not there failed, and one
+// through a link read another file (GitHub #780). An empty name names no file,
+// where cleaned it would name the current directory.
+func fileNamed(name string) string {
+	if name == "" {
+		return name
+	}
+	return filepath.Clean(name)
 }
 
 // Do fetches req as the resolver's default client would, and prepares the body
