@@ -102,6 +102,14 @@ func (t *treeReads) modelCost(doc any, pointer jsontext.Pointer, limit int) int 
 	return steps + 1 + scan
 }
 
+// holds reports whether the library's read of token in raw finds a node, read
+// through the index (see resolve.Scope.Holds), so asking it of one wide mapping
+// once per reference costs its width once.
+func (t *treeReads) holds(raw *yaml.Node, token string) bool {
+	_, target := t.read(raw, "/"+jsonpointer.EscapeString(token), math.MaxInt)
+	return target != nil
+}
+
 // drain returns the pairs indexed since it last answered.
 func (t *treeReads) drain() int {
 	n := t.indexed

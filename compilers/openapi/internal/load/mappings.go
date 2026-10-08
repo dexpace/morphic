@@ -25,10 +25,12 @@ import (
 // otherwise found only once a $ref had lowered it. Its zero value holds none.
 //
 // It also holds the schema walked at each raw position (see arrive), so every
-// reference to one reaches the object whose own $refs were resolved.
+// reference to one reaches the object whose own $refs were resolved, and its
+// index of raw YAML (see Holds).
 type MappingTargets struct {
 	byPointer map[jsontext.Pointer]*schemaRef
 	built     map[jsontext.Pointer]*schemaRef
+	reads     *treeReads
 }
 
 // At returns the schema a mapping target resolved to at pointer, or nil.
@@ -41,6 +43,17 @@ func (t MappingTargets) At(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Refer
 // and the walk resolves the $refs in one object per position alone.
 func (t MappingTargets) Built(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
 	return t.built[pointer]
+}
+
+// Holds is resolve.Scope.Holds, answered from the index the targets were read
+// through, which builds each mapping's index once, whoever asks. The zero value
+// answers from an index of its own each time.
+func (t MappingTargets) Holds(raw *yaml.Node, token string) bool {
+	reads := t.reads
+	if reads == nil {
+		reads = newTreeReads()
+	}
+	return reads.holds(raw, token)
 }
 
 // maxMappingWork bounds the steps resolving the mapping targets takes: each
@@ -125,7 +138,7 @@ func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveO
 
 // targets returns what resolve resolved.
 func (m *mappings) targets() MappingTargets {
-	return MappingTargets{byPointer: m.out, built: m.built}
+	return MappingTargets{byPointer: m.out, built: m.built, reads: m.reads}
 }
 
 // see notes a model the walk reached at site: a discriminator's entries are
@@ -212,7 +225,7 @@ func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival
 		return
 	}
 	m.walked[at] = true
-	if (refscope.Scope{Doc: m.doc, Ends: refscope.ReferenceEnd}).At(at.pointer).Foreign {
+	if positionScope(m.doc, m.reads).At(at.pointer).Foreign {
 		return
 	}
 	if js, ok := q.record.object.(*schemaRef); ok && !namesEmptyKey(at.pointer) &&
@@ -220,6 +233,14 @@ func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival
 		m.built[at.pointer] = js
 	}
 	m.walk(ctx, found, at.pointer, q.record)
+}
+
+// positionScope is the scope arrive reads a position of doc in: each reference
+// a walk passes is followed as the resolver follows it, and a mapping a walk
+// leaves the model for at one is read through reads' index (see
+// resolve.Scope.Holds), the one the mappings' pricing reads through too.
+func positionScope(doc *soa.OpenAPI, reads *treeReads) refscope.Scope {
+	return refscope.Scope{Doc: doc, Ends: refscope.ReferenceEnd, Holds: reads.holds}
 }
 
 // builtKey is an object's kind and the position it is at.

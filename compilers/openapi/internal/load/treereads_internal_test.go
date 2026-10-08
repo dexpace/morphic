@@ -455,6 +455,47 @@ func TestTreeReads_ReadsAMergeCycleTheLibraryEnds(t *testing.T) {
 	}
 }
 
+// TestTreeReads_HoldsAsTheLibraryReadsOneToken pins holds against the library
+// on generated trees: for every token their keys spell, and some that none
+// does or that the library refuses, holds finds a node exactly where
+// GetTarget's read of the one-token pointer does. That read is what a walk
+// leaving the model at a reference asks of its target (resolve.Scope.Holds).
+func TestTreeReads_HoldsAsTheLibraryReadsOneToken(t *testing.T) {
+	t.Parallel()
+	found := 0
+	for seed := range uint64(8) {
+		rng := rand.New(rand.NewPCG(seed, 778))
+		for range 200 {
+			tree := (&treeGen{rng: rng}).root()
+			reads := newTreeReads()
+			for _, token := range holdsTokens(tree) {
+				_, err := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer("/"+jsonpointer.EscapeString(token)),
+					jsonpointer.WithStructTags("key"))
+				require.Equal(t, err == nil, reads.holds(tree, token), "seed %d %q: %v", seed, token, err)
+				if err == nil {
+					found++
+				}
+			}
+		}
+	}
+	assert.Greater(t, found, 1000, "the trees hold many of the tokens asked")
+}
+
+// holdsTokens returns the tokens to ask of n: every key treeGen writes, each
+// key n's own pairs spell, and tokens no mapping holds or the library refuses.
+func holdsTokens(n *yaml.Node) []string {
+	tokens := append([]string{"zz", "~", "~01", "\U0001F600", "\xff"}, treeGenKeys...)
+	if n = derefAll(n); n == nil || n.Kind != yaml.MappingNode {
+		return tokens
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if key := derefAll(n.Content[i]); key != nil && key.Kind == yaml.ScalarNode {
+			tokens = append(tokens, key.Value)
+		}
+	}
+	return tokens
+}
+
 // TestTreeReads_IndexesAMappingOnce pins that a mapping's keys are indexed the
 // first time a read meets it, and drained as work once, whichever key and
 // however many reads follow.

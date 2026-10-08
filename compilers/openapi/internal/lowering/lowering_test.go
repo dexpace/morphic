@@ -244,7 +244,9 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 // TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
 // the load phase resolved reaches the scope through the context. The target is
 // an extension's value, a position the parsed model holds as raw YAML, so the
-// scope finds it only if WithMappingTargets handed it over (GitHub #757).
+// scope finds it only if WithMappingTargets handed it over (GitHub #757). The
+// scope asks the targets, too, what a mapping a walk leaves the model for
+// holds (resolve.Scope.Holds).
 func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -269,6 +271,11 @@ x-lib:
 	carrying := bare.WithMappingTargets(loaded.Targets)
 	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
+
+	holds := carrying.RefScope().Holds
+	require.NotNil(t, holds)
+	assert.True(t, holds(loaded.Doc.GetRootNode(), "x-lib"))
+	assert.False(t, holds(loaded.Doc.GetRootNode(), "x-none"))
 }
 
 // TestTypePosition_IsReadOncePerScope pins the answers every copy of a context

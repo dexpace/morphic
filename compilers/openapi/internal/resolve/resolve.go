@@ -73,6 +73,11 @@ type Scope struct {
 	// reference kinds are each a type of their own, which the caller names;
 	// nil passes no reference.
 	Ends func(node any) (End, bool)
+	// Holds reports whether the library's read of token in raw finds a node:
+	// what a walk leaving the model at a reference asks of the mapping its
+	// target was built from. Answered from an index, it spares the scan of that
+	// mapping the library makes (GitHub #778); nil asks the library.
+	Holds func(raw *yaml.Node, token string) bool
 }
 
 // InSource returns s for reading what the source holds, which is never
@@ -150,10 +155,10 @@ func (s Scope) locate(pointer jsontext.Pointer) located {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
 			noting = false
 		}
-		reading, _ := navigation.ReadingOf(node, token)
+		reading, raw := navigation.ReadingOf(node, token)
 		if reading == navigation.Leaving {
 			if noting {
-				l.leave(s.Ends, node, token)
+				l.leave(s, node, raw, token)
 			}
 			return l
 		}
@@ -195,19 +200,27 @@ func (s Scope) ends(noting bool, node any) (End, bool) {
 	return s.Ends(node)
 }
 
-// leave notes node passed where the walk leaves the model from it for raw YAML:
-// a reference is stepped past only into a target holding token, which asks the
-// library to scan that mapping, as the resolver's own read of the pointer does.
-// Raw YAML is no reference, and the walk passes nothing it holds.
-func (l *located) leave(ends func(any) (End, bool), node any, token string) {
-	if _, raw := node.(*yaml.Node); raw {
+// leave notes node passed where the walk leaves the model from it for raw: a
+// reference is stepped past only where raw, the mapping its target was built
+// from, holds token, as the resolver's read of the pointer finds it (see
+// Scope.Holds). Raw YAML is no reference, and the walk passes nothing it holds.
+func (l *located) leave(s Scope, node any, raw *yaml.Node, token string) {
+	if _, isRaw := node.(*yaml.Node); isRaw {
 		return
 	}
-	if e, isRef := ends(node); isRef {
-		if _, found := navigation.Step(node, token); found {
-			l.end, l.passes = e, true
-		}
+	if e, isRef := s.Ends(node); isRef && held(s.Holds, node, raw, token) {
+		l.end, l.passes = e, true
 	}
+}
+
+// held reports whether the library's read of token from node, which leaves the
+// model for raw, finds a node: holds's answer, or the library's without one.
+func held(holds func(*yaml.Node, string) bool, node any, raw *yaml.Node, token string) bool {
+	if holds != nil {
+		return holds(raw, token)
+	}
+	_, found := navigation.Step(node, token)
+	return found
 }
 
 // Location is what one walk of a same-document pointer through the model found

@@ -1321,3 +1321,46 @@ func TestMappingTargets_BuiltIsTheObjectTheWalkResolved(t *testing.T) {
 	assert.True(t, v.IsResolved(), "the walk resolved the $ref in the object it kept")
 	assert.Nil(t, m.targets().Built("/components/schemas/A"), "the model's own object is read where it is")
 }
+
+// TestMappingTargets_HoldsReadsThroughTheTargetsIndex pins Holds: what the
+// lowering's walks ask of a mapping is answered through the index the targets
+// were read with, as the library reads it, building each mapping's index once
+// however often it is asked. The zero value answers the same through an index
+// of its own.
+func TestMappingTargets_HoldsReadsThroughTheTargetsIndex(t *testing.T) {
+	t.Parallel()
+	tree, parsed := parseTree([]byte("{a: 1, b: 2, <<: {c: 3}}"))
+	require.True(t, parsed)
+	reads := newTreeReads()
+	targets := (&mappings{reads: reads}).targets()
+	for _, c := range []struct {
+		token string
+		holds bool
+	}{{"a", true}, {"c", true}, {"z", false}, {"<<", true}} {
+		assert.Equal(t, c.holds, targets.Holds(tree, c.token), "%q", c.token)
+		assert.Equal(t, c.holds, MappingTargets{}.Holds(tree, c.token), "%q", c.token)
+	}
+	assert.Equal(t, 3+1, reads.drain(), "the mapping's pairs and the merged one's, each indexed once")
+}
+
+// TestPositionScope_ReadsThroughTheGivenIndex pins the scope arrive reads a
+// position in: a walk leaving the model at a reference asks the target's
+// mapping of the index it is given, which indexes the mapping once.
+func TestPositionScope_ReadsThroughTheGivenIndex(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  responses:\n" +
+		"    R: {$ref: '#/components/responses/S'}\n    S: {description: s, x-foo: {a: 1}}\n"
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: "spec.yaml"})
+	require.NoError(t, err)
+
+	reads := newTreeReads()
+	sc := positionScope(doc, reads)
+	sc.Locate("/components/responses/R/x-foo/a")
+	assert.Equal(t, 2, reads.drain(), "S's two pairs, indexed through the index given")
+	sc.Locate("/components/responses/R/x-nope")
+	assert.Zero(t, reads.drain(), "and read from it after")
+}

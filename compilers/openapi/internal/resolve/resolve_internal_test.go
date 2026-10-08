@@ -542,7 +542,9 @@ func TestScope_Locate_ReadsTheScopeAsAtDoes(t *testing.T) {
 // TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom pins a walk that
 // leaves the model at a reference, for raw YAML its target holds: the
 // reference is passed when the target holds the next token, as the resolver
-// steps past it into that YAML, and not when it holds nothing there.
+// steps past it into that YAML, and not when it holds nothing there. Holds,
+// asked of the target's mapping, answers in place of the library: as the
+// library's read of that mapping does, and what it answers is what is passed.
 func TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
@@ -562,12 +564,23 @@ components:
 		}
 		return End{}, false
 	}
-	sc := Scope{Doc: doc, Ends: references}
+	library := func(raw *yaml.Node, token string) bool {
+		_, err := jsonpointer.GetTarget(raw, jsonpointer.JSONPointer("/"+jsonpointer.EscapeString(token)))
+		return err == nil
+	}
+	for _, holds := range []func(*yaml.Node, string) bool{nil, library} {
+		sc := Scope{Doc: doc, Ends: references, Holds: holds}
+		assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
+		assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
+		assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
+		assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
+	}
 
-	assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
-	assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
-	assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
-	assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
+	never := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return false }}
+	assert.False(t, never.At("/components/responses/R/x-foo/a").Foreign, "Holds, not the library, answers")
+	always := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return true }}
+	assert.True(t, always.At("/components/responses/R/x-nope").Foreign, "Holds, not the library, answers")
+	assert.False(t, always.At("/components/responses/S/x-foo").Foreign, "only a reference asks it")
 }
 
 // TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole pins what ModelAt
