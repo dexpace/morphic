@@ -11,10 +11,10 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-// maxNavigableHops bounds how many objects Leaves reads through to the one each
-// stands for (jsonpointer.NavigableNoder). The library follows them unbounded;
-// none in v1.25.2 stands for another past two hops. Past the bound Leaves
-// places nothing, and the library reads the token itself.
+// maxNavigableHops bounds how many objects ReadingOf reads through to the one
+// each stands for (jsonpointer.NavigableNoder). The library follows them
+// unbounded; none in v1.25.2 stands for another past two hops. Past the bound
+// ReadingOf places nothing, and the library reads the token itself.
 const maxNavigableHops = 16
 
 // model is what the library navigates by its core's keys: jsonpointer's own

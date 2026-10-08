@@ -18,7 +18,8 @@ import (
 // for the first matching a token, then tries each `<<` key's mapping in turn.
 // Each mapping is answered from an index built once (see mappingKeys), so a
 // read costs treeReads its depth, not the widths it passes. It prices the
-// library's reads (cost), and reads for loops, which charges its own (read).
+// library's reads (cost), reads for loops, which charges its own (read), and
+// answers resolve.Scope.Holds (holds).
 //
 // It models speakeasy-api/openapi v1.25.2: TestTreeReads_CountsWhatTheLibraryReadTakes
 // holds where it ends to GetTarget's; re-check it on a bump.
