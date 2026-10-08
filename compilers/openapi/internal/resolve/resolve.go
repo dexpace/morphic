@@ -14,7 +14,6 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
-	"path"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -331,27 +330,6 @@ func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Reference
 	return s.Locate(pointer).Model()
 }
 
-// sameFile reports whether a $ref document part names this compilation's own
-// source file: an exact path match, or a bare filename equal to our own
-// basename, since self-references are conventionally spelled that way
-// (`m.yaml#/...` inside m.yaml). A part carrying its own directory is matched
-// in full, so `dir2/m.yaml` referenced from `dir1/m.yaml` is not a
-// self-reference.
-//
-// The slash test is redundant with the basename equality: path.Base yields a
-// separator only for "/", which the exact match has already taken. It states
-// the intent, and holds if the comparison is loosened.
-func (s Scope) sameFile(doc string) bool {
-	self := s.SelfPath
-	if self == "" {
-		return false
-	}
-	if doc == self {
-		return true
-	}
-	return !strings.Contains(doc, "/") && doc == path.Base(self)
-}
-
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
 // document the reference names: the text after '#', trimmed and percent-decoded
 // as the resolver reads it (references.Reference). Unlike InternalPointer, it
@@ -392,35 +370,42 @@ func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	return pointer, true
 }
 
-// namesSelf reports whether ref names a position in the source. In the
-// source's own content, one with no document part does, as does one whose part
-// names this file (sameFile). In a Foreign scope, one does when the document it
-// names there (foreignDocument) is the source.
+// namesSelf reports whether ref names a position in the source. One with no
+// document part does in the source's own content, and in no other. Otherwise
+// its document part is read as the resolver reads it, against the document
+// holding the reference (documentOf), and names the source when that is the
+// source. The source's own content and a Foreign scope differ in that base
+// only: SelfPath, or Holder.
 func (s Scope) namesSelf(ref references.Reference) bool {
-	if !s.Foreign {
-		doc := ref.GetURI()
-		return doc == "" || s.sameFile(doc)
+	base := s.SelfPath
+	if s.Foreign {
+		base = s.Holder
+	} else if ref.GetURI() == "" {
+		return true
 	}
-	doc, ok := s.foreignDocument(ref)
+	doc, ok := documentOf(ref, base)
 	return ok && SameDocument(s.SelfPath, doc)
 }
 
 // NamesHolder reports whether ref, in a Foreign scope, names a position in the
 // document holding it, which this compile cannot lower (GitHub #74).
 func (s Scope) NamesHolder(ref string) bool {
-	doc, ok := s.foreignDocument(references.Reference(ref))
+	if !s.Foreign {
+		return false
+	}
+	doc, ok := documentOf(references.Reference(ref), s.Holder)
 	return ok && SameDocument(s.Holder, doc)
 }
 
-// foreignDocument returns the path of the document ref names in a Foreign
-// scope: its document part resolved against Holder, as the resolver resolves
-// it, or Holder for none. It reports false outside a Foreign scope, in one with
-// no Holder (see reached), and for a reference the resolver could not place.
-func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
-	if !s.Foreign || s.Holder == "" {
+// documentOf returns the path of the document ref names when it is written in
+// the document at base: its document part joined onto base's directory and
+// cleaned, as the resolver resolves it, or base for none. It reports false for
+// no base and for a reference the resolver could not place.
+func documentOf(ref references.Reference, base string) (string, bool) {
+	if base == "" {
 		return "", false
 	}
-	abs, err := references.ResolveAbsoluteReference(ref, s.Holder)
+	abs, err := references.ResolveAbsoluteReference(ref, base)
 	if err != nil {
 		return "", false
 	}
@@ -428,11 +413,21 @@ func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
 }
 
 // SameDocument reports whether paths a and b name one document: the same
-// spelling, or, for two file paths, the same path once made absolute against
-// the working directory and cleaned (filepath.Abs). The test is lexical, so a
-// file reached through a symlink or another link is another document. A URL
-// (IsURL) names one only as spelled, and an empty path names none.
+// spelling, or, for two file paths, the same path once cleaned and made
+// absolute. The test is lexical, as for a URI reference, so a file reached
+// through a symlink or another link is another document, and a directory that
+// does not exist cleans away like one that does. A URL (IsURL) names one only
+// as spelled, and an empty path names none.
+//
+// The working directory is read only to tell a relative path from an absolute
+// one, or one climbing out of it.
 func SameDocument(a, b string) bool {
+	return sameDocument(a, b, filepath.Abs)
+}
+
+// sameDocument is SameDocument with the way to make a path absolute handed in,
+// so a test can count how often the working directory is read.
+func sameDocument(a, b string, abs func(string) (string, error)) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -442,9 +437,32 @@ func SameDocument(a, b string) bool {
 	if IsURL(a) || IsURL(b) {
 		return false
 	}
-	absA, errA := filepath.Abs(a)
-	absB, errB := filepath.Abs(b)
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == b {
+		return true
+	}
+	if sameAnchor(a, b) {
+		return false
+	}
+	absA, errA := abs(a)
+	absB, errB := abs(b)
 	return errA == nil && errB == nil && absA == absB
+}
+
+// sameAnchor reports whether two cleaned paths mean the same wherever the
+// working directory is, so that when they differ they name different files:
+// both absolute, or both relative and below it.
+func sameAnchor(a, b string) bool {
+	if filepath.IsAbs(a) != filepath.IsAbs(b) {
+		return false
+	}
+	return filepath.IsAbs(a) || !climbs(a) && !climbs(b)
+}
+
+// climbs reports whether a cleaned relative path leaves the directory it is
+// relative to.
+func climbs(clean string) bool {
+	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
 }
 
 // IsURL reports whether location names a document by URL rather than as a

@@ -168,15 +168,70 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }
-func TestSameFile(t *testing.T) {
+
+// TestInternalPointer_InTheSourcesOwnContent pins which document parts name the
+// source in its own content: the resolver's reading, a document part joined
+// onto the directory of the file holding it and cleaned. A bare file name, a
+// part through the current directory or the parent, and the absolute path
+// however it is spelled all name it (GitHub #576). A part with a directory of
+// its own is joined onto the source's, so `dir/m.yaml` written in `dir/m.yaml`
+// names `dir/dir/m.yaml`, as the resolver reads it.
+func TestInternalPointer_InTheSourcesOwnContent(t *testing.T) {
 	t.Parallel()
-	sc := Scope{SelfPath: "dir/m.yaml"}
-	assert.True(t, sc.sameFile("dir/m.yaml"), "exact path")
-	assert.True(t, sc.sameFile("m.yaml"), "bare filename equal to our basename")
-	assert.False(t, sc.sameFile("other.yaml"))
-	assert.False(t, sc.sameFile("other/m.yaml"),
-		"a doc part with its own directory is a distinct path, not a basename match")
-	assert.False(t, Scope{}.sameFile("m.yaml"), "empty source path never matches")
+	for _, c := range []struct {
+		self, doc string
+		internal  bool
+	}{
+		{"dir/m.yaml", "m.yaml", true},
+		{"dir/m.yaml", "./m.yaml", true},
+		{"dir/m.yaml", "../dir/m.yaml", true},
+		{"dir/m.yaml", "sub/../m.yaml", true},
+		{"dir/m.yaml", "other.yaml", false},
+		{"dir/m.yaml", "other/m.yaml", false},
+		{"dir/m.yaml", "dir/m.yaml", false},
+		{"m.yaml", "./m.yaml", true},
+		{"./dir/m.yaml", "m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/./m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/other/../dir/m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/other.yaml", false},
+		{"/abs/dir/m.yaml", "m.yaml", true},
+		{"https://example.com/api/m.yaml", "m.yaml", true},
+		{"https://example.com/api/m.yaml", "./m.yaml", true},
+		{"https://example.com/api/m.yaml", "https://example.com/api/m.yaml", true},
+		{"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", false},
+		{"https://example.com/api/m.yaml", "other.yaml", false},
+		{"", "m.yaml", false},
+	} {
+		_, ok := Scope{SelfPath: c.self}.InternalPointer(c.doc + "#/components/schemas/A")
+		assert.Equal(t, c.internal, ok, "%q written in %q", c.doc, c.self)
+	}
+	_, ok := Scope{SelfPath: "dir/m.yaml"}.InternalPointer("#/components/schemas/A")
+	assert.True(t, ok, "a pointer alone names a position in the source's own content")
+	_, ok = Scope{}.InternalPointer("#/components/schemas/A")
+	assert.True(t, ok, "whatever the source is called")
+}
+
+// TestInternalPointer_ReadsOwnContentAsAForeignScopeHeldByTheSource pins that
+// there is one reading: a document part is judged the same in the source's own
+// content as in a Foreign scope whose holder is the source, for every
+// spelling. The two scopes differ in the base only.
+func TestInternalPointer_ReadsOwnContentAsAForeignScopeHeldByTheSource(t *testing.T) {
+	t.Parallel()
+	selves := []string{"dir/m.yaml", "m.yaml", "./dir/m.yaml", "/abs/dir/m.yaml", "https://example.com/api/m.yaml"}
+	docs := []string{
+		"m.yaml", "./m.yaml", "../dir/m.yaml", "sub/../m.yaml", "other.yaml", "other/m.yaml", "dir/m.yaml",
+		"/abs/dir/m.yaml", "/abs/dir/./m.yaml", "/abs/other/../dir/m.yaml", "/abs/dir//m.yaml",
+		"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", "../../m.yaml",
+	}
+	for _, self := range selves {
+		for _, doc := range docs {
+			ref := doc + "#/components/schemas/A"
+			_, own := Scope{SelfPath: self}.InternalPointer(ref)
+			_, foreign := Scope{SelfPath: self, Foreign: true, Holder: self}.InternalPointer(ref)
+			assert.Equal(t, foreign, own, "%q written in %q", doc, self)
+		}
+	}
 }
 
 // TestInternalPointer_InAForeignScope pins how a Foreign scope reads a
@@ -226,6 +281,8 @@ func TestNamesHolder(t *testing.T) {
 		assert.Equal(t, want, scope.NamesHolder(ref), ref)
 	}
 	assert.False(t, Scope{SelfPath: "api/spec.yaml"}.NamesHolder("#/components/schemas/A"))
+	assert.False(t, Scope{SelfPath: "api/spec.yaml", Holder: "api/ext.yaml"}.NamesHolder("#/components/schemas/A"),
+		"a holder means nothing outside a Foreign scope")
 	unplaceable := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "http://[::1"}
 	assert.False(t, unplaceable.NamesHolder("#/components/schemas/A"), "a holder the resolver cannot place")
 }
@@ -252,6 +309,102 @@ func TestSameDocument(t *testing.T) {
 		{"", "", false},
 	} {
 		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+	}
+}
+
+// sameDocumentByWorkingDirectory is SameDocument's reading when every pair of
+// file paths is made absolute against the working directory: the reading the
+// quicker one must agree with.
+func sameDocumentByWorkingDirectory(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	if IsURL(a) || IsURL(b) {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	return errA == nil && errB == nil && absA == absB
+}
+
+// TestSameDocument_AgreesWithTheWorkingDirectoryReading pins that reading the
+// working directory only where it matters changes no answer. The grid is every
+// pair of spellings of two files and a directory, relative and absolute, with
+// parents climbing out of the working directory and back in, which cleaned
+// strings alone cannot equate.
+func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
+	t.Parallel()
+	cwd, err := filepath.Abs(".")
+	require.NoError(t, err)
+	up := filepath.Join("..", filepath.Base(cwd))
+	names := []string{"spec.yaml", "api/spec.yaml", "other.yaml"}
+	forms := []string{"%s", "./%s", "api/../%s", "x/./../%s", up + "/%s", "../../%s"}
+	rest := []string{"", ".", "..", cwd, "https://example.com/spec.yaml", "https://example.com/./spec.yaml"}
+	paths := make([]string, 0, len(names)*len(forms)*4+len(rest))
+	for _, name := range names {
+		for _, form := range forms {
+			rel := strings.Replace(form, "%s", name, 1)
+			paths = append(paths, rel, filepath.Join(cwd, rel), cwd+"//"+rel, cwd+"/./"+rel)
+		}
+	}
+	paths = append(paths, rest...)
+	for _, a := range paths {
+		for _, b := range paths {
+			assert.Equal(t, sameDocumentByWorkingDirectory(a, b), SameDocument(a, b), "%q %q", a, b)
+		}
+	}
+}
+
+// TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters pins when
+// SameDocument makes a path absolute, which reads the working directory: two
+// absolute paths, or two relative ones that stay below it, are compared as
+// cleaned and never read it, so a compile that names no document through an
+// absolute path has no ambient read. A relative path against an absolute one,
+// or one climbing out of the directory, cannot be told apart without it.
+func TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		a, b  string
+		wd    string // the working directory the paths are made absolute against
+		same  bool
+		reads bool
+	}{
+		{"spec.yaml", "spec.yaml", "/abs", true, false},
+		{"spec.yaml", "./sub/../spec.yaml", "/abs", true, false},
+		{"spec.yaml", "other.yaml", "/abs", false, false},
+		{"api/spec.yaml", "api/sub/spec.yaml", "/abs", false, false},
+		{"/abs/spec.yaml", "/abs/./sub/../spec.yaml", "/elsewhere", true, false},
+		{"/abs/spec.yaml", "/abs/other.yaml", "/elsewhere", false, false},
+		{"https://example.com/a.yaml", "a.yaml", "/abs", false, false},
+		{"", "spec.yaml", "/abs", false, false},
+		{"spec.yaml", "/abs/spec.yaml", "/abs", true, true},
+		{"spec.yaml", "/abs/spec.yaml", "/elsewhere", false, true},
+		{"/abs/spec.yaml", "spec.yaml", "/abs", true, true},
+		{"../api/spec.yaml", "spec.yaml", "/abs/api", true, true},
+		{"../api/spec.yaml", "spec.yaml", "/abs/other", false, true},
+		{"..", ".", "/abs", false, true},
+		{"../a.yaml", "../b.yaml", "/abs", false, true},
+		{"../a.yaml", "../b.yaml", "", false, true}, // no working directory to read: neither is made absolute
+	} {
+		reads := 0
+		abs := func(p string) (string, error) {
+			reads++
+			if filepath.IsAbs(p) {
+				return filepath.Clean(p), nil
+			}
+			if c.wd == "" {
+				return "", errors.New("no working directory")
+			}
+			return filepath.Join(c.wd, p), nil
+		}
+
+		got := sameDocument(c.a, c.b, abs)
+
+		assert.Equal(t, c.same, got, "%q %q from %s", c.a, c.b, c.wd)
+		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
 	}
 }
 
