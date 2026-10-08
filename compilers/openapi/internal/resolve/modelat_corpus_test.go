@@ -48,12 +48,6 @@ func TestScope_ModelAt_AnswersAsTheWholeReadDoesAcrossTheCorpus(t *testing.T) {
 // another document, so each one a walk passes shows in the scope.
 func TestScope_Locate_AnswersAsAtDoesAcrossTheCorpus(t *testing.T) {
 	t.Parallel()
-	elsewhere := func(node any) (resolve.End, bool) {
-		if _, ok := resolve.ReferenceEnd(node); !ok {
-			return resolve.End{}, false
-		}
-		return resolve.End{Document: "elsewhere", Path: "x.yaml"}, true
-	}
 	asked, passed := 0, 0
 	for _, file := range openapitest.SpecFiles(t, "../../../../testdata") {
 		data, err := os.ReadFile(file)
@@ -63,7 +57,7 @@ func TestScope_Locate_AnswersAsAtDoesAcrossTheCorpus(t *testing.T) {
 		if err != nil || got == nil {
 			continue // not a document the loader builds a model of
 		}
-		sc := resolve.Scope{SelfPath: file, Doc: got.Doc, Ends: elsewhere}
+		sc := resolve.Scope{SelfPath: file, Doc: got.Doc, Ends: endsElsewhere}
 		for _, pointer := range openapitest.Positions(t.Context(), t, got.Doc) {
 			want, located := sc.At(pointer), sc.Locate(pointer).At()
 			assert.Equal(t, want.Foreign, located.Foreign, "%s %q", file, pointer)
