@@ -13,6 +13,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // schemaFromYAML unmarshals body as a standalone JSON Schema document. Nothing
@@ -599,4 +600,92 @@ func TestParentPointer(t *testing.T) {
 			assert.Equal(t, tc.want, parentPointer(tc.in))
 		})
 	}
+}
+
+// responsesDoc declares one schema under an operation's default response and
+// one under a status code, each reading its own definition from a property and
+// from its discriminator's mapping. The operation holds its responses by
+// value, and only their methods answer default.
+const responsesDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        default: {description: d, content: {application/json: {schema: &s {$defs: {foo: {type: string}}, type: object, properties: {x: {$ref: '#/$defs/foo'}}, discriminator: {propertyName: k, mapping: {foo: '#/$defs/foo'}}}}}}
+        "200": {description: ok, content: {application/json: {schema: {$defs: {foo: {type: string}}, type: object, properties: {x: {$ref: '#/$defs/foo'}}, discriminator: {propertyName: k, mapping: {foo: '#/$defs/foo'}}}}}}
+x-lib: {A: {$defs: {foo: {type: string}}}}
+$defs: {foo: {type: string}}
+`
+
+// responseSchema returns the schema of the code response of responsesDoc's
+// one operation.
+func responseSchema(t *testing.T, doc *soa.OpenAPI, code string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	item, ok := doc.Paths.Get("/a")
+	require.True(t, ok)
+	op := item.GetObject().Get()
+	r := op.Responses.Default
+	if code != "default" {
+		r, ok = op.Responses.Get(code)
+		require.True(t, ok)
+	}
+	media, ok := r.GetObject().Content.Get("application/json")
+	require.True(t, ok)
+	return media.Schema
+}
+
+// TestTarget_ReadsPastResponsesTheOperationHoldsByValue pins GitHub #779's
+// mechanism in this reader: read a token at a time, the responses an operation
+// holds by value are handed back as a value, which answers default only through
+// its pointer's methods. Under default, as under a status code, the definition
+// is found from the property's $ref and from the discriminator's mapping, and a
+// pointer the library refuses finds nothing.
+func TestTarget_ReadsPastResponsesTheOperationHoldsByValue(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(responsesDoc))
+	require.NoError(t, err)
+	for _, code := range []string{"default", "200"} {
+		s := responseSchema(t, doc, code)
+		want := jsontext.Pointer("/paths/~1a/get/responses/" + code + "/content/application~1json/schema/$defs/foo")
+
+		got, at, ok := NewReader(doc).Target(prop(t, s, "x"), "/$defs/foo")
+		require.True(t, ok, code)
+		assert.Same(t, defEntry(t, s, "foo"), got, code)
+		assert.Equal(t, want, at, code)
+
+		got, at, ok = NewReader(doc).MappingTarget(s.GetSchema().GetDiscriminator(), "/$defs/foo")
+		require.True(t, ok, code)
+		assert.Same(t, defEntry(t, s, "foo"), got, code)
+		assert.Equal(t, want, at, code)
+
+		_, _, ok = NewReader(doc).Target(prop(t, s, "x"), "/$defs/~2")
+		assert.False(t, ok, "%s: a pointer the library refuses names nothing", code)
+	}
+}
+
+// TestTarget_ReadsNoMappingTheModelLeavesFor pins that the reader asks the
+// library about no raw YAML: an OpenAPI document's "$defs", even one written,
+// is raw YAML, which holds no schema, so its read stops where the token leaves
+// the model rather than scanning the document's mapping, once per reference
+// (GitHub #778); and so does the read of a position in an extension. The
+// mapping is given a first key that is no node, which a scan of it faults on,
+// as the library's own read shows.
+func TestTarget_ReadsNoMappingTheModelLeavesFor(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(responsesDoc))
+	require.NoError(t, err)
+	root := doc.GetRootNode()
+	root.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode, Value: "v"}}, root.Content...)
+	s := responseSchema(t, doc, "200")
+
+	assert.Panics(t, func() { _, _ = jsonpointer.GetTarget(doc, "/$defs/foo", jsonpointer.WithStructTags("key")) },
+		"the library scans the document's mapping")
+	assert.NotPanics(t, func() {
+		r := NewReader(doc)
+		_, _, ok := r.Target(prop(t, s, "x"), "/$defs/foo")
+		assert.True(t, ok)
+		assert.False(t, r.placeAt("/x-lib/A").held, "a position in raw YAML holds no schema to read from")
+		assert.False(t, definesDefs(doc), "nor does a $defs in raw YAML")
+	})
 }

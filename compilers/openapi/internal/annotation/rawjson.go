@@ -319,17 +319,33 @@ func mergeSource(n *yaml.Node) (*yaml.Node, error) {
 }
 
 // checkUniqueKeys rejects a mapping that names one key twice, which yaml.v3
-// rejects by default and this compiler has therefore always refused.
+// rejects by default and this compiler has therefore always refused. It names
+// the earliest key written again, and where it is written next, in one pass:
+// comparing every pair of keys cost the square of the mapping's width (GitHub
+// #776).
 func checkUniqueKeys(n *yaml.Node) error {
-	for i := 0; i < len(n.Content); i += 2 {
-		for j := i + 2; j < len(n.Content); j += 2 {
-			a, b := n.Content[i], n.Content[j]
-			if a.Kind == b.Kind && a.Value == b.Value {
-				return fmt.Errorf("mapping key %q already defined at line %d", b.Value, a.Line)
-			}
+	type key struct {
+		kind  yaml.Kind
+		value string
+	}
+	first := make(map[key]int, len(n.Content)/2)
+	earliest, next := -1, -1
+	for j := 0; j < len(n.Content); j += 2 {
+		k := key{kind: n.Content[j].Kind, value: n.Content[j].Value}
+		i, seen := first[k]
+		if !seen {
+			first[k] = j
+			continue
+		}
+		// A key's later repeats share its first index, so its first repeat is kept.
+		if earliest < 0 || i < earliest {
+			earliest, next = i, j
 		}
 	}
-	return nil
+	if earliest < 0 {
+		return nil
+	}
+	return fmt.Errorf("mapping key %q already defined at line %d", n.Content[next].Value, n.Content[earliest].Line)
 }
 
 // mapKey gives a mapping key its JSON name, rejecting every key JSON has no

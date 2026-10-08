@@ -186,6 +186,32 @@ func TestRawFromNode_PreservesMergeAndOrderingSemantics(t *testing.T) {
 	}
 }
 
+// TestCheckUniqueKeys_NamesTheEarliestKeyWrittenAgain pins which duplicate a
+// mapping is refused for: the key written earliest of those written again, at
+// the line it was first written, whichever repeat comes first in the mapping.
+func TestCheckUniqueKeys_NamesTheEarliestKeyWrittenAgain(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, yaml, want string }{
+		{"one key twice", "a: 1\nb: 2\na: 3\n", `mapping key "a" already defined at line 1`},
+		{"a later key repeated first", "x: 1\ny: 1\ny: 2\nx: 2\n", `mapping key "x" already defined at line 1`},
+		{"a later key repeated last", "x: 1\ny: 1\nx: 2\ny: 2\n", `mapping key "x" already defined at line 1`},
+		{"a key three times", "z: 0\nw: 1\nw: 2\nw: 3\n", `mapping key "w" already defined at line 2`},
+		{"no key twice", "a: 1\nb: 2\n", ""},
+		{"an alias key and a key spelled as its anchor's name", "a: &k v\n*k : 1\nk: 2\n", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := checkUniqueKeys(openapitest.YAMLNode(t, tc.yaml))
+			if tc.want == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tc.want)
+		})
+	}
+}
+
 // TestRawFromNode_RefusesWhatJSONCannotName pins the failures. Each one is a
 // construct that reaches the IR in no form at all rather than in a weaker one,
 // which is why the caller turns it into a diagnostic (GitHub #144).
