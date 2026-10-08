@@ -90,15 +90,15 @@ func step(node any, token string) (any, error) {
 // the walk stopped and the tokens left there, which the library reads together
 // in that raw YAML: none when the model answered every token. Where a step
 // finds nothing, the error is the library's, and the tokens left start at that
-// step. An index the library tries only once the rest fails is left to the
-// library, which reads the rest itself.
+// step. An index the library retries (Retried) is left to the library, which
+// reads the rest itself.
 func Walk(node any, tokens []string) (any, []string, error) {
 	for i, token := range tokens {
-		r, raw := dispatch(node, token)
+		r, raw := ReadingOf(node, token)
 		switch r {
-		case leaving:
+		case Leaving:
 			return raw, tokens[i:], nil
-		case retried:
+		case Retried:
 			target, err := jsonpointer.GetTarget(node, jsonpointer.PartsToJSONPointer(tokens[i:]), jsonpointer.WithStructTags("key"))
 			return target, nil, err
 		default:
@@ -116,44 +116,44 @@ func Walk(node any, tokens []string) (any, []string, error) {
 // Leaves returns the raw YAML the library's read of token from node goes on in,
 // with the tokens after it read together there, and true: node itself when it
 // is raw YAML, else the mapping an object was built from where none of its
-// fields or embedded maps answers token. It is false where one does, or where
-// the read fails first. It follows the library's dispatch for one token
-// (getStructTarget, navigateModel, v1.25.2), asking each map the library asks
-// through the map's own method.
+// fields or embedded maps answers token. It is false where one does, where the
+// read fails first, and where the library retries an index (Retried).
 func Leaves(node any, token string) (*yaml.Node, bool) {
-	r, raw := dispatch(node, token)
-	return raw, r == leaving
+	r, raw := ReadingOf(node, token)
+	return raw, r == Leaving
 }
 
-// reading is how the library's read of one token from a node goes on.
-type reading int
+// Reading is how the library's read of one token from a node goes on.
+type Reading int
 
 const (
-	// answering: a field or an entry answers the token, or the read fails.
-	answering reading = iota
-	// leaving: the token, and the rest after it, are read in raw YAML.
-	leaving
-	// retried: the token is tried as a key with the rest below it, and as an
-	// index once that fails, so what answers it turns on the rest.
-	retried
+	// Answering is a read a field or an entry answers, or that fails there.
+	Answering Reading = iota
+	// Leaving is a read of the token, and the rest after it, in raw YAML.
+	Leaving
+	// Retried is a read of an index token as a key with the rest below it,
+	// and as an index once that fails, so what answers it turns on the rest.
+	Retried
 )
 
-// dispatch is how the library's read of token from node goes on, and the raw
-// YAML it is read in when it leaves the model (see Leaves).
-func dispatch(node any, token string) (reading, *yaml.Node) {
+// ReadingOf returns how the library's read of token from node goes on, and the
+// raw YAML it is read in where it leaves the model (see Leaves). It follows the
+// library's dispatch for one token (getStructTarget, navigateModel, v1.25.2),
+// asking each map the library asks through the map's own method.
+func ReadingOf(node any, token string) (Reading, *yaml.Node) {
 	for range maxNavigableHops {
 		switch n := node.(type) {
 		case *yaml.Node:
 			if n == nil {
-				return answering, nil // the library fails on no node
+				return Answering, nil // the library fails on no node
 			}
-			return leaving, n
+			return Leaving, n
 		case yaml.Node:
-			return leaving, &n
+			return Leaving, &n
 		}
 		v := reflect.ValueOf(node)
 		if reflect.Indirect(v).Kind() != reflect.Struct {
-			return answering, nil // nothing, a nil pointer, a map, a list or a scalar
+			return Answering, nil // nothing, a nil pointer, a map, a list or a scalar
 		}
 		noder, ok := node.(jsonpointer.NavigableNoder)
 		if !ok {
@@ -161,33 +161,34 @@ func dispatch(node any, token string) (reading, *yaml.Node) {
 		}
 		stands, err := noder.GetNavigableNode()
 		if err != nil {
-			return answering, nil
+			return Answering, nil
 		}
 		node = stands
 	}
-	return answering, nil
+	return Answering, nil
 }
 
-// objectReading is dispatch for an object the library reads by its fields: a
+// objectReading is ReadingOf for an object the library reads by its fields: a
 // model by its core's keys, after any map it embeds, and another struct by its
 // own fields' keys or names, unless it is a map. Where nothing answers token,
-// the library reads it in the mapping the object was built from.
-func objectReading(v reflect.Value, token string) (reading, *yaml.Node) {
+// the library reads it in the mapping the object was built from. An index on
+// a struct the library also reads by index is retried (Retried).
+func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
 	if m, ok := v.Interface().(model); ok {
 		core := reflect.Indirect(reflect.ValueOf(m.GetCoreAny()))
 		if core.Kind() != reflect.Struct || embedsAnswer(v, token) || keyed(core.Type(), token, false) {
-			return answering, nil
+			return Answering, nil
 		}
 		return builtFrom(v)
 	}
 	if _, ok := v.Interface().(jsonpointer.IndexNavigable); ok && isIndex(token) {
-		return retried, nil
+		return Retried, nil
 	}
 	if _, ok := v.Interface().(jsonpointer.KeyNavigable); ok {
-		return answering, nil // it answers token or fails; none in v1.25.2 defers to its fields
+		return Answering, nil // it answers token or fails; none in v1.25.2 defers to its fields
 	}
 	if keyed(reflect.Indirect(v).Type(), token, true) {
-		return answering, nil
+		return Answering, nil
 	}
 	return builtFrom(v)
 }
@@ -251,16 +252,16 @@ func keyed(t reflect.Type, key string, byName bool) bool {
 
 // builtFrom returns the mapping the object in v was built from, which the
 // library reads a token in that no field answers, or that it fails without one.
-func builtFrom(v reflect.Value) (reading, *yaml.Node) {
+func builtFrom(v reflect.Value) (Reading, *yaml.Node) {
 	built, ok := v.Interface().(marshaller.RootNodeAccessor)
 	if !ok {
-		return answering, nil
+		return Answering, nil
 	}
 	root := built.GetRootNode()
 	if root == nil {
-		return answering, nil
+		return Answering, nil
 	}
-	return leaving, root
+	return Leaving, root
 }
 
 // isIndex reports whether the library reads token as an index: digits, with

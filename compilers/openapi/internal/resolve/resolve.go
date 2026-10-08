@@ -131,29 +131,34 @@ type located struct {
 }
 
 // locate walks pointer through Doc as the resolver's walk reads it, a token at
-// a time, noting each reference Ends names that it steps past, which it reads
-// as what that resolved to. A schema's own $ref is read as a keyword, so it
-// notes none past a schema. A token that leaves the model (navigation.Leaves)
-// ends the walk unread: raw YAML holds no schema and no reference the resolver
-// resolved, and the library would scan its mapping for the token (GitHub
-// #778).
+// a time, noting each reference Ends names that it steps past, read as what it
+// resolved to. A schema's own $ref is read as a keyword, so none is noted past
+// a schema. A token that leaves the model (navigation.Leaves) ends the walk:
+// raw YAML holds no schema and no reference the resolver resolved (see leave).
+// Past an index the library retries (navigation.Retried), the pointer names
+// what the library's read of the rest finds, though references are still noted
+// a step at a time.
 func (s Scope) locate(pointer jsontext.Pointer) located {
 	var l located
 	tokens, ok := navigation.Tokens(pointer)
 	if !ok {
 		return l
 	}
-	noting := s.Ends != nil
+	noting, whole := s.Ends != nil, false
 	var node any = s.Doc
-	for _, token := range tokens {
+	for i, token := range tokens {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
 			noting = false
 		}
-		if _, raw := navigation.Leaves(node, token); raw {
+		reading, _ := navigation.ReadingOf(node, token)
+		if reading == navigation.Leaving {
 			if noting {
 				l.leave(s.Ends, node, token)
 			}
 			return l
+		}
+		if reading == navigation.Retried && !whole {
+			l.target, whole = retriedRead(node, tokens[i:]), true
 		}
 		next, ok := navigation.Step(node, token)
 		if !ok {
@@ -164,8 +169,22 @@ func (s Scope) locate(pointer jsontext.Pointer) located {
 		}
 		node = next
 	}
-	l.target = node
+	if !whole {
+		l.target = node
+	}
 	return l
+}
+
+// retriedRead returns what the library's read of tokens from node finds, or
+// nil where it finds nothing. The library retries tokens[0] as an index once
+// the rest fails below it as a key, so only the whole read says which answers
+// (navigation.Walk).
+func retriedRead(node any, tokens []string) any {
+	target, _, err := navigation.Walk(node, tokens)
+	if err != nil {
+		return nil
+	}
+	return target
 }
 
 // ends is Ends's answer for node, and false while a walk notes nothing.

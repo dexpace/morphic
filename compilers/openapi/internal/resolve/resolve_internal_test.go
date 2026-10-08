@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -567,6 +568,46 @@ components:
 	assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
 	assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
 	assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
+}
+
+// TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole pins what ModelAt
+// answers past an index the library retries: the token is read as a key with
+// the rest below it, and as an index once that fails, so the pointer names
+// what the library's whole read finds, here k past the index where the key's
+// 0 holds none, while references are still noted a step at a time.
+func TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole(t *testing.T) {
+	t.Parallel()
+	var built yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{'0': {j: 5}}"), &built))
+	js := schemaFromYAML(t, "type: string\n")
+	doc := &indexedDoc{built: built.Content[0], schema: js}
+	for _, ends := range []func(any) (End, bool){nil, elsewhere} {
+		sc := Scope{Doc: doc, Ends: ends}
+		for _, pointer := range []jsontext.Pointer{"/0/k", "/0/j", "/0", "/1/k", "/0/k/type"} {
+			assert.Same(t, wholeModelAt(doc, pointer), sc.ModelAt(pointer), "%q", pointer)
+		}
+		assert.Same(t, js, sc.ModelAt("/0/k"), "the index answers k, which the mapping's 0 does not hold")
+		assert.Equal(t, ends != nil, sc.At("/0/k").Foreign, "the walk noted the document it stepped past")
+	}
+}
+
+// indexedDoc is a document that is no model and that the library reads by
+// index as well as by the mapping it was built from: that mapping's 0 holds j,
+// and its index 0 holds the schema under k.
+type indexedDoc struct {
+	built  *yaml.Node
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// GetRootNode returns the mapping the document was built from.
+func (d *indexedDoc) GetRootNode() *yaml.Node { return d.built }
+
+// NavigateWithIndex answers index 0 with a map holding the schema under k.
+func (d *indexedDoc) NavigateWithIndex(i int) (any, error) {
+	if i != 0 {
+		return nil, errors.New("no such index")
+	}
+	return map[string]any{"k": d.schema}, nil
 }
 
 // walkTo returns what the model holds at pointer, a step at a time.
