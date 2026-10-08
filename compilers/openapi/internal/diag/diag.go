@@ -331,6 +331,28 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// MissingArrayItems reports an OpenAPI 3.0 array schema that writes no
+	// `items`. 3.0 states the array form through the keyword alone, so such a
+	// schema declares an array without saying what its elements are — a
+	// document defect in that dialect (GitHub #650). The schema still lowers,
+	// as a List whose element type is the top type, exactly as it would
+	// without a diagnostic.
+	//
+	// Warning, for the reason its neighbours ReservedHeaderName and
+	// UnknownObjectKey are: it is a document defect that still lowers, and
+	// harness.Check stops at the first error diagnostic, which would hide
+	// every later finding in any spec containing such an array. Not an error
+	// for the second reason too — nothing the document declared is dropped,
+	// since the element type the IR carries is the one it carries today, so
+	// there is no losslessness failure to escalate (invariant 2 is not in
+	// question).
+	//
+	// A code of its own rather than DegradedConstruct, because codes are the
+	// unit a consumer allowlists (ir-design §13). DegradedConstruct names a
+	// construct kept in a weaker shape; here the document wrote no shape to
+	// weaken, and the lowering is lossless — it is the *document* that is
+	// incomplete, which is the class EmptyEnum and UnknownObjectKey name.
+	MissingArrayItems = "openapi/missing-array-items"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single
