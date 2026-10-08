@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"math"
 	"strconv"
 	"strings"
 
@@ -11,13 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
-
-// maxScanMerges bounds how many merged mappings a read counted by treeReads is
-// inside at once, along the whole pointer, which bounds its recursion. The
-// library has no such bound. A read past it is priced past any limit, so the
-// work that would make it stops at its own bound, and says so; no document
-// reaches it without a thousand `<<` keys along one pointer.
-const maxScanMerges = 1 << 10
 
 // treeReads reads a pointer in a YAML tree as jsonpointer.GetTarget does, and
 // counts what that read costs: the library compares a mapping's keys in order
@@ -72,14 +66,15 @@ func (t *treeReads) read(root *yaml.Node, pointer string, limit int) (int, *yaml
 	return t.tally(root, pointer, limit, true)
 }
 
-// tally is cost, or read where own.
+// tally is cost, or read where own. The limit is held below math.MaxInt, so a
+// read priced past it still counts in an int (see push).
 func (t *treeReads) tally(root *yaml.Node, pointer string, limit int, own bool) (int, *yaml.Node) {
 	parts, ok := partsOf(pointer)
 	if !ok {
 		return 0, nil
 	}
-	s := tally{reads: t, limit: limit, own: own}
-	target, _ := s.walk(root, parts, 0)
+	s := tally{reads: t, limit: min(limit, math.MaxInt-1), own: own}
+	target := s.walk(root, parts)
 	return s.steps, target
 }
 
@@ -175,11 +170,29 @@ func unescaped(token string) string {
 }
 
 // tally is one counted read: the steps taken, and the limit past which it
-// stops. own counts the reader's own work rather than the library's.
+// stops. own counts the reader's own work rather than the library's. trying
+// holds the reads through `<<` keys the read is inside, innermost last, and
+// open the mapping and part of each, which none re-enters.
 type tally struct {
 	reads        *treeReads
 	steps, limit int
 	own          bool
+	trying       []merging
+	open         map[mergeKey]bool
+}
+
+// merging is a read of parts[at] on through the `<<` keys of mapping n, which
+// holds no key for it: k is n's index, and next counts the merge keys tried.
+type merging struct {
+	n        *yaml.Node
+	k        *mappingKeys
+	at, next int
+}
+
+// mergeKey is the mapping a read through `<<` keys is in, and its part.
+type mergeKey struct {
+	n  *yaml.Node
+	at int
 }
 
 // compared returns the steps a loop over a mapping's pairs takes, stopping at
@@ -203,44 +216,45 @@ func (s *tally) mergesLooped(pairs, merges int) int {
 	return pairs
 }
 
-// walk follows parts from n as getCurrentStackTarget does, a part at a time,
-// and returns the node the read ends on. A mapping holding no key for a part is
-// read through its merge keys, which take the rest of the read (see merged).
-func (s *tally) walk(n *yaml.Node, parts []part, merges int) (*yaml.Node, bool) {
-	p, rest := part{}, parts
-	if len(parts) > 0 {
-		p, rest = parts[0], parts[1:]
+// walk reads parts from root as getCurrentStackTarget does, a part at a time,
+// and returns the node the read ends on, or nil where it fails. A mapping
+// holding no key for a part is read through the mapping each of its `<<` keys
+// names, in turn, until one holds the rest of the read. The library recurses
+// as deep as a merge chain goes, which only the caller's budgets bound; these
+// reads are a stack instead, each pushed at a step, so the limit bounds them.
+func (s *tally) walk(root *yaml.Node, parts []part) *yaml.Node {
+	if len(parts) == 0 {
+		parts = []part{{}}
 	}
-	for {
+	end, ok := s.follow(root, parts, 0)
+	for !ok {
+		m, at, more := s.nextMerge()
+		if !more {
+			return nil
+		}
+		end, ok = s.inMerged(m, parts, at)
+	}
+	s.unwind()
+	return end
+}
+
+// follow reads parts from n, from parts[at] on, and returns the node the read
+// ends on, and whether it ends on one.
+func (s *tally) follow(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
+	for ; ; at++ {
 		if n = s.content(n); n == nil {
 			return nil, false
 		}
 		// The library reads an empty last token as the node it is read on.
-		if len(rest) == 0 && p.value == "" {
+		last := at == len(parts)-1
+		if last && parts[at].value == "" {
 			return n, true
 		}
-		var next *yaml.Node
-		switch n.Kind {
-		case yaml.MappingNode:
-			k := s.reads.index(n)
-			pos, ok := k.first[unescaped(p.value)]
-			if !ok {
-				s.steps += s.compared(k.pairs)
-				return s.merged(n, k, p, rest, merges)
-			}
-			s.steps += s.compared(pos + 1)
-			next = n.Content[2*pos+1]
-		case yaml.SequenceNode:
-			if next = element(n, p); next == nil {
-				return nil, false
-			}
-		default:
-			return nil, false
+		next, ok := s.child(n, parts, at)
+		if !ok || last {
+			return next, ok
 		}
-		if len(rest) == 0 {
-			return next, true
-		}
-		n, p, rest = next, rest[0], rest[1:]
+		n = next
 	}
 }
 
@@ -265,6 +279,19 @@ func (s *tally) content(n *yaml.Node) *yaml.Node {
 	return nil
 }
 
+// child returns the node parts[at] names in n, and whether n holds one.
+func (s *tally) child(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
+	switch n.Kind {
+	case yaml.MappingNode:
+		return s.lookup(n, parts, at)
+	case yaml.SequenceNode:
+		next := element(n, parts[at])
+		return next, next != nil
+	default:
+		return nil, false
+	}
+}
+
 // element returns the element of sequence n that p names, or nil for none.
 func element(n *yaml.Node, p part) *yaml.Node {
 	i, err := strconv.Atoi(p.value)
@@ -274,45 +301,79 @@ func element(n *yaml.Node, p part) *yaml.Node {
 	return n.Content[i]
 }
 
-// merged reads p and rest in mapping n, indexed as k, which holds no key for
-// p, as the library does: through the mapping each `<<` key names, in turn,
-// until one holds the rest of the read. merges counts the merged mappings the
-// read is inside; past maxScanMerges it is past the limit.
-func (s *tally) merged(n *yaml.Node, k *mappingKeys, p part, rest []part, merges int) (*yaml.Node, bool) {
-	for i, pos := range k.merges {
-		if s.steps > s.limit {
-			return nil, false
-		}
-		m := nodeview.Deref(n.Content[2*pos+1])
-		if m == nil || m.Kind != yaml.MappingNode {
-			continue
-		}
-		if merges >= maxScanMerges {
-			s.steps = s.limit + 1
-			return nil, false
-		}
-		if target, ok := s.inMapping(m, p, rest, merges+1); ok {
-			s.steps += s.mergesLooped(pos+1, i+1)
-			return target, true
-		}
-	}
-	s.steps += s.mergesLooped(k.pairs, len(k.merges))
-	return nil, false
-}
-
-// inMapping reads p and rest in mapping m as the library reads a merged one:
-// its own keys, then its merge keys, with no visit to m and no reading of an
-// empty last token as m itself.
-func (s *tally) inMapping(m *yaml.Node, p part, rest []part, merges int) (*yaml.Node, bool) {
-	k := s.reads.index(m)
-	pos, ok := k.first[unescaped(p.value)]
+// lookup returns the value mapping n holds under parts[at]'s key, and whether
+// it holds one, as the library finds it: in the first pair holding the key,
+// having compared those before it. One holding none has every pair compared,
+// and is pushed, for the read to go on through its `<<` keys.
+func (s *tally) lookup(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
+	k := s.reads.index(n)
+	pos, ok := k.first[unescaped(parts[at].value)]
 	if !ok {
 		s.steps += s.compared(k.pairs)
-		return s.merged(m, k, p, rest, merges)
+		s.push(n, k, at)
+		return nil, false
 	}
 	s.steps += s.compared(pos + 1)
-	if len(rest) == 0 {
-		return m.Content[2*pos+1], true
+	return n.Content[2*pos+1], true
+}
+
+// inMerged reads parts from parts[at] on in mapping m as the library reads a
+// merged one: with no visit to m and no reading of an empty last token as m.
+func (s *tally) inMerged(m *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
+	next, ok := s.lookup(m, parts, at)
+	if !ok || at == len(parts)-1 {
+		return next, ok
 	}
-	return s.walk(m.Content[2*pos+1], rest, merges)
+	return s.follow(next, parts, at+1)
+}
+
+// push starts the read of parts[at] on through the `<<` keys of mapping n,
+// indexed as k. With none, it fails there, having looped over n's pairs for
+// them. A read already open on n for the same part would recur without end,
+// as the library's does; no parsed tree holds such a cycle (see refusals),
+// and it is priced past the limit, which stops it.
+func (s *tally) push(n *yaml.Node, k *mappingKeys, at int) {
+	if len(k.merges) == 0 {
+		s.steps += s.mergesLooped(k.pairs, 0)
+		return
+	}
+	key := mergeKey{n: n, at: at}
+	if s.open[key] {
+		s.steps = s.limit + 1
+		return
+	}
+	if s.open == nil {
+		s.open = map[mergeKey]bool{}
+	}
+	s.open[key] = true
+	s.trying = append(s.trying, merging{n: n, k: k, at: at})
+}
+
+// nextMerge returns the mapping the innermost read through `<<` keys tries
+// next, and the part it reads there, or false where none is left. A read whose
+// keys are all tried fails, having looped over them, and the one it is inside
+// goes on to its next; past the limit, every one fails.
+func (s *tally) nextMerge() (*yaml.Node, int, bool) {
+	for len(s.trying) > 0 && s.steps <= s.limit {
+		r := &s.trying[len(s.trying)-1]
+		for r.next < len(r.k.merges) {
+			pos := r.k.merges[r.next]
+			r.next++
+			if m := nodeview.Deref(r.n.Content[2*pos+1]); m != nil && m.Kind == yaml.MappingNode {
+				return m, r.at, true
+			}
+		}
+		s.steps += s.mergesLooped(r.k.pairs, len(r.k.merges))
+		delete(s.open, mergeKey{n: r.n, at: r.at})
+		s.trying = s.trying[:len(s.trying)-1]
+	}
+	return nil, 0, false
+}
+
+// unwind counts, for each read through `<<` keys the read ends inside, the
+// loop over its pairs that reached the key whose mapping held the rest.
+func (s *tally) unwind() {
+	for _, r := range s.trying {
+		s.steps += s.mergesLooped(r.k.merges[r.next-1]+1, r.next)
+	}
 }

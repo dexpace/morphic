@@ -374,23 +374,85 @@ func TestTreeReads_StopsPastTheLimit(t *testing.T) {
 	assert.LessOrEqual(t, steps, limit+2*n, "and stops within a mapping of it")
 }
 
-// TestTreeReads_MergeDepth pins maxScanMerges: a key maxScanMerges merged
-// mappings down is counted, and one a level further is past any limit, though
-// the library would read it.
-func TestTreeReads_MergeDepth(t *testing.T) {
+// TestTreeReads_ReadsAMergeChainAsDeepAsTheLibrary pins that a read goes as
+// deep through `<<` keys as the library does, with no bound of its own: a key
+// 2^17 merged mappings down is found where GetTarget finds it, and one no
+// mapping holds fails where it fails, each counted as the transcription counts
+// it, in steps linear in the depth.
+func TestTreeReads_ReadsAMergeChainAsDeepAsTheLibrary(t *testing.T) {
 	t.Parallel()
-	steps, target := newTreeReads().cost(ynode.MergeChain(maxScanMerges), "/leaf", math.MaxInt)
-	require.NotNil(t, target)
-	assert.Equal(t, "v", target.Value)
-	assert.Less(t, steps, 10*maxScanMerges)
+	const levels = 1 << 17
+	chain := ynode.MergeChain(levels)
+	for _, pointer := range []string{"/leaf", "/missing"} {
+		lib, libErr := jsonpointer.GetTarget(chain, jsonpointer.JSONPointer(pointer))
+		parts, valid := partsOf(pointer)
+		require.True(t, valid)
+		want := &libraryRead{}
+		end, found := want.stack(chain, parts)
+		require.Equal(t, libErr == nil, found, "%q: %v", pointer, libErr)
+		if found {
+			require.Same(t, lib, end, "%q", pointer)
+		}
 
-	const limit = 1 << 20
-	steps, target = newTreeReads().cost(ynode.MergeChain(maxScanMerges+1), "/leaf", limit)
+		steps, target := newTreeReads().cost(chain, pointer, math.MaxInt)
+		assert.Same(t, end, target, "%q", pointer)
+		assert.Equal(t, want.steps, steps, "%q", pointer)
+		assert.Less(t, steps, 3*levels, "%q", pointer)
+		_, read := newTreeReads().read(chain, pointer, math.MaxInt)
+		assert.Same(t, end, read, "%q", pointer)
+	}
+}
+
+// TestTreeReads_PricesAMergeCyclePastTheLimit pins the guard on a read through
+// `<<` keys entering a mapping it is already in for the same part, which the
+// library would follow without end and no parsed tree holds: the read fails
+// past its limit where the cycle closes, in one mapping read through, not
+// one per step until the limit runs out. With no limit, the count is the most
+// an int holds rather than wrapping negative.
+func TestTreeReads_PricesAMergeCyclePastTheLimit(t *testing.T) {
+	t.Parallel()
+	m := ynode.Map()
+	m.Content = append(m.Content, ynode.Merge(), ynode.Alias(m), ynode.Scalar("a"), ynode.Scalar("1"))
+	parts, valid := partsOf("/missing")
+	require.True(t, valid)
+	for _, own := range []bool{false, true} {
+		s := tally{reads: newTreeReads(), limit: 1 << 20, own: own}
+		assert.Nil(t, s.walk(m, parts), "own %t", own)
+		assert.Greater(t, s.steps, s.limit, "own %t", own)
+		require.Len(t, s.trying, 1, "own %t: refused where the cycle closes, or the unlimited read below runs on", own)
+	}
+
+	steps, target := newTreeReads().cost(m, "/missing", math.MaxInt)
 	assert.Nil(t, target)
-	assert.Greater(t, steps, limit)
+	assert.Equal(t, math.MaxInt, steps)
+}
 
-	_, err := jsonpointer.GetTarget(ynode.MergeChain(maxScanMerges+1), "/leaf")
-	assert.NoError(t, err, "the library reads past the bound")
+// TestTreeReads_ReadsAMergeCycleTheLibraryEnds pins that the guard above
+// refuses only a read that would not end: a mapping open for one part, entered
+// again for the next, is read where the library's read of it ends, and counted
+// as the transcription counts it.
+func TestTreeReads_ReadsAMergeCycleTheLibraryEnds(t *testing.T) {
+	t.Parallel()
+	a, b := ynode.Map(), ynode.Map()
+	a.Content = append(a.Content, ynode.Merge(), ynode.Alias(b))
+	b.Content = append(b.Content, ynode.Scalar("k"), ynode.Alias(a))
+	for _, pointer := range []string{"/k/k/k", "/k/k/missing"} {
+		lib, libErr := jsonpointer.GetTarget(a, jsonpointer.JSONPointer(pointer))
+		parts, valid := partsOf(pointer)
+		require.True(t, valid)
+		want := &libraryRead{}
+		end, found := want.stack(a, parts)
+		require.Equal(t, libErr == nil, found, "%q: %v", pointer, libErr)
+		if found {
+			require.Same(t, lib, end, "%q", pointer)
+		}
+
+		steps, target := newTreeReads().cost(a, pointer, math.MaxInt)
+		assert.Same(t, end, target, "%q", pointer)
+		assert.Equal(t, want.steps, steps, "%q", pointer)
+		_, read := newTreeReads().read(a, pointer, math.MaxInt)
+		assert.Same(t, end, read, "%q", pointer)
+	}
 }
 
 // TestTreeReads_IndexesAMappingOnce pins that a mapping's keys are indexed the
