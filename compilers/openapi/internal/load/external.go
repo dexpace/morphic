@@ -22,6 +22,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -65,10 +66,11 @@ type external struct {
 
 // maxOpenedSpellings is the most spellings Open holds every object of the
 // source under. A spelling the scan found holds only the objects its $refs
-// name, so they cost no more than the $refs. One Open meets is one no $ref
-// was found to write: the resolver reached it by rebasing and cleaning a path,
-// so a source has few. Past this, Open holds the document alone and the
-// resolver builds a copy of what a $ref names, as for any document.
+// name, so they cost no more than the $refs. One Open meets is one the scan
+// found no $ref to write, such as a schema's $ref the resolver rebased onto
+// its $id, and how many a document presents is its own. Past this, Open holds
+// the document alone and the resolver builds a copy of what a $ref names, as
+// for any document.
 const maxOpenedSpellings = 16
 
 // heldSource is what the resolver of one document is handed as the source:
@@ -247,8 +249,8 @@ func (e external) holdObject(key string, o heldObject) {
 // against base as the resolver reads it, names the source by, before the
 // resolver looks one up: for each such $ref, the object it names. Spelled
 // otherwise, a back reference is not found held, and the resolver builds a copy
-// of what it names (see Open). It visits each node of tree once, following no
-// alias.
+// of what it names (see Open). It visits each node of tree once, following an
+// alias only to read a $ref's value, as the model does.
 func (e external) holdSpellings(tree *yaml.Node, base string) {
 	stack := []*yaml.Node{tree}
 	for len(stack) > 0 {
@@ -256,7 +258,7 @@ func (e external) holdSpellings(tree *yaml.Node, base string) {
 		stack = stack[:len(stack)-1]
 		stack = append(stack, n.Content...)
 		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if key, value := n.Content[i], n.Content[i+1]; key.Value == "$ref" && value.Kind == yaml.ScalarNode {
+			if key, value := n.Content[i], nodeview.Deref(n.Content[i+1]); key.Value == "$ref" && value.Kind == yaml.ScalarNode {
 				e.holdSpelling(references.Reference(value.Value), base)
 			}
 		}

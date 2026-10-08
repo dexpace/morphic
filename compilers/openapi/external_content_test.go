@@ -554,3 +554,34 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 		})
 	}
 }
+
+// TestExternalContent_AnAliasValuedRefNamingTheSourceKeepsWhatItNames pins the
+// cost of reading such a $ref otherwise. A path item reached by a $ref written as
+// a YAML alias, through a spelling of the source that no other key holds, was
+// built as a copy whose own $refs nothing resolved, and the lowering dropped the
+// response it names. The same $ref written as a plain string kept it.
+func TestExternalContent_AnAliasValuedRefNamingTheSourceKeepsWhatItNames(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for _, c := range []struct{ name, ref, anchor string }{
+		{"a plain string", "'" + dir + "/./root.yaml#/components/pathItems/I'", ""},
+		{"an alias to a string", "*r", "x-r: &r '" + dir + "/./root.yaml#/components/pathItems/I'\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + c.anchor + "paths:\n  /a: {$ref: " + c.ref + "}\n" +
+				"components:\n  pathItems:\n    I:\n      get:\n        operationId: i\n" +
+				"        responses: {\"200\": {$ref: '#/components/responses/R'}}\n" +
+				"  responses:\n    R: {description: ok}\n"
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+
+			openapitest.RequireNoErrorDiags(t, diags)
+			op, ok := opByName(doc, "i")
+			require.True(t, ok)
+			assert.Len(t, op.Responses, 1, "the response the path item's $ref names")
+		})
+	}
+}
