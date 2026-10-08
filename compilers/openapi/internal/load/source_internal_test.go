@@ -147,6 +147,9 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 		{"through its parent", clean, "../" + filepath.Base(dir) + "/root.yaml"},
 		{"its absolute path", clean, clean},
 		{"an absolute path not cleaned", clean, dir + "/./root.yaml"},
+		// Read lexically, as a URI reference is, though no file system walks it
+		// (GitHub #780).
+		{"through a directory that does not exist", clean, dir + "/nope/../root.yaml"},
 		{"its file name, from a source path not cleaned", dir + "/./root.yaml", "root.yaml"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -300,6 +303,35 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 	held, ok := doc.GetCachedReferencedObject("root.yaml#/first")
 	require.True(t, ok, "what the walk reached before the panic is held")
 	assert.Equal(t, first, held)
+}
+
+// TestHold_APanicStillHoldsTheSpellingsRecorded pins that a walk which stops
+// early still holds the source under each spelling recorded, and the objects
+// recorded there that it reached, where a second resolution would otherwise
+// find the spelling unheld and read the file.
+func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
+	t.Parallel()
+	doc := &soa.OpenAPI{}
+	root := &yaml.Node{Kind: yaml.DocumentNode}
+	read := newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root})
+	read.spelled.note("spelled.yaml", "/first")
+	read.spelled.note("spelled.yaml", "/second")
+	reader := newExternal(doc, Options{}, read)
+	items := func(yield func(soa.WalkItem) bool) {
+		if !yield(fakeWalkItem("first", fakeResolvable{ref: "#/first"})) {
+			return
+		}
+		panic("boom")
+	}
+
+	require.NotPanics(t, func() { reader.holdWalked(items) })
+
+	_, ok := doc.GetCachedExternalDocument("spelled.yaml")
+	assert.True(t, ok, "the spelling's document")
+	_, ok = doc.GetCachedReferencedObject("spelled.yaml#/first")
+	assert.True(t, ok, "the object the walk reached")
+	_, ok = doc.GetCachedReferencedObject("spelled.yaml#/second")
+	assert.False(t, ok, "and not the one it did not")
 }
 
 // TestHold_ASourceWithNoKeyIsNotHeld pins that hold stores nothing for a source
@@ -477,7 +509,8 @@ e: [{$ref: '` + unclean + `#/components/responses/R'}, {$ref: '` + unclean + `'}
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
-	assert.Equal(t, []string{unclean, path}, pass.reader.read.sourceKeys())
+	assert.Equal(t, []string{unclean}, pass.reader.read.spelled.keys(),
+		"the spelling no key holds, and none of the source's own keys")
 	held, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/R")
 	require.True(t, ok)
 	r, ok := doc.Components.Responses.Get("R")
@@ -505,8 +538,8 @@ func TestHold_ASpellingTheSourceUsesForItselfIsHeldAhead(t *testing.T) {
 }
 
 // TestHold_ASpellingHeldAlreadyIsNotHeldAgain pins that each document naming
-// the source by a spelling it is held under costs nothing more: holding it
-// again would store every object again, and a new stand-in for each reference
+// the source by a spelling and a pointer it is held under costs nothing more:
+// holding it again would store the object again, and a new stand-in for a reference
 // object, once for each such document.
 func TestHold_ASpellingHeldAlreadyIsNotHeldAgain(t *testing.T) {
 	t.Parallel()
@@ -515,21 +548,41 @@ func TestHold_ASpellingHeldAlreadyIsNotHeldAgain(t *testing.T) {
 	root := strings.Replace(backRoot(backPath("/a", "#/components/responses/RA")),
 		"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
 	doc, pass := heldResolution(t, root, filepath.Join(dir, "root.yaml"))
-	pass.reader.holdUnder(unclean)
+	pass.reader.holdSite(unclean, "/components/responses/RA")
 	stand, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/RA")
 	require.True(t, ok)
 
-	pass.reader.holdUnder(unclean)
+	pass.reader.holdSite(unclean, "/components/responses/RA")
 
 	again, ok := doc.GetCachedReferencedObject(unclean + "#/components/responses/RA")
 	require.True(t, ok)
 	assert.Same(t, stand, again)
 }
 
+// TestHold_AKeyTheSourceIsHeldWholeUnderIsNotHeldAgain pins the same for the
+// source's own keys, which hold every object already: a $ref spelling the
+// cleaned path stores nothing over the stand-in held there.
+func TestHold_AKeyTheSourceIsHeldWholeUnderIsNotHeldAgain(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	root := strings.Replace(backRoot(backPath("/a", "#/components/responses/RA")),
+		"components:\n  responses:\n", "components:\n  responses:\n    RA: {$ref: '#/components/responses/R'}\n", 1)
+	doc, pass := heldResolution(t, root, dir+"/./root.yaml")
+	clean := filepath.Join(dir, "root.yaml")
+	stand, ok := doc.GetCachedReferencedObject(clean + "#/components/responses/RA")
+	require.True(t, ok, "a reference object is held under the cleaned path as a stand-in")
+
+	pass.reader.holdSite(clean, "/components/responses/RA")
+
+	again, ok := doc.GetCachedReferencedObject(clean + "#/components/responses/RA")
+	require.True(t, ok)
+	assert.Same(t, stand, again)
+}
+
 // TestHold_SpellingsAskedForTogetherAreEachHeld pins that the source can be
 // handed under several spellings at once, as a resolver reading references on
-// more than one goroutine would ask: the keys it records are guarded, so each
-// spelling is held and none is lost to a concurrent write.
+// more than one goroutine would ask, by a scan or by Open: the keys it records
+// are guarded, so each spelling is held and none is lost to a concurrent write.
 func TestHold_SpellingsAskedForTogetherAreEachHeld(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -540,8 +593,14 @@ func TestHold_SpellingsAskedForTogetherAreEachHeld(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for _, spelled := range spellings {
-		wg.Go(func() { pass.reader.holdUnder(spelled) })
+	for i, spelled := range spellings {
+		wg.Go(func() {
+			if i%2 == 0 {
+				pass.reader.holdSite(spelled, "/components/responses/R")
+				return
+			}
+			pass.reader.holdOpened(spelled)
+		})
 	}
 	wg.Wait()
 
@@ -560,7 +619,7 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 	dir := t.TempDir()
 	spelled := dir + "/./root.yaml"
 	doc, pass := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
-	pass.reader.holdUnder(spelled)
+	pass.reader.holdSite(spelled, "/components/responses/R")
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
 	reader := newExternal(again, Options{}, pass.reader.read)

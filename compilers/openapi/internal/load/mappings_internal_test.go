@@ -668,11 +668,11 @@ x-lib:
 
 // TestMappings_OnlyATargetInTheSourceIsResolved pins which targets the load
 // phase resolves: those the lowering reads as naming a position in the source,
-// spelled internally or by the source's file name, whether or not external
-// references are allowed. A spelling through a directory is another document
-// to the lowering (GitHub #576). A component's name is the component's, an
-// anchor or the whole document names no pointer, and another document is not
-// read for a mapping: the finding in its Cat would be reported if it were.
+// spelled internally or by the source's file name, through a directory or not,
+// whether or not external references are allowed. A component's name is the
+// component's, an anchor or the whole document names no pointer, and another
+// document is not read for a mapping: the finding in its Cat would be reported
+// if it were.
 func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"other.yaml": "x-lib:\n  Cat: {type: object, minLength: abc}\n"})
@@ -685,7 +685,10 @@ func TestMappings_OnlyATargetInTheSourceIsResolved(t *testing.T) {
 		{"an internal pointer", "#/x-lib/Cat", false, true},
 		{"the source's file name, read as the source", "root.yaml#/x-lib/Cat", true, true},
 		{"the source's file name, with external references disallowed", "root.yaml#/x-lib/Cat", false, true},
-		{"the source's file name through a directory", "./root.yaml#/x-lib/Cat", true, false},
+		{"the source's file name through a directory", "./root.yaml#/x-lib/Cat", true, true},
+		{"through a directory, with external references disallowed", "./root.yaml#/x-lib/Cat", false, true},
+		{"the source's file name through its parent", "../" + filepath.Base(dir) + "/root.yaml#/x-lib/Cat", true, true},
+		{"a file name in a directory of its own", "sub/root.yaml#/x-lib/Cat", true, false},
 		{"another document", "other.yaml#/x-lib/Cat", true, false},
 		{"an anchor", "#cat", false, false},
 		{"the whole source, by its file name", "root.yaml", true, false},
@@ -966,7 +969,7 @@ func TestMappings_ChainEnds(t *testing.T) {
 		{"a hop by the source's file name", chainSpec, "#/x-lib/byName", true, true},
 		{"a hop by the file name into a schema's chain", chainSpec, "#/x-lib/throughName", true, true},
 		{"a loop read in the tree", chainSpec, "#/x-lib/loopsInTree", false, false},
-		{"a hop through a directory", chainSpec, "#/x-lib/byDirectory", false, false},
+		{"a hop through a directory", chainSpec, "#/x-lib/byDirectory", true, true},
 		{"a hop into another file", chainSpec, "#/x-lib/elsewhere", false, false},
 		{"a hop to an anchor", chainSpec, "#/x-lib/anchored", false, false},
 		{"a hop to a definition", chainSpec, "#/x-lib/defined", false, false},

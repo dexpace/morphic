@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -512,4 +513,55 @@ func assertAnchorsReleasedAliasesStand(t *testing.T, root *yaml.Node) {
 		stack = append(stack, n.Content...)
 	}
 	assert.True(t, sawAlias, "sanity: the fixture carries an alias")
+}
+
+// lexicalRoot is a source whose /abs and /rel responses are both a $ref to R in
+// other.yaml, the first spelled by an absolute path through through and the
+// second by a relative one.
+func lexicalRoot(dir, through string) string {
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /abs: {get: {responses: {\"200\": {$ref: '" + dir + "/" + through + "/../other.yaml#/components/responses/R'}}}}\n" +
+		"  /rel: {get: {responses: {\"200\": {$ref: '" + through + "/../other.yaml#/components/responses/R'}}}}\n"
+}
+
+// TestExternal_OpenReadsTheDocumentThePathNames pins that the file a $ref reads
+// is the one its path names once cleaned, however the $ref is spelled. A
+// relative path is cleaned by the resolver before it asks, and an absolute one
+// is not, so the operating system was left to walk it: through a directory that
+// is not there it failed, and through a link it read another file. Both
+// spellings of one path read one file (GitHub #780).
+func TestExternal_OpenReadsTheDocumentThePathNames(t *testing.T) {
+	t.Parallel()
+	for _, through := range []string{"nope", "link"} {
+		t.Run(through, func(t *testing.T) {
+			t.Parallel()
+			dir := externalDir(t, map[string]string{
+				"other.yaml": "components:\n  responses:\n    R: {description: beside root}\n",
+			})
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub", "deep"), 0o750))
+			writeFile(t, dir, filepath.Join("sub", "other.yaml"), "components:\n  responses:\n    R: {content: {}}\n")
+			if through == "link" {
+				if err := os.Symlink(filepath.Join(dir, "sub", "deep"), filepath.Join(dir, "link")); err != nil {
+					t.Skipf("a link cannot be made here: %v", err)
+				}
+			}
+
+			got, diags := loadExternal(t, dir, lexicalRoot(dir, through), Options{})
+
+			assert.Empty(t, diags, "neither spelling fails, nor reads sub/other.yaml, whose R has no description")
+			for _, path := range []string{"/abs", "/rel"} {
+				resp := response200(t, got.Doc, path).GetObject()
+				require.NotNil(t, resp, path)
+				assert.Equal(t, "beside root", resp.GetDescription(), "%s reads other.yaml beside root.yaml", path)
+			}
+		})
+	}
+}
+
+// TestExternal_OpenKeepsAnEmptyNameAnError pins that cleaning a name does not
+// turn the empty one, which names no file, into the current directory.
+func TestExternal_OpenKeepsAnEmptyNameAnError(t *testing.T) {
+	t.Parallel()
+	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).Open("")
+	assert.ErrorIs(t, err, fs.ErrNotExist, "no file, not the current directory read as one")
 }

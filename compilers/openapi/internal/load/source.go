@@ -89,6 +89,9 @@ func (s sourceDocument) keys() []string {
 // source as held (see keys), as the lowering reads a document part naming it
 // (refscope.SameDocument). A source named by a URL is held, and so named,
 // under its own spelling alone; one keys holds under none is never named.
+// The path is read lexically, as a URI reference's is, so one through a
+// directory that does not exist, or through a link, names the source; Open
+// reads the file it names (see fileNamed).
 func (s sourceDocument) names(name string) bool {
 	return len(s.keys()) > 0 && refscope.SameDocument(s.path, name)
 }
