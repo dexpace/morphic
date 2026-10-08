@@ -202,6 +202,10 @@ func TestInternalPointer_InTheSourcesOwnContent(t *testing.T) {
 		{"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", false},
 		{"https://example.com/api/m.yaml", "other.yaml", false},
 		{"", "m.yaml", false},
+		// A source path the resolver cannot place as a base (an invalid percent
+		// escape) names no document through a document part, as load reports.
+		{"dir%/m.yaml", "m.yaml", false},
+		{"100%.yaml", "100%.yaml", false},
 	} {
 		_, ok := Scope{SelfPath: c.self}.InternalPointer(c.doc + "#/components/schemas/A")
 		assert.Equal(t, c.internal, ok, "%q written in %q", c.doc, c.self)

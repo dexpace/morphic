@@ -555,21 +555,24 @@ func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
 	}
 }
 
-// TestExternalContent_AnAliasValuedRefNamingTheSourceKeepsWhatItNames pins the
-// cost of reading such a $ref otherwise. A path item reached by a $ref written as
-// a YAML alias, through a spelling of the source that no other key holds, was
-// built as a copy whose own $refs nothing resolved, and the lowering dropped the
-// response it names. The same $ref written as a plain string kept it.
-func TestExternalContent_AnAliasValuedRefNamingTheSourceKeepsWhatItNames(t *testing.T) {
+// TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames pins the cost
+// of reading such a $ref otherwise. A path item reached by a $ref written with a
+// YAML alias, for its value or for its key, through a spelling of the source that
+// no other key holds, was built as a copy whose own $refs nothing resolved, and
+// the lowering dropped the response it names. The same $ref written as a plain
+// string kept it.
+func TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	spelled := "'" + dir + "/./root.yaml#/components/pathItems/I'"
 	for _, c := range []struct{ name, ref, anchor string }{
-		{"a plain string", "'" + dir + "/./root.yaml#/components/pathItems/I'", ""},
-		{"an alias to a string", "*r", "x-r: &r '" + dir + "/./root.yaml#/components/pathItems/I'\n"},
+		{"a plain string", "{$ref: " + spelled + "}", ""},
+		{"an alias as the value", "{$ref: *r}", "x-r: &r " + spelled + "\n"},
+		{"an alias as the key", "{*k : " + spelled + "}", "x-k: &k '$ref'\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + c.anchor + "paths:\n  /a: {$ref: " + c.ref + "}\n" +
+			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + c.anchor + "paths:\n  /a: " + c.ref + "\n" +
 				"components:\n  pathItems:\n    I:\n      get:\n        operationId: i\n" +
 				"        responses: {\"200\": {$ref: '#/components/responses/R'}}\n" +
 				"  responses:\n    R: {description: ok}\n"

@@ -245,26 +245,35 @@ func TestHold_EachBackReferenceReachesTheObjectItNamesThroughItsOwnSpelling(t *t
 	}
 }
 
-// TestHold_AnAliasValuedRefIsHeldAsAPlainOneIs pins that a $ref written as a
-// YAML alias to an anchored string is read as the model reads it: its spelling
-// of the source is held by reference like any other, so it reaches the source's
-// own parameter and not a copy of it, which the resolver builds, validates and
-// holds unresolved wherever the scan did not hold the object ahead.
-func TestHold_AnAliasValuedRefIsHeldAsAPlainOneIs(t *testing.T) {
+// TestHold_AnAliasedRefIsHeldAsAPlainOneIs pins that a $ref written with a YAML
+// alias, for its value or for its key, is read as the model reads it: its
+// spelling of the source is held by reference like any other, so it reaches the
+// source's own parameter and not a copy of it, which the resolver builds,
+// validates and holds unresolved wherever the scan did not hold the object ahead.
+func TestHold_AnAliasedRefIsHeldAsAPlainOneIs(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\nx-r: &r '" + spellingOf(dir, 0) + "#/components/parameters/P0'\n" +
-		"paths:\n  /a: {get: {parameters: [{$ref: *r}], responses: {\"200\": {description: ok}}}}\n" +
-		"components:\n  parameters:\n    P0: {name: p0, in: query, schema: {type: string}}\n"
+	for _, c := range []struct{ name, anchor, ref string }{
+		{"an alias as the value", "x-r: &r '%s#/components/parameters/P0'\n", "{$ref: *r}"},
+		{"an alias as the key", "x-k: &k '$ref'\n", "{*k : '%s#/components/parameters/P0'}"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			spelled := spellingOf(dir, 0)
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + strings.ReplaceAll(c.anchor, "%s", spelled) +
+				"paths:\n  /a: {get: {parameters: [" + strings.ReplaceAll(c.ref, "%s", spelled) + "], responses: {\"200\": {description: ok}}}}\n" +
+				"components:\n  parameters:\n    P0: {name: p0, in: query, schema: {type: string}}\n"
 
-	got, diags := loadExternal(t, dir, spec, Options{})
+			got, diags := loadExternal(t, dir, spec, Options{})
 
-	assert.Empty(t, diags)
-	item, ok := got.Doc.Paths.Get("/a")
-	require.True(t, ok)
-	named, ok := got.Doc.Components.Parameters.Get("P0")
-	require.True(t, ok)
-	params := item.GetObject().Get().GetParameters()
-	require.Len(t, params, 1)
-	assert.Same(t, named.GetObject(), params[0].GetObject(), "the source's own parameter, not a copy of it")
+			assert.Empty(t, diags)
+			item, ok := got.Doc.Paths.Get("/a")
+			require.True(t, ok)
+			named, ok := got.Doc.Components.Parameters.Get("P0")
+			require.True(t, ok)
+			params := item.GetObject().Get().GetParameters()
+			require.Len(t, params, 1)
+			assert.Same(t, named.GetObject(), params[0].GetObject(), "the source's own parameter, not a copy of it")
+		})
+	}
 }

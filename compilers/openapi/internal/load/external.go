@@ -250,7 +250,7 @@ func (e external) holdObject(key string, o heldObject) {
 // resolver looks one up: for each such $ref, the object it names. Spelled
 // otherwise, a back reference is not found held, and the resolver builds a copy
 // of what it names (see Open). It visits each node of tree once, following an
-// alias only to read a $ref's value, as the model does.
+// alias only to read a $ref's key and value, as the model does.
 func (e external) holdSpellings(tree *yaml.Node, base string) {
 	stack := []*yaml.Node{tree}
 	for len(stack) > 0 {
@@ -258,7 +258,7 @@ func (e external) holdSpellings(tree *yaml.Node, base string) {
 		stack = stack[:len(stack)-1]
 		stack = append(stack, n.Content...)
 		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-			if key, value := n.Content[i], nodeview.Deref(n.Content[i+1]); key.Value == "$ref" && value.Kind == yaml.ScalarNode {
+			if key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1]); key.Value == "$ref" && value.Kind == yaml.ScalarNode {
 				e.holdSpelling(references.Reference(value.Value), base)
 			}
 		}
