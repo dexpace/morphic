@@ -300,6 +300,9 @@ const maxTypeResolveDepth = 64
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
 	pointer := src.Provenance.Pointer
 	if dst.Type.Target != src.Type.Target {
+		// A format hoist alone differs here: `{type: string, format: password}`
+		// owns a Scalar while a bare string stays on the shared primitive, so the
+		// format drops without a diagnostic. GitHub #446 owns whether it should.
 		dropped = true
 	} else {
 		// Same referent, and the only thing left for the two to disagree about

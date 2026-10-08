@@ -75,11 +75,12 @@ var schemaRecursion = []string{
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
-	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
-	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
-	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
-	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"hoistFormatScalar", "hoistRedactionScalar", "hoistSubSchema", "lower",
+	"lowerAllOf", "lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf",
+	"lowerSchemaBody", "lowerTyped", "lowerUnion", "lowerUntyped", "patternProps",
+	"refSiteRef", "refTypeRef", "resolveMappingTarget", "resolvePointer",
+	"resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 

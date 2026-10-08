@@ -90,7 +90,12 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	t.Parallel()
 	// The bare declaration comes first and the richer one second: reconciliation
 	// must still surface every optional detail, so branch order never loses
-	// information (the reverse of the forkee documented-first shape).
+	// information (the reverse of the forkee documented-first shape). The richer
+	// branch writes no format on purpose: a format that hoists a node of its own
+	// (byte, password, an unknown one) changes the branch's type target, and the
+	// fold then drops the declaration rather than folding its details — the
+	// secrecy half of that rule is its own case
+	// (TestAllOf_RedeclarationOrsSecret).
 	spec := openapitest.ComponentSpec(`    Tokenish:
       allOf:
         - type: object
@@ -101,7 +106,6 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
           properties:
             token:
               type: string
-              format: password
               description: the access token
               default: none
               minLength: 1
@@ -117,7 +121,6 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 
 	tok := m.Properties[0]
 	assert.True(t, tok.Required, "required in the richer branch => required on the merged property")
-	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer branch")
 	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever branch carries it")
 	require.NotNil(t, tok.Default, "default adopted from the richer branch")
 	require.NotNil(t, tok.Constraints, "constraints adopted from the richer branch")
@@ -125,6 +128,46 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	require.NotNil(t, tok.Deprecation, "deprecation adopted from the richer branch")
 	require.NotNil(t, tok.XML, "xml hints adopted from the richer branch")
 	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
+}
+
+// TestAllOf_RedeclarationOrsSecret pins the one property field a redeclaration
+// OR-s rather than folds: a redaction requested by either branch survives the
+// merge whichever declaration the type fold keeps (reconcileProperty). The two
+// branches no longer share a target once one of them writes `format: password`,
+// which hoists a Scalar of its own, so the shape fold drops the losing
+// declaration and keeps it verbatim rather than folding its details — the silent
+// interplay GitHub #446 owns, since typesConflict does not fire while both sides
+// still name a string.
+func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, branches string }{
+		{"password first", `        - type: object
+          properties:
+            token: {type: string, format: password}
+        - type: object
+          properties:
+            token: {type: string}
+`},
+		{"password second", `        - type: object
+          properties:
+            token: {type: string}
+        - type: object
+          properties:
+            token: {type: string, format: password}
+`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" + tc.branches)
+			doc, diags := lowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+			require.True(t, ok, "Tokenish should be a model")
+			require.Len(t, m.Properties, 1, "token reconciles to a single property")
+			assert.True(t, m.Properties[0].Secret,
+				"either branch's format:password makes the merged field secret, %s", tc.name)
+		})
+	}
 }
 
 func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
