@@ -48,8 +48,9 @@ var kindPrefixes = map[reflect.Type]string{
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring
-// node's provenance records, which is the only way irverify catches an ID that
-// lost the separator between its space and its path.
+// node's provenance records, so an ID that lost the separator between its space
+// and its path disagrees with that pointer. checkIDSpaces sees the same defect
+// in every class.
 //
 // Only a property is in it among the classes that declare their own ID. An
 // operation's provenance records where its body is declared and its ID where it

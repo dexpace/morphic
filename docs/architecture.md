@@ -89,8 +89,9 @@ What a compiler does *not* own is in `compilers/compile`: the state and the gram
 must agree on. That is the type registry with the source-coordinate map behind stable IDs (and the
 rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
 the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
-it, with the declaration of the namespaces a compiler mints in. What stays with the compiler is what only it can compute: the path an ID derives from, since a
-JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things.
+it, with the declaration of the namespaces a compiler mints in. What stays with the compiler is what
+only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path
+and a protobuf fully-qualified name are different things.
 
 The split is enforced rather than documented: architecture tests fail a package outside the
 framework that writes the type registry, derives a canonical name, builds an ID out of a string, or

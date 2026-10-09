@@ -37,10 +37,10 @@ type Document struct {
 	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
 	// document's IDs of that kind live in. A producer states it as it stamps
 	// IRVersion, from the namespace constants it already names; irverify reports
-	// an ID whose namespace is not declared, which is the one way to see a path
-	// glued onto its namespace. IDSpacePrim is ir's own and needs no entry. Each
-	// list is sorted, without repeats, and names no empty or separator-bearing
-	// namespace.
+	// an ID whose namespace is not declared, which sees a path glued onto its
+	// namespace in every class. A type needs no entry for IDSpacePrim, which is
+	// ir's own. Each list is sorted by the byte order of its UTF-8 spelling,
+	// without repeats, and names no empty or separator-bearing namespace.
 	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`

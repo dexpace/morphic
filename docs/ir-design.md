@@ -104,8 +104,9 @@ one, so PATCH carries no promise a consumer may read compatibility into. Moving 
 decision about the project's stability rather than about any one shape change, and no policy for
 MAJOR is written here until that decision is taken.
 
-- *Compilers* stamp `ir.IRVersion` on every document they produce. That is the whole obligation:
-  a compiler never emits an older generation, and there is no option to ask it to.
+- *Compilers* stamp `ir.IRVersion` on every document they produce, and declare beside it the
+  namespaces their IDs live in (§3.1). Of the version itself that is the whole obligation: a
+  compiler never emits an older generation, and there is no option to ask it to.
 - *Emitters* and any other consumer are built against exactly one generation. A bump is a change
   they must be updated for; there is no "read it anyway" mode, because the failure a stale
   consumer produces is silent — it finds no key it recognizes where a renamed one used to be and
@@ -243,9 +244,9 @@ compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two
 resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
 any other entity. Either way the ID is unique across the whole document, nested groups and every
 service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
-`ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. A name is never part of it, so two
-groups that render the same words stay two entities, and what an emitter does about that collision
-is a rendering decision it makes by ID (emitter-design §4.12).
+`ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
+of it, so two groups that render the same words stay two entities, and what an emitter does about
+that collision is a rendering decision it makes by ID (emitter-design §4.12).
 
 `irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
 well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
@@ -261,16 +262,17 @@ a rule from every operation sharing a key, has no single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
-stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever its
-class and whether or not its node records a pointer. The primitive namespace is `ir`'s and needs no
-entry. A document declaring nothing while carrying IDs is reported once (`ir/id-spaces-absent`). The
-declaration must itself be usable: keyed by real kinds, each list sorted without repeats, no empty
-namespace and none carrying the separator (`ir/id-spaces-unknown-kind`, `ir/id-spaces-not-canonical`,
+stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever
+its class and whether or not its node records a pointer. A type in the primitive namespace, which is
+`ir`'s, needs no entry. A document declaring nothing while carrying IDs is reported once
+(`ir/id-spaces-absent`). The declaration must itself be usable: keyed by real kinds, each list
+sorted by the byte order of its UTF-8 spelling and without repeats, no empty namespace and none
+carrying the separator (`ir/id-spaces-unknown-kind`, `ir/id-spaces-not-canonical`,
 `ir/id-space-invalid`). It is a vocabulary and not a usage report, so a namespace no ID uses is not
 an error here; a compiler's own test holds its vocabulary to what its corpus uses, in both
-directions. In this repository an architecture test also holds a compiler to building a namespace only
-from a literal, which is where a path gets glued on. Channels and messages have no prefix yet and are
-held to none of this.
+directions. In this repository an architecture test also holds a compiler to building a namespace
+only from a literal, which is where a path gets glued on. Channels and messages have no prefix yet
+and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
