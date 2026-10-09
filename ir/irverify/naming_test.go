@@ -241,7 +241,7 @@ func respondingDoc(r ir.Response) *ir.Document {
 			ID:   "g/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
-				ID:        "o/x/S/op",
+				ID:        "op/x/S/op",
 				Name:      named("op"),
 				Responses: []ir.Response{r},
 			}},
@@ -262,7 +262,7 @@ func erroringDoc(ec ir.ErrorCase) *ir.Document {
 			ID:   "g/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
-				ID:     "o/x/S/op",
+				ID:     "op/x/S/op",
 				Name:   named("op"),
 				Errors: []ir.ErrorCase{ec},
 			}},

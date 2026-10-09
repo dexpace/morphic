@@ -240,6 +240,17 @@ service included, because a consumer keys a group by it alone; `irverify` report
 groups that render the same words stay two entities, and what an emitter does about that collision
 is a rendering decision it makes by ID (emitter-design §4.12).
 
+`irverify` holds every class of ID that has a kind prefix to the grammar: well-formed
+(`ir/id-malformed`), and, where the node records the pointer its path was derived from, carrying
+that pointer as its path (`ir/id-provenance-disagreement`). Shape alone cannot tell an ID that lost
+the separator between its namespace and its path — `t/anonaddr` reads as a namespace named
+`anonaddr` — which is why the agreement is the half that matters. A type, a security scheme and a
+property are held to both. An operation is held to shape only, because its provenance records where
+its body is declared and its ID where it is mounted, and the two differ for an operation reached
+through a `$ref`'d path item or callback (#107); a service records no pointer and a group no
+provenance. So a lost separator in an operation, service or group ID is the one defect of this kind
+that no check sees. Channels and messages have no prefix yet and are held to neither.
+
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
 omit is a nil pointer (`Operation.OverloadOf`, `Reply.Channel`), as an optional type is a nil

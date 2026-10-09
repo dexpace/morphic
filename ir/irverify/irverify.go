@@ -82,6 +82,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkTypeRefs,
 		checkDuplicateIDs,
 		checkDeclaredIDs,
+		checkDeclaredIDShapes,
 		checkNaming,
 		checkRawPayloads,
 		checkProvenance,

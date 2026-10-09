@@ -1,6 +1,8 @@
 package irverify
 
 import (
+	"encoding/json/jsontext"
+	"reflect"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -31,6 +33,68 @@ func checkIDs(doc *ir.Document) []Violation {
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
 	return vs
+}
+
+// declaredKind is what the IDs of one class a node declares for itself are held to.
+type declaredKind struct {
+	// prefix is the kind prefix every ID of the class opens with.
+	prefix string
+	// pathAgrees reports whether the ID's path is the pointer the declaring
+	// node's provenance records, which is the only check that catches an ID
+	// that lost the separator between its space and its path.
+	pathAgrees bool
+}
+
+// declaredKinds holds the classes a node of the service tree or a model
+// declares, none of which has a registry key for checkIDs to read. Channels and
+// messages are absent: no compiler mints either, so ir defines no prefix yet.
+//
+// Only a property agrees with its provenance. An operation's provenance records
+// where its body is declared and its ID where it is mounted, and the two differ
+// for one reached through a $ref'd path item (GitHub #107). A service records
+// no pointer and a group no provenance at all.
+var declaredKinds = map[reflect.Type]declaredKind{
+	reflect.TypeFor[ir.OpID]():      {prefix: ir.IDKindOp},
+	reflect.TypeFor[ir.ServiceID](): {prefix: ir.IDKindService},
+	reflect.TypeFor[ir.GroupID]():   {prefix: ir.IDKindGroup},
+	reflect.TypeFor[ir.PropID]():    {prefix: ir.IDKindProp, pathAgrees: true},
+}
+
+// checkDeclaredIDShapes holds every operation, service, group and property ID to
+// the grammar checkIDs holds a type's or a scheme's to: well-formed, and for
+// the classes declaredKinds marks, carrying the pointer its node records.
+//
+// An empty ID is checkDeclaredIDs', so it is skipped rather than reported twice.
+func checkDeclaredIDShapes(doc *ir.Document, _ declarations) ([]Violation, bool) {
+	var vs []Violation
+	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+		if v.Kind() != reflect.Struct {
+			return true
+		}
+		class, id, declares := declaredID(v)
+		held, isHeld := declaredKinds[class]
+		if !declares || id == "" || !isHeld {
+			return true
+		}
+		var prov ir.Provenance
+		if held.pathAgrees {
+			prov.Pointer = recordedPointer(v)
+		}
+		vs = appendIDViolations(vs, held.prefix, id, prov, path)
+		return true
+	})
+	return vs, truncated
+}
+
+// recordedPointer returns the pointer the Provenance beside a node's ID records,
+// or none when the node has no Provenance. It reads the field rather than
+// converting the value for the reason fingerprintOf gives.
+func recordedPointer(node reflect.Value) jsontext.Pointer {
+	prov := node.FieldByName("Provenance")
+	if !prov.IsValid() {
+		return ""
+	}
+	return jsontext.Pointer(prov.FieldByName("Pointer").String())
 }
 
 // checkPrimIDs asserts the one TypeID ir can derive is the one the document
