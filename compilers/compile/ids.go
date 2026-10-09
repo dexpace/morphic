@@ -12,7 +12,9 @@ import (
 //
 // It is a named type rather than a string so a call cannot transpose the space
 // and the path — two same-typed string parameters being exactly the argument
-// order this package cannot check for a caller.
+// order this package cannot check for a caller. A compiler writes one only as a
+// literal, which internal/archtest enforces: a namespace assembled from data can
+// carry the path in with it and lose the separator (GitHub #141).
 type Space string
 
 // The primitive leaves take no Space of their own here. Their ID is
@@ -34,6 +36,7 @@ const (
 	propKind    = ir.IDKindProp
 	authKind    = ir.IDKindAuth
 	serviceKind = ir.IDKindService
+	groupKind   = ir.IDKindGroup
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -57,6 +60,11 @@ func AuthID(space Space, path string) ir.AuthID { return ir.AuthID(idFor(authKin
 // ServiceID returns the ID of the service at path within space.
 func ServiceID(space Space, path string) ir.ServiceID {
 	return ir.ServiceID(idFor(serviceKind, space, path))
+}
+
+// GroupID returns the ID of the operation group at path within space.
+func GroupID(space Space, path string) ir.GroupID {
+	return ir.GroupID(idFor(groupKind, space, path))
 }
 
 // idFor joins a kind prefix, a space and a path with single separators.

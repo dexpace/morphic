@@ -7,7 +7,7 @@ package ir
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed.
-const IRVersion = "0.6.0"
+const IRVersion = "0.7.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing
@@ -34,6 +34,15 @@ type TypeRegistry map[TypeID]TypeDef
 type Document struct {
 	// IRVersion is the version of the IR schema itself (semver).
 	IRVersion string `json:"irVersion,omitempty"`
+	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
+	// document's IDs of that kind live in. A producer states it as it stamps
+	// IRVersion, from the namespace constants it already names; irverify reports
+	// an ID whose namespace is not declared, which sees a path glued onto its
+	// namespace in every class. A type needs no entry for IDSpacePrim, which is
+	// ir's own. A kind with no namespace is left out. Each list is sorted by the
+	// byte order of its UTF-8 spelling, without repeats, and names no empty or
+	// separator-bearing namespace.
+	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`
 	// Version is the source-declared API version string.

@@ -1,5 +1,30 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "PerStatusErrors",
   "version": "1.0.0",
   "docs": {},
@@ -13,6 +38,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/default",
           "name": {
             "hint": "default"
           },

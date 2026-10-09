@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // nestedListValue returns a Value that is depth levels of single-element lists
@@ -42,7 +41,7 @@ func TestVerify_DeepInBoundsDefaultIsNotTruncated(t *testing.T) {
 		"t/prim/integer": &ir.Primitive{ID: "t/prim/integer", Prim: ir.PrimInteger},
 	}}
 
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		assert.NotEqual(t, "ir/walk-truncated", v.Code,
 			"deep but in-bounds default must not truncate the verifier walk")
 	}

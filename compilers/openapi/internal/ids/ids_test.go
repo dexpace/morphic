@@ -2,10 +2,12 @@ package ids_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -295,4 +297,104 @@ func TestDeclarationHint_PrefersTheComponentName(t *testing.T) {
 			assert.Equal(t, tc.want, ids.DeclarationHint(tc.pointer, tc.fallback))
 		})
 	}
+}
+
+// TestGroupIDs_SpellEachRule pins the spelling of every group ID, written out
+// rather than derived so a test cannot agree with a change to the derivation.
+// The empty key is the odd one: a space naming a single node takes no trailing
+// separator, so the tag "" is "g/tags" and not a malformed "g/tags/".
+func TestGroupIDs_SpellEachRule(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		got  ir.GroupID
+		want ir.GroupID
+	}{
+		{name: "a tag", got: ids.TagGroup("pets"), want: "g/tags/pets"},
+		{name: "a tag with a slash", got: ids.TagGroup("a/b"), want: "g/tags/a~1b"},
+		{name: "a tag with a tilde", got: ids.TagGroup("a~b"), want: "g/tags/a~0b"},
+		{name: "the tag named by the empty string", got: ids.TagGroup(""), want: "g/tags"},
+		{name: "a path prefix", got: ids.PathPrefixGroup("users"), want: "g/path-prefix/users"},
+		{name: "a path prefix with a template", got: ids.PathPrefixGroup("{id}"), want: "g/path-prefix/{id}"},
+		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "g/path-prefix/a~0b"},
+		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "g/path-prefix/a~1b"},
+		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "g/path-prefix"},
+		{name: "untagged operations", got: ids.DefaultGroup(), want: "g/default"},
+		{name: "webhook operations", got: ids.WebhookGroup(), want: "g/webhooks"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.got)
+			assert.True(t, ir.WellFormedID(ir.IDKindGroup, string(tc.got)), "%q must be a well-formed group ID", tc.got)
+		})
+	}
+}
+
+// TestGroupIDs_NeverCollide holds the property the IDs exist for: groups that
+// differ in the rule that formed them or the key it read have different IDs.
+// The keys include names that look like the synthesized groups ("default",
+// "webhooks") and every string up to length four over the characters RFC 6901
+// escapes plus the digits an escape is spelled with: a tag "a/b" and a tag
+// "a~1b" collide if "~" is left unescaped, which a hand-picked list tends to miss.
+func TestGroupIDs_NeverCollide(t *testing.T) {
+	t.Parallel()
+	exhaustive := stringsOver([]string{"a", "/", "~", "0", "1"}, 4)
+	require.Len(t, exhaustive, 781, "5^0 + … + 5^4 strings; a shorter list would pass this test vacuously")
+	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix"}, exhaustive)
+
+	rules := []struct {
+		name string
+		id   func(key string) ir.GroupID
+	}{
+		{name: "tag", id: ids.TagGroup},
+		{name: "path prefix", id: ids.PathPrefixGroup},
+	}
+	seen := map[ir.GroupID]string{
+		ids.DefaultGroup(): "the default group",
+		ids.WebhookGroup(): "the webhook group",
+	}
+	for _, key := range keys {
+		for _, rule := range rules {
+			id := rule.id(key)
+			label := fmt.Sprintf("%s %q", rule.name, key)
+			prior, taken := seen[id]
+			require.Falsef(t, taken, "%s and %s are both %q", label, prior, id)
+			seen[id] = label
+			require.Truef(t, ir.WellFormedID(ir.IDKindGroup, string(id)), "%s: %q", label, id)
+		}
+	}
+}
+
+// stringsOver returns every string of length zero to maxLen over the alphabet,
+// each once, shortest first.
+func stringsOver(alphabet []string, maxLen int) []string {
+	total, width := 1, 1
+	for range maxLen {
+		width *= len(alphabet)
+		total += width
+	}
+	all := make([]string, 1, total)
+	for parent := 0; len(all) < total; parent++ {
+		for _, letter := range alphabet {
+			all = append(all, all[parent]+letter)
+		}
+	}
+	return all
+}
+
+// TestNamespaces_NameEveryNamespaceThisCompilerMints pins the vocabulary the
+// document declares, written out so a namespace cannot be added to a derivation
+// without someone deciding it belongs here. The compiler's own corpus test holds
+// the same list to what the corpus really uses.
+func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, map[string][]string{
+		ir.IDKindType:    {"anon", "composed", "openapi"},
+		ir.IDKindOp:      {"openapi"},
+		ir.IDKindProp:    {"openapi"},
+		ir.IDKindAuth:    {"openapi"},
+		ir.IDKindService: {"openapi"},
+		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+	}, ids.Namespaces().Declaration())
 }

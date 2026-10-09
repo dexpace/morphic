@@ -55,6 +55,8 @@ enforced by a generated `switch`-completeness test over `TypeKind` values (the o
 ```go
 type Document struct {
     IRVersion   string                 // version of the IR schema itself, semver
+    IDSpaces    map[string][]string    // the namespaces the document's IDs live in, by kind prefix (§3.1);
+                                       // a producer states it as it stamps IRVersion
     Name        string                 // API title
     Version     string                 // API version string (source-declared)
     Docs        Docs
@@ -102,8 +104,9 @@ one, so PATCH carries no promise a consumer may read compatibility into. Moving 
 decision about the project's stability rather than about any one shape change, and no policy for
 MAJOR is written here until that decision is taken.
 
-- *Compilers* stamp `ir.IRVersion` on every document they produce. That is the whole obligation:
-  a compiler never emits an older generation, and there is no option to ask it to.
+- *Compilers* stamp `ir.IRVersion` on every document they produce, and declare beside it the
+  namespaces their IDs live in (§3.1). Of the version itself that is the whole obligation: a
+  compiler never emits an older generation, and there is no option to ask it to.
 - *Emitters* and any other consumer are built against exactly one generation. A bump is a change
   they must be updated for; there is no "read it anyway" mode, because the failure a stale
   consumer produces is silent — it finds no key it recognizes where a renamed one used to be and
@@ -180,6 +183,15 @@ it sees. Changes made together in one bump are listed together under it.
   pointer; a line and column moved to `position`, and an IR pass's location in the document itself
   moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
   unlocated.
+- **0.7.0** — two additions made together:
+  - `OperationGroup` gained `ID`. A group had been a name and a list of operations, so a consumer
+    could key a sub-client only by its name, which two groups can share: the declared tag `default`
+    and the group untagged operations fall into render from the same words. A consumer pinned to
+    0.6.0 finds no `id` on a group and has nothing else to key it by.
+  - `Document` gained `IDSpaces`, the namespaces its IDs live in, by kind prefix. Without it nothing
+    could see an ID that lost the separator before its path in an operation, a service or a group,
+    which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
+    cannot tell which namespaces a producer minted in.
 
 ---
 
@@ -190,7 +202,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID string
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -200,7 +212,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `g`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -223,6 +235,44 @@ node every source reaches by kind. `irverify` holds no producer to this so far (
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
+
+An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
+Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
+that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
+compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two singletons
+`g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a Smithy
+resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
+any other entity. Either way the ID is unique across the whole document, nested groups and every
+service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
+`ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
+of it, so two groups that render the same words stay two entities, and what an emitter does about
+that collision is a rendering decision it makes by ID (emitter-design §4.12).
+
+`irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
+well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
+pointer its path was derived from (`ir/id-provenance-disagreement`). And it lives in a namespace the
+document declares (`ir/id-space-undeclared`).
+
+The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
+namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
+security scheme and a property are held to it. An operation is not, because its provenance records
+where its body is declared and its ID where it is mounted, and the two differ for an operation reached
+through a `$ref`'d path item or callback (#107). A service records no pointer, and a group, formed by
+a rule from every operation sharing a key, has no single position to record.
+
+The declaration is what sees them all. A producer states the namespaces it mints IDs in as
+`Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
+stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever
+its class and whether or not its node records a pointer. A type in the primitive namespace, which is
+`ir`'s, needs no entry. A document declaring nothing while carrying IDs is reported once
+(`ir/id-spaces-absent`). The declaration must itself be usable: keyed by real kinds, a kind with no
+namespace left out, each list sorted by the byte order of its UTF-8 spelling and without repeats,
+no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
+`ir/id-spaces-not-canonical`, `ir/id-space-invalid`). It is a vocabulary and not a usage report, so
+a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
+corpus uses, in both directions. In this repository an architecture test also holds a compiler to
+building a namespace only from a literal, which is where a path gets glued on. Channels and messages
+have no prefix yet and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
@@ -1203,6 +1253,7 @@ type ProtocolDecl struct {
 }
 
 type OperationGroup struct {
+    ID         GroupID            // minted by the rule that formed the group (§3.1); document-wide unique
     Name       Naming
     Docs       Docs
     Groups     []OperationGroup   // nesting: Smithy resources, sub-clients

@@ -87,6 +87,7 @@ func otpCarrierDoc(v ir.Value) *ir.Document {
 			ID:   "s/x/S",
 			Name: named("s"),
 			Groups: []ir.OperationGroup{{
+				ID:         "g/x/S/g",
 				Name:       named("g"),
 				Operations: []ir.Operation{op},
 			}},
@@ -108,6 +109,7 @@ func parameterCarrierDoc(v ir.Value) *ir.Document {
 			ID:   "s/x/S",
 			Name: named("s"),
 			Groups: []ir.OperationGroup{{
+				ID:         "g/x/S/g",
 				Name:       named("g"),
 				Operations: []ir.Operation{op},
 			}},
@@ -191,7 +193,7 @@ type valueLoc struct {
 // produce, as both a cmp.Diff-able projection (locs) and the full Violations a
 // case can still inspect for message content (full).
 func valueViolations(doc *ir.Document) (locs []valueLoc, full []irverify.Violation) {
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if !valueCodes[v.Code] {
 			continue
 		}

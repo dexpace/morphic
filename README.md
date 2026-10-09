@@ -231,7 +231,7 @@ entry in that test allows, and nothing from a layer above its own.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
-| `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot helper | `ir` (`irtest` also `go-cmp`) |
+| `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |

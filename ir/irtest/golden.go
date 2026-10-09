@@ -1,4 +1,5 @@
-// Package irtest provides golden-snapshot helpers for IR documents.
+// Package irtest provides test helpers for IR documents: golden snapshots, and
+// the namespaces a document's IDs live in.
 package irtest
 
 import (

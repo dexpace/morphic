@@ -29,12 +29,12 @@ func named(source string) ir.Naming {
 }
 
 func TestVerify_CleanDocHasNoViolations(t *testing.T) {
-	got := irverify.Verify(validDoc())
+	got := verifyDeclared(validDoc())
 	assert.Empty(t, got)
 }
 
 func TestVerify_NilDocIsAViolation(t *testing.T) {
-	got := irverify.Verify(nil)
+	got := verifyDeclared(nil)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/nil-document", got[0].Code)
 }
@@ -47,7 +47,7 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 	delete(doc.Types, "t/x/Model")
 	doc.Types["t/x/WrongKey"] = m
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/type-id-mismatch")
 }
@@ -66,7 +66,7 @@ func TestVerify_SortsSameCodeByPath(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
 
 	var dangling []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/dangling-type-ref" {
 			dangling = append(dangling, v)
 		}
@@ -88,7 +88,7 @@ func TestVerify_NilTypeDefIsAViolation(t *testing.T) {
 	// An untyped nil in the Types registry must be reported, not dereferenced:
 	// Verify stays a report-only oracle that never panics on a malformed document.
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/nil": nil}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/nil-type")
 }
@@ -97,35 +97,35 @@ func TestVerify_TypedNilTypeDefIsAViolation(t *testing.T) {
 	// A typed nil pointer is a non-nil interface whose Common() still panics, so
 	// it must be reported as ir/nil-type rather than crashing the walk.
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/typednil": (*ir.Model)(nil)}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/nil-type")
 }
 
 func TestVerify_EmptyTypeIDIsAViolation(t *testing.T) {
 	doc := &ir.Document{Types: ir.TypeRegistry{"": &ir.Any{}}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-type-id", got[0].Code)
 }
 
 func TestVerify_EmptyChannelIDIsAViolation(t *testing.T) {
 	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{"": {}}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-channel-id", got[0].Code)
 }
 
 func TestVerify_EmptyMessageIDIsAViolation(t *testing.T) {
 	doc := &ir.Document{Messages: map[ir.MessageID]ir.Message{"": {}}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-message-id", got[0].Code)
 }
 
 func TestVerify_EmptyAuthIDIsAViolation(t *testing.T) {
 	doc := &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{"": {}}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-auth-id", got[0].Code)
 }
@@ -136,7 +136,7 @@ func TestVerify_ChannelIDMismatchIsAViolation(t *testing.T) {
 	doc := &ir.Document{Channels: map[ir.ChannelID]ir.Channel{
 		"c/x/WrongKey": {ID: "c/x/Ch"},
 	}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/channel-id-mismatch")
 }
