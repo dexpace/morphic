@@ -698,7 +698,9 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // operationAt finds the operation bound to one HTTP method and URI template.
 // Operations reached through a shared path item have no distinguishing name of
-// their own, so their binding is what tells them apart.
+// their own, so their binding is what tells them apart. Every caller passes a
+// path operation; a webhook carries no URI template and is found by
+// WebhookName instead.
 func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	for _, op := range allOperations(doc) {
@@ -2608,6 +2610,8 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
+	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 	assertPathItemServersKept(t, op, "https://hooks.example.com")
 	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
 	assertWebhookGroupIsAHint(t, doc)
@@ -2786,6 +2790,9 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	require.True(t, ok)
 	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
 		"a webhook mount marks the binding whichever field declared the operation")
+	assert.Equal(t, "cacheFlushed", onFlush.Bindings.HTTP[0].WebhookName,
+		"the webhooks-map key names the event")
+	assert.Empty(t, onFlush.Bindings.HTTP[0].URITemplate)
 
 	subscribe, ok := opByName(doc, "subscribeIndex")
 	require.True(t, ok)

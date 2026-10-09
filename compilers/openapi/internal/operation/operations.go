@@ -232,9 +232,10 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
-// each webhook operation carries IsWebhook on its HTTP binding. It stops
-// between webhooks when ctx is done, as lowerPaths does, and svc holds what a
-// webhook item mounting no operation writes.
+// each webhook operation carries IsWebhook and WebhookName on its HTTP binding —
+// the webhooks-map key is the event name, so it goes to WebhookName and no
+// uriTemplate is set. It stops between webhooks when ctx is done, as lowerPaths
+// does, and svc holds what a webhook item mounting no operation writes.
 func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
@@ -256,7 +257,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			ptrs := opPointers{mount: hookPtr + po.seg, decl: declPtr + po.seg}
 			opCtx := opContext{
 				method:        po.method,
-				uriTemplate:   name,
+				webhookName:   name,
 				isWebhook:     true,
 				withCallbacks: true,
 				ptrs:          ptrs,
@@ -326,12 +327,17 @@ type opPointers struct {
 // grouping provenance, and the path-item-merged parameter list — each entry
 // still carrying the pointer of its own declaration site rather than a position
 // in the merged list.
+//
+// uriTemplate and webhookName are alternatives, not a pair: a path operation
+// carries the path in uriTemplate, while a webhook carries no template at all
+// and its naming input is the webhooks-map key in webhookName.
 type opContext struct {
 	// method is the method as sent on the wire — a fixed field's name upper-cased,
 	// or an additionalOperations key exactly as the source spelled it — so nothing
 	// downstream has to know which of the two declared the operation.
 	method        string
 	uriTemplate   string
+	webhookName   string
 	isWebhook     bool
 	withCallbacks bool
 	inferred      string
@@ -350,9 +356,16 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	// not known until the payloads are lowered.
 	opProv := c.ProvenanceAt(decl)
 	opAuth, diags := auth.LowerSecurityRequirements(c, src.Security, decl)
+	// The naming token is the path for a path operation and the webhooks-map
+	// key for a webhook. A webhook binding carries no uriTemplate, so reading
+	// one here would drop the event name from a synthesized hint.
+	nameToken := opCtx.uriTemplate
+	if opCtx.isWebhook {
+		nameToken = opCtx.webhookName
+	}
 	op := ir.Operation{
 		ID:   ids.Op(mount),
-		Name: operationName(src, opCtx.method, opCtx.uriTemplate),
+		Name: operationName(src, opCtx.method, nameToken),
 		Tags: src.GetTags(),
 		Auth: opAuth,
 		// The ID is the mount — two mounts of one $ref'd path item are two
@@ -380,6 +393,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	hb := ir.HTTPBinding{
 		Method:        opCtx.method,
 		URITemplate:   opCtx.uriTemplate,
+		WebhookName:   opCtx.webhookName,
 		IsWebhook:     opCtx.isWebhook,
 		ParamBindings: bindings,
 	}
@@ -459,7 +473,7 @@ func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation,
 
 // operationName builds an operation's neutral naming: the operationId when
 // present (source + canonical words), else an empty source with a method+path
-// hint so emitters can synthesize a name.
+// (or method+webhook name) hint so emitters can synthesize a name.
 func operationName(src *soa.Operation, method, uriTemplate string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
 		return compile.NamingFor(id)
