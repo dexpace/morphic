@@ -436,11 +436,11 @@ func TestValidate_DuplicateGroupIDStopsAtTheDepthBound(t *testing.T) {
 
 // paramRefOp builds an operation declaring one parameter and carrying the
 // operation-level references under test; ref picks which ID each names.
-func paramRefOp(id string, ref ir.ParamID, kind ir.IdempotencyKind) ir.Operation {
+func paramRefOp(id string, ref ir.ParamID) ir.Operation {
 	return ir.Operation{
 		ID:          ir.OpID(id),
 		Params:      []ir.Parameter{{ID: ir.ParamID("param/x/" + id), Name: ir.Naming{Source: "p"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
-		Idempotency: ir.Idempotency{Kind: kind, TokenParam: ref},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: ref},
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
 			InputCursor: &ir.ParamPath{Param: ref},
@@ -470,8 +470,8 @@ func twoOpDoc(a, b ir.Operation) *ir.Document {
 
 func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 	t.Parallel()
-	a := paramRefOp("op/a", "param/x/op/a", ir.IdempotencyToken)
-	b := paramRefOp("op/b", "param/x/op/b", ir.IdempotencyToken)
+	a := paramRefOp("op/a", "param/x/op/a")
+	b := paramRefOp("op/b", "param/x/op/b")
 	m, d := refErrors(pass.Validate(twoOpDoc(a, b)))
 	assert.Zero(t, m)
 	assert.Zero(t, d)
@@ -479,8 +479,8 @@ func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 
 func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 	t.Parallel()
-	a := paramRefOp("op/a", "param/x/op/b", ir.IdempotencyToken)
-	b := paramRefOp("op/b", "param/x/op/b", ir.IdempotencyToken)
+	a := paramRefOp("op/a", "param/x/op/b")
+	b := paramRefOp("op/b", "param/x/op/b")
 	m, d := refErrors(pass.Validate(twoOpDoc(a, b)))
 	assert.Equal(t, 3, m, "TokenParam, InputCursor and InputLimit of op/a")
 	assert.Zero(t, d)
@@ -488,7 +488,7 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 
 func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
 	t.Parallel()
-	a := paramRefOp("op/a", "param/x/ghost", ir.IdempotencyToken)
+	a := paramRefOp("op/a", "param/x/ghost")
 	m, d := refErrors(pass.Validate(docWithOperation(a)))
 	assert.Zero(t, m, "the dangling-ref walk owns an ID nobody declares")
 	assert.Equal(t, 3, d)
