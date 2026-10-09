@@ -713,6 +713,11 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		if !moves {
 			return id, diags
 		}
+		if !namesMovedDiscriminator(diags) {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct,
+				pointer+ids.Ptr("discriminator"), "the discriminator routes to a target that is not a subtype "+
+					"of this model, so it is kept verbatim"))
+		}
 		return id, append(diags, moveDiscriminatorToUnmodeled(c, ts, id, s, pointer)...)
 	}
 	switch classifyUnionSiblings(c, s) {
@@ -737,6 +742,18 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		return beside(ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
 	}
+}
+
+// namesMovedDiscriminator reports whether diags already carry an info
+// degraded-construct diagnostic that says the discriminator moved off the model.
+func namesMovedDiscriminator(diags []ir.Diagnostic) bool {
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
+			strings.Contains(d.Message, discriminatorMovedWhy) {
+			return true
+		}
+	}
+	return false
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref

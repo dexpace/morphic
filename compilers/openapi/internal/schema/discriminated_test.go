@@ -239,8 +239,24 @@ func TestDiscriminatedUnion_EveryDegradedShapeGatesTheDiscriminator(t *testing.T
 				assert.Nil(t, pet.Discriminator, "a non-subtype target stays off the model")
 				assert.Contains(t, pet.Unmodeled, "openapi:discriminator")
 			}
+			for _, src := range []string{degradedPet(shape.branches) + cat + dog, cat + dog + degradedPet(shape.branches)} {
+				_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", src))
+				assert.Equal(t, 1, countMovedDiscriminator(diags), "exactly one diagnostic names the move: %+v", diags)
+			}
 		})
 	}
+}
+
+// countMovedDiscriminator counts the diagnostics saying the discriminator was
+// kept verbatim because it routes to a target that is not a subtype.
+func countMovedDiscriminator(diags []ir.Diagnostic) int {
+	n := 0
+	for _, d := range diags {
+		if strings.Contains(d.Message, "not a subtype of this model") {
+			n++
+		}
+	}
+	return n
 }
 
 // TestDiscriminatedUnion_DegradedShapesKeepSubtypeDiscriminators pins that the
