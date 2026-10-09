@@ -12,16 +12,14 @@ import (
 const idFieldName = "ID"
 
 // checkDeclaredIDs asserts every node that declares an identity of its own
-// carries a non-empty one. An ID derives from the source pointer, so an empty
-// one is a compiler bug; it surfaces as a dangling reference at the referring
-// site, not as the missing declaration.
+// carries one, and a well-formed one. An ID derives from the source pointer, so
+// an empty or malformed one is a compiler bug; an empty one surfaces as a
+// dangling reference at the referring site, not as the missing declaration.
 //
-// Nothing else reaches these nodes. checkRegistryKeys reads an empty ID from
-// the registry key, but an Operation, OperationGroup, Service or Property has
-// no key, and checkDuplicateIDs never sees one because ir.DeclaredIDs drops
-// empty IDs (GitHub #289). Classes checkRegistryKeys covers (see
-// ir.DocumentRegistries) are skipped so one defect gets one report, under the
-// same ir/empty-<noun>-id code.
+// Nothing else reaches these nodes. The registry checks read a type, scheme,
+// channel or message by its key, but an Operation, OperationGroup, Service or
+// Property has none, and ir.DeclaredIDs drops an empty ID before
+// checkDuplicateIDs sees it (GitHub #289). Classes with a registry are skipped.
 func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	keyed := ir.DocumentRegistries(doc)
 	var vs []Violation
@@ -30,18 +28,13 @@ func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 			return true
 		}
 		class, id, declares := declaredID(v)
-		if !declares || id != "" {
+		if !declares {
 			return true
 		}
 		if _, hasRegistry := keyed[class]; hasRegistry {
-			return true // checkRegistryKeys reads this class from its registry key
+			return true // the registry key is where these classes are read
 		}
-		noun := ir.RefNoun(class)
-		vs = append(vs, Violation{
-			Code:    "ir/empty-" + noun + "-id",
-			Message: noun + " declares no identity of its own, so nothing can reference it",
-			Path:    path,
-		})
+		vs = appendDeclaredIDViolations(vs, v, class, id, path)
 		return true
 	})
 	return vs, truncated

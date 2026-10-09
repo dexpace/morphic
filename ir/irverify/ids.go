@@ -35,55 +35,55 @@ func checkIDs(doc *ir.Document) []Violation {
 	return vs
 }
 
-// declaredKind is what the IDs of one class a node declares for itself are held to.
-type declaredKind struct {
-	// prefix is the kind prefix every ID of the class opens with.
-	prefix string
-	// pathAgrees reports whether the ID's path is the pointer the declaring
-	// node's provenance records, which is the only way irverify catches an ID
-	// that lost the separator between its space and its path.
-	pathAgrees bool
+// kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
+// check that needs the prefix of a class asks one table. Channels and messages
+// are absent: no compiler mints either, so ir defines no prefix for them yet.
+var kindPrefixes = map[reflect.Type]string{
+	reflect.TypeFor[ir.TypeID]():    ir.IDKindType,
+	reflect.TypeFor[ir.AuthID]():    ir.IDKindAuth,
+	reflect.TypeFor[ir.OpID]():      ir.IDKindOp,
+	reflect.TypeFor[ir.ServiceID](): ir.IDKindService,
+	reflect.TypeFor[ir.GroupID]():   ir.IDKindGroup,
+	reflect.TypeFor[ir.PropID]():    ir.IDKindProp,
 }
 
-// declaredKinds holds the classes a node of the service tree or a model
-// declares, none of which has a registry key for checkIDs to read. Channels and
-// messages are absent: no compiler mints either, so ir defines no prefix yet.
+// pointerDerived is the classes whose ID path is the pointer the declaring
+// node's provenance records, which is the only way irverify catches an ID that
+// lost the separator between its space and its path.
 //
-// Only a property agrees with its provenance. An operation's provenance records
-// where its body is declared and its ID where it is mounted, and the two differ
-// for one reached through a $ref'd path item (GitHub #107). A service records
-// no pointer and a group no provenance at all.
-var declaredKinds = map[reflect.Type]declaredKind{
-	reflect.TypeFor[ir.OpID]():      {prefix: ir.IDKindOp},
-	reflect.TypeFor[ir.ServiceID](): {prefix: ir.IDKindService},
-	reflect.TypeFor[ir.GroupID]():   {prefix: ir.IDKindGroup},
-	reflect.TypeFor[ir.PropID]():    {prefix: ir.IDKindProp, pathAgrees: true},
+// Only a property is in it among the classes that declare their own ID. An
+// operation's provenance records where its body is declared and its ID where it
+// is mounted, and the two differ for one reached through a $ref'd path item
+// (GitHub #107). A service records no pointer and a group no provenance.
+var pointerDerived = map[reflect.Type]bool{
+	reflect.TypeFor[ir.PropID](): true,
 }
 
-// checkDeclaredIDShapes holds every operation, service, group and property ID to
-// the grammar checkIDs holds a type's or a scheme's to: well-formed, and for
-// the classes declaredKinds marks, carrying the pointer its node records.
+// appendDeclaredIDViolations reports what is wrong with the ID a node declares
+// for itself: nothing at all, or, for a class with a kind prefix, a spelling the
+// grammar could not have produced or, where the class is pointer-derived, a path
+// that is not the pointer the node records.
 //
-// An empty ID is checkDeclaredIDs', so it is skipped rather than reported twice.
-func checkDeclaredIDShapes(doc *ir.Document, _ declarations) ([]Violation, bool) {
-	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
-			return true
-		}
-		class, id, declares := declaredID(v)
-		held, isHeld := declaredKinds[class]
-		if !declares || id == "" || !isHeld {
-			return true
-		}
-		var prov ir.Provenance
-		if held.pathAgrees {
-			prov.Pointer = recordedPointer(v)
-		}
-		vs = appendIDViolations(vs, held.prefix, id, prov, path)
-		return true
-	})
-	return vs, truncated
+// It is the grammar checkIDs holds a type's or a scheme's to, for the classes
+// that have no registry for checkIDs to read.
+func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id, path string) []Violation {
+	if id == "" {
+		noun := ir.RefNoun(class)
+		return append(vs, Violation{
+			Code:    "ir/empty-" + noun + "-id",
+			Message: noun + " declares no identity of its own, so nothing can reference it",
+			Path:    path,
+		})
+	}
+	prefix, held := kindPrefixes[class]
+	if !held {
+		return vs
+	}
+	var prov ir.Provenance
+	if pointerDerived[class] {
+		prov.Pointer = recordedPointer(node)
+	}
+	return appendIDViolations(vs, prefix, id, prov, path)
 }
 
 // recordedPointer returns the pointer the Provenance beside a node's ID records,
