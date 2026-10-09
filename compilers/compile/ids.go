@@ -12,7 +12,9 @@ import (
 //
 // It is a named type rather than a string so a call cannot transpose the space
 // and the path — two same-typed string parameters being exactly the argument
-// order this package cannot check for a caller.
+// order this package cannot check for a caller. A compiler writes one only as a
+// literal, which internal/archtest enforces: a namespace assembled from data can
+// carry the path in with it and lose the separator (GitHub #141).
 type Space string
 
 // The primitive leaves take no Space of their own here. Their ID is

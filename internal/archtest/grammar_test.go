@@ -92,16 +92,17 @@ var idOwners = []string{"compilers/compile"}
 var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ChannelID", "MessageID"}
 
 // TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
-// but the framework builds an ir ID out of a string.
+// but the framework builds an ir ID out of a string, or a namespace out of
+// anything but a literal.
 //
 // The derivation stays with the compiler (a JSON Pointer, a GraphQL structural
 // path and a protobuf name are different things), but the grammar around it
 // does not: the kind prefix, the namespace, and the rule that a minted node
 // takes a namespace of its own (GitHub #162).
 //
-// The sweep covers the compilers, not the repository, because converting an
-// existing ID string back into its type is legitimate elsewhere: pass and
-// irverify do it to look a node up, which derives nothing.
+// The sweep covers the compilers, not the repository: pass and irverify convert
+// an existing ID string back into its type to look a node up, which derives
+// nothing.
 func TestIDGrammar_CompilersDeriveIDsThroughTheFramework(t *testing.T) {
 	t.Parallel()
 	offenders := sweepProduction(t, repoRoot(t), "compilers", idOwners, idDerivations)
@@ -135,6 +136,39 @@ func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID) {
 	assert.Contains(t, offenders[2], "converts a string to an ir.PropID")
 }
 
+// TestIDDerivations_SpaceBuiltFromDataIsCaught plants a compiler assembling a
+// namespace from data, the shape that loses the separator before the path. The
+// declaration, the glued conversion, the conversion of a variable and the
+// conversion of a number are each reported. Literal namespaces, however used,
+// and a declaration with no value are clean.
+func TestIDDerivations_SpaceBuiltFromDataIsCaught(t *testing.T) {
+	t.Parallel()
+	const src = `package graphql
+
+const fixedSpace compile.Space = "graphql"
+
+var (
+	glued   compile.Space = prefix + name
+	pending compile.Space
+)
+
+func ids(name string) (ir.OpID, ir.OpID, ir.OpID, compile.Space, compile.Space) {
+	fixed := compile.OpID(fixedSpace, "/"+name)
+	literal := compile.OpID(compile.Space("graphql"), name)
+	lost := compile.OpID(compile.Space("graphql"+name), "")
+	return fixed, literal, lost, compile.Space(name), compile.Space(65)
+}
+`
+	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", src)
+	require.NoError(t, err)
+	require.Len(t, offenders, 4,
+		"the declaration and three conversions that are not string literals; not the literals: %v", offenders)
+	assert.Contains(t, offenders[0], "declares a compile.Space from a non-literal")
+	for _, conversion := range offenders[1:] {
+		assert.Contains(t, conversion, "converts a non-literal to a compile.Space")
+	}
+}
+
 // idDerivations reports every place in one file that builds an ir ID out of a
 // string: a conversion, and a typed declaration holding a literal — the shape
 // that spells an ID without converting anything. src is nil to read the file at
@@ -166,9 +200,55 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 			}
 		default:
 		}
+		if how, bad := spaceFromData(n); bad {
+			found = append(found, fmt.Sprintf("%s:%d: %s; a compile.Space is a literal, or the path glued onto it loses its separator",
+				rel, fset.Position(n.Pos()).Line, how))
+		}
 		return true
 	})
 	return found, nil
+}
+
+// spaceFromData reports a compile.Space built from anything but a string
+// literal: a conversion of some other expression, or a declaration of the type
+// whose value is one.
+//
+// The framework supplies the separator between a namespace and its path, but only
+// when the two arrive as separate arguments. A namespace assembled from data can
+// carry the path in with it, which is how "t/anonaddr" lost its separator
+// (GitHub #141) in a form no check on the finished ID can tell from a real
+// namespace. Every namespace a compiler names today is a typed literal constant.
+func spaceFromData(n ast.Node) (how string, bad bool) {
+	switch node := n.(type) {
+	case *ast.CallExpr:
+		if isSelector(node.Fun, "compile", "Space") && (len(node.Args) != 1 || !isStringLiteral(node.Args[0])) {
+			return "converts a non-literal to a compile.Space", true
+		}
+	case *ast.ValueSpec:
+		if isSelector(node.Type, "compile", "Space") && !allStringLiterals(node.Values) {
+			return "declares a compile.Space from a non-literal", true
+		}
+	default:
+	}
+	return "", false
+}
+
+// isStringLiteral reports whether e is a string literal.
+func isStringLiteral(e ast.Expr) bool {
+	lit, ok := e.(*ast.BasicLit)
+	return ok && lit.Kind == token.STRING
+}
+
+// allStringLiterals reports whether every expression is a string literal. No
+// expressions at all is vacuously true: a declaration with no value builds
+// nothing.
+func allStringLiterals(exprs []ast.Expr) bool {
+	for _, e := range exprs {
+		if !isStringLiteral(e) {
+			return false
+		}
+	}
+	return true
 }
 
 // idTypeName returns the name of the ir ID type expr names, if it names one.

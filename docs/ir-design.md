@@ -248,8 +248,11 @@ the separator between its namespace and its path — `t/anonaddr` reads as a nam
 property are held to both. An operation is held to shape only, because its provenance records where
 its body is declared and its ID where it is mounted, and the two differ for an operation reached
 through a `$ref`'d path item or callback (#107); a service records no pointer and a group no
-provenance. So a lost separator in an operation, service or group ID is the one defect of this kind
-that no check sees. Channels and messages have no prefix yet and are held to neither.
+provenance. So `irverify` cannot see a lost separator in an operation, service or group ID. What
+keeps one out is upstream: the framework supplies the separator, and an architecture test holds a
+compiler to building a namespace only from a literal, since one assembled from data can carry the path
+in with it. A document from a producer outside this repository is the only way to reach one. Channels
+and messages have no prefix yet and are held to neither.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
