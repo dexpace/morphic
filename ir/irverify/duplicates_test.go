@@ -22,7 +22,7 @@ func duplicateViolations(doc *ir.Document) []Violation {
 func docWithOperations(ops ...ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "s/x",
-		Groups: []ir.OperationGroup{{Operations: ops}},
+		Groups: []ir.OperationGroup{{ID: "g/x", Operations: ops}},
 	}}}
 }
 

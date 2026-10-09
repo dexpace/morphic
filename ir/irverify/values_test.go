@@ -87,6 +87,7 @@ func otpCarrierDoc(v ir.Value) *ir.Document {
 			ID:   "s/x/S",
 			Name: named("s"),
 			Groups: []ir.OperationGroup{{
+				ID:         "g/x/S/g",
 				Name:       named("g"),
 				Operations: []ir.Operation{op},
 			}},
@@ -108,6 +109,7 @@ func parameterCarrierDoc(v ir.Value) *ir.Document {
 			ID:   "s/x/S",
 			Name: named("s"),
 			Groups: []ir.OperationGroup{{
+				ID:         "g/x/S/g",
 				Name:       named("g"),
 				Operations: []ir.Operation{op},
 			}},

@@ -98,6 +98,7 @@ func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 		ID:   "s/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
+			ID:   "g/x/S/g",
 			Name: named("g"),
 			Operations: []ir.Operation{{
 				ID:        "op/x/S/op",

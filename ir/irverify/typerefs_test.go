@@ -39,7 +39,7 @@ func operationDoc(p ir.Parameter) *ir.Document {
 	doc.Services = []ir.Service{{
 		ID:   "s/x/S",
 		Name: named("S"),
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{{
 			ID:     "op/x/S/op",
 			Name:   named("op"),
 			Params: []ir.Parameter{p},
