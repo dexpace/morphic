@@ -1,0 +1,209 @@
+{
+  "irVersion": "0.6.0",
+  "name": "Discriminator beside a nullable union",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Discriminator beside a nullable union",
+        "canonical": "discriminator_beside_a_nullable_union"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Cat": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Cat",
+      "name": {
+        "source": "Cat",
+        "canonical": "cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Cat/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MaybeCat": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/MaybeCat",
+      "name": {
+        "source": "MaybeCat",
+        "canonical": "maybe_cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "mapping": {
+              "cat": "#/components/schemas/Cat"
+            },
+            "propertyName": "kind"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MaybeCat/discriminator"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybeCat"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Cat",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/Owner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/openapi/components/schemas/Cat",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:discriminator": {
+              "reason": "degraded_lowering",
+              "value": {
+                "propertyName": "kind"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Owner/properties/pet/discriminator"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "a discriminator beside a oneOf/anyOf that collapses to a nullable reference routes through no union; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybeCat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "a discriminator beside a oneOf/anyOf that collapses to a nullable reference routes through no union; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner/properties/pet"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "nullable-union-discriminator.yaml",
+      "hash": "01703f710f41b4b58731319eb261c9ec54cd106c0d46292cb95e848caa1b2576"
+    }
+  ]
+}

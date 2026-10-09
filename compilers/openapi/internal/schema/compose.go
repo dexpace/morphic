@@ -590,6 +590,9 @@ func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	common := td.Common()
 	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
+	diags = append(diags, keepUnplacedDiscriminator(c, &common.Unmodeled, s, pointer,
+		"every branch admits only the null value, so a discriminator beside them routes "+
+			"through no union; kept verbatim under Unmodeled")...)
 	if len(kept) == 0 {
 		return diags
 	}
@@ -721,8 +724,12 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 			"a branch's $ref names no referent this compilation resolves")
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	default: // unionDiscriminated
-		return beside(ir.ReasonDegradedLowering,
-			"a declared discriminator binds the branches by name, which distributing them would break")
+		const why = "a declared discriminator binds the branches by name, which distributing them would break"
+		if discriminatorRoutesToSubtypes(c, s) {
+			return beside(ir.ReasonDegradedLowering, why)
+		}
+		id, diags := beside(ir.ReasonDegradedLowering, why+discriminatorMovedWhy)
+		return id, append(diags, moveDiscriminatorToUnmodeled(c, ts, id, s, pointer)...)
 	}
 }
 

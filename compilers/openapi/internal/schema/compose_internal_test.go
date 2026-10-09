@@ -801,3 +801,15 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 		})
 	}
 }
+
+// TestMoveDiscriminatorToUnmodeled_ReportsAMissingNode pins that a node absent
+// from the registry is announced, not skipped: the discriminator would vanish
+// from the model with nowhere to be kept.
+func TestMoveDiscriminatorToUnmodeled_ReportsAMissingNode(t *testing.T) {
+	t.Parallel()
+
+	diags := moveDiscriminatorToUnmodeled(lowering.Ctx{}, compile.NewTypes(), "t/absent", nil, "/components/schemas/Ghost")
+
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
+}

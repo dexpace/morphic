@@ -1,0 +1,30 @@
+openapi: 3.1.0
+info:
+  title: Discriminator beside a nullable union
+  version: "1"
+paths: {}
+components:
+  schemas:
+    Cat:
+      type: object
+      properties:
+        kind: {type: string}
+    # {Cat, null} collapses to a nullable reference, which has no field for a
+    # discriminator, so it is kept verbatim on the node that owns the position.
+    MaybeCat:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+        - type: 'null'
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/components/schemas/Cat'
+    Owner:
+      type: object
+      properties:
+        pet:
+          anyOf:
+            - $ref: '#/components/schemas/Cat'
+            - type: 'null'
+          discriminator:
+            propertyName: kind

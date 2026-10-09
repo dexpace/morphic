@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/pass"
 )
 
 // conformanceDir is the corpus of one minimal spec per capability row of
@@ -163,6 +164,8 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
+		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel, []string{"tagged-unions", "inheritance"}},
+		{"nullable-union-discriminator", assertNullableUnionDiscriminator, []string{"tagged-unions", "optionality-vs-nullability"}},
 		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"union-beside-ref", assertUnionBesideRef, []string{"untagged-unions"}},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
@@ -1014,6 +1017,47 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"defaultMapping names the variant an unrecognized tag falls back to")
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"],
 		"and it is read separately from the mapping")
+}
+
+// assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
+// union is kept verbatim beside a model. Pet's targets are not subtypes of it,
+// so pass.Validate would reject the discriminator on the model; it moves whole
+// to Unmodeled beside the union. Shape's targets are true allOf subtypes, so
+// the model keeps it, and the document carries no validation error.
+func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, pass.Validate(doc))
+
+	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, pet.Discriminator, "its targets are not subtypes, so the model does not carry it")
+	entry, ok := pet.Unmodeled["openapi:discriminator"]
+	require.True(t, ok, "it is kept verbatim instead")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Contains(t, pet.Unmodeled, "openapi:oneOf", "beside the union it routes")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
+
+	shape, ok := doc.Types[namedID("Shape")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, shape.Discriminator, "every target is a subtype, so it stays")
+	assert.Equal(t, namedID("Circle"), shape.Discriminator.Mapping["circle"])
+	assert.NotContains(t, shape.Unmodeled, "openapi:discriminator")
+}
+
+// assertNullableUnionDiscriminator pins that a discriminator beside a oneOf or
+// anyOf that collapses to nullable X is kept verbatim, with a diagnostic,
+// where the collapse leaves no node with a field for it.
+func assertNullableUnionDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	maybe, ok := doc.Types[namedID("MaybeCat")].(*ir.Scalar)
+	require.True(t, ok, "the component is an alias over the nullable reference")
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, *maybe.Base)
+	assert.Contains(t, maybe.Unmodeled, "openapi:discriminator")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/MaybeCat"))
+
+	owner, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, owner.Properties, 1)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, owner.Properties[0].Type)
+	assert.Contains(t, owner.Properties[0].Unmodeled, "openapi:discriminator", "the property carries it")
 }
 
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

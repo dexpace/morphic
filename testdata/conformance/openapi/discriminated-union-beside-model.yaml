@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info:
+  title: Discriminated union beside a model
+  version: "1"
+paths: {}
+components:
+  schemas:
+    # The branches are not subtypes of Pet, so a model discriminator mapping to
+    # them is one no emitter could route: it stays beside the kept union.
+    Pet:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/components/schemas/Cat'
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+        - $ref: '#/components/schemas/Dog'
+    Cat:
+      type: object
+      properties:
+        kind: {type: string}
+        meow: {type: boolean}
+    Dog:
+      type: object
+      properties:
+        kind: {type: string}
+        bark: {type: boolean}
+    # Here every target is a true subtype of Shape, so the model keeps it.
+    Shape:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          circle: '#/components/schemas/Circle'
+      oneOf:
+        - $ref: '#/components/schemas/Circle'
+        - $ref: '#/components/schemas/Square'
+    Circle:
+      allOf:
+        - $ref: '#/components/schemas/Shape'
+        - type: object
+          properties:
+            radius: {type: number}
+    Square:
+      allOf:
+        - $ref: '#/components/schemas/Shape'
+        - type: object
+          properties:
+            side: {type: number}

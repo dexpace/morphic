@@ -235,6 +235,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	}
 	var kept ir.Unmodeled
 	cons, diags := schemaConstraints(c, &kept, s, pointer)
+	diags = append(diags, preserveCollapsedDiscriminator(c, &kept, s, pointer)...)
 	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}, diags
 }
@@ -259,7 +260,8 @@ func declaresPositionScoped(s *oas3.Schema) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
-		annotation.DeclaresAny(s, annotation.DialectKeywords)
+		annotation.DeclaresAny(s, annotation.DialectKeywords) ||
+		collapsesBesideDiscriminator(s)
 }
 
 // declaresAnnotations reports whether s carries documentation, deprecation, XML
@@ -433,7 +435,12 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	if !ok {
 		return diags
 	}
-	return append(diags, preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)...)
+	p := &td.Common().Unmodeled
+	if _, isModel := td.(*ir.Model); isModel {
+		// A model holds the discriminator in its own field.
+		return append(diags, preserveUnionBranches(c, p, s, pointer, reason, why)...)
+	}
+	return append(diags, preserveUnionSiblingsAt(c, p, s, pointer, reason, why)...)
 }
 
 // preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
@@ -445,6 +452,15 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 // lowerCoDeclaredUnion's reasons presuppose a structural body at the position,
 // and a $ref site has none, so a shared template would contradict itself there.
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
+	diags := preserveUnionBranches(c, p, s, pointer, reason, why)
+	return append(diags, keepUnplacedDiscriminator(c, p, s, pointer,
+		"a discriminator beside a oneOf/anyOf kept verbatim under Unmodeled routes through "+
+			"no union, as this position has no model to hold it")...)
+}
+
+// preserveUnionBranches keeps s's oneOf/anyOf verbatim under p and says so,
+// without touching a discriminator: the owner may hold that itself.
+func preserveUnionBranches(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
 	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
 		return diags
