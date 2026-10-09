@@ -205,3 +205,108 @@ func TestDiscriminatedUnion_KeepsAnAllOfBodyToo(t *testing.T) {
 	assert.Nil(t, m.Discriminator)
 	assert.Contains(t, m.Unmodeled, "openapi:discriminator")
 }
+
+// degradedShapes are the model-bodied unions kept verbatim beside a
+// discriminator other than the one the rule was first written for, each with
+// the branch text that makes it that shape.
+var degradedShapes = []struct {
+	name     string
+	branches string
+}{
+	{"inline branch", "      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: object, properties: {kind: {type: string}}}]\n"},
+	{"oneOf beside anyOf", "      oneOf: [{$ref: '#/components/schemas/Cat'}]\n      anyOf: [{$ref: '#/components/schemas/Dog'}]\n"},
+	{"validation-only branches", "      oneOf: [{required: [kind]}, {required: [x]}]\n"},
+}
+
+const degradedMapping = "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"
+
+func degradedPet(branches string) string {
+	return "    Pet:\n      type: object\n      discriminator: " + degradedMapping + "\n" + branches
+}
+
+// TestDiscriminatedUnion_EveryDegradedShapeGatesTheDiscriminator pins that a
+// discriminator routing to a non-subtype leaves the model for Unmodeled on
+// every degraded union, not only the discriminated one, so pass.Validate
+// accepts the document in both declaration orders.
+func TestDiscriminatedUnion_EveryDegradedShapeGatesTheDiscriminator(t *testing.T) {
+	t.Parallel()
+	for _, shape := range degradedShapes {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range discriminatedOrders(t, "3.1.0", degradedPet(shape.branches), cat+dog) {
+				pet, ok := typeByName(doc, "Pet").(*ir.Model)
+				require.True(t, ok, "Pet lowers to a model beside its union")
+				assert.Nil(t, pet.Discriminator, "a non-subtype target stays off the model")
+				assert.Contains(t, pet.Unmodeled, "openapi:discriminator")
+			}
+		})
+	}
+}
+
+// TestDiscriminatedUnion_DegradedShapesKeepSubtypeDiscriminators pins that the
+// gate does not over-reach: a mapping whose every target is a subtype keeps the
+// discriminator on the model on each degraded shape.
+func TestDiscriminatedUnion_DegradedShapesKeepSubtypeDiscriminators(t *testing.T) {
+	t.Parallel()
+	for _, shape := range degradedShapes {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range discriminatedOrders(t, "3.1.0", degradedPet(shape.branches), subtypes) {
+				pet, ok := typeByName(doc, "Pet").(*ir.Model)
+				require.True(t, ok)
+				assert.NotNil(t, pet.Discriminator, "every target is a subtype")
+				assert.NotContains(t, pet.Unmodeled, "openapi:discriminator")
+			}
+		})
+	}
+}
+
+// TestDiscriminatedUnion_InlineBranchesNameNoSubtype pins that with no mapping
+// entry resolving, a union whose only branch is inline gives the discriminator
+// nothing to route to, so it moves to Unmodeled.
+func TestDiscriminatedUnion_InlineBranchesNameNoSubtype(t *testing.T) {
+	t.Parallel()
+	pet := "    Pet:\n      type: object\n      discriminator: {propertyName: kind}\n" +
+		"      oneOf: [{type: object, properties: {kind: {type: string}}}]\n"
+	for _, doc := range discriminatedOrders(t, "3.1.0", pet, cat) {
+		m, ok := typeByName(doc, "Pet").(*ir.Model)
+		require.True(t, ok)
+		assert.Nil(t, m.Discriminator)
+		assert.Contains(t, m.Unmodeled, "openapi:discriminator")
+	}
+}
+
+// TestDiscriminatedUnion_UnresolvedBranchGatesTheDiscriminator pins the same
+// rule on a union with a $ref branch that resolves nothing. The unresolved
+// $ref is itself an error diagnostic, so the document is checked with
+// pass.Validate directly rather than through the no-error harness.
+func TestDiscriminatedUnion_UnresolvedBranchGatesTheDiscriminator(t *testing.T) {
+	t.Parallel()
+	const branches = "      oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Nope'}]\n"
+	cases := []struct {
+		name, rest string
+		keeps      bool
+	}{
+		{"non-subtype target", cat + dog, false},
+		{"subtype target", subtypes, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			pet := degradedPet(branches)
+			for _, src := range []string{pet + c.rest, c.rest + pet} {
+				doc, _ := lowerSpec(t, openapitest.ComponentSpec(src))
+				assert.Empty(t, pass.Validate(doc), "the document must validate")
+				m, ok := typeByName(doc, "Pet").(*ir.Model)
+				require.True(t, ok)
+				assert.Equal(t, c.keeps, m.Discriminator != nil)
+				assert.Equal(t, !c.keeps, hasKey(m.Unmodeled, "openapi:discriminator"))
+			}
+		})
+	}
+}
+
+func hasKey(m ir.Unmodeled, key string) bool {
+	_, ok := m[key]
+	return ok
+}

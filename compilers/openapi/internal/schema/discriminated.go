@@ -20,7 +20,8 @@ const discriminatorMovedWhy = ", and it routes to a target that is not a subtype
 // discriminatorRoutesToSubtypes reports whether every target the discriminator
 // on s routes to is a subtype of s, the rule pass/validate holds a model
 // discriminator to. Targets are the mapping values and defaultMapping, or the
-// union branches when no mapping entry resolves. It reads the raw schemas, not
+// union branches when no mapping entry resolves, an inline or
+// unresolved branch counting as a non-subtype. It reads the raw schemas, not
 // the registry, where a subtype declared after s has no Base yet, so the answer
 // cannot depend on declaration order. s declares a discriminator.
 func discriminatorRoutesToSubtypes(c lowering.Ctx, s *oas3.Schema) bool {
@@ -28,7 +29,12 @@ func discriminatorRoutesToSubtypes(c lowering.Ctx, s *oas3.Schema) bool {
 	if !mapped {
 		branches, _, _ := unionBranches(s)
 		for _, b := range branches {
-			targets = appendSchema(targets, refBranchTarget(b))
+			t := refBranchTarget(b)
+			if t == nil {
+				// An inline branch names no component, so it is no subtype.
+				return false
+			}
+			targets = append(targets, t)
 		}
 	}
 	for _, t := range targets {

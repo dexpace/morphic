@@ -699,11 +699,21 @@ const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywor
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
 // keywords, per classifyUnionSiblings.
 func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+	// beside is the one place a body lowered to a Model beside a kept union gets
+	// its discriminator judged: every degraded outcome goes through it.
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
+		moves := s.GetDiscriminator() != nil && composesAsModel(s) && !discriminatorRoutesToSubtypes(c, s)
 		if why != "" {
 			why = coDeclaredUnionWhyPrefix + why
+			if moves {
+				why += discriminatorMovedWhy
+			}
 		}
-		return lowerBesideUnmodeledUnion(c, ts, anchors, depth, s, pointer, hint, reason, why)
+		id, diags := lowerBesideUnmodeledUnion(c, ts, anchors, depth, s, pointer, hint, reason, why)
+		if !moves {
+			return id, diags
+		}
+		return id, append(diags, moveDiscriminatorToUnmodeled(c, ts, id, s, pointer)...)
 	}
 	switch classifyUnionSiblings(c, s) {
 	case unionDistributed:
@@ -724,12 +734,8 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 			"a branch's $ref names no referent this compilation resolves")
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	default: // unionDiscriminated
-		const why = "a declared discriminator binds the branches by name, which distributing them would break"
-		if discriminatorRoutesToSubtypes(c, s) {
-			return beside(ir.ReasonDegradedLowering, why)
-		}
-		id, diags := beside(ir.ReasonDegradedLowering, why+discriminatorMovedWhy)
-		return id, append(diags, moveDiscriminatorToUnmodeled(c, ts, id, s, pointer)...)
+		return beside(ir.ReasonDegradedLowering,
+			"a declared discriminator binds the branches by name, which distributing them would break")
 	}
 }
 
