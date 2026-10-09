@@ -1,8 +1,8 @@
 package pass
 
 import (
-	"cmp"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -108,7 +108,7 @@ func checkServerIndices(doc *ir.Document) []ir.Diagnostic {
 	for _, svc := range doc.Services {
 		diags = appendServerIndexDiags(diags, svc.Servers, declared, string(svc.ID))
 	}
-	for _, id := range sortedKeys(doc.Channels) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Channels)) {
 		diags = appendServerIndexDiags(diags, doc.Channels[id].Servers, declared, string(id))
 	}
 	return diags
@@ -149,7 +149,7 @@ func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 // addresses none of the declared responses, in ascending key order so map
 // iteration cannot reach the output.
 func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, where string) []ir.Diagnostic {
-	for _, index := range sortedKeys(status) {
+	for _, index := range slices.Sorted(maps.Keys(status)) {
 		if index >= 0 && index < declared {
 			continue
 		}
@@ -266,7 +266,7 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 		}
 		forEachErrorPayload(op.Errors, string(op.ID)+"/errors", fn)
 	})
-	for _, id := range sortedKeys(doc.Messages) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Messages)) {
 		msg := doc.Messages[id]
 		fn(payloadSite{payload: &msg.Payload, where: string(id)})
 	}
@@ -299,7 +299,7 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.P
 // content that names no property in parts, in ascending key order so map
 // iteration cannot reach the output.
 func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.PropID]bool, where string) []ir.Diagnostic {
-	for _, key := range sortedKeys(c.Encoding) {
+	for _, key := range slices.Sorted(maps.Keys(c.Encoding)) {
 		if parts[key] {
 			continue
 		}
@@ -386,7 +386,7 @@ func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
 // site instead would leave the next check added here to rediscover the crash;
 // checkNilTypes reports whatever this omits.
 func liveTypeIDs(doc *ir.Document) []ir.TypeID {
-	ids := sortedKeys(doc.Types)
+	ids := slices.Sorted(maps.Keys(doc.Types))
 	live := make([]ir.TypeID, 0, len(ids))
 	for _, id := range ids {
 		if !ir.IsNilTypeDef(doc.Types[id]) {
@@ -404,7 +404,7 @@ func liveTypeIDs(doc *ir.Document) []ir.TypeID {
 // can consume — and dereferenced the four kinds it did match.
 func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range sortedKeys(doc.Types) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		if !ir.IsNilTypeDef(doc.Types[id]) {
 			continue
 		}
@@ -502,7 +502,7 @@ func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member fu
 			fmt.Sprintf("discriminator %s on %s references %q, which %s", position, where, target, why),
 			where))
 	}
-	for _, key := range sortedKeys(d.Mapping) {
+	for _, key := range slices.Sorted(maps.Keys(d.Mapping)) {
 		report(d.Mapping[key], fmt.Sprintf("mapping %q", key))
 	}
 	if d.Default != "" {
@@ -905,16 +905,4 @@ func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Ope
 // Source is ir.NoSource to stop renderers fabricating a file location for it.
 func diag(sev ir.Severity, code, message, node string) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: ir.NoSource, Node: node})
-}
-
-// sortedKeys returns the keys of a map in ascending order, giving every check
-// deterministic diagnostic ordering. Keys are IDs or slice indices, so ordering
-// them by value orders the diagnostics by the node they name.
-func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
 }
