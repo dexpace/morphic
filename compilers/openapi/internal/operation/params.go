@@ -66,6 +66,7 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
+	diags = append(diags, allowReservedLocationDiag(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
 }
 
@@ -94,6 +95,30 @@ func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Paramete
 			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
 	}
 	return diags
+}
+
+// allowReservedLocationDiag reports allowReserved declared at a parameter
+// location the document's dialect does not apply it to. Before OpenAPI 3.2 the
+// keyword belongs to in: query alone, so a path, header or cookie declaration
+// is reported at the keyword's coordinate and lowered as declared; 3.2 applies
+// it everywhere.
+//
+// Presence fires, not truth: allowReserved: false is as out of place as true,
+// as in querystringKeywordDiags. in: querystring is left to that function, so
+// one pointer never draws two warnings. diag.InvalidLocationKeyword says why
+// this is a warning.
+func allowReservedLocationDiag(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
+	if p.AllowReserved == nil || !c.AllowReservedIsQueryOnly() {
+		return nil
+	}
+	switch in {
+	case soa.ParameterInPath, soa.ParameterInHeader, soa.ParameterInCookie:
+	default:
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
+		pptr+ids.Ptr("allowReserved"),
+		"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared")}
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —

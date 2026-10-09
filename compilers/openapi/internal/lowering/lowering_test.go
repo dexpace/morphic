@@ -199,6 +199,44 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	}
 }
 
+// TestAllowReservedIsQueryOnly_FollowsTheDialect pins which locations
+// allowReserved applies to in a given dialect. Reading a 3.1 path declaration as
+// 3.2's location-agnostic keyword would let a kept value pass unreported, and
+// the reverse would report a keyword 3.2 accepts.
+func TestAllowReservedIsQueryOnly_FollowsTheDialect(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.0", want: true},
+		{version: "3.0.3", want: true},
+		{version: "3.1.0", want: true},
+		{version: "3.1.1", want: true},
+		{version: "3.2.0", want: false},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.AllowReservedIsQueryOnly())
+		})
+	}
+}
+
+// TestAllowReservedIsQueryOnly_TheZeroContextReadsAsThreeTwo completes the set
+// every reader on this type answers: a context with no document names no
+// dialect, which reads as 3.2 — the version with no location restriction — and
+// must do so without reaching through a nil document pointer.
+func TestAllowReservedIsQueryOnly_TheZeroContextReadsAsThreeTwo(t *testing.T) {
+	t.Parallel()
+	var c lowering.Ctx
+	assert.False(t, c.AllowReservedIsQueryOnly(),
+		"no document names no dialect, which reads as 3.2's location-agnostic keyword")
+}
+
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
 // reads, and that both come from the context rather than from a copy beside it:
 // the document's own path decides internal from external, and the declared set
