@@ -121,6 +121,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/D/s:2021-01-01",
           "name": {
             "source": "2021-01-01",
             "canonical": "2021_01_01"
@@ -132,6 +133,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/D/s:2022-02-02",
           "name": {
             "source": "2022-02-02",
             "canonical": "2022_02_02"

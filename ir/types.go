@@ -295,6 +295,9 @@ type Enum struct {
 
 // EnumMember is one member of an Enum (ir-design §4.5).
 type EnumMember struct {
+	// ID identifies the member within its enum. It is derived from Value, never
+	// from the member's index, so a reorder keeps the ID set.
+	ID EnumMemberID `json:"id"`
 	// Name is the member's naming.
 	Name Naming `json:"name"`
 	// Value is the member's typed value, matching Enum.ValueType.

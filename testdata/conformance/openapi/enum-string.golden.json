@@ -34,6 +34,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Color/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -45,6 +46,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Color/s:green",
           "name": {
             "source": "green",
             "canonical": "green"
@@ -56,6 +58,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Color/s:blue",
           "name": {
             "source": "blue",
             "canonical": "blue"

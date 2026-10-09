@@ -197,6 +197,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/schemas/com.example.Widget/properties/rollout.state/s:in.progress",
           "name": {
             "source": "in.progress",
             "canonical": "in_progress"
@@ -208,6 +209,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/schemas/com.example.Widget/properties/rollout.state/s:done",
           "name": {
             "source": "done",
             "canonical": "done"

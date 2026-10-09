@@ -176,6 +176,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/EnumWithProperties/s:a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -187,6 +188,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/EnumWithProperties/s:b",
           "name": {
             "source": "b",
             "canonical": "b"

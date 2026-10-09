@@ -116,3 +116,10 @@ func TestGroupID_UsesTheGroupKind(t *testing.T) {
 	assert.Equal(t, ir.GroupID("g/openapi/tags/pets"), compile.GroupID("openapi", "tags/pets"))
 	assert.True(t, ir.WellFormedID(ir.IDKindGroup, string(compile.GroupID("synth", "openapi/default"))))
 }
+
+func TestMemberID_UsesTheMemberKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/E/s:a"),
+		compile.MemberID("openapi", "/components/schemas/E/s:a"))
+	assert.True(t, ir.WellFormedID(ir.IDKindMember, string(compile.MemberID("anon", "x/s:a"))))
+}

@@ -882,6 +882,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Rollout/s:",
           "name": {
             "hint": "empty"
           },
@@ -891,6 +892,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:empty",
           "name": {
             "source": "empty",
             "canonical": "empty"
@@ -902,6 +904,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:done",
           "name": {
             "source": "done",
             "canonical": "done"

@@ -334,3 +334,12 @@ func TestSynthGroup_LivesInItsOwnSpace(t *testing.T) {
 	assert.Equal(t, ir.GroupID("g/synth/openapi/path-prefix/~"), ids.SynthGroup(ir.SynthRulePathPrefix, ""))
 	assert.NotEqual(t, ids.TagGroup("default"), ids.SynthGroup(ir.SynthRuleDefault))
 }
+
+func TestMember_LivesInItsEnumsSpaceAndPath(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/E/s:a"),
+		ids.Member("t/openapi/components/schemas/E", "s:a"))
+	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/S/properties/p/n:1"),
+		ids.Member("t/anon/components/schemas/S/properties/p", "n:1"))
+	assert.Equal(t, ir.EnumMemberID("e/openapi/s:a"), ids.Member("t/openapi", "s:a"))
+}

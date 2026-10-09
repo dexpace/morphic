@@ -37,6 +37,11 @@ type ParamID string
 // source declares it under, so the ID names that one group and no other.
 type GroupID string
 
+// EnumMemberID identifies an EnumMember within the Enum that declares it. It is
+// derived from the member's value rather than its position, so reordering or
+// inserting members leaves every existing member's ID unchanged.
+type EnumMemberID string
+
 // The kind prefix that opens every synthetic ID. An ID is
 // <kind>/<space>[/<path>]: the kind says what sort of entity it names, the space
 // says whose coordinates the path is in, and the path is the compiler's own
@@ -55,6 +60,7 @@ const (
 	IDKindService = "s"
 	IDKindParam   = "param"
 	IDKindGroup   = "g"
+	IDKindMember  = "e"
 )
 
 // IDSpaceSynth is the space of a group the compiler synthesized because no

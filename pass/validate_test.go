@@ -235,11 +235,28 @@ func TestValidate_DuplicateEnumValuesAreLegal(t *testing.T) {
 		ID:        "t/e",
 		ValueType: ir.PrimString,
 		Members: []ir.EnumMember{
-			{Name: ir.Naming{Source: "a"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
-			{Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+			{ID: "e/openapi/e/s:x", Name: ir.Naming{Source: "a"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+			{ID: "e/openapi/e/s:x#2", Name: ir.Naming{Source: "b"}, Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
 		},
 	}
 	assert.Empty(t, pass.Validate(doc))
+}
+
+func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/e"] = &ir.Enum{
+		ID:        "t/e",
+		ValueType: ir.PrimString,
+		Members: []ir.EnumMember{
+			{ID: "e/openapi/e/s:x", Value: ir.Value{Kind: ir.ValueString, Str: "x"}},
+			{ID: "e/openapi/e/s:x", Value: ir.Value{Kind: ir.ValueString, Str: "y"}},
+			{Value: ir.Value{Kind: ir.ValueString, Str: "z"}},
+			{Value: ir.Value{Kind: ir.ValueString, Str: "w"}},
+		},
+	}
+	got := codes(pass.Validate(doc))
+	assert.Equal(t, []string{"pass/duplicate-enum-member-id"}, got)
 }
 
 func TestValidate_SharedRouteIsLegal(t *testing.T) {

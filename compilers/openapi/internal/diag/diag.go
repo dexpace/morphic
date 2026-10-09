@@ -121,6 +121,10 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
+	// DuplicateEnumValue reports an `enum` that lists one value more than once.
+	// Every occurrence is kept as a member, the later ones under a suffixed ID, so
+	// nothing is merged; the warning says the source repeats itself.
+	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
 	// diagnostic for the defect — see boundLiteralDiag).

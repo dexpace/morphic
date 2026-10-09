@@ -185,15 +185,16 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 // one nobody has reached, and an enum looks like an identity. The test below
 // fails when ir grows a type this does not account for.
 var identityClasses = map[string]string{
-	"TypeID":    "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
-	"ChannelID": "identity: Document.Channels keys it; resolved and held as TypeID is",
-	"MessageID": "identity: Document.Messages keys it; resolved and held as TypeID is",
-	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
-	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
-	"GroupID":   "identity, no map: checkDeclaredIDs holds each OperationGroup.ID non-empty, checkDuplicateIDs holds no two groups to one ID, checkGroupIDs holds it to its space's grammar, and pass.Validate rejects a repeat",
-	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
-	"ParamID":   "identity, operation-scoped: checkDeclaredIDs holds each Parameter.ID non-empty, checkDuplicateIDs holds no two parameters to one ID (no fingerprint exemption), and ir.Registries.WithDeclarations resolves bindings against them",
-	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
+	"TypeID":       "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
+	"ChannelID":    "identity: Document.Channels keys it; resolved and held as TypeID is",
+	"MessageID":    "identity: Document.Messages keys it; resolved and held as TypeID is",
+	"AuthID":       "identity: Document.Auth keys it; resolved and held as TypeID is",
+	"OpID":         "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
+	"EnumMemberID": "identity, enum-scoped, no map: checkDeclaredIDs holds each EnumMember.ID non-empty, checkDuplicateIDs holds no two members to one ID, checkIDs holds it to its enum's space and path, and pass.Validate rejects a repeat within one enum",
+	"GroupID":      "identity, no map: checkDeclaredIDs holds each OperationGroup.ID non-empty, checkDuplicateIDs holds no two groups to one ID, checkGroupIDs holds it to its space's grammar, and pass.Validate rejects a repeat",
+	"ServiceID":    "identity, no map: resolved and held as OpID is, against the services the document declares",
+	"ParamID":      "identity, operation-scoped: checkDeclaredIDs holds each Parameter.ID non-empty, checkDuplicateIDs holds no two parameters to one ID (no fingerprint exemption), and ir.Registries.WithDeclarations resolves bindings against them",
+	"PropID":       "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",
 	"PrimKind":        "primitive leaf kind; ir.PrimTypeID derives an ID from it, but the kind is not one",

@@ -187,7 +187,9 @@ it sees. Changes made together in one bump are listed together under it.
   tell apart. A consumer pinned to 0.6.0 reads those references as names and finds no parameter
   by them. An `OperationGroup` also got a stable `ID` of a new `GroupID` class and a `Provenance`
   (§3.1, §7.1); a consumer pinned to 0.6.0 finds neither key and still has only the group's name
-  to tell two groups apart.
+  to tell two groups apart. An `EnumMember` also got a stable `ID` of a new `EnumMemberID` class
+  (§3.1, §4.5); a consumer pinned to 0.6.0 finds no such key and has only a member's position to
+  tell two members apart.
 
 ---
 
@@ -198,7 +200,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID, ParamID, GroupID string
+type ServiceID, ChannelID, MessageID, AuthID, PropID, ParamID, GroupID, EnumMemberID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -248,6 +250,12 @@ the untagged-operation group are two groups with two renderable names
 (`group-identity.yaml`). `pass.Validate` reports a repeated group ID as `pass/duplicate-group-id`;
 `irverify` holds each ID to its space's grammar (`checkGroupIDs`) and, through
 `ir.DeclaredIDs`, to being non-empty and declared once.
+
+An enum member's ID is `e/<space>/<enum path>/<key>`: the enum's own space and path, then a key
+derived from the member's value (§4.5). Its scope is the enum, the way a `PropID` is scoped to its
+model, so two enums listing the same value mint two IDs. `irverify` holds each ID to that scope
+(`checkMemberIDs`) and, through `ir.DeclaredIDs`, to being non-empty and declared once;
+`pass.Validate` reports a repeat within one enum as `pass/duplicate-enum-member-id`.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -685,6 +693,7 @@ type Enum struct {
 }
 
 type EnumMember struct {
+    ID         EnumMemberID // §3.1; derived from Value, never from the member's index
     Name       Naming
     Value      Value        // typed value, matches ValueType
     WireName   string       // serialized form when it differs from Value (rare)
@@ -703,6 +712,22 @@ can't express open enums (plain Go consts, TS string literals) lower via their r
 bit must survive to that point (Kiota's string-only closed enums are the counterexample).
 Duplicate member values are legal (protobuf `allow_alias`); slice order preserves which name is
 canonical for serialization, and the validate pass must not reject them.
+
+A member's `ID` derives from its value, so reordering or inserting members leaves every existing
+member's ID unchanged. The key is kind-tagged and injective: `s:` string, `y:` symbol, `n:` the
+canonical `BigVal` decimal, `b:` bool, `x:` bytes in unpadded URL base64, `z:` null (defined,
+though no compiler admits it). `1` and `"1"` therefore differ, and so do `-1`, `1` and `0`. A
+payload escapes `%` and `#`, then the whole key is a single escaped ID segment. Names play no part:
+`foo-bar`, `foo_bar` and `Foo Bar` share a canonical name and keep three IDs (invariant 4), and a
+member whose name canonicalizes to nothing still has one. Deriving from the value is what keeps
+IDs stable here (invariant 3): a name-derived ID would change under a rename, an index-derived one
+under a reorder.
+
+A repeated value keeps every member, and the first keeps the bare ID. Each later one takes an
+occurrence suffix, `#2`, `#3`, … after the key; `#` never appears unescaped in a key, so the
+suffix is unambiguous. What is promised under reorder is the ID *set*; which same-valued member
+holds the bare ID follows source occurrence order. The OpenAPI compiler reports each repeat as a
+`openapi/duplicate-enum-value` warning.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's

@@ -448,6 +448,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/headers/RateUnit/schema/s:second",
           "name": {
             "source": "second",
             "canonical": "second"
@@ -459,6 +460,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/headers/RateUnit/schema/s:minute",
           "name": {
             "source": "minute",
             "canonical": "minute"
@@ -489,6 +491,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/parameters/Sort/schema/s:asc",
           "name": {
             "source": "asc",
             "canonical": "asc"
@@ -500,6 +503,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/parameters/Sort/schema/s:desc",
           "name": {
             "source": "desc",
             "canonical": "desc"

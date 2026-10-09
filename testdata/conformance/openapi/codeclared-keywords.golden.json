@@ -216,6 +216,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/NarrowedEnum/s:a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -227,6 +228,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/NarrowedEnum/s:b",
           "name": {
             "source": "b",
             "canonical": "b"

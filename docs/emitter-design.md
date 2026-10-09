@@ -576,7 +576,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerErrors` | `plan.PlannedError`, `UsageFlags.Error`, `Fault` | error type tree (`APIError` → client/server → concrete) | §7.2 |
 | `RenderCasing` | neutral `Ident` (= `Naming.Canonical`) + `Naming` acronyms | cased identifiers — the ONLY place names get cased | §3.2; INV4 |
 | `EscapeReservedWords` | cased `Ident` + reserved set | keyword-safe identifiers; NEVER touches `WireName`/`WireID` | §3.2; INV4 |
-| `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation; never mutates IR identity | §3.1; INV3 |
+| `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation, keyed by ID (`EnumMember.ID` for enum members); never mutates IR identity | §3.1; INV3 |
 | `ComputeImports` | referenced symbols in the module | per-file import sets | — |
 
 Every one of the eleven `ir.TypeKind`s has a dispatch here: `primitive` and `any` map directly
@@ -793,7 +793,8 @@ depends on the rendered identifier (§13 test T-4). Collisions are resolved dete
 `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
 collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`.
+in a service without changing its `TypeID` or its own `Naming`. An enum member's collision key is
+`EnumMember.ID`, not its index or canonical name, so reordering an enum renames nothing.
 
 ### 4.13 Interface extraction & request shaping
 

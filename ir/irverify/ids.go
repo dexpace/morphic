@@ -27,7 +27,7 @@ func checkIDs(doc *ir.Document) []Violation {
 		vs = appendIDViolations(vs, ir.IDKindAuth, string(id),
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
-	return vs
+	return append(vs, checkMemberIDs(doc)...)
 }
 
 // checkPrimIDs asserts the one TypeID ir can derive is the one the document

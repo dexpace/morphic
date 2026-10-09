@@ -139,6 +139,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/BareColor/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -150,6 +151,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/BareColor/s:green",
           "name": {
             "source": "green",
             "canonical": "green"
@@ -181,6 +183,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Color/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -192,6 +195,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Color/s:green",
           "name": {
             "source": "green",
             "canonical": "green"
@@ -351,6 +355,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/NarrowedColor/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -362,6 +367,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/NarrowedColor/s:green",
           "name": {
             "source": "green",
             "canonical": "green"

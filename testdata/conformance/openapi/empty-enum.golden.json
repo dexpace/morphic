@@ -33,6 +33,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/schemas/Holder/properties/colour/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -44,6 +45,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/schemas/Holder/properties/colour/s:green",
           "name": {
             "source": "green",
             "canonical": "green"

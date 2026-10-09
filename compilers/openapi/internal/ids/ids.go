@@ -98,6 +98,16 @@ func Prop(pointer jsontext.Pointer) ir.PropID {
 	return compile.PropID(OpenAPISpace, string(pointer))
 }
 
+// Member returns the stable ID of the enum member keyed by key within the enum
+// whose type ID is enum. The member lives in its enum's space, under its enum's
+// path, so the ID names that one member of that one enum; key is the escaped
+// segment the member's value derives, never its index.
+func Member(enum ir.TypeID, key string) ir.EnumMemberID {
+	rest := strings.TrimPrefix(string(enum), ir.IDKindType+ir.IDSeparator)
+	space, path, _ := strings.Cut(rest, ir.IDSeparator)
+	return compile.MemberID(compile.Space(space), path+ir.IDSeparator+key)
+}
+
 // Param returns the stable ID of the parameter named name in location in, as
 // mounted on the operation declared at opPointer. The operation's pointer scopes
 // it because a path-item parameter is copied into every operation on the item,

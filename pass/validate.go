@@ -37,6 +37,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
+	diags = append(diags, checkDuplicateMemberIDs(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
@@ -617,6 +618,34 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 				continue
 			}
 			seen[name] = true
+		}
+	}
+	return diags
+}
+
+// checkDuplicateMemberIDs reports two members of one enum that carry the same
+// ID. Equal values with distinct IDs are legal: a source that repeats a value
+// keeps both members. Members without an ID are skipped, as ir.DeclaredIDs
+// skips them; irverify reports the empty one.
+func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range liveTypeIDs(doc) {
+		e, ok := doc.Types[id].(*ir.Enum)
+		if !ok {
+			continue
+		}
+		seen := make(map[ir.EnumMemberID]bool, len(e.Members))
+		for _, m := range e.Members {
+			if m.ID == "" {
+				continue
+			}
+			if seen[m.ID] {
+				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-enum-member-id",
+					fmt.Sprintf("enum %s has more than one member with ID %q", id, m.ID),
+					string(id)))
+				continue
+			}
+			seen[m.ID] = true
 		}
 	}
 	return diags
