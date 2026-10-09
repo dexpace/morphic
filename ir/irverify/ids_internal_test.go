@@ -2,9 +2,12 @@ package irverify
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"reflect"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
@@ -32,4 +35,17 @@ func TestAppendDeclaredIDViolations_ClassWithoutAPrefixIsLeftAlone(t *testing.T)
 	t.Parallel()
 	node := reflect.ValueOf(ir.Channel{ID: "c/x/C"})
 	assert.Empty(t, appendDeclaredIDViolations(nil, node, reflect.TypeFor[ir.ChannelID](), "c/x/C", "doc.Channels[c/x/C]"))
+}
+
+// TestKindPrefixes_NameEveryIDKindOnce holds the class table to the kind list.
+// A kind added to ir.IDKinds without a class here would have its IDs skipped by
+// the grammar check and the namespace check alike, silently, because a class
+// with no prefix is left alone; and a kind two classes share could not tell them
+// apart. Nothing else ties the table to the list.
+func TestKindPrefixes_NameEveryIDKindOnce(t *testing.T) {
+	t.Parallel()
+	got := slices.Sorted(maps.Values(kindPrefixes))
+	want := slices.Sorted(slices.Values(ir.IDKinds()))
+	assert.Empty(t, cmp.Diff(want, got),
+		"every kind prefix ir lists names exactly one class of ID (-ir.IDKinds +kindPrefixes)")
 }

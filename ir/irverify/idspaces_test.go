@@ -132,6 +132,25 @@ func TestVerify_PrimitiveNamespaceNeedsNoDeclaration(t *testing.T) {
 	assert.Empty(t, violationPaths(irverify.Verify(declared), "ir/id-space-undeclared"))
 }
 
+// TestVerify_PrimitiveNamespaceIsExemptOnlyForTypes pins the exemption's reach.
+// The primitive leaves are types, so only a type may live in the namespace ir
+// owns without declaring it; an ID of any other kind there is in a namespace
+// nobody declared, as it would be anywhere else.
+func TestVerify_PrimitiveNamespaceIsExemptOnlyForTypes(t *testing.T) {
+	t.Parallel()
+	for _, class := range spacedClasses() {
+		if class.prefix == ir.IDKindType {
+			continue
+		}
+		t.Run(class.name, func(t *testing.T) {
+			t.Parallel()
+			id := class.prefix + "/" + ir.IDSpacePrim + "/x"
+			got := irverify.Verify(declaring(class.doc(id), declaredAround(class, "openapi")))
+			assert.Equal(t, []string{class.path(id)}, violationPaths(got, "ir/id-space-undeclared"))
+		})
+	}
+}
+
 // TestVerify_DocumentDeclaringNothingIsReportedOnce pins how a forgotten
 // declaration reads. It is one violation about the document, the way a missing
 // irVersion is, and not one per ID it leaves undeclared. A document with no ID
@@ -210,6 +229,20 @@ func TestVerify_UnusableDeclarationIsAViolation(t *testing.T) {
 			assert.Equal(t, []string{tc.path}, violationPaths(got, tc.code))
 		})
 	}
+}
+
+// TestVerify_UnknownKindIsNotAlsoExamined pins the division of labour inside the
+// declaration: a key that is no kind prefix is reported once, as that, and its
+// list is not judged as a kind's would be, so one defect gets one report.
+func TestVerify_UnknownKindIsNotAlsoExamined(t *testing.T) {
+	t.Parallel()
+	got := irverify.Verify(&ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{"x": {"b", "a", ""}},
+	})
+	assert.Equal(t, []string{`doc.IDSpaces["x"]`}, violationPaths(got, "ir/id-spaces-unknown-kind"))
+	assert.Empty(t, violationPaths(got, "ir/id-spaces-not-canonical"))
+	assert.Empty(t, violationPaths(got, "ir/id-space-invalid"))
 }
 
 // TestVerify_UsableDeclarationIsClean is the control for the table above: a
