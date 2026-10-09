@@ -265,14 +265,14 @@ The declaration is what sees them all. A producer states the namespaces it mints
 stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever
 its class and whether or not its node records a pointer. A type in the primitive namespace, which is
 `ir`'s, needs no entry. A document declaring nothing while carrying IDs is reported once
-(`ir/id-spaces-absent`). The declaration must itself be usable: keyed by real kinds, each list
-sorted by the byte order of its UTF-8 spelling and without repeats, no empty namespace and none
-carrying the separator (`ir/id-spaces-unknown-kind`, `ir/id-spaces-not-canonical`,
-`ir/id-space-invalid`). It is a vocabulary and not a usage report, so a namespace no ID uses is not
-an error here; a compiler's own test holds its vocabulary to what its corpus uses, in both
-directions. In this repository an architecture test also holds a compiler to building a namespace
-only from a literal, which is where a path gets glued on. Channels and messages have no prefix yet
-and are held to none of this.
+(`ir/id-spaces-absent`). The declaration must itself be usable: keyed by real kinds, a kind with no
+namespace left out, each list sorted by the byte order of its UTF-8 spelling and without repeats,
+no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
+`ir/id-spaces-not-canonical`, `ir/id-space-invalid`). It is a vocabulary and not a usage report, so
+a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
+corpus uses, in both directions. In this repository an architecture test also holds a compiler to
+building a namespace only from a literal, which is where a path gets glued on. Channels and messages
+have no prefix yet and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may

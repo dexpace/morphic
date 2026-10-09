@@ -70,23 +70,31 @@ func declaredSpaces(declaration map[string][]string) map[string]map[string]bool 
 }
 
 // declarationViolations reports what makes a declaration unusable on its own: a
-// key that is not a kind prefix, a namespace that is empty or carries the ID
-// separator, and a list that is not sorted without repeats. The last is the
-// canonical order, the byte order of the UTF-8 spelling, which keeps two
-// producers' lists of one vocabulary byte-identical (invariant 7).
+// key that is not a kind prefix, a kind with no namespace, a namespace that is
+// empty or carries the ID separator, and a list that is not sorted without
+// repeats. The canonical form leaves a kind with no namespace out and sorts by
+// the byte order of the UTF-8 spelling, which keeps two producers' declarations
+// of one vocabulary byte-identical (invariant 7).
 func declarationViolations(declaration map[string][]string) []Violation {
 	var vs []Violation
 	kinds := ir.IDKinds()
 	for _, kind := range slices.Sorted(maps.Keys(declaration)) {
-		if !slices.Contains(kinds, kind) {
+		switch spaces := declaration[kind]; {
+		case !slices.Contains(kinds, kind):
 			vs = append(vs, Violation{
 				Code:    "ir/id-spaces-unknown-kind",
 				Message: "id namespaces are declared for kind " + strconv.Quote(kind) + ", which no id opens with",
 				Path:    idSpacesPath + "[" + strconv.Quote(kind) + "]",
 			})
-			continue
+		case len(spaces) == 0:
+			vs = append(vs, Violation{
+				Code:    "ir/id-spaces-not-canonical",
+				Message: "kind " + strconv.Quote(kind) + " is declared with no namespace, and a kind with none is left out",
+				Path:    idSpacesPath + "[" + kind + "]",
+			})
+		default:
+			vs = appendSpaceViolations(vs, kind, spaces)
 		}
-		vs = appendSpaceViolations(vs, kind, declaration[kind])
 	}
 	return vs
 }

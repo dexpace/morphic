@@ -219,6 +219,8 @@ func TestVerify_UnusableDeclarationIsAViolation(t *testing.T) {
 		{"an empty key", map[string][]string{"": {"a"}}, "ir/id-spaces-unknown-kind", `doc.IDSpaces[""]`},
 		{"an empty namespace", map[string][]string{ir.IDKindOp: {""}}, "ir/id-space-invalid", "doc.IDSpaces[op][0]"},
 		{"a namespace with the separator", map[string][]string{ir.IDKindOp: {"a/b"}}, "ir/id-space-invalid", "doc.IDSpaces[op][0]"},
+		{"a kind with an empty list", map[string][]string{ir.IDKindOp: {}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op]"},
+		{"a kind with a nil list", map[string][]string{ir.IDKindOp: nil}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op]"},
 		{"an unsorted list", map[string][]string{ir.IDKindOp: {"b", "a"}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op][1]"},
 		{"a repeated namespace", map[string][]string{ir.IDKindOp: {"a", "a"}}, "ir/id-spaces-not-canonical", "doc.IDSpaces[op][1]"},
 	}

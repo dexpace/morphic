@@ -39,8 +39,9 @@ type Document struct {
 	// IRVersion, from the namespace constants it already names; irverify reports
 	// an ID whose namespace is not declared, which sees a path glued onto its
 	// namespace in every class. A type needs no entry for IDSpacePrim, which is
-	// ir's own. Each list is sorted by the byte order of its UTF-8 spelling,
-	// without repeats, and names no empty or separator-bearing namespace.
+	// ir's own. A kind with no namespace is left out. Each list is sorted by the
+	// byte order of its UTF-8 spelling, without repeats, and names no empty or
+	// separator-bearing namespace.
 	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`
