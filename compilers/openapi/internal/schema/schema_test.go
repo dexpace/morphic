@@ -284,6 +284,91 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
+// TestScalar_NumericFormatsMapToPrimitive pins that a format naming a width of
+// its base type resolves to the shared primitive for that width, not to an
+// anonymous Scalar carrying the format as an encoding. The controls pin the
+// pairings formatTable already mapped, and the last two rows pin the boundary
+// that still hoists.
+func TestScalar_NumericFormatsMapToPrimitive(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		typ      string
+		format   string
+		wantPrim ir.PrimKind // mapped row: the primitive the position resolves to
+		wantBase ir.PrimKind // fallback row: the base the hoisted Scalar wraps
+		wantEnc  string      // fallback row: the hoisted Scalar's Encoding.Name
+	}{
+		{name: "int8", typ: "integer", format: "int8", wantPrim: ir.PrimInt8},
+		{name: "int16", typ: "integer", format: "int16", wantPrim: ir.PrimInt16},
+		{name: "uint8", typ: "integer", format: "uint8", wantPrim: ir.PrimUint8},
+		{name: "uint16", typ: "integer", format: "uint16", wantPrim: ir.PrimUint16},
+		{name: "uint32", typ: "integer", format: "uint32", wantPrim: ir.PrimUint32},
+		{name: "uint64", typ: "integer", format: "uint64", wantPrim: ir.PrimUint64},
+		{name: "decimal128", typ: "number", format: "decimal128", wantPrim: ir.PrimDecimal128},
+
+		// Controls: these pairings were already mapped and must not move.
+		{name: "int32", typ: "integer", format: "int32", wantPrim: ir.PrimInt32},
+		{name: "int64", typ: "integer", format: "int64", wantPrim: ir.PrimInt64},
+		{name: "float", typ: "number", format: "float", wantPrim: ir.PrimFloat32},
+		{name: "double", typ: "number", format: "double", wantPrim: ir.PrimFloat64},
+		{name: "decimal", typ: "number", format: "decimal", wantPrim: ir.PrimDecimal},
+
+		// Boundaries: an unlisted format still hoists over its base type. float16
+		// names no PrimKind, and a string carrying an integer width is #637's
+		// orientation rather than this table's.
+		{
+			name: "float16 hoists over number", typ: "number", format: "float16",
+			wantBase: ir.PrimNumber, wantEnc: "float16",
+		},
+		{
+			name: "string int64 hoists over string", typ: "string", format: "int64",
+			wantBase: ir.PrimString, wantEnc: "int64",
+		},
+	}
+
+	var props strings.Builder
+	props.WriteString("    Holder:\n      type: object\n      properties:\n")
+	for i, tt := range tests {
+		fmt.Fprintf(&props, "        p%d: {type: %s, format: %s}\n", i, tt.typ, tt.format)
+	}
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(props.String()))
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok, "Holder lowers to a model")
+	byWire := openapitest.PropsByWire(m.Properties)
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wire := fmt.Sprintf("p%d", i)
+			prop, ok := byWire[wire]
+			require.True(t, ok, "Holder declares %s", wire)
+			target := prop.Type.Target
+
+			if tt.wantEnc != "" {
+				sc, ok := doc.Types[target].(*ir.Scalar)
+				require.True(t, ok, "%s hoists as a Scalar", wire)
+				require.NotNil(t, sc.Base)
+				require.Equal(t, ir.PrimTypeID(tt.wantBase), sc.Base.Target)
+				assert.Equal(t, tt.wantBase, doc.Types[sc.Base.Target].(*ir.Primitive).Prim)
+				assert.Equal(t, tt.wantEnc, sc.Encoding.Name,
+					"an unlisted format is preserved verbatim")
+				return
+			}
+
+			assert.Equal(t, ir.PrimTypeID(tt.wantPrim), target,
+				"%s resolves to the shared primitive", wire)
+			prim, ok := doc.Types[target].(*ir.Primitive)
+			require.True(t, ok, "%s is a Primitive", wire)
+			assert.Equal(t, tt.wantPrim, prim.Prim)
+
+			anon := ir.TypeID("t/anon/components/schemas/Holder/properties/" + wire)
+			assert.NotContains(t, doc.Types, anon,
+				"no anonymous node is interned at the property pointer")
+		})
+	}
+}
+
 func TestLower_TupleWithTrailingItems(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Tup:
