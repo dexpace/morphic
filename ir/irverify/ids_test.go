@@ -297,6 +297,19 @@ func declaredIDClasses() []declaredIDClass {
 	}
 }
 
+// declaredIDClassNamed returns the class called name, so a test reads the one it
+// means however the table is ordered.
+func declaredIDClassNamed(t *testing.T, name string) declaredIDClass {
+	t.Helper()
+	for _, class := range declaredIDClasses() {
+		if class.name == name {
+			return class
+		}
+	}
+	require.FailNow(t, "no such class of declared ID", name)
+	return declaredIDClass{}
+}
+
 // violationPaths returns the paths of the violations of one code, in report
 // order.
 func violationPaths(vs []irverify.Violation, code string) []string {
@@ -320,27 +333,28 @@ func violationPaths(vs []irverify.Violation, code string) []string {
 // and reddens only here.
 func TestVerify_MalformedDeclaredIDIsAViolation(t *testing.T) {
 	t.Parallel()
+	type row struct{ name, id string }
 	for _, class := range declaredIDClasses() {
-		malformed := map[string]string{
-			"no kind prefix":                "x/space/path",
-			"a type's prefix":               "t/space/path",
-			"the kind alone":                class.prefix,
-			"no space":                      class.prefix + "/",
-			"an empty space":                class.prefix + "//path",
-			"an empty path":                 class.prefix + "/space/",
-			"a longer word opening with it": class.prefix + "x/space/path",
+		malformed := []row{
+			{"no kind prefix", "x/space/path"},
+			{"a type's prefix", "t/space/path"},
+			{"the kind alone", class.prefix},
+			{"no space", class.prefix + "/"},
+			{"an empty space", class.prefix + "//path"},
+			{"an empty path", class.prefix + "/space/"},
+			{"a longer word opening with it", class.prefix + "x/space/path"},
 		}
 		for _, other := range declaredIDClasses() {
 			if other.prefix != class.prefix {
-				malformed["the "+other.name+" prefix"] = other.prefix + "/space/path"
+				malformed = append(malformed, row{"the " + other.name + " prefix", other.prefix + "/space/path"})
 			}
 		}
-		for name, id := range malformed {
-			t.Run(class.name+"/"+name, func(t *testing.T) {
+		for _, tc := range malformed {
+			t.Run(class.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
-				got := irverify.Verify(class.doc(id, ""))
+				got := irverify.Verify(class.doc(tc.id, ""))
 				assert.Equal(t, []string{class.path}, violationPaths(got, "ir/id-malformed"),
-					"%q is not an ID the %s grammar produces", id, class.name)
+					"%q is not an ID the %s grammar produces", tc.id, class.name)
 			})
 		}
 	}
@@ -385,8 +399,7 @@ func TestVerify_EmptyDeclaredIDIsNotAlsoMalformed(t *testing.T) {
 // the pointer beside it gives it away.
 func TestVerify_PropertyIDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	t.Parallel()
-	property := declaredIDClasses()[3]
-	require.Equal(t, "property", property.name)
+	property := declaredIDClassNamed(t, "property")
 	tests := []struct{ name, id, pointer string }{
 		{"a lost separator", "p/openapicomponents/schemas/M/properties/f", "/components/schemas/M/properties/f"},
 		{"another position's pointer", "p/openapi/components/schemas/M/properties/f", "/components/schemas/M/properties/g"},
@@ -407,7 +420,7 @@ func TestVerify_PropertyIDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 // nothing.
 func TestVerify_PropertyIDAgreeingWithItsPointerIsClean(t *testing.T) {
 	t.Parallel()
-	property := declaredIDClasses()[3]
+	property := declaredIDClassNamed(t, "property")
 	const id = "p/openapi/components/schemas/M/properties/f"
 	for _, pointer := range []string{"/components/schemas/M/properties/f", ""} {
 		got := irverify.Verify(property.doc(id, pointer))
@@ -423,10 +436,7 @@ func TestVerify_PropertyIDAgreeingWithItsPointerIsClean(t *testing.T) {
 // source index and not a path.
 func TestVerify_OperationIDMayDifferFromItsPointer(t *testing.T) {
 	t.Parallel()
-	classes := declaredIDClasses()
-	operation, service := classes[0], classes[1]
-	require.Equal(t, "operation", operation.name)
-	require.Equal(t, "service", service.name)
+	operation, service := declaredIDClassNamed(t, "operation"), declaredIDClassNamed(t, "service")
 
 	mounted := operation.doc("op/openapi/paths/~1widgets/get", "/components/pathItems/Listing/get")
 	assert.Empty(t, violationPaths(irverify.Verify(mounted), "ir/id-provenance-disagreement"))

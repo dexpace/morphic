@@ -2,6 +2,7 @@ package ids_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -315,6 +316,8 @@ func TestGroupIDs_SpellEachRule(t *testing.T) {
 		{name: "the tag named by the empty string", got: ids.TagGroup(""), want: "g/tags"},
 		{name: "a path prefix", got: ids.PathPrefixGroup("users"), want: "g/path-prefix/users"},
 		{name: "a path prefix with a template", got: ids.PathPrefixGroup("{id}"), want: "g/path-prefix/{id}"},
+		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "g/path-prefix/a~0b"},
+		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "g/path-prefix/a~1b"},
 		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "g/path-prefix"},
 		{name: "untagged operations", got: ids.DefaultGroup(), want: "g/default"},
 		{name: "webhook operations", got: ids.WebhookGroup(), want: "g/webhooks"},
@@ -340,21 +343,25 @@ func TestGroupIDs_NeverCollide(t *testing.T) {
 	require.Len(t, exhaustive, 781, "5^0 + … + 5^4 strings; a shorter list would pass this test vacuously")
 	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix"}, exhaustive)
 
+	rules := []struct {
+		name string
+		id   func(key string) ir.GroupID
+	}{
+		{name: "tag", id: ids.TagGroup},
+		{name: "path prefix", id: ids.PathPrefixGroup},
+	}
 	seen := map[ir.GroupID]string{
 		ids.DefaultGroup(): "the default group",
 		ids.WebhookGroup(): "the webhook group",
 	}
 	for _, key := range keys {
-		for rule, id := range map[string]ir.GroupID{
-			"tag":         ids.TagGroup(key),
-			"path prefix": ids.PathPrefixGroup(key),
-		} {
-			label := rule + " " + key
-			if prior, taken := seen[id]; taken {
-				t.Fatalf("%s and %s are both %q", label, prior, id)
-			}
+		for _, rule := range rules {
+			id := rule.id(key)
+			label := fmt.Sprintf("%s %q", rule.name, key)
+			prior, taken := seen[id]
+			require.Falsef(t, taken, "%s and %s are both %q", label, prior, id)
 			seen[id] = label
-			require.True(t, ir.WellFormedID(ir.IDKindGroup, string(id)), "%s: %q", label, id)
+			require.Truef(t, ir.WellFormedID(ir.IDKindGroup, string(id)), "%s: %q", label, id)
 		}
 	}
 }
