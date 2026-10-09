@@ -136,7 +136,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	pathsExt, pathsDiags := schema.ExtensionsIn(c, c.Doc.GetPaths().GetExtensions(), ids.Ptr("paths"), "paths")
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
-	groups := newServiceGroups()
+	groups := newServiceGroups(c)
 	claims := newOperationIDClaims()
 	diags = append(diags, lowerPaths(ctx, c, ts, anchors, claims, groups, &svc)...)
 	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, claims, groups, &svc)...)
@@ -207,20 +207,20 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
 	for _, po := range pathOperations(pi) {
-		key, name, docs, inferred := groupFor(c, po.src, path)
+		spec := groups.specFor(c, po.src, path)
 		ptrs := opPointers{mount: pathPtr + po.seg, decl: declPtr + po.seg}
 		opCtx := opContext{
 			method:        po.method,
 			uriTemplate:   path,
 			withCallbacks: true,
-			inferred:      inferred,
+			inferred:      spec.inferred,
 			ptrs:          ptrs,
 			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
 		}
 		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
+		grp := groups.group(spec)
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
 		mounted++
@@ -265,13 +265,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 			diags = append(diags, opDiags...)
 			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-			grp := groups.group("webhook", func() ir.OperationGroup {
-				// A hint, not a source name: no document declares this group. The
-				// compiler synthesizes it to hold webhook operations, exactly as it
-				// synthesizes the "default" group above, and Naming.Source is the
-				// spelling the source used (GitHub #184).
-				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
-			})
+			grp := groups.group(groups.webhookSpec(c))
 			grp.Operations = append(grp.Operations, op)
 			grp.Operations = append(grp.Operations, extra...)
 			mounted++
@@ -281,32 +275,6 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 		}
 	}
 	return diags
-}
-
-// groupFor resolves the group an operation belongs to under the active strategy.
-// lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
-// declared tags is a declared fact and leaves it empty.
-func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
-	if c.Grouping == lowering.GroupByPathPrefix {
-		seg := firstPathSegment(path)
-		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
-	}
-	tags := src.GetTags()
-	if len(tags) == 0 {
-		return "default", compile.NamingHint("default"), ir.Docs{}, ""
-	}
-	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
-}
-
-// tagDocs returns the declared docs for a tag name, or empty when undeclared.
-func tagDocs(c lowering.Ctx, name string) ir.Docs {
-	for _, t := range c.Doc.GetTags() {
-		if t != nil && t.GetName() == name {
-			return tagDocsFrom(t)
-		}
-	}
-	return ir.Docs{}
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
@@ -1152,37 +1120,4 @@ func firstPathSegment(path string) string {
 		}
 	}
 	return ""
-}
-
-// serviceGroups accumulates operation groups keyed by a namespaced key while
-// preserving first-seen insertion order, so a group's operations gather across
-// paths without reordering the groups themselves.
-type serviceGroups struct {
-	order []string
-	byKey map[string]*ir.OperationGroup
-}
-
-// newServiceGroups returns an empty group accumulator.
-func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup)}
-}
-
-// group returns the group for key, creating it via mk on first sight and
-// recording its insertion order.
-func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.OperationGroup {
-	if existing, ok := g.byKey[key]; ok {
-		return existing
-	}
-	g.byKey[key] = new(mk())
-	g.order = append(g.order, key)
-	return g.byKey[key]
-}
-
-// finalize returns the accumulated groups in insertion order.
-func (g *serviceGroups) finalize() []ir.OperationGroup {
-	out := make([]ir.OperationGroup, 0, len(g.order))
-	for _, k := range g.order {
-		out = append(out, *g.byKey[k])
-	}
-	return out
 }

@@ -1,0 +1,538 @@
+{
+  "irVersion": "0.7.0",
+  "name": "Group Identity",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Group Identity",
+        "canonical": "group_identity"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/openapi/tags/default",
+          "name": {
+            "source": "default",
+            "canonical": "default"
+          },
+          "docs": {
+            "description": "A declared tag, not the fallback group"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1declared/get",
+              "name": {
+                "source": "declared",
+                "canonical": "declared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "default"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/declared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1declared/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/1"
+          }
+        },
+        {
+          "id": "g/openapi/tags/a~1b",
+          "name": {
+            "source": "a/b",
+            "canonical": "a_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1slash/get",
+              "name": {
+                "source": "slash",
+                "canonical": "slash"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a/b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/slash",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1slash/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/2"
+          }
+        },
+        {
+          "id": "g/openapi/tags/a~0b",
+          "name": {
+            "source": "a~b",
+            "canonical": "a_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tilde/get",
+              "name": {
+                "source": "tilde",
+                "canonical": "tilde"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a~b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tilde",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tilde/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/3"
+          }
+        },
+        {
+          "id": "g/openapi/tags/empty",
+          "name": {
+            "source": "empty",
+            "canonical": "empty"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1empty/get",
+              "name": {
+                "source": "emptyTag",
+                "canonical": "empty_tag"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "empty"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/empty",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1empty/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/4"
+          }
+        },
+        {
+          "id": "g/openapi/tags/webhooks",
+          "name": {
+            "source": "webhooks",
+            "canonical": "webhooks"
+          },
+          "docs": {
+            "description": "A declared tag, not the webhook group"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1hooked/get",
+              "name": {
+                "source": "hooked",
+                "canonical": "hooked"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "webhooks"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/hooked",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1hooked/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0"
+          }
+        },
+        {
+          "id": "g/openapi/tags/never-declared",
+          "name": {
+            "source": "never-declared",
+            "canonical": "never_declared"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1undeclared/get",
+              "name": {
+                "source": "undeclared",
+                "canonical": "undeclared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "never-declared"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/undeclared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1undeclared/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0
+          }
+        },
+        {
+          "id": "g/synth/openapi/default",
+          "name": {
+            "hint": "default_2"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1untagged/get",
+              "name": {
+                "source": "untagged",
+                "canonical": "untagged"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/untagged",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1untagged/get"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
+        },
+        {
+          "id": "g/synth/openapi/webhooks",
+          "name": {
+            "hint": "webhooks_2"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/ping/post",
+              "name": {
+                "source": "ping",
+                "canonical": "ping"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "ping",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/ping/post"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-webhooks"
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "webhooks",
+      "docs": {
+        "description": "A declared tag, not the webhook group"
+      }
+    },
+    {
+      "name": "default",
+      "docs": {
+        "description": "A declared tag, not the fallback group"
+      }
+    },
+    {
+      "name": "a/b",
+      "docs": {}
+    },
+    {
+      "name": "a~b",
+      "docs": {}
+    },
+    {
+      "name": "empty",
+      "docs": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "group-identity.yaml",
+      "hash": "c5c3b8a137659fb12fd4dc78e09e6658fb5d6a4e900a1181b72900f1ac894ff7"
+    }
+  ]
+}

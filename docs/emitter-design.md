@@ -468,7 +468,7 @@ purposes.
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
 ```go
-type GroupKey string                 // stable, derived from OperationGroup identity
+type GroupKey string                 // the OperationGroup.ID string (ir-design §3.1)
 type GroupPlan struct {
     Name     ir.Naming               // neutral — cased in refine
     Parent   GroupKey                // "" = top-level; nesting → sub-clients
@@ -476,6 +476,11 @@ type GroupPlan struct {
     Resource *ir.ResourceInfo        // Smithy resource lifecycle, when declared
 }
 ```
+
+`GroupKey` carries `OperationGroup.ID` verbatim. A key built from the group's name path was
+considered and rejected: names are presentation (INV3), a rename would move every key, and §15
+already bans name-keyed manifests. The ID is stable across a reorder and changes only when a tag
+is renamed.
 
 ### 3.5 plan.Policy — the plan's injectable heuristics
 

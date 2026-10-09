@@ -35,6 +35,7 @@ const (
 	authKind    = ir.IDKindAuth
 	serviceKind = ir.IDKindService
 	paramKind   = ir.IDKindParam
+	groupKind   = ir.IDKindGroup
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -62,6 +63,9 @@ func ServiceID(space Space, path string) ir.ServiceID {
 
 // ParamID returns the ID of the parameter at path within space.
 func ParamID(space Space, path string) ir.ParamID { return ir.ParamID(idFor(paramKind, space, path)) }
+
+// GroupID returns the ID of the operation group at path within space.
+func GroupID(space Space, path string) ir.GroupID { return ir.GroupID(idFor(groupKind, space, path)) }
 
 // idFor joins a kind prefix, a space and a path with single separators.
 //

@@ -39,6 +39,7 @@ func idBearingDoc(present bool) *ir.Document {
 		Services: []ir.Service{{
 			ID: pick(present, ir.ServiceID("s/x/S")),
 			Groups: []ir.OperationGroup{{
+				ID:         pick(present, ir.GroupID("g/x/G")),
 				Operations: []ir.Operation{{ID: pick(present, ir.OpID("op/x/S/op"))}},
 			}},
 		}},
@@ -109,12 +110,14 @@ func TestCheckDeclaredIDs_EmptyOperationAndServiceIDs(t *testing.T) {
 	}}}
 
 	got := declaredIDViolations(doc)
-	require.Len(t, got, 3, "one service and both operations declare nothing")
+	require.Len(t, got, 4, "one service, one group and both operations declare nothing")
 	assert.Equal(t, "ir/empty-service-id", got[0].Code)
 	assert.Equal(t, "doc.Services[0]", got[0].Path)
-	assert.Equal(t, "ir/empty-op-id", got[1].Code)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0]", got[1].Path)
-	assert.Equal(t, "doc.Services[0].Groups[0].Operations[1]", got[2].Path)
+	assert.Equal(t, "ir/empty-group-id", got[1].Code)
+	assert.Equal(t, "doc.Services[0].Groups[0]", got[1].Path)
+	assert.Equal(t, "ir/empty-op-id", got[2].Code)
+	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0]", got[2].Path)
+	assert.Equal(t, "doc.Services[0].Groups[0].Operations[1]", got[3].Path)
 }
 
 // TestCheckDeclaredIDs_EmptyPropertyID covers the third class with no registry

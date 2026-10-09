@@ -190,6 +190,7 @@ var identityClasses = map[string]string{
 	"MessageID": "identity: Document.Messages keys it; resolved and held as TypeID is",
 	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
 	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
+	"GroupID":   "identity, no map: checkDeclaredIDs holds each OperationGroup.ID non-empty, checkDuplicateIDs holds no two groups to one ID, checkGroupIDs holds it to its space's grammar, and pass.Validate rejects a repeat",
 	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
 	"ParamID":   "identity, operation-scoped: checkDeclaredIDs holds each Parameter.ID non-empty, checkDuplicateIDs holds no two parameters to one ID (no fingerprint exemption), and ir.Registries.WithDeclarations resolves bindings against them",
 	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",

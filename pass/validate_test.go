@@ -366,3 +366,53 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
 }
+
+// groupsDoc wraps top-level groups in two services so a duplicate can span them.
+func groupsDoc(first []ir.OperationGroup, second []ir.OperationGroup) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s/a", Groups: first}, {ID: "s/b", Groups: second}}
+	return doc
+}
+
+func TestValidate_DuplicateGroupIDIsReported(t *testing.T) {
+	t.Parallel()
+	same := ir.OperationGroup{ID: "g/openapi/tags/pets"}
+	nested := ir.OperationGroup{ID: "g/other", Groups: []ir.OperationGroup{{ID: "g/openapi/tags/pets"}}}
+
+	tests := map[string]*ir.Document{
+		"across services": groupsDoc([]ir.OperationGroup{same}, []ir.OperationGroup{same}),
+		"within a tree":   groupsDoc([]ir.OperationGroup{same, nested}, nil),
+	}
+	for name, doc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			diags := pass.Validate(doc)
+			assert.Equal(t, 1, countCode(t, diags, "pass/duplicate-group-id"), "%v", codes(diags))
+			for _, d := range diags {
+				assert.Equal(t, ir.SeverityError, d.Severity)
+			}
+		})
+	}
+}
+
+func TestValidate_DistinctOrEmptyGroupIDsAreClean(t *testing.T) {
+	t.Parallel()
+	doc := groupsDoc(
+		[]ir.OperationGroup{{ID: "g/openapi/tags/a"}, {}, {}},
+		[]ir.OperationGroup{{ID: "g/openapi/tags/b"}})
+	assert.Zero(t, countCode(t, pass.Validate(doc), "pass/duplicate-group-id"))
+}
+
+// TestValidate_DuplicateGroupIDStopsAtTheDepthBound pins that the check shares
+// the group-depth bound: a repeat buried past it is not reached, and the
+// truncation is what says so.
+func TestValidate_DuplicateGroupIDStopsAtTheDepthBound(t *testing.T) {
+	t.Parallel()
+	g := ir.OperationGroup{ID: "g/deep"}
+	for range 200 {
+		g = ir.OperationGroup{ID: "g/a", Groups: []ir.OperationGroup{g}}
+	}
+	got := codes(pass.Validate(groupsDoc([]ir.OperationGroup{g}, nil)))
+	assert.Contains(t, got, "ir/walk-truncated")
+	assert.Contains(t, got, "pass/duplicate-group-id", "the repeated g/a inside the bound is still found")
+}

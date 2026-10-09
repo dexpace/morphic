@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/openapi/tags/~",
           "name": {
             "hint": "empty"
           },
@@ -63,7 +64,10 @@
                 "pointer": "/paths/~1widgets/get"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0
+          }
         }
       ],
       "provenance": {

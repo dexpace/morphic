@@ -114,7 +114,7 @@ func TestProtocolDecl_JSONContract(t *testing.T) {
 // round-trips, including recursion through Groups.
 func TestOperationGroup_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.OperationGroup{}, `{"name":{},"docs":{}}`, ir.OperationGroup{
+	assertJSONContract(t, ir.OperationGroup{}, `{"name":{},"docs":{},"provenance":{"source":0}}`, ir.OperationGroup{
 		Name: populatedNaming(),
 		Docs: populatedDocs(),
 		Groups: []ir.OperationGroup{

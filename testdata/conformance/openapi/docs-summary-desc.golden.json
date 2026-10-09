@@ -28,6 +28,7 @@
       },
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -85,7 +86,11 @@
                 "pointer": "/paths/~1ping/get"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         }
       ],
       "provenance": {

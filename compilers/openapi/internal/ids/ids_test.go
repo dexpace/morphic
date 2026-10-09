@@ -307,3 +307,30 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/a~1b/header"),
 		ids.Param(ids.Ptr("paths", "/x", "get"), "a/b", "header"), "a slash in a name stays one segment")
 }
+
+// TestTagGroup_IsInjectiveOverAdversarialNames pins that no two tag names share
+// a group ID, that every ID is well formed, and that none can equal a
+// synthesized group's: the empty name and "empty" are the cases a naive scheme
+// merges, and a slash or tilde the ones that would read as a second segment.
+func TestTagGroup_IsInjectiveOverAdversarialNames(t *testing.T) {
+	t.Parallel()
+	seen := make(map[ir.GroupID]string)
+	for _, name := range []string{"", "empty", "default", "webhooks", "a/b", "a~b", "a~1b", "é", "~"} {
+		id := ids.TagGroup(name)
+		assert.True(t, ir.WellFormedID(ir.IDKindGroup, string(id)), "%q -> %s", name, id)
+		if prev, dup := seen[id]; dup {
+			t.Errorf("%q and %q share %s", prev, name, id)
+		}
+		seen[id] = name
+	}
+	assert.Equal(t, ir.GroupID("g/openapi/tags/~"), ids.TagGroup(""))
+	assert.Equal(t, ir.GroupID("g/openapi/tags/a~1b"), ids.TagGroup("a/b"))
+}
+
+func TestSynthGroup_LivesInItsOwnSpace(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.GroupID("g/synth/openapi/default"), ids.SynthGroup(ir.SynthRuleDefault))
+	assert.Equal(t, ir.GroupID("g/synth/openapi/path-prefix/a~1b"), ids.SynthGroup(ir.SynthRulePathPrefix, "a/b"))
+	assert.Equal(t, ir.GroupID("g/synth/openapi/path-prefix/~"), ids.SynthGroup(ir.SynthRulePathPrefix, ""))
+	assert.NotEqual(t, ids.TagGroup("default"), ids.SynthGroup(ir.SynthRuleDefault))
+}

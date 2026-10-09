@@ -185,7 +185,9 @@ it sees. Changes made together in one bump are listed together under it.
   `ParamPath.Param` (so `Pagination.InputCursor` and `InputLimit`) and `Idempotency.TokenParam`.
   Two parameters may share a name (`id` in the query and `id` in the path), which a name could not
   tell apart. A consumer pinned to 0.6.0 reads those references as names and finds no parameter
-  by them.
+  by them. An `OperationGroup` also got a stable `ID` of a new `GroupID` class and a `Provenance`
+  (§3.1, §7.1); a consumer pinned to 0.6.0 finds neither key and still has only the group's name
+  to tell two groups apart.
 
 ---
 
@@ -196,7 +198,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID, ParamID string
+type ServiceID, ChannelID, MessageID, AuthID, PropID, ParamID, GroupID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -206,7 +208,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `auth`, `param`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `auth`, `param`, `g`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -221,6 +223,31 @@ index is used, so reordering a parameter list leaves every ID unchanged. A field
 (`Property.Args`) is scoped to its owning property instead: `param/<space>/<property path>/args/<name>`.
 A `Parameter`'s provenance still points at its declaration, so the ID's path and the pointer
 disagree by design (as for the `composed` union variants of §4.3).
+
+A group's ID is derived from the name its source declares it under, as one injectively escaped
+path segment with no parent chain: for OpenAPI `g/openapi/tags/<escaped name>`, where `~` becomes
+`~0`, `/` becomes `~1` and the empty name becomes `~` (`ir.EscapeIDSegment`, pinned by
+`TestEscapeIDSegment_IsInjectiveAndInvertible`). A tag used on an operation but never declared mints
+in the same `tags/` space, so use declares the group and a later declaration only adds docs. A group
+the compiler synthesizes (the fallback for untagged operations, the webhooks group, a path-prefix
+group) takes `g/synth/<format>/<rule>[/<escaped key>]`, a space no declared ID can reach
+(`ids.SynthGroup`, `TestTagGroup_IsInjectiveOverAdversarialNames`).
+
+That is name-derived on purpose, and §3.1's "never derived from display names" is read for its
+purpose. A tag's `name` is the key operations reference it by, the role a component key plays in
+`/components/<kind>/<name>`, not presentation. The alternative, `#/tags/<i>`, obeys the letter and
+defeats the purpose: reordering the declarations silently rebinds an ID to a different tag
+(#678), where a rename leaves the ID naming a group that is missing, which is loud. The promise is
+the one #677 asks for and no wider: an ID is stable within one document and across revisions in
+which the tag's name is unchanged; a rename changes it by design. Nesting a group under a parent
+(OpenAPI 3.2's tag `parent`, #613) is not built, and when it is it must not change any ID here.
+
+A synthesized group's name is a hint (`Naming.Hint`), and the compiler mints a spelling no
+declared or used group already holds, by canonical words, so a declared tag called `default` and
+the untagged-operation group are two groups with two renderable names
+(`group-identity.yaml`). `pass.Validate` reports a repeated group ID as `pass/duplicate-group-id`;
+`irverify` holds each ID to its space's grammar (`checkGroupIDs`) and, through
+`ir.DeclaredIDs`, to being non-empty and declared once.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -1219,6 +1246,7 @@ type ProtocolDecl struct {
 }
 
 type OperationGroup struct {
+    ID         GroupID            // name-derived, §3.1; synthesized groups mint in their own space
     Name       Naming
     Docs       Docs
     Groups     []OperationGroup   // nesting: Smithy resources, sub-clients
@@ -1226,6 +1254,7 @@ type OperationGroup struct {
     Resource   *ResourceInfo      // Smithy resource semantics when declared
     Availability *Availability    // groups (TypeSpec interfaces) are versionable
     Unmodeled  Unmodeled
+    Provenance Provenance         // a declared tag's group points at /tags/<i>; a synthesized one is Inferred
 }
 
 type ResourceInfo struct {
@@ -1241,6 +1270,8 @@ type ResourceInfo struct {
 ```
 
 OpenAPI compilers build groups from tags (policy-controllable: tag-based vs path-prefix-based);
+an untagged operation falls into a synthesized group hinted `default`, webhooks into one hinted
+`webhooks`, and each yields to a declared or used tag that already spells the hint;
 TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
 (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
 

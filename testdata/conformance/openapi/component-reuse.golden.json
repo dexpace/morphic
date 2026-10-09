@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -418,7 +419,11 @@
                 "pointer": "/components/callbacks/Shipped/{$request.body#~1callbackUrl}/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         }
       ],
       "provenance": {

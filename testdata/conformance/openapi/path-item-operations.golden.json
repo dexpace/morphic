@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -256,9 +257,14 @@
                 "pointer": "/paths/~1index/additionalOperations/mIxEdCase"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         },
         {
+          "id": "g/synth/openapi/webhooks",
           "name": {
             "hint": "webhooks"
           },
@@ -307,7 +313,11 @@
                 "pointer": "/webhooks/cacheFlushed/additionalOperations/FLUSH"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-webhooks"
+          }
         }
       ],
       "provenance": {

@@ -110,3 +110,9 @@ func TestTypes_IDWithNoSpaceSegmentClaimsNothing(t *testing.T) {
 
 // model returns a distinct empty Model, the simplest node the registry accepts.
 func model() ir.TypeDef { return &ir.Model{} }
+
+func TestGroupID_UsesTheGroupKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.GroupID("g/openapi/tags/pets"), compile.GroupID("openapi", "tags/pets"))
+	assert.True(t, ir.WellFormedID(ir.IDKindGroup, string(compile.GroupID("synth", "openapi/default"))))
+}

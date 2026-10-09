@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -211,9 +212,14 @@
                 "pointer": "/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         },
         {
+          "id": "g/synth/openapi/webhooks",
           "name": {
             "hint": "webhooks"
           },
@@ -277,7 +283,11 @@
                 "pointer": "/webhooks/onShipped/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-webhooks"
+          }
         }
       ],
       "provenance": {

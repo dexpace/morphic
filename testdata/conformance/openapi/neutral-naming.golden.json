@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/openapi/tags/inventory.core",
           "name": {
             "source": "inventory.core",
             "canonical": "inventory_core"
@@ -168,7 +169,10 @@
                 "pointer": "/paths/~1widgets~1{widget.id}/get"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0
+          }
         }
       ],
       "provenance": {

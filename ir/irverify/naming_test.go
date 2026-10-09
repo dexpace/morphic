@@ -238,6 +238,7 @@ func respondingDoc(r ir.Response) *ir.Document {
 		ID:   "s/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
+			ID:   "g/x/G",
 			Name: named("g"),
 			Operations: []ir.Operation{{
 				ID:        "o/x/S/op",
@@ -258,6 +259,7 @@ func erroringDoc(ec ir.ErrorCase) *ir.Document {
 		ID:   "s/x/S",
 		Name: named("s"),
 		Groups: []ir.OperationGroup{{
+			ID:   "g/x/G",
 			Name: named("g"),
 			Operations: []ir.Operation{{
 				ID:     "o/x/S/op",

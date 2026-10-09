@@ -10,13 +10,10 @@ import (
 // produced (invariant #3): well-shaped, and — where the entity records the
 // source coordinate it was derived from — carrying that coordinate as its path.
 //
-// Neither half implies the other. Shape alone misses an ID that lost the
-// separator between its space and its path: "t/anonaddr" reads as a space named
-// "anonaddr". The recorded pointer catches it (GitHub #141).
-//
-// Agreement is asked only of entities that record a pointer. A primitive
-// derives from no source position, so checkPrimIDs holds it to the ID its kind
-// derives.
+// Neither half implies the other: "t/anonaddr" lost the separator between its
+// space and its path yet reads as a space named "anonaddr"; the recorded pointer
+// catches it (GitHub #141). A primitive records no pointer, so checkPrimIDs holds
+// it to the ID its kind derives, and checkGroupIDs holds the groups.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {

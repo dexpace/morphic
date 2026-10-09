@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/openapi/tags/pets",
           "name": {
             "source": "pets",
             "canonical": "pets"
@@ -67,7 +68,11 @@
                 "pointer": "/paths/~1pets/get"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0"
+          }
         }
       ],
       "provenance": {

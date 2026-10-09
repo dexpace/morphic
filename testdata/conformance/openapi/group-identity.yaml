@@ -1,0 +1,52 @@
+openapi: 3.1.0
+info: {title: Group Identity, version: "1.0.0"}
+# A tag spelled "default" and a tag spelled "webhooks" are ordinary declared
+# groups, so the groups the compiler synthesizes for an untagged operation and
+# for the webhook below must not take those spellings. Their IDs live in a space
+# of their own and never equal a declared one.
+tags:
+  - {name: webhooks, description: "A declared tag, not the webhook group"}
+  - {name: default, description: "A declared tag, not the fallback group"}
+  - {name: a/b}
+  - {name: a~b}
+  - {name: empty}
+paths:
+  /declared:
+    get:
+      operationId: declared
+      tags: [default]
+      responses: {"200": {description: ok}}
+  /slash:
+    get:
+      operationId: slash
+      tags: [a/b]
+      responses: {"200": {description: ok}}
+  /tilde:
+    get:
+      operationId: tilde
+      tags: [a~b]
+      responses: {"200": {description: ok}}
+  /empty:
+    get:
+      operationId: emptyTag
+      tags: [empty]
+      responses: {"200": {description: ok}}
+  /hooked:
+    get:
+      operationId: hooked
+      tags: [webhooks]
+      responses: {"200": {description: ok}}
+  /undeclared:
+    get:
+      operationId: undeclared
+      tags: [never-declared]
+      responses: {"200": {description: ok}}
+  /untagged:
+    get:
+      operationId: untagged
+      responses: {"200": {description: ok}}
+webhooks:
+  ping:
+    post:
+      operationId: ping
+      responses: {"200": {description: ok}}

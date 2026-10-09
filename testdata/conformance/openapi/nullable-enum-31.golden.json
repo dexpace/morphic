@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -90,7 +91,11 @@
                 "pointer": "/paths/~1pick/get"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         }
       ],
       "provenance": {

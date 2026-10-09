@@ -41,6 +41,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
+	diags = append(diags, checkDuplicateGroupIDs(doc)...)
 	return diags
 }
 
@@ -924,4 +925,44 @@ func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
 	}
 	slices.Sort(keys)
 	return keys
+}
+
+// checkDuplicateGroupIDs reports each operation group whose ID an earlier group
+// in the document already holds, whichever service or nesting level either sits
+// at. A shared ID resolves to whichever group a reader reaches first, so a
+// reference by it would silently mean a different group.
+//
+// It descends only to maxGroupDepth; checkGroupWalkTruncated reports a deeper
+// document, so this stays silent about the groups it did not reach. An empty ID
+// is skipped: irverify reports it, and several groups carrying none are not
+// duplicates.
+func checkDuplicateGroupIDs(doc *ir.Document) []ir.Diagnostic {
+	first := make(map[ir.GroupID]string)
+	var diags []ir.Diagnostic
+	for i, svc := range doc.Services {
+		diags = collectGroupIDs(diags, first, svc.Groups, fmt.Sprintf("services[%d].groups", i), 0)
+	}
+	return diags
+}
+
+// collectGroupIDs walks groups depth-first, recording the path of the first
+// group to hold each ID and reporting every later one against it.
+func collectGroupIDs(diags []ir.Diagnostic, first map[ir.GroupID]string, groups []ir.OperationGroup, at string, depth int) []ir.Diagnostic {
+	if depth > maxGroupDepth {
+		return diags
+	}
+	for i, g := range groups {
+		path := fmt.Sprintf("%s[%d]", at, i)
+		if g.ID != "" {
+			if prev, taken := first[g.ID]; taken {
+				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-group-id",
+					fmt.Sprintf("operation group id %s is declared at %s and again at %s", g.ID, prev, path),
+					string(g.ID)))
+			} else {
+				first[g.ID] = path
+			}
+		}
+		diags = collectGroupIDs(diags, first, g.Groups, path+".groups", depth+1)
+	}
+	return diags
 }

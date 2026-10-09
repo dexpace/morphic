@@ -195,6 +195,7 @@ func conformanceCases() []conformanceCase {
 		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
 		{"literal-const", assertLiteralConst, []string{"literal-types"}},
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
+		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
@@ -407,6 +408,7 @@ func assertEmptyNames(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	require.Len(t, doc.Services[0].Groups, 1)
 	assert.Equal(t, "empty", doc.Services[0].Groups[0].Name.Hint, "tag declared as \"\"")
+	assert.Equal(t, ir.GroupID("g/openapi/tags/~"), doc.Services[0].Groups[0].ID, "the empty name is one non-empty segment")
 
 	require.Len(t, doc.Auth, 1)
 	for _, scheme := range doc.Auth {
@@ -1837,6 +1839,8 @@ func assertTagsGrouping(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, doc.Services, 1)
 	require.Len(t, doc.Services[0].Groups, 1)
 	assert.Equal(t, "pets", doc.Services[0].Groups[0].Name.Source)
+	assert.Equal(t, ir.GroupID("g/openapi/tags/pets"), doc.Services[0].Groups[0].ID)
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/tags/0"}, doc.Services[0].Groups[0].Provenance)
 	require.Len(t, doc.TagDefs, 1)
 	assert.Equal(t, "pets", doc.TagDefs[0].Name)
 }

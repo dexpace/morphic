@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -126,7 +127,11 @@
                 "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         }
       ],
       "provenance": {

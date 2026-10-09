@@ -227,3 +227,32 @@ func TestIDPath_Extraction(t *testing.T) {
 		})
 	}
 }
+
+// TestEscapeIDSegment_IsInjectiveAndInvertible holds the escape to what a group
+// ID rests on: two names never share a segment, no segment holds a separator or
+// is empty, and the original name comes back. The empty name is the sharp case.
+func TestEscapeIDSegment_IsInjectiveAndInvertible(t *testing.T) {
+	t.Parallel()
+	names := []string{"", "~", "~0", "~1", "empty", "a/b", "a~b", "a~1b", "a~0b", "/", "//", "é/ü", "a b"}
+	seen := make(map[string]string)
+	for _, name := range names {
+		seg := ir.EscapeIDSegment(name)
+		assert.NotEmpty(t, seg, "%q", name)
+		assert.NotContains(t, seg, ir.IDSeparator, "%q", name)
+		if prev, dup := seen[seg]; dup {
+			t.Errorf("%q and %q both escape to %q", prev, name, seg)
+		}
+		seen[seg] = name
+		back, ok := ir.UnescapeIDSegment(seg)
+		assert.True(t, ok, "%q", seg)
+		assert.Equal(t, name, back)
+	}
+}
+
+func TestUnescapeIDSegment_RefusesWhatEscapeNeverProduces(t *testing.T) {
+	t.Parallel()
+	for _, seg := range []string{"", "a/b", "a~", "a~2", "~x", "a~/"} {
+		_, ok := ir.UnescapeIDSegment(seg)
+		assert.False(t, ok, "%q", seg)
+	}
+}

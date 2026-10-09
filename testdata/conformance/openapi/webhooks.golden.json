@@ -13,6 +13,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/synth/openapi/webhooks",
           "name": {
             "hint": "webhooks"
           },
@@ -102,7 +103,11 @@
                 "pointer": "/webhooks/newPet/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-webhooks"
+          }
         }
       ],
       "provenance": {

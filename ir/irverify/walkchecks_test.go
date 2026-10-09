@@ -31,7 +31,16 @@ func deepDoc() *ir.Document {
 		Name:     ir.Naming{Source: "M", Canonical: "m"},
 		Examples: []ir.Example{{Value: &v}},
 	}
-	return &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
+	// Groups nested past the verifier's group bound, so the group-ID walk, which
+	// descends the tree rather than the reflection walk, is cut short too.
+	g := ir.OperationGroup{ID: "g/x/G"}
+	for range maxGroupDepth + 2 {
+		g = ir.OperationGroup{ID: "g/x/G", Groups: []ir.OperationGroup{g}}
+	}
+	return &ir.Document{
+		Types:    ir.TypeRegistry{m.ID: m},
+		Services: []ir.Service{{ID: "s/x/S", Groups: []ir.OperationGroup{g}}},
+	}
 }
 
 // TestWalkChecks_EachReportsTruncation drives the flag every walking check owes

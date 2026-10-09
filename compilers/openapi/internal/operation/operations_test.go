@@ -2908,3 +2908,26 @@ components:
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
 	}
 }
+
+// TestGrouping_SynthesizedHintSkipsEveryClaimedSpelling pins the mint walking
+// past more than one claimed variant, and a name compared by its canonical
+// words: "Default" claims the spelling "default", and a used tag claims the next.
+func TestGrouping_SynthesizedHintSkipsEveryClaimedSpelling(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+tags:
+  - {name: Default}
+paths:
+  /a: {get: {operationId: a, tags: [Default], responses: {"200": {description: ok}}}}
+  /b: {get: {operationId: b, tags: [default_2], responses: {"200": {description: ok}}}}
+  /c: {get: {operationId: c, responses: {"200": {description: ok}}}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	byID := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) ir.GroupID { return g.ID })
+	require.Len(t, byID, 3)
+	assert.Equal(t, "default_3", byID["g/synth/openapi/default"].Name.Hint)
+	assert.Equal(t, "Default", byID["g/openapi/tags/Default"].Name.Source)
+	assert.NotEqual(t, byID["g/openapi/tags/Default"].ID, byID["g/synth/openapi/default"].ID)
+}

@@ -25,6 +25,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/openapi/tags/t1",
           "name": {
             "source": "t1",
             "canonical": "t_1"
@@ -325,9 +326,14 @@
                 "pointer": "/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/tags/0"
+          }
         },
         {
+          "id": "g/synth/openapi/default",
           "name": {
             "hint": "default"
           },
@@ -504,7 +510,11 @@
                 "pointer": "/paths/~1widgets/post"
               }
             }
-          ]
+          ],
+          "provenance": {
+            "source": 0,
+            "inferred": "group-default"
+          }
         }
       ],
       "unmodeled": {

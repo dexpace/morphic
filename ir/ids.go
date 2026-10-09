@@ -33,6 +33,10 @@ type PropID string
 // names that one carrying and no other.
 type ParamID string
 
+// GroupID identifies an OperationGroup. A group is addressed by the name its
+// source declares it under, so the ID names that one group and no other.
+type GroupID string
+
 // The kind prefix that opens every synthetic ID. An ID is
 // <kind>/<space>[/<path>]: the kind says what sort of entity it names, the space
 // says whose coordinates the path is in, and the path is the compiler's own
@@ -50,7 +54,68 @@ const (
 	IDKindAuth    = "auth"
 	IDKindService = "s"
 	IDKindParam   = "param"
+	IDKindGroup   = "g"
 )
+
+// IDSpaceSynth is the space of a group the compiler synthesized because no
+// declaration names it. A synthesized group's path is <format>/<rule>[/<key>],
+// so it can never equal a declared group's ID, which lives in the format's own
+// space (invariant 3, corollary).
+const IDSpaceSynth = "synth"
+
+// The rules a compiler synthesizes a group by. SynthRulePathPrefix is the only
+// one that carries a key, the escaped path segment the group collects.
+const (
+	SynthRuleDefault    = "default"
+	SynthRuleWebhooks   = "webhooks"
+	SynthRulePathPrefix = "path-prefix"
+)
+
+// IDTagsSegment is the first path segment of a group declared by a tag: the
+// path is tags/<escaped name>.
+const IDTagsSegment = "tags"
+
+// EscapeIDSegment returns name as one ID path segment. "~" becomes "~0" and "/"
+// becomes "~1", so the result holds no separator, and the empty name becomes "~",
+// which no escaped name can equal because every "~" in one is followed by 0 or 1.
+// Distinct names therefore yield distinct segments.
+func EscapeIDSegment(name string) string {
+	if name == "" {
+		return "~"
+	}
+	return strings.NewReplacer("~", "~0", "/", "~1").Replace(name)
+}
+
+// UnescapeIDSegment inverts EscapeIDSegment and reports false for a segment it
+// could not have produced: an empty one, or a "~" not followed by 0 or 1.
+func UnescapeIDSegment(seg string) (string, bool) {
+	if seg == "" {
+		return "", false
+	}
+	if seg == "~" {
+		return "", true
+	}
+	var b strings.Builder
+	for i := 0; i < len(seg); i++ {
+		if seg[i] == '/' {
+			return "", false
+		}
+		if seg[i] != '~' {
+			b.WriteByte(seg[i])
+			continue
+		}
+		i++
+		switch {
+		case i < len(seg) && seg[i] == '0':
+			b.WriteByte('~')
+		case i < len(seg) && seg[i] == '1':
+			b.WriteByte('/')
+		default:
+			return "", false
+		}
+	}
+	return b.String(), true
+}
 
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"

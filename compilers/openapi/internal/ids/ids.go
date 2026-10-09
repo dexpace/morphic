@@ -66,6 +66,10 @@ const (
 	// resolveSchemaRef can never hand a composed ID to a reference; compile.Types
 	// rejects the mistake of minting into a space that addresses coordinates.
 	ComposedSpace compile.Space = "composed"
+	// SynthGroupSpace holds the groups the compiler synthesizes because no tag
+	// declares them. Its own space keeps them from ever equalling a tag-declared
+	// group's ID, whatever the tag is called (invariant 3, corollary).
+	SynthGroupSpace compile.Space = ir.IDSpaceSynth
 )
 
 // NamedType returns the stable ID of a components-named schema at pointer.
@@ -101,6 +105,25 @@ func Prop(pointer jsontext.Pointer) ir.PropID {
 func Param(opPointer jsontext.Pointer, name, in string) ir.ParamID {
 	path := strings.TrimPrefix(string(opPointer), "/") + string(Ptr("parameters", name)) + "/" + in
 	return compile.ParamID(OpenAPISpace, path)
+}
+
+// TagGroup returns the stable ID of the group a tag declares. The tag's name is
+// the key operations reference it by and OpenAPI keeps tag names unique, so the
+// name alone identifies the group; no index is used because a reorder would then
+// rebind the ID to a different tag.
+func TagGroup(name string) ir.GroupID {
+	return compile.GroupID(OpenAPISpace, ir.IDTagsSegment+"/"+ir.EscapeIDSegment(name))
+}
+
+// SynthGroup returns the stable ID of the group minted by rule, in the space of
+// its own. key is the escaped segment a rule that collects by one (path-prefix)
+// is keyed by, and is left out for a rule that has none.
+func SynthGroup(rule string, key ...string) ir.GroupID {
+	path := string(OpenAPISpace) + "/" + rule
+	for _, k := range key {
+		path += "/" + ir.EscapeIDSegment(k)
+	}
+	return compile.GroupID(SynthGroupSpace, path)
 }
 
 // Auth returns the stable ID of the named security scheme.
