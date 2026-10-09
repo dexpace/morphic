@@ -94,6 +94,15 @@ func Prop(pointer jsontext.Pointer) ir.PropID {
 	return compile.PropID(OpenAPISpace, string(pointer))
 }
 
+// Param returns the stable ID of the parameter named name in location in, as
+// mounted on the operation declared at opPointer. The operation's pointer scopes
+// it because a path-item parameter is copied into every operation on the item,
+// and no list index is used so reordering entries leaves the ID unchanged.
+func Param(opPointer jsontext.Pointer, name, in string) ir.ParamID {
+	path := strings.TrimPrefix(string(opPointer), "/") + string(Ptr("parameters", name)) + "/" + in
+	return compile.ParamID(OpenAPISpace, path)
+}
+
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
 	return compile.AuthID(OpenAPISpace, string(Ptr("components", "securitySchemes", name)))

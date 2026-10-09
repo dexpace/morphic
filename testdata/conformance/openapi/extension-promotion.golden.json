@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "ExtensionPromotion",
   "version": "1.0.0",
   "docs": {},
@@ -32,6 +32,7 @@
               },
               "params": [
                 {
+                  "id": "param/openapi/paths/~1x/get/parameters/legacy/query",
                   "name": {
                     "source": "legacy",
                     "canonical": "legacy"
@@ -142,7 +143,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "legacy",
+                        "param": "param/openapi/paths/~1x/get/parameters/legacy/query",
                         "location": "query",
                         "wireName": "legacy",
                         "style": "form",

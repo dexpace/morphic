@@ -180,6 +180,12 @@ it sees. Changes made together in one bump are listed together under it.
   pointer; a line and column moved to `position`, and an IR pass's location in the document itself
   moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
   unlocated.
+- **0.7.0** — a `Parameter` got a stable `ID` of a new `ParamID` class, and the three places that
+  named a parameter by its display name now name it by that ID: `HTTPParamBinding.Param`,
+  `ParamPath.Param` (so `Pagination.InputCursor` and `InputLimit`) and `Idempotency.TokenParam`.
+  Two parameters may share a name (`id` in the query and `id` in the path), which a name could not
+  tell apart. A consumer pinned to 0.6.0 reads those references as names and finds no parameter
+  by them.
 
 ---
 
@@ -190,7 +196,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID string
+type ServiceID, ChannelID, MessageID, AuthID, PropID, ParamID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -200,11 +206,21 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `auth`, `param`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
 rule §4.3 states for distributed unions.
+
+A parameter's ID is scoped to the operation that carries it:
+`param/<space>/<operation path>/parameters/<name>/<in>`, where the name is escaped as one JSON
+Pointer token and `<in>` is the source's location verbatim. A path-item parameter is copied into
+every operation on the item, so an ID derived from its declaration alone would be shared by all of
+them; deriving it from the mounting operation, name and location gives each copy its own. No list
+index is used, so reordering a parameter list leaves every ID unchanged. A field argument
+(`Property.Args`) is scoped to its owning property instead: `param/<space>/<property path>/args/<name>`.
+A `Parameter`'s provenance still points at its declaration, so the ID's path and the pointer
+disagree by design (as for the `composed` union variants of §4.3).
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -1268,6 +1284,7 @@ type Operation struct {
 }
 
 type Parameter struct {
+    ID         ParamID             // §3.1; bindings and ParamPath refer to the parameter by it
     Name       Naming
     Type       TypeRef
     Required   bool
@@ -1289,6 +1306,8 @@ type Parameter struct {
                                // the pointer only for an entry written inline
     // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1)
 }
+// A path-item parameter is merged by value into every operation on the item, so each operation
+// carries its own Parameter with its own ID.
 
 type Payload struct {
     Contents []Content            // one per media type / message schema — all kept
@@ -1416,7 +1435,7 @@ type PropPath struct {
                        // can live in response/message headers, not just bodies
     Segments []PropID
 }
-type ParamPath struct{ Param string; Segments []PropID }
+type ParamPath struct{ Param ParamID; Segments []PropID } // Param is the ID of the parameter rooted in
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
@@ -1500,7 +1519,7 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      string             // Operation.Params name it binds
+    Param      ParamID            // ID of the Operation.Params entry it binds
     ParamPath  []PropID           // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param
@@ -1527,7 +1546,7 @@ type HTTPParamBinding struct {
 type Callback struct { Expression string; Operations []OpID }
 ```
 
-Every logical parameter is bound exactly once **per non-host location; a `host` binding is
+Every logical parameter, identified by its `ParamID` and not by its name, is bound exactly once **per non-host location; a `host` binding is
 additive** — Smithy `@hostLabel` members expand into the host prefix *and* still serialize at
 their modeled location, by spec. TypeSpec's `HttpProperty` role+path flattening is the model
 here: nested `@header`/`@body` annotations resolve to explicit `(role, wire name, path)`

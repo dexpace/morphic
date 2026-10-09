@@ -49,11 +49,11 @@ func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID: "op/o", Name: ir.Naming{Source: "o"},
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "book"}, Type: ir.TypeRef{Target: "t/m"}}},
+		Params: []ir.Parameter{{ID: "param/x/book", Name: ir.Naming{Source: "book"}, Type: ir.TypeRef{Target: "t/m"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET",
 			ParamBindings: []ir.HTTPParamBinding{{
-				Param: "book", Location: ir.HTTPLocationPath,
+				Param: "param/x/book", Location: ir.HTTPLocationPath,
 				ParamPath: []ir.PropID{"p/m/ghost"},
 			}},
 		}}},

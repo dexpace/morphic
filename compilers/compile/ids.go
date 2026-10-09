@@ -34,6 +34,7 @@ const (
 	propKind    = ir.IDKindProp
 	authKind    = ir.IDKindAuth
 	serviceKind = ir.IDKindService
+	paramKind   = ir.IDKindParam
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -58,6 +59,9 @@ func AuthID(space Space, path string) ir.AuthID { return ir.AuthID(idFor(authKin
 func ServiceID(space Space, path string) ir.ServiceID {
 	return ir.ServiceID(idFor(serviceKind, space, path))
 }
+
+// ParamID returns the ID of the parameter at path within space.
+func ParamID(space Space, path string) ir.ParamID { return ir.ParamID(idFor(paramKind, space, path)) }
 
 // idFor joins a kind prefix, a space and a path with single separators.
 //

@@ -70,6 +70,10 @@ type Operation struct {
 // location is HTTP-binding detail (ir-design §7.2). GraphQL field arguments
 // (Property.Args) reuse this shape.
 type Parameter struct {
+	// ID is the parameter's stable synthetic ID, unique within the document.
+	// Bindings, pagination and idempotency name a parameter by it, because Name
+	// is presentation and two parameters may share one.
+	ID ParamID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
 	// Type is the parameter's type.
@@ -331,9 +335,9 @@ const (
 type Idempotency struct {
 	// Kind is the idempotency class.
 	Kind IdempotencyKind `json:"kind,omitempty"`
-	// TokenParam names the idempotency-token parameter; set only when Kind is
-	// IdempotencyToken.
-	TokenParam string `json:"tokenParam,omitempty"`
+	// TokenParam is the ID of the idempotency-token parameter; set only when Kind
+	// is IdempotencyToken.
+	TokenParam ParamID `json:"tokenParam,omitempty"`
 }
 
 // PageStrategy names the pagination mechanism of an Operation (ir-design §7.3).
@@ -398,8 +402,8 @@ type PropPath struct {
 
 // ParamPath addresses a member within a named parameter (ir-design §7.3).
 type ParamPath struct {
-	// Param is the parameter name the path roots in.
-	Param string `json:"param,omitempty"`
+	// Param is the ID of the parameter the path roots in.
+	Param ParamID `json:"param,omitempty"`
 	// Segments are the ordered property IDs walked from the parameter; no entry
 	// is empty.
 	Segments []PropID `json:"segments,omitempty"`

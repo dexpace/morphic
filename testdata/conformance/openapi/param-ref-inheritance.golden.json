@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "ParamRefInheritance",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1items/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
@@ -51,6 +52,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1items/get/parameters/override/query",
                   "name": {
                     "source": "override",
                     "canonical": "override"
@@ -107,7 +109,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "cursor",
+                        "param": "param/openapi/paths/~1items/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -115,7 +117,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "override",
+                        "param": "param/openapi/paths/~1items/get/parameters/override/query",
                         "location": "query",
                         "wireName": "override",
                         "style": "form",

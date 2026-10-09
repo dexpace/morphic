@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "ParamXMLResidue",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1docs/get/parameters/tag/query",
                   "name": {
                     "source": "tag",
                     "canonical": "tag"
@@ -56,6 +57,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1docs/get/parameters/body/query",
                   "name": {
                     "source": "body",
                     "canonical": "body"
@@ -113,7 +115,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "tag",
+                        "param": "param/openapi/paths/~1docs/get/parameters/tag/query",
                         "location": "query",
                         "wireName": "tag",
                         "style": "form",
@@ -121,7 +123,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "body",
+                        "param": "param/openapi/paths/~1docs/get/parameters/body/query",
                         "location": "query",
                         "wireName": "body",
                         "style": "form",

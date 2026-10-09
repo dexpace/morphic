@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "InlineAnnotations",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1codes/get/parameters/prefix/query",
                   "name": {
                     "source": "prefix",
                     "canonical": "prefix"
@@ -143,7 +144,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "prefix",
+                        "param": "param/openapi/paths/~1codes/get/parameters/prefix/query",
                         "location": "query",
                         "wireName": "prefix",
                         "style": "form",

@@ -104,10 +104,10 @@ func TestValidate_ParamBinding_UnknownParam(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/id", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x",
-			ParamBindings: []ir.HTTPParamBinding{{Param: "ghost", Location: ir.HTTPLocationPath}},
+			ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/ghost", Location: ir.HTTPLocationPath}},
 		}}},
 	}
 	diags := pass.Validate(docWithOperation(op))
@@ -119,18 +119,81 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/id", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x",
 			ParamBindings: []ir.HTTPParamBinding{
-				{Param: "id", Location: ir.HTTPLocationQuery},
-				{Param: "id", Location: ir.HTTPLocationQuery},
+				{Param: "param/x/id", Location: ir.HTTPLocationQuery},
+				{Param: "param/x/id", Location: ir.HTTPLocationQuery},
 			},
 		}}},
 	}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
 	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+}
+
+// TestValidate_ParamBinding_SameNameDifferentLocation is the shape the join used
+// to alias: two parameters named id, one in the query and one in the path. Each
+// binding names one by ID, so the pair is clean, and swapping a binding onto the
+// other parameter's ID binds one twice and leaves the other unbound.
+func TestValidate_ParamBinding_SameNameDifferentLocation(t *testing.T) {
+	t.Parallel()
+	op := func(first, second ir.ParamID) ir.Operation {
+		return ir.Operation{
+			ID: "op/a",
+			Params: []ir.Parameter{
+				{ID: "param/x/a/id/query", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/integer"}},
+				{ID: "param/x/a/id/path", Name: ir.Naming{Source: "id"}, Required: true, Type: ir.TypeRef{Target: "t/prim/string"}},
+			},
+			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				Method: "GET", URITemplate: "/x/{id}",
+				ParamBindings: []ir.HTTPParamBinding{
+					{Param: first, Location: ir.HTTPLocationQuery, WireName: "id"},
+					{Param: second, Location: ir.HTTPLocationQuery, WireName: "id"},
+				},
+			}}},
+		}
+	}
+	good := op("param/x/a/id/query", "param/x/a/id/path")
+	good.Bindings.HTTP[0].ParamBindings[1].Location = ir.HTTPLocationPath
+	assert.NotContains(t, codes(pass.Validate(docWithOperation(good))), "pass/param-binding-mismatch")
+
+	swapped := op("param/x/a/id/path", "param/x/a/id/path")
+	var msgs []string
+	for _, d := range pass.Validate(docWithOperation(swapped)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			msgs = append(msgs, d.Message)
+		}
+	}
+	require.Len(t, msgs, 2, "one double-bind error and one unbound warning")
+}
+
+// TestValidate_ParamBinding_OtherOperationsParamIsRejected holds membership to
+// the binding's own operation: an ID another operation declares still resolves
+// document-wide, so only the per-operation join can reject it.
+func TestValidate_ParamBinding_OtherOperationsParamIsRejected(t *testing.T) {
+	t.Parallel()
+	mk := func(id string, bound ir.ParamID) ir.Operation {
+		return ir.Operation{
+			ID:     ir.OpID(id),
+			Params: []ir.Parameter{{ID: ir.ParamID("param/x/" + id), Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+			Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				Method: "GET", URITemplate: "/x",
+				ParamBindings: []ir.HTTPParamBinding{{Param: bound, Location: ir.HTTPLocationQuery}},
+			}}},
+		}
+	}
+	doc := docWithOperation(mk("op/a", "param/x/op/b"))
+	doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, mk("op/b", "param/x/op/b"))
+	var errs []string
+	for _, d := range pass.Validate(doc) {
+		if d.Code == "pass/param-binding-mismatch" && d.Severity == ir.SeverityError {
+			errs = append(errs, d.Message)
+		}
+	}
+	require.Len(t, errs, 1, "op/a binds op/b's parameter")
+	assert.Contains(t, errs[0], "does not declare")
 }
 
 func TestValidate_OneWayWithResponses(t *testing.T) {

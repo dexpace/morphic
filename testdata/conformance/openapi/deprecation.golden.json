@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "Deprecation",
   "version": "1.0.0",
   "docs": {},
@@ -28,6 +28,7 @@
               "deprecation": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1old/get/parameters/legacy/query",
                   "name": {
                     "source": "legacy",
                     "canonical": "legacy"
@@ -73,7 +74,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "legacy",
+                        "param": "param/openapi/paths/~1old/get/parameters/legacy/query",
                         "location": "query",
                         "wireName": "legacy",
                         "style": "form",

@@ -296,3 +296,14 @@ func TestDeclarationHint_PrefersTheComponentName(t *testing.T) {
 		})
 	}
 }
+
+// TestParam_ScopesByOperationNameAndLocation pins the parameter ID grammar: the
+// mounting operation, the name as one escaped token, and the location verbatim.
+func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
+	t.Parallel()
+	op := ids.Ptr("paths", "/items/{id}", "get")
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/query"), ids.Param(op, "id", "query"))
+	assert.NotEqual(t, ids.Param(op, "id", "query"), ids.Param(op, "id", "path"))
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/a~1b/header"),
+		ids.Param(ids.Ptr("paths", "/x", "get"), "a/b", "header"), "a slash in a name stays one segment")
+}

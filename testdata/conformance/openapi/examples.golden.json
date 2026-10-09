@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "Examples",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1items/get/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
@@ -158,7 +159,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "q",
+                        "param": "param/openapi/paths/~1items/get/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",

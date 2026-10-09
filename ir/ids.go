@@ -28,6 +28,11 @@ type AuthID string
 // PropID identifies a Property within the document.
 type PropID string
 
+// ParamID identifies a Parameter within the document. A parameter is scoped to
+// the operation (or property, for field arguments) that carries it, so the ID
+// names that one carrying and no other.
+type ParamID string
+
 // The kind prefix that opens every synthetic ID. An ID is
 // <kind>/<space>[/<path>]: the kind says what sort of entity it names, the space
 // says whose coordinates the path is in, and the path is the compiler's own
@@ -44,6 +49,7 @@ const (
 	IDKindProp    = "p"
 	IDKindAuth    = "auth"
 	IDKindService = "s"
+	IDKindParam   = "param"
 )
 
 // IDSeparator separates an ID's kind, space and path segments.

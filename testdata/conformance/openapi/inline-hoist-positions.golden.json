@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "InlineHoistPositions",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1orders/post/parameters/audit/query",
                   "name": {
                     "source": "audit",
                     "canonical": "audit"
@@ -123,7 +124,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "audit",
+                        "param": "param/openapi/paths/~1orders/post/parameters/audit/query",
                         "location": "query",
                         "wireName": "audit",
                         "style": "form",

@@ -871,7 +871,7 @@ func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Di
 func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
 	out := make(map[string]ir.HTTPParamBinding, len(bindings))
 	for _, b := range bindings {
-		out[b.Param] = b
+		out[b.WireName] = b
 	}
 	return out
 }

@@ -326,3 +326,43 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_ParamIDClassIsReached plants the two defects the ParamID class
+// exists to catch: a binding naming an ID no parameter declares, and a
+// parameter declaring none.
+func TestVerify_ParamIDClassIsReached(t *testing.T) {
+	t.Parallel()
+	ghost := opDoc(ir.Operation{
+		ID:     "op/x/o",
+		Params: []ir.Parameter{{ID: "param/x/o/a/query", Name: named("a")}},
+		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+			ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/ghost", Location: ir.HTTPLocationQuery}},
+		}}},
+	})
+	var dangling []irverify.Violation
+	for _, v := range irverify.Verify(ghost) {
+		if v.Code == "ir/dangling-param-ref" {
+			dangling = append(dangling, v)
+		}
+	}
+	require.Len(t, dangling, 1)
+	assert.Contains(t, dangling[0].Path, "ParamBindings[0].Param")
+
+	empty := opDoc(ir.Operation{
+		ID:     "op/x/o",
+		Params: []ir.Parameter{{Name: named("a")}},
+	})
+	found := irverify.Verify(empty)
+	codes := make([]string, 0, len(found))
+	for _, v := range found {
+		codes = append(codes, v.Code)
+	}
+	assert.Contains(t, codes, "ir/empty-param-id")
+
+	token := opDoc(ir.Operation{
+		ID:          "op/x/o",
+		Params:      []ir.Parameter{{ID: "param/x/o/k/header", Name: named("k")}},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: ""},
+	})
+	assert.Empty(t, emptyRefViolations(token), "an empty TokenParam is the documented no-token spelling")
+}

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "NullableEnum31",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1pick/get/parameters/color/query",
                   "name": {
                     "source": "color",
                     "canonical": "color"
@@ -71,7 +72,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "color",
+                        "param": "param/openapi/paths/~1pick/get/parameters/color/query",
                         "location": "query",
                         "wireName": "color",
                         "style": "form",

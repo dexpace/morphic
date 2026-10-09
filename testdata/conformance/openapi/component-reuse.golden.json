@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "Component Reuse",
   "version": "1",
   "docs": {},
@@ -26,6 +26,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -110,7 +111,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -136,6 +137,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -220,7 +222,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",

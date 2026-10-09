@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "HTTPBinding",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1items~1{id}/get/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
@@ -71,7 +72,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "id",
+                        "param": "param/openapi/paths/~1items~1{id}/get/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",

@@ -144,9 +144,10 @@ func TestPageStrategy_Constants(t *testing.T) {
 func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
+		`{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
 			`"provenance":{"source":0}}`,
 		ir.Parameter{
+			ID:           "param/openapi/paths/~1x/get/parameters/p/query",
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
 			Required:     true,

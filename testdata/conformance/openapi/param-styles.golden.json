@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "ParamStyles",
   "version": "1.0.0",
   "docs": {},
@@ -27,6 +27,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
@@ -43,6 +44,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/filter/query",
                   "name": {
                     "source": "filter",
                     "canonical": "filter"
@@ -59,6 +61,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/path/query",
                   "name": {
                     "source": "path",
                     "canonical": "path"
@@ -75,6 +78,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/bare/query",
                   "name": {
                     "source": "bare",
                     "canonical": "bare"
@@ -101,6 +105,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/payload/query",
                   "name": {
                     "source": "payload",
                     "canonical": "payload"
@@ -117,6 +122,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/requestId/header",
                   "name": {
                     "source": "requestId",
                     "canonical": "request_id"
@@ -161,7 +167,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "q",
+                        "param": "param/openapi/paths/~1search/get/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
@@ -169,7 +175,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "filter",
+                        "param": "param/openapi/paths/~1search/get/parameters/filter/query",
                         "location": "query",
                         "wireName": "filter",
                         "style": "deepObject",
@@ -177,7 +183,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "path",
+                        "param": "param/openapi/paths/~1search/get/parameters/path/query",
                         "location": "query",
                         "wireName": "path",
                         "style": "form",
@@ -185,7 +191,7 @@
                         "allowReserved": true
                       },
                       {
-                        "param": "bare",
+                        "param": "param/openapi/paths/~1search/get/parameters/bare/query",
                         "location": "query",
                         "wireName": "bare",
                         "style": "form",
@@ -193,7 +199,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "payload",
+                        "param": "param/openapi/paths/~1search/get/parameters/payload/query",
                         "location": "query",
                         "wireName": "payload",
                         "style": "form",
@@ -202,7 +208,7 @@
                         "contentType": "application/json"
                       },
                       {
-                        "param": "requestId",
+                        "param": "param/openapi/paths/~1search/get/parameters/requestId/header",
                         "location": "header",
                         "wireName": "requestId",
                         "style": "simple",
@@ -229,6 +235,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1search/delete/parameters/requestId/header",
                   "name": {
                     "source": "requestId",
                     "canonical": "request_id"
@@ -273,7 +280,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "requestId",
+                        "param": "param/openapi/paths/~1search/delete/parameters/requestId/header",
                         "location": "header",
                         "wireName": "requestId",
                         "style": "simple",

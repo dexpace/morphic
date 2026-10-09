@@ -31,7 +31,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 5)
 	require.Len(t, op.Bindings.HTTP, 1)
-	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	require.Len(t, bindings, 5, "every logical param bound exactly once")
 
 	id := bindings["id"]
@@ -75,7 +75,8 @@ func TestParams_ContentStyleParameter(t *testing.T) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
-	assert.Equal(t, "filter", binding.Param)
+	assert.Equal(t, "filter", binding.WireName)
+	assert.Equal(t, op.Params[0].ID, binding.Param)
 	assert.Equal(t, "application/json", binding.ContentType,
 		"content-style param records its media type on the binding")
 	require.Len(t, op.Params, 1)
@@ -164,7 +165,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramSpec)
 	op := openapitest.FindOp(t, doc, "search")
-	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	assert.Equal(t, ir.HTTPLocationPath, byName["id"].Location)
 	assert.Equal(t, ir.HTTPLocationQuery, byName["q"].Location)
 	assert.Equal(t, ir.HTTPLocationHeader, byName["X-Tok"].Location)
@@ -1009,4 +1010,86 @@ func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 			"/paths/~1x/get/parameters/0/schema"),
 		"bounds nothing", "and reading it is what reports on it")
+}
+
+const sameNameParamsSpec = `  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - {name: id, in: query, schema: {type: integer}}
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses: {"200": {description: ok}}
+`
+
+// TestParams_SameNameInTwoLocationsGetsDistinctIDs is the regression for
+// parameters keyed by display name: id in the query and id in the path are two
+// parameters, and each binding must name exactly one of them.
+func TestParams_SameNameInTwoLocationsGetsDistinctIDs(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(sameNameParamsSpec))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 2)
+	assert.NotEqual(t, op.Params[0].ID, op.Params[1].ID)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/query"), op.Params[0].ID)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/path"), op.Params[1].ID)
+
+	bindings := op.Bindings.HTTP[0].ParamBindings
+	require.Len(t, bindings, 2)
+	for i, b := range bindings {
+		assert.Equal(t, op.Params[i].ID, b.Param, "binding %d names its own parameter", i)
+		assert.Equal(t, "id", b.WireName)
+	}
+}
+
+// TestParams_IDsFollowNameNotPosition holds the ID to (operation, name, in):
+// listing the two parameters in the other order moves them in Params but leaves
+// each one's ID, and its binding, where they were.
+func TestParams_IDsFollowNameNotPosition(t *testing.T) {
+	t.Parallel()
+	swapped := `  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: id, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+`
+	locOf := func(spec string) map[ir.ParamID]ir.HTTPLocation {
+		_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(spec))
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[ir.ParamID]ir.HTTPLocation{}
+		for _, b := range openapitest.FirstOp(t, svc).Bindings.HTTP[0].ParamBindings {
+			out[b.Param] = b.Location
+		}
+		return out
+	}
+	assert.Equal(t, locOf(sameNameParamsSpec), locOf(swapped))
+}
+
+// TestParams_PathItemParamIsScopedPerOperation holds that a path-item parameter
+// copied into two operations yields two IDs, not one ID twice.
+func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /items:
+    parameters:
+      - {name: trace, in: header, schema: {type: string}}
+    get:
+      operationId: listItems
+      responses: {"200": {description: ok}}
+    post:
+      operationId: makeItem
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	seen := map[ir.ParamID]bool{}
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			require.Len(t, op.Params, 1)
+			assert.False(t, seen[op.Params[0].ID], "ID %s minted twice", op.Params[0].ID)
+			seen[op.Params[0].ID] = true
+		}
+	}
+	assert.Len(t, seen, 2)
 }

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.7.0",
   "name": "ResponseLinks",
   "version": "1.0.0",
   "docs": {},
@@ -123,6 +123,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
                   "name": {
                     "source": "orderId",
                     "canonical": "order_id"
@@ -167,7 +168,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "orderId",
+                        "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
                         "location": "path",
                         "wireName": "orderId",
                         "style": "simple",

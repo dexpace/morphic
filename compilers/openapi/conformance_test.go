@@ -1856,7 +1856,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	byParam := map[string]ir.HTTPParamBinding{}
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		byParam[pb.Param] = pb
+		byParam[pb.WireName] = pb
 	}
 	q := byParam["q"]
 	assert.Equal(t, "form", q.Style, "query default style is form")
@@ -2068,7 +2068,7 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
-		id := paramID{Param: pb.Param, Location: pb.Location}
+		id := paramID{Param: pb.WireName, Location: pb.Location}
 		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
 		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
@@ -2100,7 +2100,7 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
-	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
+	require.Equal(t, "querystringWhole", binding.WireName, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
 	assert.Empty(t, binding.Style, "style is not a legal keyword at in: querystring")
