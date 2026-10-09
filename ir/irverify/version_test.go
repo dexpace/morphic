@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestVerify_AbsentIRVersionIsAViolation asserts a document carrying no schema
@@ -20,7 +19,7 @@ func TestVerify_AbsentIRVersionIsAViolation(t *testing.T) {
 	doc := validDoc()
 	doc.IRVersion = ""
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/ir-version-absent", got[0].Code)
 	assert.Equal(t, "doc.IRVersion", got[0].Path)
@@ -50,7 +49,7 @@ func TestVerify_IncompatibleIRVersionIsAViolation(t *testing.T) {
 			doc := validDoc()
 			doc.IRVersion = tc.version
 
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/ir-version-incompatible", got[0].Code)
 			assert.Equal(t, "doc.IRVersion", got[0].Path)
@@ -66,7 +65,7 @@ func TestVerify_CurrentIRVersionIsClean(t *testing.T) {
 	doc := validDoc()
 	require.Equal(t, ir.IRVersion, doc.IRVersion)
 
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }
 
 // TestVerify_StampedDocumentRoundTripsClean asserts the check leaves invariant 7
@@ -83,7 +82,7 @@ func TestVerify_StampedDocumentRoundTripsClean(t *testing.T) {
 	var decoded ir.Document
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	assert.Equal(t, ir.IRVersion, decoded.IRVersion)
-	assert.Empty(t, irverify.Verify(&decoded))
+	assert.Empty(t, verifyDeclared(&decoded))
 
 	reencoded, err := json.Marshal(&decoded)
 	require.NoError(t, err)

@@ -52,6 +52,12 @@ const (
 	IDKindGroup   = "g"
 )
 
+// IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
+// order. Document.IDSpaces is keyed by them.
+func IDKinds() []string {
+	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup}
+}
+
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"
 

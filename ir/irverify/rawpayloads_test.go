@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // allReasons is the closed reason set from ir/unmodeled.go, listed by name so
@@ -38,7 +37,7 @@ func TestVerify_EveryDeclaredReasonIsClean(t *testing.T) {
 	for _, r := range allReasons {
 		p["openapi:"+string(r)] = ir.UnmodeledEntry{Reason: r, Value: ir.RawValue(`1`)}
 	}
-	assert.Empty(t, irverify.Verify(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
 }
 
 // TestVerify_EmptyUnmodeledReasonIsAViolation pins the defect every other check
@@ -48,7 +47,7 @@ func TestVerify_EmptyUnmodeledReasonIsAViolation(t *testing.T) {
 	doc := docWithUnmodeled(ir.Unmodeled{
 		"openapi:x-rate-limit": {Value: ir.RawValue(`100`)},
 	})
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/empty-unmodeled-reason", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
@@ -61,7 +60,7 @@ func TestVerify_UnknownUnmodeledReasonIsAViolation(t *testing.T) {
 	doc := docWithUnmodeled(ir.Unmodeled{
 		"openapi:x-rate-limit": {Reason: "totally_invented", Value: ir.RawValue(`100`)},
 	})
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/unknown-unmodeled-reason", got[0].Code)
 	assert.Contains(t, got[0].Message, "totally_invented")
@@ -73,7 +72,7 @@ func TestVerify_EmptyUnmodeledKeyIsAViolation(t *testing.T) {
 	doc := docWithUnmodeled(ir.Unmodeled{
 		"": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`1`)},
 	})
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/empty-unmodeled-key", got[0].Code)
 	assert.Equal(t, `doc.Types[t/x/Model].Unmodeled[""]`, got[0].Path)
@@ -84,7 +83,7 @@ func TestVerify_EmptyUnmodeledKeyIsAViolation(t *testing.T) {
 // the first.
 func TestVerify_EmptyKeyAndReasonReportBoth(t *testing.T) {
 	doc := docWithUnmodeled(ir.Unmodeled{"": {Value: ir.RawValue(`1`)}})
-	codes := codesOf(irverify.Verify(doc))
+	codes := codesOf(verifyDeclared(doc))
 	assert.Contains(t, codes, "ir/empty-unmodeled-key")
 	assert.Contains(t, codes, "ir/empty-unmodeled-reason")
 }
@@ -107,7 +106,7 @@ func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 			}},
 		}},
 	}}
-	assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/empty-unmodeled-reason")
+	assert.Contains(t, codesOf(verifyDeclared(doc)), "ir/empty-unmodeled-reason")
 }
 
 // badPayloads is every shape of ir.RawValue that is not a JSON value. Empty is
@@ -132,7 +131,7 @@ func TestVerify_InvalidUnmodeledValueIsAViolation(t *testing.T) {
 			doc := docWithUnmodeled(ir.Unmodeled{
 				"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: payload},
 			})
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
 			assert.Equal(t, "doc.Types[t/x/Model].Unmodeled[openapi:x-rate-limit]", got[0].Path)
@@ -158,7 +157,7 @@ func TestVerify_ValidUnmodeledValuesAreClean(t *testing.T) {
 			Value:  ir.RawValue(raw),
 		}
 	}
-	assert.Empty(t, irverify.Verify(docWithUnmodeled(p)))
+	assert.Empty(t, verifyDeclared(docWithUnmodeled(p)))
 }
 
 // rawConfigCarriers builds one document per field that carries an ir.RawConfig,
@@ -219,7 +218,7 @@ func TestVerify_InvalidRawConfigValueIsAViolation(t *testing.T) {
 	for payloadName, payload := range badPayloads {
 		for carrier, tc := range rawConfigCarriers(payload) {
 			t.Run(carrier+"/"+payloadName, func(t *testing.T) {
-				got := irverify.Verify(tc.doc)
+				got := verifyDeclared(tc.doc)
 				require.Len(t, got, 1)
 				assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
 				assert.Equal(t, tc.path, got[0].Path)
@@ -234,7 +233,7 @@ func TestVerify_InvalidRawConfigValueIsAViolation(t *testing.T) {
 func TestVerify_ValidRawConfigIsClean(t *testing.T) {
 	for carrier, tc := range rawConfigCarriers(ir.RawValue(`{"a":1}`)) {
 		t.Run(carrier, func(t *testing.T) {
-			assert.Empty(t, irverify.Verify(tc.doc))
+			assert.Empty(t, verifyDeclared(tc.doc))
 		})
 	}
 }
@@ -251,7 +250,7 @@ func TestVerify_InvalidRawValueIsWhatBreaksTheDocument(t *testing.T) {
 			doc := docWithUnmodeled(ir.Unmodeled{
 				"openapi:x": {Reason: ir.ReasonVendorExtension, Value: payload},
 			})
-			require.Equal(t, []string{"ir/invalid-raw-value"}, codesOf(irverify.Verify(doc)))
+			require.Equal(t, []string{"ir/invalid-raw-value"}, codesOf(verifyDeclared(doc)))
 
 			encoded, err := json.Marshal(doc)
 			if payload == nil {

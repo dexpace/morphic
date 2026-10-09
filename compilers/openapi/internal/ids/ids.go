@@ -104,6 +104,21 @@ func DefaultGroup() ir.GroupID { return compile.GroupID(DefaultGroupSpace, "") }
 // WebhookGroup returns the stable ID of the group holding webhook operations.
 func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
 
+// Namespaces returns the namespaces this compiler mints IDs in, by kind: what the
+// document declares in IDSpaces. It names the constants the derivations below use,
+// so a namespace cannot be minted in without being one of these, and the
+// compiler's tests hold the list to the namespaces its corpus really uses.
+func Namespaces() compile.Namespaces {
+	return compile.Namespaces{
+		ir.IDKindType:    {OpenAPISpace, AnonSpace, ComposedSpace},
+		ir.IDKindOp:      {OpenAPISpace},
+		ir.IDKindProp:    {OpenAPISpace},
+		ir.IDKindAuth:    {OpenAPISpace},
+		ir.IDKindService: {OpenAPISpace},
+		ir.IDKindGroup:   {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
+	}
+}
+
 // NamedType returns the stable ID of a components-named schema at pointer.
 func NamedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(OpenAPISpace, string(pointer))

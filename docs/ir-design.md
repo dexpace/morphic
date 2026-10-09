@@ -55,6 +55,8 @@ enforced by a generated `switch`-completeness test over `TypeKind` values (the o
 ```go
 type Document struct {
     IRVersion   string                 // version of the IR schema itself, semver
+    IDSpaces    map[string][]string    // the namespaces the document's IDs live in, by kind prefix (§3.1);
+                                       // a producer states it as it stamps IRVersion
     Name        string                 // API title
     Version     string                 // API version string (source-declared)
     Docs        Docs
@@ -180,10 +182,15 @@ it sees. Changes made together in one bump are listed together under it.
   pointer; a line and column moved to `position`, and an IR pass's location in the document itself
   moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
   unlocated.
-- **0.7.0** — `OperationGroup` gained `ID`. A group had been a name and a list of operations, so a
-  consumer could key a sub-client only by its name, which two groups can share: the declared tag
-  `default` and the group untagged operations fall into render from the same words. A consumer
-  pinned to 0.6.0 finds no `id` on a group and has nothing else to key it by.
+- **0.7.0** — two additions made together:
+  - `OperationGroup` gained `ID`. A group had been a name and a list of operations, so a consumer
+    could key a sub-client only by its name, which two groups can share: the declared tag `default`
+    and the group untagged operations fall into render from the same words. A consumer pinned to
+    0.6.0 finds no `id` on a group and has nothing else to key it by.
+  - `Document` gained `IDSpaces`, the namespaces its IDs live in, by kind prefix. Without it nothing
+    could see an ID that lost the separator before its path in an operation, a service or a group,
+    which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
+    cannot tell which namespaces a producer minted in.
 
 ---
 
@@ -240,19 +247,30 @@ service included, because a consumer keys a group by it alone; `irverify` report
 groups that render the same words stay two entities, and what an emitter does about that collision
 is a rendering decision it makes by ID (emitter-design §4.12).
 
-`irverify` holds every class of ID that has a kind prefix to the grammar: well-formed
-(`ir/id-malformed`), and, where the node records the pointer its path was derived from, carrying
-that pointer as its path (`ir/id-provenance-disagreement`). Shape alone cannot tell an ID that lost
-the separator between its namespace and its path — `t/anonaddr` reads as a namespace named
-`anonaddr` — which is why the agreement is the half that matters. A type, a security scheme and a
-property are held to both. An operation is held to shape only, because its provenance records where
-its body is declared and its ID where it is mounted, and the two differ for an operation reached
-through a `$ref`'d path item or callback (#107); a service records no pointer and a group no
-provenance. So `irverify` cannot see a lost separator in an operation, service or group ID. What
-keeps one out is upstream: the framework supplies the separator, and an architecture test holds a
-compiler to building a namespace only from a literal, since one assembled from data can carry the path
-in with it. A document from a producer outside this repository is the only way to reach one (#802).
-Channels and messages have no prefix yet and are held to neither.
+`irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
+well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
+pointer its path was derived from (`ir/id-provenance-disagreement`). And it lives in a namespace the
+document declares (`ir/id-space-undeclared`).
+
+The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
+namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
+security scheme and a property are held to it. An operation is not, because its provenance records
+where its body is declared and its ID where it is mounted, and the two differ for an operation reached
+through a `$ref`'d path item or callback (#107). A service records no pointer, and a group, formed by
+a rule from every operation sharing a key, has no single position to record.
+
+The declaration is what sees them all. A producer states the namespaces it mints IDs in as
+`Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
+stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever its
+class and whether or not its node records a pointer. The primitive namespace is `ir`'s and needs no
+entry. A document declaring nothing while carrying IDs is reported once (`ir/id-spaces-absent`). The
+declaration must itself be usable: keyed by real kinds, each list sorted without repeats, no empty
+namespace and none carrying the separator (`ir/id-spaces-unknown-kind`, `ir/id-spaces-not-canonical`,
+`ir/id-space-invalid`). It is a vocabulary and not a usage report, so a namespace no ID uses is not
+an error here; a compiler's own test holds its vocabulary to what its corpus uses, in both
+directions. In this repository an architecture test also holds a compiler to building a namespace only
+from a literal, which is where a path gets glued on. Channels and messages have no prefix yet and are
+held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may

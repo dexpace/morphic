@@ -36,12 +36,12 @@ func modelNamed(n ir.Naming) *ir.Document {
 }
 
 func TestVerify_NeutralCanonicalIsClean(t *testing.T) {
-	got := irverify.Verify(modelNamed(ir.Naming{Source: "UserID", Canonical: "user_id"}))
+	got := verifyDeclared(modelNamed(ir.Naming{Source: "UserID", Canonical: "user_id"}))
 	assert.Empty(t, got)
 }
 
 func TestVerify_CasedCanonicalIsAViolation(t *testing.T) {
-	got := irverify.Verify(modelNamed(ir.Naming{Source: "UserID", Canonical: "userID"}))
+	got := verifyDeclared(modelNamed(ir.Naming{Source: "UserID", Canonical: "userID"}))
 	require.NotEmpty(t, got)
 	assert.Equal(t, "ir/naming-cased", got[0].Code)
 }
@@ -57,7 +57,7 @@ func TestVerify_UnsegmentedCanonicalIsAViolation(t *testing.T) {
 		"com.example.user", "get_/pets", "filter[name]", "application/json",
 		"_leading", "trailing_", "double__underscore",
 	} {
-		got := irverify.Verify(canonicalOnly(canon))
+		got := verifyDeclared(canonicalOnly(canon))
 		require.NotEmpty(t, got, "canonical %q must be reported", canon)
 		assert.Equal(t, "ir/naming-not-words", got[0].Code, "canonical %q", canon)
 	}
@@ -72,7 +72,7 @@ func TestVerify_WordSequencesAreClean(t *testing.T) {
 	for _, canon := range []string{
 		"user", "user_id", "api_key_2", "count_ℤ", "cafe\u0301_v_2",
 	} {
-		assert.Empty(t, irverify.Verify(canonicalOnly(canon)),
+		assert.Empty(t, verifyDeclared(canonicalOnly(canon)),
 			"canonical %q is a word sequence", canon)
 	}
 	// The empty canonical belongs in that list by the shape rules — an anonymous
@@ -80,7 +80,7 @@ func TestVerify_WordSequencesAreClean(t *testing.T) {
 	// has no words to report — but it is clean only beside something that does
 	// name the entity. Alone it is the absent-name defect
 	// (TestVerify_AbsentNameIsAViolation), so it is measured here instead.
-	assert.Empty(t, irverify.Verify(modelNamed(ir.Naming{Hint: "connection_domain"})),
+	assert.Empty(t, verifyDeclared(modelNamed(ir.Naming{Hint: "connection_domain"})),
 		"a hinted naming with no canonical is a word sequence")
 }
 
@@ -99,7 +99,7 @@ func TestVerify_LetterDigitRunIsAViolation(t *testing.T) {
 		"count_ℤ2",  // beside a rune with no lowercase form
 		"café2",     // a precomposed accent is a letter, so the boundary is real
 	} {
-		got := irverify.Verify(canonicalOnly(canon))
+		got := verifyDeclared(canonicalOnly(canon))
 		require.NotEmpty(t, got, "canonical %q must be reported", canon)
 		assert.Equal(t, "ir/naming-unsegmented", got[0].Code, "canonical %q", canon)
 	}
@@ -118,7 +118,7 @@ func TestVerify_SegmentationCheckDoesNotOverreach(t *testing.T) {
 		// "cafe\u0301" + "2" as one word, so reporting it would reject its own output.
 		"cafe\u03012",
 	} {
-		assert.Empty(t, irverify.Verify(canonicalOnly(canon)),
+		assert.Empty(t, verifyDeclared(canonicalOnly(canon)),
 			"canonical %q is what the grammar produces", canon)
 	}
 }
@@ -140,7 +140,7 @@ func TestVerify_UnsplitCamelCaseIsAViolation(t *testing.T) {
 	} {
 		t.Run(tc.source+"/"+tc.canon, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(modelNamed(ir.Naming{Source: tc.source, Canonical: tc.canon}))
+			got := verifyDeclared(modelNamed(ir.Naming{Source: tc.source, Canonical: tc.canon}))
 			require.NotEmpty(t, got, "canonical %q does not derive from %q", tc.canon, tc.source)
 			assert.Equal(t, "ir/naming-not-derived", got[0].Code)
 			assert.Contains(t, got[0].Message, ir.CanonicalWords(tc.source),
@@ -155,7 +155,7 @@ func TestVerify_UnsplitCamelCaseIsAViolation(t *testing.T) {
 // segmentation check already covered it.
 func TestVerify_UnsplitCamelCasePassesEveryOtherCheck(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, irverify.Verify(canonicalOnly("userid")),
+	assert.Empty(t, verifyDeclared(canonicalOnly("userid")),
 		"carried without a source, the same value is indistinguishable from one genuine word")
 }
 
@@ -182,7 +182,7 @@ func TestVerify_CasedOrPunctuatedHintIsAViolation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.codes, codesOf(irverify.Verify(hintOnly(tc.hint))), "hint %q", tc.hint)
+			assert.Equal(t, tc.codes, codesOf(verifyDeclared(hintOnly(tc.hint))), "hint %q", tc.hint)
 		})
 	}
 }
@@ -196,7 +196,7 @@ func TestVerify_NeutralHintIsClean(t *testing.T) {
 		"connection_domain", "empty", "variant_0", "order_body",
 		"get_pets_pet_id", "empty_item", "count_ℤ",
 	} {
-		assert.Empty(t, irverify.Verify(hintOnly(hint)), "hint %q is a neutral word sequence", hint)
+		assert.Empty(t, verifyDeclared(hintOnly(hint)), "hint %q is a neutral word sequence", hint)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestVerify_NeutralHintIsClean(t *testing.T) {
 // Source would be inventing a relation the IR does not claim.
 func TestVerify_HintIsNotDerivedFromTheSource(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, irverify.Verify(modelNamed(
+	assert.Empty(t, verifyDeclared(modelNamed(
 		ir.Naming{Source: "Widget", Canonical: "widget", Hint: "order_body"})))
 }
 
@@ -217,10 +217,10 @@ func TestVerify_DerivedNamingIsClean(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"userID", "com.example.User", "get /pets/{petId}", "***"} {
 		derived := ir.Naming{Source: source, Canonical: ir.CanonicalWords(source)}
-		assert.Empty(t, irverify.Verify(modelNamed(derived)),
+		assert.Empty(t, verifyDeclared(modelNamed(derived)),
 			"a canonical the grammar derived from %q is what it expects", source)
 	}
-	assert.Empty(t, irverify.Verify(modelNamed(ir.Naming{Hint: "connection_domain"})),
+	assert.Empty(t, verifyDeclared(modelNamed(ir.Naming{Hint: "connection_domain"})),
 		"an anonymous type carries a hint and no source, so there is nothing to derive from")
 }
 
@@ -278,7 +278,7 @@ func erroringDoc(ec ir.ErrorCase) *ir.Document {
 // nothing to name it by (GitHub #251).
 func TestVerify_AbsentNameIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(ir.Naming{}))
+	got := verifyDeclared(modelNamed(ir.Naming{}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
@@ -295,7 +295,7 @@ func TestVerify_AnyOneChannelIsAName(t *testing.T) {
 		{Hint: "connection_domain"}, // an anonymous type's generated name
 		{Source: "***"},             // a spelling with no word rune in it
 	} {
-		assert.NotContains(t, codesOf(irverify.Verify(modelNamed(n))), "ir/naming-absent",
+		assert.NotContains(t, codesOf(verifyDeclared(modelNamed(n))), "ir/naming-absent",
 			"naming %+v names the entity", n)
 	}
 }
@@ -320,7 +320,7 @@ func primitiveDoc() *ir.Document {
 // that spelled its Naming as any other field would stop matching and redden here.
 func TestVerify_OptionalNameOwnersAreClean(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, irverify.Verify(primitiveDoc()))
+	assert.Empty(t, verifyDeclared(primitiveDoc()))
 }
 
 // TestVerify_NamelessServerAndResponseAreViolations is the reach the exemptions
@@ -349,7 +349,7 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(tc.doc)
+			got := verifyDeclared(tc.doc)
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/naming-absent", got[0].Code)
 			assert.Equal(t, tc.path, got[0].Path)
@@ -370,7 +370,7 @@ func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
 	doc.Types["t/x/M"] = &ir.Model{ID: "t/x/M"}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 1, "the model, and not the exempt primitive beside it")
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name", got[0].Path)
@@ -390,7 +390,7 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 		Name:    named("s"),
 		Renames: map[ir.TypeID]ir.Naming{"t/x/Model": {}},
 	}}
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-absent", got[0].Code)
 	assert.Equal(t, "doc.Services[0].Renames[t/x/Model]", got[0].Path)
@@ -423,7 +423,7 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	} {
 		t.Run(tc.channel, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(modelNamed(tc.n))
+			got := verifyDeclared(modelNamed(tc.n))
 			require.Len(t, got, tc.wantTotal, "%s: %+v", tc.channel, got)
 
 			var reported *irverify.Violation

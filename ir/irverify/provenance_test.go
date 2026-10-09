@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // oneSource is the shape every compiled document has today: exactly one loaded
@@ -27,7 +26,7 @@ func TestVerify_InRangeProvenanceSourceIsClean(t *testing.T) {
 	// The pointer matches the ID's own path, as a derived ID's always does: an ID
 	// disagreeing with the coordinate it records is its own violation.
 	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 0, Pointer: "/Model"}
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }
 
 // TestVerify_OutOfRangeProvenanceSourceIsAViolation mutates a source index past
@@ -38,7 +37,7 @@ func TestVerify_OutOfRangeProvenanceSourceIsAViolation(t *testing.T) {
 	doc.Sources = oneSource()
 	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: 3}
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/provenance-source-out-of-range", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/Model].Provenance", got[0].Path)
@@ -51,7 +50,7 @@ func TestVerify_NoSourceSentinelIsClean(t *testing.T) {
 	doc := validDoc()
 	doc.Sources = oneSource()
 	doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }
 
 // TestVerify_BelowSentinelProvenanceSourceIsAViolation covers the end of the
@@ -63,7 +62,7 @@ func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
 		doc := validDoc()
 		doc.Sources = oneSource()
 		doc.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
-		assert.Contains(t, codesOf(irverify.Verify(doc)), "ir/provenance-source-out-of-range",
+		assert.Contains(t, codesOf(verifyDeclared(doc)), "ir/provenance-source-out-of-range",
 			"source %d addresses no declared source and is not the declared sentinel", src)
 	}
 }
@@ -75,16 +74,16 @@ func TestVerify_BelowSentinelProvenanceSourceIsAViolation(t *testing.T) {
 func TestVerify_SourcelessDocAdmitsZeroAndTheSentinel(t *testing.T) {
 	clean := validDoc()
 	require.Empty(t, clean.Sources)
-	assert.Empty(t, irverify.Verify(clean))
+	assert.Empty(t, verifyDeclared(clean))
 
 	sentinel := validDoc()
 	sentinel.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: ir.NoSource}
-	assert.Empty(t, irverify.Verify(sentinel))
+	assert.Empty(t, verifyDeclared(sentinel))
 
 	for _, src := range []int{1, ir.NoSource - 1} {
 		broken := validDoc()
 		broken.Types["t/x/Model"].Common().Provenance = ir.Provenance{Source: src}
-		assert.Contains(t, codesOf(irverify.Verify(broken)), "ir/provenance-source-out-of-range",
+		assert.Contains(t, codesOf(verifyDeclared(broken)), "ir/provenance-source-out-of-range",
 			"source %d addresses no entry of an empty source table", src)
 	}
 }
@@ -107,7 +106,7 @@ func TestVerify_ProvenanceIsCheckedEverywhere(t *testing.T) {
 	}
 
 	var paths []string
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/provenance-source-out-of-range" {
 			paths = append(paths, v.Path)
 		}
@@ -221,7 +220,7 @@ func TestVerify_ProvenanceLocatorRules(t *testing.T) {
 				},
 			}
 
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 			var codes []string
 			for _, v := range got {
 				codes = append(codes, v.Code)

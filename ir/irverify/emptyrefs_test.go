@@ -17,7 +17,7 @@ import (
 // checkTypeRefs, so each case below only has to build the one shape it names.
 func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	var out []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if strings.HasPrefix(v.Code, "ir/empty-") && strings.HasSuffix(v.Code, "-ref") {
 			out = append(out, v)
 		}
@@ -343,7 +343,7 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			vs := irverify.Verify(tc.doc)
+			vs := verifyDeclared(tc.doc)
 			codes := make([]string, 0, len(vs))
 			for _, v := range vs {
 				codes = append(codes, v.Code)

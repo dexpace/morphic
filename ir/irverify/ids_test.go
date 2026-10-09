@@ -35,7 +35,7 @@ func TestVerify_MalformedTypeIDIsAViolation(t *testing.T) {
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
-			assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-malformed",
+			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-malformed",
 				"%q is not an ID the grammar produces", tc.id)
 		})
 	}
@@ -55,7 +55,7 @@ func TestVerify_IDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	assert.Contains(t, violationCodes(got), "ir/id-provenance-disagreement")
 	assert.NotContains(t, violationCodes(got), "ir/id-malformed",
 		"the point of this case is that shape alone cannot tell: it is well-shaped")
@@ -73,7 +73,7 @@ func TestVerify_WrongPointerIsAViolation(t *testing.T) {
 		Provenance: ir.Provenance{Pointer: "/components/schemas/Parent"},
 	}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
-	assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-provenance-disagreement")
+	assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-provenance-disagreement")
 }
 
 // TestVerify_PointerlessIDIsClean pins the exclusion: a primitive is shared
@@ -85,7 +85,7 @@ func TestVerify_PointerlessIDIsClean(t *testing.T) {
 	t.Parallel()
 	p := &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{p.ID: p}}
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }
 
 // TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation plants primitive IDs no
@@ -117,7 +117,7 @@ func TestVerify_PrimitiveAwayFromItsSharedIDIsAViolation(t *testing.T) {
 			p := &ir.Primitive{ID: tc.id, Prim: tc.kind}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: p}}
 
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 			assert.Contains(t, violationCodes(got), "ir/prim-id-not-derived")
 			assert.NotContains(t, violationCodes(got), "ir/id-malformed",
 				"the point of these cases is that shape alone cannot tell: each is well-shaped")
@@ -141,7 +141,7 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 		id: &ir.Primitive{ID: id},
 	}}
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 2)
 	assert.Equal(t, "ir/prim-id-not-derived", got[0].Code)
 	assert.Contains(t, got[0].Message, "carries no kind")
@@ -172,7 +172,7 @@ func TestVerify_NonPrimitiveInThePrimSpaceIsAViolation(t *testing.T) {
 				ID: tc.id, Name: ir.Naming{Source: "M", Canonical: "m"},
 			}
 			doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{tc.id: m}}
-			assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/prim-space-reserved")
+			assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/prim-space-reserved")
 		})
 	}
 }
@@ -208,7 +208,7 @@ func TestVerify_PrimIDChecksAreScopedToTheSpaceAndTheKind(t *testing.T) {
 		}
 	}
 
-	assert.Empty(t, irverify.Verify(doc),
+	assert.Empty(t, verifyDeclared(doc),
 		"an ID carrying \"prim\" outside the space segment is not in the reserved space")
 }
 
@@ -223,7 +223,7 @@ func TestVerify_AuthIDIsHeldToTheSameRule(t *testing.T) {
 		Provenance: ir.Provenance{Pointer: "/components/securitySchemes/apiKey"},
 	}
 	doc := &ir.Document{IRVersion: ir.IRVersion, Auth: map[ir.AuthID]ir.AuthScheme{scheme.ID: scheme}}
-	assert.Contains(t, violationCodes(irverify.Verify(doc)), "ir/id-provenance-disagreement")
+	assert.Contains(t, violationCodes(verifyDeclared(doc)), "ir/id-provenance-disagreement")
 }
 
 // TestVerify_DerivedIDsAreClean is the control for every case above: an ID whose
@@ -245,7 +245,7 @@ func TestVerify_DerivedIDsAreClean(t *testing.T) {
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
 	}
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }
 
 // declaredIDClass is one class of ID a node declares for itself, with a document
@@ -352,7 +352,7 @@ func TestVerify_MalformedDeclaredIDIsAViolation(t *testing.T) {
 		for _, tc := range malformed {
 			t.Run(class.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
-				got := irverify.Verify(class.doc(tc.id, ""))
+				got := verifyDeclared(class.doc(tc.id, ""))
 				assert.Equal(t, []string{class.path}, violationPaths(got, "ir/id-malformed"),
 					"%q is not an ID the %s grammar produces", tc.id, class.name)
 			})
@@ -370,7 +370,7 @@ func TestVerify_WellFormedDeclaredIDIsClean(t *testing.T) {
 			id := class.prefix + suffix
 			t.Run(class.name+" "+id, func(t *testing.T) {
 				t.Parallel()
-				assert.Empty(t, violationPaths(irverify.Verify(class.doc(id, "")), "ir/id-malformed"))
+				assert.Empty(t, violationPaths(verifyDeclared(class.doc(id, "")), "ir/id-malformed"))
 			})
 		}
 	}
@@ -384,7 +384,7 @@ func TestVerify_EmptyDeclaredIDIsNotAlsoMalformed(t *testing.T) {
 	for _, class := range declaredIDClasses() {
 		t.Run(class.name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(class.doc("", ""))
+			got := verifyDeclared(class.doc("", ""))
 			assert.Empty(t, violationPaths(got, "ir/id-malformed"))
 			assert.Equal(t, []string{class.path}, violationPaths(got, "ir/empty-"+class.noun+"-id"),
 				"the empty ID is still reported, by the rule that owns it")
@@ -407,7 +407,7 @@ func TestVerify_PropertyIDDisagreeingWithItsPointerIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(property.doc(tc.id, tc.pointer))
+			got := verifyDeclared(property.doc(tc.id, tc.pointer))
 			assert.Equal(t, []string{property.path}, violationPaths(got, "ir/id-provenance-disagreement"))
 			assert.Empty(t, violationPaths(got, "ir/id-malformed"),
 				"each is well-shaped, which is why shape alone cannot tell")
@@ -423,7 +423,7 @@ func TestVerify_PropertyIDAgreeingWithItsPointerIsClean(t *testing.T) {
 	property := declaredIDClassNamed(t, "property")
 	const id = "p/openapi/components/schemas/M/properties/f"
 	for _, pointer := range []string{"/components/schemas/M/properties/f", ""} {
-		got := irverify.Verify(property.doc(id, pointer))
+		got := verifyDeclared(property.doc(id, pointer))
 		assert.Empty(t, violationPaths(got, "ir/id-provenance-disagreement"), "pointer %q", pointer)
 	}
 }
@@ -439,9 +439,9 @@ func TestVerify_OperationIDMayDifferFromItsPointer(t *testing.T) {
 	operation, service := declaredIDClassNamed(t, "operation"), declaredIDClassNamed(t, "service")
 
 	mounted := operation.doc("op/openapi/paths/~1widgets/get", "/components/pathItems/Listing/get")
-	assert.Empty(t, violationPaths(irverify.Verify(mounted), "ir/id-provenance-disagreement"))
+	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
 	indexed := service.doc("s/openapi/0", "/info")
-	assert.Empty(t, violationPaths(irverify.Verify(indexed), "ir/id-provenance-disagreement"))
+	assert.Empty(t, violationPaths(verifyDeclared(indexed), "ir/id-provenance-disagreement"))
 }
 
 // violationCodes returns the codes of vs, for set-membership assertions that do

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // bigVal returns a pointer to the literal as written, which is how the three
@@ -77,7 +76,7 @@ func assertBigValCode(t *testing.T, literal, code string) {
 	for path, doc := range bigValCarriers(literal) {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 			require.Len(t, got, 1, "the document is sound apart from the literal")
 			assert.Equal(t, code, got[0].Code)
 			assert.Equal(t, path, got[0].Path)
@@ -128,7 +127,7 @@ func TestVerify_CanonicalBigValIsClean(t *testing.T) {
 		t.Run(literal, func(t *testing.T) {
 			t.Parallel()
 			for path, doc := range bigValCarriers(literal) {
-				assert.Empty(t, irverify.Verify(doc), "%s", path)
+				assert.Empty(t, verifyDeclared(doc), "%s", path)
 			}
 		})
 	}
@@ -148,7 +147,7 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 		Provenance: prov,
 		Value:      ir.Value{Kind: ir.ValueString, Str: "not a number"},
 	}}}
-	assert.Empty(t, irverify.Verify(unused), "a non-numeric Value carries no literal to check")
+	assert.Empty(t, verifyDeclared(unused), "a non-numeric Value carries no literal to check")
 
 	empty := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{"t/x/S": &ir.Scalar{
 		ID:          "t/x/S",
@@ -156,7 +155,7 @@ func TestVerify_UnusedNumIsNotABound(t *testing.T) {
 		Provenance:  prov,
 		Constraints: &ir.Constraints{Min: bigVal("")},
 	}}}
-	got := irverify.Verify(empty)
+	got := verifyDeclared(empty)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/bigval-not-numeric", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/S].Constraints.Min", got[0].Path)
@@ -173,5 +172,5 @@ func TestVerify_AbsentBoundIsClean(t *testing.T) {
 		Provenance:  ir.Provenance{Source: ir.NoSource},
 		Constraints: &ir.Constraints{Pattern: "^[a-z]+$"},
 	}}}
-	assert.Empty(t, irverify.Verify(doc))
+	assert.Empty(t, verifyDeclared(doc))
 }

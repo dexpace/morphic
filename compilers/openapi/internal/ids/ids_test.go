@@ -382,3 +382,19 @@ func stringsOver(alphabet []string, maxLen int) []string {
 	}
 	return all
 }
+
+// TestNamespaces_NameEveryNamespaceThisCompilerMints pins the vocabulary the
+// document declares, written out so a namespace cannot be added to a derivation
+// without someone deciding it belongs here. The compiler's own corpus test holds
+// the same list to what the corpus really uses.
+func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, map[string][]string{
+		ir.IDKindType:    {"anon", "composed", "openapi"},
+		ir.IDKindOp:      {"openapi"},
+		ir.IDKindProp:    {"openapi"},
+		ir.IDKindAuth:    {"openapi"},
+		ir.IDKindService: {"openapi"},
+		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+	}, ids.Namespaces().Declaration())
+}

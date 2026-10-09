@@ -34,6 +34,14 @@ type TypeRegistry map[TypeID]TypeDef
 type Document struct {
 	// IRVersion is the version of the IR schema itself (semver).
 	IRVersion string `json:"irVersion,omitempty"`
+	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
+	// document's IDs of that kind live in. A producer states it as it stamps
+	// IRVersion, from the namespace constants it already names; irverify reports
+	// an ID whose namespace is not declared, which is the one way to see a path
+	// glued onto its namespace. IDSpacePrim is ir's own and needs no entry. Each
+	// list is sorted, without repeats, and names no empty or separator-bearing
+	// namespace.
+	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`
 	// Version is the source-declared API version string.
