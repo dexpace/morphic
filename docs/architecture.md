@@ -225,7 +225,7 @@ policy fills in where the spec is silent, never the reverse.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
-│   ├── irtest/             #           Golden-snapshot helpers for IR documents.
+│   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
 │   ├── compile/            #           What every compiler shares: type registry + coordinates,

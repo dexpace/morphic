@@ -102,7 +102,7 @@ in the docs.
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
-  irtest/    Layer 0 — golden-file helper (`-update` rewrites). Imports ir + go-cmp.
+  irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
