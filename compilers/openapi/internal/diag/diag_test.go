@@ -137,7 +137,7 @@ func codes() []string {
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
-		diag.DuplicateStatusKey,
+		diag.DuplicateStatusKey, diag.DuplicateServerName,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.DisjointVisibility,

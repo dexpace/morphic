@@ -63,6 +63,56 @@ func compileWith(t *testing.T, opts openapi.Options) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
+// overlayServerBase declares one named server, and overlayServerPatch appends a
+// second that declares the same name: an array update on an array target appends
+// its items, so the colliding entry is a position the overlay introduced.
+const overlayServerBase = `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://prod.example.com
+    name: prod
+paths: {}
+`
+
+const overlayServerPatch = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - url: https://prod-mirror.example.com
+        name: prod
+`
+
+// TestCompile_OverlayIntroducingADuplicateServerNameCreditsTheOverlay pins the
+// duplicate-server-name rule against the tree the overlay produced rather than
+// the bytes on disk: the base document declares one server, so only the patched
+// document has a repeat to report, and the diagnostic about the appended entry
+// names the overlay as the source it came from. The base's own server keeps the
+// document as its source.
+func TestCompile_OverlayIntroducingADuplicateServerNameCreditsTheOverlay(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(overlayServerBase)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(overlayServerPatch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	found := diagnosticsByCodeAndPointer(diags)[diagKey{diag.DuplicateServerName, "/servers/1/name"}]
+	require.Len(t, found, 1, "one report at the entry the overlay appended: %+v", diags)
+	assert.Equal(t, ir.SeverityError, found[0].Severity)
+	assert.Equal(t, 1, found[0].Provenance.Source,
+		"the overlay appended this entry, so the overlay is the source the repeat is reported against")
+	assert.Contains(t, found[0].Message, "/servers/0/name",
+		"and the first claimant is the base document's server")
+
+	require.Len(t, doc.Servers, 2, "both servers still lower, the base's and the overlay's")
+	for i, want := range []string{"prod", "prod"} {
+		assert.Equal(t, want, doc.Servers[i].Name.Source, "server %d keeps the name the document wrote", i)
+	}
+}
+
 // propertyProvenance finds the named property of the named component schema and
 // returns the provenance the compiler stamped on it.
 func propertyProvenance(t *testing.T, doc *ir.Document, schema, property string) ir.Provenance {
