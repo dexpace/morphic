@@ -1,9 +1,6 @@
 package compile
 
-import (
-	"slices"
-	"strings"
-)
+import "slices"
 
 // Namespaces is what a compiler declares about the IDs it mints: for each kind
 // prefix, the namespaces those IDs live in.
@@ -24,7 +21,7 @@ func (n Namespaces) Declaration() map[string][]string {
 		for _, space := range spaces {
 			list = append(list, string(space))
 		}
-		slices.SortFunc(list, strings.Compare)
+		slices.Sort(list)
 		list = slices.Compact(list)
 		if len(list) == 0 {
 			continue

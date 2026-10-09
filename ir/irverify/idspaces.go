@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,10 +18,11 @@ const idSpacesPath = ir.DocumentPath + ".IDSpaces"
 // It is the one check that sees a path glued onto its namespace for every class,
 // needing neither a recorded pointer nor any knowledge of the format: an ID that
 // lost its separator is well-formed in a namespace nobody declared (GitHub
-// #141). The primitive namespace is ir's own and needs no declaration.
+// #141). A type in the primitive namespace, which is ir's own, needs no
+// declaration.
 //
 // A document declaring nothing while carrying IDs is reported once, as a
-// producer that forgot, the way a missing irVersion is.
+// producer that forgot, like a missing irVersion.
 func checkIDSpaces(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	vs := declarationViolations(doc.IDSpaces)
 	declared := declaredSpaces(doc.IDSpaces)
@@ -70,12 +72,12 @@ func declaredSpaces(declaration map[string][]string) map[string]map[string]bool 
 // declarationViolations reports what makes a declaration unusable on its own: a
 // key that is not a kind prefix, a namespace that is empty or carries the ID
 // separator, and a list that is not sorted without repeats. The last is the
-// canonical form, which keeps two producers' declarations of one vocabulary
-// byte-identical (invariant 7).
+// canonical order, the byte order of the UTF-8 spelling, which keeps two
+// producers' lists of one vocabulary byte-identical (invariant 7).
 func declarationViolations(declaration map[string][]string) []Violation {
 	var vs []Violation
 	kinds := ir.IDKinds()
-	for _, kind := range sortedKeys(declaration) {
+	for _, kind := range slices.Sorted(maps.Keys(declaration)) {
 		if !slices.Contains(kinds, kind) {
 			vs = append(vs, Violation{
 				Code:    "ir/id-spaces-unknown-kind",
@@ -109,15 +111,4 @@ func appendSpaceViolations(vs []Violation, kind string, spaces []string) []Viola
 		}
 	}
 	return vs
-}
-
-// sortedKeys returns the declaration's kinds in a fixed order, so the same
-// document always yields the same violations in the same order.
-func sortedKeys(declaration map[string][]string) []string {
-	keys := make([]string, 0, len(declaration))
-	for kind := range declaration {
-		keys = append(keys, kind)
-	}
-	slices.Sort(keys)
-	return keys
 }
