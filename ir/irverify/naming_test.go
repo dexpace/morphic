@@ -401,9 +401,10 @@ func TestVerify_PresenceReachesANamingNoNameFieldOwns(t *testing.T) {
 //
 // Canonical and Hint each also draw ir/naming-cased and ir/naming-not-words,
 // since neither ToLower nor isWordSequence can treat the replacement rune as a
-// plain lowercase word character (GitHub #400, out of scope here). Source draws
-// nothing else, so its fixture pins the count as well as the code: reporting
-// the same defect twice would redden it.
+// plain lowercase word character. Those two quote the name (GitHub #400), so
+// the byte reaches the report as the \xe9 escape. Source draws only
+// ir/invalid-utf8, which quotes nothing, so its fixture pins the count as well
+// as the code: reporting the same defect twice would redden it.
 func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 	t.Parallel()
 	ill := string([]byte{'c', 'a', 'f', 0xe9})
@@ -433,6 +434,16 @@ func TestVerify_IllFormedNameIsAViolation(t *testing.T) {
 			require.NotNil(t, reported, "the encoding rule fires on %s", tc.channel)
 			assert.Equal(t, tc.path, reported.Path)
 			assert.NotContains(t, reported.Message, ill, "the report does not repeat the bad bytes")
+
+			for _, v := range got {
+				assert.True(t, utf8.ValidString(v.Message),
+					"%s: message %q is valid UTF-8", v.Code, v.Message)
+				if v.Code == "ir/invalid-utf8" {
+					continue // it quotes nothing, so there is no name to spell out
+				}
+				assert.Contains(t, v.Message, `\xe9`,
+					"%s: the quoted name carries the ill-formed byte as an escape", v.Code)
+			}
 		})
 	}
 }

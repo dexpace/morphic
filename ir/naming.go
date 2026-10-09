@@ -36,11 +36,10 @@ type Naming struct {
 	// matched against a name another schema wrote, so casing and punctuation
 	// are the value ("com.example.User"). irverify holds an entry only to what
 	// needs no grammar: something visible, valid UTF-8, no repeat of another
-	// entry or of Source (ir-design §3.2).
+	// entry or of Source, and no claim by another type (ir-design §3.2).
 	//
-	// A source declaring a blank or repeated entry is recorded once in a
-	// Diagnostic, not carried through. Dropping it loses no name, so it is not
-	// the lossy flattening invariant #2 forbids.
+	// A source's blank or repeated entry is recorded once in a Diagnostic and
+	// dropped, which loses no name, so invariant #2 does not forbid it.
 	Aliases []string `json:"aliases,omitempty"`
 }
 

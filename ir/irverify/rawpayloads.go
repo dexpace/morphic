@@ -3,6 +3,7 @@ package irverify
 import (
 	"encoding/json/jsontext"
 	"reflect"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -87,7 +88,7 @@ func unmodeledEntry(key string, entry reflect.Value, path string) []Violation {
 	if !reason.Valid() {
 		vs = append(vs, Violation{
 			Code:    "ir/unknown-unmodeled-reason",
-			Message: "unmodeled entry carries undeclared reason " + string(reason),
+			Message: "unmodeled entry carries undeclared reason " + strconv.Quote(string(reason)),
 			Path:    at,
 		})
 	}

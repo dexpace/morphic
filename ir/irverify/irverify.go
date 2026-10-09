@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -83,6 +84,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkDuplicateIDs,
 		checkDeclaredIDs,
 		checkNaming,
+		checkAliasClaims,
 		checkRawPayloads,
 		checkProvenance,
 		checkIndices,
@@ -170,7 +172,7 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 	if key != nodeID {
 		return append(vs, Violation{
 			Code:    "ir/" + noun + "-id-mismatch",
-			Message: "registry key " + key + " disagrees with node ID " + nodeID,
+			Message: "registry key " + strconv.Quote(key) + " disagrees with node ID " + strconv.Quote(nodeID),
 			Path:    reg + "[" + key + "]",
 		})
 	}

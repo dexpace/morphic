@@ -328,6 +328,16 @@ What is left is decidable without any grammar, and `irverify` holds an alias to 
   producer that wrote one built the list wrong. Only `Source` is compared against: `Canonical` and
   `Hint` are names the IR derived for an emitter to render, never names a writer schema could have
   spelled.
+- **No entry is claimed by another type in the registry** (`ir/naming-alias-shared`). An alias is
+  what a reader resolves against exactly one entity, so two types claiming one make the match depend
+  on which schema the reader was handed. The scope is the type registry — `TypeCommon.Name` of each
+  `Document.Types` entry — and not the whole document: an alias is a schema-resolution name and a
+  source that writes one scopes it to its own record, so two models may legitimately state the same
+  short alias, and a `Property`'s aliases are inside their own record and are not compared.
+  Matching is exact string equality; the first claimant in walk order stands, and a later one is
+  reported at the entry it claims, naming the earlier. One collision stays out of reach: an alias
+  equal to another type's namespace-qualified name is caught only when the `Source` holds that full
+  name, because a namespace is a path here and the comparison never joins it.
 
 That such an entry is inert is also why a *source* declaring one is recorded once with a diagnostic
 rather than carried through: dropping it is not the lossy direction, since the same set of names

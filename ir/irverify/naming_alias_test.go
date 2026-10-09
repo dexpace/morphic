@@ -3,6 +3,7 @@ package irverify_test
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -151,7 +152,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 	require.Len(t, got, 1, "the repeat is reported, not the first occurrence")
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[2]", got[0].Path)
-	assert.Equal(t, "alias dup is listed here and at index 0", got[0].Message)
+	assert.Equal(t, "alias \"dup\" is listed here and at index 0", got[0].Message)
 }
 
 // TestVerify_AliasRepeatingItsOwnSourceIsAViolation covers the other way an
@@ -165,7 +166,7 @@ func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[0]", got[0].Path)
-	assert.Equal(t, "alias User is the entity's own source name, so it matches nothing more",
+	assert.Equal(t, "alias \"User\" is the entity's own source name, so it matches nothing more",
 		got[0].Message)
 }
 
@@ -246,15 +247,15 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 	}, byCode)
 }
 
-// TestVerify_AliasSharedByTwoNamings pins the scope boundary
-// appendAliasViolations declares: a repeat across two Namings goes unreported
-// today, and closing GitHub #398 is what should change it.
+// TestVerify_AliasSharedByTwoNamings is the alias half of GitHub #398: two
+// types claiming one alias make a reader's match depend on which schema it was
+// handed, so the later one is reported at the alias it claims, naming the
+// earlier claimant.
 //
-// Without this, nothing holds seen to being per-Naming. Hoisting it into
-// checkNaming's closure — the one-line change anyone implementing #398 reaches
-// for first — makes this document report ir/naming-alias-duplicate, and every
-// other test in this file stays green, because each drives a document with one
-// Naming in it.
+// The code is deliberately not -duplicate, which names one list's repeat and the
+// repair that belongs to it, where this spans two lists. Keeping the guard means
+// a rule that hoisted seen into checkNaming's closure — the one-line change
+// anyone implementing #398 reaches for first — still reddens here.
 func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 	t.Parallel()
 	const shared = "com.example.User"
@@ -269,7 +270,164 @@ func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 
 	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
-	assert.Empty(t, got, "out of scope until GitHub #398; this is the fixture that says so")
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-alias-shared", got[0].Code)
+	assert.Equal(t, "doc.Types[t/x/B].Name.Aliases[0]", got[0].Path,
+		"reported at the alias that is claimed, naming the earlier claimant")
+	assert.Equal(t, `alias "com.example.User" is also claimed by "doc.Types[t/x/A].Name.Aliases[0]"`,
+		got[0].Message)
+	assert.NotEqual(t, "ir/naming-alias-duplicate", got[0].Code,
+		"a repeat across two Namings is not one list's duplicate")
+}
+
+// TestVerify_AliasEqualToAnotherSourceIsShared holds the other claim pair, in
+// both registry orders: one type's alias equal to another type's Source. The
+// violation is reported at the *alias* either way — the alias is the entry the
+// two entities collide on — and names the Source when the Source came later.
+//
+// The orders matter because which of the two is the first claimant follows the
+// walk, and only one order exercises the later-Source arm while the other
+// exercises the later-alias one.
+func TestVerify_AliasEqualToAnotherSourceIsShared(t *testing.T) {
+	t.Parallel()
+	const shared = "com.example.User"
+	cased := ir.Naming{Source: shared, Canonical: ir.CanonicalWords(shared)}
+	aliased := func(source string) ir.Naming {
+		return ir.Naming{Source: source, Canonical: source, Aliases: []string{shared}}
+	}
+
+	for name, tc := range map[string]struct {
+		types ir.TypeRegistry
+		at    string
+		other string
+	}{
+		"alias before source": {
+			types: ir.TypeRegistry{
+				"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
+				"t/x/B": &ir.Model{ID: "t/x/B", Name: cased},
+			},
+			at:    "doc.Types[t/x/A].Name.Aliases[0]",
+			other: "doc.Types[t/x/B].Name.Source",
+		},
+		"source before alias": {
+			types: ir.TypeRegistry{
+				"t/x/A": &ir.Model{ID: "t/x/A", Name: cased},
+				"t/x/B": &ir.Model{ID: "t/x/B", Name: aliased("b")},
+			},
+			at:    "doc.Types[t/x/B].Name.Aliases[0]",
+			other: "doc.Types[t/x/A].Name.Source",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, Types: tc.types})
+			require.Len(t, got, 1)
+			assert.Equal(t, "ir/naming-alias-shared", got[0].Code)
+			assert.Equal(t, tc.at, got[0].Path, "always reported at the alias")
+			assert.Equal(t, fmt.Sprintf("alias %q is also claimed by %q", shared, tc.other),
+				got[0].Message)
+		})
+	}
+}
+
+// TestVerify_TwoSourcesAreNotShared pins the pair the check declines: two types
+// declaring the same Source name. It is not a collision an alias rule can rank —
+// the IR holds no opinion about which declared name wins — so it is reported by
+// nothing, and a check that reported it would fail every document whose formats
+// let two shapes share a short name.
+func TestVerify_TwoSourcesAreNotShared(t *testing.T) {
+	t.Parallel()
+	const shared = "com.example.User"
+	n := ir.Naming{Source: shared, Canonical: ir.CanonicalWords(shared)}
+	a := &ir.Model{ID: "t/x/A", Name: n}
+	b := &ir.Model{ID: "t/x/B", Name: n}
+
+	assert.Empty(t, irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
+		Types: ir.TypeRegistry{a.ID: a, b.ID: b}}))
+}
+
+// TestVerify_SameNamingRepeatStaysDuplicate holds the scope line on one Naming:
+// a repeated alias is one list's defect, reported under -duplicate at the later
+// entry, and the claim check adds nothing at the same path.
+func TestVerify_SameNamingRepeatStaysDuplicate(t *testing.T) {
+	t.Parallel()
+	got := irverify.Verify(modelNamed(
+		ir.Naming{Source: "m", Canonical: "m", Aliases: []string{"dup", "dup"}}))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code,
+		"a repeat inside one Naming is the list's, not a collision between two")
+}
+
+// TestVerify_ThreeClaimantsReportTwo pins the count: the first claimant stands
+// and every later one is reported, so n Namings on one alias yield n-1
+// violations rather than a pair for every combination.
+func TestVerify_ThreeClaimantsReportTwo(t *testing.T) {
+	t.Parallel()
+	const shared = "com.example.User"
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
+	for _, source := range []string{"a", "b", "c"} {
+		id := ir.TypeID("t/x/" + strings.ToUpper(source))
+		doc.Types[id] = &ir.Model{ID: id, Name: ir.Naming{
+			Source: source, Canonical: source, Aliases: []string{shared},
+		}}
+	}
+
+	got := irverify.Verify(doc)
+	require.Len(t, got, 2, "three claimants yield two violations")
+	for _, v := range got {
+		assert.Equal(t, "ir/naming-alias-shared", v.Code)
+	}
+	assert.Equal(t, "doc.Types[t/x/B].Name.Aliases[0]", got[0].Path)
+	assert.Equal(t, "doc.Types[t/x/C].Name.Aliases[0]", got[1].Path)
+}
+
+// TestVerify_BlankAndIllFormedAreNoClaims pins what a claim is not. Both entries
+// below are reported — the blank by the list rules, the ill-formed one by
+// checkUTF8 — and neither may also be reported as shared: nothing can match a
+// name with nothing visible in it or bytes that do not decode, so repeating it
+// would be a second report of one defect under a name no reader resolves.
+func TestVerify_BlankAndIllFormedAreNoClaims(t *testing.T) {
+	t.Parallel()
+	ill := string([]byte{'c', 'a', 'f', 0xe9})
+	require.False(t, utf8.ValidString(ill), "the fixture has to be ill-formed to test anything")
+
+	types := ir.TypeRegistry{}
+	for _, id := range []string{"t/x/A", "t/x/B"} {
+		source := strings.ToLower(id[len("t/x/"):])
+		types[ir.TypeID(id)] = &ir.Model{ID: ir.TypeID(id), Name: ir.Naming{
+			Source: source, Canonical: source, Aliases: []string{"", ill},
+		}}
+	}
+
+	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, Types: types})
+	assert.Equal(t, []string{"ir/invalid-utf8", "ir/invalid-utf8",
+		"ir/naming-alias-blank", "ir/naming-alias-blank"}, codesOf(got),
+		"the blank and ill-formed entries are reported, once each per Naming")
+}
+
+// TestVerify_PropertyAliasesAcrossModelsAreClean pins the scope the check
+// declares: it reads the type registry, and a Property's aliases are not in it.
+// An Avro field alias is scoped to the record that declares it, so two models
+// stating the same field alias is legitimate — a document-wide compare would
+// false-positive here, which is why the scope is TypeCommon.
+func TestVerify_PropertyAliasesAcrossModelsAreClean(t *testing.T) {
+	t.Parallel()
+	const shared = "com.example.User"
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
+	for _, id := range []string{"t/x/A", "t/x/B"} {
+		doc.Types[ir.TypeID(id)] = &ir.Model{
+			ID:   ir.TypeID(id),
+			Name: ir.Naming{Source: strings.ToLower(id[len("t/x/"):]), Canonical: strings.ToLower(id[len("t/x/"):])},
+			Properties: []ir.Property{{
+				ID:   ir.PropID("p/x/" + id[len("t/x/"):] + "/f"),
+				Name: ir.Naming{Source: "f", Canonical: "f", Aliases: []string{shared}},
+				Type: ir.TypeRef{Target: ir.TypeID(id)},
+			}},
+		}
+	}
+
+	assert.Empty(t, irverify.Verify(doc),
+		"a field alias is scoped to its own record, so two models may state the same one")
 }
 
 // TestVerify_AliasPathIsSpelledAsTheWalkWould ties the hand-assembled violation
