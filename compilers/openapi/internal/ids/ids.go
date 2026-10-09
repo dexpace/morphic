@@ -68,6 +68,42 @@ const (
 	ComposedSpace compile.Space = "composed"
 )
 
+// The spaces an operation group is addressed in. No OpenAPI construct is a
+// group: a Tag Object is metadata about a name, and an operation may tag itself
+// with a name no Tag Object declares. The grouping rule mints the group, so each
+// rule takes a namespace of its own (ir-design §3.1), distinct from
+// OpenAPISpace, which addresses source coordinates. The first two are named for
+// the strategy that forms the group, the last two for the one group they hold.
+const (
+	// TagGroupSpace holds the groups formed by operation tag, keyed by tag name.
+	TagGroupSpace compile.Space = "tags"
+	// PathPrefixGroupSpace holds the groups formed by first path segment.
+	PathPrefixGroupSpace compile.Space = "path-prefix"
+	// DefaultGroupSpace names the one group holding untagged operations.
+	DefaultGroupSpace compile.Space = "default"
+	// WebhookGroupSpace names the one group holding webhook operations.
+	WebhookGroupSpace compile.Space = "webhooks"
+)
+
+// TagGroup returns the stable ID of the group of operations whose first tag is
+// name. It is keyed by the name, not by a Tag Object's position, so declaring
+// the tag, reordering the tag list or repeating a declaration leaves it alone.
+func TagGroup(name string) ir.GroupID {
+	return compile.GroupID(TagGroupSpace, string(Ptr(name)))
+}
+
+// PathPrefixGroup returns the stable ID of the group of operations whose path
+// starts with segment. The root path has no segment, so its key is empty.
+func PathPrefixGroup(segment string) ir.GroupID {
+	return compile.GroupID(PathPrefixGroupSpace, string(Ptr(segment)))
+}
+
+// DefaultGroup returns the stable ID of the group holding untagged operations.
+func DefaultGroup() ir.GroupID { return compile.GroupID(DefaultGroupSpace, "") }
+
+// WebhookGroup returns the stable ID of the group holding webhook operations.
+func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
+
 // NamedType returns the stable ID of a components-named schema at pointer.
 func NamedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(OpenAPISpace, string(pointer))

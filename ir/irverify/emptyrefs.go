@@ -17,6 +17,7 @@ var idTypes = map[reflect.Type]bool{
 	reflect.TypeFor[ir.MessageID](): true,
 	reflect.TypeFor[ir.AuthID]():    true,
 	reflect.TypeFor[ir.ServiceID](): true,
+	reflect.TypeFor[ir.GroupID]():   true,
 	reflect.TypeFor[ir.PropID]():    true,
 }
 
@@ -50,6 +51,7 @@ var idPositions = map[string]idRule{
 	"Channel.ID":        idElsewhere,
 	"Message.ID":        idElsewhere,
 	"Operation.ID":      idElsewhere,
+	"OperationGroup.ID": idElsewhere,
 	"Property.ID":       idElsewhere,
 	"Service.ID":        idElsewhere,
 	"TypeCommon.ID":     idElsewhere,

@@ -54,6 +54,9 @@ type ProtocolDecl struct {
 // OperationGroup is a hierarchical grouping of operations: a TypeSpec interface,
 // Smithy resource, or tag (ir-design §7.1).
 type OperationGroup struct {
+	// ID is the group's stable synthetic identity, minted by the rule that formed
+	// the group. A rename never moves it, and no two groups share one.
+	ID GroupID `json:"id,omitempty"`
 	// Name is the group's naming.
 	Name Naming `json:"name"`
 	// Docs is the group's documentation.

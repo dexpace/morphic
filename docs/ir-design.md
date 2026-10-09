@@ -180,6 +180,10 @@ it sees. Changes made together in one bump are listed together under it.
   pointer; a line and column moved to `position`, and an IR pass's location in the document itself
   moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
   unlocated.
+- **0.7.0** — `OperationGroup` gained `ID`. A group had been a name and a list of operations, so a
+  consumer could key a sub-client only by its name, which two groups can share: the declared tag
+  `default` and the group untagged operations fall into render from the same words. A consumer
+  pinned to 0.6.0 finds no `id` on a group and has nothing else to key it by.
 
 ---
 
@@ -190,7 +194,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID string
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -200,7 +204,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `g`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -223,6 +227,18 @@ node every source reaches by kind. `irverify` holds no producer to this so far (
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
+
+An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
+Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
+that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
+compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two singletons
+`g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a Smithy
+resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
+any other entity. Either way the ID is unique across the whole document, nested groups and every
+service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
+`ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. A name is never part of it, so two
+groups that render the same words stay two entities, and what an emitter does about that collision
+is a rendering decision it makes by ID (emitter-design §4.12).
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
@@ -1203,6 +1219,7 @@ type ProtocolDecl struct {
 }
 
 type OperationGroup struct {
+    ID         GroupID            // minted by the rule that formed the group (§3.1); document-wide unique
     Name       Naming
     Docs       Docs
     Groups     []OperationGroup   // nesting: Smithy resources, sub-clients

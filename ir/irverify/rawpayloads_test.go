@@ -182,6 +182,7 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 	operation := validDoc()
 	operation.Channels = map[ir.ChannelID]ir.Channel{"chan/a": {ID: "chan/a", Name: named("a")}}
 	operation.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+		ID:   "g/x/S/g",
 		Name: named("g"),
 		Operations: []ir.Operation{{
 			ID:   "o/x/S/op",

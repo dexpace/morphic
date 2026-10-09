@@ -56,6 +56,32 @@ func TestCheckDuplicateIDs_TwoServicesOnOneID(t *testing.T) {
 	assert.Equal(t, "doc.Services[1]", got[0].Path)
 }
 
+// TestCheckDuplicateIDs_GroupIDsAreUniqueAcrossTheWholeDocument pins how far a
+// group ID's uniqueness reaches, which is as far as a consumer keys by it: the
+// second of two siblings, a group nested under another, and a group in another
+// service each collide with the first. A sibling-only check would report one.
+func TestCheckDuplicateIDs_GroupIDsAreUniqueAcrossTheWholeDocument(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{
+		{ID: "s/a", Groups: []ir.OperationGroup{
+			{ID: "g/x", Groups: []ir.OperationGroup{{ID: "g/x"}}},
+			{ID: "g/x"},
+		}},
+		{ID: "s/b", Groups: []ir.OperationGroup{{ID: "g/x"}}},
+	}}
+
+	got := duplicateViolations(doc)
+	paths := make([]string, 0, len(got))
+	for _, v := range got {
+		assert.Equal(t, "ir/duplicate-group-id", v.Code)
+		paths = append(paths, v.Path)
+	}
+	assert.Equal(t, []string{
+		"doc.Services[0].Groups[0].Groups[0]",
+		"doc.Services[0].Groups[1]",
+		"doc.Services[1].Groups[0]",
+	}, paths, "each later declaration is reported against the first")
+}
+
 // TestCheckDuplicateIDs_TwoRegistryEntriesOnOneNodeID drives a map-keyed class.
 // Two entries cannot share a key, but they can hold nodes claiming one ID, and
 // then a reference to it resolves to whichever the reader reaches first.
@@ -191,6 +217,7 @@ var identityClasses = map[string]string{
 	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
 	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
 	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
+	"GroupID":   "identity, no map: resolved and held as OpID is, against the groups the document declares, nested ones included",
 	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",

@@ -247,7 +247,7 @@ type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
     Shapes  map[ShapeKey]ModelShape     // (TypeID × Lifecycle) → projected wire shape
-    Groups  map[GroupKey]GroupPlan      // sub-client / resource nesting (from OperationGroup)
+    Groups  map[ir.GroupID]GroupPlan    // sub-client / resource nesting (from OperationGroup)
     Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
 }
 ```
@@ -468,10 +468,9 @@ purposes.
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
 ```go
-type GroupKey string                 // stable, derived from OperationGroup identity
 type GroupPlan struct {
     Name     ir.Naming               // neutral — cased in refine
-    Parent   GroupKey                // "" = top-level; nesting → sub-clients
+    Parent   ir.GroupID              // "" = top-level; nesting → sub-clients
     Ops      []ir.OpID
     Resource *ir.ResourceInfo        // Smithy resource lifecycle, when declared
 }
@@ -930,7 +929,7 @@ drops a hint (INV3):
 ```go
 type ShapeHint struct {
     Rename         string    // presentation rename for the entity's symbol; "" = none
-    Remount        GroupKey  // move an operation under a different sub-client; "" = keep
+    Remount        ir.GroupID // move an operation under a different sub-client; "" = keep
     SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
                              // the one sanctioned union→arguments collapse (§4.4); default off
     URLBuilder     bool      // expose a URL-builder variant of the operation

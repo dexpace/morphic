@@ -74,7 +74,7 @@ func declaringDoc() *ir.Document {
 		Auth:     map[ir.AuthID]ir.AuthScheme{"auth/x": {ID: "auth/x", Kind: ir.AuthKindAPIKey}},
 		Services: []ir.Service{{
 			ID:     "s/x",
-			Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "op/x"}}}},
+			Groups: []ir.OperationGroup{{ID: "g/x", Operations: []ir.Operation{{ID: "op/x"}}}},
 		}},
 	}
 }
@@ -89,8 +89,8 @@ func declaredBy(decls []ir.IDDeclaration) map[string][]ir.IDDeclaration {
 	return out
 }
 
-// TestDeclaredIDs_ReachesEveryIDBearingNodeOnce pins the derivation the OpID and
-// ServiceID registries are built from: every node carrying an ID of its own
+// TestDeclaredIDs_ReachesEveryIDBearingNodeOnce pins the derivation the OpID,
+// ServiceID and GroupID registries are built from: every node carrying an ID of its own
 // contributes exactly one declaration, at the path it sits at.
 //
 // The "once" half is the load-bearing one. Every type node embeds TypeCommon and
@@ -109,6 +109,7 @@ func TestDeclaredIDs_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 		"MessageID": {ID: "m/x", Path: "doc.Messages[m/x]"},
 		"AuthID":    {ID: "auth/x", Path: "doc.Auth[auth/x]"},
 		"ServiceID": {ID: "s/x", Path: "doc.Services[0]"},
+		"GroupID":   {ID: "g/x", Path: "doc.Services[0].Groups[0]"},
 		"OpID":      {ID: "op/x", Path: "doc.Services[0].Groups[0].Operations[0]"},
 	}
 	for class, w := range want {
@@ -148,8 +149,8 @@ func TestDeclaredIDs_NilDocumentDeclaresNothing(t *testing.T) {
 // TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers pins which classes the
 // declaration-derived registries answer for. A class Document keys a map by keeps
 // that map, PropID stays out because a property is a position inside its model,
-// and what is left — OpID and ServiceID — is exactly what resolved against
-// nothing before.
+// and what is left — OpID, ServiceID and GroupID — is exactly what resolved
+// against nothing before.
 func TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers(t *testing.T) {
 	t.Parallel()
 	doc := declaringDoc()
@@ -163,6 +164,7 @@ func TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers(t *testing.T) {
 	}{
 		{reflect.TypeFor[ir.OpID](), "op/x", "op declarations"},
 		{reflect.TypeFor[ir.ServiceID](), "s/x", "service declarations"},
+		{reflect.TypeFor[ir.GroupID](), "g/x", "group declarations"},
 	} {
 		reg, resolved := regs[tc.class]
 		require.True(t, resolved, "%s must resolve against the nodes declaring it", tc.class.Name())

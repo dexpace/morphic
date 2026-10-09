@@ -29,8 +29,8 @@ func TestService_JSONContract(t *testing.T) {
 			Namespace: []string{"com", "example", "petstore"},
 			Extends:   []ir.ServiceID{"s/base1", "s/base2"},
 			Groups: []ir.OperationGroup{
-				{Name: ir.Naming{Source: "pets"}},
-				{Name: ir.Naming{Source: "owners"}},
+				{ID: "g/tags/pets", Name: ir.Naming{Source: "pets"}},
+				{ID: "g/tags/owners", Name: ir.Naming{Source: "owners"}},
 			},
 			Auth: []ir.AuthRequirement{
 				{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
@@ -109,17 +109,18 @@ func TestProtocolDecl_JSONContract(t *testing.T) {
 
 // TestOperationGroup_JSONContract pins OperationGroup's omitempty contract
 // (Name and Docs carry no omitempty, every other field is optional including
-// the recursive Groups slice) and that a fully populated OperationGroup —
+// the ID and the recursive Groups slice) and that a fully populated OperationGroup —
 // nested sub-groups, operations, resource info, and availability —
 // round-trips, including recursion through Groups.
 func TestOperationGroup_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.OperationGroup{}, `{"name":{},"docs":{}}`, ir.OperationGroup{
+		ID:   "g/tags/pets",
 		Name: populatedNaming(),
 		Docs: populatedDocs(),
 		Groups: []ir.OperationGroup{
-			{Name: ir.Naming{Source: "sub1"}},
-			{Name: ir.Naming{Source: "sub2"}},
+			{ID: "g/tags/pets/sub1", Name: ir.Naming{Source: "sub1"}},
+			{ID: "g/tags/pets/sub2", Name: ir.Naming{Source: "sub2"}},
 		},
 		Operations: []ir.Operation{
 			{ID: "op/list", Name: ir.Naming{Source: "list"}, Bindings: ir.OpBindings{}, Auth: []ir.AuthRequirement{}},

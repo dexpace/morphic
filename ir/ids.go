@@ -16,6 +16,11 @@ type OpID string
 // ServiceID identifies a Service.
 type ServiceID string
 
+// GroupID identifies an OperationGroup. It is unique across the whole document,
+// nested groups and every service included, because a consumer keys a group by
+// it alone.
+type GroupID string
+
 // ChannelID identifies a Channel in Document.Channels.
 type ChannelID string
 
@@ -44,6 +49,7 @@ const (
 	IDKindProp    = "p"
 	IDKindAuth    = "auth"
 	IDKindService = "s"
+	IDKindGroup   = "g"
 )
 
 // IDSeparator separates an ID's kind, space and path segments.

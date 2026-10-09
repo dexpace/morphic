@@ -28,6 +28,7 @@ func TestIDTypes_MarshalAsPlainJSONStrings(t *testing.T) {
 		{name: "TypeID", zero: ir.TypeID(""), full: ir.TypeID("t/openapi/components/schemas/User"), want: `"t/openapi/components/schemas/User"`},
 		{name: "OpID", zero: ir.OpID(""), full: ir.OpID("op/openapi/paths/~1users/get"), want: `"op/openapi/paths/~1users/get"`},
 		{name: "ServiceID", zero: ir.ServiceID(""), full: ir.ServiceID("s/openapi/petstore"), want: `"s/openapi/petstore"`},
+		{name: "GroupID", zero: ir.GroupID(""), full: ir.GroupID("g/tags/pets"), want: `"g/tags/pets"`},
 		{name: "ChannelID", zero: ir.ChannelID(""), full: ir.ChannelID("c/asyncapi/user-signup"), want: `"c/asyncapi/user-signup"`},
 		{name: "MessageID", zero: ir.MessageID(""), full: ir.MessageID("m/asyncapi/UserSignedUp"), want: `"m/asyncapi/UserSignedUp"`},
 		{name: "AuthID", zero: ir.AuthID(""), full: ir.AuthID("auth/openapi/apiKey"), want: `"auth/openapi/apiKey"`},

@@ -1,17 +1,75 @@
 {
   "irVersion": "0.7.0",
-  "name": "PathItemOperations",
+  "name": "GroupIdentity",
   "version": "1.0.0",
   "docs": {},
   "services": [
     {
       "id": "s/openapi/0",
       "name": {
-        "source": "PathItemOperations",
-        "canonical": "path_item_operations"
+        "source": "GroupIdentity",
+        "canonical": "group_identity"
       },
       "docs": {},
       "groups": [
+        {
+          "id": "g/tags/default",
+          "name": {
+            "source": "default",
+            "canonical": "default"
+          },
+          "docs": {
+            "description": "A declared tag spelled like the group untagged operations fall into"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1declared/get",
+              "name": {
+                "source": "declared",
+                "canonical": "declared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "default"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/declared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1declared/get"
+              }
+            }
+          ]
+        },
         {
           "id": "g/default",
           "name": {
@@ -20,10 +78,286 @@
           "docs": {},
           "operations": [
             {
-              "id": "op/openapi/paths/~1index/post",
+              "id": "op/openapi/paths/~1untagged/get",
               "name": {
-                "source": "subscribeIndex",
-                "canonical": "subscribe_index"
+                "source": "untagged",
+                "canonical": "untagged"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/untagged",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1untagged/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/webhooks",
+          "name": {
+            "source": "webhooks",
+            "canonical": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1named-like-the-webhook-group/get",
+              "name": {
+                "source": "namedLikeWebhooks",
+                "canonical": "named_like_webhooks"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "webhooks"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/named-like-the-webhook-group",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1named-like-the-webhook-group/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/ghost",
+          "name": {
+            "source": "ghost",
+            "canonical": "ghost"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1undeclared/get",
+              "name": {
+                "source": "undeclared",
+                "canonical": "undeclared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "ghost"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/undeclared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1undeclared/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/a~1b",
+          "name": {
+            "source": "a/b",
+            "canonical": "a_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1slash/get",
+              "name": {
+                "source": "slash",
+                "canonical": "slash"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a/b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/slash",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1slash/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/a~01b",
+          "name": {
+            "source": "a~1b",
+            "canonical": "a_1_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tilde/get",
+              "name": {
+                "source": "tilde",
+                "canonical": "tilde"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a~1b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tilde",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tilde/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/onEvent/post",
+              "name": {
+                "source": "onEvent",
+                "canonical": "on_event"
               },
               "docs": {},
               "responses": [
@@ -50,254 +384,7 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
-                    "callbacks": [
-                      {
-                        "expression": "{$request.body#/callbackUrl}",
-                        "operations": [
-                          "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/paths/~1index/post"
-              }
-            },
-            {
-              "id": "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE",
-              "name": {
-                "source": "purgeCallback",
-                "canonical": "purge_callback"
-              },
-              "docs": {},
-              "responses": [
-                {
-                  "name": {
-                    "hint": "204"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 204,
-                        "to": 204
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "purged"
-                  }
-                }
-              ],
-              "oneWay": false,
-              "idempotency": {},
-              "bindings": {
-                "http": [
-                  {
-                    "method": "PURGE",
-                    "uriTemplate": "{$request.body#/callbackUrl}",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
-                  }
-                ]
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
-              }
-            },
-            {
-              "id": "op/openapi/paths/~1index/query",
-              "name": {
-                "source": "queryIndex",
-                "canonical": "query_index"
-              },
-              "docs": {},
-              "request": {
-                "contents": [
-                  {
-                    "mediaType": "application/json",
-                    "type": {
-                      "target": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
-                      "nullable": false
-                    }
-                  }
-                ],
-                "required": false
-              },
-              "responses": [
-                {
-                  "name": {
-                    "hint": "200"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 200,
-                        "to": 200
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "ok"
-                  }
-                }
-              ],
-              "oneWay": false,
-              "idempotency": {},
-              "bindings": {
-                "http": [
-                  {
-                    "method": "QUERY",
-                    "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "requestContentTypes": [
-                      "application/json"
-                    ],
-                    "checksumRequired": false,
-                    "isWebhook": false
-                  }
-                ]
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/paths/~1index/query"
-              }
-            },
-            {
-              "id": "op/openapi/paths/~1index/additionalOperations/PURGE",
-              "name": {
-                "source": "purgeIndex",
-                "canonical": "purge_index"
-              },
-              "docs": {},
-              "responses": [
-                {
-                  "name": {
-                    "hint": "204"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 204,
-                        "to": 204
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "purged"
-                  }
-                }
-              ],
-              "oneWay": false,
-              "idempotency": {},
-              "bindings": {
-                "http": [
-                  {
-                    "method": "PURGE",
-                    "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
-                  }
-                ]
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/paths/~1index/additionalOperations/PURGE"
-              }
-            },
-            {
-              "id": "op/openapi/paths/~1index/additionalOperations/mIxEdCase",
-              "name": {
-                "source": "mixedCaseIndex",
-                "canonical": "mixed_case_index"
-              },
-              "docs": {},
-              "responses": [
-                {
-                  "name": {
-                    "hint": "204"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 204,
-                        "to": 204
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "purged"
-                  }
-                }
-              ],
-              "oneWay": false,
-              "idempotency": {},
-              "bindings": {
-                "http": [
-                  {
-                    "method": "mIxEdCase",
-                    "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
-                  }
-                ]
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/paths/~1index/additionalOperations/mIxEdCase"
-              }
-            }
-          ]
-        },
-        {
-          "id": "g/webhooks",
-          "name": {
-            "hint": "webhooks"
-          },
-          "docs": {},
-          "operations": [
-            {
-              "id": "op/openapi/webhooks/cacheFlushed/additionalOperations/FLUSH",
-              "name": {
-                "source": "onFlush",
-                "canonical": "on_flush"
-              },
-              "docs": {},
-              "responses": [
-                {
-                  "name": {
-                    "hint": "200"
-                  },
-                  "conditions": {
-                    "statusCodes": [
-                      {
-                        "from": 200,
-                        "to": 200
-                      }
-                    ]
-                  },
-                  "docs": {
-                    "description": "ok"
-                  }
-                }
-              ],
-              "oneWay": false,
-              "idempotency": {},
-              "bindings": {
-                "http": [
-                  {
-                    "method": "FLUSH",
-                    "uriTemplate": "cacheFlushed",
+                    "uriTemplate": "onEvent",
                     "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": true
@@ -306,7 +393,7 @@
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/webhooks/cacheFlushed/additionalOperations/FLUSH"
+                "pointer": "/webhooks/onEvent/post"
               }
             }
           ]
@@ -317,66 +404,6 @@
       }
     }
   ],
-  "types": {
-    "t/anon/paths/~1index/query/requestBody/content/application~1json/schema": {
-      "kind": "model",
-      "id": "t/anon/paths/~1index/query/requestBody/content/application~1json/schema",
-      "name": {
-        "hint": "query_index_request"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1index/query/requestBody/content/application~1json/schema"
-      },
-      "properties": [
-        {
-          "id": "p/openapi/paths/~1index/query/requestBody/content/application~1json/schema/properties/q",
-          "name": {
-            "source": "q",
-            "canonical": "q"
-          },
-          "wireName": "q",
-          "type": {
-            "target": "t/prim/string",
-            "nullable": false
-          },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/paths/~1index/query/requestBody/content/application~1json/schema/properties/q"
-          }
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/prim/string": {
-      "kind": "primitive",
-      "id": "t/prim/string",
-      "name": {},
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": -1
-      },
-      "prim": "string"
-    }
-  },
   "servers": [
     {
       "name": {
@@ -386,11 +413,23 @@
       "description": {}
     }
   ],
+  "tagDefs": [
+    {
+      "name": "default",
+      "docs": {
+        "description": "A declared tag spelled like the group untagged operations fall into"
+      }
+    },
+    {
+      "name": "webhooks",
+      "docs": {}
+    }
+  ],
   "sources": [
     {
-      "format": "openapi@3.2",
-      "path": "path-item-operations.yaml",
-      "hash": "047cabe1682a7c78101093e9f4a502a0289ea7cc648f77d231b2a09b2a15bff2"
+      "format": "openapi@3.1",
+      "path": "group-identity.yaml",
+      "hash": "79e637d049cd299fe584579e7b8ed9937c25936a87553a6b931df1e1c0ffca94"
     }
   ]
 }

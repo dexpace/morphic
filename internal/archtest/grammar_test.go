@@ -89,7 +89,7 @@ var idOwners = []string{"compilers/compile"}
 
 // idTypes are ir's ID types. A compiler converting a string into one of them is
 // deriving an identifier.
-var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "ChannelID", "MessageID"}
+var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ChannelID", "MessageID"}
 
 // TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
 // but the framework builds an ir ID out of a string.
