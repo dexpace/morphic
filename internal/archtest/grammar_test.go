@@ -169,6 +169,45 @@ func ids(name string) (ir.OpID, ir.OpID, ir.OpID, compile.Space, compile.Space) 
 	}
 }
 
+// TestIDDerivations_ImportsAreResolvedFromTheFile plants the two ways a name
+// can mislead a rule that assumes the conventional one. Aliasing ir and compile
+// must not hide a violation; a package that is merely called compile, which this
+// repository's rule is not about, must not be reported for it.
+func TestIDDerivations_ImportsAreResolvedFromTheFile(t *testing.T) {
+	t.Parallel()
+	const aliased = `package graphql
+
+import (
+	cmp "github.com/dexpace/morphic/compilers/compile"
+	irx "github.com/dexpace/morphic/ir"
+)
+
+func ids(name string) (irx.OpID, cmp.Space) {
+	return irx.OpID(name), cmp.Space(name)
+}
+`
+	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", aliased)
+	require.NoError(t, err)
+	require.Len(t, offenders, 2, "the conversion to an ID type and to a namespace, both through aliases: %v", offenders)
+	assert.Contains(t, offenders[0], "converts a string to an ir.OpID")
+	assert.Contains(t, offenders[1], "converts a non-literal to a compile.Space")
+
+	const unrelated = `package graphql
+
+import (
+	"example.com/other/compile"
+	"example.com/other/ir"
+)
+
+func ids(name string) (ir.OpID, compile.Space) {
+	return ir.OpID(name), compile.Space(name)
+}
+`
+	offenders, err = idDerivations("planted.go", "compilers/graphql/ids.go", unrelated)
+	require.NoError(t, err)
+	assert.Empty(t, offenders, "packages that are not ours are not the rule's business")
+}
+
 // idDerivations reports every place in one file that builds an ir ID out of a
 // string: a conversion, and a typed declaration holding a literal — the shape
 // that spells an ID without converting anything. src is nil to read the file at
@@ -181,6 +220,7 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 	}
 
 	var found []string
+	names := namesIn(file)
 	report := func(pos token.Pos, how, idType string) {
 		found = append(found, fmt.Sprintf("%s:%d: %s an ir.%s rather than deriving it through the framework",
 			rel, fset.Position(pos).Line, how, idType))
@@ -188,19 +228,19 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.CallExpr:
-			if idType, ok := idTypeName(node.Fun); ok {
+			if idType, ok := idTypeName(node.Fun, names.ir); ok {
 				report(node.Pos(), "converts a string to", idType)
 			}
 		case *ast.ValueSpec:
 			// `const anyTypeID ir.TypeID = "t/protobuf/any"` — the Protobuf draft's
 			// shape, which spells a whole ID and converts nothing. A declaration
 			// with no literal in it is copying an ID, not deriving one.
-			if idType, ok := idTypeName(node.Type); ok && holdsStringLiteral(node.Values) {
+			if idType, ok := idTypeName(node.Type, names.ir); ok && holdsStringLiteral(node.Values) {
 				report(node.Pos(), "declares a literal as", idType)
 			}
 		default:
 		}
-		if how, bad := spaceFromData(n); bad {
+		if how, bad := spaceFromData(n, names.compile); bad {
 			found = append(found, fmt.Sprintf("%s:%d: %s; a compile.Space is a literal, or the path glued onto it loses its separator",
 				rel, fset.Position(n.Pos()).Line, how))
 		}
@@ -213,19 +253,19 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 // literal: a conversion of some other expression, or a declaration of the type
 // whose value is one.
 //
-// The framework supplies the separator between a namespace and its path, but only
-// when the two arrive as separate arguments. A namespace assembled from data can
+// The framework supplies the separator between a namespace and its path only
+// when they arrive as separate arguments. A namespace assembled from data can
 // carry the path in with it, which is how "t/anonaddr" lost its separator
-// (GitHub #141) in a form no check on the finished ID can tell from a real
-// namespace. Every namespace a compiler names today is a typed literal constant.
-func spaceFromData(n ast.Node) (how string, bad bool) {
+// (GitHub #141). The rule is syntactic: two constants glued together slip past
+// it, and Document.IDSpaces reports that as an undeclared namespace.
+func spaceFromData(n ast.Node, compileName string) (how string, bad bool) {
 	switch node := n.(type) {
 	case *ast.CallExpr:
-		if isSelector(node.Fun, "compile", "Space") && (len(node.Args) != 1 || !isStringLiteral(node.Args[0])) {
+		if isSelector(node.Fun, compileName, "Space") && (len(node.Args) != 1 || !isStringLiteral(node.Args[0])) {
 			return "converts a non-literal to a compile.Space", true
 		}
 	case *ast.ValueSpec:
-		if isSelector(node.Type, "compile", "Space") && !allStringLiterals(node.Values) {
+		if isSelector(node.Type, compileName, "Space") && !allStringLiterals(node.Values) {
 			return "declares a compile.Space from a non-literal", true
 		}
 	default:
@@ -251,14 +291,54 @@ func allStringLiterals(exprs []ast.Expr) bool {
 	return true
 }
 
-// idTypeName returns the name of the ir ID type expr names, if it names one.
-func idTypeName(expr ast.Expr) (string, bool) {
+// idTypeName returns the name of the ir ID type expr names, if it names one
+// through irName, the identifier the file imports ir as.
+func idTypeName(expr ast.Expr, irName string) (string, bool) {
 	for _, idType := range idTypes {
-		if isSelector(expr, "ir", idType) {
+		if isSelector(expr, irName, idType) {
 			return idType, true
 		}
 	}
 	return "", false
+}
+
+// derivationNames are the identifiers a file uses for the two packages the rule
+// is about, or "" for one it does not import.
+type derivationNames struct{ ir, compile string }
+
+// namesIn resolves them from the file's own imports, so an aliased import cannot
+// hide a violation and an unrelated package that happens to be called compile
+// cannot cause one. A file with no imports at all is a snippet, read with the
+// conventional names.
+func namesIn(file *ast.File) derivationNames {
+	return derivationNames{
+		ir:      importName(file, module+"/ir", "ir"),
+		compile: importName(file, module+"/compilers/compile", "compile"),
+	}
+}
+
+// importName returns the identifier file refers to the package at path by, which
+// is conventional unless the import renames it. A blank or dot import cannot be
+// referred to by selector, and a package the file does not import cannot be
+// referred to at all.
+func importName(file *ast.File, path, conventional string) string {
+	if len(file.Imports) == 0 {
+		return conventional
+	}
+	for _, spec := range file.Imports {
+		if strings.Trim(spec.Path.Value, "\"`") != path {
+			continue
+		}
+		switch {
+		case spec.Name == nil:
+			return conventional
+		case spec.Name.Name == "_" || spec.Name.Name == ".":
+			return ""
+		default:
+			return spec.Name.Name
+		}
+	}
+	return ""
 }
 
 // holdsStringLiteral reports whether any of exprs contains a string literal, so
