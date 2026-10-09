@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/dexpace/morphic/engine"
@@ -76,6 +77,8 @@ func newCompileCommand() command {
 			"type node interned there, the coordinates interned beneath it, and the\n" +
 			"diagnostics stamped at it — instead of writing the document. The coordinate\n" +
 			"is a JSON Pointer, so '' is the whole document.\n\n" +
+			"--disable-pass turns off the named IR pass, and may be repeated; a name no\n" +
+			"pass carries is refused (exit 2). --skip-validate is its alias for validate.\n\n" +
 			"--opt passes a setting to the compiler the spec selects, which names and\n" +
 			"validates its own options; morphic itself knows none of them. The OpenAPI\n" +
 			"compiler's are listed in the README.\n\n" +
@@ -98,7 +101,19 @@ func newCompileCommand() command {
 type specOptions struct {
 	failOn       string
 	skipValidate bool
+	disable      passFlag
 	settings     settingFlag
+}
+
+// disabledPasses is the pass names the flags turn off: --disable-pass's, plus
+// validate when --skip-validate, its alias, was given. A name given both ways
+// is listed once.
+func (o specOptions) disabledPasses() []string {
+	names := slices.Clone(o.disable)
+	if o.skipValidate && !slices.Contains(names, engine.ValidatePass) {
+		names = append(names, engine.ValidatePass)
+	}
+	return names
 }
 
 // compileOptions holds the values compile's flags parse into.
@@ -118,7 +133,9 @@ func bindSpecFlags(fs *flag.FlagSet, opts *specOptions) {
 	fs.StringVar(&opts.failOn, "fail-on", "error",
 		"fail (exit 1) on diagnostics at or above this severity: error|warning")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
-		"skip the referential-integrity validate pass")
+		"alias for --disable-pass validate")
+	fs.Var(&opts.disable, "disable-pass",
+		"disable the named IR pass (repeatable)")
 	fs.Var(opts.settings, "opt",
 		"set one `key=value` option on the compiler the spec selects (repeatable)")
 }
@@ -196,7 +213,7 @@ func runPipeline(specPath string, opts specOptions, stderr io.Writer) (*engine.R
 
 	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{
 		CompilerOptions: opts.settings,
-		SkipValidate:    opts.skipValidate,
+		DisablePasses:   opts.disabledPasses(),
 	})
 	if err != nil {
 		emitf(stderr, "morphic: %v\n", err)

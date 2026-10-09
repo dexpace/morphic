@@ -62,3 +62,28 @@ func TestSettingFlag_SetRefusals(t *testing.T) {
 	var unset settingFlag
 	assert.Error(t, unset.Set("grouping=tags"), "a nil set must refuse rather than panic")
 }
+
+func TestPassFlag_SetAndString(t *testing.T) {
+	t.Parallel()
+
+	var f passFlag
+	assert.Empty(t, f.String())
+	require.NoError(t, f.Set("validate"))
+	require.NoError(t, f.Set("validate"))
+	require.NoError(t, f.Set("other"))
+	assert.Equal(t, "validate other", f.String())
+	require.Error(t, f.Set(""))
+
+	var nilFlag *passFlag
+	assert.Empty(t, nilFlag.String())
+}
+
+func TestSpecOptions_DisabledPassesAliasEquivalence(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, specOptions{}.disabledPasses())
+	assert.Equal(t, []string{"validate"}, specOptions{skipValidate: true}.disabledPasses())
+	assert.Equal(t, []string{"validate"}, specOptions{disable: passFlag{"validate"}}.disabledPasses())
+	assert.Equal(t, []string{"validate"},
+		specOptions{skipValidate: true, disable: passFlag{"validate"}}.disabledPasses())
+}

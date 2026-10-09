@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -66,5 +67,31 @@ func (f *pointerFlag) String() string { return string(f.pointer) }
 // Set records the pointer and that the flag was given.
 func (f *pointerFlag) Set(raw string) error {
 	f.pointer, f.set = jsontext.Pointer(raw), true
+	return nil
+}
+
+// passFlag collects the repeated `-disable-pass name` values. It carries names
+// verbatim: which names exist is the engine's to say, and it refuses an unknown
+// one, so the CLI keeps no second list.
+type passFlag []string
+
+// String renders the names as typed. The flag package calls it on a zero value
+// to decide whether to print a default, and the empty string prints none.
+func (p *passFlag) String() string {
+	if p == nil {
+		return ""
+	}
+	return strings.Join(*p, " ")
+}
+
+// Set records one pass name. An empty name is refused, and a repeated one is
+// recorded once.
+func (p *passFlag) Set(raw string) error {
+	if raw == "" {
+		return errors.New("empty pass name")
+	}
+	if !slices.Contains(*p, raw) {
+		*p = append(*p, raw)
+	}
 	return nil
 }

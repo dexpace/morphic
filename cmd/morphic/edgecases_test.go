@@ -864,3 +864,60 @@ func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 	assert.Contains(t, err.Error(), "marshal ir document")
 	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
 }
+
+// danglingDocCompiler lowers to a Document with a dangling type ref and no
+// compiler diagnostics, so the only thing that can report it is the validate
+// pass.
+type danglingDocCompiler struct{ nilDocCompiler }
+
+func (danglingDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		Name:  "Dangling",
+		Types: ir.TypeRegistry{},
+		Services: []ir.Service{{
+			ID: "s/x",
+			Groups: []ir.OperationGroup{{
+				Operations: []ir.Operation{{
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
+				}},
+			}},
+		}},
+	}, nil, nil
+}
+
+// TestRun_SkipValidateSilencesTheValidatePass pins that --skip-validate and
+// --disable-pass validate each switch the pass off end to end: the same
+// document reports its dangling ref by default and nothing under either flag.
+func TestRun_SkipValidateSilencesTheValidatePass(t *testing.T) {
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{"default", nil, true},
+		{"--skip-validate", []string{"--skip-validate"}, false},
+		{"--disable-pass validate", []string{"--disable-pass", "validate"}, false},
+	}
+	for _, cmd := range []string{"compile", "validate"} {
+		for _, tt := range tests {
+			var stdout, stderr bytes.Buffer
+			args := append([]string{cmd, spec, "-o", filepath.Join(t.TempDir(), "ir.json")}, tt.args...)
+			if cmd == "validate" {
+				args = append([]string{cmd, spec}, tt.args...)
+			}
+
+			run(args, &stdout, &stderr)
+
+			assert.Equal(t, tt.want, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
+				"%s %s: stderr %q", cmd, tt.name, stderr.String())
+		}
+	}
+}

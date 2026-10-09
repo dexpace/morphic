@@ -120,14 +120,25 @@ all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
-Small, composable, order-explicit transformations that both the engine and users (via config)
-can enable:
+A pass is a `pass.Pass`: a stable `Name()` and a pure `Run(*ir.Document) (*ir.Document,
+[]ir.Diagnostic)` that never mutates its input. A transform returns a new document; an
+analysis such as `validate` returns its input unchanged with its diagnostics. The ordered list
+lives in `engine.DefaultPasses`, not in `pass/`: composing passes is orchestration, which only
+the engine does. The engine runs the list after a successful compile, threads each pass's output
+into the next, and merges every diagnostic with the compiler's. A caller turns a pass off by
+name (`RunOptions.DisablePasses`, `--disable-pass`); an unknown name is a Go error
+(`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the spec.
+
+Built today, and the whole of the default list:
 
 - **validate** — referential integrity (every typed-ID reference resolves to something the document
   declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, binding completeness (every operation parameter
   is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
+
+Designed but not built; none is in the default list, and none is a flag or option today:
+
 - **link** — resolve cross-document references when multiple specs are parsed into one document
   (multi-service, spec-stitching).
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID

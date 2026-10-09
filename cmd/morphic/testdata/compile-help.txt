@@ -10,6 +10,9 @@ type node interned there, the coordinates interned beneath it, and the
 diagnostics stamped at it — instead of writing the document. The coordinate
 is a JSON Pointer, so '' is the whole document.
 
+--disable-pass turns off the named IR pass, and may be repeated; a name no
+pass carries is refused (exit 2). --skip-validate is its alias for validate.
+
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
@@ -19,6 +22,8 @@ even one that begins with a dash, which is how a spec file named like a
 flag is passed.
 
 flags:
+  -disable-pass value
+    	disable the named IR pass (repeatable)
   -explain pointer
     	report what compiling produced at this source pointer instead of writing IR JSON; '' is the whole document
   -fail-on string
@@ -30,4 +35,4 @@ flags:
   -pretty
     	indent the IR JSON -o writes; stdout is indented either way
   -skip-validate
-    	skip the referential-integrity validate pass
+    	alias for --disable-pass validate

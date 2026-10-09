@@ -132,7 +132,8 @@ prints a command's flags. Help always goes to stdout and exits `0`.
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
-| `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
+| `--disable-pass <name>` | both | Disable the named IR pass. Repeatable; a name no pass carries is refused with exit `2`. The only pass is `validate`. |
+| `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 | `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
@@ -192,7 +193,9 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
 built-in compiler plus the `validate` pass. `Run` reads the spec, asks the registered compilers
-which one recognizes it, compiles, and runs the passes.
+which one recognizes it, compiles, and runs the passes in the order `engine.DefaultPasses` lists
+them. `RunOptions.DisablePasses` turns passes off by name, and a name no pass carries is refused
+with `engine.ErrUnknownPass`; it replaces the removed `SkipValidate` field.
 
 ```go
 eng, err := engine.New()
