@@ -1492,7 +1492,14 @@ type PropPath struct {
     Segments []PropID
 }
 type ParamPath struct{ Param ParamID; Segments []PropID } // Param is the ID of the parameter rooted in
+```
 
+A `ParamPath.Param` (`InputCursor`, `InputLimit`) and an `Idempotency.TokenParam` name a parameter of
+the operation that carries them, the same scoping an `HTTPParamBinding.Param` has (§8.1); an ID
+another operation declares is `pass/param-binding-mismatch`, and one nobody declares is a dangling
+reference.
+
+```go
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
     PollingOperation *OpID     // declared poll op (Azure.Core @pollingOperation — a library
@@ -1575,7 +1582,7 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      ParamID            // ID of the Operation.Params entry it binds
+    Param      ParamID            // ID of the Operation.Params entry it binds — this operation's own
     ParamPath  []PropID           // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param

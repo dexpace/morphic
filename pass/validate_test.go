@@ -433,3 +433,75 @@ func TestValidate_DuplicateGroupIDStopsAtTheDepthBound(t *testing.T) {
 	assert.Contains(t, got, "ir/walk-truncated")
 	assert.Contains(t, got, "pass/duplicate-group-id", "the repeated g/a inside the bound is still found")
 }
+
+// paramRefOp builds an operation declaring one parameter and carrying the
+// operation-level references under test; ref picks which ID each names.
+func paramRefOp(id string, ref ir.ParamID, kind ir.IdempotencyKind) ir.Operation {
+	return ir.Operation{
+		ID:          ir.OpID(id),
+		Params:      []ir.Parameter{{ID: ir.ParamID("param/x/" + id), Name: ir.Naming{Source: "p"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Idempotency: ir.Idempotency{Kind: kind, TokenParam: ref},
+		Pagination: &ir.Pagination{
+			Strategy:    ir.PageStrategyCursor,
+			InputCursor: &ir.ParamPath{Param: ref},
+			InputLimit:  &ir.ParamPath{Param: ref},
+		},
+	}
+}
+
+// refErrors counts the param-binding-mismatch and dangling-param-ref errors.
+func refErrors(diags []ir.Diagnostic) (mismatch, dangling int) {
+	for _, d := range diags {
+		switch d.Code {
+		case "pass/param-binding-mismatch":
+			mismatch++
+		case "ir/dangling-param-ref":
+			dangling++
+		}
+	}
+	return mismatch, dangling
+}
+
+func twoOpDoc(a, b ir.Operation) *ir.Document {
+	doc := docWithOperation(a)
+	doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations, b)
+	return doc
+}
+
+func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
+	t.Parallel()
+	a := paramRefOp("op/a", "param/x/op/a", ir.IdempotencyToken)
+	b := paramRefOp("op/b", "param/x/op/b", ir.IdempotencyToken)
+	m, d := refErrors(pass.Validate(twoOpDoc(a, b)))
+	assert.Zero(t, m)
+	assert.Zero(t, d)
+}
+
+func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
+	t.Parallel()
+	a := paramRefOp("op/a", "param/x/op/b", ir.IdempotencyToken)
+	b := paramRefOp("op/b", "param/x/op/b", ir.IdempotencyToken)
+	m, d := refErrors(pass.Validate(twoOpDoc(a, b)))
+	assert.Equal(t, 3, m, "TokenParam, InputCursor and InputLimit of op/a")
+	assert.Zero(t, d)
+}
+
+func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
+	t.Parallel()
+	a := paramRefOp("op/a", "param/x/ghost", ir.IdempotencyToken)
+	m, d := refErrors(pass.Validate(docWithOperation(a)))
+	assert.Zero(t, m, "the dangling-ref walk owns an ID nobody declares")
+	assert.Equal(t, 3, d)
+}
+
+func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *testing.T) {
+	t.Parallel()
+	op := ir.Operation{
+		ID:          "op/a",
+		Params:      []ir.Parameter{{ID: "param/x/a", Name: ir.Naming{Source: "p"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyIdempotent},
+	}
+	m, d := refErrors(pass.Validate(docWithOperation(op)))
+	assert.Zero(t, m)
+	assert.Zero(t, d)
+}

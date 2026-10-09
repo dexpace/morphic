@@ -39,6 +39,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkDuplicateMemberIDs(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkParamReferences(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
@@ -670,6 +671,56 @@ func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
 		}
 	})
 	return diags
+}
+
+// checkParamReferences holds the parameter references outside the HTTP
+// bindings to their own operation: Pagination's ParamPath fields and
+// Idempotency.TokenParam. An ID no operation declares is the dangling-ref
+// walk's, so only an ID some other operation declares is reported here.
+func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
+	declared := map[ir.ParamID]bool{}
+	forEachOperation(doc, func(op ir.Operation) {
+		for _, p := range op.Params {
+			declared[p.ID] = true
+		}
+	})
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		own := make(map[ir.ParamID]bool, len(op.Params))
+		for _, p := range op.Params {
+			own[p.ID] = true
+		}
+		for _, r := range operationParamRefs(op) {
+			if r.id == "" || own[r.id] || !declared[r.id] {
+				continue
+			}
+			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+				fmt.Sprintf("%s of %s names parameter %q, which this operation does not declare", r.field, op.ID, r.id),
+				string(op.ID)))
+		}
+	})
+	return diags
+}
+
+// paramRef is one operation-level reference to a parameter by ID.
+type paramRef struct {
+	field string
+	id    ir.ParamID
+}
+
+// operationParamRefs lists the parameter references an operation carries
+// outside its HTTP bindings.
+func operationParamRefs(op ir.Operation) []paramRef {
+	refs := []paramRef{{"Idempotency.TokenParam", op.Idempotency.TokenParam}}
+	if pg := op.Pagination; pg != nil {
+		if pg.InputCursor != nil {
+			refs = append(refs, paramRef{"Pagination.InputCursor", pg.InputCursor.Param})
+		}
+		if pg.InputLimit != nil {
+			refs = append(refs, paramRef{"Pagination.InputLimit", pg.InputLimit.Param})
+		}
+	}
+	return refs
 }
 
 // paramLocation keys a parameter's binding within one wire location.
