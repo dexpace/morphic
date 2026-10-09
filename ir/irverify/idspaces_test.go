@@ -233,6 +233,20 @@ func TestVerify_UnusableDeclarationIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_ListOrderIsTheByteOrderOfUTF8 pins which order "sorted" means. A
+// producer sorting by UTF-16 code units, as JavaScript and Java do by default,
+// puts a character outside the BMP before U+FF5E; the byte order of the UTF-8
+// spelling, which the canonical form names, puts it after.
+func TestVerify_ListOrderIsTheByteOrderOfUTF8(t *testing.T) {
+	t.Parallel()
+	bmp, astral := string(rune(0xFF5E)), string(rune(0x1F600))
+	verify := func(spaces ...string) []irverify.Violation {
+		return irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindOp: spaces}})
+	}
+	assert.Empty(t, violationPaths(verify(bmp, astral), "ir/id-spaces-not-canonical"))
+	assert.Equal(t, []string{"doc.IDSpaces[op][1]"}, violationPaths(verify(astral, bmp), "ir/id-spaces-not-canonical"))
+}
+
 // TestVerify_UnknownKindIsNotAlsoExamined pins the division of labour inside the
 // declaration: a key that is no kind prefix is reported once, as that, and its
 // list is not judged as a kind's would be, so one defect gets one report.
