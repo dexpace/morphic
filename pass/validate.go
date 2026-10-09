@@ -55,9 +55,10 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
 // diagnostics would make a document-wide check report its own output.
 func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
-	// Document has no map for OpID or ServiceID: an ir.Operation is declared in
-	// the Service→OperationGroup tree and an ir.Service in a slice (GitHub
-	// #50), so their registries come from the identities the nodes declare.
+	// Document has no map for OpID, ServiceID or GroupID: an ir.Operation and an
+	// ir.OperationGroup are declared in the Service→OperationGroup tree and an
+	// ir.Service in a slice (GitHub #50), so their registries come from the
+	// identities the nodes declare.
 	decls, declTruncated := ir.DeclaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
 	// A registry built from a truncated walk says "not declared" of a node it

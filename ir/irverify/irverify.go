@@ -57,8 +57,8 @@ func Verify(doc *ir.Document) []Violation {
 // run and handed down; the checks that do not need them still take them,
 // because one signature is what lets walkChecks be a list.
 //
-// The zero value says the document declares none, so every OpID and ServiceID
-// reference reports as dangling. Read one with readDeclarations.
+// The zero value says the document declares none, so every OpID, ServiceID and
+// GroupID reference reports as dangling. Read one with readDeclarations.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool

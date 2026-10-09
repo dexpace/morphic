@@ -55,8 +55,8 @@ func (r Registry) Has(id string) bool {
 //
 // Type-driven coverage is not total. An integer index into a slice has nothing
 // to key on, and [PropID] names a position inside a model; both are resolved
-// by hand where checked. An [Operation] and a [Service] live in a tree and a
-// slice, so [Registries.WithDeclarations] covers them.
+// by hand where checked. An [Operation], an [OperationGroup] and a [Service]
+// live in a tree and a slice, so [Registries.WithDeclarations] covers them.
 type Registries map[reflect.Type]Registry
 
 // WithDeclarations returns r extended with a registry for every ID class

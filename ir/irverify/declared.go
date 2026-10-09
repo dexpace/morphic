@@ -17,11 +17,11 @@ const idFieldName = "ID"
 // site, not as the missing declaration.
 //
 // Nothing else reaches these nodes. checkRegistryKeys reads an empty ID from
-// the registry key, but an Operation, Service or Property has no key, and
-// checkDuplicateIDs never sees one because ir.DeclaredIDs drops empty IDs
-// (GitHub #289). Classes checkRegistryKeys covers (see ir.DocumentRegistries)
-// are skipped so one defect gets one report, under the same ir/empty-<noun>-id
-// code.
+// the registry key, but an Operation, OperationGroup, Service or Property has
+// no key, and checkDuplicateIDs never sees one because ir.DeclaredIDs drops
+// empty IDs (GitHub #289). Classes checkRegistryKeys covers (see
+// ir.DocumentRegistries) are skipped so one defect gets one report, under the
+// same ir/empty-<noun>-id code.
 func checkDeclaredIDs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	keyed := ir.DocumentRegistries(doc)
 	var vs []Violation
