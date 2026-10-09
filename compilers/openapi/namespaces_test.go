@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -13,7 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses holds the compiler's
@@ -31,7 +30,7 @@ func TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, specs, "the corpus must exist, or this test holds nothing to anything")
 
-	used := map[string]map[string]bool{}
+	used := map[string][]string{}
 	var declared map[string][]string
 	for _, spec := range specs {
 		data, err := os.ReadFile(spec)
@@ -48,38 +47,17 @@ func TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses(t *testing.T) {
 				declared = doc.IDSpaces
 			}
 			assert.Equal(t, declared, doc.IDSpaces, "%s declares a vocabulary of its own", spec)
-			recordSpacesUsed(used, doc)
+			for kind, spaces := range irtest.SpacesUsed(doc) {
+				used[kind] = append(used[kind], spaces...)
+			}
 		}
 	}
 	require.NotEmpty(t, declared, "no compiled document declared a vocabulary")
 
-	want := map[string][]string{}
 	for kind, spaces := range used {
-		for space := range spaces {
-			want[kind] = append(want[kind], space)
-		}
-		slices.Sort(want[kind])
+		slices.Sort(spaces)
+		used[kind] = slices.Compact(spaces)
 	}
-	assert.Empty(t, cmp.Diff(want, declared),
+	assert.Empty(t, cmp.Diff(used, declared),
 		"declared and used namespaces differ (-used by the corpus +declared by the compiler)")
-}
-
-// recordSpacesUsed adds the kind and namespace of every ID doc declares to used,
-// leaving out the primitive namespace, which ir owns and no compiler declares.
-func recordSpacesUsed(used map[string]map[string]bool, doc *ir.Document) {
-	decls, _ := ir.DeclaredIDs(doc)
-	for _, d := range decls {
-		kind, _, found := strings.Cut(d.ID, ir.IDSeparator)
-		if !found || !slices.Contains(ir.IDKinds(), kind) {
-			continue
-		}
-		space, ok := ir.IDSpace(kind, d.ID)
-		if !ok || (kind == ir.IDKindType && space == ir.IDSpacePrim) {
-			continue
-		}
-		if used[kind] == nil {
-			used[kind] = map[string]bool{}
-		}
-		used[kind][space] = true
-	}
 }
