@@ -40,7 +40,7 @@ type declaredKind struct {
 	// prefix is the kind prefix every ID of the class opens with.
 	prefix string
 	// pathAgrees reports whether the ID's path is the pointer the declaring
-	// node's provenance records, which is the only check that catches an ID
+	// node's provenance records, which is the only way irverify catches an ID
 	// that lost the separator between its space and its path.
 	pathAgrees bool
 }

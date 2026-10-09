@@ -470,7 +470,7 @@ purposes.
 ```go
 type GroupPlan struct {
     Name     ir.Naming               // neutral — cased in refine
-    Parent   ir.GroupID              // "" = top-level; nesting → sub-clients
+    Parent   *ir.GroupID             // nil = top-level; nesting → sub-clients
     Ops      []ir.OpID
     Resource *ir.ResourceInfo        // Smithy resource lifecycle, when declared
 }
@@ -929,7 +929,7 @@ drops a hint (INV3):
 ```go
 type ShapeHint struct {
     Rename         string    // presentation rename for the entity's symbol; "" = none
-    Remount        ir.GroupID // move an operation under a different sub-client; "" = keep
+    Remount        *ir.GroupID // move an operation under a different sub-client; nil = keep
     SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
                              // the one sanctioned union→arguments collapse (§4.4); default off
     URLBuilder     bool      // expose a URL-builder variant of the operation

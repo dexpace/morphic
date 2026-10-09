@@ -251,8 +251,8 @@ through a `$ref`'d path item or callback (#107); a service records no pointer an
 provenance. So `irverify` cannot see a lost separator in an operation, service or group ID. What
 keeps one out is upstream: the framework supplies the separator, and an architecture test holds a
 compiler to building a namespace only from a literal, since one assembled from data can carry the path
-in with it. A document from a producer outside this repository is the only way to reach one. Channels
-and messages have no prefix yet and are held to neither.
+in with it. A document from a producer outside this repository is the only way to reach one (#802).
+Channels and messages have no prefix yet and are held to neither.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
