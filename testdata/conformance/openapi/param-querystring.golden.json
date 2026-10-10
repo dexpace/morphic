@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -14,6 +14,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +56,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
                   "name": {
                     "source": "criteria",
                     "canonical": "criteria"
@@ -97,7 +101,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "criteria",
+                        "param": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
                         "location": "querystring",
                         "wireName": "criteria",
                         "allowReserved": false,
@@ -123,6 +127,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
                   "name": {
                     "source": "status",
                     "canonical": "status"
@@ -167,7 +172,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "status",
+                        "param": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
                         "location": "query",
                         "wireName": "status",
                         "style": "form",
@@ -194,6 +199,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
                   "name": {
                     "source": "criteria",
                     "canonical": "criteria"
@@ -238,7 +244,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "criteria",
+                        "param": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
                         "location": "querystring",
                         "wireName": "criteria",
                         "explode": false,

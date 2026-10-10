@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -14,6 +14,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -52,6 +55,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -136,7 +140,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -162,6 +166,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -246,7 +251,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",

@@ -116,6 +116,7 @@ func Namespaces() compile.Namespaces {
 		ir.IDKindAuth:    {OpenAPISpace},
 		ir.IDKindService: {OpenAPISpace},
 		ir.IDKindGroup:   {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
+		ir.IDKindParam:   {OpenAPISpace},
 	}
 }
 
@@ -143,6 +144,18 @@ func Op(pointer jsontext.Pointer) ir.OpID {
 // Prop returns the stable ID of the property at pointer.
 func Prop(pointer jsontext.Pointer) ir.PropID {
 	return compile.PropID(OpenAPISpace, string(pointer))
+}
+
+// Param returns the stable ID of the parameter called name in location in, as
+// declared on the operation mounted at mount.
+//
+// The mount is the pointer the operation lowers at, so a path item $ref'd from
+// two paths gives each mount's parameters IDs of their own. The name is one
+// escaped token and in is the source's location, so a name and a location
+// cannot be confused and a reordered list renames nothing. A parameter is
+// identified by its name and location together: two may share a name.
+func Param(mount jsontext.Pointer, name, in string) ir.ParamID {
+	return compile.ParamID(OpenAPISpace, string(mount+Ptr("parameters", name, in)))
 }
 
 // Auth returns the stable ID of the named security scheme.

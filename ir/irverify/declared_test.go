@@ -39,8 +39,11 @@ func idBearingDoc(present bool) *ir.Document {
 		Services: []ir.Service{{
 			ID: pick(present, ir.ServiceID("s/x/S")),
 			Groups: []ir.OperationGroup{{
-				ID:         pick(present, ir.GroupID("g/x/S/G")),
-				Operations: []ir.Operation{{ID: pick(present, ir.OpID("op/x/S/op"))}},
+				ID: pick(present, ir.GroupID("g/x/S/G")),
+				Operations: []ir.Operation{{
+					ID:     pick(present, ir.OpID("op/x/S/op")),
+					Params: []ir.Parameter{{ID: pick(present, ir.ParamID("param/x/S/op/p"))}},
+				}},
 			}},
 		}},
 	}

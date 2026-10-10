@@ -643,30 +643,38 @@ func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// checkHTTPParamBinding validates one HTTP binding: unknown parameter names are
-// errors, a param bound twice in one non-host location is an error, and an
+// paramLocation keys the per-location bound-once count: a parameter is
+// identified by its ID, not its name, so two parameters sharing a name never
+// count against each other.
+type paramLocation struct {
+	param    ir.ParamID
+	location ir.HTTPLocation
+}
+
+// checkHTTPParamBinding validates one HTTP binding: a parameter this operation
+// does not declare is an error, a param bound twice in one non-host location is an error, and an
 // unbound parameter is a warning (body-carried operations bind nothing).
 func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
 	where := fmt.Sprintf("%s/bindings/http/%d", op.ID, idx)
-	known := make(map[string]bool, len(op.Params))
+	known := make(map[ir.ParamID]bool, len(op.Params))
 	for _, p := range op.Params {
-		known[p.Name.Source] = true
+		known[p.ID] = true
 	}
 	var diags []ir.Diagnostic
-	bound := make(map[string]int, len(op.Params))
-	perLocation := make(map[string]int, len(b.ParamBindings))
+	bound := make(map[ir.ParamID]int, len(op.Params))
+	perLocation := make(map[paramLocation]int, len(b.ParamBindings))
 	for _, pb := range b.ParamBindings {
 		if !known[pb.Param] {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("binding on %s names unknown parameter %q", where, pb.Param), where))
+				fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
 			continue
 		}
 		bound[pb.Param]++
 		if pb.Location == ir.HTTPLocationHost {
 			continue // host labels are additive; a param may fill several.
 		}
-		key := pb.Param + "\x00" + string(pb.Location)
+		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", pb.Param, pb.Location, where),
@@ -678,10 +686,10 @@ func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 
 // unboundParamWarnings reports each logical parameter that no binding placed on
 // the wire.
-func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) []ir.Diagnostic {
+func unboundParamWarnings(op ir.Operation, bound map[ir.ParamID]int, where string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, p := range op.Params {
-		if bound[p.Name.Source] == 0 {
+		if bound[p.ID] == 0 {
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))

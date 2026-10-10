@@ -192,6 +192,13 @@ it sees. Changes made together in one bump are listed together under it.
     could see an ID that lost the separator before its path in an operation, a service or a group,
     which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
     cannot tell which namespaces a producer minted in.
+- **0.8.0** — parameters gained an identity:
+  - `Parameter` gained `ID`. A parameter had been named by its name, which one operation can repeat:
+    `id` in the path and `id` in the query are two parameters. `HTTPParamBinding.Param`,
+    `ParamPath.Param` and `Idempotency.TokenParam` changed from the parameter's name to its
+    `ParamID`, so the three references name one parameter instead of two. A consumer pinned to 0.7.0
+    finds no `id` on a parameter and reads those three as names; it cannot tell which of two
+    same-named parameters a binding places on the wire. The `param` kind joined `IDSpaces`.
 
 ---
 
@@ -202,7 +209,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID string
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -212,7 +219,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `g`, `auth`, `param`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -248,6 +255,17 @@ service included, because a consumer keys a group by it alone; `irverify` report
 of it, so two groups that render the same words stay two entities, and what an emitter does about
 that collision is a rendering decision it makes by ID (emitter-design §4.12).
 
+A parameter is identified by the operation it belongs to, its name and its location. The OpenAPI
+compiler's are `param/openapi/<operation mount pointer>/parameters/<name>/<in>`: the mount is the
+pointer the operation is lowered at, the name is one escaped RFC 6901 token, and `<in>` is the
+source's location. A path-item parameter copied into two operations is two parameters, one ID
+apiece, and a path item reached from two paths gives each mount's parameters IDs rooted at that
+mount. The mount rather than the declaration scopes it, which is the reason an operation is
+identified by its mount (#107), and for the same reason a parameter is exempt from the agreement
+below: its provenance records the declaration it was read from. No list index is used, so
+reordering a parameter list renames nothing. The path is injective and the only rule minting into
+kind `param`, so it takes the format's own namespace, `openapi`, with no space of its own.
+
 `irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
 well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
 pointer its path was derived from (`ir/id-provenance-disagreement`). And it lives in a namespace the
@@ -257,7 +275,7 @@ The first two cannot tell every lost separator. Shape alone does not: `t/anonadd
 namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
 security scheme and a property are held to it. An operation is not, because its provenance records
 where its body is declared and its ID where it is mounted, and the two differ for an operation reached
-through a `$ref`'d path item or callback (#107). A service records no pointer, and a group, formed by
+through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A service records no pointer, and a group, formed by
 a rule from every operation sharing a key, has no single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
@@ -1319,6 +1337,9 @@ type Operation struct {
 }
 
 type Parameter struct {
+    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>; the
+                                   // bindings, pagination inputs and idempotency token name a
+                                   // parameter by it, not by Name, which two locations may share
     Name       Naming
     Type       TypeRef
     Required   bool
@@ -1338,7 +1359,10 @@ type Parameter struct {
                                // referenced entry that is the component it names, and the mount
                                // site is not recorded — so inherited-vs-declared is readable off
                                // the pointer only for an entry written inline
-    // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1)
+    // NOTE: no location here — path/query/header is HTTP-binding detail (§8.1); the
+    // location is part of the ID, so one name in two locations is two parameters.
+    // A path-item parameter is copied by value into each operation it applies to,
+    // with an ID of that operation's own.
 }
 
 type Payload struct {
@@ -1467,7 +1491,7 @@ type PropPath struct {
                        // can live in response/message headers, not just bodies
     Segments []PropID
 }
-type ParamPath struct{ Param string; Segments []PropID }
+type ParamPath struct{ Param ParamID; Segments []PropID }
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
@@ -1551,7 +1575,7 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      string             // Operation.Params name it binds
+    Param      ParamID            // Operation.Params entry it binds, by ID
     ParamPath  []PropID           // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param
@@ -1578,7 +1602,7 @@ type HTTPParamBinding struct {
 type Callback struct { Expression string; Operations []OpID }
 ```
 
-Every logical parameter is bound exactly once **per non-host location; a `host` binding is
+Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per non-host location; a `host` binding is
 additive** — Smithy `@hostLabel` members expand into the host prefix *and* still serialize at
 their modeled location, by spec. TypeSpec's `HttpProperty` role+path flattening is the model
 here: nested `@header`/`@body` annotations resolve to explicit `(role, wire name, path)`

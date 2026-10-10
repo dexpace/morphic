@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -14,6 +14,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -54,6 +57,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
                   "name": {
                     "source": "widget.id",
                     "canonical": "widget_id"
@@ -70,6 +74,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
                   "name": {
                     "source": "filter[name]",
                     "canonical": "filter_name"
@@ -166,7 +171,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "widget.id",
+                        "param": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/widget.id/path",
                         "location": "path",
                         "wireName": "widget.id",
                         "style": "simple",
@@ -174,7 +179,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "filter[name]",
+                        "param": "param/openapi/paths/~1widgets~1{widget.id}/get/parameters/filter[name]/query",
                         "location": "query",
                         "wireName": "filter[name]",
                         "style": "form",

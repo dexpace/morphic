@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -14,6 +14,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +56,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1pick/get/parameters/color/query",
                   "name": {
                     "source": "color",
                     "canonical": "color"
@@ -97,7 +101,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "color",
+                        "param": "param/openapi/paths/~1pick/get/parameters/color/query",
                         "location": "query",
                         "wireName": "color",
                         "style": "form",

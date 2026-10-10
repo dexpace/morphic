@@ -23,8 +23,9 @@ import (
 // order (ir-design §7.2, §8.1). The logical side carries the protocol-neutral
 // input; the binding side carries the location, style, and explode facts.
 // Each parameter lowers at its declaration: the $ref target for a referenced
-// entry, else the list entry itself (issue #107).
-func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+// entry, else the list entry itself (issue #107). Its ID is rooted at mount, the
+// operation's mount pointer, not at the declaration it was copied from.
+func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -36,7 +37,7 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 		if p == nil {
 			continue
 		}
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, p, pptr)
+		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, mount, p, pptr)
 		diags = append(diags, paramDiags...)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
@@ -47,16 +48,18 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding. Path parameters are always required regardless of the declared
 // flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
+	id := ids.Param(mount, name, string(in))
 	param := ir.Parameter{
+		ID:         id,
 		Name:       compile.NamingFor(name),
 		Required:   p.GetRequired() || in == soa.ParameterInPath,
 		Provenance: c.ProvenanceAt(pptr),
 	}
 	style, explode := resolveStyleExplode(p, in)
 	binding := ir.HTTPParamBinding{
-		Param:         name,
+		Param:         id,
 		Location:      httpLocation(in),
 		WireName:      name,
 		Style:         style,

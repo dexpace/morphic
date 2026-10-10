@@ -104,10 +104,10 @@ func TestValidate_ParamBinding_UnknownParam(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/op/id/path", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x",
-			ParamBindings: []ir.HTTPParamBinding{{Param: "ghost", Location: ir.HTTPLocationPath}},
+			ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/op/ghost/path", Location: ir.HTTPLocationPath}},
 		}}},
 	}
 	diags := pass.Validate(docWithOperation(op))
@@ -119,18 +119,66 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x",
 			ParamBindings: []ir.HTTPParamBinding{
-				{Param: "id", Location: ir.HTTPLocationQuery},
-				{Param: "id", Location: ir.HTTPLocationQuery},
+				{Param: "param/x/op/id/query", Location: ir.HTTPLocationQuery},
+				{Param: "param/x/op/id/query", Location: ir.HTTPLocationQuery},
 			},
 		}}},
 	}
 	diags := pass.Validate(docWithOperation(op))
 	require.NotEmpty(t, diags)
 	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+}
+
+// paramBindingOp returns an operation declaring the given parameters and
+// binding each one once, in the query.
+func paramBindingOp(id ir.OpID, params ...ir.Parameter) ir.Operation {
+	op := ir.Operation{ID: id, Params: params}
+	var bindings []ir.HTTPParamBinding
+	for _, p := range params {
+		bindings = append(bindings, ir.HTTPParamBinding{Param: p.ID, Location: ir.HTTPLocationQuery})
+	}
+	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/x", ParamBindings: bindings}}}
+	return op
+}
+
+// TestValidate_ParamBinding_SameNameDifferentLocation pins that a parameter is
+// identified by its ID: id in the query and id in the path are two parameters,
+// each bound once, so neither binding is a duplicate of the other.
+func TestValidate_ParamBinding_SameNameDifferentLocation(t *testing.T) {
+	t.Parallel()
+	op := paramBindingOp("op/x/get",
+		ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}},
+		ir.Parameter{ID: "param/x/get/id/path", Name: ir.Naming{Source: "id"}},
+	)
+	op.Bindings.HTTP[0].ParamBindings[1].Location = ir.HTTPLocationPath
+	assert.NotContains(t, codes(pass.Validate(docWithOperation(op))), "pass/param-binding-mismatch")
+}
+
+// TestValidate_ParamBinding_OtherOperationsParamIsRejected pins that a binding
+// names a parameter of its own operation: another operation's parameter is a
+// well-formed reference, so only this check can say it is the wrong one.
+func TestValidate_ParamBinding_OtherOperationsParamIsRejected(t *testing.T) {
+	t.Parallel()
+	get := paramBindingOp("op/x/get", ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}})
+	post := paramBindingOp("op/x/post", ir.Parameter{ID: "param/x/post/id/query", Name: ir.Naming{Source: "id"}})
+	post.Bindings.HTTP[0].ParamBindings[0].Param = "param/x/get/id/query"
+
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{get, post}}}}}
+	diags := pass.Validate(doc)
+
+	var mismatches []string
+	for _, d := range diags {
+		if d.Code == "pass/param-binding-mismatch" {
+			mismatches = append(mismatches, d.Message)
+		}
+	}
+	assert.Len(t, mismatches, 2, "the foreign binding, and the parameter post then leaves unbound: %v", mismatches)
+	assert.Contains(t, mismatches[0], "does not declare")
 }
 
 func TestValidate_OneWayWithResponses(t *testing.T) {

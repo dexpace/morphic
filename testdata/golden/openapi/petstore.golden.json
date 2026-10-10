@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -14,6 +14,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -66,6 +69,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1pets/get/parameters/limit/query",
                   "name": {
                     "source": "limit",
                     "canonical": "limit"
@@ -153,7 +157,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "limit",
+                        "param": "param/openapi/paths/~1pets/get/parameters/limit/query",
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
@@ -285,6 +289,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
                   "name": {
                     "source": "petId",
                     "canonical": "pet_id"
@@ -343,7 +348,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "petId",
+                        "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
                         "location": "path",
                         "wireName": "petId",
                         "style": "simple",

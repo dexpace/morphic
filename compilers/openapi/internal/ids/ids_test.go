@@ -396,5 +396,36 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindAuth:    {"openapi"},
 		ir.IDKindService: {"openapi"},
 		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:   {"openapi"},
 	}, ids.Namespaces().Declaration())
+}
+
+// TestParam_ScopesByOperationNameAndLocation pins the spelling of a parameter ID
+// and what it is scoped by, written out rather than derived. The mount, the name
+// and the location each change it; the name is one escaped token, so a slash in
+// it never reads as two segments.
+func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
+	t.Parallel()
+	const mount = jsontext.Pointer("/paths/~1items/get")
+	tests := []struct {
+		name string
+		got  ir.ParamID
+		want ir.ParamID
+	}{
+		{name: "a query parameter", got: ids.Param(mount, "id", "query"), want: "param/openapi/paths/~1items/get/parameters/id/query"},
+		{name: "the same name in the path", got: ids.Param(mount, "id", "path"), want: "param/openapi/paths/~1items/get/parameters/id/path"},
+		{name: "another operation", got: ids.Param("/paths/~1items/post", "id", "query"), want: "param/openapi/paths/~1items/post/parameters/id/query"},
+		{name: "a slash in the name", got: ids.Param(mount, "a/b", "header"), want: "param/openapi/paths/~1items/get/parameters/a~1b/header"},
+		{name: "a tilde in the name", got: ids.Param(mount, "a~b", "header"), want: "param/openapi/paths/~1items/get/parameters/a~0b/header"},
+	}
+	seen := map[ir.ParamID]string{}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.got)
+			assert.True(t, ir.WellFormedID(ir.IDKindParam, string(tc.got)), "%q must be a well-formed param ID", tc.got)
+		})
+		require.NotContains(t, seen, tc.got, "%s and %s share an ID", tc.name, seen[tc.got])
+		seen[tc.got] = tc.name
+	}
 }

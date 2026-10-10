@@ -27,6 +27,8 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 		compile.AuthID(space, "/components/securitySchemes/apiKey"))
 	assert.Equal(t, ir.ServiceID("s/openapi/0"), compile.ServiceID(space, "0"))
 	assert.Equal(t, ir.GroupID("g/tags/pets"), compile.GroupID("tags", "/pets"))
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1pets/get/parameters/limit/query"),
+		compile.ParamID(space, "/paths/~1pets/get/parameters/limit/query"))
 }
 
 // TestIDGrammar_PathSeparatorIsSuppliedOnce pins that the framework owns the

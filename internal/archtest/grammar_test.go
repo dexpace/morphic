@@ -89,7 +89,7 @@ var idOwners = []string{"compilers/compile"}
 
 // idTypes are ir's ID types. A compiler converting a string into one of them is
 // deriving an identifier.
-var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ChannelID", "MessageID"}
+var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ParamID", "ChannelID", "MessageID"}
 
 // TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
 // but the framework builds an ir ID out of a string, or a namespace out of
@@ -119,21 +119,23 @@ func TestIDDerivations_LocalGrammarIsCaught(t *testing.T) {
 
 const anyTypeID ir.TypeID = "t/graphql/any"
 
-func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID) {
+func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID, ir.ParamID) {
 	named := ir.TypeID("t/graphql" + pointer)
 	op := compile.OpID(graphqlSpace, pointer)
 	var copied ir.OpID = existing
 	prop := ir.PropID("p/graphql" + pointer)
-	return named, op, prop
+	param := ir.ParamID("param/graphql" + pointer)
+	return named, op, prop, param
 }
 `
 	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", src)
 	require.NoError(t, err)
-	require.Len(t, offenders, 3,
-		"the constant and the two conversions, not the framework call or the copy: %v", offenders)
+	require.Len(t, offenders, 4,
+		"the constant and the three conversions, not the framework call or the copy: %v", offenders)
 	assert.Contains(t, offenders[0], "declares a literal as an ir.TypeID")
 	assert.Contains(t, offenders[1], "converts a string to an ir.TypeID")
 	assert.Contains(t, offenders[2], "converts a string to an ir.PropID")
+	assert.Contains(t, offenders[3], "converts a string to an ir.ParamID")
 }
 
 // TestIDDerivations_SpaceBuiltFromDataIsCaught plants a compiler assembling a

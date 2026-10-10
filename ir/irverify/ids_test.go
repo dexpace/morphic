@@ -286,6 +286,16 @@ func declaredIDClasses() []declaredIDClass {
 			doc: func(id, _ string) *ir.Document { return service(ir.OperationGroup{ID: ir.GroupID(id)}) },
 		},
 		{
+			name: "parameter", noun: "param", prefix: ir.IDKindParam, path: "doc.Services[0].Groups[0].Operations[0].Params[0]",
+			doc: func(id, pointer string) *ir.Document {
+				return service(ir.OperationGroup{ID: "g/x", Operations: []ir.Operation{{
+					ID: "op/x/o", Params: []ir.Parameter{{
+						ID: ir.ParamID(id), Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)},
+					}},
+				}}})
+			},
+		},
+		{
 			name: "property", noun: "prop", prefix: ir.IDKindProp, path: "doc.Types[t/x/M].Properties[0]",
 			doc: func(id, pointer string) *ir.Document {
 				m := &ir.Model{ID: "t/x/M", Properties: []ir.Property{{
@@ -442,6 +452,19 @@ func TestVerify_OperationIDMayDifferFromItsPointer(t *testing.T) {
 	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
 	indexed := service.doc("s/openapi/0", "/info")
 	assert.Empty(t, violationPaths(verifyDeclared(indexed), "ir/id-provenance-disagreement"))
+}
+
+// TestVerify_ParameterIDMayDifferFromItsPointer pins the exclusion for a
+// parameter. Its ID is rooted at the mount of its operation and its provenance
+// records the declaration it was read from, so a parameter of a $ref'd path
+// item legitimately differs on both; holding it to the agreement a property
+// keeps would fail every document that reuses a path item.
+func TestVerify_ParameterIDMayDifferFromItsPointer(t *testing.T) {
+	t.Parallel()
+	parameter := declaredIDClassNamed(t, "parameter")
+
+	mounted := parameter.doc("param/openapi/paths/~1widgets/get/parameters/id/query", "/components/pathItems/Listing/parameters/0")
+	assert.Empty(t, violationPaths(verifyDeclared(mounted), "ir/id-provenance-disagreement"))
 }
 
 // violationCodes returns the codes of vs, for set-membership assertions that do
