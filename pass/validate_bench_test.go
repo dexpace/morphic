@@ -2,6 +2,7 @@ package pass_test // external test package — imports across layers is legal in
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"testing"
@@ -188,4 +189,119 @@ func writeLargeDiscriminated(sb *strings.Builder) {
             extra%d: {type: string}
 `, s, s)
 	}
+}
+
+// Shape of the hand-built document BenchmarkValidate_GraphQLReachability
+// measures. No compiler emits GraphQL bindings yet, so the document is built
+// directly.
+const (
+	gqlTypes      = 2000
+	gqlOperations = 48
+	gqlRootStride = 53
+	gqlRefWindow  = 300 // references land among the most recent types, so the graph is deep rather than a star on early ones
+)
+
+// BenchmarkValidate_GraphQLReachability measures the GraphQL reachability walk
+// inside Validate. Only operations carrying Bindings.GraphQL reach it, which no
+// compiled fixture has, so the petstore and large benchmarks never exercise the
+// traversal this one is for.
+func BenchmarkValidate_GraphQLReachability(b *testing.B) {
+	doc := buildGraphQLDoc(b)
+
+	var diags []ir.Diagnostic
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		diags = pass.Validate(doc)
+	}
+	b.StopTimer()
+
+	for _, d := range diags {
+		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
+	}
+}
+
+// buildGraphQLDoc builds the document once and asserts Validate accepts it, so
+// the benchmark times the clean path. Types cycle through scalar alias chains,
+// lists, maps, unions and models, each referring only to earlier types; the
+// operations' roots are spread across the registry so they reach most of it.
+func buildGraphQLDoc(b *testing.B) *ir.Document {
+	b.Helper()
+	str := ir.TypeID("t/prim/string")
+	doc := &ir.Document{
+		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
+		Types: ir.TypeRegistry{str: &ir.Primitive{TypeCommon: ir.TypeCommon{ID: str}, Prim: "string"}},
+	}
+	ids := []ir.TypeID{str}
+	var models []ir.TypeID
+	rng := rand.New(rand.NewPCG(1, 2)) // fixed seed: the same document every run
+	pick := func(int, int) ir.TypeRef {
+		return ir.TypeRef{Target: ids[len(ids)-1-rng.IntN(min(len(ids), gqlRefWindow))]}
+	}
+	for i := range gqlTypes {
+		id := ir.TypeID(fmt.Sprintf("t/g%d", i))
+		common := ir.TypeCommon{ID: id}
+		switch i % 10 {
+		case 0, 1:
+			base := ir.TypeRef{Target: str}
+			if i >= 2 {
+				base = ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/g%d", i-2))}
+			}
+			doc.Types[id] = &ir.Scalar{TypeCommon: common, Base: &base}
+		case 2:
+			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick(i, 1)}
+		case 3:
+			doc.Types[id] = &ir.MapT{TypeCommon: common, Key: ir.TypeRef{Target: str}, Value: pick(i, 2)}
+		case 4:
+			doc.Types[id] = &ir.Union{TypeCommon: common, Variants: []ir.Variant{
+				{Type: pick(i, 3)}, {Type: pick(i, 4)}, {Type: pick(i, 5)},
+			}}
+		default:
+			doc.Types[id] = graphQLModel(common, i, pick, models, rng)
+			models = append(models, id)
+		}
+		ids = append(ids, id)
+	}
+	addGraphQLOperations(doc, ids)
+
+	for _, d := range pass.Validate(doc) {
+		require.NotEqual(b, ir.SeverityError, d.Severity, "fixture rejected by validate: %+v", d)
+	}
+	return doc
+}
+
+// graphQLModel builds a model with three properties, an earlier model as its
+// base and another as a mixin when any exist.
+func graphQLModel(common ir.TypeCommon, i int, pick func(int, int) ir.TypeRef, models []ir.TypeID, rng *rand.Rand) *ir.Model {
+	m := &ir.Model{TypeCommon: common}
+	for p := range 3 {
+		m.Properties = append(m.Properties, ir.Property{
+			ID:       ir.PropID(fmt.Sprintf("p/%s/%d", common.ID, p)),
+			Name:     ir.Naming{Source: fmt.Sprintf("f%d", p)},
+			WireName: fmt.Sprintf("f%d", p),
+			Type:     pick(i, 6+p),
+		})
+	}
+	if len(models) >= 2 {
+		base := ir.TypeRef{Target: models[rng.IntN(len(models))]}
+		m.Base = &base
+		m.Mixins = []ir.TypeRef{{Target: models[rng.IntN(len(models))]}}
+	}
+	return m
+}
+
+// addGraphQLOperations adds gqlOperations GraphQL-bound operations whose
+// parameters name types spread over the registry, preferring the late ones that
+// transitively reach the most.
+func addGraphQLOperations(doc *ir.Document, ids []ir.TypeID) {
+	ops := make([]ir.Operation, 0, gqlOperations)
+	for o := range gqlOperations {
+		root := ids[len(ids)-1-(o*gqlRootStride)%len(ids)]
+		ops = append(ops, ir.Operation{
+			ID:       ir.OpID(fmt.Sprintf("op/q%d", o)),
+			Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root}}},
+			Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{fmt.Sprintf("q%d", o)}}},
+		})
+	}
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
 }
