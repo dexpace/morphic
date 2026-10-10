@@ -4,6 +4,10 @@
     "auth": [
       "openapi"
     ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
     "g": [
       "default",
       "path-prefix",
@@ -62,6 +66,7 @@
       "valueType": "integer",
       "members": [
         {
+          "id": "e/openapi/components/schemas/BigCodes/n:1",
           "name": {
             "source": "1",
             "canonical": "1"
@@ -73,6 +78,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/BigCodes/n:9007199254740993",
           "name": {
             "source": "9007199254740993",
             "canonical": "9007199254740993"

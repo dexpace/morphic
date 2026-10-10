@@ -381,12 +381,13 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 		{
 			name: "an empty token with no token kind",
 			op:   ir.Operation{Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe}},
+			want: []string{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.op.ID = "op/x/S/op"
-			var paths []string
+			paths := make([]string, 0, 1)
 			for _, v := range emptyRefViolations(opDoc(tc.op)) {
 				assert.Equal(t, "ir/empty-param-ref", v.Code)
 				paths = append(paths, v.Path)

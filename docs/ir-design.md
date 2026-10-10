@@ -199,6 +199,10 @@ it sees. Changes made together in one bump are listed together under it.
     `ParamID`, so the three references name one parameter instead of two. A consumer pinned to 0.7.0
     finds no `id` on a parameter and reads those three as names; it cannot tell which of two
     same-named parameters a binding places on the wire. The `param` kind joined `IDSpaces`.
+  - `EnumMember` gained `ID`. A member had been a name and a value, so a consumer could key it only
+    by a name that two members can render alike (`a-b` and `a_b` are the same words) or by its
+    position, which reordering changes. A consumer pinned to 0.7.0 finds no `id` on a member and
+    has nothing else to key it by. The `e` kind joined `IDSpaces`.
 
 ---
 
@@ -209,7 +213,7 @@ it sees. Changes made together in one bump are listed together under it.
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID string
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID, EnumMemberID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -219,7 +223,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -265,6 +269,13 @@ identified by its mount (#107), and for the same reason a parameter is exempt fr
 below: its provenance records the declaration it was read from. No list index is used, so
 reordering a parameter list renames nothing. The path is injective and the only rule minting into
 kind `param`, so it takes the format's own namespace, `openapi`, with no space of its own.
+
+An enum member is identified by the enum that declares it and the value it holds:
+`e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
+enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one) and beneath its
+path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
+(`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
+scope is what ties the two IDs together. The key is described in §4.5.
 
 `irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
 well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
@@ -710,6 +721,7 @@ type Enum struct {
 }
 
 type EnumMember struct {
+    ID         EnumMemberID // e/<enum's namespace>/<enum's path>/<key>, keyed by the value held
     Name       Naming
     Value      Value        // typed value, matches ValueType
     WireName   string       // serialized form when it differs from Value (rare)
@@ -728,6 +740,18 @@ can't express open enums (plain Go consts, TS string literals) lower via their r
 bit must survive to that point (Kiota's string-only closed enums are the counterexample).
 Duplicate member values are legal (protobuf `allow_alias`); slice order preserves which name is
 canonical for serialization, and the validate pass must not reject them.
+
+A member's `ID` is keyed by the value it holds, never by its name or its position: `a-b` and `a_b`
+render from the same words and are still two members, and reordering the list renames none. The
+key is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string,
+`y` symbol, `n` the canonical decimal, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null —
+so the string `1` and the number `1` are two members. The payload has `%` written `%25` and `#`
+written `%23` first. A list, object, reference or constructor value has no key, and an enum holding
+one is not an `Enum`. A value held twice keeps every member: the first has the bare key, the
+repeats take `#2`, `#3`, and so on, and the OpenAPI compiler reports each repeat
+(`openapi/duplicate-enum-value`). Which repeat holds the bare ID follows source order, so a reorder
+keeps the set of IDs and may move that one. `pass.Validate` reports an ID repeated within one enum
+as `pass/duplicate-enum-member-id`.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's

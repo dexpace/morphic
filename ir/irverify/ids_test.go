@@ -296,6 +296,13 @@ func declaredIDClasses() []declaredIDClass {
 			},
 		},
 		{
+			name: "enum member", noun: "enummember", prefix: ir.IDKindEnumMember, path: "doc.Types[t/x/E].Members[0]",
+			doc: func(id, _ string) *ir.Document {
+				e := &ir.Enum{ID: "t/x/E", Members: []ir.EnumMember{{ID: ir.EnumMemberID(id)}}}
+				return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
+			},
+		},
+		{
 			name: "property", noun: "prop", prefix: ir.IDKindProp, path: "doc.Types[t/x/M].Properties[0]",
 			doc: func(id, pointer string) *ir.Document {
 				m := &ir.Model{ID: "t/x/M", Properties: []ir.Property{{

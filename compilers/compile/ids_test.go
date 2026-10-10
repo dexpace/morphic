@@ -31,6 +31,15 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 		compile.ParamID(space, "/paths/~1pets/get/parameters/limit/query"))
 }
 
+// TestEnumMemberID_UsesTheEnumMemberKind pins the kind an enum member's ID opens
+// with, written out so it cannot agree with a change to the constant.
+func TestEnumMemberID_UsesTheEnumMemberKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/Status/s:active"),
+		compile.EnumMemberID("openapi", "/components/schemas/Status/s:active"))
+	assert.Equal(t, "e", ir.IDKindEnumMember)
+}
+
 // TestIDGrammar_PathSeparatorIsSuppliedOnce pins that the framework owns the
 // boundary between the space and the path. A format whose paths carry a leading
 // separator (an RFC 6901 pointer) and one whose paths do not (a protobuf

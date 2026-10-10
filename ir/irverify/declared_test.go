@@ -31,8 +31,12 @@ func idBearingDoc(present bool) *ir.Document {
 			Type: ir.TypeRef{Target: "t/x/M"},
 		}},
 	}
+	enum := &ir.Enum{
+		ID:      "t/x/E",
+		Members: []ir.EnumMember{{ID: pick(present, ir.EnumMemberID("e/x/E/s:a"))}},
+	}
 	return &ir.Document{
-		Types:    ir.TypeRegistry{model.ID: model},
+		Types:    ir.TypeRegistry{model.ID: model, enum.ID: enum},
 		Channels: map[ir.ChannelID]ir.Channel{"c/x/C": {ID: "c/x/C"}},
 		Messages: map[ir.MessageID]ir.Message{"m/x/M": {ID: "m/x/M"}},
 		Auth:     map[ir.AuthID]ir.AuthScheme{"auth/x/A": {ID: "auth/x/A"}},

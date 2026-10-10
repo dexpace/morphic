@@ -4,6 +4,10 @@
     "auth": [
       "openapi"
     ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
     "g": [
       "default",
       "path-prefix",
@@ -386,6 +390,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/paths/~1search/parameters/0/schema/s:a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -397,6 +402,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/paths/~1search/parameters/0/schema/s:b",
           "name": {
             "source": "b",
             "canonical": "b"

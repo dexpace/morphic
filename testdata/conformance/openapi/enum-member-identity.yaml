@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: EnumMemberIdentity, version: "1.0.0"}
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: string
+                enum: [open, closed]
+components:
+  schemas:
+    E:
+      type: string
+      enum: [a-b, a_b, "A B", "a/b", "a#b", a-b]
+    N:
+      type: integer
+      enum: [-1, 1, 0]

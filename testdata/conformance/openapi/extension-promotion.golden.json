@@ -4,6 +4,10 @@
     "auth": [
       "openapi"
     ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
     "g": [
       "default",
       "path-prefix",
@@ -296,6 +300,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Fixed/s:one",
           "name": {
             "source": "one",
             "canonical": "one"
@@ -307,6 +312,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Fixed/s:two",
           "name": {
             "source": "two",
             "canonical": "two"
@@ -461,6 +467,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Shade/s:light",
           "name": {
             "source": "light",
             "canonical": "light"
@@ -472,6 +479,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Shade/s:dark",
           "name": {
             "source": "dark",
             "canonical": "dark"
@@ -517,6 +525,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Size/s:small",
           "name": {
             "source": "small",
             "canonical": "small"
@@ -528,6 +537,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Size/s:large",
           "name": {
             "source": "large",
             "canonical": "large"

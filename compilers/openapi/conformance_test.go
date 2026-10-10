@@ -197,6 +197,7 @@ func conformanceCases() []conformanceCase {
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
 		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
 		{"param-identity", assertParamIdentity, []string{"http-binding"}},
+		{"enum-member-identity", assertEnumMemberIdentity, []string{"enums-string", "enums-numeric"}},
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
@@ -1906,6 +1907,50 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		"op/openapi/paths/~1a/get": {"param/openapi/paths/~1a/get/parameters/limit/query"},
 		"op/openapi/paths/~1b/get": {"param/openapi/paths/~1b/get/parameters/limit/query"},
 	}, got)
+}
+
+// assertEnumMemberIdentity pins what identifies an enum member: the value it
+// holds, tagged by kind, under the enum that declares it. The list repeats a
+// value, includes names that spell one canonical word sequence, and carries
+// the characters the key escapes, so a derivation from the name, the position or
+// the unescaped value changes an ID. The IDs are written out rather than
+// derived, so the test cannot agree with a change to the derivation. The repeat
+// is kept, takes a numbered suffix and is reported once at its own entry.
+func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	memberIDs := func(id ir.TypeID) []ir.EnumMemberID {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		require.True(t, ok, "%s is an enum", id)
+		got := make([]ir.EnumMemberID, 0, len(enum.Members))
+		for _, m := range enum.Members {
+			got = append(got, m.ID)
+		}
+		return got
+	}
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/E/s:a-b",
+		"e/openapi/components/schemas/E/s:a_b",
+		"e/openapi/components/schemas/E/s:A B",
+		"e/openapi/components/schemas/E/s:a~1b",
+		"e/openapi/components/schemas/E/s:a%23b",
+		"e/openapi/components/schemas/E/s:a-b#2",
+	}, memberIDs("t/openapi/components/schemas/E"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/N/n:-1",
+		"e/openapi/components/schemas/N/n:1",
+		"e/openapi/components/schemas/N/n:0",
+	}, memberIDs("t/openapi/components/schemas/N"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
+	}, memberIDs("t/anon/paths/~1status/get/responses/200/content/application~1json/schema"))
+
+	var repeats []string
+	for _, d := range diags {
+		if d.Code == "openapi/duplicate-enum-value" {
+			repeats = append(repeats, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/E/enum/5"}, repeats)
 }
 
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

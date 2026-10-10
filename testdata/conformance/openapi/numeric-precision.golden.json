@@ -4,6 +4,10 @@
     "auth": [
       "openapi"
     ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
     "g": [
       "default",
       "path-prefix",
@@ -61,6 +65,7 @@
       "valueType": "integer",
       "members": [
         {
+          "id": "e/anon/components/schemas/S/properties/choice/n:1",
           "name": {
             "source": "1",
             "canonical": "1"
@@ -72,6 +77,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/schemas/S/properties/choice/n:123456789012345678901234567890",
           "name": {
             "source": "123456789012345678901234567890",
             "canonical": "123456789012345678901234567890"
@@ -102,6 +108,7 @@
       "valueType": "integer",
       "members": [
         {
+          "id": "e/anon/components/schemas/S/properties/mode/n:420",
           "name": {
             "source": "420",
             "canonical": "420"
@@ -113,6 +120,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/schemas/S/properties/mode/n:493",
           "name": {
             "source": "493",
             "canonical": "493"

@@ -38,6 +38,11 @@ type PropID string
 // operations that declare the same name never share one.
 type ParamID string
 
+// EnumMemberID identifies an EnumMember. It is unique across the whole
+// document, and lives under the TypeID of the Enum that declares the member, so
+// a member is keyed by the value it holds in that enum and by nothing else.
+type EnumMemberID string
+
 // The kind prefix that opens every synthetic ID. An ID is
 // <kind>/<space>[/<path>]: the kind says what sort of entity it names, the space
 // says whose coordinates the path is in, and the path is the compiler's own
@@ -56,12 +61,15 @@ const (
 	IDKindService = "s"
 	IDKindGroup   = "g"
 	IDKindParam   = "param"
+
+	// IDKindEnumMember is the kind of an EnumMemberID.
+	IDKindEnumMember = "e"
 )
 
 // IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
 // order. Document.IDSpaces is keyed by them.
 func IDKinds() []string {
-	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam}
+	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam, IDKindEnumMember}
 }
 
 // IDSeparator separates an ID's kind, space and path segments.

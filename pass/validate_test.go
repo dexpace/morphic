@@ -137,7 +137,7 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 // binding each one once, in the query.
 func paramBindingOp(id ir.OpID, params ...ir.Parameter) ir.Operation {
 	op := ir.Operation{ID: id, Params: params}
-	var bindings []ir.HTTPParamBinding
+	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	for _, p := range params {
 		bindings = append(bindings, ir.HTTPParamBinding{Param: p.ID, Location: ir.HTTPLocationQuery})
 	}
@@ -415,4 +415,31 @@ func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *test
 	diags := pass.Validate(docWithOperations(op, unidentified))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
+}
+
+// TestValidate_DuplicateEnumMemberIDIsAnError pins that two members of one enum
+// may not share an ID, and that the same ID in two enums is no repeat: an
+// emitter keys collision resolution by it within an enum.
+func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Types["t/e"] = &ir.Enum{ID: "t/e", ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{
+		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+		{ID: "e/x/e/s:b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
+		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+		{Value: ir.Value{Kind: ir.ValueString, Str: "c"}},
+		{Value: ir.Value{Kind: ir.ValueString, Str: "d"}},
+	}}
+	doc.Types["t/f"] = &ir.Enum{ID: "t/f", ValueType: ir.PrimString, Closed: true, Members: []ir.EnumMember{
+		{ID: "e/x/e/s:a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+	}}
+
+	var at []string
+	for _, d := range pass.Validate(doc) {
+		if d.Code == "pass/duplicate-enum-member-id" {
+			assert.Equal(t, ir.SeverityError, d.Severity)
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"t/e/members/2"}, at)
 }

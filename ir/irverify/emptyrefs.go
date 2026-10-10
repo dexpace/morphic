@@ -20,6 +20,8 @@ var idTypes = map[reflect.Type]bool{
 	reflect.TypeFor[ir.GroupID]():   true,
 	reflect.TypeFor[ir.PropID]():    true,
 	reflect.TypeFor[ir.ParamID]():   true,
+
+	reflect.TypeFor[ir.EnumMemberID](): true,
 }
 
 // idRule is what an empty value means at one ID-typed position.
@@ -53,6 +55,7 @@ var idPositions = map[string]idRule{
 	"Message.ID":        idElsewhere,
 	"Operation.ID":      idElsewhere,
 	"Parameter.ID":      idElsewhere,
+	"EnumMember.ID":     idElsewhere,
 	"OperationGroup.ID": idElsewhere,
 	"Property.ID":       idElsewhere,
 	"Service.ID":        idElsewhere,

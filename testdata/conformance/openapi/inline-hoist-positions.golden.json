@@ -4,6 +4,10 @@
     "auth": [
       "openapi"
     ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
     "g": [
       "default",
       "path-prefix",

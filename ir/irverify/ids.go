@@ -32,7 +32,7 @@ func checkIDs(doc *ir.Document) []Violation {
 		vs = appendIDViolations(vs, ir.IDKindAuth, string(id),
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
-	return vs
+	return append(vs, checkMemberIDs(doc)...)
 }
 
 // kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
@@ -46,6 +46,8 @@ var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.GroupID]():   ir.IDKindGroup,
 	reflect.TypeFor[ir.PropID]():    ir.IDKindProp,
 	reflect.TypeFor[ir.ParamID]():   ir.IDKindParam,
+
+	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring
