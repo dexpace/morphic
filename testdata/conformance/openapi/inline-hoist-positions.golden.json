@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +60,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1orders/post/parameters/audit/query",
                   "name": {
                     "source": "audit",
                     "canonical": "audit"
@@ -149,7 +157,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "audit",
+                        "param": "param/openapi/paths/~1orders/post/parameters/audit/query",
                         "location": "query",
                         "wireName": "audit",
                         "style": "form",

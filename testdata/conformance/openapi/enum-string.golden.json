@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -59,6 +66,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Color/s:red",
           "name": {
             "source": "red",
             "canonical": "red"
@@ -70,6 +78,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Color/s:green",
           "name": {
             "source": "green",
             "canonical": "green"
@@ -81,6 +90,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Color/s:blue",
           "name": {
             "source": "blue",
             "canonical": "blue"

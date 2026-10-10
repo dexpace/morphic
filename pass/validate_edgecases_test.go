@@ -439,12 +439,12 @@ func TestValidate_HostParamBoundMultipleTimesIsLegal(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "region"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/op/region/host", Name: ir.Naming{Source: "region"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x", HostPrefix: "{region}.{region}",
 			ParamBindings: []ir.HTTPParamBinding{
-				{Param: "region", Location: ir.HTTPLocationHost},
-				{Param: "region", Location: ir.HTTPLocationHost},
+				{Param: "param/x/op/region/host", Location: ir.HTTPLocationHost},
+				{Param: "param/x/op/region/host", Location: ir.HTTPLocationHost},
 			},
 		}}},
 	}

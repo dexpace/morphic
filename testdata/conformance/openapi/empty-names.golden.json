@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -904,6 +911,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Rollout/s:",
           "name": {
             "hint": "empty"
           },
@@ -913,6 +921,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:empty",
           "name": {
             "source": "empty",
             "canonical": "empty"
@@ -924,6 +933,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:done",
           "name": {
             "source": "done",
             "canonical": "done"

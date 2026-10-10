@@ -1,0 +1,336 @@
+{
+  "irVersion": "0.8.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "EnumMemberIdentity",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EnumMemberIdentity",
+        "canonical": "enum_member_identity"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1status/get",
+              "name": {
+                "source": "getStatus",
+                "canonical": "get_status"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1status/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/status",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1status/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1status/get/responses/200/content/application~1json/schema": {
+      "kind": "enum",
+      "id": "t/anon/paths/~1status/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1status/get/responses/200/content/application~1json/schema"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
+          "name": {
+            "source": "open",
+            "canonical": "open"
+          },
+          "value": {
+            "kind": "string",
+            "str": "open"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
+          "name": {
+            "source": "closed",
+            "canonical": "closed"
+          },
+          "value": {
+            "kind": "string",
+            "str": "closed"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/E": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/E",
+      "name": {
+        "source": "E",
+        "canonical": "e"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/E"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/E/s:a-b",
+          "name": {
+            "source": "a-b",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a-b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/E/s:a_b",
+          "name": {
+            "source": "a_b",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a_b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/E/s:A B",
+          "name": {
+            "source": "A B",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "A B"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/E/s:a~1b",
+          "name": {
+            "source": "a/b",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a/b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/E/s:a%23b",
+          "name": {
+            "source": "a#b",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a#b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/E/s:a-b#2",
+          "name": {
+            "source": "a-b",
+            "canonical": "a_b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a-b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/N": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/N",
+      "name": {
+        "source": "N",
+        "canonical": "n"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/N"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/N/n:-1",
+          "name": {
+            "source": "-1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "-1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/N/n:1",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/N/n:0",
+          "name": {
+            "source": "0",
+            "canonical": "0"
+          },
+          "value": {
+            "kind": "number",
+            "num": "0"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/duplicate-enum-value",
+      "message": "enum value repeats the member at index 0; every occurrence is kept, and this one takes the ID suffix #2",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/E/enum/5"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "enum-member-identity.yaml",
+      "hash": "ba4ce99edb5b839764205ed9040350d746b1b24fae0d2eb578cab32beca39908"
+    }
+  ]
+}

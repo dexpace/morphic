@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -149,6 +156,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
                   "name": {
                     "source": "orderId",
                     "canonical": "order_id"
@@ -193,7 +201,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "orderId",
+                        "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
                         "location": "path",
                         "wireName": "orderId",
                         "style": "simple",

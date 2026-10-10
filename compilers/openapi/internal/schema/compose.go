@@ -1367,12 +1367,13 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 				n, c.Limits.MaxEnumMembers))
 			return &ir.Any{TypeCommon: common}
 		}
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
+		members, memberPrim, memberDiags, ok := enumMembers(c, s.GetEnum(), schemaAdmitsNull(s), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
 			return def
 		}
+		diags = append(diags, memberDiags...)
 		return &ir.Enum{
 			TypeCommon: common,
 			ValueType:  enumValueType(s, memberPrim),
@@ -1407,40 +1408,49 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 // non-scalar member, members heterogeneous in kind, or a set that keeps none
 // (an all-null set degrades rather than becoming a memberless Enum).
 //
-// dropNull skips `null` members instead of refusing them, for a schema whose
-// nullability the enclosing reference carries (see lowerEnum). Kind agreement
-// is read off the members kept, so a leading `null` fixes nothing. The PrimKind
-// is the one every kept member's kind maps to, meaningful only when ok.
-func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
+// dropNull skips `null` members, for a schema whose nullability the enclosing
+// reference carries (see lowerEnum). Kind agreement is read off the members
+// kept. The PrimKind is the one every kept member maps to, meaningful only when
+// ok.
+//
+// Each member's ID is keyed by its value under the enum at pointer; a repeated
+// value is kept, numbered and reported. Diagnostics come back only when ok.
+func enumMembers(c lowering.Ctx, nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, []ir.Diagnostic, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
+	ledger := newMemberLedger(pointer)
+	var diags []ir.Diagnostic
 	var kind ir.ValueKind
 	var prim ir.PrimKind
-	for _, node := range nodes {
+	for i, node := range nodes {
 		val, err := value.FromNode(node)
 		if err != nil {
-			return nil, "", false
+			return nil, "", nil, false
 		}
 		if dropNull && val.Kind == ir.ValueNull {
 			continue
 		}
 		memberPrim, text, admissible := enumMemberForm(val)
-		if !admissible {
-			return nil, "", false
+		key, keyed := enumMemberKey(val)
+		if !admissible || !keyed {
+			return nil, "", nil, false
 		}
 		if len(members) == 0 {
 			kind, prim = val.Kind, memberPrim
 		} else if val.Kind != kind {
-			return nil, "", false
+			return nil, "", nil, false
 		}
+		id, repeatDiags := ledger.next(c, key, i)
+		diags = append(diags, repeatDiags...)
 		members = append(members, ir.EnumMember{
+			ID:    id,
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})
 	}
 	if len(members) == 0 {
-		return nil, "", false
+		return nil, "", nil, false
 	}
-	return members, prim, true
+	return members, prim, diags, true
 }
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of

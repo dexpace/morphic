@@ -72,7 +72,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		},
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
-			InputCursor: &ir.ParamPath{Param: "cursor"},
+			InputCursor: &ir.ParamPath{Param: "param/x/cursor"},
 			Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 			NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		},
@@ -80,7 +80,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			FinalStateVia: "operation-location",
 			ResultPath:    &ir.PropPath{Segments: []ir.PropID{"p/result"}},
 		},
-		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "idempotency-key"},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "param/x/idempotency-key"},
 		Auth: []ir.AuthRequirement{
 			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
 		},
@@ -136,17 +136,18 @@ func TestPageStrategy_Constants(t *testing.T) {
 	}, "unspecified")
 }
 
-// TestParameter_JSONContract pins Parameter's omitempty contract — Name,
+// TestParameter_JSONContract pins Parameter's omitempty contract — ID, Name,
 // Type, Required, Docs, and Provenance carry no omitempty since every parameter
-// has a naming, a type, a required flag, a docs object, and a declaring
+// has an identity, a naming, a type, a required flag, a docs object, and a declaring
 // position; everything else is optional — and that a fully populated Parameter
 // round-trips.
 func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
+		`{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
 			`"provenance":{"source":0}}`,
 		ir.Parameter{
+			ID:           "param/openapi/paths/~1items/get/parameters/id/query",
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
 			Required:     true,
@@ -404,7 +405,7 @@ func TestIdempotency_PopulatedRoundTrip(t *testing.T) {
 	tests := map[string]ir.Idempotency{
 		"safe":       {Kind: ir.IdempotencySafe},
 		"idempotent": {Kind: ir.IdempotencyIdempotent},
-		"token":      {Kind: ir.IdempotencyToken, TokenParam: "idempotency-key"},
+		"token":      {Kind: ir.IdempotencyToken, TokenParam: "param/x/idempotency-key"},
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -424,8 +425,8 @@ func TestPagination_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
-		InputCursor: &ir.ParamPath{Param: "cursor", Segments: []ir.PropID{"p/cursor"}},
-		InputLimit:  &ir.ParamPath{Param: "limit"},
+		InputCursor: &ir.ParamPath{Param: "param/x/cursor", Segments: []ir.PropID{"p/cursor"}},
+		InputLimit:  &ir.ParamPath{Param: "param/x/limit"},
 		Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 		NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		NextLink:    &ir.PropPath{Segments: []ir.PropID{"p/nextLink"}},
@@ -455,7 +456,7 @@ func TestPropPath_JSONContract(t *testing.T) {
 func TestParamPath_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ParamPath{}, `{}`,
-		ir.ParamPath{Param: "filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
+		ir.ParamPath{Param: "param/x/filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
 }
 
 // TestLongRunning_JSONContract pins LongRunning's omitempty contract (every

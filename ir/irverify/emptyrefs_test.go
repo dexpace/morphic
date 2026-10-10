@@ -353,3 +353,46 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_ParamIDClassIsReached drives checkEmptyRefs across every position
+// that holds a ParamID: both references that must name a parameter, and the
+// idempotency token, which may be empty when the operation is not token-keyed.
+// The two halves are asserted together so a position that stopped being reached
+// cannot pass by reporting nothing.
+func TestVerify_ParamIDClassIsReached(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		op   ir.Operation
+		want []string
+	}{
+		{
+			name: "an empty binding reference",
+			op: ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Param: ""}},
+			}}}},
+			want: []string{"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ParamBindings[0].Param"},
+		},
+		{
+			name: "an empty pagination input",
+			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.ParamPath{Param: ""}}},
+			want: []string{"doc.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
+		},
+		{
+			name: "an empty token with no token kind",
+			op:   ir.Operation{Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe}},
+			want: []string{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.op.ID = "op/x/S/op"
+			paths := make([]string, 0, 1)
+			for _, v := range emptyRefViolations(opDoc(tc.op)) {
+				assert.Equal(t, "ir/empty-param-ref", v.Code)
+				paths = append(paths, v.Path)
+			}
+			assert.Equal(t, tc.want, paths)
+		})
+	}
+}

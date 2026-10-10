@@ -7,7 +7,7 @@ package ir
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed.
-const IRVersion = "0.7.0"
+const IRVersion = "0.8.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing

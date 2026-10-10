@@ -370,7 +370,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(c, ts, anchors, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(c, ts, anchors, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
 	responses, errs, responseDiags := lowerResponses(c, ts, anchors, src, decl)

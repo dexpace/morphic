@@ -37,6 +37,9 @@ const (
 	authKind    = ir.IDKindAuth
 	serviceKind = ir.IDKindService
 	groupKind   = ir.IDKindGroup
+	paramKind   = ir.IDKindParam
+
+	enumMemberKind = ir.IDKindEnumMember
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -65,6 +68,16 @@ func ServiceID(space Space, path string) ir.ServiceID {
 // GroupID returns the ID of the operation group at path within space.
 func GroupID(space Space, path string) ir.GroupID {
 	return ir.GroupID(idFor(groupKind, space, path))
+}
+
+// ParamID returns the ID of the parameter at path within space.
+func ParamID(space Space, path string) ir.ParamID {
+	return ir.ParamID(idFor(paramKind, space, path))
+}
+
+// EnumMemberID returns the ID of the enum member at path within space.
+func EnumMemberID(space Space, path string) ir.EnumMemberID {
+	return ir.EnumMemberID(idFor(enumMemberKind, space, path))
 }
 
 // idFor joins a kind prefix, a space and a path with single separators.

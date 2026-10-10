@@ -27,6 +27,17 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 		compile.AuthID(space, "/components/securitySchemes/apiKey"))
 	assert.Equal(t, ir.ServiceID("s/openapi/0"), compile.ServiceID(space, "0"))
 	assert.Equal(t, ir.GroupID("g/tags/pets"), compile.GroupID("tags", "/pets"))
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1pets/get/parameters/limit/query"),
+		compile.ParamID(space, "/paths/~1pets/get/parameters/limit/query"))
+}
+
+// TestEnumMemberID_UsesTheEnumMemberKind pins the kind an enum member's ID opens
+// with, written out so it cannot agree with a change to the constant.
+func TestEnumMemberID_UsesTheEnumMemberKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/Status/s:active"),
+		compile.EnumMemberID("openapi", "/components/schemas/Status/s:active"))
+	assert.Equal(t, "e", ir.IDKindEnumMember)
 }
 
 // TestIDGrammar_PathSeparatorIsSuppliedOnce pins that the framework owns the

@@ -37,7 +37,9 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
+	diags = append(diags, checkDuplicateMemberIDs(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkParamReferences(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
@@ -622,6 +624,35 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
+// checkDuplicateMemberIDs reports an enum that gives two members one ID.
+//
+// A member is identified by its value in its enum, and a repeated value takes a
+// numbered suffix, so a compiler's output never trips this. A document that does
+// has two members an emitter cannot tell apart, which is what keying collision
+// resolution by ID (emitter-design §4.12) rests on not happening.
+func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range liveTypeIDs(doc) {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		if !ok {
+			continue
+		}
+		seen := make(map[ir.EnumMemberID]bool, len(enum.Members))
+		for i, m := range enum.Members {
+			if m.ID == "" {
+				continue
+			}
+			if seen[m.ID] {
+				at := fmt.Sprintf("%s/members/%d", id, i)
+				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-enum-member-id",
+					fmt.Sprintf("enum %s has more than one member with id %q", id, m.ID), at))
+			}
+			seen[m.ID] = true
+		}
+	}
+	return diags
+}
+
 // effectiveWireName is the on-wire name of a property: its explicit WireName, or
 // its source name when no override is set.
 func effectiveWireName(p ir.Property) string {
@@ -643,30 +674,38 @@ func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// checkHTTPParamBinding validates one HTTP binding: unknown parameter names are
-// errors, a param bound twice in one non-host location is an error, and an
+// paramLocation keys the per-location bound-once count: a parameter is
+// identified by its ID, not its name, so two parameters sharing a name never
+// count against each other.
+type paramLocation struct {
+	param    ir.ParamID
+	location ir.HTTPLocation
+}
+
+// checkHTTPParamBinding validates one HTTP binding: a parameter this operation
+// does not declare is an error, a param bound twice in one non-host location is an error, and an
 // unbound parameter is a warning (body-carried operations bind nothing).
 func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
 	where := fmt.Sprintf("%s/bindings/http/%d", op.ID, idx)
-	known := make(map[string]bool, len(op.Params))
+	known := make(map[ir.ParamID]bool, len(op.Params))
 	for _, p := range op.Params {
-		known[p.Name.Source] = true
+		known[p.ID] = true
 	}
 	var diags []ir.Diagnostic
-	bound := make(map[string]int, len(op.Params))
-	perLocation := make(map[string]int, len(b.ParamBindings))
+	bound := make(map[ir.ParamID]int, len(op.Params))
+	perLocation := make(map[paramLocation]int, len(b.ParamBindings))
 	for _, pb := range b.ParamBindings {
 		if !known[pb.Param] {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("binding on %s names unknown parameter %q", where, pb.Param), where))
+				fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
 			continue
 		}
 		bound[pb.Param]++
 		if pb.Location == ir.HTTPLocationHost {
 			continue // host labels are additive; a param may fill several.
 		}
-		key := pb.Param + "\x00" + string(pb.Location)
+		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", pb.Param, pb.Location, where),
@@ -678,13 +717,70 @@ func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 
 // unboundParamWarnings reports each logical parameter that no binding placed on
 // the wire.
-func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) []ir.Diagnostic {
+func unboundParamWarnings(op ir.Operation, bound map[ir.ParamID]int, where string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, p := range op.Params {
-		if bound[p.Name.Source] == 0 {
+		if bound[p.ID] == 0 {
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))
+		}
+	}
+	return diags
+}
+
+// paramRef is one reference an operation makes to a parameter outside its HTTP
+// bindings, with the location it is reported at.
+type paramRef struct {
+	id    ir.ParamID
+	where string
+}
+
+// operationParamRefs lists the parameter references op carries besides its
+// bindings: the pagination inputs and the idempotency token. An absent input is
+// no reference, and neither is an empty ID, which an irverify check owns.
+func operationParamRefs(op ir.Operation) []paramRef {
+	var refs []paramRef
+	if pg := op.Pagination; pg != nil {
+		if pg.InputCursor != nil {
+			refs = append(refs, paramRef{pg.InputCursor.Param, fmt.Sprintf("%s/pagination/inputCursor", op.ID)})
+		}
+		if pg.InputLimit != nil {
+			refs = append(refs, paramRef{pg.InputLimit.Param, fmt.Sprintf("%s/pagination/inputLimit", op.ID)})
+		}
+	}
+	return append(refs, paramRef{op.Idempotency.TokenParam, fmt.Sprintf("%s/idempotency/tokenParam", op.ID)})
+}
+
+// checkParamReferences holds an operation's pagination inputs and idempotency
+// token to the parameters that operation declares.
+//
+// Another operation's parameter is a well-formed reference, so the registry walk
+// has nothing to say about it, while an emitter reads the pagination cursor off
+// the wrong operation's parameter. An ID no operation declares is the dangling
+// walk's, reported once there; an empty one is irverify's.
+func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
+	var ops []ir.Operation
+	declared := map[ir.ParamID]bool{}
+	forEachOperation(doc, func(op ir.Operation) {
+		ops = append(ops, op)
+		for _, p := range op.Params {
+			declared[p.ID] = true
+		}
+	})
+	var diags []ir.Diagnostic
+	for _, op := range ops {
+		own := make(map[ir.ParamID]bool, len(op.Params))
+		for _, p := range op.Params {
+			own[p.ID] = true
+		}
+		for _, ref := range operationParamRefs(op) {
+			if ref.id == "" || own[ref.id] || !declared[ref.id] {
+				continue
+			}
+			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+				fmt.Sprintf("%s names parameter %q, which this operation does not declare", ref.where, ref.id),
+				ref.where))
 		}
 	}
 	return diags

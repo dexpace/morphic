@@ -529,14 +529,15 @@ func TestEventInfo_JSONContract(t *testing.T) {
 		ir.EventInfo{ContentType: "application/json", Terminal: true})
 }
 
-// TestEnumMember_JSONContract pins EnumMember's omitempty contract (Name,
+// TestEnumMember_JSONContract pins EnumMember's omitempty contract (ID, Name,
 // Value, and Docs carry no omitempty; every other field is optional) and that
 // a fully populated EnumMember round-trips.
 func TestEnumMember_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.EnumMember{},
-		`{"name":{},"value":{"kind":""},"docs":{}}`,
+		`{"id":"","name":{},"value":{"kind":""},"docs":{}}`,
 		ir.EnumMember{
+			ID:           "e/openapi/components/schemas/Status/s:active",
 			Name:         populatedNaming(),
 			Value:        ir.Value{Kind: ir.ValueString, Str: "active"},
 			WireName:     "ACTIVE",

@@ -31,7 +31,7 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Params, 5)
 	require.Len(t, op.Bindings.HTTP, 1)
-	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	bindings := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	require.Len(t, bindings, 5, "every logical param bound exactly once")
 
 	id := bindings["id"]
@@ -75,7 +75,7 @@ func TestParams_ContentStyleParameter(t *testing.T) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
-	assert.Equal(t, "filter", binding.Param)
+	assert.Equal(t, "filter", binding.WireName)
 	assert.Equal(t, "application/json", binding.ContentType,
 		"content-style param records its media type on the binding")
 	require.Len(t, op.Params, 1)
@@ -164,7 +164,7 @@ func TestParams_AllLocationsAndStyles(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, paramSpec)
 	op := openapitest.FindOp(t, doc, "search")
-	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.Param })
+	byName := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 	assert.Equal(t, ir.HTTPLocationPath, byName["id"].Location)
 	assert.Equal(t, ir.HTTPLocationQuery, byName["q"].Location)
 	assert.Equal(t, ir.HTTPLocationHeader, byName["X-Tok"].Location)
@@ -1009,4 +1009,120 @@ func TestParams_ExclusiveModifierWithNoBoundIsKeptOnTheParameter(t *testing.T) {
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 			"/paths/~1x/get/parameters/0/schema"),
 		"bounds nothing", "and reading it is what reports on it")
+}
+
+// paramIdentitySpec mounts one path item twice and lists a path-level and an
+// operation-level parameter named id. The shared item is declared after its two
+// uses, and /b before /a, so a derivation that depended on order would show.
+const paramIdentitySpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /b:
+    $ref: "#/components/pathItems/Shared"
+  /a:
+    $ref: "#/components/pathItems/Shared"
+  /items/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getItem
+      parameters:
+        - {name: id, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+    post:
+      operationId: postItem
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Shared:
+      parameters:
+        - {name: limit, in: query, schema: {type: integer}}
+      get:
+        responses: {"200": {description: ok}}
+`
+
+// paramIDs returns the IDs of op's parameters, keyed by the location each one
+// binds.
+func paramIDs(op ir.Operation) map[ir.HTTPLocation]ir.ParamID {
+	out := map[ir.HTTPLocation]ir.ParamID{}
+	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+		out[pb.Location] = pb.Param
+	}
+	return out
+}
+
+func TestParams_SameNameInTwoLocationsGetsDistinctIDs(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, paramIdentitySpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "getItem")
+
+	require.Len(t, op.Params, 2)
+	assert.NotEqual(t, op.Params[0].ID, op.Params[1].ID, "id in the path and id in the query are two parameters")
+	ids := paramIDs(op)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/path"), ids[ir.HTTPLocationPath])
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/get/parameters/id/query"), ids[ir.HTTPLocationQuery])
+	assert.ElementsMatch(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID}, []ir.ParamID{ids[ir.HTTPLocationPath], ids[ir.HTTPLocationQuery]},
+		"each binding names the ID of its own parameter")
+}
+
+func TestParams_IDsFollowNameNotPosition(t *testing.T) {
+	t.Parallel()
+	const reordered = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /items:
+    get:
+      operationId: getItem
+      parameters:
+        - {name: b, in: query, schema: {type: string}}
+        - {name: a, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+	doc, _ := parseFull(t, reordered)
+	swapped, _ := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /items:
+    get:
+      operationId: getItem
+      parameters:
+        - {name: a, in: query, schema: {type: string}}
+        - {name: b, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`)
+	byName := func(d *ir.Document) map[string]ir.ParamID {
+		out := map[string]ir.ParamID{}
+		for _, p := range openapitest.FindOp(t, d, "getItem").Params {
+			out[p.Name.Source] = p.ID
+		}
+		return out
+	}
+	assert.Equal(t, byName(doc), byName(swapped), "reordering a parameter list renames nothing")
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items/get/parameters/a/query"), byName(doc)["a"])
+}
+
+func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, paramIdentitySpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	get, post := openapitest.FindOp(t, doc, "getItem"), openapitest.FindOp(t, doc, "postItem")
+
+	require.Len(t, post.Params, 1)
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items~1{id}/post/parameters/id/path"), post.Params[0].ID)
+	assert.NotContains(t, []ir.ParamID{get.Params[0].ID, get.Params[1].ID}, post.Params[0].ID,
+		"a path-item parameter copied into two operations is two parameters")
+
+	var shared []ir.ParamID
+	for _, g := range doc.Services[0].Groups {
+		for _, o := range g.Operations {
+			if len(o.Params) == 1 && o.Params[0].Name.Source == "limit" {
+				shared = append(shared, o.Params[0].ID)
+			}
+		}
+	}
+	assert.ElementsMatch(t, []ir.ParamID{
+		"param/openapi/paths/~1a/get/parameters/limit/query",
+		"param/openapi/paths/~1b/get/parameters/limit/query",
+	}, shared, "a path item mounted twice roots each mount's parameters at that mount")
 }
