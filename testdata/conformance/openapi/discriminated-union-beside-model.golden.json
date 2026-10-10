@@ -1,0 +1,435 @@
+{
+  "irVersion": "0.6.0",
+  "name": "Discriminated union beside a model",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Discriminated union beside a model",
+        "canonical": "discriminated_union_beside_a_model"
+      },
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Cat": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Cat",
+      "name": {
+        "source": "Cat",
+        "canonical": "cat"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Cat/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Cat/properties/meow",
+          "name": {
+            "source": "meow",
+            "canonical": "meow"
+          },
+          "wireName": "meow",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/properties/meow"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Circle": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Circle",
+      "name": {
+        "source": "Circle",
+        "canonical": "circle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Circle"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/radius",
+          "name": {
+            "source": "radius",
+            "canonical": "radius"
+          },
+          "wireName": "radius",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Circle/allOf/1/properties/radius"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Shape",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "circle",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Dog/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Dog/properties/bark",
+          "name": {
+            "source": "bark",
+            "canonical": "bark"
+          },
+          "wireName": "bark",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/properties/bark"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "mapping": {
+              "cat": "#/components/schemas/Cat"
+            },
+            "propertyName": "kind"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/discriminator"
+          }
+        },
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Cat"
+            },
+            {
+              "$ref": "#/components/schemas/Dog"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Shape": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Shape",
+      "name": {
+        "source": "Shape",
+        "canonical": "shape"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Circle"
+            },
+            {
+              "$ref": "#/components/schemas/Square"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shape/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shape"
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "circle": "t/openapi/components/schemas/Circle"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Square": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Square",
+      "name": {
+        "source": "Square",
+        "canonical": "square"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Square"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Square/allOf/1/properties/side",
+          "name": {
+            "source": "side",
+            "canonical": "side"
+          },
+          "wireName": "side",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Square/allOf/1/properties/side"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Shape",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Square",
+      "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a declared discriminator binds the branches by name, which distributing them would break, and it routes to a target that is not a subtype of this model, so the discriminator is kept verbatim too; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a declared discriminator binds the branches by name, which distributing them would break; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shape"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "discriminated-union-beside-model.yaml",
+      "hash": "551db712e7c0016e4c705a8b08cb2663e2a981cdc790e6cec98b14f65e342867"
+    }
+  ]
+}
