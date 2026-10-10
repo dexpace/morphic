@@ -97,6 +97,7 @@ func TestRun_ValidateAgreesWithCompile(t *testing.T) {
 		{"error diagnostics", errSpec, nil},
 		{"--fail-on warning", warnSpec, []string{"--fail-on", "warning"}},
 		{"--skip-validate", warnSpec, []string{"--skip-validate"}},
+		{"--disable-pass validate", warnSpec, []string{"--disable-pass", "validate"}},
 	}
 
 	for _, tt := range tests {
@@ -332,4 +333,19 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), want, "the overlay's own file, not the spec's")
 	assert.NotContains(t, stderr.String(), spec+":", "the spec is clean; the overlay is what refused")
+}
+
+// TestRun_UnknownPassIsMisuse pins that an invented --disable-pass name is
+// refused with exit 2 by both commands, not ignored.
+func TestRun_UnknownPassIsMisuse(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	for _, cmd := range []string{"compile", "validate"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
+
+		assert.Equal(t, 2, code, cmd)
+		assert.Contains(t, stderr.String(), "no-such-pass", cmd)
+	}
 }

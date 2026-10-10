@@ -363,7 +363,7 @@ func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(nilDocCompiler{})
 	require.NoError(t, err)
-	// SkipValidate is false, but a nil Document must still short-circuit the pass.
+	// No pass is disabled, but a nil Document must still short-circuit the pass.
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.NoError(t, err)
 	assert.Nil(t, res.Document)
@@ -419,14 +419,14 @@ func TestEngine_RunKeepsDiagnosticsFromEitherChannel(t *testing.T) {
 		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{want}}},
 	}
 	for _, tt := range fronts {
-		for _, skipValidate := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/skip-validate=%v", tt.name, skipValidate), func(t *testing.T) {
+		for _, disable := range [][]string{nil, {engine.ValidatePass}} {
+			t.Run(fmt.Sprintf("%s/disable=%v", tt.name, disable), func(t *testing.T) {
 				t.Parallel()
 				eng, err := engine.NewWith(tt.front)
 				require.NoError(t, err)
 
 				res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny),
-					engine.RunOptions{SkipValidate: skipValidate})
+					engine.RunOptions{DisablePasses: disable})
 
 				require.NoError(t, err)
 				require.NotNil(t, res.Document,
@@ -488,7 +488,7 @@ func TestEngine_ValidateRuns(t *testing.T) {
 	assert.True(t, hasDiagCode(withPass.Diagnostics, "ir/dangling-type-ref"),
 		"validate pass reports the dangling ref when enabled")
 
-	withoutPass, err := eng.Run(t.Context(), path, engine.RunOptions{SkipValidate: true})
+	withoutPass, err := eng.Run(t.Context(), path, engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
 	require.NoError(t, err)
 	assert.False(t, hasDiagCode(withoutPass.Diagnostics, "ir/dangling-type-ref"),
 		"skipping validation suppresses the diagnostic")
@@ -550,7 +550,7 @@ func TestEngine_RunHandsDetectionsParseToCompile(t *testing.T) {
 	require.NoError(t, err)
 	path := writeNamed(t, "svc.smithy", "$version: \"2.0\"\n")
 
-	res, err := eng.Run(t.Context(), path, engine.RunOptions{SkipValidate: true})
+	res, err := eng.Run(t.Context(), path, engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
 
 	require.NoError(t, err)
 	require.NotNil(t, res.Document)

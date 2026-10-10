@@ -19,8 +19,9 @@ func newValidateCommand() command {
 			"The diagnostics and the exit code are compile's: 0 when nothing reaches\n" +
 			"--fail-on, 1 when something does or the spec lowered to no document at all,\n" +
 			"2 for a misuse or an I/O error.\n\n" +
-			"--skip-validate names the referential-integrity pass, not this command: it\n" +
-			"drops that pass's diagnostics and keeps the compiler's.\n\n" +
+			"--skip-validate and --disable-pass validate are interchangeable. Both name the\n" +
+			"referential-integrity pass, not this command: they drop that pass's\n" +
+			"diagnostics and keep the compiler's.\n\n" +
 			"--opt is compile's, and takes the same settings: a spec that needs one to\n" +
 			"compile needs it here too, or what is checked is not what would be built.",
 		printFlags: func(w io.Writer) {

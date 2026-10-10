@@ -26,7 +26,7 @@ import (
 type RunOptions struct {
 	FormatOptions   any               `json:"formatOptions,omitzero"`
 	CompilerOptions map[string]string `json:"compilerOptions,omitempty"`
-	SkipValidate    bool              `json:"skipValidate,omitzero"`
+	DisablePasses   []string          `json:"disablePasses,omitempty"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -67,6 +67,7 @@ type Result struct {
 // every run, the first only under -race, which the coverage gate uses.
 type Engine struct {
 	registry *compilers.Registry
+	passes   []pass.Pass
 }
 
 // New composes the default engine: a registry with every built-in compiler
@@ -95,18 +96,18 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
-	return &Engine{registry: reg}, nil
+	return &Engine{registry: reg, passes: DefaultPasses()}, nil
 }
 
-// Run executes the pipeline for the spec at specPath: read the file, ask the
-// registered compilers which recognizes it, dispatch to that one, and unless
-// disabled append the validate pass's diagnostics.
+// Run executes the pipeline for the spec at specPath: read it, compile it with
+// the compiler that recognizes it, then run the passes not named in
+// opts.DisablePasses, in order.
 //
-// A Go error is reserved for I/O and programmer errors: an unreadable file, or
-// a compiler failing in a way its contract calls an error. Everything wrong
-// with the spec itself, a source no compiler can lower included, is a
-// diagnostic in the Result, so a caller can treat a Go error as misuse, as the
-// CLI does. Calls may overlap; each owns the document it returns.
+// A Go error is reserved for I/O and programmer errors: an unreadable file, a
+// compiler breaking its contract, or a name ErrUnknownPass refuses. Everything
+// wrong with the spec itself is a diagnostic in the Result, so a caller can
+// treat a Go error as misuse, as the CLI does. Calls may overlap; each owns the
+// document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting
@@ -122,6 +123,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	// resolve options that no compiler could.
 	if opts.FormatOptions != nil && len(opts.CompilerOptions) > 0 {
 		return nil, errOptionChannels
+	}
+
+	disabled, err := disabledSet(e.passes, opts.DisablePasses)
+	if err != nil {
+		return nil, err
 	}
 
 	data, err := os.ReadFile(specPath)
@@ -161,9 +167,11 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return &Result{Diagnostics: diags, Format: format,
 			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
 	}
-	if !opts.SkipValidate {
-		diags = append(diags, pass.Validate(doc)...)
+	doc, passDiags, err := runPasses(doc, e.passes, disabled)
+	if err != nil {
+		return nil, err
 	}
+	diags = append(diags, passDiags...)
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
 	// diff, caches, emitters). Merging rather than picking one is what keeps a
