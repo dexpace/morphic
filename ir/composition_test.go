@@ -166,3 +166,9 @@ func TestExposedProps_SkipsTypedNil(t *testing.T) {
 	doc.Types["n"] = nilModel
 	assert.Empty(t, ir.ExposedProps(doc, "m"))
 }
+
+func TestExposedProps_OtherKindsExposeNothing(t *testing.T) {
+	t.Parallel()
+	doc := compDoc(&ir.Enum{TypeCommon: ir.TypeCommon{ID: "e"}})
+	assert.Empty(t, ir.ExposedProps(doc, "e"))
+}

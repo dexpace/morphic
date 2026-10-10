@@ -158,7 +158,7 @@ func corpusTypeDefs(t *testing.T) []ir.TypeDef {
 		require.NotEmpty(t, matches, "glob %s matched no file", glob)
 		files = append(files, matches...)
 	}
-	var defs []ir.TypeDef
+	defs := make([]ir.TypeDef, 0, len(files))
 	for _, f := range files {
 		data, err := os.ReadFile(f)
 		require.NoError(t, err)
@@ -250,4 +250,12 @@ func TestTypeEdges_ValueNestingIsBounded(t *testing.T) {
 	shallow := ir.Value{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/shallow"}}}}
 	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueList, List: []ir.Value{deep, shallow}}}
 	assert.Equal(t, []ir.TypeID{"t/shallow"}, slices.Collect(ir.TypeEdges(lit)))
+}
+
+func TestTypeEdges_ArgumentWithoutValueFromYieldsItsType(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{Properties: []ir.Property{{
+		Args: []ir.Parameter{{Type: ir.TypeRef{Target: "t/arg"}}},
+	}}}
+	assert.Equal(t, []ir.TypeID{"t/arg"}, slices.Collect(ir.TypeEdges(m)))
 }
