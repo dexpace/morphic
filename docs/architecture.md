@@ -224,7 +224,7 @@ policy fills in where the spec is silent, never the reverse.
 
 ```
 morphic/
-├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
+├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -273,6 +273,9 @@ git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
+- `ir` owns the shared traversals, both the reflection walk and the typed ones (operations,
+  type edges, composition), so no pass or emitter hand-writes a walker over groups, composition
+  or type edges.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
   never `emitter` or `engine`. A compiler also names the contract package and

@@ -302,7 +302,7 @@ func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
 	// Pinned at the boundary, not near it. Every leaf recurses once into its own
 	// empty Groups, so a cap reported without checking whether anything was
 	// actually skipped fires at exactly the depth where the last operation still
-	// fits — visible only by testing maxGroupDepth itself.
+	// fits — visible only by testing ir.MaxGroupDepth itself.
 	for _, depth := range []int{1, 127, 128} {
 		within := codes(pass.Validate(nestGroups(depth, oneway)))
 		assert.Contains(t, within, "pass/oneway-with-responses",

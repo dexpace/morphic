@@ -602,8 +602,9 @@ type Discriminator struct {
 ```
 
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers
-walk `Base`, `Implements`, and `Mixins` for the full shape (a provided `FlattenedProperties()`
-traversal helper does this; the flattening is computed, never stored). This preserves what oagen
+walk `Base`, `Implements`, and `Mixins` for the full shape (`ir.ExposedProps` computes the flat
+set; `ir.Supertypes` and `ir.IsSubtype` compute the subtype relation, which excludes mixins; the
+flattening is computed, never stored). This preserves what oagen
 and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
 "declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
 models — the distinction matters because GraphQL allows multiple interfaces while every
