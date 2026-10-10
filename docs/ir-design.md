@@ -1492,6 +1492,9 @@ type PropPath struct {
     Segments []PropID
 }
 type ParamPath struct{ Param ParamID; Segments []PropID }
+// ParamPath.Param, like Idempotency.TokenParam, names a parameter of the operation
+// carrying it: another operation's ParamID is a well-formed reference to the wrong
+// parameter, and pass.Validate rejects it (pass/param-binding-mismatch).
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
@@ -1575,7 +1578,7 @@ type HTTPBinding struct {
 type RequestCompression struct { Encodings []string } // priority-ordered ("gzip", …)
 
 type HTTPParamBinding struct {
-    Param      ParamID            // Operation.Params entry it binds, by ID
+    Param      ParamID            // this operation's own Operation.Params entry it binds, by ID
     ParamPath  []PropID           // nested source field within the logical param, when the binding
                                   // targets a sub-field of a message-typed param (gRPC transcoding
                                   // {book.name}, dotted query params); empty = the whole param

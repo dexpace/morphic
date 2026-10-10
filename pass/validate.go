@@ -38,6 +38,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkParamReferences(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
@@ -693,6 +694,63 @@ func unboundParamWarnings(op ir.Operation, bound map[ir.ParamID]int, where strin
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))
+		}
+	}
+	return diags
+}
+
+// paramRef is one reference an operation makes to a parameter outside its HTTP
+// bindings, with the location it is reported at.
+type paramRef struct {
+	id    ir.ParamID
+	where string
+}
+
+// operationParamRefs lists the parameter references op carries besides its
+// bindings: the pagination inputs and the idempotency token. An absent input is
+// no reference, and neither is an empty ID, which an irverify check owns.
+func operationParamRefs(op ir.Operation) []paramRef {
+	var refs []paramRef
+	if pg := op.Pagination; pg != nil {
+		if pg.InputCursor != nil {
+			refs = append(refs, paramRef{pg.InputCursor.Param, fmt.Sprintf("%s/pagination/inputCursor", op.ID)})
+		}
+		if pg.InputLimit != nil {
+			refs = append(refs, paramRef{pg.InputLimit.Param, fmt.Sprintf("%s/pagination/inputLimit", op.ID)})
+		}
+	}
+	return append(refs, paramRef{op.Idempotency.TokenParam, fmt.Sprintf("%s/idempotency/tokenParam", op.ID)})
+}
+
+// checkParamReferences holds an operation's pagination inputs and idempotency
+// token to the parameters that operation declares.
+//
+// Another operation's parameter is a well-formed reference, so the registry walk
+// has nothing to say about it, while an emitter reads the pagination cursor off
+// the wrong operation's parameter. An ID no operation declares is the dangling
+// walk's, reported once there; an empty one is irverify's.
+func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
+	var ops []ir.Operation
+	declared := map[ir.ParamID]bool{}
+	forEachOperation(doc, func(op ir.Operation) {
+		ops = append(ops, op)
+		for _, p := range op.Params {
+			declared[p.ID] = true
+		}
+	})
+	var diags []ir.Diagnostic
+	for _, op := range ops {
+		own := make(map[ir.ParamID]bool, len(op.Params))
+		for _, p := range op.Params {
+			own[p.ID] = true
+		}
+		for _, ref := range operationParamRefs(op) {
+			if ref.id == "" || own[ref.id] || !declared[ref.id] {
+				continue
+			}
+			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+				fmt.Sprintf("%s names parameter %q, which this operation does not declare", ref.where, ref.id),
+				ref.where))
 		}
 	}
 	return diags

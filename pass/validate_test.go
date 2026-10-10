@@ -351,3 +351,68 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 		"past the cap the binding went unseen; unreachable-by-truncation is not evidence of illegality")
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
 }
+
+// paramRefOp returns an operation declaring one parameter and pointing its
+// pagination cursor, limit and idempotency token at the given IDs.
+func paramRefOp(id ir.OpID, own ir.ParamID, cursor, limit, token ir.ParamID) ir.Operation {
+	return ir.Operation{
+		ID:     id,
+		Params: []ir.Parameter{{ID: own, Name: ir.Naming{Source: "p"}}},
+		Pagination: &ir.Pagination{
+			InputCursor: &ir.ParamPath{Param: cursor},
+			InputLimit:  &ir.ParamPath{Param: limit},
+		},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: token},
+	}
+}
+
+// docWithOperations wraps ops in one service and group.
+func docWithOperations(ops ...ir.Operation) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: ops}}}}
+	return doc
+}
+
+func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
+	diags := pass.Validate(docWithOperations(op))
+	assert.NotContains(t, codes(diags), "pass/param-binding-mismatch")
+	assert.NotContains(t, codes(diags), "ir/dangling-param-ref")
+}
+
+func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
+	t.Parallel()
+	get := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
+	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/post/p", "param/x/get/p")
+
+	diags := pass.Validate(docWithOperations(get, post))
+
+	var at []string
+	for _, d := range diags {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/post/pagination/inputCursor", "op/x/post/idempotency/tokenParam"}, at)
+}
+
+func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/ghost", "param/x/get/p", "param/x/get/p")
+	diags := pass.Validate(docWithOperations(op))
+	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
+}
+
+func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "")
+	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
+	// Another operation holds a parameter with no ID, so "" is a declared ID
+	// somewhere and only the empty-ID rule keeps the empty token from naming it.
+	unidentified := ir.Operation{ID: "op/x/other", Params: []ir.Parameter{{Name: ir.Naming{Source: "q"}}}}
+	diags := pass.Validate(docWithOperations(op, unidentified))
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
+	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
+}
