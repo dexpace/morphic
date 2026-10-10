@@ -232,7 +232,8 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
 		Types: ir.TypeRegistry{str: &ir.Primitive{TypeCommon: ir.TypeCommon{ID: str}, Prim: "string"}},
 	}
-	ids := []ir.TypeID{str}
+	ids := make([]ir.TypeID, 1, 1+gqlTypes)
+	ids[0] = str
 	var models []ir.TypeID
 	rng := rand.New(rand.NewPCG(1, 2)) // fixed seed: the same document every run
 	pick := func(int, int) ir.TypeRef {
