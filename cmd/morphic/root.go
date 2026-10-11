@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +21,10 @@ func newRootCmd() *cobra.Command {
 		Long:    rootDescription,
 		Version: moduleVersion(info),
 		RunE:    runRoot,
+
+		// execute reports what ended the run, in one shape for every cause.
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 	root.SetVersionTemplate(versionTemplate)
 	root.SetHelpCommand(newHelpCmd())
@@ -46,16 +49,6 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return misuse(cmd, fmt.Sprintf("unexpected argument %q after \"--\"", args[0]))
 	}
 	return cmd.Help()
-}
-
-// fangOptions returns how fang decorates the tree: morphic reports its own
-// errors, in the shape errorHandler gives them, and the tree already names its
-// own version, which fang would otherwise replace with its reading of the build.
-func fangOptions() []fang.Option {
-	return []fang.Option{
-		fang.WithErrorHandler(errorHandler),
-		fang.WithoutVersion(),
-	}
 }
 
 // newHelpCmd builds the help command. cobra's own answers an unknown topic

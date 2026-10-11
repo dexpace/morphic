@@ -50,7 +50,7 @@ func TestRun_HelpForms(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
 			assert.Equal(t, 0, run(tt.args, &stdout, &stderr))
-			assert.Contains(t, stdout.String(), "USAGE")
+			assert.Contains(t, stdout.String(), "Usage:")
 			assert.Empty(t, stderr.String(), "help must never write to stderr")
 		})
 	}
@@ -95,7 +95,7 @@ func TestRun_NilArgsAreNoArguments(t *testing.T) {
 	code := run(nil, &stdout, &stderr)
 
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
-	assert.Contains(t, stdout.String(), "USAGE")
+	assert.Contains(t, stdout.String(), "Usage:")
 }
 
 // TestRun_HelpFlagAsFlagValue pins that a help flag typed where a flag wants a
@@ -115,7 +115,7 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	code := run([]string{"compile", "-o", "--help", spec}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
-	assert.NotContains(t, stdout.String(), "USAGE",
+	assert.NotContains(t, stdout.String(), "Usage:",
 		"--help must be consumed as -o's value, not treated as a help request")
 	raw, err := os.ReadFile(filepath.Join(dir, "--help"))
 	require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestRun_OperandsAfterTerminatorAreRefused(t *testing.T) {
 	// A "--" with nothing after it has nothing to refuse: it is a bare morphic.
 	var stdout, stderr bytes.Buffer
 	assert.Equal(t, 0, run([]string{"--"}, &stdout, &stderr), "stderr: %s", stderr.String())
-	assert.Contains(t, stdout.String(), "USAGE")
+	assert.Contains(t, stdout.String(), "Usage:")
 }
 
 func TestRun_HelpFormsAgree(t *testing.T) {
@@ -249,18 +249,19 @@ func TestRun_CommandHelpListsEveryFlag(t *testing.T) {
 	}
 }
 
-// flagLine matches a flag row of fang's help: an optional "-x " short form, then
-// "--name", then the description's padding.
-var flagLine = regexp.MustCompile(`^\s+(?:-\w )?--([a-z-]+)\s`)
+// flagLine matches a flag row of cobra's help: an optional "-x, " short form,
+// then "--name", then the value's name or the description's padding.
+var flagLine = regexp.MustCompile(`^\s+(?:-\w, )?--([a-z-]+)\s`)
 
 // flagNamesIn returns the flag names documented by rendered help: the long
-// names on the rows under its FLAGS title.
+// names on the rows under its "Flags:" title. A section title is the one kind
+// of line cobra does not indent.
 func flagNamesIn(rendered string) []string {
 	var names []string
 	inFlags := false
 	for line := range strings.SplitSeq(rendered, "\n") {
-		if title := strings.TrimSpace(line); title != "" && strings.ToUpper(title) == title {
-			inFlags = title == "FLAGS"
+		if line != "" && !strings.HasPrefix(line, " ") {
+			inFlags = line == "Flags:"
 			continue
 		}
 		if m := flagLine.FindStringSubmatch(line); inFlags && m != nil {
@@ -273,8 +274,8 @@ func flagNamesIn(rendered string) []string {
 func TestFlagNamesIn_ReadsOnlyTheFlagsSection(t *testing.T) {
 	t.Parallel()
 
-	rendered := "  USAGE\n\n    morphic compile --flags\n\n  FLAGS\n\n" +
-		"    --fail-on  Exit 1\n    -o --output  Write\n\n  EXAMPLES\n\n    morphic --x a\n"
+	rendered := "Usage:\n  morphic compile --flags\n\nFlags:\n" +
+		"      --fail-on string   exit 1\n  -o, --output string    write\n\nExamples:\n  morphic --x a\n"
 
 	assert.Equal(t, []string{"fail-on", "output"}, flagNamesIn(rendered))
 }
@@ -299,18 +300,8 @@ func TestRootHelp_ListsEveryCommand(t *testing.T) {
 //
 // The -update flag comes from irtest rather than being declared here: a second
 // flag.Bool("update", ...) on the same command-line FlagSet panics at init.
-//
-// Trailing spaces are dropped from got first. fang pads its layout to a column
-// width; the padding means nothing, and a golden that kept it would redden when
-// an editor stripped it on save.
 func compareHelpGolden(t *testing.T, path, got string) {
 	t.Helper()
-
-	lines := strings.Split(got, "\n")
-	for i, line := range lines {
-		lines[i] = strings.TrimRight(line, " ")
-	}
-	got = strings.Join(lines, "\n")
 
 	if irtest.Update() {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

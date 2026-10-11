@@ -17,9 +17,7 @@ const devVersion = "devel"
 
 // moduleVersion returns the version the Go toolchain stamped into the binary: a
 // release tag, or the pseudo-version of the commit it was built from, with
-// "+dirty" when the tree had changes. fang reads the same build info but only
-// trusts a module checksum, so it prints "unknown" for every build from a
-// checkout — which is where most morphic binaries come from.
+// "+dirty" when the tree had changes.
 func moduleVersion(info *debug.BuildInfo) string {
 	if info == nil || info.Main.Version == "" || info.Main.Version == "(devel)" {
 		return devVersion

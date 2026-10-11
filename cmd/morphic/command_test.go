@@ -90,9 +90,9 @@ func TestSpecFlags_SharedFlagsAgree(t *testing.T) {
 	}
 }
 
-// TestFlags_EveryFlagHasUsageText holds the property help depends on: fang
-// prints a flag's usage verbatim, so a flag without any is a bare name in the
-// table.
+// TestFlags_EveryFlagHasUsageText holds the property help depends on: a flag
+// without usage text is a bare name in the table, and pflag reads a backquoted
+// word in it as the name of the flag's value.
 func TestFlags_EveryFlagHasUsageText(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestFlags_EveryFlagHasUsageText(t *testing.T) {
 		cmd.Flags().VisitAll(func(f *pflag.Flag) {
 			assert.NotEmpty(t, f.Usage, "%s --%s has no usage text", cmd.Name(), f.Name)
 			assert.NotContains(t, f.Usage, "`",
-				"%s --%s: fang prints usage verbatim, so a backquoted name would show its backquotes", cmd.Name(), f.Name)
+				"%s --%s: pflag would take a backquoted word for the value's name", cmd.Name(), f.Name)
 		})
 	}
 }

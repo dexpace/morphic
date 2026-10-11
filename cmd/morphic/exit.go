@@ -5,11 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
-	"charm.land/fang/v2"
-	"github.com/charmbracelet/colorprofile"
 	"github.com/spf13/cobra"
 )
 
@@ -85,25 +81,17 @@ func exitCode(err error) int {
 	return exitFailure
 }
 
-// errorHandler reports err to w. Off a terminal it writes plain lines a log
-// parser can read; on one it uses fang's styled block. fang's own handler
-// cannot tell the two apart, because the writer it is handed has no file
-// descriptor to ask.
-func errorHandler(w io.Writer, styles fang.Styles, err error) {
+// reportError writes what ended the run to w, as plain lines a log parser can
+// read: the reason, then for a misuse the help page to read. A run that ended
+// well, or with findings the diagnostics already reported, writes nothing.
+func reportError(w io.Writer, err error) {
 	var ee *exitError
-	if errors.As(err, &ee) && ee.err == nil {
+	if err == nil || errors.As(err, &ee) && ee.err == nil {
 		return
 	}
 
-	msg := strings.TrimRight(err.Error(), "\n")
-	hint := usageHint(err)
-	if cw, ok := w.(*colorprofile.Writer); ok && cw.Profile > colorprofile.NoTTY {
-		writeStyledError(w, styles, msg, hint)
-		return
-	}
-
-	emitf(w, "morphic: %s\n", msg)
-	if hint != "" {
+	emitf(w, "morphic: %s\n", strings.TrimRight(err.Error(), "\n"))
+	if hint := usageHint(err); hint != "" {
 		emitf(w, "%s\n", hint)
 	}
 }
@@ -122,29 +110,4 @@ func usageHint(err error) string {
 		path = ue.path
 	}
 	return fmt.Sprintf("Try %q for usage.", path+" --help")
-}
-
-// writeStyledError renders msg as fang's error block: a header, the message,
-// and the hint when there is one.
-//
-// fang's text style also title-cases the message's whole first word, which turns
-// "--explain" into "--Explain" and "OpenAPI.yaml" into "Openapi.yaml". It is
-// dropped here, and the first letter raised on its own.
-func writeStyledError(w io.Writer, styles fang.Styles, msg, hint string) {
-	text := styles.ErrorText.UnsetTransform()
-	emitf(w, "%s\n%s\n\n", styles.ErrorHeader.String(), text.Render(upperFirst(msg)))
-	if hint != "" {
-		emitf(w, "%s\n\n", text.UnsetWidth().Render(hint))
-	}
-}
-
-// upperFirst raises s's first letter and changes nothing else. A string that
-// does not start with a letter, an empty one and invalid UTF-8 included, is
-// returned as it is: decoding any of those yields U+FFFD, which is not one.
-func upperFirst(s string) string {
-	r, size := utf8.DecodeRuneInString(s)
-	if !unicode.IsLetter(r) {
-		return s
-	}
-	return string(unicode.ToUpper(r)) + s[size:]
 }

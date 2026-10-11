@@ -63,32 +63,41 @@ const maxTempAttempts = 10
 // exists overrides this via chmodOutput — see destMode.
 const newFilePerm os.FileMode = 0o666
 
-// compileLong is compile's description. It is written as paragraphs with no
-// manual wrapping: fang wraps them to the terminal's width.
-const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write diagnostics to stderr. Output to stdout is indented for reading; a file written with --output is compact unless --pretty asks for the indented form.
+// compileLong is compile's description. cobra prints it as written, so it is
+// wrapped by hand.
+const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
+diagnostics to stderr. Output to stdout is indented for reading; a file written
+with --output is compact unless --pretty asks for the indented form.
 
---explain reports what compiling produced at one source coordinate — the type node interned there, the coordinates interned beneath it, and the diagnostics stamped at it — instead of writing the document. The coordinate is a JSON Pointer, so '' is the whole document. It writes no file, so it cannot be combined with --output.
+--explain reports what compiling produced at one source coordinate — the type
+node interned there, the coordinates interned beneath it, and the diagnostics
+stamped at it — instead of writing the document. The coordinate is a JSON
+Pointer, so '' is the whole document. It writes no file, so it cannot be
+combined with --output.
 
---opt passes a setting to the compiler the spec selects, which names and validates its own options; morphic itself knows none of them. The OpenAPI compiler's are listed in the README.
+--opt passes a setting to the compiler the spec selects, which names and
+validates its own options; morphic itself knows none of them. The OpenAPI
+compiler's are listed in the README.
 
-A -- argument ends flag parsing: every argument after it is an operand, even one that begins with a dash, which is how a spec file named like a flag is passed.
+A -- argument ends flag parsing: every argument after it is an operand, even one
+that begins with a dash, which is how a spec file named like a flag is passed.
 
-Exit status is 0 when nothing reaches --fail-on, 1 when something does or the spec lowered to no document at all, and 2 for a misuse or an I/O error.`
+Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
+spec lowered to no document at all, and 2 for a misuse or an I/O error.`
 
-// compileExample is compile's examples, rendered by fang as a highlighted block.
-const compileExample = `
-# IR JSON to stdout
-morphic compile openapi.yaml
+// compileExample is compile's examples, indented as cobra's help indents a
+// section.
+const compileExample = `  # IR JSON to stdout
+  morphic compile openapi.yaml
 
-# ...or to a file
-morphic compile openapi.yaml -o api.ir.json
+  # ...or to a file
+  morphic compile openapi.yaml -o api.ir.json
 
-# what compiling produced at one source coordinate
-morphic compile openapi.yaml --explain /components/schemas/Pet
+  # what compiling produced at one source coordinate
+  morphic compile openapi.yaml --explain /components/schemas/Pet
 
-# pass settings to the compiler the spec selects
-morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
-`
+  # pass settings to the compiler the spec selects
+  morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml`
 
 // newCompileCmd builds the compile subcommand.
 func newCompileCmd() *cobra.Command {

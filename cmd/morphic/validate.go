@@ -4,24 +4,28 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// validateLong is validate's description, written without manual wrapping — see
-// compileLong.
-const validateLong = `Check an API spec (OpenAPI 3.x) and write its diagnostics to stderr, writing no IR anywhere. validate is compile's pipeline with the document dropped instead of marshalled, for a gate that wants the diagnostics and the exit code and would throw the document away.
+// validateLong is validate's description, wrapped by hand — see compileLong.
+const validateLong = `Check an API spec (OpenAPI 3.x) and write its diagnostics to stderr, writing no
+IR anywhere. validate is compile's pipeline with the document dropped instead of
+marshalled, for a gate that wants the diagnostics and the exit code and would
+throw the document away.
 
-The diagnostics and the exit code are compile's: 0 when nothing reaches --fail-on, 1 when something does or the spec lowered to no document at all, 2 for a misuse or an I/O error.
+The diagnostics and the exit code are compile's: 0 when nothing reaches
+--fail-on, 1 when something does or the spec lowered to no document at all, 2
+for a misuse or an I/O error.
 
---skip-validate names the referential-integrity pass, not this command: it drops that pass's diagnostics and keeps the compiler's.
+--skip-validate names the referential-integrity pass, not this command: it drops
+that pass's diagnostics and keeps the compiler's.
 
---opt is compile's, and takes the same settings: a spec that needs one to compile needs it here too, or what is checked is not what would be built.`
+--opt is compile's, and takes the same settings: a spec that needs one to
+compile needs it here too, or what is checked is not what would be built.`
 
 // validateExample is validate's examples — see compileExample.
-const validateExample = `
-# diagnostics and exit code only
-morphic validate openapi.yaml
+const validateExample = `  # diagnostics and exit code only
+  morphic validate openapi.yaml
 
-# a stricter gate: exit 1 on a warning too
-morphic validate openapi.yaml --fail-on warning
-`
+  # a stricter gate: exit 1 on a warning too
+  morphic validate openapi.yaml --fail-on warning`
 
 // newValidateCmd builds the validate subcommand. It defines the flags every
 // spec-taking command shares and nothing else: --output and --explain are both

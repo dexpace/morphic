@@ -56,8 +56,6 @@ func TestRun_VersionNamesTheBuildAndTheIRSchema(t *testing.T) {
 			lines := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
 			require.Len(t, lines, 2, "got:\n%s", stdout.String())
 			assert.True(t, strings.HasPrefix(lines[0], "morphic version "), lines[0])
-			assert.NotContains(t, lines[0], "unknown",
-				"that is fang's text for a build it cannot name; the version is morphic's own to give")
 			assert.Equal(t, "IR schema "+ir.IRVersion, lines[1])
 			assert.Empty(t, stderr.String())
 		})
