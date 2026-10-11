@@ -10,14 +10,15 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// singleDashLongFlags refuses a long flag spelled with one dash, which the flag
-// package morphic once parsed with accepted. pflag reads such a token as
-// shorthands, so on compile "-opt=k=v" is "-o pt=k=v": the option dropped, the
-// document written to a file named "pt=k=v", and exit 0.
+// singleDashLongFlags refuses a long flag spelled with one dash. Go's flag
+// package, which morphic parsed with before cobra, accepted that spelling; pflag
+// reads it as shorthands, so on compile "-opt=k=v" is "-o pt=k=v": the option
+// dropped, the document written to a file named "pt=k=v", and exit 0.
 //
-// It reads the arguments of the command cobra will run, as pflag will: never a
-// flag's value, and nothing after a "--". A command not found here is cobra's to
-// resolve; help, completion and man join the tree only as it executes.
+// It checks the arguments of the command cobra will run, read as pflag will read
+// them: a flag's value is not a flag, and nothing after a "--" is one. A command
+// not found here is cobra's to resolve; help and completion join the tree only
+// as it executes.
 func singleDashLongFlags(root *cobra.Command, args []string) error {
 	target, rest, err := root.Find(args)
 	if err != nil {
