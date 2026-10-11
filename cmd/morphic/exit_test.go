@@ -218,8 +218,9 @@ func TestErrorHandler_StyledDoesNotRewriteTheMessage(t *testing.T) {
 
 // TestRun_StyledErrorKeepsAFlagsSpelling is the same property through fang's own
 // styles, which a hand-built Styles cannot stand in for: the transform that
-// mangles the message lives in the ones fang makes. A terminal is forced with
-// the environment. Not run in parallel: it sets variables.
+// mangles the message lives in the ones fang makes, as does the margin the hint
+// shares with the message. A terminal is forced with the environment. Not run in
+// parallel: it sets variables.
 func TestRun_StyledErrorKeepsAFlagsSpelling(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	t.Setenv("TTY_FORCE", "1")
@@ -233,4 +234,12 @@ func TestRun_StyledErrorKeepsAFlagsSpelling(t *testing.T) {
 	require.Contains(t, plain, "ERROR", "the styled block must have been chosen; got:\n%s", plain)
 	assert.Contains(t, plain, "--explain writes no document")
 	assert.NotContains(t, plain, "--Explain")
+
+	var lines []string
+	for line := range strings.Lines(plain) {
+		lines = append(lines, strings.TrimRight(line, " \n"))
+	}
+	assert.Contains(t, lines, "  --explain writes no document, so --output has nothing to write")
+	assert.Contains(t, lines, `  Try "morphic compile --help" for usage.`,
+		"the hint is indented as the message is, so the two read as one block")
 }
