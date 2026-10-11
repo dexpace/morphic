@@ -16,6 +16,11 @@ type OpID string
 // ServiceID identifies a Service.
 type ServiceID string
 
+// GroupID identifies an OperationGroup. It is unique across the whole document,
+// nested groups and every service included, because a consumer keys a group by
+// it alone.
+type GroupID string
+
 // ChannelID identifies a Channel in Document.Channels.
 type ChannelID string
 
@@ -44,7 +49,14 @@ const (
 	IDKindProp    = "p"
 	IDKindAuth    = "auth"
 	IDKindService = "s"
+	IDKindGroup   = "g"
 )
+
+// IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
+// order. Document.IDSpaces is keyed by them.
+func IDKinds() []string {
+	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup}
+}
 
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"
@@ -79,9 +91,9 @@ func PrimTypeID(k PrimKind) TypeID {
 //
 // Shape alone cannot catch every malformed ID. One that lost the separator
 // between its space and its path ("t/anonaddr") reads as a space named
-// "anonaddr" and is indistinguishable from a legitimate one here; what catches
-// that is the path agreeing with the provenance pointer it was derived from,
-// which irverify checks alongside this.
+// "anonaddr" and is indistinguishable from a legitimate one here; irverify
+// catches it from the provenance pointer the path was derived from, or from an
+// undeclared space.
 func WellFormedID(kind, id string) bool {
 	rest, ok := strings.CutPrefix(id, kind+IDSeparator)
 	if !ok || rest == "" {

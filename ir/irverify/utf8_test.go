@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // utf8Carrier is one place in the document graph that can hold an ill-formed
@@ -192,7 +191,7 @@ func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			doc, wantPaths := c.plant(ill)
-			got := irverify.Verify(doc)
+			got := verifyDeclared(doc)
 
 			var utf8Paths, others []string
 			for _, v := range got {
@@ -211,7 +210,7 @@ func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 			require.Error(t, err, "a document holding one ill-formed string must not encode")
 
 			clean, _ := c.plant(c.repair)
-			assert.Empty(t, irverify.Verify(clean), "repairing the one bad string leaves nothing to report")
+			assert.Empty(t, verifyDeclared(clean), "repairing the one bad string leaves nothing to report")
 			_, err = json.Marshal(clean)
 			require.NoError(t, err, "a document holding only well-formed strings must encode")
 		})
@@ -228,7 +227,7 @@ func TestVerify_RawPayloadUTF8IsNotDoublyReported(t *testing.T) {
 	doc := docWithUnmodeled(ir.Unmodeled{
 		"openapi:x-rate-limit": {Reason: ir.ReasonVendorExtension, Value: badPayloads["invalid UTF-8"]},
 	})
-	assert.Equal(t, []string{"ir/invalid-raw-value"}, codesOf(irverify.Verify(doc)))
+	assert.Equal(t, []string{"ir/invalid-raw-value"}, codesOf(verifyDeclared(doc)))
 }
 
 // TestVerify_ValidUTF8DiagnosticIsClean confirms a well-formed message — the
@@ -244,5 +243,5 @@ func TestVerify_ValidUTF8DiagnosticIsClean(t *testing.T) {
 	doc.Diagnostics = []ir.Diagnostic{
 		ir.NewDiagnostic(ir.SeverityError, "openapi/validation", "bad \xe0\xa5 byte", ir.Provenance{}),
 	}
-	assert.NotContains(t, codesOf(irverify.Verify(doc)), "ir/invalid-utf8")
+	assert.NotContains(t, codesOf(verifyDeclared(doc)), "ir/invalid-utf8")
 }

@@ -1235,12 +1235,19 @@ func typePosition(scope resolve.Scope, pointer jsontext.Pointer, variantTypes ma
 		// for one by name, so nothing is fetched for it (see mappingTagsFor).
 		return pointer, nil, true
 	}
-	decl := scope.DeclaredAt(pointer)
-	for range maxTypePositionHops {
+	located := scope.Locate(pointer)
+	decl := located.Declared()
+	for hop := range maxTypePositionHops {
 		if !readsThrough(pointer, decl, variantTypes) {
 			break
 		}
-		next, ok := scope.At(pointer).TargetPointer(decl, decl.GetRef().String())
+		var here resolve.Scope
+		if hop == 0 {
+			here = located.At() // the walk Locate took
+		} else {
+			here = scope.At(pointer)
+		}
+		next, ok := here.TargetPointer(decl, decl.GetRef().String())
 		if !ok {
 			break
 		}

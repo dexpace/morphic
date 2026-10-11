@@ -34,7 +34,7 @@ func unionOf(targets ...ir.TypeID) *ir.Document {
 func unionViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/union-no-variants" {
 			out = append(out, v)
 		}
@@ -96,7 +96,7 @@ func TestVerify_NilTypeBesideAUnionDoesNotPanic(t *testing.T) {
 			doc.Types["t/x/Nil"] = tc.entry
 
 			var got []irverify.Violation
-			require.NotPanics(t, func() { got = irverify.Verify(doc) })
+			require.NotPanics(t, func() { got = verifyDeclared(doc) })
 			assert.Len(t, unionViolations(t, doc), 1, "the empty union is still reported")
 			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
