@@ -198,6 +198,9 @@ it sees. Changes made together in one bump are listed together under it.
     could see an ID that lost the separator before its path in an operation, a service or a group,
     which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
     cannot tell which namespaces a producer minted in.
+- **0.8.0** — `SourceInfo` gained `SelfURI`, the URI a document declared for itself (OpenAPI 3.2
+  `$self`). A consumer pinned to 0.7.0 refuses a document that carries `selfURI`, since its decoder
+  rejects a member the schema does not define.
 
 ---
 
