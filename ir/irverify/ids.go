@@ -1,6 +1,8 @@
 package irverify
 
 import (
+	"encoding/json/jsontext"
+	"reflect"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -31,6 +33,69 @@ func checkIDs(doc *ir.Document) []Violation {
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
 	return vs
+}
+
+// kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
+// check that needs the prefix of a class asks one table. Channels and messages
+// are absent: no compiler mints either, so ir defines no prefix for them yet.
+var kindPrefixes = map[reflect.Type]string{
+	reflect.TypeFor[ir.TypeID]():    ir.IDKindType,
+	reflect.TypeFor[ir.AuthID]():    ir.IDKindAuth,
+	reflect.TypeFor[ir.OpID]():      ir.IDKindOp,
+	reflect.TypeFor[ir.ServiceID](): ir.IDKindService,
+	reflect.TypeFor[ir.GroupID]():   ir.IDKindGroup,
+	reflect.TypeFor[ir.PropID]():    ir.IDKindProp,
+}
+
+// pointerDerived is the classes whose ID path is the pointer the declaring
+// node's provenance records, so an ID that lost the separator between its space
+// and its path disagrees with that pointer. checkIDSpaces sees the same defect
+// in every class.
+//
+// Only a property is in it among the classes that declare their own ID. An
+// operation's provenance records where its body is declared and its ID where it
+// is mounted, and the two differ for one reached through a $ref'd path item
+// (GitHub #107). A service records no pointer and a group no provenance.
+var pointerDerived = map[reflect.Type]bool{
+	reflect.TypeFor[ir.PropID](): true,
+}
+
+// appendDeclaredIDViolations reports what is wrong with the ID a node declares
+// for itself: nothing at all, or, for a class with a kind prefix, a spelling the
+// grammar could not have produced or, where the class is pointer-derived, a path
+// that is not the pointer the node records.
+//
+// It is the grammar checkIDs holds a type's or a scheme's to, for the classes
+// that have no registry for checkIDs to read.
+func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id, path string) []Violation {
+	if id == "" {
+		noun := ir.RefNoun(class)
+		return append(vs, Violation{
+			Code:    "ir/empty-" + noun + "-id",
+			Message: noun + " declares no identity of its own, so nothing can reference it",
+			Path:    path,
+		})
+	}
+	prefix, held := kindPrefixes[class]
+	if !held {
+		return vs
+	}
+	var prov ir.Provenance
+	if pointerDerived[class] {
+		prov.Pointer = recordedPointer(node)
+	}
+	return appendIDViolations(vs, prefix, id, prov, path)
+}
+
+// recordedPointer returns the pointer the Provenance beside a node's ID records,
+// or none when the node has no Provenance. It reads the field rather than
+// converting the value for the reason fingerprintOf gives.
+func recordedPointer(node reflect.Value) jsontext.Pointer {
+	prov := node.FieldByName("Provenance")
+	if !prov.IsValid() {
+		return ""
+	}
+	return jsontext.Pointer(prov.FieldByName("Pointer").String())
 }
 
 // checkPrimIDs asserts the one TypeID ir can derive is the one the document

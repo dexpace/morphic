@@ -128,7 +128,7 @@ func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 
 // TestLoops_ReadsEachHopOnce pins that loops settles a hop once, so the
 // references of a chain cost the chain once between them, and that it stops at
-// maxLoopReads without recording what it did not settle: a chain that is cut is
+// maxLoopWork without recording what it did not settle: a chain that is cut is
 // no answer, and a second ask must not read it as one.
 func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	t.Parallel()
@@ -161,14 +161,142 @@ func TestLoops_ReadsEachHopOnce(t *testing.T) {
 	t.Run("a bound that cuts a chain", func(t *testing.T) {
 		t.Parallel()
 		l := newLoops(self, doc)
-		l.reads = maxLoopReads - 3
+		l.work = maxLoopWork - 10
 
 		assert.False(t, l.into("#/components/schemas/S0"), "a chain cut short is no answer")
 		assert.Empty(t, l.known, "and nothing it read is recorded as settled")
 
-		l.reads = 0
+		l.work = 0
 		assert.True(t, l.into("#/components/schemas/S0"), "asked again within the bound, it is read in full")
 	})
+}
+
+// TestLoops_AReadCostsItsDepthNotItsWidth pins GitHub #775 and the loop read
+// it priced: a hop costs its depth, and a mapping its width once, however many
+// hops read it. n $refs into one mapping of n keys cost about n whether they
+// read it in the source's tree, by its file name, or in its model, past an
+// extension or at the document's own keys, where the library's own read scans
+// the mapping for each, so doubling n at most doubles the work. A bound priced
+// by those scans left valid chains unresolved past it.
+func TestLoops_AReadCostsItsDepthNotItsWidth(t *testing.T) {
+	t.Parallel()
+	// work returns what loops spends reading n $refs laid out as named.
+	work := func(n int, layout string) int {
+		var lib strings.Builder
+		refs := make([]string, n)
+		for i := range n {
+			switch layout {
+			case "by file name":
+				refs[i] = fmt.Sprintf("root.yaml#/d/D%d", i)
+				fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
+			case "in an extension":
+				refs[i] = fmt.Sprintf("#/x-lib/D%d", i)
+				fmt.Fprintf(&lib, "  D%d: {type: object}\n", i)
+			default:
+				refs[i] = fmt.Sprintf("#/x-D%d", i)
+				fmt.Fprintf(&lib, "x-D%d: {type: object}\n", i)
+			}
+		}
+		spec := rootOfSchemas("    A: {type: object}\n")
+		switch layout {
+		case "by file name":
+			spec += "d:\n" + lib.String()
+		case "in an extension":
+			spec += "x-lib:\n" + lib.String()
+		default:
+			spec += lib.String()
+		}
+		root, _, err := decodeStream([]byte(spec))
+		require.NoError(t, err)
+		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+		require.NoError(t, err)
+		l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+		for _, ref := range refs {
+			require.False(t, l.into(references.Reference(ref)), ref)
+		}
+		require.Equal(t, n, l.reads, "%s: each $ref is read", layout)
+		return l.work
+	}
+	const n = 256
+	for _, layout := range []string{"by file name", "in an extension", "at the document's own keys"} {
+		small, large := work(n, layout), work(2*n, layout)
+		assert.LessOrEqual(t, large, 2*small+64, "%s: %d steps, then %d", layout, small, large)
+	}
+}
+
+// TestLoops_ReadAtChargesItsOwnSteps pins what a hop's read is charged: a
+// step, then its own steps reading the tree, for a hop read there, and the
+// model's where the tree holds no node: a step for each token the model
+// answers or fails, and its own steps reading the raw YAML the model leaves
+// for, the token that leaves included; and the keys indexed to read them, each
+// mapping once. A pointer the library refuses costs the step alone.
+func TestLoops_ReadAtChargesItsOwnSteps(t *testing.T) {
+	t.Parallel()
+	spec := rootOfSchemas("    A: {type: object}\n") + "x-lib: {a: {type: object}, b: {$ref: '#/x-lib/a'}}\n"
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+	tree := func(node *yaml.Node, pointer string) int {
+		steps, _ := newTreeReads().read(node, pointer, maxLoopWork)
+		return steps
+	}
+	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	l.readAt("/components/schemas/A", true, maxLoopWork)
+	l.readAt("/x-lib/b", false, maxLoopWork) // indexes every mapping the reads below meet
+	for _, c := range []struct {
+		pointer string
+		inTree  bool
+		next    references.Reference
+		want    int
+	}{
+		{"/x-lib/b", true, "#/x-lib/a", 1 + tree(root, "/x-lib/b")},
+		{"/x-lib/missing", true, "", 1 + tree(root, "/x-lib/missing") + tree(doc.GetRootNode(), "/x-lib/missing")},
+		{"/x-lib/b", false, "#/x-lib/a", 1 + tree(doc.GetRootNode(), "/x-lib/b")},
+		{"/components/schemas/A", false, "", 1 + 3},
+		{"/components/schemas/~2", false, "", 1},
+		{"/components/nope/A", false, "", 1 + 1 + tree(doc.Components.GetRootNode(), "/nope/A")},
+		{"/components/schemas/B", false, "", 1 + 2 + 1},
+	} {
+		next, _, steps := l.readAt(c.pointer, c.inTree, maxLoopWork)
+		assert.Equal(t, c.next, next, "%s in the tree %t", c.pointer, c.inTree)
+		assert.Equal(t, c.want, steps, "%s in the tree %t", c.pointer, c.inTree)
+	}
+	for _, inTree := range []bool{true, false} {
+		fresh := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+		indexed := newTreeReads()
+		indexed.read(root, "/x-lib/b", maxLoopWork)
+		_, _, steps := fresh.readAt("/x-lib/b", inTree, maxLoopWork)
+		assert.Equal(t, 1+tree(root, "/x-lib/b")+indexed.drain(), steps,
+			"the first read of a mapping indexes it, too, in the tree %t", inTree)
+	}
+}
+
+// TestLoops_AReadStopsAtTheBoundItHasLeft pins that a hop's read is given the
+// budget left, not the whole of it: a read near the end of the bound stops a
+// few steps past it, and the keys of the mappings it met, indexed once each,
+// though reading on through a thousand `<<` keys would cost far more, as the
+// same read within the bound shows.
+func TestLoops_AReadStopsAtTheBoundItHasLeft(t *testing.T) {
+	t.Parallel()
+	spec := rootOfSchemas("    A: {type: object}\n") + "x-m: &m {a: 1}\nx-lib:\n" + strings.Repeat("  <<: *m\n", 1000)
+	root, _, err := decodeStream([]byte(spec))
+	require.NoError(t, err)
+	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
+	require.NoError(t, err)
+
+	whole := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	assert.False(t, whole.into("#/x-lib/missing"))
+	probe := newTreeReads()
+	probe.read(doc.GetRootNode(), "/x-lib/missing", 8)
+	indexed := probe.drain()
+	require.Greater(t, whole.work, indexed+1000, "read whole, the read tries every merge")
+
+	l := newLoops(sourceDocument{path: "root.yaml", root: root}, doc)
+	l.work = maxLoopWork - 5
+	_, cut := l.read("#/x-lib/missing")
+	assert.True(t, cut, "the bound cuts the read")
+	assert.LessOrEqual(t, l.work, maxLoopWork+16+indexed, "a few steps past it, and the mappings it indexed")
 }
 
 // TestNewResolution_ReadsChainsWhereExternalReferencesAreRead pins when the
@@ -198,7 +326,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 }
 
 // TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt pins that a read cut by
-// maxLoopReads is reported, once, at the document, as a warning that the
+// maxLoopWork is reported, once, at the document, as a warning that the
 // protection against a cycle is incomplete, as the cycle scans report theirs,
 // and that a read within the bound, and no reader, report nothing.
 func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
@@ -207,9 +335,9 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 	l := newLoops(sourceDocument{}, nil)
 
 	assert.Empty(t, l.incomplete(at))
-	l.reads = maxLoopReads
+	l.work = maxLoopWork
 	assert.Empty(t, l.incomplete(at), "reads up to the bound are all read")
-	l.reads = maxLoopReads + 1
+	l.work = maxLoopWork + 1
 	diags := l.incomplete(at)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.CycleScanFailed, diags[0].Code)
@@ -221,7 +349,7 @@ func TestLoops_IncompleteReportsTheBoundTheReadsStoppedAt(t *testing.T) {
 	t.Run("surfaced by the pass", func(t *testing.T) {
 		t.Parallel()
 		doc, pass := heldResolution(t, rootOfSchemas("    A: {type: object}\n"), filepath.Join(t.TempDir(), "root.yaml"))
-		pass.loops.reads = maxLoopReads + 1
+		pass.loops.work = maxLoopWork + 1
 
 		_, diags := pass.run(doc)
 
@@ -305,7 +433,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 	} {
 		doc, pass := heldResolution(t, spec+c.extra, filepath.Join(t.TempDir(), "root.yaml"))
 		if c.spent {
-			pass.loops.reads = maxLoopReads
+			pass.loops.work = maxLoopWork
 		}
 		a, ok := doc.GetComponents().GetSchemas().Get("A")
 		require.True(t, ok)
