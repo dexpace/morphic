@@ -289,17 +289,16 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
-// serverName builds a server's neutral naming: the declared name (a field
-// OpenAPI 3.2 defines, but read on every version, as the parser does), else a
-// hint derived from the URL template, as operationName does for an operation
-// with no operationId (GitHub #258). It names by the whole URL, not the position
-// in servers[], which shifts on reordering, nor a part of it, which drops what
-// the rest distinguishes: one host serving /v1 and /v2 is two servers.
+// serverName builds a server's neutral naming: the declared name (defined by
+// OpenAPI 3.2, but read on every version, as the parser does), else a hint
+// derived from the whole URL template, as operationName does for an operation
+// with no operationId (GitHub #258). Not the position, which shifts on
+// reordering, nor part of the URL: one host serving /v1 and /v2 is two servers.
 //
 // Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
-// sequence), as two enum members can; an emitter uniquifies. So can declared
-// names that differ only once canonicalized (prod, Prod). Only declared names
-// equal as exact strings are reported (serverNameClaims).
+// sequence), as can declared names differing only once canonicalized (prod,
+// Prod); an emitter uniquifies. Only exact repeats are reported
+// (serverNameClaims).
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)
