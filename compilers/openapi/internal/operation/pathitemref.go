@@ -139,15 +139,15 @@ func siblingRefMatcher(note func(string, resolvableRef)) soa.Matcher {
 }
 
 // resolveSiblingRefs resolves every reference the sibling subtree declares,
-// against this document and under the compile's own external-reference policy,
-// reporting each one that did not resolve.
+// against this document and under the compile's external-reference policy,
+// reporting each one that did not resolve. It happens here because the
+// loader's model holds none of these nodes. The walk starts at the
+// *soa.ReferencedPathItem wrapper: *soa.PathItem has no match handler, and a
+// $ref'd callback's expressions are reached only from the mount.
 //
-// It has to happen here rather than in the loader: the loader walks the
-// document's model, and the model holds none of these nodes, so nothing else in
-// the compile ever sees them. The walk starts at the *soa.ReferencedPathItem
-// wrapper because *soa.PathItem has no match handler registered with the
-// library's walk, and because a $ref'd callback's own expressions are reached
-// only from the mount, never from a document-level walk.
+// Limitation: an allowed external reference is read by the library's own file
+// access, not the loader's reader, so the source budgets (MaxSourceBytes,
+// MaxSourceNodes) do not apply to it (GitHub #818).
 func resolveSiblingRefs(ctx context.Context, c lowering.Ctx, item *soa.PathItem, usePtr jsontext.Pointer) []ir.Diagnostic {
 	opts := soa.ResolveOptions{
 		RootDocument:        c.Doc,
