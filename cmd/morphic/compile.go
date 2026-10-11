@@ -103,11 +103,13 @@ func newCompileCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return compileSpec(cmd, args[0], opts)
 		},
+		ValidArgsFunction: completeSpecFile,
 	}
 
 	flags := cmd.Flags()
 	bindSpecFlags(flags, &opts.specOptions)
 	flags.StringVarP(&opts.outPath, "output", "o", "", "write IR JSON to this file instead of stdout")
+	flags.Lookup("output").Annotations = map[string][]string{cobra.BashCompFilenameExt: {"json"}}
 	flags.Var(&opts.explain, "explain",
 		"report what compiling produced at this pointer instead of the IR; '' is the whole document")
 	flags.BoolVar(&opts.pretty, "pretty", false,
@@ -145,6 +147,15 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 		"skip the referential-integrity validate pass")
 	fs.Var(opts.settings, "opt",
 		"set one key=value option on the compiler the spec selects (repeatable)")
+}
+
+// completeSpecFile offers spec files, by extension, for the one operand compile
+// and validate take, and nothing for a second.
+func completeSpecFile(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return []cobra.Completion{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
 }
 
 // specArgs checks what every spec-taking command takes once its flags are

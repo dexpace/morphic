@@ -1,6 +1,8 @@
 package main
 
 import (
+	"runtime/debug"
+
 	"charm.land/fang/v2"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +19,7 @@ func newRootCmd() *cobra.Command {
 		Short: "lower an API spec into Morphic IR",
 		Long:  rootDescription,
 	}
+	root.SetVersionTemplate(versionTemplate)
 	root.SetHelpCommand(newHelpCmd())
 	root.SetFlagErrorFunc(asMisuse)
 	root.AddCommand(newCompileCmd(), newValidateCmd())
@@ -29,9 +32,13 @@ func newRootCmd() *cobra.Command {
 }
 
 // fangOptions returns how fang decorates the tree: morphic reports its own
-// errors, in the shape errorHandler gives them.
+// errors, in the shape errorHandler gives them, and names its own version.
 func fangOptions() []fang.Option {
-	return []fang.Option{fang.WithErrorHandler(errorHandler)}
+	info, _ := debug.ReadBuildInfo()
+	return []fang.Option{
+		fang.WithErrorHandler(errorHandler),
+		fang.WithVersion(moduleVersion(info)),
+	}
 }
 
 // newHelpCmd builds the help command. cobra's own answers an unknown topic
@@ -43,7 +50,25 @@ func newHelpCmd() *cobra.Command {
 		Short: "show help for a command",
 		Args:  helpArgs,
 		RunE:  runHelp,
+
+		ValidArgsFunction: completeCommand,
 	}
+}
+
+// completeCommand offers the commands help can describe, for the one topic it
+// takes.
+func completeCommand(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	var names []cobra.Completion
+	for _, c := range cmd.Root().Commands() {
+		if c.IsAvailableCommand() {
+			names = append(names, cobra.CompletionWithDesc(c.Name(), c.Short))
+		}
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
 // helpArgs allows help to name at most one command.

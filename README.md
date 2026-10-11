@@ -130,6 +130,10 @@ the diagnostics and the exit code and nothing else.
 prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
 Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones.
 
+`morphic --version` prints the build and the version of the IR schema its output follows.
+`morphic completion bash|zsh|fish|powershell` prints a completion script for that shell, which
+completes commands, flags, and spec files by extension.
+
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |

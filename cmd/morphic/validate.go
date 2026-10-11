@@ -37,6 +37,7 @@ func newValidateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return validateSpec(cmd, args[0], opts)
 		},
+		ValidArgsFunction: completeSpecFile,
 	}
 
 	bindSpecFlags(cmd.Flags(), &opts)
