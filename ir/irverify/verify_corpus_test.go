@@ -58,20 +58,15 @@ func corpusSpecs(t *testing.T) []string {
 // TestVerify_Corpus runs the structural oracle over every document the OpenAPI
 // compiler produces from the committed corpus.
 //
-// internal/harness already verifies compiler output, so this is not the first
-// thing to do so. What it adds is the specs harness.Check never reaches:
-// harness.Check returns at the first error diagnostic, before irverify.Verify,
-// so every deliberately-broken fixture under testdata/dangling goes unverified
-// there. Faulting on a spec is no licence to hand back a document with a
-// dangling reference in it — that is the invariant those fixtures exist for.
+// It adds the specs harness.Check never reaches: that returns at the first
+// error diagnostic, before irverify.Verify, so the fixtures under
+// testdata/dangling go unverified there. Faulting on a spec is no licence to
+// return a document with a dangling reference.
 //
-// The reach is narrower than the sweep looks, and worth stating rather than
-// leaving to be rediscovered. Every dangling fixture yields a document and is
-// verified. Most of testdata/openapi does not: those specs are cyclic or
-// amplifying by construction and the compiler declines them outright, so the
-// subtest skips with nothing to check. Closing that gap needs the compiler to
-// emit a partial document for a spec it refuses, which is a decision about the
-// compiler and not something a checker can assert its way into.
+// Every dangling fixture is verified, but most of testdata/openapi is cyclic or
+// amplifying by construction and is declined outright, so those subtests skip.
+// Closing that gap would need a partial document for a refused spec, a compiler
+// decision.
 func TestVerify_Corpus(t *testing.T) {
 	t.Parallel()
 	for _, f := range corpusSpecs(t) {
@@ -90,19 +85,14 @@ func TestVerify_Corpus(t *testing.T) {
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
 // reaches: path-item servers, an error response's own x-* extension, and an
-// `items` tail after `prefixItems`. The parameter's xml hints are reached by the
-// corpus too, and are here so the spec covers every field unmodeledKeys reads —
-// the operation itself, its parameters, its errors and the type registry —
-// leaving a collector that stopped reading one of them to fail the precondition
-// below rather than quietly narrow what is verified.
+// `items` tail after `prefixItems`. The parameter's xml hints are reached by
+// the corpus too; they are here so the spec covers every field unmodeledKeys
+// reads (the operation, its parameters, its errors and the type registry), so a
+// collector that stops reading one fails the precondition below rather than
+// narrowing what is verified.
 //
-// The 404 also declares headers and two media types, which write nothing here
-// any more: both lower structurally onto ir.ErrorCase (GitHub #422). They stay
-// for the same reason the xml hints do — the corpus reaches them too
-// (per-status-errors.yaml puts Retry-After and X-RateLimit-Remaining on a 429,
-// and extensions-x.yaml declares x-mark on a 404), and keeping them here is what
-// makes this one spec cover every field unmodeledKeys reads rather than most of
-// them.
+// The 404's headers and two media types write no Unmodeled entries, as both
+// lower structurally onto ir.ErrorCase (GitHub #422).
 const uncorpusedUnmodeled = `openapi: 3.1.0
 info: {title: UnmodeledSites, version: "1"}
 paths:

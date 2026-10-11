@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info: {title: GroupIdentity, version: "1.0.0"}
+tags:
+  - {name: default, description: A declared tag spelled like the group untagged operations fall into}
+  - {name: webhooks}
+paths:
+  /declared:
+    get:
+      operationId: declared
+      tags: [default]
+      responses: {"200": {description: ok}}
+  /untagged:
+    get:
+      operationId: untagged
+      responses: {"200": {description: ok}}
+  /named-like-the-webhook-group:
+    get:
+      operationId: namedLikeWebhooks
+      tags: [webhooks]
+      responses: {"200": {description: ok}}
+  /undeclared:
+    get:
+      operationId: undeclared
+      tags: [ghost]
+      responses: {"200": {description: ok}}
+  /slash:
+    get:
+      operationId: slash
+      tags: ["a/b"]
+      responses: {"200": {description: ok}}
+  /tilde:
+    get:
+      operationId: tilde
+      tags: ["a~1b"]
+      responses: {"200": {description: ok}}
+webhooks:
+  onEvent:
+    post:
+      operationId: onEvent
+      responses: {"200": {description: ok}}

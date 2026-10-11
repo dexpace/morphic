@@ -28,18 +28,16 @@ const (
 )
 
 // TestEnumMemberForm_NamesEveryValueKind requires enumMemberForm's switch to name
-// every ir.ValueKind constant the ir sources declare, in some arm.
+// every ir.ValueKind constant the ir sources declare.
 //
-// A ValueKind switch that ends in a guessing default is not a compile error and
-// not a test failure: the new kind is simply absorbed, described as whatever the
-// default asserts. That is how a byte-valued enum came to be described as a
-// string with unnamed members. Deriving the set from the ir sources rather than
-// maintaining a list here is what makes the next addition a red test — the same
-// discipline the sealed TypeKind completeness check uses, applied to the sum that
-// is a bare string enum and so has no marker method to enforce it.
+// A ValueKind switch ending in a guessing default is neither a compile error nor
+// a test failure: a new kind is absorbed and described as whatever the default
+// asserts. ValueKind is a bare string enum with no marker method to enforce
+// completeness, so deriving the set from the ir sources is what makes the next
+// addition a red test.
 //
 // The check is syntactic, matching case expressions of the form ir.ValueX. An arm
-// may still classify a kind wrongly; what it may no longer do is not mention it.
+// may still classify a kind wrongly; it may no longer omit it.
 func TestEnumMemberForm_NamesEveryValueKind(t *testing.T) {
 	t.Parallel()
 	declared := irConstNamesOfType(t, "ValueKind")

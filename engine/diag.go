@@ -10,16 +10,13 @@ import (
 // the compilers' (openapi/*) and the passes' (ir/*), so a CI wrapper can
 // allowlist them by name.
 //
-// Each reports a problem with the source the caller named, not with the call.
-// They exist because the pipeline can reject a spec before any compiler runs,
-// and a rejection is a finding about the spec whichever stage makes it. A Go
-// error out of Run means something other than the spec went wrong: the file
-// could not be read, or a compiler broke its own contract.
-// Detection itself reports under no engine code. The engine parses nothing, so
-// the account of why a source could not be read belongs to the compiler that
-// recognized it — openapi/undecodable-source, for one that declares an OpenAPI
-// key and will not parse. An engine code here would have to describe every
-// format at once, and would be wrong for the first one that is not YAML.
+// Each reports a problem with the source the caller named, which the pipeline
+// can reject before any compiler runs. A Go error out of Run means the file
+// could not be read or a compiler broke its contract.
+//
+// Detection reports under no engine code: the engine parses nothing, so why a
+// source could not be read belongs to the compiler that recognized it
+// (openapi/undecodable-source).
 const (
 	// codeUnrecognizedFormat: no compiler claimed the source, and none of them
 	// had anything to say about why.
@@ -34,29 +31,25 @@ const (
 // Error is the severity because nothing was lowered: the spec reached the IR in
 // no form at all.
 //
-// The provenance is deliberately positionless. These are raised before anything
-// is lowered, so there is no document whose Sources table an index could
-// address, and ir.NoSource is the IR's value for a finding that names no entry
-// in one. An index invented here would have a renderer point at a file the
-// finding is not about.
+// It names the spec as Source 0 of the table Run reports beside it, and no
+// position in it: these are raised before anything is lowered, about the file
+// as a whole.
 func specProblem(code, format string, args ...any) ir.Diagnostic {
 	return ir.NewDiagnostic(ir.SeverityError, code, fmt.Sprintf(format, args...),
-		ir.Provenance{Source: ir.NoSource})
+		ir.Provenance{Source: 0})
 }
 
 // mergeDiagnostics returns stored followed by every diagnostic in produced that
-// stored does not already hold. Identity is the whole value — severity, code,
-// message and provenance — the same identity compilers/compile dedupes on.
+// stored does not already hold. Identity is the whole value (severity, code,
+// message and provenance), the same identity compilers/compile dedupes on.
 //
-// It exists because a compiler hands its findings back on two channels and is
-// obliged to fill only one of them. Assigning either list over the other loses
-// whatever the loser held, in silence and at every severity; merging keeps both
-// and hands a compiler that fills them alike, as the OpenAPI one does, back
-// exactly what it gave.
+// A compiler hands its findings back on two channels and need fill only one, so
+// assigning either list over the other would silently lose whatever the loser
+// held. Merging keeps both.
 //
-// The merged slice is always freshly allocated when there is anything to merge:
-// stored and produced routinely alias one another, and appending into a shared
-// backing array would overwrite entries still to be read.
+// The merged slice is freshly allocated when there is anything to merge: stored
+// and produced routinely alias one another, and appending into a shared backing
+// array would overwrite entries still to be read.
 func mergeDiagnostics(stored, produced []ir.Diagnostic) []ir.Diagnostic {
 	if len(produced) == 0 {
 		return stored

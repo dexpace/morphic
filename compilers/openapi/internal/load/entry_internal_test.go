@@ -1,10 +1,12 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,7 +99,7 @@ func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *te
 	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2")
 	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
 
-	atVersion := schemaFindings(t.Context(), doc)
+	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc))
 	for site := range dropped {
 		assert.Contains(t, atVersion, site,
 			"a dropped finding is one the library's own run raised")
@@ -113,7 +115,7 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 	spec := defaultMapping32Spec + "    Broken: {type: 42}\n"
 	doc, _ := parseSpec(t, spec)
 
-	atVersion := schemaFindings(t.Context(), doc,
+	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc),
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
 	require.NotEmpty(t, atVersion, "the invalid schema is a finding at 3.2 too")
 
@@ -126,14 +128,22 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 // TestLoad_ResolverFaultBecomesADiagnostic pins the last refusal in the load
 // path: a document the parser accepts and the resolver faults on is reported as
 // an unresolved reference, so the fault never escapes as a Go error or a crash.
+// It is sited at the reference being resolved when the panic hit, the same way
+// an ordinary resolution failure is (TestEachReference_PanicIsReportedAtTheReference
+// covers the panic-handling mechanism itself).
 func TestLoad_ResolverFaultBecomesADiagnostic(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(resolverPanicSpec), Options{})
 
 	require.NoError(t, err, "a resolver fault is a spec problem, not a Go error")
 	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	assert.NotZero(t, countErrorsAt(diags, diag.UnresolvedRef),
-		"and it is reported: %+v", diags)
+	require.Equal(t, 1, countErrorsAt(diags, diag.UnresolvedRef), "and it is reported: %+v", diags)
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			assert.Equal(t, jsontext.Pointer("/components/responses/000"), d.Provenance.Pointer,
+				"the reference being resolved when the panic hit")
+		}
+	}
 }
 
 // TestLoad_RecoverableLiteralIsNotAnInvalidSyntaxFinding pins the numeric-literal

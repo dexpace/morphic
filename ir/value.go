@@ -35,16 +35,14 @@ const (
 
 // Value is typed data kept separate from the type graph: defaults, constants,
 // literal types, enum member values, and examples (ir-design §6). Kind selects
-// which payload field is meaningful; the remaining fields hold their zero
-// value, and every payload is omitted when empty. Kind already says which
-// payload a value carries, so an empty list and a nil one are the same value
-// and share one spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
+// which payload field is meaningful; the others hold their zero value, and
+// every payload is omitted when empty, so an empty list and a nil one share one
+// spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
 //
-// irverify.Verify holds this contract rather than assuming it: a populated
-// field the kind does not select is ir/value-stray-payload, an absent one it
-// does select is ir/value-missing-payload (number, ref and ctor only — the
-// other kinds' zero payload is a real value), and a kind outside this file's
-// declared set is ir/unknown-value-kind.
+// irverify holds this contract: a populated field the kind does not select is
+// ir/value-stray-payload, an absent one it does select is
+// ir/value-missing-payload (number, ref and ctor only; the other kinds' zero
+// payload is a real value), and an undeclared kind is ir/unknown-value-kind.
 type Value struct {
 	// Kind selects the meaningful payload field.
 	Kind ValueKind `json:"kind"`

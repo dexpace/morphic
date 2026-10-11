@@ -37,18 +37,13 @@ const (
 // TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails when the IR declares a
 // field carrying an ir.Payload that encodingCarriers does not name.
 //
-// forEachPayload reaches every Payload by naming the Payload-bearing fields by
-// hand, because nothing in a Payload's Go type says who owns one. Naming them
-// costs a coupling the compiler cannot check, and this is what checks it: a
-// fourth carrier added to the IR would otherwise be walked by neither the checks
-// built on the walk nor the cases below, its encoding keys resolved against
-// nothing and its Required unjudged, with the whole suite green.
-//
-// The guard holds both lists at once, in two steps. Here it holds
+// forEachPayload names the Payload-bearing fields by hand, a coupling the
+// compiler cannot check: a carrier added to the IR would otherwise be walked by
+// neither the checks built on the walk nor the cases below, with the whole
+// suite green. The guard holds both lists in two steps. This test holds
 // encodingCarriers against the IR; TestValidate_EncodingKeyAddressesNoProperty
-// then holds forEachPayload against encodingCarriers, by requiring a diagnostic
-// from every entry. So a carrier added to the IR reddens this test, and adding
-// it here reddens that one until forEachPayload walks it too.
+// holds forEachPayload against encodingCarriers by requiring a diagnostic from
+// every entry.
 func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	t.Parallel()
 	carriers := encodingCarriers()
@@ -71,11 +66,10 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 //
 // The walk starts at ir.Document and visits each distinct reflect.Type once, so
 // recursive shapes terminate. The sealed TypeDef sum is reached only through an
-// interface, which a walk over the static type graph cannot descend into, so each
-// concrete kind is walked from its own root as well — seeded from the kinds the
-// ir sources declare, so a variant is covered the day it is added rather than the
-// day someone remembers a list here (ir/nofloat_test.go walks the same two halves
-// for the same reason).
+// interface, which a static walk cannot descend into, so each concrete kind is
+// walked from its own root as well, seeded from the kinds the ir sources
+// declare so a new variant is covered at once (ir/nofloat_test.go walks the
+// same two halves).
 func payloadFields(t *testing.T) []string {
 	t.Helper()
 	var found []string

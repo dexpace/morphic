@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: &a
+      type: object
+      $defs: {n: {type: object, properties: {x: {type: string}}}}
+      properties: {p: {$ref: "#/$defs/n"}}
+    B: *a
+    C:
+      type: object
+      $defs: {n: {type: object, properties: {y: {type: integer}}}}
+      properties: {q: {$ref: "#/$defs/n"}}
+    Base: &b
+      $defs: {m: {type: object, properties: {z: {type: boolean}}}}
+      properties: {r: {$ref: "#/$defs/m"}}
+    Child:
+      <<: *b
+      type: object

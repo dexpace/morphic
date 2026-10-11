@@ -56,23 +56,16 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 	}
 }
 
-// TestUnmodeledReason_TiesToConstBlock closes the gap a bare string enum leaves:
-// nothing rejects an undeclared value on deserialization, so Valid is what the
-// verifier tests against, and Valid has to stay tied to the const block. It
-// parses the ir package with go/ast — the approach
-// internal/harness's TestConstBlock_TiesToAnnotationsAndSiteKinds and
-// internal/archtest's import rules both use — and enforces two directions: the
-// declared reasons and unmodeledReasonWire name the same set, and every declared
-// reason is Valid. Adding a constant without teaching Valid about it fails here
-// rather than surfacing later as a spurious ir/unknown-unmodeled-reason.
+// TestUnmodeledReason_TiesToConstBlock keeps UnmodeledReason.Valid tied to the
+// const block, since nothing rejects an undeclared value on deserialization. It
+// parses the ir package with go/ast and requires the declared reasons and
+// unmodeledReasonWire to name the same set, and every declared reason to be
+// Valid: declared is the bar, not written, since the wire can carry a reason
+// the moment a compiler first writes it.
 //
-// The converse of the second direction is not enforced, and cannot be from here:
-// a case added to Valid for a value no constant declares leaves this green,
-// because a switch body is not enumerable at run time.
+// The converse, a case added to Valid for a value no constant declares, cannot
+// be enforced here, since a switch body is not enumerable at run time.
 // TestUnmodeledReason_UnknownIsInvalid pins only the two values it names.
-//
-// Declared is the bar, not written: a reason no compiler has written yet must
-// still be Valid, because the wire can carry it the moment one does.
 func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredReasons(t)
@@ -175,15 +168,14 @@ func parseDeclaredReasons(t *testing.T) []string {
 }
 
 // reasonValues returns the unquoted value of each `Name UnmodeledReason =
-// "literal"` spec in gd, which was declared in the source file named file. home
-// is the reason type's own file, whose every declaration is held to that form.
+// "literal"` spec in gd, declared in the source file named file. home is the
+// reason type's own file, whose every declaration is held to that form.
 //
-// Nothing is skipped in silence. A spec naming the reason type in any other form
-// fails here, and so does any spec at all in home, which holds nothing else:
-// skipping would let a constant join the taxonomy at every usage site — untyped,
-// built by a conversion, typed through a same-file alias, or held in a mutable
-// var — without this test ever recording it, producing exactly the spurious
-// ir/unknown-unmodeled-reason the tie exists to prevent.
+// Nothing is skipped in silence. A spec naming the reason type in any other
+// form fails, as does any spec at all in home: skipping would let a constant
+// join the taxonomy unrecorded — untyped, built by a conversion, typed through
+// a same-file alias, or held in a mutable var — and surface later as a spurious
+// ir/unknown-unmodeled-reason.
 func reasonValues(t *testing.T, gd *ast.GenDecl, file, home string) []string {
 	t.Helper()
 	var out []string

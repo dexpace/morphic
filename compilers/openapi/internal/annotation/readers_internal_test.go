@@ -131,13 +131,11 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 // mapping of ir-design §5.2, the precedence a site holds over its referent, and
 // the answer for the pairing that admits nothing.
 //
-// Precedence is per flag: a site that writes readOnly settles readOnly for the
-// position and says nothing about writeOnly, which therefore still resolves
-// from the referent — the uniform §14 merge every other annotation here already
-// follows. So a site's readOnly does not cancel a referent's writeOnly; the two
-// are both in force, they admit disjoint lifecycle sets, and the position is
-// left visible in none. That case read as plain readOnly until GitHub #276,
-// when the flag arriving second was dropped without a word.
+// Precedence is per flag (the uniform §14 merge): a site's readOnly settles
+// readOnly only, so it does not cancel a referent's writeOnly. Both are in
+// force, admit disjoint lifecycle sets, and leave the position visible in none.
+// Until GitHub #276 that case read as plain readOnly, dropping the flag
+// arriving second.
 func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 	t.Parallel()
 	read := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}}
@@ -632,24 +630,14 @@ func TestRawMappingKeys_ReadsOnlyAMapping(t *testing.T) {
 }
 
 // TestRawChildNode_IsNotTheMergeAwareView pins the difference between this
-// reader and nodeview's, which is the reason the two exist side by side: what a
-// keyword is preserved *as* is what the source spelled at it, while what a
-// pointer or a $ref *resolves to* is what the parser will see.
+// reader and nodeview's, which is why both exist: what a keyword is preserved
+// *as* is what the source spelled, while what a pointer or $ref *resolves to*
+// is what the parser will see.
 //
-// Two of the cases are ways the trees diverge, and each is a keyword this
-// package would preserve verbatim. Answering a raw read through the view would
-// silently rewrite both — a merged keyword would appear at a schema that never
-// wrote it, and an alias would be replaced by its target.
-//
-// The third is here because it stopped being one. A repeated key used to resolve
-// to opposite ends, and GitHub #356 made the raw read take the last pair as the
-// parser does, on the grounds that returning the first described a mapping by a
-// value nothing else in the compiler uses. It is asserted rather than dropped so
-// that the agreement is pinned: a reader drifting back to first-wins is a change
-// worth failing on, not a detail to rediscover.
-//
-// It reaches across packages because that is where the mistake would be made:
-// nothing inside either reader can see that the other answers differently.
+// Answering a raw read through the view would make a merged keyword appear at a
+// schema that never wrote it and replace an alias by its target; the first two
+// cases pin those divergences. The third pins an agreement: since GitHub #356
+// both take the last pair of a repeated key, as the parser does.
 func TestRawChildNode_IsNotTheMergeAwareView(t *testing.T) {
 	t.Parallel()
 
@@ -717,17 +705,13 @@ func TestRawChildNode_FindsAKeyWrittenAsAnAlias(t *testing.T) {
 	assert.Nil(t, RawChildNode(&doc, "k"), "and not by the anchor it is written as")
 }
 
-// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair the
-// parser reads: marshaller skips every occurrence of a repeated key but the
-// last, so returning the first would describe the mapping by a value nothing
-// else in the compiler uses.
+// TestRawChildNode_RepeatedKeyReadsTheLastPair holds this reader to the pair
+// the parser reads, which is the last of a repeated key.
 //
-// Spelled with an alias, because that is how the case is reachable from a parsed
-// document — yaml.v3 refuses a key written twice when it decodes into a typed
-// value, as the model parse does, so a plainly repeated key faults the document
-// before any reader sees it. Decoding into a *yaml.Node, which is how a fixture
-// builds a tree directly, accepts one; an explicit pair and an aliased one are
-// two nodes here and one key to the parser either way.
+// The repeat is spelled with an alias because yaml.v3 refuses a plainly
+// repeated key when decoding into a typed value, as the model parse does. An
+// explicit pair and an aliased one are two nodes here and one key to the
+// parser.
 func TestRawChildNode_RepeatedKeyReadsTheLastPair(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, body, want string }{

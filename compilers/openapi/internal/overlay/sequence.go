@@ -26,32 +26,17 @@ const strictFailurePrefix = "error applying overlay (strict): "
 // reaches it answers "past any budget" rather than descending further.
 const maxWeighDepth = 1 << 14
 
-// sequence applies an overlay one action at a time, checking before each that
-// what the action is about to build fits the budget.
+// sequence applies an overlay one action at a time, so the node budget is
+// checked against each action's cost before it builds anything.
 //
 // The library applies a whole overlay in one call, and an action copies its
-// update into every node its selector matches: the cost is the update's size
-// times the number of matches, paid in full before anything can refuse it. A
-// 2,000-node update over 1,000 path items spent 1 GB building a tree the node
-// budget then refused (GitHub #491).
+// update into every node its selector matches, paying that cost before anything
+// can refuse it (GitHub #491). The count uses the tree as it stands, since an
+// earlier action can graft nodes or set values a later selector matches.
 //
-// The count has to be taken on the tree as it stands when the action runs, not
-// on the source. Actions apply in order, so an earlier one can graft the very
-// nodes a later selector matches, or set the value a later filter selects on
-// across nodes that were there all along; a count taken up front misses both,
-// by as much as the budget squared. Applying one action at a time is what makes
-// the count exact, and it changes nothing about the result: each action is
-// still the library's, applied to the same tree in the same order, and the one
-// step the library runs once at the end — restyling folded scalars — changes a
-// scalar's style and never its value, which is all a selector reads.
-//
-// What does change is where the reporting comes from. The library numbers each
-// action's warnings against the whole overlay, says once that a filter needs
-// RFC 9535, and joins every selector that matched nothing into one error; run
-// action by action it would number each as the only one, say the filter note
-// each time, and fail per action. The sequence puts those back as the library
-// writes them — which the differential test holds it to, against the library's
-// own whole-overlay application.
+// The result is unchanged. The library's whole-overlay reporting is rebuilt:
+// warning numbering, one RFC 9535 note, and one error joining the selectors
+// that matched nothing.
 type sequence struct {
 	doc      *soaoverlay.Overlay
 	root     *yaml.Node
@@ -260,10 +245,9 @@ func countNodes(root *yaml.Node) int64 {
 // clone follows the alias and copies that too.
 //
 // Each node is weighed once, so an anchor named from many places costs one walk
-// of it rather than one per name. A node met again on its own path is a cycle,
-// which the clone would follow without end; it weighs the ceiling, which puts
-// any budget out of reach. The loader refuses such an overlay before it gets
-// here (GitHub #489) — this only has to terminate.
+// of it. A node met again on its own path is a cycle, which the clone would
+// follow without end; it weighs the ceiling, putting any budget out of reach.
+// The loader refuses such an overlay first (GitHub #489); this only terminates.
 type weigher struct {
 	memo    map[*yaml.Node]int64
 	onPath  map[*yaml.Node]bool

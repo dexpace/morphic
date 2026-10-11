@@ -79,19 +79,16 @@ type declaration struct {
 	mounts []jsontext.Pointer
 }
 
-// judge reports one operationId's declarations, ordered as declarations orders
-// them, so every finding lands in the same place whatever order the document
-// declares them in.
+// judge reports one operationId's declarations in the order declarations gives,
+// so findings do not depend on the order the document declares them in.
 //
-// A second declaration writing the id is an error where it is written. The
-// document itself repeats the id there, which OpenAPI forbids among all the
-// operations it describes, webhooks and callbacks included.
+// A second declaration writing the id is an error where it is written: OpenAPI
+// requires the id to be unique across the whole API.
 //
-// A declaration mounted more than once is a warning at each mount but its first:
-// a path item or an operation that a $ref, a YAML alias or a merge key reuses.
-// The document writes the id once, but each mount is an operation of its own,
-// and an emitter renders them all under one identifier. A declaration mounted
-// where it is written is spared there, so the warning lands where a reuse is.
+// A declaration mounted more than once (reused by a $ref, a YAML alias or a
+// merge key) is a warning at each mount but its first, the one where it is
+// written when it has one. The document writes the id once, but an emitter
+// renders every mount under one identifier.
 func judge(c lowering.Ctx, name string, decls []declaration) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, d := range decls {
@@ -122,19 +119,15 @@ func declarations(claims []operationIDClaim, written *writtenTree) []declaration
 	return decls
 }
 
-// byDeclaration partitions claims by the declaration they mount. Two claims
-// mount one when they share the node declaring it, which is how a $ref, a YAML
-// alias and a merge key reuse a declaration, or when they resolve to one
-// declaration pointer. The second is how a reference naming this document by
-// its file name reuses one: the compiler reads it as internal, but the resolver
-// parses the document again to follow it, so the node it yields is a copy. A
-// self-reference spelled through a directory, like ./spec.yaml, is read as
-// another document instead, here as everywhere else (GitHub #576), so it
-// shares neither and reads as a conflict.
+// byDeclaration partitions claims by the declaration they mount. Claims mount
+// one when they share the node declaring it (a $ref, YAML alias or merge key
+// reuse) or resolve to one declaration pointer. A reference naming this
+// document by its file name does both. One through a directory, like
+// ./spec.yaml, is given another document's pointer (GitHub #576), and shares
+// the node, since the resolver answers it from the source as held.
 //
-// Neither test can turn a conflict into a reuse: one node is one declaration,
-// and so is one declaration pointer, however it was reached. A claim with no
-// node is grouped by its declaration pointer alone.
+// Neither test can turn a conflict into a reuse, since each identifies one
+// declaration.
 func byDeclaration(claims []operationIDClaim) [][]operationIDClaim {
 	sets := newDisjointSets(len(claims))
 	byNode := make(map[*yaml.Node]int, len(claims))
