@@ -302,7 +302,8 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 	if dst.Type.Target != src.Type.Target {
 		// A format hoist alone differs here: `{type: string, format: password}`
 		// owns a Scalar while a bare string stays on the shared primitive, so the
-		// format drops without a diagnostic. GitHub #446 owns whether it should.
+		// later declaration is dropped whole, its shape details with it, and which
+		// one that is depends on branch order. Nothing reports it (GitHub #782).
 		dropped = true
 	} else {
 		// Same referent, and the only thing left for the two to disagree about

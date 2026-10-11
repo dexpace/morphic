@@ -91,11 +91,10 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	// The bare declaration comes first and the richer one second: reconciliation
 	// must still surface every optional detail, so branch order never loses
 	// information (the reverse of the forkee documented-first shape). The richer
-	// branch writes no format on purpose: a format that hoists a node of its own
-	// (byte, password, an unknown one) changes the branch's type target, and the
-	// fold then drops the declaration rather than folding its details — the
-	// secrecy half of that rule is its own case
-	// (TestAllOf_RedeclarationOrsSecret).
+	// branch writes no format because a format that hoists a node of its own
+	// changes the branch's type target, and the fold then drops the declaration
+	// rather than folding its details (GitHub #782). The secrecy half of that is
+	// TestAllOf_RedeclarationOrsSecret.
 	spec := openapitest.ComponentSpec(`    Tokenish:
       allOf:
         - type: object
@@ -135,9 +134,9 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 // merge whichever declaration the type fold keeps (reconcileProperty). The two
 // branches no longer share a target once one of them writes `format: password`,
 // which hoists a Scalar of its own, so the shape fold drops the losing
-// declaration and keeps it verbatim rather than folding its details — the silent
-// interplay GitHub #446 owns, since typesConflict does not fire while both sides
-// still name a string.
+// declaration and keeps it verbatim rather than folding its details, silently
+// and in an order-dependent way (GitHub #782). Once that is fixed, this case
+// should assert the folded fields as well.
 func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, branches string }{

@@ -5091,7 +5091,7 @@ func TestRedactionFormat_HoistsASensitiveScalar(t *testing.T) {
 
 // TestRedactionFormat_PredicateIsTheFormatNotTheType pins that the arm keys on
 // `format` rather than on `string`: the same format on a non-string type states
-// the same redaction, and was otherwise lossless only by accident.
+// the same redaction.
 func TestRedactionFormat_PredicateIsTheFormatNotTheType(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -5139,6 +5139,47 @@ func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	shared, ok := doc.Types[ir.TypeID("t/prim/string")]
 	require.True(t, ok, "the shared string primitive is registered")
 	assert.False(t, shared.Common().Sensitive, "the shared primitive is never sensitive")
+}
+
+// TestRedactionFormat_BesideContentEncoding pins the one hoist where the format
+// is not Encoding.Name: contentEncoding names the encoding, so the format is kept
+// verbatim under Unmodeled and reported, while Sensitive still holds.
+func TestRedactionFormat_BesideContentEncoding(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Encoded: {type: string, format: password, contentEncoding: base64, contentMediaType: text/plain}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	sc, ok := typeByName(doc, "Encoded").(*ir.Scalar)
+	require.True(t, ok)
+	assert.True(t, sc.Sensitive, "the redaction does not depend on which keyword names the encoding")
+	require.NotNil(t, sc.Encoding)
+	assert.Equal(t, "base64", sc.Encoding.Name, "contentEncoding wins Encoding.Name")
+	assert.Contains(t, sc.Unmodeled, "openapi:format", "the format is kept verbatim beside it")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Encoded/format"),
+		"the format beside contentEncoding is reported where it was written")
+}
+
+// TestRedactionFormat_BesideEnumOrConstIsNotSensitive pins a recorded limit
+// rather than a goal: an enum or a const lowers to an Enum or a Literal, which
+// keeps the format verbatim and is not Sensitive (GitHub #607, #668). The
+// property beside it still reads the format itself, so it stays secret.
+func TestRedactionFormat_BesideEnumOrConstIsNotSensitive(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Holder:\n      type: object\n      properties:\n"+
+			"        choice: {type: string, format: password, enum: [a]}\n"+
+			"        fixed: {type: string, format: password, const: abc}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, wire := range []string{"choice", "fixed"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.True(t, p.Secret, "%s: the property reads its own format", wire)
+		node, ok := doc.Types[p.Type.Target]
+		require.True(t, ok, wire)
+		assert.False(t, node.Common().Sensitive, "%s: no Scalar to carry it (#607, #668)", wire)
+		assert.Contains(t, node.Common().Unmodeled, "openapi:format", "%s: kept verbatim", wire)
+	}
 }
 
 // TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt pins that a

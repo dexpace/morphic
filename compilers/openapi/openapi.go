@@ -181,6 +181,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
+	acc.AppendAll(schema.MarkSecretUses(c, out))
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version

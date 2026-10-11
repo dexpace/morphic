@@ -180,7 +180,7 @@ func conformanceCases() []conformanceCase {
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
 		{"empty-enum", assertEmptyEnum, nil},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
-		{"secret-format", assertSecretFormat, []string{"custom-scalars"}},
+		{"secret-format", assertSecretFormat, nil},
 		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
 		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
 		{"xml-hints", assertXMLHints, nil},
@@ -1147,14 +1147,15 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertSecretFormat pins where a `format: password` position's fact lands: a
-// Scalar of its own carrying Sensitive and the verbatim spelling at every schema
-// position, and Property.Secret beside it wherever a property or a header is the
-// carrier. It reads the nodes rather than the golden's bytes, so a node that
-// moved to another position while keeping the same fields still fails
-// (GitHub #579).
+// Scalar of its own carrying Sensitive, the verbatim spelling and the bounds
+// written beside it at every scalar position, and Property.Secret wherever a
+// property or a header is the carrier, through any wrapper. It reads the nodes
+// rather than the golden's bytes, so a node that moved to another position
+// while keeping the same fields still fails (GitHub #579).
 func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	// The named component every reference resolves to.
+	// The named component every reference resolves to, carrying its own bound.
 	requireSecretScalar(t, doc, namedID("Pw"), "component schema")
+	requireLengthBounds(t, doc, namedID("Pw"), new(int64(8)), nil, "component schema")
 
 	login, ok := doc.Types[namedID("Login")].(*ir.Model)
 	require.True(t, ok, "Login is a model")
@@ -1171,12 +1172,21 @@ func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, viaRef.Secret, "a $ref to a redaction schema is secret at the use")
 	assert.Equal(t, namedID("Pw"), viaRef.Type.Target, "it resolves to the component")
 
+	// The wrappers: each reaches the Sensitive node through a nullable ref or a
+	// Base chain, and each use is secret all the same.
+	for _, wire := range []string{"nullable", "wrapped", "viaAlias"} {
+		p, ok := propByWire(login, wire)
+		require.True(t, ok, wire)
+		assert.True(t, p.Secret, "%s: a use reaching the node through a wrapper is secret", wire)
+	}
+
 	// Array items.
 	arr, ok := propByWire(login, "arr")
 	require.True(t, ok)
 	list, ok := doc.Types[arr.Type.Target].(*ir.List)
 	require.True(t, ok, "arr hoists a list")
 	requireSecretScalar(t, doc, list.Elem.Target, "array items")
+	requireLengthBounds(t, doc, list.Elem.Target, nil, new(int64(64)), "array items")
 
 	// additionalProperties and patternProperties.
 	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
@@ -1199,6 +1209,7 @@ func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	token, ok := paramByName(op, "X-Token")
 	require.True(t, ok)
 	requireSecretScalar(t, doc, token.Type.Target, "header parameter schema")
+	requireLengthBounds(t, doc, token.Type.Target, new(int64(12)), nil, "header parameter schema")
 	key, ok := paramByName(op, "api_key")
 	require.True(t, ok)
 	assert.Equal(t, namedID("Pw"), key.Type.Target, "the query parameter resolves to the component")
@@ -1208,11 +1219,15 @@ func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Responses, 1)
 	requireSecretScalar(t, doc, openapitest.BodyTarget(t, op.Responses[0].Payload), "response content schema")
 
-	// A response header: Property.Secret beside the node.
-	require.Len(t, op.Responses[0].Headers, 1)
+	// A response header: Property.Secret beside the node, and through a
+	// nullable reference to the component.
+	require.Len(t, op.Responses[0].Headers, 2)
 	header := op.Responses[0].Headers[0]
 	assert.True(t, header.Secret, "the response header is secret")
 	requireSecretScalar(t, doc, header.Type.Target, "response header schema")
+	maybe := op.Responses[0].Headers[1]
+	assert.True(t, maybe.Secret, "a nullable reference to a redaction schema is secret")
+	assert.Equal(t, ir.TypeRef{Target: namedID("Pw"), Nullable: true}, maybe.Type)
 
 	// The guard: a bare string still targets the shared primitive, which stays
 	// not sensitive — the redaction must never leak onto the node every
@@ -1240,6 +1255,17 @@ func requireSecretScalar(t *testing.T, doc *ir.Document, id ir.TypeID, position 
 	assert.Equal(t, "password", sc.Encoding.Name, "%s: the source token verbatim", position)
 	require.NotNil(t, sc.Base, "%s: a base to ride", position)
 	assert.Equal(t, ir.TypeID("t/prim/string"), sc.Base.Target, "%s: over the bare type's primitive", position)
+}
+
+// requireLengthBounds requires the Scalar at id to carry the length bounds the
+// position wrote beside its format: a hoisting format must not drop them.
+func requireLengthBounds(t *testing.T, doc *ir.Document, id ir.TypeID, minLen, maxLen *int64, position string) {
+	t.Helper()
+	sc, ok := doc.Types[id].(*ir.Scalar)
+	require.True(t, ok, "%s: a Scalar at %s", position, id)
+	require.NotNil(t, sc.Constraints, "%s: the bounds written beside the format", position)
+	assert.Equal(t, minLen, sc.Constraints.MinLength, "%s: minLength", position)
+	assert.Equal(t, maxLen, sc.Constraints.MaxLength, "%s: maxLength", position)
 }
 
 // assertXMLHints covers the XML wire shape, whose hints attach at two carriers

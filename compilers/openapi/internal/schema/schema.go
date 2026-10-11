@@ -1109,7 +1109,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	// The referent is read beside the use site for the reason §14 reads one for
 	// any other declaration-scoped, use-binding fact (annotation.EffectiveVisibility,
 	// fillPropertyDefault): a $ref to a redaction schema states the redaction at
-	// the use, and the reference node's own format is empty.
+	// the use, and the reference node's own format is empty. A use reaching the
+	// node through a wrapper is MarkSecretUses' to mark, once the node exists.
 	if ref.GetFormat() == redactionFormat ||
 		(tgt != nil && tgt.GetFormat() == redactionFormat) {
 		p.Secret = true
@@ -1343,14 +1344,15 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return t, diags
 }
 
-// redactionFormat is the one OpenAPI format stating a fact about how a value is
-// handled rather than what shape it has: the value must be redacted. No PrimKind
-// can hold it — the primitive a bare type selects is interned once per kind and
-// shared by every declaration of that type — so a position writing it hoists a
-// Scalar of its own carrying Sensitive and the verbatim spelling in
-// Encoding.Name, exactly as byte and an unknown format do. It is named once and
-// read by both the lowering arm below and the per-use carrier
-// (FillPropertyDetail), so the two cannot drift.
+// redactionFormat is the one OpenAPI format stating how a value is handled
+// rather than what shape it has: the value must be redacted. No PrimKind can
+// hold it, since a primitive is shared by every declaration of its type, so a
+// position writing it hoists a Scalar carrying Sensitive and the verbatim
+// spelling in Encoding.Name, as byte and an unknown format do.
+//
+// Property.Secret has two writers. FillPropertyDetail reads the format on the
+// declaration, which the allOf fold OR-s across redeclarations; MarkSecretUses
+// reads the lowered node, catching a use that reaches it through a wrapper.
 const redactionFormat = "password"
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
@@ -1364,10 +1366,9 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 		return hoistByteScalar(c, ts, anchors, depth, s, pointer, hint)
 	}
 	// Keyed on the format rather than on the string type, so `format: password`
-	// on a non-string type and on a union variant states the same redaction:
-	// both are lossless today only by accident.
+	// on a non-string type and on a union variant states the same redaction.
 	if format == redactionFormat {
-		return hoistRedactionScalar(c, ts, anchors, depth, s, st, pointer, hint)
+		return hoistFormatScalar(c, ts, anchors, depth, s, baseForType(st), format, pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -1410,41 +1411,14 @@ func hoistByteScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 	return id, diags
 }
 
-// hoistRedactionScalar hoists the Scalar a `format: password` position owns: the
-// base primitive the bare type selects, Sensitive set for whole-type redaction,
-// and the verbatim "password" spelling as Encoding.Name. It mirrors
-// hoistByteScalar, carrying the position's own value constraints for the reason
-// hoistByteScalar records — owning a node is what stops the alias fallback that
-// would otherwise carry them.
-//
-// A per-use carrier beside it (Property.Secret at a property or a header) is
-// filled separately from the same redactionFormat predicate: one fact, one
-// spelling, two homes a consumer reads as the same statement.
-func hoistRedactionScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := ts.PrimRef(baseForType(st))
-		common.Sensitive = true
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, redactionFormat, &common, pointer, hint)
-		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &base,
-			Encoding:    enc,
-			Constraints: cons,
-		}
-	})
-	return id, diags
-}
-
-// hoistFormatScalar hoists a scalar over base carrying an unknown format as its
-// encoding name, preserving the format losslessly.
+// hoistFormatScalar hoists a scalar over base carrying a format no primitive
+// holds as its encoding name, preserving the format losslessly. The redaction
+// format also sets Sensitive, the field its fact lowers to.
 func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, format string, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
+		common.Sensitive = format == redactionFormat
 		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, format, &common, pointer, hint)
 		diags = append(diags, encDiags...)
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)

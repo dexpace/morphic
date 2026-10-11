@@ -126,9 +126,11 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // same schema position; the default comes from it too, falling back to its $ref
 // target (§14).
 //
-// `format: password` reaches the type node as a Scalar carrying Sensitive, as
-// any hoisting format does. ir.Parameter has no redaction field, so that node is
-// the only carrier here; GitHub #578 owns a parameter-level one.
+// `format: password` on the parameter's schema hoists a Scalar carrying
+// Sensitive. ir.Parameter has no redaction field (GitHub #578 owns one), so the
+// type is the only carrier, and through a wrapper — an alias component, an
+// allOf over one $ref — the parameter's own node is not Sensitive: only the node
+// its Base chain reaches is.
 func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) []ir.Diagnostic {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr)
 	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
