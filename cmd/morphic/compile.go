@@ -6,14 +6,15 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
@@ -63,35 +64,69 @@ const maxTempAttempts = 10
 // exists overrides this via chmodOutput — see destMode.
 const newFilePerm os.FileMode = 0o666
 
-// newCompileCommand builds compile's command-table entry. It is a function, not
-// a package-level var — see commands.
-func newCompileCommand() command {
-	return command{
-		name:    "compile",
-		summary: "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
-		usage:   "morphic compile <spec-file> [flags]",
-		description: "Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write\n" +
-			"diagnostics to stderr. Output to stdout is indented for reading; a file\n" +
-			"written with -o is compact unless --pretty asks for the indented form.\n\n" +
-			"--explain reports what compiling produced at one source coordinate — the\n" +
-			"type node interned there, the coordinates interned beneath it, and the\n" +
-			"diagnostics stamped at it — instead of writing the document. The coordinate\n" +
-			"is a JSON Pointer, so '' is the whole document.\n\n" +
-			"--disable-pass turns off the named IR pass, and may be repeated; a name no\n" +
-			"pass carries is refused (exit 2). --skip-validate is its alias for validate.\n\n" +
-			"--opt passes a setting to the compiler the spec selects, which names and\n" +
-			"validates its own options; morphic itself knows none of them. The OpenAPI\n" +
-			"compiler's are listed in the README.\n\n" +
-			"A -- argument ends flag parsing: every argument after it is an operand,\n" +
-			"even one that begins with a dash, which is how a spec file named like a\n" +
-			"flag is passed.",
-		printFlags: func(w io.Writer) {
-			fs, _ := newCompileFlags()
-			fs.SetOutput(w)
-			fs.PrintDefaults()
+// compileLong is compile's description. cobra prints it as written, so it is
+// wrapped by hand.
+const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
+diagnostics to stderr. Output to stdout is indented for reading; a file written
+with --output is compact unless --pretty asks for the indented form.
+
+--explain reports what compiling produced at one source coordinate — the type
+node interned there, the coordinates interned beneath it, and the diagnostics
+stamped at it — instead of writing the document. The coordinate is a JSON
+Pointer, so '' is the whole document. It writes no file, so it cannot be
+combined with --output.
+
+--disable-pass turns off the named IR pass, and may be repeated; a name no pass
+carries is refused (exit 2). --skip-validate is its alias for validate.
+
+--opt passes a setting to the compiler the spec selects, which names and
+validates its own options; morphic itself knows none of them. The OpenAPI
+compiler's are listed in the README.
+
+A -- argument ends flag parsing: every argument after it is an operand, even one
+that begins with a dash, which is how a spec file named like a flag is passed.
+
+Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
+spec lowered to no document at all, and 2 for a misuse or an I/O error.`
+
+// compileExample is compile's examples, indented as cobra's help indents a
+// section.
+const compileExample = `  # IR JSON to stdout
+  morphic compile openapi.yaml
+
+  # ...or to a file
+  morphic compile openapi.yaml -o api.ir.json
+
+  # what compiling produced at one source coordinate
+  morphic compile openapi.yaml --explain /components/schemas/Pet
+
+  # pass settings to the compiler the spec selects
+  morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml`
+
+// newCompileCmd builds the compile subcommand.
+func newCompileCmd() *cobra.Command {
+	var opts compileOptions
+	cmd := &cobra.Command{
+		Use:     "compile <spec-file>",
+		Short:   "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
+		Long:    compileLong,
+		Example: compileExample,
+		Args:    compileArgs(&opts),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return compileSpec(cmd, args[0], opts)
 		},
-		bind: bindCompile,
+		ValidArgsFunction: completeSpecFile,
 	}
+
+	flags := cmd.Flags()
+	bindSpecFlags(flags, &opts.specOptions)
+	flags.StringVarP(&opts.outPath, "output", "o", "", "write IR JSON to this file instead of stdout")
+	flags.Lookup("output").Annotations = map[string][]string{cobra.BashCompFilenameExt: {"json"}}
+	flags.Var(&opts.explain, "explain",
+		"report what compiling produced at this pointer instead of the IR; '' is the whole document")
+	flags.BoolVar(&opts.pretty, "pretty", false,
+		"indent the IR JSON --output writes; stdout is indented either way")
+	return cmd
 }
 
 // specOptions holds what the shared pipeline runner reads, parsed by the flags
@@ -127,123 +162,110 @@ type compileOptions struct {
 // bindSpecFlags registers the flags every spec-taking command shares onto fs.
 // Sharing the registration is what keeps their spellings, defaults and help
 // text identical across commands rather than identical-looking.
-func bindSpecFlags(fs *flag.FlagSet, opts *specOptions) {
+func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
 
-	fs.StringVar(&opts.failOn, "fail-on", "error",
-		"fail (exit 1) on diagnostics at or above this severity: error|warning")
+	fs.StringVar(&opts.failOn, "fail-on", string(ir.SeverityError),
+		"exit 1 on diagnostics at or above this severity: error or warning")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
 		"disable the named IR pass (repeatable)")
 	fs.Var(opts.settings, "opt",
-		"set one `key=value` option on the compiler the spec selects (repeatable)")
+		"set one key=value option on the compiler the spec selects (repeatable)")
 }
 
-// newCompileFlags returns compile's FlagSet and the options its flags write
-// into. Directing Output to io.Discard is the whole of the silencing — the flag
-// package writes both its error line and its usage dump there — so parse
-// failures and help requests reach the CLI only as errors from Parse, and the
-// CLI renders exactly one text for them.
-func newCompileFlags() (*flag.FlagSet, *compileOptions) {
-	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	var opts compileOptions
-	bindSpecFlags(fs, &opts.specOptions)
-	fs.StringVar(&opts.outPath, "o", "", "write IR JSON to this file instead of stdout")
-	fs.Var(&opts.explain, "explain",
-		"report what compiling produced at this source `pointer` instead of writing IR JSON; '' is the whole document")
-	fs.BoolVar(&opts.pretty, "pretty", false,
-		"indent the IR JSON -o writes; stdout is indented either way")
-
-	return fs, &opts
+// completeSpecFile offers spec files, by extension, for the one operand compile
+// and validate take, and nothing for a second.
+func completeSpecFile(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return []cobra.Completion{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
 }
 
-// bindCompile parses compile's arguments and returns the compile they ask for.
-func bindCompile(args []string) (work, error) {
-	fs, opts := newCompileFlags()
-
-	specPath, err := bindSpec(fs, "compile", args, &opts.specOptions)
-	if err != nil {
-		return nil, err
+// compileArgs checks compile's arguments: what every spec-taking command takes,
+// then that --explain is not asked to write a file. --explain reports instead of
+// writing the document, so --output would be accepted and ignored, with an exit
+// status that says it worked.
+func compileArgs(opts *compileOptions) cobra.PositionalArgs {
+	spec := specArgs(&opts.specOptions)
+	return func(cmd *cobra.Command, args []string) error {
+		if err := spec(cmd, args); err != nil {
+			return err
+		}
+		if opts.explain.set && opts.outPath != "" {
+			return misuse(cmd, "--explain writes no document, so --output has nothing to write")
+		}
+		return nil
 	}
-
-	return func(stdout, stderr io.Writer) int {
-		return compileSpec(specPath, *opts, stdout, stderr)
-	}, nil
 }
 
-// bindSpec parses what every spec-taking command takes — its flags in any
-// position, then the one spec file it works on — and returns that file's path.
-// name is the command's own, so a misuse names the command that was typed.
-//
-// Every error it returns is rendered by the caller's dispatch, flag.ErrHelp
-// included: the flag package reports a help request as an error from Parse, and
-// passing it up unwrapped is what lets one place answer -h for every command.
-func bindSpec(fs *flag.FlagSet, name string, args []string, opts *specOptions) (string, error) {
-	positional, err := parseArgs(fs, args)
-	if err != nil {
-		return "", err
+// specArgs checks what every spec-taking command takes once its flags are
+// parsed: a --fail-on severity that exists, then exactly one spec file. The
+// command's own name is in the message, so a misuse names what was typed.
+func specArgs(opts *specOptions) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if opts.failOn != string(ir.SeverityError) && opts.failOn != string(ir.SeverityWarning) {
+			return misuse(cmd, fmt.Sprintf("invalid --fail-on %q (want %s or %s)",
+				opts.failOn, ir.SeverityError, ir.SeverityWarning))
+		}
+		if len(args) != 1 {
+			return misuse(cmd, cmd.Name()+" requires exactly one spec file")
+		}
+		return nil
 	}
-	if opts.failOn != string(ir.SeverityError) && opts.failOn != string(ir.SeverityWarning) {
-		return "", fmt.Errorf("invalid --fail-on %q (want %s or %s)",
-			opts.failOn, ir.SeverityError, ir.SeverityWarning)
-	}
-	if len(positional) != 1 {
-		return "", fmt.Errorf("%s requires exactly one spec file", name)
-	}
-	return positional[0], nil
 }
 
 // runPipeline runs the engine over specPath and renders every diagnostic the
 // run produced to stderr.
 //
-// ok is false when there is no document to work with — the engine could not be
-// built, the run failed, or it lowered nothing — and code is then the exit code
-// to return. Otherwise res holds the document and code is the exit code the
-// diagnostics call for, which the caller returns once it has emitted whatever
-// it emits.
-func runPipeline(specPath string, opts specOptions, stderr io.Writer) (*engine.Result, int, bool) {
+// A non-nil err means the run could not happen — the engine could not be built
+// or failed — and is an exit-2 failure. Otherwise code is the exit code the
+// diagnostics call for, and res holds the document, or is nil when the spec
+// lowered to none.
+func runPipeline(
+	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
+) (res *engine.Result, code int, err error) {
 	eng, err := newEngine()
 	if err != nil {
-		emitf(stderr, "morphic: %v\n", err)
-		return nil, 2, false
+		return nil, 0, err
 	}
 
-	res, err := eng.Run(context.Background(), specPath, engine.RunOptions{
+	res, err = eng.Run(ctx, specPath, engine.RunOptions{
 		CompilerOptions: opts.settings,
 		DisablePasses:   opts.disabledPasses(),
 	})
 	if err != nil {
-		emitf(stderr, "morphic: %v\n", err)
-		return nil, 2, false
+		return nil, 0, err
 	}
 
 	renderDiagnostics(stderr, res)
 	if res.Document == nil {
-		return nil, 1, false
+		return nil, exitFindings, nil
 	}
-	return res, exitCodeFor(res.Diagnostics, opts.failOn), true
+	return res, exitCodeFor(res.Diagnostics, opts.failOn), nil
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its
-// diagnostics, and returns the process exit code.
-func compileSpec(specPath string, opts compileOptions, stdout, stderr io.Writer) int {
-	res, code, ok := runPipeline(specPath, opts.specOptions, stderr)
-	if !ok {
-		return code
+// diagnostics, and returns the error that ends the run with its exit code.
+func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error {
+	res, code, err := runPipeline(cmd.Context(), specPath, opts.specOptions, cmd.ErrOrStderr())
+	if err != nil {
+		return failure(err)
+	}
+	if res == nil {
+		return exitWith(code)
 	}
 
 	if opts.explain.set {
-		explainDocument(stdout, res.Document, res.Diagnostics, opts.explain.pointer)
-		return code
+		explainDocument(cmd.OutOrStdout(), res.Document, res.Diagnostics, opts.explain.pointer)
+		return exitWith(code)
 	}
-	if err := writeCompiled(opts, stdout, res.Document); err != nil {
-		emitf(stderr, "morphic: %v\n", err)
-		return writeFailureExit(code)
+	if err := writeCompiled(opts, cmd.OutOrStdout(), res.Document); err != nil {
+		return &exitError{code: writeFailureExit(code), err: err}
 	}
-	return code
+	return exitWith(code)
 }
 
 // writeFailureExit returns the exit code for a run whose diagnostics earned
@@ -258,96 +280,7 @@ func writeFailureExit(code int) int {
 	if code != 0 {
 		return code
 	}
-	return 2
-}
-
-// parseArgs binds fs and collects positional arguments, tolerating flags that
-// appear either before or after the spec path (stdlib flag stops at the first
-// non-flag argument, so it is invoked once per positional).
-//
-// A "--" ends flag parsing for the whole invocation, so it is split off before
-// the loop. Parse consumes the marker without reporting it, so a later round
-// would re-enable flag parsing for operands the user had marked as such.
-func parseArgs(fs *flag.FlagSet, args []string) ([]string, error) {
-	before, operands := splitAtTerminator(fs, args)
-
-	var positional []string
-	rest := before
-	for {
-		if err := fs.Parse(rest); err != nil {
-			// Returned verbatim, not wrapped: this error is rendered straight to
-			// the user, and the flag package's messages already name the flag.
-			return nil, err
-		}
-		rest = fs.Args()
-		if len(rest) == 0 {
-			return append(positional, operands...), nil
-		}
-		positional = append(positional, rest[0])
-		rest = rest[1:]
-	}
-}
-
-// renderDiagnostics writes each diagnostic to w, one per line, as
-// "<severity> <code> <location>: <message>". This is the sole place in the
-// pipeline where diagnostics are rendered for a human.
-func renderDiagnostics(w io.Writer, res *engine.Result) {
-	for _, d := range res.Diagnostics {
-		emitf(w, "%s %s%s: %s\n",
-			d.Severity, d.Code, location(res.Sources, d.Provenance), d.Message)
-	}
-}
-
-// location renders the "where" of a diagnostic line, leading space included:
-// " <path>#<pointer>" for a pointer, " <path>:<line>:<column>" for a position
-// (the form editors and terminals turn into a link), " <path>" for the source
-// as a whole, and the bare node for an IR-space node. A finding with several
-// locators is spelled by the first of them in that order.
-//
-// sources is the run's table, which a refused compile has too. A locator whose
-// index names no entry in it is spelled without a path, and a finding naming
-// neither a source nor a node prints nothing rather than a guess.
-func location(sources []ir.SourceInfo, prov ir.Provenance) string {
-	path := sourcePath(sources, prov.Source)
-	switch {
-	case prov.Pointer != "":
-		return " " + onPath(path, "#", string(prov.Pointer))
-	case prov.Position.Line > 0:
-		return " " + onPath(path, ":", positionText(prov.Position))
-	case path != "":
-		return " " + path
-	case prov.Node != "":
-		return " " + prov.Node
-	default:
-		return ""
-	}
-}
-
-// onPath spells locator against path, joined by sep, or alone when no path
-// resolved.
-func onPath(path, sep, locator string) string {
-	if path == "" {
-		return locator
-	}
-	return path + sep + locator
-}
-
-// positionText spells a position as <line>:<column>, or <line> alone when the
-// producer knows no column.
-func positionText(p ir.Position) string {
-	if p.Column > 0 {
-		return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
-	}
-	return strconv.Itoa(p.Line)
-}
-
-// sourcePath resolves a diagnostic's source index to its file path, returning
-// "" when the index addresses no entry of sources.
-func sourcePath(sources []ir.SourceInfo, source int) string {
-	if source < 0 || source >= len(sources) {
-		return ""
-	}
-	return sources[source].Path
+	return exitFailure
 }
 
 // exitCodeFor returns 1 when any diagnostic is at or above the failOn severity,

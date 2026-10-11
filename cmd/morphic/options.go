@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// settingFlag collects the repeated `-opt key=value` settings that configure
+// settingFlag collects the repeated `--opt key=value` settings that configure
 // whichever compiler the spec turns out to need.
 //
 // It carries the pairs verbatim rather than parsing them, because the CLI does
@@ -21,7 +21,7 @@ import (
 type settingFlag map[string]string
 
 // String renders the settings as they were typed, sorted so the rendering does
-// not depend on map order. The flag package calls it on a zero value to decide
+// not depend on map order. pflag calls it on a zero value to decide
 // whether to print a default, so a nil map must render as the empty string.
 func (s settingFlag) String() string {
 	pairs := make([]string, 0, len(s))
@@ -30,6 +30,9 @@ func (s settingFlag) String() string {
 	}
 	return strings.Join(pairs, " ")
 }
+
+// Type names the value in flag documentation.
+func (s settingFlag) Type() string { return "key=value" }
 
 // Set records one key=value pair. A repeated key is refused rather than
 // overwritten: one of the two values would take effect with nothing to say
@@ -60,9 +63,12 @@ type pointerFlag struct {
 	set     bool
 }
 
-// String renders the pointer as given. The flag package calls it on a zero value
+// String renders the pointer as given. pflag calls it on a zero value
 // to decide whether to print a default, and the empty string prints none.
 func (f *pointerFlag) String() string { return string(f.pointer) }
+
+// Type names the value in flag documentation.
+func (f *pointerFlag) Type() string { return "pointer" }
 
 // Set records the pointer and that the flag was given.
 func (f *pointerFlag) Set(raw string) error {
@@ -83,6 +89,9 @@ func (p *passFlag) String() string {
 	}
 	return strings.Join(*p, " ")
 }
+
+// Type is the name help documents the flag's value by.
+func (p *passFlag) Type() string { return "name" }
 
 // Set records one pass name. An empty name is refused, and a repeated one is
 // recorded once.

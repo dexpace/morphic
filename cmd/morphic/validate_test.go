@@ -160,11 +160,11 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 		{"bad fail-on", []string{"validate", spec, "--fail-on", "hint"},
 			`invalid --fail-on "hint"`},
 		{"unknown flag", []string{"validate", spec, "--bogus"},
-			"flag provided but not defined: -bogus"},
+			"unknown flag: --bogus"},
 		{"compile's -o is not validate's", []string{"validate", spec, "-o", "ir.json"},
-			"flag provided but not defined: -o"},
+			"unknown shorthand flag: 'o' in -o"},
 		{"compile's --explain is not validate's", []string{"validate", spec, "--explain", "/"},
-			"flag provided but not defined: -explain"},
+			"unknown flag: --explain"},
 	}
 
 	for _, tt := range tests {
@@ -175,8 +175,8 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
-			assert.Contains(t, stderr.String(), "morphic validate <spec-file> [flags]",
-				"a misuse of validate must point at validate's own usage")
+			assert.Contains(t, stderr.String(), `Try "morphic validate --help" for usage.`,
+				"a misuse of validate must point at validate's own help")
 		})
 	}
 }

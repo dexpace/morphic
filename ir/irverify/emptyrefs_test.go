@@ -17,7 +17,7 @@ import (
 // checkTypeRefs, so each case below only has to build the one shape it names.
 func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	var out []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if strings.HasPrefix(v.Code, "ir/empty-") && strings.HasSuffix(v.Code, "-ref") {
 			out = append(out, v)
 		}
@@ -31,7 +31,7 @@ func opDoc(op ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "s/x/S",
 		Name:   named("s"),
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{op}}},
 	}}}
 }
 
@@ -163,6 +163,7 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 				ID:   "s/x/S",
 				Name: named("s"),
 				Groups: []ir.OperationGroup{{
+					ID:       "g/x/S/g",
 					Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"read": ""}},
 				}},
 			}}},
@@ -268,6 +269,7 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 					Name:    named("s"),
 					Renames: map[ir.TypeID]ir.Naming{},
 					Groups: []ir.OperationGroup{{
+						ID:       "g/x/S/g",
 						Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{}},
 					}},
 				}},
@@ -287,6 +289,10 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 // ir/empty-<noun>-ref beside it. Each case asserts the owner's code too, so a
 // fixture that stopped reaching the empty position could not pass here by
 // reporting nothing at all.
+//
+// Every class that declares its own ID has a case, because the classification
+// is per field: reading one class right says nothing about the next, and the
+// other cases here would not notice a wrong entry for it.
 func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -309,6 +315,27 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 			owner: "ir/empty-op-id",
 		},
 		{
+			name: "OperationGroup.ID, held by checkDeclaredIDs",
+			doc: &ir.Document{Services: []ir.Service{{
+				ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{Name: named("g")}},
+			}}},
+			owner: "ir/empty-group-id",
+		},
+		{
+			name:  "Service.ID, held by checkDeclaredIDs",
+			doc:   &ir.Document{Services: []ir.Service{{Name: named("s")}}},
+			owner: "ir/empty-service-id",
+		},
+		{
+			name: "Property.ID, held by checkDeclaredIDs",
+			doc: closedDoc(&ir.Model{
+				ID:         "t/x/M",
+				Name:       named("m"),
+				Properties: []ir.Property{{Name: named("f"), Type: ir.TypeRef{Target: "t/x/M"}}},
+			}),
+			owner: "ir/empty-prop-id",
+		},
+		{
 			name:  "a Document.Types key, held by checkRegistryKeys",
 			doc:   &ir.Document{Types: ir.TypeRegistry{"": &ir.Model{Name: named("m")}}},
 			owner: "ir/empty-type-id",
@@ -316,7 +343,7 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			vs := irverify.Verify(tc.doc)
+			vs := verifyDeclared(tc.doc)
 			codes := make([]string, 0, len(vs))
 			for _, v := range vs {
 				codes = append(codes, v.Code)

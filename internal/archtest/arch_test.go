@@ -250,7 +250,10 @@ var rules = map[string][]string{
 	// named here.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass"},
-	"cmd/morphic":         {module + "/ir", module + "/engine"},
+	// The CLI. Beyond the pipeline it reaches its command framework: cobra
+	// dispatches the commands and renders help, on pflag's parse.
+	"cmd/morphic": {module + "/ir", module + "/engine",
+		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},
 	// Test infrastructure outside the pipeline, like internal/harness above —

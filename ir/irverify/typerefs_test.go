@@ -39,7 +39,7 @@ func operationDoc(p ir.Parameter) *ir.Document {
 	doc.Services = []ir.Service{{
 		ID:   "s/x/S",
 		Name: named("S"),
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{{
+		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{{
 			ID:     "op/x/S/op",
 			Name:   named("op"),
 			Params: []ir.Parameter{p},
@@ -53,7 +53,7 @@ func operationDoc(p ir.Parameter) *ir.Document {
 func typeRefViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
 	t.Helper()
 	var out []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/type-ref-no-target" {
 			out = append(out, v)
 		}
@@ -74,7 +74,7 @@ func TestVerify_UnionVariantWithNoTargetIsAViolation(t *testing.T) {
 		Variants: []ir.Variant{{Type: ir.TypeRef{Target: ""}}},
 	})
 
-	all := irverify.Verify(doc)
+	all := verifyDeclared(doc)
 	assert.NotContains(t, codes(all), "ir/dangling-type-ref", "an empty target is not a dangling one")
 
 	got := typeRefViolations(t, doc)
