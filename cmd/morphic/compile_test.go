@@ -121,7 +121,7 @@ func TestRun_UsageErrors(t *testing.T) {
 		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command", "morphic"},
 		{"unknown flag", []string{"compile", spec, "--bogus"}, "unknown flag: --bogus", "morphic compile"},
 		{"single-dash long flag", []string{"compile", spec, "-fail-on=error"},
-			"unknown shorthand flag: 'f' in -fail-on=error", "morphic compile"},
+			`long flags take two dashes: write "--fail-on=error", not "-fail-on=error"`, "morphic compile"},
 		{"flag without its value", []string{"compile", spec, "--fail-on"},
 			"flag needs an argument: --fail-on", "morphic compile"},
 		{"no spec file", []string{"compile"}, "compile requires exactly one spec file", "morphic compile"},

@@ -32,7 +32,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 // execute runs root under fang and maps the outcome to an exit code. args is
 // copied and never nil: handed a nil slice, cobra runs os.Args[1:] instead.
+//
+// A long flag spelled with one dash is refused before cobra parses anything.
+// The refusal still goes through fang, so it is reported like any other misuse:
+// root runs with no arguments, as a command that fails with it.
 func execute(root *cobra.Command, args []string, stdout, stderr io.Writer) int {
+	if err := singleDashLongFlags(root, args); err != nil {
+		root.RunE = func(*cobra.Command, []string) error { return err }
+		args = nil
+	}
 	root.SetArgs(append([]string{}, args...))
 	root.SetOut(stdout)
 	root.SetErr(stderr)

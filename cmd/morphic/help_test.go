@@ -130,8 +130,8 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 // TestRun_HelpFlagDoesNotMaskAMistypedCommand pins that asking for help does not
 // excuse a command that does not exist: "-h bogus" is the unknown command and
 // exit 2, as "bogus" alone is, rather than root help that hides the typo. It
-// also pins that the single-dash spelling "-help" is gone: pflag reads it as a
-// cluster of shorthands.
+// also pins that the single-dash spelling "-help" is refused, with the two-dash
+// spelling to use.
 func TestRun_HelpFlagDoesNotMaskAMistypedCommand(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +142,7 @@ func TestRun_HelpFlagDoesNotMaskAMistypedCommand(t *testing.T) {
 	}{
 		{"-h bogus", []string{"-h", "bogus"}, `unknown command "bogus"`},
 		{"--help bogus", []string{"--help", "bogus"}, `unknown command "bogus"`},
-		{"-help", []string{"-help"}, "unknown shorthand flag"},
+		{"-help", []string{"-help"}, `write "--help", not "-help"`},
 	}
 
 	for _, tt := range tests {

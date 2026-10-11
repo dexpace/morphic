@@ -15,21 +15,25 @@ const rootDescription = "morphic lowers an API spec into Morphic IR."
 // package-level var, so each run gets a tree of its own with no shared state:
 // the flags a command binds are written into variables its closure holds.
 func newRootCmd() *cobra.Command {
+	info, _ := debug.ReadBuildInfo()
 	root := &cobra.Command{
-		Use:   "morphic",
-		Short: "lower an API spec into Morphic IR",
-		Long:  rootDescription,
-		RunE:  runRoot,
+		Use:     "morphic",
+		Short:   "lower an API spec into Morphic IR",
+		Long:    rootDescription,
+		Version: moduleVersion(info),
+		RunE:    runRoot,
 	}
 	root.SetVersionTemplate(versionTemplate)
 	root.SetHelpCommand(newHelpCmd())
 	root.SetFlagErrorFunc(asMisuse)
 	root.AddCommand(newCompileCmd(), newValidateCmd())
 
-	// cobra resolves the command before it defines -h, and an undefined short
-	// flag is assumed to take a value: "morphic -h compile" would read compile
-	// as -h's argument and show root help. Defining it first makes -h a switch.
+	// cobra resolves the command before it defines -h and -v, and an undefined
+	// short flag is assumed to take a value: "morphic -h compile" would read
+	// compile as -h's argument and show root help. Defining them first makes
+	// each a switch, and lets singleDashLongFlags see them.
 	root.InitDefaultHelpFlag()
+	root.InitDefaultVersionFlag()
 	return root
 }
 
@@ -45,12 +49,12 @@ func runRoot(cmd *cobra.Command, args []string) error {
 }
 
 // fangOptions returns how fang decorates the tree: morphic reports its own
-// errors, in the shape errorHandler gives them, and names its own version.
+// errors, in the shape errorHandler gives them, and the tree already names its
+// own version, which fang would otherwise replace with its reading of the build.
 func fangOptions() []fang.Option {
-	info, _ := debug.ReadBuildInfo()
 	return []fang.Option{
 		fang.WithErrorHandler(errorHandler),
-		fang.WithVersion(moduleVersion(info)),
+		fang.WithoutVersion(),
 	}
 }
 
