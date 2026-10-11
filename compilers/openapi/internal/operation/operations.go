@@ -276,7 +276,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 			diags = append(diags, opDiags...)
 			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-			grp := groups.group("webhook", func() ir.OperationGroup {
+			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
 				// synthesizes the "default" group above, and Naming.Source is the
@@ -294,9 +294,11 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 	return diags
 }
 
-// groupFor resolves the group an operation belongs to under the active strategy.
+// groupFor resolves the group an operation belongs to under the active strategy,
+// by ID: two operations share a group exactly when they share an ID.
 // lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
-// declared tags is a declared fact and leaves it empty.
+// declared tags is a declared fact and leaves it empty. The untagged group's
+// hint stays "default" beside a tag of that name, under another ID.
 //
 // It picks the first *navigational* tag: a 3.2 tag whose `kind` this compiler
 // does not know is not a section. An operation with no navigational tag falls
@@ -304,11 +306,11 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 func groupFor(c lowering.Ctx, src *soa.Operation, path string) groupTarget {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return groupTarget{key: "seg:" + seg, name: compile.NamingFor(seg), inferred: "group-path-prefix"}
+		return groupTarget{id: ids.PathPrefixGroup(seg), name: compile.NamingFor(seg), inferred: "group-path-prefix"}
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
-		return groupTarget{key: "default", name: compile.NamingHint("default")}
+		return groupTarget{id: ids.DefaultGroup(), name: compile.NamingHint("default")}
 	}
 	declared := declaredTags(c.Doc.GetTags())
 	for _, name := range tags {
@@ -316,21 +318,21 @@ func groupFor(c lowering.Ctx, src *soa.Operation, path string) groupTarget {
 			continue
 		}
 		return groupTarget{
-			key:   "tag:" + name,
+			id:    ids.TagGroup(name),
 			chain: tagChain(declared, name),
 			name:  compile.NamingFor(name),
 			docs:  tagDocs(c, name),
 		}
 	}
-	return groupTarget{key: "default", name: compile.NamingHint("default")}
+	return groupTarget{id: ids.DefaultGroup(), name: compile.NamingHint("default")}
 }
 
-// groupTarget is where an operation's group comes from: the key it is filed
+// groupTarget is where an operation's group comes from: the ID it is filed
 // under, the declared tag chain it nests under (root-first and ending with the
 // operation's own tag, empty for a group the compiler synthesizes), and the
 // naming and docs of the operation's own level.
 type groupTarget struct {
-	key      string
+	id       ir.GroupID
 	chain    []string
 	name     ir.Naming
 	docs     ir.Docs
@@ -1298,32 +1300,34 @@ func firstPathSegment(path string) string {
 	return ""
 }
 
-// serviceGroups accumulates operation groups keyed by a namespaced key while
-// preserving first-seen insertion order, so a group's operations gather across
-// paths without reordering the groups themselves. A group a declared tag nests
-// under (OpenAPI 3.2 tag parent) is recorded in parentOf and attached to its
-// parent by finalize, so the accumulated groups read as the tree the document
-// declares.
+// serviceGroups accumulates operation groups by ID while preserving first-seen
+// insertion order, so a group's operations gather across paths without
+// reordering the groups themselves. A group a declared tag nests under (OpenAPI
+// 3.2 tag parent) is recorded in parentOf and attached to its parent by
+// finalize, so the accumulated groups read as the tree the document declares.
 type serviceGroups struct {
-	order    []string
-	byKey    map[string]*ir.OperationGroup
-	parentOf map[string]string
+	order    []ir.GroupID
+	byID     map[ir.GroupID]*ir.OperationGroup
+	parentOf map[ir.GroupID]ir.GroupID
 }
 
 // newServiceGroups returns an empty group accumulator.
 func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup), parentOf: make(map[string]string)}
+	return &serviceGroups{byID: make(map[ir.GroupID]*ir.OperationGroup), parentOf: make(map[ir.GroupID]ir.GroupID)}
 }
 
-// group returns the group for key, creating it via mk on first sight and
-// recording its insertion order.
-func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.OperationGroup {
-	if existing, ok := g.byKey[key]; ok {
+// group returns the group with the given ID, creating it via mk on first sight
+// and recording its insertion order. It stamps the ID itself, so a group's ID is
+// its key by construction rather than by every caller repeating it.
+func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.OperationGroup {
+	if existing, ok := g.byID[id]; ok {
 		return existing
 	}
-	g.byKey[key] = new(mk())
-	g.order = append(g.order, key)
-	return g.byKey[key]
+	created := mk()
+	created.ID = id
+	g.byID[id] = &created
+	g.order = append(g.order, id)
+	return &created
 }
 
 // place returns the group an operation's target names, creating it on first
@@ -1332,7 +1336,7 @@ func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.Opera
 // children carry operations.
 func (g *serviceGroups) place(t groupTarget, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
 	if len(t.chain) == 0 {
-		return g.group(t.key, func() ir.OperationGroup { return ir.OperationGroup{Name: t.name, Docs: t.docs} })
+		return g.group(t.id, func() ir.OperationGroup { return ir.OperationGroup{Name: t.name, Docs: t.docs} })
 	}
 	return g.tagGroup(t.chain, mk)
 }
@@ -1343,20 +1347,18 @@ func (g *serviceGroups) place(t groupTarget, mk func(tag string) ir.OperationGro
 // first descendant — which is what keeps every flat golden's group order exactly
 // as it was.
 func (g *serviceGroups) tagGroup(chain []string, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
-	var parent string
+	var parent ir.GroupID
 	var leaf *ir.OperationGroup
 	for _, tag := range chain {
-		key := "tag:" + tag
-		grp, ok := g.byKey[key]
+		id := ids.TagGroup(tag)
+		grp, ok := g.byID[id]
 		if !ok {
-			grp = new(mk(tag))
-			g.byKey[key] = grp
-			g.order = append(g.order, key)
+			grp = g.group(id, func() ir.OperationGroup { return mk(tag) })
 			if parent != "" {
-				g.parentOf[key] = parent
+				g.parentOf[id] = parent
 			}
 		}
-		parent, leaf = key, grp
+		parent, leaf = id, grp
 	}
 	return leaf
 }
@@ -1372,20 +1374,20 @@ func (g *serviceGroups) tagGroup(chain []string, mk func(tag string) ir.Operatio
 // parent's slice is what makes siblings read in insertion order too.
 func (g *serviceGroups) finalize() []ir.OperationGroup {
 	for i := len(g.order) - 1; i >= 0; i-- {
-		key := g.order[i]
-		parent, nested := g.parentOf[key]
+		id := g.order[i]
+		parent, nested := g.parentOf[id]
 		if !nested {
 			continue
 		}
-		pg := g.byKey[parent]
-		pg.Groups = append([]ir.OperationGroup{*g.byKey[key]}, pg.Groups...)
+		pg := g.byID[parent]
+		pg.Groups = append([]ir.OperationGroup{*g.byID[id]}, pg.Groups...)
 	}
 	out := make([]ir.OperationGroup, 0, len(g.order))
-	for _, key := range g.order {
-		if _, nested := g.parentOf[key]; nested {
+	for _, id := range g.order {
+		if _, nested := g.parentOf[id]; nested {
 			continue
 		}
-		out = append(out, *g.byKey[key])
+		out = append(out, *g.byID[id])
 	}
 	return out
 }
