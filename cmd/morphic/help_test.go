@@ -157,6 +157,42 @@ func TestRun_HelpFlagDoesNotMaskAMistypedCommand(t *testing.T) {
 	}
 }
 
+// TestRun_OperandsAfterTerminatorAreRefused pins that "--" at the top level does
+// not turn a command into help. It once ran the command it was followed by;
+// cobra reads the operand as nothing and prints help with exit 0, which for
+// "morphic -- compile spec" is a compile that silently produced nothing.
+func TestRun_OperandsAfterTerminatorAreRefused(t *testing.T) {
+	t.Parallel()
+
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	tests := []struct {
+		name string
+		args []string
+		word string
+	}{
+		{"a command", []string{"--", "compile", spec}, "compile"},
+		{"the help word", []string{"--", "help"}, "help"},
+		{"a help flag", []string{"--", "-h"}, "-h"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Empty(t, stdout.String(), "nothing may be written for a refused invocation")
+			assert.Contains(t, stderr.String(), `unexpected argument "`+tt.word+`" after "--"`)
+			assert.Contains(t, stderr.String(), `Try "morphic --help" for usage.`)
+		})
+	}
+
+	// A "--" with nothing after it has nothing to refuse: it is a bare morphic.
+	var stdout, stderr bytes.Buffer
+	assert.Equal(t, 0, run([]string{"--"}, &stdout, &stderr), "stderr: %s", stderr.String())
+	assert.Contains(t, stdout.String(), "USAGE")
+}
+
 func TestRun_HelpFormsAgree(t *testing.T) {
 	t.Parallel()
 

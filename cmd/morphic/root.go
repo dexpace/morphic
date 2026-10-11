@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime/debug"
 
 	"charm.land/fang/v2"
@@ -18,6 +19,7 @@ func newRootCmd() *cobra.Command {
 		Use:   "morphic",
 		Short: "lower an API spec into Morphic IR",
 		Long:  rootDescription,
+		RunE:  runRoot,
 	}
 	root.SetVersionTemplate(versionTemplate)
 	root.SetHelpCommand(newHelpCmd())
@@ -29,6 +31,17 @@ func newRootCmd() *cobra.Command {
 	// as -h's argument and show root help. Defining it first makes -h a switch.
 	root.InitDefaultHelpFlag()
 	return root
+}
+
+// runRoot answers a bare "morphic" with its help. An operand can only reach it
+// after a "--", which ends flag parsing without naming a command. cobra would
+// print help and exit 0 for it, so "morphic -- compile spec" would look like a
+// compile that produced nothing; it is refused instead.
+func runRoot(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return misuse(cmd, fmt.Sprintf("unexpected argument %q after \"--\"", args[0]))
+	}
+	return cmd.Help()
 }
 
 // fangOptions returns how fang decorates the tree: morphic reports its own
