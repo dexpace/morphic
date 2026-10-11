@@ -6,9 +6,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+
+	"charm.land/fang/v2"
+	"github.com/spf13/cobra"
 )
 
 // osExit is os.Exit, a package var so tests can drive main without terminating
@@ -19,31 +23,22 @@ func main() {
 	osExit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// run dispatches subcommands and returns the process exit code. It exists so
-// tests can drive the CLI without a subprocess; only main calls os.Exit.
+// run builds the command tree, executes it against args and returns the process
+// exit code. It exists so tests can drive the CLI without a subprocess; only
+// main calls os.Exit.
 func run(args []string, stdout, stderr io.Writer) int {
-	// A leading "--" ends flag parsing for morphic itself, so what follows names
-	// a command however it is spelled: "morphic -- -h" reports an unknown
-	// command rather than printing help. It does not stop that name being
-	// "help", which is a command word and never was a flag.
-	args, terminated := cutTerminator(args)
-	if len(args) == 0 {
-		writeRootHelp(stdout)
-		return 0
-	}
-	// A leading help flag is the help command spelled differently, so it takes
-	// the same path rather than a shortcut to root help. That is what makes
-	// "morphic -h compile" print compile's help instead of silently dropping
-	// the name, and "morphic -h bogus" report it instead of masking it.
-	if args[0] == "help" || (!terminated && isHelpFlag(args[0])) {
-		return runHelp(args[1:], stdout, stderr)
-	}
+	return execute(newRootCmd(), args, stdout, stderr)
+}
 
-	c, ok := lookup(args[0])
-	if !ok {
-		return rootUsageError(stderr, fmt.Sprintf("unknown command %q", args[0]))
-	}
-	return dispatch(c, args[1:], stdout, stderr)
+// execute runs root under fang and maps the outcome to an exit code. args is
+// copied and never nil: handed a nil slice, cobra runs os.Args[1:] instead.
+func execute(root *cobra.Command, args []string, stdout, stderr io.Writer) int {
+	root.SetArgs(append([]string{}, args...))
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+
+	err := fang.Execute(context.Background(), root, fangOptions()...)
+	return exitCode(err)
 }
 
 // emitf writes a formatted line to w. Write errors on a human-facing stream are

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"io"
@@ -74,8 +75,8 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			assert.Contains(t, stderr.String(), tt.code+" "+spec+": ",
 				"the bare path: the finding is about the file as a whole")
 			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
-			assert.NotContains(t, stderr.String(), "usage:",
-				"a bad spec is not a misuse of the CLI, so no usage block")
+			assert.NotContains(t, stderr.String(), "Try ",
+				"a bad spec is not a misuse of the CLI, so no pointer to help")
 		})
 	}
 }
@@ -113,18 +114,21 @@ func TestRun_UsageErrors(t *testing.T) {
 		name   string
 		args   []string
 		reason string
+		help   string // the command the hint points at
 	}{
-		{"unknown command", []string{"bogus"}, `unknown command "bogus"`},
-		{"help of unknown command", []string{"help", "bogus"}, `unknown command "bogus"`},
-		{"help of unknown command with help flag", []string{"help", "bogus", "--help"}, `unknown command "bogus"`},
-		{"help flag of unknown command", []string{"-h", "bogus"}, `unknown command "bogus"`},
-		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command"},
-		{"help flag with extra args", []string{"--help", "compile", "extra"}, "help accepts at most one command"},
-		{"help with extra args and help flag", []string{"help", "a", "b", "--help"}, "help accepts at most one command"},
-		{"unknown flag", []string{"compile", spec, "--bogus"}, "flag provided but not defined: -bogus"},
-		{"no spec file", []string{"compile"}, "compile requires exactly one spec file"},
-		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file"},
-		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`},
+		{"unknown command", []string{"bogus"}, `unknown command "bogus"`, "morphic"},
+		{"help of unknown command", []string{"help", "bogus"}, `unknown command "bogus"`, "morphic"},
+		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command", "morphic"},
+		{"unknown flag", []string{"compile", spec, "--bogus"}, "unknown flag: --bogus", "morphic compile"},
+		{"single-dash long flag", []string{"compile", spec, "-fail-on=error"},
+			"unknown shorthand flag: 'f' in -fail-on=error", "morphic compile"},
+		{"flag without its value", []string{"compile", spec, "--fail-on"},
+			"flag needs an argument: --fail-on", "morphic compile"},
+		{"no spec file", []string{"compile"}, "compile requires exactly one spec file", "morphic compile"},
+		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file", "morphic compile"},
+		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`, "morphic compile"},
+		{"repeated option", []string{"compile", spec, "--opt", "a=1", "--opt", "a=2"},
+			`option "a" set more than once`, "morphic compile"},
 	}
 
 	for _, tt := range tests {
@@ -135,8 +139,10 @@ func TestRun_UsageErrors(t *testing.T) {
 			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
-			assert.Equal(t, 1, strings.Count(stderr.String(), "usage:"),
-				"exactly one usage block per misuse, got:\n%s", stderr.String())
+			assert.Contains(t, stderr.String(), `Try "`+tt.help+` --help" for usage.`,
+				"a misuse must point at the help of the command that was misused")
+			assert.Equal(t, 1, strings.Count(stderr.String(), "Try "),
+				"exactly one pointer to help per misuse, got:\n%s", stderr.String())
 		})
 	}
 }
@@ -162,7 +168,7 @@ func TestRun_CompilerOptionReachesTheCompiler(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", groupingSpec)
 
 	assert.Equal(t, "zoo", groupNameOf(t, spec), "the default groups by tag")
-	assert.Equal(t, "a", groupNameOf(t, spec, "-opt", "grouping=path-prefix"),
+	assert.Equal(t, "a", groupNameOf(t, spec, "--opt", "grouping=path-prefix"),
 		"the compiler option must reach the compiler")
 }
 
@@ -291,12 +297,12 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
-	raw := compileToFile(t, spec, "-pretty")
+	raw := compileToFile(t, spec, "--pretty")
 
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 	assert.Empty(t, cmp.Diff(stdout.String(), string(raw)),
-		"-pretty must write the bytes stdout gets")
+		"--pretty must write the bytes stdout gets")
 }
 
 // TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
@@ -311,8 +317,9 @@ func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 
-	res, _, ok := runPipeline(spec, specOptions{}, io.Discard)
-	require.True(t, ok, "the pipeline must produce a document")
+	res, _, err := runPipeline(context.Background(), spec, specOptions{}, io.Discard)
+	require.NoError(t, err)
+	require.NotNil(t, res, "the pipeline must produce a document")
 	golden := filepath.Join(t.TempDir(), "doc.golden.json")
 	require.NoError(t, irtest.WriteGolden(golden, res.Document))
 	want, err := os.ReadFile(golden)
@@ -331,7 +338,7 @@ func TestRun_CompactOutputKeepsDocumentOrder(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", unsortedSpec)
 
 	compact := compileToFile(t, spec)
-	pretty := compileToFile(t, spec, "-pretty")
+	pretty := compileToFile(t, spec, "--pretty")
 
 	flattened := jsontext.Value(pretty).Clone()
 	require.NoError(t, flattened.Compact())

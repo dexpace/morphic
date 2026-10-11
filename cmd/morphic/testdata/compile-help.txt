@@ -1,33 +1,46 @@
-usage:
-  morphic compile <spec-file> [flags]
 
-Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write
-diagnostics to stderr. Output to stdout is indented for reading; a file
-written with -o is compact unless --pretty asks for the indented form.
+  Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write diagnostics to stderr.
+  Output to stdout is indented for reading; a file written with --output is compact unless --pretty
+  asks for the indented form.
 
---explain reports what compiling produced at one source coordinate — the
-type node interned there, the coordinates interned beneath it, and the
-diagnostics stamped at it — instead of writing the document. The coordinate
-is a JSON Pointer, so '' is the whole document.
+  --explain reports what compiling produced at one source coordinate — the type node interned there,
+  the coordinates interned beneath it, and the diagnostics stamped at it — instead of writing the
+  document. The coordinate is a JSON Pointer, so '' is the whole document.
 
---opt passes a setting to the compiler the spec selects, which names and
-validates its own options; morphic itself knows none of them. The OpenAPI
-compiler's are listed in the README.
+  --opt passes a setting to the compiler the spec selects, which names and validates its own
+  options; morphic itself knows none of them. The OpenAPI compiler's are listed in the README.
 
-A -- argument ends flag parsing: every argument after it is an operand,
-even one that begins with a dash, which is how a spec file named like a
-flag is passed.
+  A -- argument ends flag parsing: every argument after it is an operand, even one that begins with
+  a dash, which is how a spec file named like a flag is passed.
 
-flags:
-  -explain pointer
-    	report what compiling produced at this source pointer instead of writing IR JSON; '' is the whole document
-  -fail-on string
-    	fail (exit 1) on diagnostics at or above this severity: error|warning (default "error")
-  -o string
-    	write IR JSON to this file instead of stdout
-  -opt key=value
-    	set one key=value option on the compiler the spec selects (repeatable)
-  -pretty
-    	indent the IR JSON -o writes; stdout is indented either way
-  -skip-validate
-    	skip the referential-integrity validate pass
+  Exit status is 0 when nothing reaches --fail-on, 1 when something does or the spec lowered to no
+  document at all, and 2 for a misuse or an I/O error.
+
+  USAGE
+
+    morphic compile <spec-file> [--flags]
+
+  EXAMPLES
+
+    # IR JSON to stdout
+    morphic compile openapi.yaml
+
+    # ...or to a file
+    morphic compile openapi.yaml -o api.ir.json
+
+    # what compiling produced at one source coordinate
+    morphic compile openapi.yaml --explain /components/schemas/Pet
+
+    # pass settings to the compiler the spec selects
+    morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
+
+  FLAGS
+
+    --explain        Report what compiling produced at this pointer instead of the IR; '' is the whole document
+    --fail-on        Exit 1 on diagnostics at or above this severity: error or warning (error)
+    -h --help        Help for compile
+    --opt            Set one key=value option on the compiler the spec selects (repeatable)
+    -o --output      Write IR JSON to this file instead of stdout
+    --pretty         Indent the IR JSON --output writes; stdout is indented either way
+    --skip-validate  Skip the referential-integrity validate pass
+

@@ -122,20 +122,21 @@ morphic compile openapi.yaml --explain /components/schemas/Pet
 ```
 
 `compile` lowers one spec into IR JSON and writes diagnostics to stderr. Stdout is indented for
-reading; a file written with `-o` is compact, about half the bytes, unless `--pretty` asks for the
-indented form. `validate` runs the same pipeline and drops the document, for a check that wants
+reading; a file written with `-o`/`--output` is compact, about half the bytes, unless `--pretty`
+asks for the indented form. `validate` runs the same pipeline and drops the document, for a check that wants
 the diagnostics and the exit code and nothing else.
 
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
-prints a command's flags. Help always goes to stdout and exits `0`.
+prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
+Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones.
 
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
 | `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
-| `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
-| `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
+| `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
+| `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
 | `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. |
 
 #### Diagnostics

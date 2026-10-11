@@ -1,10 +1,19 @@
-usage:
-  morphic <command> [flags]
 
-morphic lowers an API spec into Morphic IR.
+  morphic lowers an API spec into Morphic IR.
 
-commands:
-  compile  lower an API spec (OpenAPI 3.x) into Morphic IR JSON
-  validate check an API spec and report its diagnostics, writing no IR
+  USAGE
 
-run "morphic help <command>" for command details.
+    morphic [command] [--flags]
+
+  COMMANDS
+
+    compile <spec-file> [--flags]   Lower an API spec (OpenAPI 3.x) into Morphic IR JSON
+    completion [command]            Generate the autocompletion script for the specified shell
+    help [command]                  Show help for a command
+    validate <spec-file> [--flags]  Check an API spec and report its diagnostics, writing no IR
+
+  FLAGS
+
+    -h --help                       Help for morphic
+    -v --version                    Version for morphic
+

@@ -250,7 +250,12 @@ var rules = map[string][]string{
 	// named here.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass"},
-	"cmd/morphic":         {module + "/ir", module + "/engine"},
+	// The CLI. Beyond the pipeline it reaches the command framework: cobra
+	// parses the arguments, fang styles its help and errors, and colorprofile is
+	// how the error handler tells a terminal from a redirected stream.
+	"cmd/morphic": {module + "/ir", module + "/engine",
+		"charm.land/fang/v2", "github.com/charmbracelet/colorprofile", "github.com/spf13/cobra",
+		"github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	"internal/testspec":   {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
