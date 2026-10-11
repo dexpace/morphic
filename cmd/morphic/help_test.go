@@ -254,8 +254,9 @@ func TestRun_CommandHelpListsEveryFlag(t *testing.T) {
 var flagLine = regexp.MustCompile(`^\s+(?:-\w, )?--([a-z-]+)\s`)
 
 // flagNamesIn returns the flag names documented by rendered help: the long
-// names on the rows under its "Flags:" title. A section title is the one kind
-// of line cobra does not indent.
+// names on the rows under its "Flags:" title. Every line cobra does not indent,
+// whether a section title, the description or the closing pointer to --help,
+// ends the section before it.
 func flagNamesIn(rendered string) []string {
 	var names []string
 	inFlags := false
