@@ -1,0 +1,82 @@
+# GitHub #530: a discriminator mapping may name its subtype by a JSON reference
+# to an inline position. The resolver never follows a mapping value, so the
+# compiler found such a target only once the schema enclosing it had lowered:
+# declared after the base, as every target here is, the entry was dropped as
+# unresolved. The sweep's order oracle compiles the reversed document as well,
+# so both orders must agree.
+#
+# A's subtype is itself a discriminated base, so resolving A's mapping hoists
+# a target whose own mapping hoists another. Holder's base sits under not,
+# where only User's $ref lowers it, and its mapping names the item of a
+# webhook's request body.
+openapi: 3.1.0
+info: {title: Discriminator Mapping Inline Targets, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          b: '#/components/schemas/B/properties/x'
+    User:
+      type: object
+      properties:
+        pet: {$ref: '#/components/schemas/Holder/not'}
+    Holder:
+      type: object
+      not:
+        type: object
+        required: [tag]
+        properties:
+          tag: {type: string}
+        discriminator:
+          propertyName: tag
+          mapping:
+            hook: '#/webhooks/hook/post/requestBody/content/application~1json/schema/items'
+    B:
+      type: object
+      properties:
+        x:
+          allOf:
+            - $ref: '#/components/schemas/A'
+          type: object
+          required: [sub]
+          properties:
+            sub: {type: string}
+          discriminator:
+            propertyName: sub
+            mapping:
+              c: '#/components/schemas/C/items/properties/y'
+    C:
+      type: array
+      items:
+        type: object
+        properties:
+          y:
+            allOf:
+              - $ref: '#/components/schemas/B/properties/x'
+            type: object
+            properties:
+              z: {type: boolean}
+webhooks:
+  hook:
+    post:
+      operationId: hook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Holder/not'
+                type: object
+                properties:
+                  w: {type: string}
+      responses:
+        "200": {description: ok}

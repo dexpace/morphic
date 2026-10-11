@@ -12,21 +12,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 )
 
-// Bounds on one conversion. Both exist because a YAML node is a graph, not a
-// tree: an alias may point at an ancestor, and a chain of aliases each naming
-// the one above it expands multiplicatively.
-//
-// Neither is this compiler's real defence against either shape — scan's cycle
-// detector refuses both long before a node reaches here, on bounds calibrated
-// against a 1,693-spec corpus, which at their defaults are far tighter than
-// these.
-// They are here so the walk is bounded by its own terms rather than by what
-// happens to run before it, which is the whole point of a backstop: nothing
-// about this file's correctness should depend on the caller.
+// Bounds on one conversion, a backstop. A YAML node is a graph, not a tree: an
+// alias may point at an ancestor, and a chain of aliases each naming the one
+// above it expands multiplicatively. scan's cycle detector refuses both shapes
+// long before a node reaches here, at far tighter bounds, so the walk is
+// bounded on its own terms rather than by what runs before it.
 //
 // maxRawDepth is yaml.v3's own parse-time nesting cap, so it binds only on
 // input the parser could not have produced by nesting alone: an alias cycle.
-// Nothing a spec can legally nest reaches it.
 const (
 	maxRawDepth = 10000
 	maxRawNodes = 1 << 20
@@ -169,23 +162,16 @@ func (c *rawConv) scalar(n *yaml.Node) (jsontext.Value, error) {
 	}
 }
 
-// spliceNumber renders num — an already-validated NumericLiteral result — as
-// raw JSON, refusing it if it is not a JSON number. scalar is the one caller
-// that splices a numeric literal straight into a document rather than into an
-// ir.Value field, so this is the one place BigVal's contract ("its text always
-// renders as a JSON-valid number") has to hold rather than merely be assumed.
+// spliceNumber renders num, an already-validated NumericLiteral result, as raw
+// JSON, refusing it if it is not a JSON number. scalar is the one caller that
+// splices a numeric literal straight into a document rather than an ir.Value
+// field, so BigVal's contract (its text always renders as a JSON-valid number)
+// is checked here.
 //
-// The check earned its keep: NewBigVal used to accept a binary exponent and
-// store it verbatim, so `!!float 1p4` arrived here as a BigVal that was not
-// JSON, and this is what refused it (GitHub #45). NewBigVal enforces that
-// contract itself now, so no value NumericLiteral returns can fail the check
-// below — which is why TestSpliceNumber_RefusesANonJSONNumber calls this
-// function directly instead of driving a node through scalar, exactly as
-// TestRawConv_RefusesNodesNoCallerShouldPass calls verbatimTagged directly for
-// the default arm scalar never routes to. It stays rather than being deleted
-// now that it is unreachable, because dropping it turns a future regression in
-// BigVal's own promise into a document silently carrying a construct JSON
-// cannot name, rather than a refusal.
+// NewBigVal enforces that contract itself, so the check is unreachable through
+// scalar and tests call this directly. It stays because dropping it would turn
+// a future regression in BigVal into a document silently carrying a construct
+// JSON cannot name (GitHub #45).
 func spliceNumber(source, num string) (jsontext.Value, error) {
 	if !jsontext.Value(num).IsValid() {
 		return nil, fmt.Errorf("numeric literal %q renders as %q, which is not JSON", source, num)
@@ -333,17 +319,33 @@ func mergeSource(n *yaml.Node) (*yaml.Node, error) {
 }
 
 // checkUniqueKeys rejects a mapping that names one key twice, which yaml.v3
-// rejects by default and this compiler has therefore always refused.
+// rejects by default and this compiler has therefore always refused. It names
+// the earliest key written again, and where it is written next, in one pass:
+// comparing every pair of keys cost the square of the mapping's width (GitHub
+// #776).
 func checkUniqueKeys(n *yaml.Node) error {
-	for i := 0; i < len(n.Content); i += 2 {
-		for j := i + 2; j < len(n.Content); j += 2 {
-			a, b := n.Content[i], n.Content[j]
-			if a.Kind == b.Kind && a.Value == b.Value {
-				return fmt.Errorf("mapping key %q already defined at line %d", b.Value, a.Line)
-			}
+	type key struct {
+		kind  yaml.Kind
+		value string
+	}
+	first := make(map[key]int, len(n.Content)/2)
+	earliest, next := -1, -1
+	for j := 0; j < len(n.Content); j += 2 {
+		k := key{kind: n.Content[j].Kind, value: n.Content[j].Value}
+		i, seen := first[k]
+		if !seen {
+			first[k] = j
+			continue
+		}
+		// A key's later repeats share its first index, so its first repeat is kept.
+		if earliest < 0 || i < earliest {
+			earliest, next = i, j
 		}
 	}
-	return nil
+	if earliest < 0 {
+		return nil
+	}
+	return fmt.Errorf("mapping key %q already defined at line %d", n.Content[next].Value, n.Content[earliest].Line)
 }
 
 // mapKey gives a mapping key its JSON name, rejecting every key JSON has no

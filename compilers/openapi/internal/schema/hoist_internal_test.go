@@ -74,7 +74,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 }
 
 // TestRegisteredNode_ReportsAMissRatherThanDroppingIt pins the invariant check.
-// Interning records a pointer's ID and its node together, so a miss is a
+// Outside its build, every ID interning returns has a node, so a miss is a
 // compiler bug no source can provoke — and the caller was about to attach docs
 // or preserved constructs to that node, which would vanish without a word.
 func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
@@ -97,4 +97,28 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	assert.True(t, ok)
 	assert.Empty(t, diags, "a hit reports nothing")
 	assert.Equal(t, id, td.Common().ID)
+}
+
+// TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder pins the one miss
+// that is no bug: a revisit while the node's build is still running further up
+// the walk. That frame finishes the node once its build returns, so the
+// revisit hands back nothing and reports nothing (GitHub #749).
+func TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
+	t.Parallel()
+	c := lowering.Ctx{}
+	ts := compile.NewTypes()
+	const at = "/components/schemas/User"
+
+	var midBuild bool
+	var midBuildDiags []ir.Diagnostic
+	id := internNode(c, ts, at, "", func(cm ir.TypeCommon) ir.TypeDef {
+		_, midBuild, midBuildDiags = registeredNode(c, ts, cm.ID, at)
+		return &ir.Model{TypeCommon: cm}
+	})
+	assert.False(t, midBuild, "there is no node to hand back yet")
+	assert.Empty(t, midBuildDiags, "and that is not a broken invariant")
+
+	_, ok, diags := registeredNode(c, ts, id, at)
+	assert.True(t, ok, "once the build returns, the node is there")
+	assert.Empty(t, diags)
 }

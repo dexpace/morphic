@@ -27,17 +27,13 @@ func TestLowerSecurityRequirement_Nil(t *testing.T) {
 }
 
 // TestMechanismFieldNames_AccountForEverySourceField holds mechanismFieldNames
-// to the source model it is a list of, so a field the upstream model gains is a
-// failure here rather than a construct the IR drops without trace.
+// to the source model it lists, so a field the upstream model gains fails here
+// rather than being dropped from the IR without trace, which is what #294 was.
 //
-// That is the shape of #294 itself: the lowering read the fields it knew about
-// and dropped whatever else the entry declared, and no test compared the two
-// lists. Reading the source struct is what makes the comparison possible at all
-// — a hand-written list checked against another hand-written list would agree
-// with itself forever.
-//
-// The wire names are spelled out rather than derived, because the two differ by
-// more than a leading case change: OAuth2MetadataUrl is oauth2MetadataUrl.
+// Reading the source struct is what makes the comparison possible: a
+// hand-written list checked against another would agree with itself forever.
+// The wire names are spelled out rather than derived, since they differ by more
+// than leading case: OAuth2MetadataUrl is oauth2MetadataUrl.
 func TestMechanismFieldNames_AccountForEverySourceField(t *testing.T) {
 	t.Parallel()
 	// alwaysRead are the fields lowerSecurityScheme reads whatever the type is,

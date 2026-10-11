@@ -1,7 +1,9 @@
 package resolve_test
 
 import (
+	"encoding/json/jsontext"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -68,10 +71,10 @@ func TestObject_NilEntryIsNil(t *testing.T) {
 // TestObjectAt_CrossDocumentKeepsUseSitePointer is the cross-document
 // counterpart to the same-document sharing tests above (issue #107). The
 // fixture's operation $refs a parameter and a response into a sibling
-// document; both resolve to real objects (resolveAll follows external refs),
-// but ObjectAt's internal-pointer check rejects the target because it lives
-// in another document, so the use-site pointer is kept rather than a pointer
-// into a document this IR has no node for.
+// document; both resolve to real objects (the load phase follows external
+// refs once a compile opts in), but ObjectAt's internal-pointer check rejects
+// the target because it lives in another document, so the use-site pointer is
+// kept rather than a pointer into a document this IR has no node for.
 //
 // Reaching the sibling file is what the case is about, so it opts in to the
 // external resolution the compiler does not do on its own.
@@ -154,6 +157,28 @@ func TestObjectAt_AliasChainBeyondBoundFallsBackToUseSite(t *testing.T) {
 	require.Len(t, op.Params, 1)
 	assert.Equal(t, ir.TypeID("t/anon/paths/~1a/get/parameters/0/schema"), op.Params[0].Type.Target,
 		"an over-long chain keeps the one pointer that is certainly addressable")
+}
+
+// TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments pins the scope of an entry
+// whose chain outruns maxRefChain: none, so no reference in what it reaches
+// reads as internal. Taken to end at the last hop read, it was read in that
+// hop's document, which need not hold the end (GitHub #762).
+func TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments(t *testing.T) {
+	t.Parallel()
+	for hops, foreign := range map[int]bool{resolve.MaxRefChain - 1: false, resolve.MaxRefChain + 4: true} {
+		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		op, ok := doc.Doc.Paths.Get("/a")
+		require.True(t, ok)
+		params := op.GetObject().Get().GetParameters()
+		require.Len(t, params, 1)
+
+		scope := resolve.ScopeOf[soa.Parameter](resolve.Scope{Doc: doc.Doc, SelfPath: doc.Source.Path}, params[0])
+
+		assert.Equal(t, foreign, scope.Foreign, "%d hops", hops)
+		assert.Empty(t, scope.Holder, "%d hops", hops)
+	}
 }
 
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
@@ -301,4 +326,167 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 		"the fixture must be brittle, or this asserts nothing")
 
 	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
+}
+
+// elsewhereRoot is a source whose path items are reached each way an entry can
+// be: written inline, by an internal $ref, by a $ref into ext.yaml, by one into
+// ext.yaml that comes back into the source, once directly and once through a
+// further alias there, and by one naming nothing. The responses of /through are
+// reached by pointers passing the $ref of /ext, /back and /internal on the way.
+const elsewhereRoot = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /inline: {get: {responses: {"200": {description: ok}}}}
+  /internal: {$ref: '#/components/pathItems/P'}
+  /ext: {$ref: './ext.yaml#/paths/~1x'}
+  /back: {$ref: './ext.yaml#/paths/~1back'}
+  /hop: {$ref: './ext.yaml#/paths/~1hop'}
+  /missing: {$ref: '#/components/pathItems/Nope'}
+  /through:
+    get:
+      responses:
+        "200": {$ref: '#/paths/~1ext/get/responses/200'}
+        "201": {$ref: '#/paths/~1back/get/responses/200'}
+        "202": {$ref: '#/paths/~1internal/get/responses/200'}
+components:
+  pathItems:
+    P: {get: {responses: {"200": {description: ok}}}}
+    Q: {$ref: '#/components/pathItems/P'}
+`
+
+// loadElsewhere loads elsewhereRoot beside the ext.yaml its entries name, and
+// returns it with that file's path.
+func loadElsewhere(t *testing.T) (*load.Document, string) {
+	t.Helper()
+	dir := t.TempDir()
+	ext := filepath.Join(dir, "ext.yaml")
+	require.NoError(t, os.WriteFile(ext, []byte(`paths:
+  /x: {get: {responses: {"200": {description: ok}}}}
+  /back: {$ref: 'root.yaml#/components/pathItems/P'}
+  /hop: {$ref: 'root.yaml#/components/pathItems/Q'}
+`), 0o600))
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(elsewhereRoot)}, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	return doc, ext
+}
+
+// TestScopeOf pins the scope each entry's object is read in, given a Foreign
+// scope over another document, which tells every answer apart. One whose chain
+// ends in ext.yaml is read there. One whose chain ends in the source, however
+// it got there, is read as the source's. One written inline, and one that
+// resolved nothing, keep the scope given.
+func TestScopeOf(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	given := resolve.Scope{Doc: doc.Doc, Foreign: true, Holder: "other.yaml"}
+
+	for path, want := range map[string]string{
+		"/inline": "other.yaml", "/internal": "", "/ext": ext, "/back": "", "/hop": "", "/missing": "other.yaml",
+	} {
+		rp, ok := doc.Doc.Paths.Get(path)
+		require.True(t, ok, path)
+		scope := resolve.ScopeOf[soa.PathItem](given, rp)
+		assert.Equal(t, want, scope.Holder, path)
+		assert.Equal(t, want != "", scope.Foreign, path)
+		assert.Same(t, doc.Doc, scope.Doc, path)
+	}
+}
+
+// pathItemEnds is the Ends of a scope whose walks meet path items alone, as
+// those through elsewhereRoot do.
+func pathItemEnds(node any) (resolve.End, bool) {
+	rp, ok := node.(*soa.ReferencedPathItem)
+	if !ok {
+		return resolve.End{}, false
+	}
+	return resolve.EndOf[soa.PathItem](rp)
+}
+
+// TestScopeOf_PastARefReadsWhereItsChainEnds pins the scope of an entry whose
+// pointer passes a $ref, which the resolver's walk follows to what it resolved
+// to, though it reports the source as what the pointer resolved against. Past
+// /ext's, the response is ext.yaml's, read as /ext's own entry reads it, and
+// ObjectAt names it by the pointer /ext's own lowering reaches it at, so both
+// lowerings read one position alike (GitHub #762). Past /back's or
+// /internal's, whose chains end in the source, it is the source's.
+func TestScopeOf_PastARefReadsWhereItsChainEnds(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	given := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: "other.yaml",
+		Ends: pathItemEnds}
+	through, ok := doc.Doc.Paths.Get("/through")
+	require.True(t, ok)
+	responses := through.GetObject().Get().GetResponses()
+	rp, ok := doc.Doc.Paths.Get("/ext")
+	require.True(t, ok)
+	own := resolve.ScopeOf[soa.PathItem](given, rp)
+	require.Equal(t, ext, own.Holder, "/ext's own entry is read where ext.yaml sits")
+
+	for code, want := range map[string]string{"200": ext, "201": "", "202": ""} {
+		rr, ok := responses.Get(code)
+		require.True(t, ok, code)
+		require.NotNil(t, resolve.Object[soa.Response](rr), "%s: the resolver walked through the $ref", code)
+		scope := resolve.ScopeOf[soa.Response](given, rr)
+		assert.Equal(t, want, scope.Holder, code)
+		assert.Equal(t, want != "", scope.Foreign, code)
+	}
+	rr, ok := responses.Get("200")
+	require.True(t, ok)
+	_, pointer := resolve.ObjectAt[soa.Response](given.InSource(), rr, "/paths/~1through/get/responses/200")
+	assert.Equal(t, jsontext.Pointer("/paths/~1ext/get/responses/200"), pointer,
+		"named where /ext's own lowering reaches it, in the scope that lowering reads it in")
+}
+
+// TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources pins the scope ObjectAt
+// reads each hop in. The entry is ext.yaml's, read where ext.yaml sits: its
+// $ref names the source's Q, a $ref written in the source, so the next hop
+// reads `#/...` as the source's and reaches P. Read as ext.yaml's, it named a
+// position there, and the walk fell back to the use site.
+func TestObjectAt_AHopIntoTheSourceReadsOnAsTheSources(t *testing.T) {
+	t.Parallel()
+	doc, ext := loadElsewhere(t)
+	rp, ok := doc.Doc.Paths.Get("/hop")
+	require.True(t, ok)
+	info := rp.GetReferenceResolutionInfo()
+	require.NotNil(t, info)
+	require.NotNil(t, info.Object, "the source's entry resolved to ext.yaml's")
+
+	scope := resolve.Scope{SelfPath: doc.Source.Path, Doc: doc.Doc, Foreign: true, Holder: ext}
+	obj, pointer := resolve.ObjectAt[soa.PathItem](scope, info.Object, "/use")
+	require.NotNil(t, obj)
+	assert.Equal(t, jsontext.Pointer("/components/pathItems/P"), pointer)
+}
+
+// TestReferenceEnd_NamesWhereEachKindOfReferenceEnds pins ReferenceEnd for a
+// resolved reference of each kind the library has, reached as a walk meets one,
+// as a value of any type: each ends at the component it names, in the source,
+// and nothing else is a reference. Driving the compiler is what makes the
+// resolution info real (see parseFull).
+func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
+	t.Parallel()
+	got, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(openapitest.EveryKindOfReference), load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, got, "%+v", diags)
+
+	ends := map[jsontext.Pointer]bool{}
+	for item := range soa.Walk(t.Context(), got.Doc) {
+		_ = item.Match(soa.Matcher{Any: func(model any) error {
+			if end, ok := resolve.ReferenceEnd(model); ok {
+				assert.Same(t, got.Doc, end.Document, "%T ends in the source's model", model)
+				ends[end.Pointer] = true
+			}
+			return nil
+		}})
+	}
+
+	assert.Equal(t, map[jsontext.Pointer]bool{
+		"/components/pathItems/P": true, "/components/parameters/Q": true, "/components/requestBodies/B": true,
+		"/components/callbacks/C": true, "/components/headers/H": true, "/components/links/L": true,
+		"/components/schemas/S": true, "/components/examples/E": true, "/components/responses/R": true,
+		"/components/securitySchemes/K": true,
+	}, ends)
+	_, ok := resolve.ReferenceEnd(got.Doc)
+	assert.False(t, ok, "a document is no reference")
 }

@@ -55,6 +55,8 @@ enforced by a generated `switch`-completeness test over `TypeKind` values (the o
 ```go
 type Document struct {
     IRVersion   string                 // version of the IR schema itself, semver
+    IDSpaces    map[string][]string    // the namespaces the document's IDs live in, by kind prefix (§3.1);
+                                       // a producer states it as it stamps IRVersion
     Name        string                 // API title
     Version     string                 // API version string (source-declared)
     Docs        Docs
@@ -100,7 +102,7 @@ checked against the document, but which spelling of the schema its keys are in h
 encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
 several times bumps it once, where it lands on `main` — a version that moves within an unmerged
 branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
-constant; its GoDoc carries the log of what each past bump changed.
+constant; the version history below records what each past bump changed.
 
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
 so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
@@ -108,8 +110,9 @@ one, so PATCH carries no promise a consumer may read compatibility into. Moving 
 decision about the project's stability rather than about any one shape change, and no policy for
 MAJOR is written here until that decision is taken.
 
-- *Compilers* stamp `ir.IRVersion` on every document they produce. That is the whole obligation:
-  a compiler never emits an older generation, and there is no option to ask it to.
+- *Compilers* stamp `ir.IRVersion` on every document they produce, and declare beside it the
+  namespaces their IDs live in (§3.1). Of the version itself that is the whole obligation: a
+  compiler never emits an older generation, and there is no option to ask it to.
 - *Emitters* and any other consumer are built against exactly one generation. A bump is a change
   they must be updated for; there is no "read it anyway" mode, because the failure a stale
   consumer produces is silent — it finds no key it recognizes where a renamed one used to be and
@@ -142,6 +145,60 @@ ls testdata/*/openapi/*.golden.json | wc -l
 grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
 ```
 
+#### Version history
+
+What each generation changed in the JSON shape, and what a consumer pinned to the generation before
+it sees. Changes made together in one bump are listed together under it.
+
+- **0.2.0** — three shape changes made together. `Extensions` became `Preserved`, with `RawConfig`
+  split out. `Content.ItemEncoding` became a single encoding rather than a sentinel-keyed map. The
+  diagnostic code `pass/dangling-auth-ref` became `ir/dangling-auth-ref` (the `pass` package doc
+  explains the rename).
+- **0.3.0** — `Preserved` was renamed `Unmodeled` on every carrier, so the JSON key `preserved`
+  became `unmodeled`. A consumer pinned to 0.2.0 finds no key it recognizes and drops every
+  unmodeled construct in silence.
+- **0.4.0** — six shape changes made together, all of them closing a gap a consumer had to read
+  around rather than adding a capability:
+  - `ErrorCase` became `Response`'s sibling: `Type` was **removed**, and `Name`, `Payload` and
+    `Headers` took its place. A consumer pinned to 0.3.0 finds no `type` on an error case and cannot
+    reach its models at all; one that reads the new fields gets the status spelling, the headers and
+    every media type, which 0.3.0 dumped into `Unmodeled` whatever their arity.
+  - `Payload` gained `Required`. Body optionality stopped being an inverted `Unmodeled` sentinel
+    read by absence, so a consumer that still reads `openapi:required` now finds nothing and reads
+    every body as required.
+  - `Parameter` gained `Provenance`, not `omitempty`, and with it `x-sunset` promotion at the
+    parameter position.
+  - `Deprecation` gained `RemovalDate`. `x-sunset` promotes into it rather than into
+    `RemovalVersion`, so a consumer reading a removal date off the version field now finds it
+    empty.
+  - `Encoding` gained `Schema`, giving `contentSchema` a home at scalar positions.
+  - `Constraints.ExclusiveMin` and `ExclusiveMax` changed from bool to a decimal string carrying the
+    bound itself, so the two dialects' exclusive bounds no longer lose one keyword to the other. The
+    JSON type of both keys changed; a consumer decoding them as booleans fails rather than degrades.
+- **0.5.0** — the IR moved onto `encoding/json/v2` and absence got one spelling:
+  - `Operation.Auth`, `Service.Auth` and `Server.Auth` write nil (inherit) as an absent key rather
+    than `null`. An empty list, explicitly public, is still `[]`.
+  - A `Value`'s bytes, list and object payloads, and a `CtorValue`'s args, are omitted when empty
+    rather than written as `null`.
+  - Strings use RFC 8785's minimal escaping, so `<`, `>` and `&` are written as themselves rather
+    than as `\u003c`, `\u003e` and `\u0026`.
+  - Decoding refuses what it used to take in silence: a member the schema does not define, a
+    duplicate name, a string that is not UTF-8, and a missing or foreign `irVersion`, which is read
+    before any other member.
+- **0.6.0** — each kind of `Provenance` locator got its own key. `pointer` holds only an RFC 6901
+  pointer; a line and column moved to `position`, and an IR pass's location in the document itself
+  moved to `node`. A consumer pinned to 0.5.0 knows neither new key and reads those findings as
+  unlocated.
+- **0.7.0** — two additions made together:
+  - `OperationGroup` gained `ID`. A group had been a name and a list of operations, so a consumer
+    could key a sub-client only by its name, which two groups can share: the declared tag `default`
+    and the group untagged operations fall into render from the same words. A consumer pinned to
+    0.6.0 finds no `id` on a group and has nothing else to key it by.
+  - `Document` gained `IDSpaces`, the namespaces its IDs live in, by kind prefix. Without it nothing
+    could see an ID that lost the separator before its path in an operation, a service or a group,
+    which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
+    cannot tell which namespaces a producer minted in.
+
 ---
 
 ## 3. Identity, names, references
@@ -151,7 +208,7 @@ grep -l '"irVersion"' testdata/*/openapi/*.golden.json | wc -l
 ```go
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
-type ServiceID, ChannelID, MessageID, AuthID, PropID string
+type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -161,7 +218,7 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
+`s`, `g`, `auth`), then the namespace, then the path. Only the path is the format's, because a JSON
 Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
 nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
 namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
@@ -184,6 +241,44 @@ node every source reaches by kind. `irverify` holds no producer to this so far (
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
 interface extension, and Cap'n Proto interface inheritance all reference services by identity)
 and messages (AsyncAPI reuses one named message across channels, operations, and replies).
+
+An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
+Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
+that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
+compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two singletons
+`g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a Smithy
+resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
+any other entity. Either way the ID is unique across the whole document, nested groups and every
+service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
+`ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
+of it, so two groups that render the same words stay two entities, and what an emitter does about
+that collision is a rendering decision it makes by ID (emitter-design §4.12).
+
+`irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
+well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
+pointer its path was derived from (`ir/id-provenance-disagreement`). And it lives in a namespace the
+document declares (`ir/id-space-undeclared`).
+
+The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
+namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
+security scheme and a property are held to it. An operation is not, because its provenance records
+where its body is declared and its ID where it is mounted, and the two differ for an operation reached
+through a `$ref`'d path item or callback (#107). A service records no pointer, and a group, formed by
+a rule from every operation sharing a key, has no single position to record.
+
+The declaration is what sees them all. A producer states the namespaces it mints IDs in as
+`Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
+stamps `IRVersion`. An ID that lost its separator is then in a namespace nobody declared, whatever
+its class and whether or not its node records a pointer. A type in the primitive namespace, which is
+`ir`'s, needs no entry. A document declaring nothing while carrying IDs is reported once
+(`ir/id-spaces-absent`). The declaration must itself be usable: keyed by real kinds, a kind with no
+namespace left out, each list sorted by the byte order of its UTF-8 spelling and without repeats,
+no empty namespace and none carrying the separator (`ir/id-spaces-unknown-kind`,
+`ir/id-spaces-not-canonical`, `ir/id-space-invalid`). It is a vocabulary and not a usage report, so
+a namespace no ID uses is not an error here; a compiler's own test holds its vocabulary to what its
+corpus uses, in both directions. In this repository an architecture test also holds a compiler to
+building a namespace only from a literal, which is where a path gets glued on. Channels and messages
+have no prefix yet and are held to none of this.
 
 An ID held as a reference — a field, a slice element, a map key or value, anywhere but the
 declaring entity's own `ID` — names an entity, so it is never empty. A reference a position may
@@ -239,8 +334,8 @@ value, property key, tag or component name — the compiler mints a hint rather 
 emptiness through; nothing is lost, because there was no spelling to keep.
 
 **A camel-case boundary is where lowercasing changes the rune**, not where Unicode reports an
-uppercase category. The two differ: double-struck `ℤ`, GREEK UPSILON WITH HOOK `ϒ` and the Roman
-numerals are uppercase with no lowercase form, so they survive lowercasing unchanged and are not
+uppercase category. The two differ: double-struck `ℤ` and GREEK UPSILON WITH HOOK `ϒ` are
+uppercase with no lowercase form, so they survive lowercasing unchanged and are not
 boundaries — `COUNTℤ` is one word. The titlecase letters are boundaries and are not uppercase —
 `xǅy` is two. Defining it by the effect rather than the category is what makes the grammar a fixed
 point: a rune it split on but lowercasing left alone would still look like a boundary in the output,
@@ -502,9 +597,12 @@ the branch position takes a node of its own — an alias over the target carryin
 `Base`/`Mixins` point at that. It is the same alias any other `$ref`-with-siblings position hoists
 when it carries no `Property` or `Parameter` of its own to hold them — `items`, a union branch, a
 component — so nothing about composition is special here; a `$ref` entry writing nothing beside
-itself composes straight to the target and hoists no node. The alias's name hint comes from the `$ref`
-target, which is also what an outside `$ref` naming the branch pointer derives, since either may
-be the lowering that interns the node.
+itself composes straight to the target and hoists no node. The alias's name hint is the hint the
+node the `$ref` resolves to carries — a component's name, or, for a position inside a schema, the
+hint its own declaration gives it — which is also what an outside `$ref` naming the branch pointer
+derives, since either may be the lowering that interns the node. A position under `/paths` whose
+hint comes from its operation or response is the exception so far, since the pointer does not
+spell that hint (#729).
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
 `allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same
@@ -1161,6 +1259,7 @@ type ProtocolDecl struct {
 }
 
 type OperationGroup struct {
+    ID         GroupID            // minted by the rule that formed the group (§3.1); document-wide unique
     Name       Naming
     Docs       Docs
     Groups     []OperationGroup   // nesting: Smithy resources, sub-clients
@@ -2011,6 +2110,13 @@ either, since every source reaches it by kind (§3.1). `NoSource` is therefore t
 out-of-table `Source` value the IR declares: a verifier accepts it and reports every other index
 that addresses no declared source, so a producer inventing a second sentinel is caught rather than
 tolerated.
+
+**A refusal still has a table.** A compile that refuses returns no `Document`, yet its diagnostics
+index the table that document would have carried. The compiler names it without reading anything
+(`compilers.Compiler.SourceTable`), and the engine returns it beside the findings as
+`engine.Result.Sources`. A finding about a whole source carries its index and no locator, even one
+made before any compiler claimed the spec, which names it as source `0`: it is about a file the
+table names, and only a finding about no file at all takes `NoSource`.
 
 **One field per kind of locator.** A consumer cannot tell a locator's kind from its spelling, so
 each kind has its own field. `Pointer` is the structural locator into a source and holds nothing

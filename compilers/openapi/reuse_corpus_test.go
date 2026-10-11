@@ -19,20 +19,13 @@ import (
 // TestReuse_MatchesAFreshParseAcrossTheCorpus sweeps every committed spec
 // through both paths a compile can take and requires one answer.
 //
-// The paths are not equally travelled. A caller that assembles a Source itself
-// — which is what every golden, conformance, budget, overlay and fuzz driver in
-// this repository does, and what internal/harness drives its oracles through —
-// parses the bytes inside Compile. A caller that goes through detection, which
-// is every invocation of the CLI, hands over the parse detection already made
-// and Compile reads that instead. So the oracles sweep the path no shipped
-// invocation takes, and the path every shipped invocation takes is swept by
-// nothing.
-//
-// This closes that: for each spec, compile it bare and compile it again with
-// the parse its own Detect produced, and compare the documents as their
-// persisted JSON plus the diagnostics beside them. Equality is what the reuse
-// is for — the parse is an optimization, so a document that differs is a bug
-// whichever side is right.
+// A caller that assembles a Source itself, as every golden, conformance,
+// budget, overlay and fuzz driver in this repository does, internal/harness
+// included, has the bytes parsed inside Compile; one that goes through
+// detection, as the CLI always does, hands over Detect's parse. So the oracles
+// drive the path no shipped invocation takes. Each spec is compiled bare and
+// again with its own Detect's parse; the persisted JSON and diagnostics must
+// match, since the parse is only an optimization.
 func TestReuse_MatchesAFreshParseAcrossTheCorpus(t *testing.T) {
 	t.Parallel()
 	specs := corpusSpecs(t)

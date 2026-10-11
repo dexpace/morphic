@@ -8,7 +8,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/ir"
 )
 
 const budgetedSpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
@@ -33,7 +32,7 @@ func TestDetect_DeclinesASourcePastTheCallersByteBudget(t *testing.T) {
 	assert.Equal(t, compilers.Recognition{}, rec)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Equal(t, ir.NoSource, diags[0].Provenance.Source, "detection has no source table to index")
+	assert.Equal(t, 0, diags[0].Provenance.Source, "detection names the one source it was handed")
 
 	_, compiled, err := New().Compile(t.Context(), []compilers.Source{src}, withBytes(limit))
 	require.NoError(t, err)

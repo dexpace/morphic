@@ -12,15 +12,13 @@ import (
 // BenchmarkAnchorWalk measures what deriving the $dynamicAnchor index at entry
 // would cost a document that never asks for it.
 //
-// micro-compiler-design §4.1 originally put the index in the immutable context,
-// derived once at entry. It stays a memo instead, and this is half the reason:
-// the walk is small but not free, and almost no document writes $dynamicRef. The
-// other half is that building it emits a diagnostic, which at entry would reach
+// The index stays a lazy memo rather than living in the immutable context
+// (micro-compiler-design §4.1): the walk is not free, almost no document writes
+// $dynamicRef, and building it emits a diagnostic that at entry would reach
 // documents that never use the keyword.
 //
-// Compare against a whole compile rather than reading the number alone — the
-// claim in the design is a ratio, and a ratio is what has to stay true.
-// BenchmarkCompile_Petstore in compilers/openapi is the other half.
+// Read the number against BenchmarkCompile_Petstore in compilers/openapi; the
+// design's claim is a ratio.
 func BenchmarkAnchorWalk(b *testing.B) {
 	// Four levels up, not two: this package sits at compilers/openapi/internal/
 	// schema, and the corpus is at the repo root. A missing or unparseable

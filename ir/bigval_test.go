@@ -52,16 +52,10 @@ func TestNewBigVal_RejectsNonNumeric(t *testing.T) {
 }
 
 // TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry covers the two refusals
-// that outlive the grammar check, and asserts which arm each input takes.
-//
-// Every row of TestNewBigVal_RejectsNonNumeric is now answered by
-// isDecimalLiteral, so none of them reaches big.ParseFloat at all — before the
-// grammar check existed those rows were what covered these two arms ("Inf"
-// parsed to an infinity, "0x10" failed to parse). What still gets past the
-// grammar is a well-formed decimal naming a magnitude math/big will not carry,
-// and it reports that two different ways, so each needs a row of its own: an
-// exponent ParseFloat cannot scan is an error, and one it scans but cannot
-// scale to parses and reports IsInf.
+// that outlive the grammar check. Both inputs are well-formed decimals, and
+// math/big reports them differently, so each has a row asserting its own arm:
+// an exponent ParseFloat cannot scan is an error, and one it scans but cannot
+// scale parses and reports IsInf.
 func TestNewBigVal_RejectsAMagnitudeParseFloatWillNotCarry(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

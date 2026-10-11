@@ -30,9 +30,8 @@ const unpreservableValue = ".nan"
 // Unmodeled" must not be emitted when nothing was written.
 //
 // It asserts the pairing rather than one site's message, because the defect was
-// a property of the idiom rather than of any one caller: every site that
-// converts a node and then announces it shared the bug, and four of them still
-// had it after the first fix was applied to the fifth.
+// a property of the idiom: every site that converts a node and then announces
+// it shared the bug.
 //
 // Each case compiles a document whose preserved payload cannot convert, then
 // requires that (a) no degradation diagnostic claims preservation, and (b) the

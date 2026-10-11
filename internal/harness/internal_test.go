@@ -31,23 +31,19 @@ func badExtDoc() *ir.Document {
 }
 
 // dupKeyDoc returns a document whose two type IDs are distinct invalid-UTF-8
-// byte strings. Before canonicalOptions started refusing invalid UTF-8, the
-// two encoded to the same U+FFFD-replaced JSON key, so the marshalled object
-// carried a duplicate key that silently lost an entry on the way back in —
-// that collision is what gives the fixture its name. Now marshaling either ID
-// is refused outright, before any such collision can form
-// (TestRoundTrips_DupKeyDocRefusedAtMarshal, which calls roundTrips directly).
+// byte strings. The name dates from when both encoded to one U+FFFD-replaced
+// JSON key; marshaling either ID is now refused
+// (TestRoundTrips_DupKeyDocRefusedAtMarshal).
 //
-// Verify reports each ill-formed ID, as registry key and as node ID, as
-// ir/invalid-utf8, so Check classifies the document as violations before its
-// round-trip oracle runs (TestCheck_InvalidUTF8IsAViolationNotARoundTrip). The
-// IDs are otherwise well-shaped, and the nodes are named and are Any rather
-// than Primitive, so that those are the only violations it draws: a
-// primitive's ID is derived from its kind, so one anywhere but t/prim/<kind>
-// would be a defect of its own, and an unnamed node is another.
+// Verify reports each ID, as registry key and node ID, as ir/invalid-utf8, so
+// Check classifies the document as violations before the round-trip oracle runs
+// (TestCheck_InvalidUTF8IsAViolationNotARoundTrip). The IDs are otherwise
+// well-shaped and the nodes named Any rather than Primitive, so those are the
+// only violations drawn: a primitive's ID derives from its kind, and an unnamed
+// node is a defect of its own.
 func dupKeyDoc() *ir.Document {
 	named := ir.Naming{Source: "node", Canonical: "node"}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{
+	return &ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {"x"}}, Types: ir.TypeRegistry{
 		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
 		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
 	}}
@@ -55,14 +51,18 @@ func dupKeyDoc() *ir.Document {
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
 // own ID with a neutral canonical name, stamped with the IR schema version this
-// build writes. It has no violations and round-trips through JSON cleanly, so the
-// oracles reach the step under test.
+// build writes and declaring its one namespace. It has no violations and
+// round-trips through JSON cleanly, so the oracles reach the step under test.
 func soundDoc() *ir.Document {
 	m := &ir.Model{
 		ID:   "t/x/Model",
 		Name: ir.Naming{Source: "Model", Canonical: "model"},
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+		Types:     ir.TypeRegistry{m.ID: m},
+	}
 }
 
 func TestRoundTrips_MarshalError(t *testing.T) {
