@@ -198,29 +198,27 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if id, ok := resolve.InternedID(ts, pointer); ok {
 		return id, true, nil
 	}
-	decl = settledDecl(scope, pointer, decl)
+	// A nil decl hoists nothing: nothing followed the $ref, and which positions
+	// the load phase walked follows which chains it resolved, so an answer from
+	// them would follow those too.
 	if decl == nil {
 		return "", false, nil
 	}
-	return hoistSubSchema(c, ts, anchors, depth, decl, pointer)
+	at := scope.Locate(pointer)
+	return hoistSubSchema(c, ts, anchors, depth, settledDecl(scope, at, decl), at)
 }
 
-// settledDecl returns what to hoist at pointer for decl, the schema a followed
-// $ref reached there: the model's own where it holds one, and at a raw
-// position the schema the load phase walked. A $ref spelled with the source's
-// file name, or written in another document, builds a copy of what it names,
-// whose own $refs nothing resolved. A nil decl stays nil: nothing followed the
-// $ref, and which positions the load phase walked follows which chains it
-// resolved, so an answer from them would follow those too.
-func settledDecl(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	if decl == nil {
-		return decl
-	}
-	if js := scope.ModelAt(pointer); js != nil {
+// settledDecl returns what to hoist at the position at names for decl, the
+// schema a followed $ref reached there: the model's own where it holds one,
+// and at a raw position the schema the load phase walked. A $ref spelled with
+// the source's file name, or written in another document, builds a copy of
+// what it names, whose own $refs nothing resolved.
+func settledDecl(scope resolve.Scope, at resolve.Location, decl *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
+	if js := at.Model(); js != nil {
 		return js
 	}
 	if scope.Built != nil {
-		if built := scope.Built(pointer); built != nil {
+		if built := scope.Built(at.Pointer()); built != nil {
 			return built
 		}
 	}
@@ -235,8 +233,10 @@ func settledDecl(scope resolve.Scope, pointer jsontext.Pointer, decl *oas3.JSONS
 // component, so a $ref to {type: number, minimum: 5} does not drop them.
 //
 // decl is the declaration itself, not its resolved form, so a sub-schema that
-// is a $ref carrying siblings aliases its target while keeping them.
-func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeID, bool, []ir.Diagnostic) {
+// is a $ref carrying siblings aliases its target while keeping them. at is the
+// position, already walked to (resolve.Scope.Locate).
+func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, decl *oas3.JSONSchema[oas3.Referenceable], at resolve.Location) (ir.TypeID, bool, []ir.Diagnostic) {
+	pointer := at.Pointer()
 	s := annotation.At(decl)
 	if s.Node == nil {
 		return "", false, nil
@@ -248,7 +248,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	// interns its children too, and their names hang off this one. It is read
 	// where the coordinate lies, whichever document's content held the reference:
 	// the source's own, or another document's past a $ref the pointer passes.
-	c = c.At(pointer).NamingByReference()
+	c = c.InScope(at.At()).NamingByReference()
 
 	hint := subSchemaHint(decl, pointer)
 	ref, diags := Ref(c, ts, anchors, depth, decl, pointer, hint)

@@ -195,6 +195,7 @@ func conformanceCases() []conformanceCase {
 		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
 		{"literal-const", assertLiteralConst, []string{"literal-types"}},
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
+		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
@@ -1839,6 +1840,33 @@ func assertTagsGrouping(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "pets", doc.Services[0].Groups[0].Name.Source)
 	require.Len(t, doc.TagDefs, 1)
 	assert.Equal(t, "pets", doc.TagDefs[0].Name)
+}
+
+// assertGroupIdentity pins what identifies a group: the rule that formed it and
+// the key that rule read, never its name. Two pairs among the seven render from
+// the same words — the declared tag "default" and the group untagged operations
+// fall into, the tag "webhooks" and the webhook group — and two tags differ only
+// by what RFC 6901 escapes. Each keeps an ID of its own. The IDs are written out
+// rather than derived, so the test cannot agree with a change to the derivation
+// (GitHub #673).
+func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	got := map[ir.GroupID][]string{}
+	for _, g := range doc.Services[0].Groups {
+		require.NotContains(t, got, g.ID, "two groups share an ID")
+		for _, op := range g.Operations {
+			got[g.ID] = append(got[g.ID], op.Name.Source)
+		}
+	}
+	assert.Equal(t, map[ir.GroupID][]string{
+		"g/tags/default":  {"declared"},
+		"g/default":       {"untagged"},
+		"g/tags/webhooks": {"namedLikeWebhooks"},
+		"g/tags/ghost":    {"undeclared"},
+		"g/tags/a~1b":     {"slash"},
+		"g/tags/a~01b":    {"tilde"},
+		"g/webhooks":      {"onEvent"},
+	}, got)
 }
 
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -97,14 +97,14 @@ paths:
 	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
 
-	home := foreign.At("/paths/~1ext").RefScope()
+	home := foreign.InScope(foreign.RefScope().At("/paths/~1ext")).RefScope()
 	assert.False(t, home.Foreign, "what the source holds is read as the source's")
 	assert.Empty(t, home.Holder)
 	_, internal := home.InternalPointer("#/paths/~1ext")
 	assert.True(t, internal, "a pointer alone names the source's position again")
 	assert.True(t, foreign.RefScope().Foreign, "the context it was taken from is left as it was")
 
-	past := c.At("/paths/~1ext/get/responses/200").RefScope()
+	past := c.InScope(c.RefScope().At("/paths/~1ext/get/responses/200")).RefScope()
 	assert.True(t, past.Foreign, "past /ext's $ref, the pointer names ext.yaml's content")
 	assert.Equal(t, filepath.Join(dir, "ext.yaml"), past.Holder)
 	assert.False(t, c.RefScope().Foreign, "the context it was taken from is left as it was")
