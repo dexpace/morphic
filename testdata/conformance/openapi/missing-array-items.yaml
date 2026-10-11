@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info: {title: MissingArrayItems, version: "1.0.0"}
+paths:
+  /things:
+    get:
+      parameters:
+        - {name: ids, in: query, schema: {type: array}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Bare'}
+components:
+  schemas:
+    Copy:
+      type: object
+      properties:
+        tags: {$ref: '#/components/schemas/Holder/properties/tags'}
+    Holder:
+      type: object
+      properties:
+        tags: {type: array}
+        typed: {type: array, items: {type: string}}
+        empty: {type: array, items: {}}
+    Bare: {type: array}

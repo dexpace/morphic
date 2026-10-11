@@ -1,0 +1,446 @@
+{
+  "irVersion": "0.7.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "MissingArrayItems",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "MissingArrayItems",
+        "canonical": "missing_array_items"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1things/get",
+              "name": {
+                "hint": "get_things"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "name": {
+                    "source": "ids",
+                    "canonical": "ids"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1things/get/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1things/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Bare",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/things",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "ids",
+                        "location": "query",
+                        "wireName": "ids",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Holder/properties/empty": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/empty",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/empty"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/tags"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/typed": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/typed",
+      "name": {
+        "hint": "typed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/typed"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1things/get/parameters/0/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1things/get/parameters/0/schema",
+      "name": {
+        "hint": "ids"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/0/schema"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Bare": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Bare",
+      "name": {
+        "source": "Bare",
+        "canonical": "bare"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Copy": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Copy",
+      "name": {
+        "source": "Copy",
+        "canonical": "copy"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Copy"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Copy/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Copy/properties/tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/tags"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/typed",
+          "name": {
+            "source": "typed",
+            "canonical": "typed"
+          },
+          "wireName": "typed",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/typed",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/typed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/empty",
+          "name": {
+            "source": "empty",
+            "canonical": "empty"
+          },
+          "wireName": "empty",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/empty",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/empty"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/missing-array-items",
+      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/tags"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/missing-array-items",
+      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bare"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/missing-array-items",
+      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/parameters/0/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "missing-array-items.yaml",
+      "hash": "af517a40f73b562c21b144835f055ba349e7cb11490013e19d288862ba8ea0ed"
+    }
+  ]
+}

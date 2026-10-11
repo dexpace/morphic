@@ -337,12 +337,11 @@ func TestLower_ListConstraints(t *testing.T) {
 }
 
 // TestLower_ListWithoutItems pins what an array schema that writes no items
-// lowers to, and which dialects say so. 3.0 states the array form through items
-// alone, so an array without it is a document defect and is reported once per
-// declaration, at the array schema's own pointer; 2020-12 (3.1 and 3.2) leaves
-// the keyword optional, an array with none being an array of anything, so those
-// documents stay silent. The element type is the top type in every row: nothing
-// here changes what the IR holds.
+// lowers to, and which dialects say so: a 3.0 array without items is reported
+// at its own pointer, while 3.1 and 3.2 leave the keyword optional and stay
+// silent. The element type is the top type in every row. Warnings are counted
+// as the lowering returns them, before compile.Diags drops duplicates, so
+// "once" is an assertion about the guard; every row builds each node once.
 func TestLower_ListWithoutItems(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -376,6 +375,12 @@ func TestLower_ListWithoutItems(t *testing.T) {
 			wantWarnings: []string{"/components/schemas/Holder/properties/tags"},
 		},
 		{
+			name:         "3.0 type array variant warns at the variant",
+			version:      "3.0.3",
+			schemas:      "    T: {type: [array, string]}\n",
+			wantWarnings: []string{"/components/schemas/T/type/0"},
+		},
+		{
 			name:         "3.0 sibling $ref to the bare array warns once",
 			version:      "3.0.3",
 			schemas:      "    Holder:\n      type: object\n      properties:\n        l: {$ref: \"#/components/schemas/L\"}\n    L: {type: array}\n",
@@ -398,10 +403,11 @@ func TestLower_ListWithoutItems(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
-			openapitest.RequireNoErrorDiags(t, diags)
+			l, loadDiags := loweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
+			openapitest.RequireNoErrorDiags(t, append(loadDiags, raw...))
 			var got []string
-			for _, d := range diags {
+			for _, d := range raw {
 				if d.Code != diag.MissingArrayItems {
 					continue
 				}
@@ -410,11 +416,38 @@ func TestLower_ListWithoutItems(t *testing.T) {
 			}
 			assert.Equal(t, tc.wantWarnings, got)
 			if tc.elemOf != "" {
-				l, ok := typeByName(doc, tc.elemOf).(*ir.List)
+				list, ok := typeByName(l.out, tc.elemOf).(*ir.List)
 				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target,
+				assert.Equal(t, ir.TypeID("t/prim/any"), list.Elem.Target,
 					"a missing items leaves the element at the top type, unchanged")
 			}
+		})
+	}
+}
+
+// TestLower_ListWithoutItemsRebuiltWarnsOnce pins the one path where the guard
+// runs twice: a $ref naming the property's coordinate, declared before its
+// owner, builds the node, and the declaration builds it again
+// (Types.InternDeclared). The caller still sees one warning, because
+// compile.Diags drops identical diagnostics; both orders are asserted.
+func TestLower_ListWithoutItemsRebuiltWarnsOnce(t *testing.T) {
+	t.Parallel()
+	const (
+		ref    = "    A:\n      type: object\n      properties:\n        copy: {$ref: '#/components/schemas/Holder/properties/tags'}\n"
+		holder = "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n"
+	)
+	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := lowerSpecOnly(t, openapitest.ComponentSpecVer("3.0.3", schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
+			var got []string
+			for _, d := range diags {
+				if d.Code == diag.MissingArrayItems {
+					got = append(got, string(d.Provenance.Pointer))
+				}
+			}
+			assert.Equal(t, []string{"/components/schemas/Holder/properties/tags"}, got)
 		})
 	}
 }
