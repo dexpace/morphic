@@ -248,16 +248,17 @@ const (
 	// there. The document is invalid either way, since OpenAPI requires both
 	// fields.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
-	// OAuth2NoFlow reports an oauth2 securitySchemes entry declaring no flow:
-	// `flows` absent, `flows: {}`, or only keys the model does not name, which all
-	// lower to an empty flow list. It is reported once, at the entry's pointer,
-	// because the loader cannot place it: it accepts `flows: {}` and reports an
-	// absent `flows` with no pointer (GitHub #646).
+	// OAuth2NoFlow reports an oauth2 securitySchemes entry whose flows object
+	// is present but declares no flow — `flows: {}`, or only keys the model does
+	// not name — and which has no oauth2MetadataUrl to discover its endpoints
+	// from. The loader accepts that shape, so only the compiler sees it; an
+	// absent `flows` is the loader's own error and is not reported again
+	// (GitHub #646). Placed at the declaration, once however many aliases
+	// reach it.
 	//
 	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
 	// what the document said, and refusing would drop the entry's text. A warning,
-	// like ReservedHeaderName, since the document lowers whole. oauth2MetadataUrl
-	// does not exempt the entry; an incomplete flow is the loader's finding.
+	// like ReservedHeaderName, since the document lowers whole.
 	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:

@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"slices"
 	"strings"
@@ -245,11 +246,12 @@ func TestAuth_AllSchemeKinds(t *testing.T) {
 	assert.True(t, sawCustomHTTP, "unknown http scheme is custom")
 }
 
-// TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef pins three entries beside a
-// document that declares nothing wrong with them: an oauth2 scheme with no
-// flow, which is now reported at its own entry and interned anyway; an
-// unrecognized type, which degrades to a custom scheme carrying the token; and
-// a $ref naming no target, which the load phase reports elsewhere.
+// TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef pins three entries a document can
+// carry: an oauth2 scheme with no flows object, interned with nil flows and
+// reported only by the loader, whose REQUIRED-field error this lowering does
+// not repeat; an unrecognized type, which degrades to a custom scheme carrying
+// the token; and a $ref naming no target, which the load phase reports
+// elsewhere.
 func TestAuth_OAuthNoFlowsUnknownTypeAndGhostRef(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /x:
@@ -274,16 +276,9 @@ components:
 	assert.Nil(t, oauth.Flows, "oauth2 with no flows lowers to nil flows")
 	assert.Equal(t, "bananas", custom.Scheme, "unknown scheme type degrades to custom")
 
-	// The entry is reported at its own components pointer and interned all the
-	// same. It is the loader's other spelling that is unplaced: the absent
-	// `flows` key draws a validation finding carrying no pointer, so nothing
-	// sites it at the entry a reader can open.
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.OAuth2NoFlow,
-		"/components/securitySchemes/oauthNoFlows"), "the flowless entry is placed: %+v", diags)
-	d, ok := firstDiagAt(diags, diag.OAuth2NoFlow)
-	require.True(t, ok, "the flowless entry is reported: %+v", diags)
-	assert.Equal(t, ir.SeverityWarning, d.Severity, "reported, not refused: the scheme interned")
-	assert.Contains(t, d.Message, `"oauthNoFlows"`, "the report names the entry")
+	assert.Empty(t, messagesAt(diags, diag.OAuth2NoFlow),
+		"an absent flows object is the loader's finding alone: %+v", diags)
+	assert.NotEmpty(t, messagesAtPointer(diags, ""), "and the loader does report it: %+v", diags)
 }
 
 // TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins the guard that
@@ -452,12 +447,12 @@ components:
 	}
 }
 
-// TestLowerSecuritySchemes_AFlowlessRefEntryIsReportedAtEachEntry pins the
-// placement rule against #107's "an alias and its target are two named
-// schemes": the same flowless declaration reaches the IR twice, both entries
-// intern, and each is reported at its own components pointer rather than once
-// at the declaration the alias resolves to.
-func TestLowerSecuritySchemes_AFlowlessRefEntryIsReportedAtEachEntry(t *testing.T) {
+// TestLowerSecuritySchemes_AFlowlessDeclarationIsReportedOnceWhereItIsWritten
+// pins the placement lowerSecurityScheme's doc states: what is said of the
+// fields is placed at decl. Two aliases are declared before their target, so
+// the declaration is reached through an alias first; every entry interns, and
+// the one flowless declaration is reported once, at the target.
+func TestLowerSecuritySchemes_AFlowlessDeclarationIsReportedOnceWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 	doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -466,59 +461,48 @@ security:
 paths: {}
 components:
   securitySchemes:
-    target: {type: oauth2}
     alias: {$ref: '#/components/securitySchemes/target'}
+    other: {$ref: '#/components/securitySchemes/target'}
+    target: {type: oauth2, flows: {}}
 `)
-	require.Contains(t, doc.Auth, ids.Auth("target"))
-	require.Contains(t, doc.Auth, ids.Auth("alias"),
-		"the alias interns a named scheme of its own (issue #107), flowless like its target")
+	for _, name := range []string{"alias", "other", "target"} {
+		require.Contains(t, doc.Auth, ids.Auth(name), "%s interns a named scheme of its own (issue #107)", name)
+	}
 	require.Len(t, svc.Auth, 1)
 	require.Len(t, svc.Auth[0].Schemes, 1)
 	assert.Equal(t, ids.Auth("alias"), svc.Auth[0].Schemes[0].Scheme)
 
-	assert.Equal(t,
-		[]string{"/components/securitySchemes/alias", "/components/securitySchemes/target"},
+	assert.Equal(t, []string{"/components/securitySchemes/target"},
 		sortedPointersAt(diags, diag.OAuth2NoFlow),
-		"one report at each entry, not one at the declaration they share")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.OAuth2NoFlow, "/components/securitySchemes/alias"))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.OAuth2NoFlow, "/components/securitySchemes/target"))
-	for _, at := range []struct{ pointer, name string }{
-		{"/components/securitySchemes/alias", "alias"},
-		{"/components/securitySchemes/target", "target"},
-	} {
-		got := messagesAtPointer(diags, at.pointer)
-		require.Len(t, got, 1, "placed exactly once: %+v", diags)
-		assert.Contains(t, got[0], `"`+at.name+`"`, "each report names the entry it is placed at")
-	}
+		"one report, at the declaration the aliases share: %+v", diags)
+	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/alias"),
+		"nothing is reported against an alias, which holds no flows either way")
+	assert.Empty(t, messagesAtPointer(diags, "/components/securitySchemes/other"))
 }
 
-// TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported pins the one rule
-// for every spelling of "this oauth2 entry declares no flow" (GitHub #646): the
-// entry is reported at its own components pointer and interned anyway, so the
-// requirement naming it keeps a live AuthID.
-//
-// The spellings are not interchangeable to a reader but are to the IR — each
-// lowers to AuthKindOAuth2 with an empty flow list — which is why one rule
-// covers them and why the report has to be sited here: the loader refuses only
-// the absent spelling, and sites that finding at no pointer at all.
+// TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported pins which
+// entries draw the report (GitHub #646): an oauth2 scheme whose flows object is
+// present but declares no flow, with no metadata URL to discover endpoints
+// from. An absent flows object is left to the loader's REQUIRED-field error.
+// Every interned entry keeps the requirement naming it, so its AuthID stays
+// live.
 func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
+		// version is the document's openapi field; "" means 3.1.0.
+		version string
 		// entry is the body written for the securitySchemes entry `s`.
 		entry string
 		// refused reports an entry naming no mechanism, which is refused and
 		// interned nowhere.
 		refused bool
-		// wantReported is whether the new code must fire for this entry.
+		// wantReported is whether the code must fire for this entry.
 		wantReported bool
 		// wantOther is the pointer of a pre-existing diagnostic the row expects
-		// beside the new one, or "" for none.
+		// beside the code, or "" for none.
 		wantOther string
-		// wantLoaderFinding marks the spelling the loader also refuses, at no
-		// pointer at all.
-		wantLoaderFinding bool
-		check             func(t *testing.T, s ir.AuthScheme)
+		check     func(t *testing.T, s ir.AuthScheme)
 	}{
 		{
 			name: "flows written empty (the issue repro)", entry: `{type: oauth2, flows: {}}`,
@@ -529,8 +513,7 @@ func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported(t *testing.T) {
 			},
 		},
 		{
-			name: "flows absent", entry: `{type: oauth2}`,
-			wantReported: true, wantLoaderFinding: true,
+			name: "flows absent, the loader's own error", entry: `{type: oauth2}`,
 			check: func(t *testing.T, s ir.AuthScheme) {
 				assert.Equal(t, ir.AuthKindOAuth2, s.Kind)
 				assert.Nil(t, s.Flows)
@@ -546,13 +529,13 @@ func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported(t *testing.T) {
 			},
 		},
 		{
-			name:         "flows empty with a metadata url",
-			entry:        `{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`,
-			wantReported: true,
+			name:    "flows empty with a 3.2 metadata url",
+			version: "3.2.0",
+			entry:   `{type: oauth2, flows: {}, oauth2MetadataUrl: 'https://meta'}`,
 			check: func(t *testing.T, s ir.AuthScheme) {
 				assert.Nil(t, s.Flows)
 				assert.Equal(t, "https://meta", s.OAuth2MetadataURL,
-					"the metadata url does not exempt the entry, and is kept either way")
+					"RFC 8414 metadata states the endpoints, so the url exempts the entry")
 			},
 		},
 		{
@@ -572,13 +555,25 @@ func TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReported(t *testing.T) {
 			},
 		},
 		{
-			name: "no type at all", entry: `{}`, refused: true,
+			// Pins the Kind guard where the rule lives: a flows object on an
+			// apiKey scheme is a stray field, kept beside it, not a flowless
+			// oauth2 scheme.
+			name:  "an apiKey scheme carrying an empty flows object",
+			entry: `{type: apiKey, name: k, in: header, flows: {}}`,
+			check: func(t *testing.T, s ir.AuthScheme) {
+				assert.Equal(t, ir.AuthKindAPIKey, s.Kind)
+				assert.Contains(t, s.Unmodeled, "openapi:flows", "the stray field is kept")
+			},
+		},
+		{
+			name: "no type at all", entry: `{flows: {}}`, refused: true,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
+			version := cmp.Or(tc.version, "3.1.0")
+			doc, svc, diags := serviceSpec(t, `openapi: `+version+`
 info: {title: T, version: "1"}
 security:
   - s: []
@@ -602,28 +597,23 @@ components:
 			assert.Equal(t, ids.Auth("s"), svc.Auth[0].Schemes[0].Scheme,
 				"an interned scheme keeps a live AuthID, unlike a refused one")
 			tc.check(t, s)
+			if tc.wantOther != "" {
+				assert.NotEmpty(t, messagesAtPointer(diags, tc.wantOther),
+					"the finding that was already there is still reported beside it")
+			}
 
 			if !tc.wantReported {
-				assert.Empty(t, messagesAt(diags, diag.OAuth2NoFlow),
-					"a declared flow draws no report: %+v", diags)
+				assert.Empty(t, messagesAt(diags, diag.OAuth2NoFlow), "no report: %+v", diags)
 				return
 			}
 			d, found := firstDiagAt(diags, diag.OAuth2NoFlow)
 			require.True(t, found, "the entry is reported: %+v", diags)
 			assert.Equal(t, ir.SeverityWarning, d.Severity)
 			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/s"), d.Provenance.Pointer,
-				"reported at the entry, not at the flows object inside it")
-			assert.Contains(t, d.Message, `"s"`, "the report names the scheme")
+				"reported at the declaration, not at the flows object inside it")
+			assert.Contains(t, d.Message, "declares no flow")
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.OAuth2NoFlow, ir.SeverityWarning),
-				"one report per entry, whatever spelling made it flowless")
-			if tc.wantLoaderFinding {
-				assert.NotEmpty(t, messagesAtPointer(diags, ""),
-					"the loader refuses this spelling at no pointer, which is why this one is placed")
-			}
-			if tc.wantOther != "" {
-				assert.NotEmpty(t, messagesAtPointer(diags, tc.wantOther),
-					"the finding that was already there is still reported beside it")
-			}
+				"one report per declaration")
 		})
 	}
 }
