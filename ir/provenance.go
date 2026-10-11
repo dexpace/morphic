@@ -121,19 +121,14 @@ type SourceInfo struct {
 	Format string `json:"format"`
 	Path   string `json:"path"`
 	Hash   string `json:"hash"`
-	// SelfURI is the URI the document declared for itself — OpenAPI's `$self` —
-	// empty when it declared none. An empty `$self` and an unset one are one
-	// state and not two: an empty URI reference is not a base URI (RFC 3986
-	// §5.1), so it identifies nothing when documents are combined, and nothing
-	// downstream can act on the difference between the two.
+	// SelfURI is the URI the document declared for itself (OpenAPI's `$self`),
+	// empty when it declared none. An empty `$self` is the same state as an
+	// unset one: an empty URI reference is no base URI (RFC 3986 §5.1), so it
+	// identifies nothing.
 	//
-	// A compiler records the URI the document declared, at any minor of the
-	// format it supports: the keyword is parsed at every 3.x minor, so a version
-	// gate would silently drop a value a document wrote rather than report it.
-	// Reporting a `$self` written by a dialect that does not define it is a
-	// separate change, and this field raises no diagnostic of its own.
-	//
-	// Recording the URI does not resolve anything through it: relative
-	// references are resolved against the location the source was loaded from.
+	// It is recorded at every minor the compiler supports, since the keyword is
+	// parsed at all of them and a version gate would drop what a document wrote;
+	// the field raises no diagnostic of its own. Recording it resolves nothing:
+	// relative references resolve against where the source was loaded from.
 	SelfURI string `json:"selfURI,omitempty"`
 }
