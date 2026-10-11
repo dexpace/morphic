@@ -126,6 +126,10 @@ reading; a file written with `-o`/`--output` is compact, about half the bytes, u
 asks for the indented form. `validate` runs the same pipeline and drops the document, for a check that wants
 the diagnostics and the exit code and nothing else.
 
+On a terminal the diagnostics are drawn with the severity in colour and the location dimmed;
+`NO_COLOR` removes the colour and `CLICOLOR_FORCE` forces it. Redirected, they are plain lines
+with no escape sequence: `<severity> <code> <location>: <message>`.
+
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
 prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
 Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones.
