@@ -123,7 +123,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			// lowered to any: `items: {}` is present-and-empty and stays silent.
 			// A 3.0 document writing prefixItems never reaches this branch; that
 			// a 3.1-only keyword is read there with no diagnostic is a separate
-			// defect.
+			// defect (GitHub #820).
 			//
 			// A declaration that a $ref reached first is built again
 			// (Types.InternDeclared), and this reports a second time. The caller
