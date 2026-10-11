@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // bindingDoc wraps b as one webhook operation's HTTP binding in an otherwise
@@ -20,6 +19,7 @@ func bindingDoc(b ir.HTTPBinding) *ir.Document {
 			ID:   "s/x/S",
 			Name: named("s"),
 			Groups: []ir.OperationGroup{{
+				ID:   "g/webhooks",
 				Name: named("webhooks"),
 				Operations: []ir.Operation{{
 					ID:       "op/x/S/hook",
@@ -54,7 +54,7 @@ func TestVerify_WebhookBindingIsClean(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(bindingDoc(tc.binding)))
+			assert.Empty(t, verifyDeclared(bindingDoc(tc.binding)))
 		})
 	}
 }
@@ -66,7 +66,7 @@ func TestVerify_WebhookBindingIsClean(t *testing.T) {
 // the pair is wrong in a document.
 func TestVerify_WebhookURITemplateIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(bindingDoc(ir.HTTPBinding{
+	got := verifyDeclared(bindingDoc(ir.HTTPBinding{
 		Method:      "POST",
 		URITemplate: "{tenant}.created",
 		IsWebhook:   true,

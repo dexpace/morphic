@@ -24,7 +24,7 @@ import (
 // document verifies empty with no aliases.
 func aliasViolations(t *testing.T, aliases ...string) []irverify.Violation {
 	t.Helper()
-	return irverify.Verify(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
+	return verifyDeclared(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
 }
 
 // TestVerify_VerbatimAliasesAreClean pins the settlement this check rests on: an
@@ -160,7 +160,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 // argument the duplicate rule rests on, one channel over.
 func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User"}}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
@@ -181,7 +181,7 @@ func TestVerify_AliasMatchingDerivedChannelsIsClean(t *testing.T) {
 	} {
 		t.Run(channel, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(modelNamed(n)))
+			assert.Empty(t, verifyDeclared(modelNamed(n)))
 		})
 	}
 }
@@ -217,7 +217,7 @@ func TestVerify_RepeatedBlankAliasReportsEachAsBlank(t *testing.T) {
 // are each wrong on their own.
 func TestVerify_RepeatedSourceAliasReportsEachAsRedundant(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User", "User"}}))
 	require.Len(t, got, 2)
 	for i, v := range got {
@@ -267,7 +267,7 @@ func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}},
 	}
 
-	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
+	got := verifyDeclared(&ir.Document{IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
 	assert.Empty(t, got, "out of scope until GitHub #398; this is the fixture that says so")
 }
