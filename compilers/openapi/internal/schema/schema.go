@@ -165,7 +165,7 @@ func schemaConstraints(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer 
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
+	cons, kept, diags := annotation.Constraints(s, c.IsOpenAPI30(), pointer, c.ProvenanceAt)
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, StampConstraintDiags(c, diags, pointer)
 }

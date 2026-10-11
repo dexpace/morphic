@@ -335,35 +335,13 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // caller, which is the one thing keeping it unexported was for.
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
-// ExclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
-//
-// It reads the document version, which makes it a question about the context
-// rather than about any schema — annotation.Constraints takes the answer as a
-// parameter precisely so the reader never has to ask it.
-//
-// The version is read through its accessor so a context with no document answers
-// like an unrecognized version rather than panicking, which is how the other two
-// readers behave on a zero value.
-func (c Ctx) ExclusiveBoundIsBoolean() bool {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0"
-}
-
-// ArrayItemsRequired reports whether this document's dialect requires an array
-// schema to write `items`: true under OpenAPI 3.0, where the keyword is how the
-// array form is stated at all, and false under the 2020-12 dialect of 3.1 and
-// 3.2, where omitting it is legal and leaves an array with no constraint on its
-// elements. An unrecognized version defaults to false, the 2020-12 answer, for
-// the reason ExclusiveBoundIsBoolean beside it defaults to the numeric form.
-//
-// It reads the document version, which makes it a question about the context
-// rather than about any schema, and it is read through its accessor so a
-// context with no document answers like an unrecognized version rather than
-// panicking — which is how the other readers here behave on a zero value.
-func (c Ctx) ArrayItemsRequired() bool {
+// IsOpenAPI30 reports whether this document's dialect is OpenAPI 3.0 rather
+// than the 2020-12 dialect of 3.1 and 3.2. Each 3.0-ism asks this one question:
+// a boolean exclusiveMinimum/exclusiveMaximum, an array schema that must write
+// `items`. An unrecognized version, and a context with no document, answer
+// false. It reads the entry document's version, whichever document holds the
+// schema, so a 3.1 file reached by $ref from a 3.0 root is read as 3.0.
+func (c Ctx) IsOpenAPI30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"
 }

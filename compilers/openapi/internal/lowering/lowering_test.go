@@ -161,23 +161,21 @@ func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
 	assert.False(t, c.DeclaresAuth(""))
 }
 
-// TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric completes the set the
-// two accessors above start: every reader on this type answers on a context with
-// nothing in it. This is the one that reaches through the document pointer, so
-// it is the one that would panic instead — and a test holding a Ctx literal is
-// not a hypothetical, it is how half this file drives the type.
-func TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric(t *testing.T) {
+// TestIsOpenAPI30_TheZeroContextReadsAs2020 pins that a context with no
+// document answers false rather than panicking: the accessor reaches through
+// the document pointer, and half this file drives the type as a Ctx literal.
+func TestIsOpenAPI30_TheZeroContextReadsAs2020(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	assert.False(t, c.ExclusiveBoundIsBoolean(),
-		"no document names no dialect, which falls back to the 2020-12 numeric form")
+	assert.False(t, c.IsOpenAPI30(),
+		"no document names no dialect, which falls back to 2020-12")
 }
 
-// TestExclusiveBoundIsBoolean_FollowsTheDialect pins which spelling of
-// exclusiveMinimum/exclusiveMaximum the document uses. Reading a 3.0 boolean as
-// a 2020-12 numeric bound (or the reverse) silently changes what constraint the
-// IR records, and neither form fails to parse as the other.
-func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
+// TestIsOpenAPI30_FollowsTheDialect pins which documents read as OpenAPI 3.0.
+// Every 3.0-ism keys on this answer: reading 3.0 as 2020-12 turns a boolean
+// exclusiveMinimum into a numeric bound and silences a missing `items`, and the
+// reverse warns on every legal 3.1 array.
+func TestIsOpenAPI30_FollowsTheDialect(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
@@ -194,45 +192,7 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
-		})
-	}
-}
-
-// TestArrayItemsRequired_TheZeroContextReadsAsOptional completes the set the
-// readers above start: every one answers on a context with nothing in it, and
-// this one reaches through the document pointer like its neighbour, so it is
-// the other one that would panic instead.
-func TestArrayItemsRequired_TheZeroContextReadsAsOptional(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.False(t, c.ArrayItemsRequired(),
-		"no document names no dialect, which falls back to the 2020-12 optional form")
-}
-
-// TestArrayItemsRequired_FollowsTheDialect pins which dialects require `items`
-// on an array schema. OpenAPI 3.0 states the array form through the keyword
-// alone, while 2020-12 (3.1 and 3.2) leaves it optional; a lowering that
-// reported the wrong way would either warn on every legal 3.1 array or stay
-// silent on the 3.0 defect this accessor exists to report.
-func TestArrayItemsRequired_FollowsTheDialect(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		version string
-		want    bool
-	}{
-		{version: "3.0.0", want: true},
-		{version: "3.0.3", want: true},
-		{version: "3.1.0", want: false},
-		{version: "3.2.0", want: false},
-		{version: "4.0.0", want: false},
-		{version: "", want: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.version, func(t *testing.T) {
-			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.ArrayItemsRequired())
+			assert.Equal(t, tc.want, c.IsOpenAPI30())
 		})
 	}
 }

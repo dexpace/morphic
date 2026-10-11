@@ -162,7 +162,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// The co-declared bound keyword ir.Constraints has no field for is kept on
 	// the parameter, the carrier at this position, exactly as a property keeps
 	// its own (GitHub #286).
-	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
+	cons, kept, consDiags := annotation.Constraints(s, c.IsOpenAPI30(), pointer, c.ProvenanceAt)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
