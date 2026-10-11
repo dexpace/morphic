@@ -68,7 +68,7 @@ const newFilePerm os.FileMode = 0o666
 // manual wrapping: fang wraps them to the terminal's width.
 const compileLong = `Lower an API spec (OpenAPI 3.x) into Morphic IR JSON on stdout, and write diagnostics to stderr. Output to stdout is indented for reading; a file written with --output is compact unless --pretty asks for the indented form.
 
---explain reports what compiling produced at one source coordinate — the type node interned there, the coordinates interned beneath it, and the diagnostics stamped at it — instead of writing the document. The coordinate is a JSON Pointer, so '' is the whole document.
+--explain reports what compiling produced at one source coordinate — the type node interned there, the coordinates interned beneath it, and the diagnostics stamped at it — instead of writing the document. The coordinate is a JSON Pointer, so '' is the whole document. It writes no file, so it cannot be combined with --output.
 
 --opt passes a setting to the compiler the spec selects, which names and validates its own options; morphic itself knows none of them. The OpenAPI compiler's are listed in the README.
 
@@ -99,7 +99,7 @@ func newCompileCmd() *cobra.Command {
 		Short:   "lower an API spec (OpenAPI 3.x) into Morphic IR JSON",
 		Long:    compileLong,
 		Example: compileExample,
-		Args:    specArgs(&opts.specOptions),
+		Args:    compileArgs(&opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return compileSpec(cmd, args[0], opts)
 		},
@@ -156,6 +156,23 @@ func completeSpecFile(_ *cobra.Command, args []string, _ string) ([]cobra.Comple
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return []cobra.Completion{"yaml", "yml", "json"}, cobra.ShellCompDirectiveFilterFileExt
+}
+
+// compileArgs checks compile's arguments: what every spec-taking command takes,
+// then that --explain is not asked to write a file. --explain reports instead of
+// writing the document, so --output would be accepted and ignored, with an exit
+// status that says it worked.
+func compileArgs(opts *compileOptions) cobra.PositionalArgs {
+	spec := specArgs(&opts.specOptions)
+	return func(cmd *cobra.Command, args []string) error {
+		if err := spec(cmd, args); err != nil {
+			return err
+		}
+		if opts.explain.set && opts.outPath != "" {
+			return misuse(cmd, "--explain writes no document, so --output has nothing to write")
+		}
+		return nil
+	}
 }
 
 // specArgs checks what every spec-taking command takes once its flags are

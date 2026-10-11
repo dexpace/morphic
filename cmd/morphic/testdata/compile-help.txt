@@ -5,7 +5,8 @@
 
   --explain reports what compiling produced at one source coordinate — the type node interned there,
   the coordinates interned beneath it, and the diagnostics stamped at it — instead of writing the
-  document. The coordinate is a JSON Pointer, so '' is the whole document.
+  document. The coordinate is a JSON Pointer, so '' is the whole document. It writes no file, so it
+  cannot be combined with --output.
 
   --opt passes a setting to the compiler the spec selects, which names and validates its own
   options; morphic itself knows none of them. The OpenAPI compiler's are listed in the README.

@@ -127,6 +127,8 @@ func TestRun_UsageErrors(t *testing.T) {
 		{"no spec file", []string{"compile"}, "compile requires exactly one spec file", "morphic compile"},
 		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file", "morphic compile"},
 		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`, "morphic compile"},
+		{"explain with output", []string{"compile", spec, "--explain", "", "-o", "ir.json"},
+			"--explain writes no document, so --output has nothing to write", "morphic compile"},
 		{"repeated option", []string{"compile", spec, "--opt", "a=1", "--opt", "a=2"},
 			`option "a" set more than once`, "morphic compile"},
 	}
@@ -145,6 +147,29 @@ func TestRun_UsageErrors(t *testing.T) {
 				"exactly one pointer to help per misuse, got:\n%s", stderr.String())
 		})
 	}
+}
+
+// TestRun_ExplainWithOutputWritesNothing pins what the refusal protects: the
+// request is rejected before any work, so the destination is neither created nor
+// replaced, where it was once accepted and quietly ignored.
+func TestRun_ExplainWithOutputWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	out := filepath.Join(t.TempDir(), "ir.json")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", "", "--output", out}, &stdout, &stderr)
+
+	assert.Equal(t, 2, code)
+	assert.Empty(t, stdout.String())
+	assert.NoFileExists(t, out)
+
+	// An empty --output is the default, not a destination, so it does not conflict.
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"compile", spec, "--explain", "", "--output", ""}, &stdout, &stderr)
+	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 }
 
 // groupingSpec tags its one operation "zoo" while its path starts with "a", so
