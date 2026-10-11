@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -28,18 +29,19 @@ func TestRun_HelpForms(t *testing.T) {
 		{"no arguments", nil},
 		{"root -h", []string{"-h"}},
 		{"root --help", []string{"--help"}},
-		{"root -help", []string{"-help"}},
 		{"root help word", []string{"help"}},
 		{"help compile", []string{"help", "compile"}},
 		{"help -h", []string{"help", "-h"}},
 		{"help --help", []string{"help", "--help"}},
-		{"help compile --help", []string{"help", "compile", "--help"}},
-		{"help compile -h", []string{"help", "compile", "-h"}},
 		{"root -h compile", []string{"-h", "compile"}},
 		{"root --help compile", []string{"--help", "compile"}},
 		{"compile -h", []string{"compile", "-h"}},
 		{"compile --help", []string{"compile", "--help"}},
 		{"compile spec --help", []string{"compile", spec, "--help"}},
+		{"help flag after extra operands", []string{"--help", "compile", "extra"}},
+		// The flag belongs to the help command here, so this asks for help of help
+		// and not of compile. A help flag is no longer a token help strips.
+		{"help compile --help", []string{"help", "compile", "--help"}},
 	}
 
 	for _, tt := range tests {
@@ -48,47 +50,58 @@ func TestRun_HelpForms(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
 			assert.Equal(t, 0, run(tt.args, &stdout, &stderr))
-			assert.Contains(t, stdout.String(), "usage:")
+			assert.Contains(t, stdout.String(), "Usage:")
 			assert.Empty(t, stderr.String(), "help must never write to stderr")
 		})
 	}
 }
 
 // TestRun_EveryCommandAnswersItsHelpFlag holds the property no per-command test
-// can: help works for whatever the command table holds, so a subcommand added
-// later cannot answer -h with an error line and exit 2 by forgetting a block
-// its neighbour carries. The flag spellings are the ones the shared dispatch
-// must recognise; `morphic help <name>` reaches the table directly and stays
+// can: help works for whatever the command tree holds, so a subcommand added
+// later cannot answer -h with an error line and exit 2 by forgetting something
+// its neighbour carries. `morphic help <name>` is a different path and stays
 // correct either way, so it would hide the breakage rather than catch it.
 func TestRun_EveryCommandAnswersItsHelpFlag(t *testing.T) {
 	t.Parallel()
 
-	table := commands()
-	require.NotEmpty(t, table, "the command table must not be empty")
-	for _, c := range table {
-		for _, spelling := range []string{"-h", "--help", "-help"} {
-			t.Run(c.name+" "+spelling, func(t *testing.T) {
+	cmds := newRootCmd().Commands()
+	require.NotEmpty(t, cmds, "the command tree must not be empty")
+	for _, c := range cmds {
+		for _, spelling := range []string{"-h", "--help"} {
+			t.Run(c.Name()+" "+spelling, func(t *testing.T) {
 				t.Parallel()
 				var stdout, stderr bytes.Buffer
 
-				code := run([]string{c.name, spelling}, &stdout, &stderr)
+				code := run([]string{c.Name(), spelling}, &stdout, &stderr)
 
 				assert.Equal(t, 0, code, "stderr: %s", stderr.String())
-				assert.Contains(t, stdout.String(), c.usage)
+				assert.Contains(t, stdout.String(), c.Use)
 				assert.Empty(t, stderr.String(), "help must never write to stderr")
 			})
 		}
 	}
 }
 
-// TestRun_HelpFlagAsFlagValue pins the property the help design relies on:
-// help is detected via errors.Is(err, flag.ErrHelp) from flag.Parse, never by
-// pre-scanning argv for "--help". So "-o --help" must consume "--help" as the
-// value of -o and compile normally, not print help. This guards against a
-// future refactor of bindSpec or dispatch that pre-scans args and would keep
-// full statement coverage while silently breaking that distinction. Not run in
-// parallel: it changes the process working directory so -o's relative value
-// resolves to a file literally named "--help".
+// TestRun_NilArgsAreNoArguments pins that run(nil) is a run with no arguments
+// and not a run of the process's own. cobra falls back to os.Args[1:] for a nil
+// slice, which a test binary cannot show on its own: pflag skips its -test.*
+// flags. Not run in parallel, as it replaces os.Args.
+func TestRun_NilArgsAreNoArguments(t *testing.T) {
+	prev := os.Args
+	t.Cleanup(func() { os.Args = prev })
+	os.Args = []string{"morphic", "bogus"}
+	var stdout, stderr bytes.Buffer
+
+	code := run(nil, &stdout, &stderr)
+
+	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
+	assert.Contains(t, stdout.String(), "Usage:")
+}
+
+// TestRun_HelpFlagAsFlagValue pins that a help flag typed where a flag wants a
+// value is that flag's value: "-o --help" must write a file named "--help" and
+// compile normally, not print help. Not run in parallel: it changes the process
+// working directory so -o's relative value resolves to that file.
 func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	dir := t.TempDir()
 	prevWD, err := os.Getwd()
@@ -102,7 +115,7 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	code := run([]string{"compile", "-o", "--help", spec}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
-	assert.NotContains(t, stdout.String(), "usage:",
+	assert.NotContains(t, stdout.String(), "Usage:",
 		"--help must be consumed as -o's value, not treated as a help request")
 	raw, err := os.ReadFile(filepath.Join(dir, "--help"))
 	require.NoError(t, err)
@@ -114,20 +127,84 @@ func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	assert.Equal(t, "Tiny", doc.Name)
 }
 
+// TestRun_HelpFlagDoesNotMaskAMistypedCommand pins that asking for help does not
+// excuse a command that does not exist: "-h bogus" is the unknown command and
+// exit 2, as "bogus" alone is, rather than root help that hides the typo. It
+// also pins that the single-dash spelling "-help" is refused, with the two-dash
+// spelling to use.
+func TestRun_HelpFlagDoesNotMaskAMistypedCommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		args   []string
+		reason string
+	}{
+		{"-h bogus", []string{"-h", "bogus"}, `unknown command "bogus"`},
+		{"--help bogus", []string{"--help", "bogus"}, `unknown command "bogus"`},
+		{"-help", []string{"-help"}, `write "--help", not "-help"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Empty(t, stdout.String())
+			assert.Contains(t, stderr.String(), tt.reason)
+		})
+	}
+}
+
+// TestRun_OperandsAfterTerminatorAreRefused pins that "--" at the top level does
+// not turn a command into help. It once ran the command it was followed by;
+// cobra reads the operand as nothing and prints help with exit 0, which for
+// "morphic -- compile spec" is a compile that silently produced nothing.
+func TestRun_OperandsAfterTerminatorAreRefused(t *testing.T) {
+	t.Parallel()
+
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	tests := []struct {
+		name string
+		args []string
+		word string
+	}{
+		{"a command", []string{"--", "compile", spec}, "compile"},
+		{"the help word", []string{"--", "help"}, "help"},
+		{"a help flag", []string{"--", "-h"}, "-h"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+
+			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
+			assert.Empty(t, stdout.String(), "nothing may be written for a refused invocation")
+			assert.Contains(t, stderr.String(), `unexpected argument "`+tt.word+`" after "--"`)
+			assert.Contains(t, stderr.String(), `Try "morphic --help" for usage.`)
+		})
+	}
+
+	// A "--" with nothing after it has nothing to refuse: it is a bare morphic.
+	var stdout, stderr bytes.Buffer
+	assert.Equal(t, 0, run([]string{"--"}, &stdout, &stderr), "stderr: %s", stderr.String())
+	assert.Contains(t, stdout.String(), "Usage:")
+}
+
 func TestRun_HelpFormsAgree(t *testing.T) {
 	t.Parallel()
 
-	for _, c := range commands() {
-		t.Run(c.name, func(t *testing.T) {
+	for _, c := range newRootCmd().Commands() {
+		t.Run(c.Name(), func(t *testing.T) {
 			t.Parallel()
 			forms := [][]string{
-				{c.name, "--help"},
-				{c.name, "-h"},
-				{"help", c.name},
-				{"help", c.name, "--help"},
-				{"help", c.name, "-h"},
-				{"-h", c.name},
-				{"--help", c.name},
+				{c.Name(), "--help"},
+				{c.Name(), "-h"},
+				{"help", c.Name()},
+				{"-h", c.Name()},
+				{"--help", c.Name()},
 			}
 
 			var want string
@@ -163,79 +240,45 @@ func TestRun_CommandHelpListsEveryFlag(t *testing.T) {
 			require.Equal(t, 0, run([]string{"help", tt.name}, &stdout, &stderr))
 
 			// Read the flag names back out of the help text rather than asking
-			// whether it contains each name: a one-letter name like "o" is a
-			// substring of almost any text, so a containment check passes for help
-			// that documents nothing.
-			assert.ElementsMatch(t, tt.flags, flagNamesIn(stdout.String()),
+			// whether it contains each name: a short name like "o" is a substring
+			// of almost any text, so a containment check passes for help that
+			// documents nothing. help is cobra's, defined when the command runs.
+			assert.ElementsMatch(t, append([]string{"help"}, tt.flags...), flagNamesIn(stdout.String()),
 				"%s help must document exactly the flags %s accepts", tt.name, tt.name)
 		})
 	}
 }
 
-// summaryColumns returns, for each line of a rendered command list, the column
-// its summary starts at. Each line is "  <name><padding> <summary>", so the
-// summary begins after the run of spaces that follows the name.
-func summaryColumns(t *testing.T, rendered string) []int {
-	t.Helper()
+// flagLine matches a flag row of cobra's help: an optional "-x, " short form,
+// then "--name", then the value's name or the description's padding.
+var flagLine = regexp.MustCompile(`^\s+(?:-\w, )?--([a-z-]+)\s`)
 
-	lines := strings.Split(strings.TrimSuffix(rendered, "\n"), "\n")
-	cols := make([]int, 0, len(lines))
-	for _, line := range lines {
-		_, after, ok := strings.Cut(strings.TrimPrefix(line, "  "), " ")
-		require.True(t, ok, "every command line carries a name and a summary: %q", line)
-		summary := strings.TrimLeft(after, " ")
-		require.NotEmpty(t, summary, "every command line carries a summary: %q", line)
-		cols = append(cols, len(line)-len(summary))
+// flagNamesIn returns the flag names documented by rendered help: the long
+// names on the rows under its "Flags:" title. Every line cobra does not indent,
+// whether a section title, the description or the closing pointer to --help,
+// ends the section before it.
+func flagNamesIn(rendered string) []string {
+	var names []string
+	inFlags := false
+	for line := range strings.SplitSeq(rendered, "\n") {
+		if line != "" && !strings.HasPrefix(line, " ") {
+			inFlags = line == "Flags:"
+			continue
+		}
+		if m := flagLine.FindStringSubmatch(line); inFlags && m != nil {
+			names = append(names, m[1])
+		}
 	}
-	return cols
+	return names
 }
 
-// TestWriteCommandList_SummariesShareOneColumn is the assertion a golden cannot
-// make: it renders names the shipped table does not hold, so it fails on a
-// padding width that merely happens to fit today's names rather than recording
-// the misalignment as the new expected output.
-//
-// The column must also be snug against the longest name. A width that is
-// derived but slack still lines the summaries up, so equality alone would pass
-// for a table padded to any constant wider than every name.
-func TestWriteCommandList_SummariesShareOneColumn(t *testing.T) {
+func TestFlagNamesIn_ReadsOnlyTheFlagsSection(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		table []command
-	}{
-		{"names shorter than the shipped ones", []command{
-			{name: "a", summary: "first"},
-			{name: "bc", summary: "second"},
-		}},
-		{"a name longer than the shipped ones", []command{
-			{name: "compile", summary: "first"},
-			{name: "generate-sdk", summary: "second"},
-			{name: "x", summary: "third"},
-		}},
-		{"the shipped table", commands()},
-	}
+	rendered := "Usage:\n  morphic compile --flags\n\nFlags:\n" +
+		"      --fail-on string   exit 1\n  -o, --output string    write\n\nExamples:\n  morphic --x a\n"
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.NotEmpty(t, tt.table)
-
-			var buf bytes.Buffer
-			writeCommandList(&buf, tt.table)
-
-			longest := 0
-			for _, c := range tt.table {
-				longest = max(longest, len(c.name))
-			}
-			want := len("  ") + longest + len(" ")
-			for i, got := range summaryColumns(t, buf.String()) {
-				assert.Equal(t, want, got,
-					"summary %d must start one space past the longest name, in:\n%s", i, buf.String())
-			}
-		})
-	}
+	assert.Equal(t, []string{"fail-on", "output"}, flagNamesIn(rendered))
 }
 
 func TestRootHelp_ListsEveryCommand(t *testing.T) {
@@ -244,22 +287,20 @@ func TestRootHelp_ListsEveryCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run(nil, &stdout, &stderr))
 
-	got := stdout.String()
-	table := commands()
-	require.NotEmpty(t, table, "the command table must not be empty")
-	for _, c := range table {
-		assert.Contains(t, got, c.name)
-		assert.Contains(t, got, c.summary)
+	got := strings.ToLower(stdout.String())
+	cmds := newRootCmd().Commands()
+	require.NotEmpty(t, cmds, "the command tree must not be empty")
+	for _, c := range cmds {
+		assert.Contains(t, got, c.Name())
+		assert.Contains(t, got, strings.ToLower(c.Short))
 	}
 }
 
 // compareHelpGolden compares got against the golden file at path, or rewrites
 // it when -update is passed to go test.
 //
-// The -update flag comes from irtest rather than being declared here. A second
-// flag.Bool("update", ...) in this package would not merely shadow the first:
-// both register on the same command-line FlagSet, so the binary panics at init
-// the moment anything pulls irtest into these tests.
+// The -update flag comes from irtest rather than being declared here: a second
+// flag.Bool("update", ...) on the same command-line FlagSet panics at init.
 func compareHelpGolden(t *testing.T, path, got string) {
 	t.Helper()
 
@@ -288,10 +329,10 @@ type helpGoldenCase struct {
 // root itself produces, then each command's own help and misuse text.
 //
 // It is a function rather than a literal inside the test so
-// TestHelp_GoldenTableCoversEveryCommand can hold it to commands(). Adding a
-// command otherwise forces only a root-help.txt regeneration, which says nothing
-// about that command's own two pages — and a golden nobody wrote is a golden
-// nobody notices missing.
+// TestHelp_GoldenTableCoversEveryCommand can hold it to the command tree. Adding
+// a command otherwise forces only a root-help.txt regeneration, which says
+// nothing about that command's own two pages — and a golden nobody wrote is a
+// golden nobody notices missing.
 func helpGoldenCases() []helpGoldenCase {
 	return []helpGoldenCase{
 		{"root", nil, "root-help.txt", 0, false},
@@ -304,7 +345,7 @@ func helpGoldenCases() []helpGoldenCase {
 }
 
 // TestHelp_GoldenTableCoversEveryCommand holds the hand-written golden table to
-// the command table, the way ir's hand-written kind lists are held to the kinds
+// the command tree, the way ir's hand-written kind lists are held to the kinds
 // its sources declare: the list stays explicit, so a command needing a different
 // misuse invocation can have one, and forgetting a command reddens here naming
 // it rather than passing quietly.
@@ -320,18 +361,18 @@ func TestHelp_GoldenTableCoversEveryCommand(t *testing.T) {
 		covered[tc.golden] = true
 	}
 
-	for _, c := range commands() {
-		assert.Truef(t, covered[c.name+"-help.txt"],
-			"%s has no help golden; add it to helpGoldenCases", c.name)
-		assert.Truef(t, covered[c.name+"-usage.txt"],
-			"%s has no misuse golden; add it to helpGoldenCases", c.name)
+	for _, c := range newRootCmd().Commands() {
+		assert.Truef(t, covered[c.Name()+"-help.txt"],
+			"%s has no help golden; add it to helpGoldenCases", c.Name())
+		assert.Truef(t, covered[c.Name()+"-usage.txt"],
+			"%s has no misuse golden; add it to helpGoldenCases", c.Name())
 	}
 }
 
 // TestHelp_MatchesGolden pins every text the CLI renders. The two help texts
 // are the ones a user asks for; the two misuse texts are the ones a user gets
-// by accident, and nothing else holds their wording — writeCommandUsage and the
-// root help that misuse prints to stderr could otherwise drift in silence.
+// by accident, and nothing else holds their wording — the error line and the
+// hint that misuse prints to stderr could otherwise drift in silence.
 //
 // The wantStderr column doubles as the stream-discipline assertion: help must
 // never reach stderr, misuse must never reach stdout, and whichever stream is
