@@ -26,6 +26,7 @@ func namespaceDoc(typeNamespace, serviceNamespace []string) *ir.Document {
 	}
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}, ir.IDKindService: {"x"}},
 		Types:     ir.TypeRegistry{m.ID: m},
 		Services: []ir.Service{{
 			ID:        "s/x/S",

@@ -39,7 +39,7 @@ func TestVerify_UndeclaredPrimKindIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(primDoc(tc.kind))
+			got := verifyDeclared(primDoc(tc.kind))
 			require.Len(t, got, 1, "the ID derives from the kind, so nothing else can be wrong")
 			assert.Equal(t, "ir/unknown-prim-kind", got[0].Code)
 			assert.Equal(t, "types["+string(ir.PrimTypeID(tc.kind))+"]", got[0].Path)
@@ -71,7 +71,7 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 			doc.Types["t/x/Nil"] = tc.entry
 
 			var got []irverify.Violation
-			require.NotPanics(t, func() { got = irverify.Verify(doc) })
+			require.NotPanics(t, func() { got = verifyDeclared(doc) })
 			assert.Contains(t, codes(got), "ir/unknown-prim-kind", "the bad kind is still reported")
 			assert.Contains(t, codes(got), "ir/nil-type", "the nil entry is reported by its own check")
 		})
@@ -87,7 +87,7 @@ func TestVerify_DeclaredPrimKindIsClean(t *testing.T) {
 	for _, kind := range []ir.PrimKind{ir.PrimString, ir.PrimFloat64, ir.PrimDatetimeOffset, ir.PrimAny} {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(primDoc(kind)))
+			assert.Empty(t, verifyDeclared(primDoc(kind)))
 		})
 	}
 }
@@ -121,7 +121,7 @@ func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(authDoc(tc.kind))
+			got := verifyDeclared(authDoc(tc.kind))
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/unknown-auth-kind", got[0].Code)
 			assert.Equal(t, "auth[auth/openapi/components/securitySchemes/token]", got[0].Path)
@@ -136,7 +136,7 @@ func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
 	for _, kind := range []ir.AuthKind{ir.AuthKindOAuth2, ir.AuthKindAPIKey, ir.AuthKindX509, ir.AuthKindCustom} {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(authDoc(kind)))
+			assert.Empty(t, verifyDeclared(authDoc(kind)))
 		})
 	}
 }

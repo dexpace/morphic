@@ -89,11 +89,13 @@ What a compiler does *not* own is in `compilers/compile`: the state and the gram
 must agree on. That is the type registry with the source-coordinate map behind stable IDs (and the
 rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
 the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
-it. What stays with the compiler is what only it can compute: the path an ID derives from, since a
-JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things.
+it, with the declaration of the namespaces a compiler mints in. What stays with the compiler is what
+only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path
+and a protobuf fully-qualified name are different things.
 
 The split is enforced rather than documented: architecture tests fail a package outside the
-framework that writes the type registry, derives a canonical name, or builds an ID out of a string.
+framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
+builds a namespace out of anything but a literal.
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
@@ -223,7 +225,7 @@ policy fills in where the spec is silent, never the reverse.
 ```
 morphic/
 ├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
-│   ├── irtest/             #           Golden-snapshot helpers for IR documents.
+│   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
 │   ├── compile/            #           What every compiler shares: type registry + coordinates,

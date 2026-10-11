@@ -207,7 +207,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	pathPtr := ids.Ptr("paths", path)
 	var mounted int
 	for _, po := range pathOperations(pi) {
-		key, name, docs, inferred := groupFor(c, po.src, path)
+		gid, name, docs, inferred := groupFor(c, po.src, path)
 		ptrs := opPointers{mount: pathPtr + po.seg, decl: declPtr + po.seg}
 		opCtx := opContext{
 			method:        po.method,
@@ -220,7 +220,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
+		grp := groups.group(gid, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
 		grp.Operations = append(grp.Operations, op)
 		grp.Operations = append(grp.Operations, extra...)
 		mounted++
@@ -265,7 +265,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
 			diags = append(diags, opDiags...)
 			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-			grp := groups.group("webhook", func() ir.OperationGroup {
+			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
 				// synthesizes the "default" group above, and Naming.Source is the
@@ -283,20 +283,24 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 	return diags
 }
 
-// groupFor resolves the group an operation belongs to under the active strategy.
+// groupFor resolves the group an operation belongs to under the active strategy,
+// by identity: the ID is both the group's key here and its ID in the IR, so two
+// operations share a group exactly when they share an ID.
 // lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
-// declared tags is a declared fact and leaves it empty.
-func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
+// declared tags is a declared fact and leaves it empty. The untagged group's
+// hint stays "default" beside a tag of that name: the IDs differ, and the
+// emitter resolves name collisions by ID (emitter-design §4.12).
+func groupFor(c lowering.Ctx, src *soa.Operation, path string) (id ir.GroupID, name ir.Naming, docs ir.Docs, inferred string) {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
+		return ids.PathPrefixGroup(seg), compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
-		return "default", compile.NamingHint("default"), ir.Docs{}, ""
+		return ids.DefaultGroup(), compile.NamingHint("default"), ir.Docs{}, ""
 	}
 	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
+	return ids.TagGroup(first), compile.NamingFor(first), tagDocs(c, first), ""
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
@@ -1154,35 +1158,38 @@ func firstPathSegment(path string) string {
 	return ""
 }
 
-// serviceGroups accumulates operation groups keyed by a namespaced key while
-// preserving first-seen insertion order, so a group's operations gather across
-// paths without reordering the groups themselves.
+// serviceGroups accumulates operation groups by ID while preserving first-seen
+// insertion order, so a group's operations gather across paths without
+// reordering the groups themselves.
 type serviceGroups struct {
-	order []string
-	byKey map[string]*ir.OperationGroup
+	order []ir.GroupID
+	byID  map[ir.GroupID]*ir.OperationGroup
 }
 
 // newServiceGroups returns an empty group accumulator.
 func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup)}
+	return &serviceGroups{byID: make(map[ir.GroupID]*ir.OperationGroup)}
 }
 
-// group returns the group for key, creating it via mk on first sight and
-// recording its insertion order.
-func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.OperationGroup {
-	if existing, ok := g.byKey[key]; ok {
+// group returns the group with the given ID, creating it via mk on first sight
+// and recording its insertion order. It stamps the ID itself, so a group's ID is
+// its key by construction rather than by every caller repeating it.
+func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.OperationGroup {
+	if existing, ok := g.byID[id]; ok {
 		return existing
 	}
-	g.byKey[key] = new(mk())
-	g.order = append(g.order, key)
-	return g.byKey[key]
+	created := mk()
+	created.ID = id
+	g.byID[id] = &created
+	g.order = append(g.order, id)
+	return &created
 }
 
 // finalize returns the accumulated groups in insertion order.
 func (g *serviceGroups) finalize() []ir.OperationGroup {
 	out := make([]ir.OperationGroup, 0, len(g.order))
-	for _, k := range g.order {
-		out = append(out, *g.byKey[k])
+	for _, id := range g.order {
+		out = append(out, *g.byID[id])
 	}
 	return out
 }

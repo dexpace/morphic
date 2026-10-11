@@ -505,3 +505,86 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 		})
 	}
 }
+
+// TestExternalContent_ARefInTheSourceNamingItNamesIt pins GitHub #576: a $ref
+// in the source's own content names the source by the rule a $ref in another
+// document's content does, its document part joined onto the source's
+// directory (see TestExternalContent_ARefNamingTheSourceNamesIt). Spelled
+// through the current directory, its parent, or a directory and back, or by
+// its absolute path however unclean, it names the source's own Thing. One in a
+// directory of its own names a file there, and so does a file beside it.
+func TestExternalContent_ARefInTheSourceNamingItNamesIt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	const pointer = "/paths/~1op/get/responses/200/content/application~1json/schema"
+	for _, c := range []struct {
+		name, ref string
+		names     bool
+	}{
+		{"its file name", "root.yaml", true},
+		{"through the current directory", "./root.yaml", true},
+		{"through its parent", "../" + filepath.Base(dir) + "/root.yaml", true},
+		{"through a directory and back", "sub/../root.yaml", true},
+		{"its absolute path", filepath.Join(dir, "root.yaml"), true},
+		{"its absolute path, not cleaned", dir + "/./root.yaml", true},
+		{"in a directory of its own", "sub/root.yaml", false},
+		{"another file beside it", "other.yaml", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			root := foreignRoot("  /op:\n    get:\n      operationId: op\n      responses:\n        \"200\":\n" +
+				"          description: ok\n" +
+				"          content: {application/json: {schema: {$ref: '" + c.ref + "#/components/schemas/Thing'}}}\n")
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+
+			if !c.names {
+				assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+					return d.Code == "openapi/unresolved-ref" && d.Provenance.Pointer == pointer
+				}), "the $ref names a file that is not the source: %v", diags)
+				return
+			}
+			openapitest.RequireNoErrorDiags(t, diags)
+			op, ok := opByName(doc, "op")
+			require.True(t, ok)
+			require.Len(t, op.Responses, 1)
+			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Thing"), openapitest.BodyTarget(t, op.Responses[0].Payload))
+		})
+	}
+}
+
+// TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames pins the cost
+// of reading such a $ref otherwise. A path item reached by a $ref written with a
+// YAML alias, for its value or for its key, through a spelling of the source that
+// no other key holds, was built as a copy whose own $refs nothing resolved, and
+// the lowering dropped the response it names. The same $ref written as a plain
+// string kept it.
+func TestExternalContent_AnAliasedRefNamingTheSourceKeepsWhatItNames(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	spelled := "'" + dir + "/./root.yaml#/components/pathItems/I'"
+	for _, c := range []struct{ name, ref, anchor string }{
+		{"a plain string", "{$ref: " + spelled + "}", ""},
+		{"an alias as the value", "{$ref: *r}", "x-r: &r " + spelled + "\n"},
+		{"an alias as the key", "{*k : " + spelled + "}", "x-k: &k '$ref'\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" + c.anchor + "paths:\n  /a: " + c.ref + "\n" +
+				"components:\n  pathItems:\n    I:\n      get:\n        operationId: i\n" +
+				"        responses: {\"200\": {$ref: '#/components/responses/R'}}\n" +
+				"  responses:\n    R: {description: ok}\n"
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+				compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+			require.NoError(t, err)
+
+			openapitest.RequireNoErrorDiags(t, diags)
+			op, ok := opByName(doc, "i")
+			require.True(t, ok)
+			assert.Len(t, op.Responses, 1, "the response the path item's $ref names")
+		})
+	}
+}

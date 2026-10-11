@@ -25,7 +25,7 @@ import (
 // document verifies empty with no aliases.
 func aliasViolations(t *testing.T, aliases ...string) []irverify.Violation {
 	t.Helper()
-	return irverify.Verify(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
+	return verifyDeclared(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
 }
 
 // TestVerify_VerbatimAliasesAreClean pins the settlement this check rests on: an
@@ -161,7 +161,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 // argument the duplicate rule rests on, one channel over.
 func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User"}}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
@@ -182,7 +182,7 @@ func TestVerify_AliasMatchingDerivedChannelsIsClean(t *testing.T) {
 	} {
 		t.Run(channel, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(modelNamed(n)))
+			assert.Empty(t, verifyDeclared(modelNamed(n)))
 		})
 	}
 }
@@ -218,7 +218,7 @@ func TestVerify_RepeatedBlankAliasReportsEachAsBlank(t *testing.T) {
 // are each wrong on their own.
 func TestVerify_RepeatedSourceAliasReportsEachAsRedundant(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User", "User"}}))
 	require.Len(t, got, 2)
 	for i, v := range got {
@@ -268,7 +268,7 @@ func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
 		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}},
 	}
 
-	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
+	got := verifyDeclared(&ir.Document{IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-shared", got[0].Code)
@@ -320,7 +320,7 @@ func TestVerify_AliasEqualToAnotherSourceIsShared(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, Types: tc.types})
+			got := verifyDeclared(&ir.Document{IRVersion: ir.IRVersion, Types: tc.types})
 			require.Len(t, got, 1)
 			assert.Equal(t, "ir/naming-alias-shared", got[0].Code)
 			assert.Equal(t, tc.at, got[0].Path, "always reported at the alias")
@@ -342,7 +342,7 @@ func TestVerify_TwoSourcesAreNotShared(t *testing.T) {
 	a := &ir.Model{ID: "t/x/A", Name: n}
 	b := &ir.Model{ID: "t/x/B", Name: n}
 
-	assert.Empty(t, irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
+	assert.Empty(t, verifyDeclared(&ir.Document{IRVersion: ir.IRVersion,
 		Types: ir.TypeRegistry{a.ID: a, b.ID: b}}))
 }
 
@@ -351,7 +351,7 @@ func TestVerify_TwoSourcesAreNotShared(t *testing.T) {
 // entry, and the claim check adds nothing at the same path.
 func TestVerify_SameNamingRepeatStaysDuplicate(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "m", Canonical: "m", Aliases: []string{"dup", "dup"}}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code,
@@ -372,7 +372,7 @@ func TestVerify_ThreeClaimantsReportTwo(t *testing.T) {
 		}}
 	}
 
-	got := irverify.Verify(doc)
+	got := verifyDeclared(doc)
 	require.Len(t, got, 2, "three claimants yield two violations")
 	for _, v := range got {
 		assert.Equal(t, "ir/naming-alias-shared", v.Code)
@@ -399,7 +399,7 @@ func TestVerify_BlankAndIllFormedAreNoClaims(t *testing.T) {
 		}}
 	}
 
-	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion, Types: types})
+	got := verifyDeclared(&ir.Document{IRVersion: ir.IRVersion, Types: types})
 	assert.Equal(t, []string{"ir/invalid-utf8", "ir/invalid-utf8",
 		"ir/naming-alias-blank", "ir/naming-alias-blank"}, codesOf(got),
 		"the blank and ill-formed entries are reported, once each per Naming")
@@ -426,7 +426,7 @@ func TestVerify_PropertyAliasesAcrossModelsAreClean(t *testing.T) {
 		}
 	}
 
-	assert.Empty(t, irverify.Verify(doc),
+	assert.Empty(t, verifyDeclared(doc),
 		"a field alias is scoped to its own record, so two models may state the same one")
 }
 
