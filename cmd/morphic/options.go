@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// settingFlag collects the repeated `-opt key=value` settings that configure
+// settingFlag collects the repeated `--opt key=value` settings that configure
 // whichever compiler the spec turns out to need.
 //
 // It carries the pairs verbatim rather than parsing them, because the CLI does

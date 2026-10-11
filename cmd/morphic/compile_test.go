@@ -316,7 +316,7 @@ func TestRun_FileOutputIsCompact(t *testing.T) {
 
 // TestRun_PrettyRestoresIndentedFile pins the escape hatch, and pins it against
 // the bytes that were there before rather than against "looks indented": -o
-// -pretty must write exactly what stdout writes, which is the format -o itself
+// --pretty must write exactly what stdout writes, which is the format -o itself
 // used to write.
 func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 	t.Parallel()
@@ -333,7 +333,7 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 // TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
 // encoder it does not share: what compile prints is byte for byte what
 // irtest.WriteGolden writes for the same document, indentation and trailing
-// newline included. Comparing -pretty with stdout cannot show this, since both
+// newline included. Comparing --pretty with stdout cannot show this, since both
 // go through encodeDocument.
 func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	t.Parallel()

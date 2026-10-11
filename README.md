@@ -247,7 +247,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `pass/` | 1: IR → IR passes | `ir` only |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `cmd/morphic/` | 4: CLI | `engine` + `ir` |
+| `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `fang`) |
 | `cmd/morphic-harness/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry

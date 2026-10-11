@@ -116,7 +116,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, fang).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
