@@ -221,7 +221,7 @@
   "diagnostics": [
     {
       "severity": "warning",
-      "code": "openapi/invalid-location-keyword",
+      "code": "openapi/inapplicable-location-keyword",
       "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
       "provenance": {
         "source": 0,
@@ -230,7 +230,7 @@
     },
     {
       "severity": "warning",
-      "code": "openapi/invalid-location-keyword",
+      "code": "openapi/inapplicable-location-keyword",
       "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
       "provenance": {
         "source": 0,
@@ -239,7 +239,7 @@
     },
     {
       "severity": "warning",
-      "code": "openapi/invalid-location-keyword",
+      "code": "openapi/inapplicable-location-keyword",
       "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
       "provenance": {
         "source": 0,

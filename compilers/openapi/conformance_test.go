@@ -2224,8 +2224,8 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 			"/paths/~1b/get/parameters/0/allowReserved"))
 }
 
-// assertParamAllowReservedLocations pins the before-3.2 half of
-// diag.InvalidLocationKeyword: OpenAPI 3.0/3.1 apply allowReserved to in: query
+// assertParamAllowReservedLocations pins diag.InapplicableLocationKeyword:
+// OpenAPI 3.0/3.1 apply allowReserved to in: query
 // alone, so a path, header or cookie declaration is reported at the keyword's
 // own pointer while a query declaration — the location the keyword belongs to —
 // stays silent. Every declared value still lowers as declared, and only the
@@ -2250,7 +2250,7 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 	const message = "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared"
 	var warned []string
 	for _, d := range diags {
-		if d.Code == diag.InvalidLocationKeyword && d.Severity == ir.SeverityWarning {
+		if d.Code == diag.InapplicableLocationKeyword && d.Severity == ir.SeverityWarning {
 			warned = append(warned, string(d.Provenance.Pointer))
 		}
 	}
@@ -2262,7 +2262,7 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 	assert.Equal(t, pointers, warned, "one warning per off-query declaration, in source order")
 	for _, pointer := range pointers {
 		assert.Equal(t, message,
-			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning, pointer))
+			openapitest.DiagMessageAt(t, diags, diag.InapplicableLocationKeyword, ir.SeverityWarning, pointer))
 	}
 }
 

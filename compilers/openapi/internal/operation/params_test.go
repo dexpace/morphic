@@ -361,7 +361,7 @@ func TestParams_QueryStringUndeclaredKeywordsAreNotReported(t *testing.T) {
 // presence rather than truth. A query declaration, an absent keyword and every
 // 3.2 location stay silent — 3.2's narrowing to percent-encoding locations is
 // not reported — and a 3.1 querystring keeps its single #408 report. Every row
-// keeps the declared value. See diag.InvalidLocationKeyword.
+// keeps the declared value. See diag.InapplicableLocationKeyword.
 func TestParams_AllowReservedLocationRule(t *testing.T) {
 	t.Parallel()
 	const (
@@ -374,21 +374,22 @@ func TestParams_AllowReservedLocationRule(t *testing.T) {
 		version  string
 		param    string
 		declared bool
+		code     string
 		want     string
 	}{
-		{name: "3.0.3 path", version: "3.0.3", param: "in: path, required: true, allowReserved: true", declared: true, want: before32},
-		{name: "3.0.3 header", version: "3.0.3", param: "in: header, allowReserved: true", declared: true, want: before32},
-		{name: "3.0.3 cookie", version: "3.0.3", param: "in: cookie, allowReserved: true", declared: true, want: before32},
-		{name: "3.1.0 path", version: "3.1.0", param: "in: path, required: true, allowReserved: true", declared: true, want: before32},
-		{name: "3.1.0 header", version: "3.1.0", param: "in: header, allowReserved: true", declared: true, want: before32},
-		{name: "3.1.0 cookie declared false", version: "3.1.0", param: "in: cookie, allowReserved: false", want: before32},
+		{name: "3.0.3 path", version: "3.0.3", param: "in: path, required: true, allowReserved: true", declared: true, code: diag.InapplicableLocationKeyword, want: before32},
+		{name: "3.0.3 header", version: "3.0.3", param: "in: header, allowReserved: true", declared: true, code: diag.InapplicableLocationKeyword, want: before32},
+		{name: "3.0.3 cookie", version: "3.0.3", param: "in: cookie, allowReserved: true", declared: true, code: diag.InapplicableLocationKeyword, want: before32},
+		{name: "3.1.0 path", version: "3.1.0", param: "in: path, required: true, allowReserved: true", declared: true, code: diag.InapplicableLocationKeyword, want: before32},
+		{name: "3.1.0 header", version: "3.1.0", param: "in: header, allowReserved: true", declared: true, code: diag.InapplicableLocationKeyword, want: before32},
+		{name: "3.1.0 cookie declared false", version: "3.1.0", param: "in: cookie, allowReserved: false", code: diag.InapplicableLocationKeyword, want: before32},
 		{name: "3.0.3 query", version: "3.0.3", param: "in: query, allowReserved: true", declared: true},
 		{name: "3.1.0 query", version: "3.1.0", param: "in: query, allowReserved: true", declared: true},
 		{name: "3.1.0 path undeclared", version: "3.1.0", param: "in: path, required: true"},
 		{name: "3.2.0 path", version: "3.2.0", param: "in: path, required: true, allowReserved: true", declared: true},
 		{name: "3.2.0 header", version: "3.2.0", param: "in: header, allowReserved: true", declared: true},
 		{name: "3.2.0 cookie", version: "3.2.0", param: "in: cookie, allowReserved: true", declared: true},
-		{name: "3.1.0 querystring", version: "3.1.0", param: "in: querystring, allowReserved: true, " + qsContent, declared: true, want: querystring},
+		{name: "3.1.0 querystring", version: "3.1.0", param: "in: querystring, allowReserved: true, " + qsContent, declared: true, code: diag.InvalidLocationKeyword, want: querystring},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -410,13 +411,14 @@ func TestParams_AllowReservedLocationRule(t *testing.T) {
 			assert.Equal(t, tc.declared, op.Bindings.HTTP[0].ParamBindings[0].AllowReserved,
 				"the declared allowReserved lowers as declared")
 
+			reports := openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning) +
+				openapitest.CountDiagsAt(diags, diag.InapplicableLocationKeyword, ir.SeverityWarning)
 			if tc.want == "" {
-				assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning))
+				assert.Zero(t, reports)
 				return
 			}
-			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
-				"one declaration draws one report")
-			assert.Equal(t, tc.want, openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword,
+			assert.Equal(t, 1, reports, "one declaration draws one report, under one code")
+			assert.Equal(t, tc.want, openapitest.DiagMessageAt(t, diags, tc.code,
 				ir.SeverityWarning, "/paths/~1p/get/parameters/0/allowReserved"))
 		})
 	}
@@ -479,9 +481,9 @@ func TestParams_AllowReservedOutsideQueryReportsOncePerDeclaration(t *testing.T)
 	for _, ptr := range pointers {
 		assert.Equal(t,
 			"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
-			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning, ptr))
+			openapitest.DiagMessageAt(t, diags, diag.InapplicableLocationKeyword, ir.SeverityWarning, ptr))
 	}
-	assert.Equal(t, len(pointers), openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
+	assert.Equal(t, len(pointers), openapitest.CountDiagsAt(diags, diag.InapplicableLocationKeyword, ir.SeverityWarning),
 		"no declaration reports more than once")
 }
 

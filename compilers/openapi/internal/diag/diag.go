@@ -318,17 +318,20 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports a serialization keyword at a parameter
-	// location its dialect does not apply it to, at the keyword's coordinate.
-	// OpenAPI 3.2 forbids explode and allowReserved at in: querystring, which the
-	// bundled parser checks for style but not for these (GitHub #408). Before
-	// 3.2, allowReserved applies only at in: query.
-	//
-	// The two rules share a code because they are one finding: a keyword where
-	// its dialect gives it no meaning. The value still lowers (invariant 2).
-	// Warning, not the error style gets: that is the parser's own refusal,
-	// whereas here the compiler has already kept the value.
+	// InvalidLocationKeyword reports explode or allowReserved at in: querystring,
+	// at the keyword's coordinate. OpenAPI 3.2 says they MUST NOT be used there,
+	// and the bundled parser checks that for style but not for these (GitHub
+	// #408). The value still lowers (invariant 2). Warning, not the error style
+	// gets: that is the parser's own refusal, whereas here the compiler has
+	// already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// InapplicableLocationKeyword reports allowReserved at path, header or cookie
+	// in an OpenAPI 3.0 or 3.1 document, at the keyword's coordinate: those
+	// dialects apply it to in: query alone. A code of its own, apart from
+	// InvalidLocationKeyword, because the document breaks no MUST here; the
+	// keyword simply has no effect, and a consumer may weigh that differently.
+	// A warning, and the value lowers as declared (invariant 2).
+	InapplicableLocationKeyword = "openapi/inapplicable-location-keyword"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

@@ -118,7 +118,7 @@ func allowReservedLocationDiag(c lowering.Ctx, in soa.ParameterIn, p *soa.Parame
 	default:
 		return nil
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InvalidLocationKeyword,
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InapplicableLocationKeyword,
 		pptr+ids.Ptr("allowReserved"),
 		"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared")}
 }
