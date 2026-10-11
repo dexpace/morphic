@@ -335,36 +335,17 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // caller, which is the one thing keeping it unexported was for.
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
-// ExclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
+// DialectMinor returns the OpenAPI minor version this document is written in —
+// "3.0", "3.1" or "3.2" — or "" when it names none this compiler recognizes.
+// Callers compare it themselves, so each per-keyword dialect question costs a
+// comparison at its use rather than another method here.
 //
-// It reads the document version, which makes it a question about the context
-// rather than about any schema — annotation.Constraints takes the answer as a
-// parameter precisely so the reader never has to ask it.
-//
-// The version is read through its accessor so a context with no document answers
-// like an unrecognized version rather than panicking, which is how the other two
-// readers behave on a zero value.
-func (c Ctx) ExclusiveBoundIsBoolean() bool {
+// The version is read through its accessor, so a context with no document
+// answers "" rather than panicking, which is how the other readers behave on a
+// zero value.
+func (c Ctx) DialectMinor() string {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0"
-}
-
-// AllowReservedIsQueryOnly reports whether this document's dialect confines
-// allowReserved to in: query. OpenAPI 3.0 and 3.1 apply the keyword at the
-// query location alone, so a path, header or cookie declaration is one the
-// dialect does not use; 3.2 widens it to every location.
-//
-// An unrecognized version reads as 3.2, the dialect with no such restriction,
-// which matches ExclusiveBoundIsBoolean's choice of the unrecognized-version
-// answer and keeps the reader from inventing a rule for a document it cannot
-// place. In production load refuses an unsupported version before any lowering
-// runs; this is what lets a zero context answer rather than panic.
-func (c Ctx) AllowReservedIsQueryOnly() bool {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0" || minor == "3.1"
+	return minor
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's

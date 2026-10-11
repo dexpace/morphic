@@ -2,7 +2,7 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/validation"
@@ -356,118 +356,133 @@ func TestParams_QueryStringUndeclaredKeywordsAreNotReported(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.InvalidLocationKeyword))
 }
 
-// TestParams_AllowReservedOutsideQueryIsReportedBefore32 pins the 3.0/3.1 half
-// of the location rule: allowReserved applies to in: query alone, so a
-// declaration at path, header or cookie is reported at the keyword's own
-// pointer and still lowered as declared. Presence rather than truth is what
-// fires — the 3.1 cookie row declares false — matching the querystring check
-// beside it. See diag.InvalidLocationKeyword.
-func TestParams_AllowReservedOutsideQueryIsReportedBefore32(t *testing.T) {
+// TestParams_AllowReservedLocationRule pins where allowReserved is reported:
+// at path, header or cookie in 3.0 and 3.1, at the keyword's own pointer, on
+// presence rather than truth. A query declaration, an absent keyword and every
+// 3.2 location stay silent — 3.2's narrowing to percent-encoding locations is
+// not reported — and a 3.1 querystring keeps its single #408 report. Every row
+// keeps the declared value. See diag.InvalidLocationKeyword.
+func TestParams_AllowReservedLocationRule(t *testing.T) {
 	t.Parallel()
+	const (
+		before32    = "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared"
+		querystring = "parameter field allowReserved is not allowed for in=querystring; lowered as declared"
+		qsContent   = "content: {application/x-www-form-urlencoded: {schema: {type: object}}}"
+	)
 	tests := []struct {
 		name     string
 		version  string
-		in       string
-		required bool
+		param    string
 		declared bool
+		want     string
 	}{
-		{name: "3.0.3 path", version: "3.0.3", in: "path", required: true, declared: true},
-		{name: "3.0.3 header", version: "3.0.3", in: "header", declared: true},
-		{name: "3.0.3 cookie", version: "3.0.3", in: "cookie", declared: true},
-		{name: "3.1.0 path", version: "3.1.0", in: "path", required: true, declared: true},
-		{name: "3.1.0 header", version: "3.1.0", in: "header", declared: true},
-		{name: "3.1.0 cookie declared false", version: "3.1.0", in: "cookie", declared: false},
+		{name: "3.0.3 path", version: "3.0.3", param: "in: path, required: true, allowReserved: true", declared: true, want: before32},
+		{name: "3.0.3 header", version: "3.0.3", param: "in: header, allowReserved: true", declared: true, want: before32},
+		{name: "3.0.3 cookie", version: "3.0.3", param: "in: cookie, allowReserved: true", declared: true, want: before32},
+		{name: "3.1.0 path", version: "3.1.0", param: "in: path, required: true, allowReserved: true", declared: true, want: before32},
+		{name: "3.1.0 header", version: "3.1.0", param: "in: header, allowReserved: true", declared: true, want: before32},
+		{name: "3.1.0 cookie declared false", version: "3.1.0", param: "in: cookie, allowReserved: false", want: before32},
+		{name: "3.0.3 query", version: "3.0.3", param: "in: query, allowReserved: true", declared: true},
+		{name: "3.1.0 query", version: "3.1.0", param: "in: query, allowReserved: true", declared: true},
+		{name: "3.1.0 path undeclared", version: "3.1.0", param: "in: path, required: true"},
+		{name: "3.2.0 path", version: "3.2.0", param: "in: path, required: true, allowReserved: true", declared: true},
+		{name: "3.2.0 header", version: "3.2.0", param: "in: header, allowReserved: true", declared: true},
+		{name: "3.2.0 cookie", version: "3.2.0", param: "in: cookie, allowReserved: true", declared: true},
+		{name: "3.1.0 querystring", version: "3.1.0", param: "in: querystring, allowReserved: true, " + qsContent, declared: true, want: querystring},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			spec := openapitest.PathsSpecVer(tc.version, fmt.Sprintf(
-				"  /p:\n"+
-					"    get:\n"+
-					"      operationId: op\n"+
-					"      parameters:\n"+
-					"        - {name: n, in: %s, required: %t, allowReserved: %t, schema: {type: string}}\n"+
-					"      responses: {\"200\": {description: ok}}\n",
-				tc.in, tc.required, tc.declared))
-			doc, diags := parseFull(t, spec)
+			schema := ", schema: {type: string}"
+			if strings.Contains(tc.param, "content:") {
+				schema = ""
+			}
+			doc, diags := parseFull(t, openapitest.PathsSpecVer(tc.version, "  /p:\n"+
+				"    get:\n"+
+				"      operationId: op\n"+
+				"      parameters:\n"+
+				"        - {name: n, "+tc.param+schema+"}\n"+
+				"      responses: {\"200\": {description: ok}}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			op := openapitest.FindOp(t, doc, "op")
 			require.Len(t, op.Bindings.HTTP, 1)
 			require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+			assert.Equal(t, tc.declared, op.Bindings.HTTP[0].ParamBindings[0].AllowReserved,
+				"the declared allowReserved lowers as declared")
 
-			binding := op.Bindings.HTTP[0].ParamBindings[0]
-			assert.Equal(t, tc.declared, binding.AllowReserved,
-				"the declared allowReserved lowers as declared at every location")
-			assert.Equal(t,
-				"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
-				openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
-					"/paths/~1p/get/parameters/0/allowReserved"))
+			if tc.want == "" {
+				assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning))
+				return
+			}
+			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
+				"one declaration draws one report")
+			assert.Equal(t, tc.want, openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword,
+				ir.SeverityWarning, "/paths/~1p/get/parameters/0/allowReserved"))
 		})
 	}
 }
 
-// TestParams_AllowReservedOutsideQueryIsSilentElsewhere is the control for the
-// rule above: the 3.0/3.1 warning tracks the keyword *and* its location, so a
-// query declaration, an absent keyword and every 3.2 location all stay silent.
-func TestParams_AllowReservedOutsideQueryIsSilentElsewhere(t *testing.T) {
+// allowReservedDeclarationSitesSpec declares allowReserved outside query at
+// each place a 3.1 parameter can be written other than an operation's own
+// list: a component referenced from two operations, a path item's shared list,
+// a callback operation and a webhook.
+const allowReservedDeclarationSitesSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters:
+      - {name: h, in: header, allowReserved: true, schema: {type: string}}
+    get:
+      operationId: getA
+      parameters:
+        - $ref: '#/components/parameters/Shared'
+      responses: {"200": {description: ok}}
+    post:
+      operationId: postA
+      parameters:
+        - $ref: '#/components/parameters/Shared'
+      callbacks:
+        cb:
+          '{$request.body#/url}':
+            post:
+              operationId: cbOp
+              parameters:
+                - {name: p, in: path, required: true, allowReserved: true, schema: {type: string}}
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+webhooks:
+  evt:
+    post:
+      operationId: evtOp
+      parameters:
+        - {name: w, in: header, allowReserved: false, schema: {type: string}}
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    Shared: {name: c, in: cookie, allowReserved: true, schema: {type: string}}
+`
+
+// TestParams_AllowReservedOutsideQueryReportsOncePerDeclaration pins that the
+// rule reports each declaration once, at the declaration's own pointer, however
+// many operations mount it: the shared component and the path item's list each
+// reach two operations and still report once.
+func TestParams_AllowReservedOutsideQueryReportsOncePerDeclaration(t *testing.T) {
 	t.Parallel()
-
-	// A 3.1 query declaration is the location the keyword belongs to: kept, and
-	// nothing to report.
-	doc, diags := parseFull(t, openapitest.PathsSpecVer("3.1.0", `  /p:
-    get:
-      operationId: op
-      parameters:
-        - {name: n, in: query, allowReserved: true, schema: {type: string}}
-      responses: {"200": {description: ok}}
-`))
+	_, diags := parseFull(t, allowReservedDeclarationSitesSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FindOp(t, doc, "op")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	assert.True(t, op.Bindings.HTTP[0].ParamBindings[0].AllowReserved,
-		"a query declaration lowers as declared")
-	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
-		"and is not reported before 3.2")
-
-	// A 3.1 path parameter declaring nothing records nothing: the diagnostic
-	// tracks the keyword's presence in the document, not the location alone.
-	doc, diags = parseFull(t, openapitest.PathsSpecVer("3.1.0", `  /p:
-    get:
-      operationId: op
-      parameters:
-        - {name: n, in: path, required: true, schema: {type: string}}
-      responses: {"200": {description: ok}}
-`))
-	openapitest.RequireNoErrorDiags(t, diags)
-	op = openapitest.FindOp(t, doc, "op")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
-	assert.False(t, op.Bindings.HTTP[0].ParamBindings[0].AllowReserved)
-	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
-		"an undeclared keyword is not reported at the location that would forbid it")
-
-	// 3.2 applies the keyword at every location, so path, header and cookie all
-	// stay silent while still carrying the declared value.
-	doc, diags = parseFull(t, openapitest.PathsSpecVer("3.2.0", `  /p:
-    get:
-      operationId: op
-      parameters:
-        - {name: p1, in: path, required: true, allowReserved: true, schema: {type: string}}
-        - {name: h1, in: header, allowReserved: true, schema: {type: string}}
-        - {name: c1, in: cookie, allowReserved: true, schema: {type: string}}
-      responses: {"200": {description: ok}}
-`))
-	openapitest.RequireNoErrorDiags(t, diags)
-	op = openapitest.FindOp(t, doc, "op")
-	require.Len(t, op.Bindings.HTTP, 1)
-	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 3)
-	for _, b := range op.Bindings.HTTP[0].ParamBindings {
-		assert.True(t, b.AllowReserved,
-			"3.2 applies allowReserved at every location, so the declared value is kept")
+	pointers := []string{
+		"/components/parameters/Shared/allowReserved",
+		"/paths/~1a/parameters/0/allowReserved",
+		"/paths/~1a/post/callbacks/cb/{$request.body#~1url}/post/parameters/0/allowReserved",
+		"/webhooks/evt/post/parameters/0/allowReserved",
 	}
-	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
-		"and nothing is reported where the dialect applies the keyword")
+	for _, ptr := range pointers {
+		assert.Equal(t,
+			"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+			openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning, ptr))
+	}
+	assert.Equal(t, len(pointers), openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
+		"no declaration reports more than once")
 }
 
 const componentParamRefSpec = `openapi: 3.1.0

@@ -319,18 +319,15 @@ const (
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 	// InvalidLocationKeyword reports a serialization keyword at a parameter
-	// location the document's dialect does not apply it to, at the keyword's own
-	// coordinate. OpenAPI 3.2 forbids explode and allowReserved at in:
-	// querystring, whose content alone states its serialization; before 3.2,
-	// allowReserved applies only at in: query.
+	// location its dialect does not apply it to, at the keyword's coordinate.
+	// OpenAPI 3.2 forbids explode and allowReserved at in: querystring, which the
+	// bundled parser checks for style but not for these (GitHub #408). Before
+	// 3.2, allowReserved applies only at in: query.
 	//
-	// The bundled parser enforces this for style at querystring but not for these
-	// (GitHub #408), so the compiler reports the gap itself. The value still
-	// lowers as declared: dropping stated content is an emitter's call
-	// (invariant 2).
-	//
-	// Warning, not the error style gets: that is the parser's own validation
-	// refusal, whereas here the compiler has already kept the value.
+	// The two rules share a code because they are one finding: a keyword where
+	// its dialect gives it no meaning. The value still lowers (invariant 2).
+	// Warning, not the error style gets: that is the parser's own refusal,
+	// whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
 )
 

@@ -97,18 +97,20 @@ func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Paramete
 	return diags
 }
 
-// allowReservedLocationDiag reports allowReserved declared at a parameter
-// location the document's dialect does not apply it to. Before OpenAPI 3.2 the
-// keyword belongs to in: query alone, so a path, header or cookie declaration
-// is reported at the keyword's coordinate and lowered as declared; 3.2 applies
-// it everywhere.
+// allowReservedLocationDiag reports allowReserved at path, header or cookie in
+// an OpenAPI 3.0 or 3.1 document, where the keyword belongs to in: query alone.
+// Presence fires, not truth, as in querystringKeywordDiags, which keeps
+// in: querystring so one pointer never draws two warnings.
 //
-// Presence fires, not truth: allowReserved: false is as out of place as true,
-// as in querystringKeywordDiags. in: querystring is left to that function, so
-// one pointer never draws two warnings. diag.InvalidLocationKeyword says why
-// this is a warning.
+// 3.2 is silent here, though it narrows the keyword to locations and styles
+// that percent-encode, which excludes in: header and style: cookie; that rule
+// is not reported. A parameter reached through an external $ref is judged by
+// the root document's version and reported at its use-site pointer.
 func allowReservedLocationDiag(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
-	if p.AllowReserved == nil || !c.AllowReservedIsQueryOnly() {
+	if p.AllowReserved == nil {
+		return nil
+	}
+	if minor := c.DialectMinor(); minor != "3.0" && minor != "3.1" {
 		return nil
 	}
 	switch in {
@@ -187,7 +189,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// The co-declared bound keyword ir.Constraints has no field for is kept on
 	// the parameter, the carrier at this position, exactly as a property keeps
 	// its own (GitHub #286).
-	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
+	cons, kept, consDiags := annotation.Constraints(s, c.DialectMinor() == "3.0", pointer, c.ProvenanceAt)
 	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
 	if cons != nil {
