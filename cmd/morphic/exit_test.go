@@ -5,14 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"charm.land/fang/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/testspec"
 )
 
 func TestExitError_MessageAndUnwrap(t *testing.T) {
@@ -149,9 +153,9 @@ func TestErrorHandler_StyledOnATerminal(t *testing.T) {
 		want string
 	}{
 		{"misuse carries the pointer to help", misuseOf("morphic validate", "validate requires exactly one spec file"),
-			"ERROR\nvalidate requires exactly one spec file\n\nTry \"morphic validate --help\" for usage.\n\n"},
+			"ERROR\nValidate requires exactly one spec file\n\nTry \"morphic validate --help\" for usage.\n\n"},
 		{"a failure does not", failure(errors.New("open x: no such file")),
-			"ERROR\nopen x: no such file\n\n"},
+			"ERROR\nOpen x: no such file\n\n"},
 		{"findings already printed say nothing more", &exitError{code: exitFindings}, ""},
 	}
 
@@ -165,4 +169,68 @@ func TestErrorHandler_StyledOnATerminal(t *testing.T) {
 			assert.Empty(t, cmp.Diff(tt.want, buf.String()))
 		})
 	}
+}
+
+func TestUpperFirst_Cases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, in, want string
+	}{
+		{"a lower-case word", "unknown flag: --x", "Unknown flag: --x"},
+		{"a flag is left as spelled", "--explain writes no document", "--explain writes no document"},
+		{"nothing but the first letter changes", "openAPI.yaml: bad", "OpenAPI.yaml: bad"},
+		{"already raised", "Engine: read spec", "Engine: read spec"},
+		{"a letter outside ASCII", "élan", "Élan"},
+		{"a digit", "9 specs", "9 specs"},
+		{"a quote", `"x" is unknown`, `"x" is unknown`},
+		{"empty", "", ""},
+		{"invalid UTF-8", "\xffabc", "\xffabc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, upperFirst(tt.in))
+		})
+	}
+}
+
+// TestErrorHandler_StyledDoesNotRewriteTheMessage holds that fang's transform of
+// the error text is not applied: it title-cases the whole first word, so a
+// message that opens with a flag would come out as "--Explain".
+func TestErrorHandler_StyledDoesNotRewriteTheMessage(t *testing.T) {
+	t.Parallel()
+
+	styles := fang.Styles{
+		ErrorHeader: lipgloss.NewStyle().SetString("ERROR"),
+		ErrorText:   lipgloss.NewStyle().Transform(strings.ToUpper),
+	}
+	var buf bytes.Buffer
+
+	errorHandler(&colorprofile.Writer{Forward: &buf, Profile: colorprofile.ANSI}, styles,
+		misuseOf("morphic compile", "--explain writes no document"))
+
+	assert.Contains(t, buf.String(), "--explain writes no document")
+	assert.Contains(t, buf.String(), `Try "morphic compile --help" for usage.`)
+	assert.NotContains(t, buf.String(), "EXPLAIN", "the style's transform must not reach the message")
+}
+
+// TestRun_StyledErrorKeepsAFlagsSpelling is the same property through fang's own
+// styles, which a hand-built Styles cannot stand in for: the transform that
+// mangles the message lives in the ones fang makes. A terminal is forced with
+// the environment. Not run in parallel: it sets variables.
+func TestRun_StyledErrorKeepsAFlagsSpelling(t *testing.T) {
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	t.Setenv("TTY_FORCE", "1")
+	t.Setenv("TERM", "xterm-256color")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", "", "-o", "ir.json"}, &stdout, &stderr)
+
+	require.Equal(t, 2, code)
+	plain := ansi.Strip(stderr.String())
+	require.Contains(t, plain, "ERROR", "the styled block must have been chosen; got:\n%s", plain)
+	assert.Contains(t, plain, "--explain writes no document")
+	assert.NotContains(t, plain, "--Explain")
 }

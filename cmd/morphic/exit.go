@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"charm.land/fang/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -124,9 +126,25 @@ func usageHint(err error) string {
 
 // writeStyledError renders msg as fang's error block: a header, the message,
 // and the hint when there is one.
+//
+// fang's text style also title-cases the message's whole first word, which turns
+// "--explain" into "--Explain" and "OpenAPI.yaml" into "Openapi.yaml". It is
+// dropped here, and the first letter raised on its own.
 func writeStyledError(w io.Writer, styles fang.Styles, msg, hint string) {
-	emitf(w, "%s\n%s\n\n", styles.ErrorHeader.String(), styles.ErrorText.Render(msg))
+	text := styles.ErrorText.UnsetTransform()
+	emitf(w, "%s\n%s\n\n", styles.ErrorHeader.String(), text.Render(upperFirst(msg)))
 	if hint != "" {
-		emitf(w, "%s\n\n", styles.ErrorText.UnsetWidth().Render(hint))
+		emitf(w, "%s\n\n", text.UnsetWidth().Render(hint))
 	}
+}
+
+// upperFirst raises s's first letter and changes nothing else. A string that
+// does not start with a letter, an empty one and invalid UTF-8 included, is
+// returned as it is: decoding any of those yields U+FFFD, which is not one.
+func upperFirst(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if !unicode.IsLetter(r) {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }
