@@ -16,17 +16,13 @@ var (
 // something a document can be marshaled with, and that each Unmodeled entry is
 // one a consumer can route.
 //
-// Both maps are checked in one walk because their payload is the same type and
-// the same hazard: an ir.RawValue is written into the output as the JSON it
-// holds, so a payload that is not a JSON value fails the whole document's
-// encoding (invariant #7) — one bad entry anywhere costs the entire artifact.
-// RawConfig is the half nothing guarded at all: its five carriers are where an
-// AsyncAPI compiler will write protocol bindings.
+// Both are checked in one walk: their payload is the same type and the same
+// hazard. An ir.RawValue is written into the output as the JSON it holds, so a
+// payload that is not a JSON value fails the whole document's encoding
+// (invariant #7).
 //
-// Entries need no ordering first: each violation carries its key in Path, and
-// Verify orders the whole result by (Code, Path) before returning it. The bool
-// reports whether the bounded walk was cut short; Verify folds that into the
-// document's one ir/walk-truncated violation.
+// Verify sorts the result by (Code, Path), so entries need no ordering. The
+// bool reports whether the bounded walk was cut short.
 func checkRawPayloads(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
@@ -108,16 +104,13 @@ func rawConfigEntry(key string, entry reflect.Value, path string) []Violation {
 // appendRawValue appends a violation to vs when the payload at value is not a
 // JSON value, naming its carrier in what.
 //
-// Reading the bytes through reflect.Value.Bytes rather than Interface() keeps
-// Verify a report-only oracle: the caller has already matched the map's exact
-// type, so the payload is a byte slice by construction, and Bytes never panics
-// on one however it was reached.
+// Reading through reflect.Value.Bytes rather than Interface() keeps Verify a
+// report-only oracle: the caller has matched the map's exact type, so Bytes
+// never panics however the payload was reached.
 //
-// Nil is reported alongside malformed and empty bytes. Encoding a nil
-// jsontext.Value survives — it writes the literal null — but decoding reads
-// that back as the value itself, the four bytes "null", not as nil, so a
-// document carrying one stops round-tripping to an equal document, and an
-// entry with no payload preserves no construct in the first place.
+// Nil is reported with malformed and empty bytes: a nil jsontext.Value encodes
+// as null but decodes back as the four bytes "null", so the document stops
+// round-tripping to an equal one.
 func appendRawValue(vs []Violation, value reflect.Value, what, path string) []Violation {
 	raw := value.Bytes()
 	if jsontext.Value(raw).IsValid() {

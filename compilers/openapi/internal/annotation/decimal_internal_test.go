@@ -135,20 +135,14 @@ func TestParseDecimalBound_DeclinesWhatIsNotADecimalLiteral(t *testing.T) {
 // whether BigValEqual's incomparable guard is reachable: every literal
 // ir.NewBigVal accepts must be one parseDecimalBound can order.
 //
-// While it holds, no bound compiled from a schema reaches that guard. The two
-// grammars live in different packages and have already moved apart once, so
-// nothing but this holds them together: when ir widens NewBigVal, a bound it
-// now admits and this reader cannot order is one whose disagreement with
-// another spelling of the same magnitude would be reported as a conflict, and
-// that has to fail here rather than in a compiled document.
+// The two grammars live in different packages and have already moved apart
+// once. A widening of NewBigVal this reader cannot order has to fail here
+// rather than in a compiled document, where it would report a conflict between
+// two spellings of one magnitude.
 //
 // The spellings NewBigVal refuses today are the load-bearing half of the
-// corpus, and are not dead weight to be tidied away. A corpus of accepted
-// spellings alone can only ever confirm what is already true: every one of them
-// parses, so no widening it does not already contain can redden it. A binary
-// exponent is the widening that actually happened here, and it is a shape no
-// sweep of decimal spellings generates. These are fed in and skipped while they
-// are refused; the day one is accepted, the assertion below meets it.
+// corpus, since no mix of decimal spellings generates a binary exponent. They
+// are skipped until one is accepted, when the assertion meets it.
 func TestBigValGrammarStaysWithinTheDecimalReading(t *testing.T) {
 	t.Parallel()
 	signs := []string{"", "-", "+"}

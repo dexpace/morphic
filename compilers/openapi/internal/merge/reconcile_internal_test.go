@@ -99,14 +99,13 @@ var (
 
 // TestMergeVisibility_IntersectsUnderAllOfSemantics pins the shapes an allOf
 // redeclaration's Visibility pairing can take. An empty Only means
-// unrestricted rather than restricted-to-nothing (ir-design §5.2), so the
-// merge has to read each side as the set it admits before intersecting.
+// unrestricted, not restricted-to-nothing (ir-design §5.2), so each side must
+// be read as the set it admits before intersecting.
 //
-// A plain append is the tempting wrong answer, and the first three cases here
-// do not catch it: concatenating an empty Only is a no-op, so every pairing
-// where at most one side restricts comes out right by accident. It is the five
-// below them that carry the argument — appending duplicates when both branches
-// agree, unions where allOf intersects, and cannot spell the empty set at all.
+// The first three cases cannot catch a plain append, since concatenating an
+// empty Only is a no-op. The five below them do: appending duplicates when both
+// branches agree, unions where allOf intersects, and cannot spell the empty
+// set.
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
 	unrestricted := ir.Visibility{}

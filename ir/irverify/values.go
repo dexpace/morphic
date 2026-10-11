@@ -19,15 +19,14 @@ type payloadRule struct {
 
 // valuePayloads is ir.Value's own contract, one row per declared kind: Kind
 // selects the payload field that carries meaning, and every other payload holds
-// its zero value (ir/value.go). A kind missing from this table is reported as
-// undeclared, so TestValuePayloads_CoverTheDeclaredKinds holds its keys to the
-// ir sources' const block.
+// its zero value (ir/value.go). A kind missing here is reported as undeclared;
+// TestValuePayloads_CoverTheDeclaredKinds holds the keys to the ir sources.
 //
-// zeroIsValue separates a kind whose empty payload is still a value — false, "",
-// an empty list — from one whose empty payload is nothing: a number with no
-// digits, a ref or ctor value with no reference or call at all. A reference or
-// call that is present but names nothing is an empty ID, which the reference
-// rules own rather than this table (GitHub #473).
+// zeroIsValue separates a kind whose empty payload is still a value (false, "",
+// an empty list) from one whose empty payload is nothing: a number with no
+// digits, or a ref or ctor with no reference or call at all. A present
+// reference naming nothing is an empty ID, which the reference rules own
+// (GitHub #473).
 var valuePayloads = map[ir.ValueKind]payloadRule{
 	ir.ValueNull:    {},
 	ir.ValueBool:    {field: "Bool", zeroIsValue: true},
@@ -46,15 +45,11 @@ var valuePayloads = map[ir.ValueKind]payloadRule{
 // present where an empty one would be no value at all.
 //
 // Nothing else holds the rule ir.Value states. A value whose kind names one
-// payload while another is populated gives a consumer two answers and no way to
-// tell which to trust (GitHub #506), and the JSON form no longer shows the
-// question: every payload is omitted when empty, so an encoded value spells
-// only the payloads that are set.
+// payload while another is populated gives a consumer two answers (GitHub
+// #506), and the JSON form hides it, since every empty payload is omitted.
 //
-// Values are reached through the walk rather than through the fields that carry
-// them — defaults, consts, literals, enum members, examples, constructor
-// arguments — so a new carrier is held the moment it exists. The walk continues
-// below each value, since lists, objects and constructor arguments nest more.
+// The walk reaches values rather than the fields that carry them, so a new
+// carrier is held at once.
 func checkValues(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {

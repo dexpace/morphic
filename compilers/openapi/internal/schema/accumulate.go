@@ -28,14 +28,13 @@ import (
 // are what the upper layer still waits on; the rest of the apparent coupling was
 // this, filed in the wrong place.
 
-// AppendExample converts node into proto's value and appends the result to out;
-// an unconvertible node is skipped and yields a warning diagnostic for the
-// caller to record, rather than being silently dropped — an example is an annotation, not a structural hole, so losing it is
-// fine as long as it isn't silent. proto carries the annotations that surround
-// the value (name, summary, description); base and seg locate the node, joined
-// into a pointer only on the failure path, so an example that converts builds no
-// pointer at all. Shared by every example site: schema (schemaExamples),
-// media type, header, and parameter (exampleList).
+// AppendExample converts node into proto's value and appends the result to out.
+// An unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record: an example is an annotation, not a structural hole, so
+// losing it is fine as long as it is not silent. proto carries the surrounding
+// annotations (name, summary, description); base and seg locate the node,
+// joined into a pointer only on the failure path. The media type, header and
+// parameter example sites share it through exampleList.
 func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
 	base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {

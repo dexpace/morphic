@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -183,6 +184,11 @@ type pathItemMount struct {
 	ref    *soa.PathItem
 	refPtr jsontext.Pointer
 
+	// refIn is the context the referent is read in, Within its $ref, and useIn
+	// the use site's, where the fields beside the $ref are written. They differ
+	// when the $ref leaves the document the use site is read in.
+	refIn, useIn lowering.Ctx
+
 	mountPtr jsontext.Pointer
 	declPtr  jsontext.Pointer
 
@@ -202,7 +208,7 @@ type pathItemMount struct {
 // with a group of its own passes one; the callback walk, whose operations join
 // the parent operation's group, passes none.
 type grouping struct {
-	key  string
+	id   ir.GroupID
 	name ir.Naming
 	docs ir.Docs
 	mark string
@@ -236,12 +242,12 @@ func mountOperation(ctx context.Context, c lowering.Ctx, ts *compile.Types, anch
 		params:        mergeRefParams(m.params, po.src.GetParameters(), ptrs.decl),
 	}
 	op, extra, diags := lowerOperation(ctx, c, ts, anchors, claims, po.src, opCtx)
-	diags = append(diags, applyPathItem(c, onOperation(&op), m.ref, m.refPtr)...)
+	diags = append(diags, applyPathItem(m.refIn, onOperation(&op), m.ref, m.refPtr)...)
 	if m.sib != nil {
 		// The use site's constructs land last, so on a collision they are the
 		// ones the carrier holds — the use-site precedence the compiler already
 		// applies to a $ref-adjacent schema sibling.
-		diags = append(diags, applyPathItem(c, onOperation(&op), m.sib.item, m.sib.usePtr)...)
+		diags = append(diags, applyPathItem(m.useIn, onOperation(&op), m.sib.item, m.sib.usePtr)...)
 	}
 	return op, extra, diags
 }
@@ -297,7 +303,7 @@ func siblingRefMount(ctx context.Context, c lowering.Ctx, ref *soa.PathItem, ref
 // synthesizes for them, and stamps no grouping provenance: a webhook is not
 // grouped by anything the document declares.
 func webhookGrouping(*soa.Operation) grouping {
-	return grouping{key: "webhook", name: compile.NamingHint("webhooks")}
+	return grouping{id: ids.WebhookGroup(), name: compile.NamingHint("webhooks")}
 }
 
 // mergeRefParams puts an operation's own parameters ahead of its mount's
@@ -321,13 +327,25 @@ func mergeRefParams(pathParams []sourcedParam, opParams []*soa.ReferencedParamet
 
 // combinedPathParams is the path-item parameter list at a mount whose use site
 // declares siblings: the use site's entries first and unshadowed, then the
-// referent's, each carrying the pointer of its own declaration site. A shared
+// referent's, each carrying the pointer of its own declaration site and the
+// scope its side is read in, since one operation lowers both. A shared
 // (name, in) is the use site's, the precedence every other colliding construct
 // gets, and the collision pass reports the pair.
-func combinedPathParams(ref *soa.PathItem, refPtr jsontext.Pointer, sib *siblingPathItem) []sourcedParam {
+func combinedPathParams(m pathItemMount, sib *siblingPathItem) []sourcedParam {
 	siblings := sib.item.GetParameters()
-	params := appendSourced(nil, siblings, sib.usePtr, nil)
-	return appendSourced(params, ref.GetParameters(), refPtr, shadowedKeys(siblings))
+	params := scoped(appendSourced(nil, siblings, sib.usePtr, nil), m.useIn.RefScope())
+	n := len(params)
+	params = appendSourced(params, m.ref.GetParameters(), m.refPtr, shadowedKeys(siblings))
+	scoped(params[n:], m.refIn.RefScope())
+	return params
+}
+
+// scoped marks each of params, in place, as read in scope, and returns them.
+func scoped(params []sourcedParam, scope resolve.Scope) []sourcedParam {
+	for i := range params {
+		params[i].in = &scope
+	}
+	return params
 }
 
 // refMountParams is the path-item parameter list at a mount without siblings:

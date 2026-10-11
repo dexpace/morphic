@@ -82,17 +82,12 @@ func TestMissingCells_UnknownCellsDoNotAppearInResult(t *testing.T) {
 	assert.Empty(t, harness.MissingCells(covered))
 }
 
-// TestConstBlock_TiesToAnnotationsAndSiteKinds makes real the claim in
-// annotations.go's doc comments that adding a slot to either const block
-// widens what annotation retention checks: it parses annotations.go with
-// go/ast (the same approach internal/archtest/arch_test.go uses for import
-// rules) and requires every declared Annotation and SiteKind constant's
-// value to appear in Annotations()/SiteKinds(), the functions Cells() builds
-// the retention grid from. Without this test, a constant could be added to
-// either block and never wired into Cells(), leaving the grid silently short
-// of the slot it names. The check is scoped to that one file: an Annotation-
-// or SiteKind-typed constant declared in a different file of this package
-// would not be seen by it.
+// TestConstBlock_TiesToAnnotationsAndSiteKinds requires every Annotation and
+// SiteKind constant declared in annotations.go to appear in
+// Annotations()/SiteKinds(), the functions Cells() builds the retention grid
+// from. Without it a constant could be added and never wired into Cells(),
+// leaving the grid short of the slot it names. It parses annotations.go with
+// go/ast, so a constant of either type declared in another file goes unseen.
 func TestConstBlock_TiesToAnnotationsAndSiteKinds(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredConsts(t)
@@ -125,19 +120,12 @@ func parseDeclaredConsts(t *testing.T) map[string][]string {
 }
 
 // collectConstSpecs appends each ValueSpec's declared type name and literal
-// string value from gd into out. Every spec here is required to have the
-// form `Name Type = "literal"`, with Type spelled literally as Annotation or
-// SiteKind — never a same-file alias of either (`type Ann = Annotation`),
-// which would still convert to Annotation at every usage site but bucket
-// under a key ("Ann") this test never inspects, since only
-// annotationTypeName and siteKindTypeName are compared against
-// Annotations()/SiteKinds() below. This file holds nothing but
-// annotation-retention vocabulary, so there is no legitimate reason for a
-// const here to be untyped, valueless (as in an iota block's repeat-sugar),
-// aliased, or assigned via a conversion or expression rather than written as
-// a literal (e.g. Annotation("foo")). Any of those fails loudly instead of
-// being silently skipped: skipping would let such a constant join the
-// taxonomy at every usage site without this test ever recording it.
+// string value from gd into out. Every spec must have the form
+// `Name Type = "literal"` with Type spelled Annotation or SiteKind, never an
+// alias, which would bucket under a key the test never compares. This file
+// holds only annotation vocabulary, so an untyped, valueless, aliased or
+// expression-valued const fails loudly rather than being skipped and joining
+// the taxonomy unrecorded.
 func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
 	t.Helper()
 	for _, spec := range gd.Specs {

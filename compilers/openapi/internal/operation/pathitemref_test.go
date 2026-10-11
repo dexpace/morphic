@@ -3,6 +3,7 @@ package operation_test
 import (
 	"encoding/json/jsontext"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -221,6 +222,86 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 	assert.Empty(t, refusedA.Params, "and no unresolved parameter reaches the IR")
 }
 
+// crossDocumentTarget is a path item in another document whose item-level
+// parameter's schema names that document's own S, which the referring
+// document also declares, differently.
+const crossDocumentTarget = `openapi: 3.1.0
+info: {title: Target, version: "1"}
+paths:
+  /b:
+    parameters:
+      - {name: inl, in: header, schema: {$ref: '#/components/schemas/S'}}
+    post:
+      operationId: postB
+      responses: {"200": {description: OK}}
+components:
+  schemas:
+    S: {type: integer}
+`
+
+// crossDocumentUse refers to crossDocumentTarget's path item and writes an
+// item parameter and an operation with one of its own beside the $ref.
+const crossDocumentUse = `openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    $ref: './target.yaml#/paths/~1b'
+    parameters:
+      - {$ref: '#/components/parameters/P'}
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: '#/components/parameters/Q'}
+      responses: {"200": {description: OK}}
+components:
+  parameters:
+    P: {name: mainP, in: query, schema: {type: string}}
+    Q: {name: mainQ, in: query, schema: {type: string}}
+  schemas:
+    S: {type: string}
+`
+
+// TestPathItemRefSiblings_EachSideReadsInItsOwnDocument pins the scope each
+// side of a cross-document $ref lowers in, since every operation at the mount
+// carries both sides' item parameters. Read in the source, the referent's
+// parameter on the use site's operation bound the source's S; read in the
+// referent's document, the use site's parameters lost the pointer of their
+// declaration.
+func TestPathItemRefSiblings_EachSideReadsInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(crossDocumentTarget), 0o600))
+	use := filepath.Join(dir, "main.yaml")
+	doc, _, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: use, Data: []byte(crossDocumentUse)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	postB, getA := opByPath(t, doc, "POST", "/a"), opByPath(t, doc, "GET", "/a")
+	referent := paramNamed(t, getA, "inl")
+	assert.Equal(t, paramNamed(t, postB, "inl").Type, referent.Type,
+		"the referent's parameter binds the same type on either side's operation")
+	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/S"), referent.Type.Target,
+		"and never the source's S")
+	assert.Equal(t, jsontext.Pointer("/components/parameters/P"), paramNamed(t, postB, "mainP").Provenance.Pointer,
+		"the use site's parameter keeps its declaration's pointer on the referent's operation")
+	assert.Equal(t, jsontext.Pointer("/components/parameters/Q"), paramNamed(t, getA, "mainQ").Provenance.Pointer,
+		"and the use site's operation reads its own references in the source")
+}
+
+// paramNamed returns op's parameter whose source name is name.
+func paramNamed(t *testing.T, op ir.Operation, name string) ir.Parameter {
+	t.Helper()
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p
+		}
+	}
+	require.Failf(t, "parameter not found", "%s has no parameter %q", op.Name.Source, name)
+	return ir.Parameter{}
+}
+
 // pathItemRefItemSpec declares item-level constructs beside a $ref: servers, an
 // x-* extension, an undeclared key and an item-level parameter, none of which
 // the reference wrapper models.
@@ -307,14 +388,12 @@ func assertPathItemSiblingConstructs(t *testing.T, op ir.Operation, usePtr strin
 // inside the sibling subtree is resolved before it is lowered: the loader never
 // walks these nodes, so nothing else in the compile resolves them.
 //
-// Every reference kind a path-item subtree can reach is exercised here — a
-// parameter, a request body, a response and a callback on the sibling operation,
-// and a header, a link and an example on a response written beside the $ref. The
-// header and the example land on the IR. The link does not, because a Link
-// Object lowers to no node of its own anywhere in this compiler: what reaches
-// the IR for it is the verbatim map preserveResponseExtras keeps, and the
-// resolving half is pinned by TestPathItemRefSiblings_UnresolvedLinkIsReported
-// beside it (GitHub #275).
+// It exercises every reference kind a path-item subtree reaches: a parameter, a
+// request body, a response and a callback on the sibling operation, and a
+// header, a link and an example on its response. A Link Object lowers to no
+// node of its own, only to preserveResponseExtras' verbatim map, so its
+// resolving half is TestPathItemRefSiblings_UnresolvedLinkIsReported
+// (GitHub #275).
 func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefKindsSpec)

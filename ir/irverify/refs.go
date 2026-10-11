@@ -39,42 +39,18 @@ func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
 }
 
 // checkReferentialIntegrity asserts every discovered reference resolves in its
-// registry, emitting one dangling-*-ref Violation per unresolved reference. It
-// reports whether the bounded walk was truncated; Verify folds that into the
-// document's one ir/walk-truncated violation.
+// registry, reporting each unresolved one as dangling.
 //
-// What counts as a reference comes from Document's own shape rather than a table
-// written here: a registry added to Document is checked the moment it exists,
-// under a code spelled from the ID type it is keyed by — the same derivation
-// pass.Validate reports the identical defect under, so one defect reads as one
-// code whichever checker a caller runs.
+// The registries come from Document's own shape, so a new one is checked at
+// once, under the code pass.Validate gives it. ir.Operation and ir.Service have
+// no map, so ir.Registries.WithDeclarations supplies them from the declared
+// identities (GitHub #50), unless the declaration walk truncated: a partial
+// walk would report a reference to an unreached operation as dangling.
 //
-// The registries Document declares maps for are not all of them. An ir.Operation
-// is declared in the Service→OperationGroup tree and an ir.Service in a slice, so
-// neither class has a map to resolve against and every OpID and ServiceID
-// reference resolved against nothing (GitHub #50); ir.Registries.WithDeclarations
-// supplies both from the identities the document's own nodes declare.
-//
-// Those two classes are dropped when the declaration walk truncates. A registry
-// derived from a walk that saw a subset of the document answers "not declared"
-// for a node it simply never reached, so a reference to a legitimate operation
-// buried past the cap would be reported as dangling — a false violation, where
-// the registries Document declares maps for can only ever under-report. The
-// ir/walk-truncated violation Verify folds this flag into says why nothing is
-// claimed for them.
-//
-// One ID class stays out. ir.PropID names a position inside its model rather than
-// a document-level identity, and resolving one means collecting the ir.Property
-// values a document declares and looking the ID up among them, which
-// pass.Validate's checkPropIDRefs does — beside checkEncodingKeys, which makes
-// the tighter model-scoped claim for the keys of ir.Content.Encoding.
-//
-// The returned flag folds in decls.truncated beside collectRefs' own. Neither of
-// those two walks prunes, so today they reach equally far and truncate together,
-// and dropping either half reports the same thing — planting that mutation leaves
-// the suite green. It is folded anyway: "the other walk trips the cap first" is
-// the coincidence GitHub #55 was, and a visitor here that began pruning, as other
-// checks' visitors already do, would end it without anything saying so.
+// ir.PropID stays out: pass.Validate's checkPropIDRefs resolves it against its
+// model. The returned flag, which Verify reports as ir/walk-truncated, folds in
+// decls.truncated rather than relying on collectRefs tripping the cap first
+// (GitHub #55).
 func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violation, bool) {
 	regs := ir.DocumentRegistries(doc)
 	if !decls.truncated {

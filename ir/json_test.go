@@ -51,7 +51,13 @@ func sampleDocument(t *testing.T) ir.Document {
 		id, td := mk("t/k/"+string(entry.Kind()), entry)
 		types[id] = td
 	}
-	return ir.Document{IRVersion: ir.IRVersion, Name: "kinds", Version: "1", Types: types}
+	return ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"k", "p"}},
+		Name:      "kinds",
+		Version:   "1",
+		Types:     types,
+	}
 }
 
 func TestDocument_JSONRoundTripAllKinds(t *testing.T) {
@@ -177,22 +183,16 @@ func TestTypeRegistry_UnmarshalErrors(t *testing.T) {
 	}
 }
 
-// TestTypeRegistry_UnmarshalNullIsNoOp locks in the json.Unmarshaler
-// convention issue #46 asks for: the json package calls UnmarshalJSONFrom
-// even for a literal null, and the implementation treats that as a no-op
-// instead of allocating an empty map, the same way time.Time.UnmarshalJSON
-// does.
+// TestTypeRegistry_UnmarshalNullIsNoOp pins the json.Unmarshaler convention #46
+// asks for: the json package calls UnmarshalJSONFrom even for a literal null,
+// and the registry treats that as a no-op instead of allocating an empty map,
+// as time.Time.UnmarshalJSON does. The padded case adds whitespace around the
+// literal, which a byte comparison against "null" would miss.
 //
-// The padded case decodes whitespace around the literal — still a valid JSON
-// encoding of null, and the spelling a byte
-// comparison against "null" would miss.
-//
-// Where the no-op convention and plain-map semantics part ways is a null
-// decoded over an already-populated destination: this registry keeps its
-// entries, while the stdlib nils a plain map such as Document.Channels. #46
-// chose the Unmarshaler convention. The difference cannot arise for a decode
-// into a fresh Document — what internal/harness's round-trip oracle does — and
-// there the two agree on nil.
+// A null decoded over a populated destination is where this parts from
+// plain-map semantics: the registry keeps its entries, while the stdlib nils a
+// plain map such as Document.Channels. A fresh Document, as in the harness's
+// round-trip oracle, sees no difference: both are nil.
 func TestTypeRegistry_UnmarshalNullIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -242,23 +242,17 @@ func TestDocument_TypesNullRoundTrips(t *testing.T) {
 	assert.Empty(t, cmp.Diff(doc, doc2), "decoding must reach a fixed point after one round trip")
 }
 
-// TestDocument_EmptyMapFieldsCollapseUniformly draws the line issue #46 stops
-// at. The null fix makes "types":null behave like the sibling registry fields
-// already did: nil in, nil out. It deliberately does not make the empty object
-// durable — "types":{} still decodes to a non-nil, empty registry that
-// omitempty drops on marshal, so a second decode yields nil. The table pins
-// that this is generic map/omitempty behavior rather than a TypeRegistry
-// defect: Channels, Messages and Auth have no custom UnmarshalJSONFrom at all
-// and collapse identically.
+// TestDocument_EmptyMapFieldsCollapseUniformly draws the line #46 stops at.
+// "types":null now behaves like the sibling registry fields, nil in and nil
+// out. "types":{} is deliberately not made durable: it decodes to a non-nil,
+// empty registry that omitempty drops on marshal, so a second decode yields
+// nil. The table pins that this is generic map/omitempty behavior: Channels,
+// Messages and Auth have no custom UnmarshalJSONFrom and collapse identically.
 //
-// Leaving it follows the standard #47 already recorded for the IR's omitempty
-// collections: the collapse is a defect only where nil and empty denote
-// different things, as on the
-// []AuthRequirement fields (Operation.Auth, Server.Auth, Service.Auth) — not
-// on the Document.Auth scheme registry exercised below, where an empty
-// registry and an absent one both mean a document that declares none.
-// Changing it for every optional map field would be a separate, repo-wide
-// change.
+// Per #47 the collapse is a defect only where nil and empty differ, as on the
+// []AuthRequirement fields (Operation.Auth, Server.Auth, Service.Auth), not on
+// the Document.Auth registry below. Changing every optional map field would be
+// a separate change.
 func TestDocument_EmptyMapFieldsCollapseUniformly(t *testing.T) {
 	t.Parallel()
 
@@ -650,4 +644,33 @@ func TestDocument_ForeignVersionIsQuotedBounded(t *testing.T) {
 	err := json.Unmarshal([]byte(`{"irVersion":"`+strings.Repeat("9", 100_000)+`"}`), &doc)
 	require.ErrorIs(t, err, ir.ErrVersionIncompatible)
 	assert.Less(t, len(err.Error()), 300, "the error must not echo the whole stamp")
+}
+
+// TestDocument_IDSpacesJSONContract pins the declaration's wire form. It is
+// written with its kinds in sorted order and each list as the producer gave it,
+// and it is absent, not null or empty, when nothing is declared: a reader must
+// not tell a producer that declared nothing from one that never knew to.
+func TestDocument_IDSpacesJSONContract(t *testing.T) {
+	t.Parallel()
+	declared := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{
+		ir.IDKindOp:    {"openapi"},
+		ir.IDKindGroup: {"default", "tags"},
+	}}
+	raw, err := json.Marshal(declared)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"idSpaces":{"g":["default","tags"],"op":["openapi"]}`)
+	assertRoundTrip(t, declared)
+
+	for name, doc := range map[string]ir.Document{
+		"nil":   {IRVersion: ir.IRVersion},
+		"empty": {IRVersion: ir.IRVersion, IDSpaces: map[string][]string{}},
+	} {
+		raw, err := json.Marshal(doc)
+		require.NoError(t, err, name)
+		assert.NotContains(t, string(raw), "idSpaces", name)
+	}
+
+	var decoded ir.Document
+	require.NoError(t, json.Unmarshal([]byte(versioned(`"name":"x"`)), &decoded))
+	assert.Nil(t, decoded.IDSpaces, "a document that does not mention the declaration declares nothing")
 }

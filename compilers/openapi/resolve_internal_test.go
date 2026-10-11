@@ -179,17 +179,12 @@ func TestLowerComponentSchemas_PercentEncodedRefResolves(t *testing.T) {
 
 // TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate pins
 // the identity half of the same fix, which the resolution half hides: a pointer
-// *through* an encoded component name addresses a sub-schema an unencoded pointer
-// also addresses, so the two must intern one node. Reading the fragment raw
-// hoisted a second one at `.../Foo%2DBar/properties/inner` — a path no source
-// coordinate spells, the derivation GitHub #141 refused for anchors — so one
-// position became two types, silently: both references resolved, no diagnostic
-// was emitted, and the duplicate is a node irverify has no reason to call
-// dangling.
-//
-// Both spellings appear here because that is what makes the duplicate observable
-// at all; the encoded ref alone lands on one node either way, and only its name
-// is wrong.
+// *through* an encoded component name addresses a sub-schema an unencoded
+// pointer also addresses, so the two must intern one node, at the declared
+// coordinate and not at `.../Foo%2DBar/properties/inner`, a path no source
+// coordinate spells (the derivation GitHub #141 refused for anchors). A second
+// node raises no diagnostic. Both spellings appear because the encoded ref
+// alone lands on one node either way, and only its name would be wrong.
 func TestLowerComponentSchemas_PercentEncodedRefHoistsAtTheDeclaredCoordinate(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
@@ -271,23 +266,16 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 }
 
 // TestCompile_APointerTokenPastUFFFFIsRefusedUpstream pins GitHub #516.
-// speakeasy-api/openapi v1.25.2 validates each reference token against a
-// character class capped at U+FFFF (jsonpointer/navigation.go, tokenRegex),
-// where RFC 6901 admits every character up to U+10FFFF. A $ref through a key
-// holding an emoji or a CJK Extension B ideograph is refused as malformed,
-// while the same reference through a Basic Multilingual Plane key resolves.
+// speakeasy-api/openapi v1.25.2 caps its reference-token character class at
+// U+FFFF (jsonpointer/navigation.go, tokenRegex), though RFC 6901 admits up to
+// U+10FFFF, so a $ref through an emoji key is refused and one through a Basic
+// Multilingual Plane key resolves.
 //
-// The twins below differ in that one character, and the refusal costs each
-// kind of reference something different. A schema reference whose target was
-// lowered before it still aliases that target, because the compiler reuses an
-// interned node without asking the resolver; one declared before its target
-// has nothing to reuse and lowers to any. So each twin declares one schema
-// reference of each order (Uses after Holder, Early before Later). A path item
-// mounted by $ref has no fallback at all: the refused twin loses the mount. The
-// false diagnostics fail the compile either way.
-//
-// When the astral twin compiles like the other, the library is fixed: assert
-// they compile alike, and #516 can be closed.
+// The twins differ only in that key. A refused schema reference still aliases
+// an earlier-lowered target, which the compiler reuses without asking the
+// resolver, but lowers to any when declared first, so each twin declares both.
+// A refused path item mount is lost. When the astral twin compiles like the
+// other, the library is fixed: assert that and close #516.
 func TestCompile_APointerTokenPastUFFFFIsRefusedUpstream(t *testing.T) {
 	t.Parallel()
 	twin := func(key string) string {
@@ -338,28 +326,16 @@ func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID
 }
 
 // TestInternalPointer_ScanAndLoweringReadFragmentsAlike holds nodeview's and
-// resolve's fragment readers to each other. The pre-lowering cycle scan reads a
-// $ref's fragment through nodeview.InternalPointer, a hand-written mirror of the
-// resolver; lowering reads the same fragment through resolve.Scope.InternalPointer,
-// which asks the resolver's own references.Reference instead. They mirror one
-// target by two different means, on opposite sides of the archtest ordering (this
-// package may import both; neither of them may import the other, and no package
-// they can both reach would host a shared predicate without widening an
-// allowlist for it) — so a rule added to one and not the other is exactly the
-// drift a grep-for-the-other-test convention cannot catch, and this test can.
+// resolve's fragment readers to each other. The cycle scan reads a $ref's
+// fragment with nodeview.InternalPointer, a hand-written mirror of the
+// resolver; lowering asks the resolver through resolve.Scope.InternalPointer.
+// Neither package may import the other, so a rule added to one would drift
+// unseen.
 //
-// Every row is a reference with no document part. A document part is where the
-// two answer different questions: lowering reads its own file's name as this
-// document, while the scan leaves every document part to the resolver, which
-// treats it as another document.
-//
-// They part on two kinds of fragment, each read by the scan and refused by
-// lowering. A bare '#' names the whole document: the resolver lands it on the
-// root, where there is no position to intern. A fragment that decodes to bytes
-// that are not UTF-8 names no key, and no ID the IR can encode, but the
-// resolver walks it until the token it cannot find (GitHub #520). Every other
-// row asserts the two agree, both on whether the fragment is a pointer and on
-// what it names.
+// Rows carry no document part, which is where the two answer different
+// questions. They part on two fragments the scan reads and lowering refuses: a
+// bare '#', the whole document; and one decoding to non-UTF-8 bytes, which no
+// IR ID can encode (GitHub #520). The rest must agree.
 func TestInternalPointer_ScanAndLoweringReadFragmentsAlike(t *testing.T) {
 	t.Parallel()
 	sc := fragmentScope()

@@ -11,13 +11,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
-// with no lowerer, no parser and no document anywhere in the setup.
-//
-// This is the extraction's whole purpose. Reaching the conflict lattice
-// previously meant standing up a compiler and feeding it a spec that happened to
-// produce the pair of declarations under test; the registry dependency is narrow
-// enough to pass as a function, so the lattice can be driven directly.
 // ptrAt is the provenance a declaration at pointer carries. MergeProperty reads
 // the position off the property rather than taking it alongside, so a test that
 // merges one has to say where it was written.
@@ -39,6 +32,9 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
+// with no lowerer, parser or document in the setup, so the conflict lattice can
+// be driven directly.
 func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{

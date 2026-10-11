@@ -25,15 +25,12 @@ const maxValueDepth = 128
 // their exact source text (the no-float64 escape), object member order is
 // preserved, and alias nodes are followed.
 //
-// The error return does report spec-level problems, and a source document
-// reaches three of them: a default nested past the depth cap, a !!binary whose
-// payload is not base64, and a scalar carrying a tag this package does not lower
-// (`!!python/object`). It stays an error rather than a diagnostic because the
-// caller decides what one means — constraints.go reports a bad numeric bound at
-// error severity under its own code, while an example or a default that will not
-// convert is a warning — and because the provenance a diagnostic needs is the
-// caller's, not this package's. What this package knows is that the conversion
-// failed and why (GitHub #169).
+// The error reports a spec-level problem: a default nested past the depth cap,
+// a !!binary whose payload is not base64, or a scalar with a tag this package
+// does not lower (`!!python/object`). It is an error rather than a diagnostic
+// because the caller decides what one means — a bad numeric bound is an error,
+// an example or default that will not convert a warning — and holds the
+// provenance (GitHub #169).
 func FromNode(node *yaml.Node) (ir.Value, error) {
 	return fromNodeAt(node, 0)
 }
@@ -141,10 +138,10 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // positive one; the unsigned range covers the int64..uint64 band above it.
 //
 // A magnitude past uint64 reaches an !!int node only when the source tags one
-// explicitly — yaml.v3's own resolution calls that a !!float — so nothing can
-// decode it and its text has to be taken at face value. That is only safe for a
-// spelling with no base prefix, and every YAML prefix (0x, 0o, 0b, and bare
-// leading-zero octal) starts with a zero, so a plain decimal run is the test.
+// explicitly (yaml.v3 resolves an untagged one as !!float), so nothing can
+// decode it and its text is taken at face value. That is safe only for a
+// spelling with no base prefix; every prefix starts with a zero, so a plain
+// decimal run is the test.
 func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 	var signed int64
 	if err := node.Decode(&signed); err == nil {

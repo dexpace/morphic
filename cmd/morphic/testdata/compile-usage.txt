@@ -1,4 +1,2 @@
 morphic: compile requires exactly one spec file
-usage:
-  morphic compile <spec-file> [flags]
-run "morphic help compile" for details.
+Try "morphic compile --help" for usage.

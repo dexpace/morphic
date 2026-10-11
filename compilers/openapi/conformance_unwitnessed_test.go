@@ -35,21 +35,15 @@ const corpusRoot = "../../testdata"
 const maxValueDepth = 128
 
 // TestConformance_UnwitnessedIRFields snapshots every ir (struct, field) pair
-// that no committed spec drives to a non-zero value. It is the corpus's own
-// coverage report: a case that reaches a new field removes a line, a new IR field
-// adds one, and a compiler that stops writing a field it used to write adds one
-// too. Regenerate with `go test ./compilers/openapi -run TestConformance -update`.
+// no committed spec drives to a non-zero value, the corpus's coverage report.
+// A case reaching a field removes a line; a new IR field, or a compiler that
+// stops writing one, adds a line. -update recomputes the file, so it cannot
+// drift like a hand-kept allowlist.
 //
-// Derived, never maintained, is the whole point: -update recomputes the file from
-// the corpus, so it cannot drift the way a hand-kept allowlist does.
-//
-// Two weaknesses are deliberate. It does not classify, so a removed line does not
-// say whether a corpus case landed or an IR field was deleted — the diff shows
-// which, the file does not. And IsZero cannot see an assignment of a zero value,
-// so a bool field written false, or an int index written 0, stays listed however
-// many times the compiler writes it. FileInfo.IsText is the standing case of
-// that: the compiler's only construction site writes it false, so no spec can
-// ever remove its line — it is listed permanently, not uncovered.
+// Two weaknesses are deliberate. A removed line does not say whether a case
+// landed or a field was deleted; the surrounding diff does. IsZero cannot see
+// an assignment of a zero value, so a field the compiler writes false or 0,
+// such as FileInfo.IsText, stays listed permanently.
 func TestConformance_UnwitnessedIRFields(t *testing.T) {
 	t.Parallel()
 	universe := irFieldUniverse(t)
