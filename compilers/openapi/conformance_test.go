@@ -39,10 +39,8 @@ const conformanceDir = "../../testdata/conformance/openapi"
 // its reach is claimed by hand: TestConformance_UnwitnessedIRFields snapshots
 // every ir field no committed spec drives to a non-zero value. Some of what it
 // lists no spec can reach, such as a field only another source format writes.
-//
-// Not parallel: its -update subtests write the corpus, which
-// TestConformance_TableNamesEveryCorpusSpec, declared after it, reads.
 func TestConformance(t *testing.T) {
+	t.Parallel()
 	for _, tc := range conformanceCases() {
 		t.Run(tc.file, func(t *testing.T) {
 			t.Parallel()
@@ -63,13 +61,11 @@ func TestConformance(t *testing.T) {
 // TestConformance_TableNamesEveryCorpusSpec requires the table and the corpus
 // directory to name the same specs. Both directions matter: a spec with no row
 // gets neither a capability assertion nor a golden while the corpus-wide sweeps
-// still read it, so it looks covered; a row naming a deleted spec fails the
-// other way. Comparing sorted lists also catches a spec named by two rows.
-//
-// Not parallel, and declared after TestConformance: run beside its -update
-// subtests, it read a spec whose golden was not yet written and failed a newly
-// added spec's first -update run for a race, not a defect.
+// (dangling references, the fuzz seed, the unwitnessed walk) still read it, so
+// it looks covered; a row naming a deleted spec fails the other way. Comparing
+// sorted lists rather than sets also catches a spec named by two rows.
 func TestConformance_TableNamesEveryCorpusSpec(t *testing.T) {
+	t.Parallel()
 	onDisk := corpusSpecNames(t)
 	cases := conformanceCases()
 	inTable := make([]string, 0, len(cases))
