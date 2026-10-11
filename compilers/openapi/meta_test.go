@@ -204,13 +204,15 @@ func TestLowerServers_EveryEntrySkippedIsNil(t *testing.T) {
 // three parts the diagnostic must carry: the repeated name, the pointer of the
 // first entry that claimed it, and that nothing was dropped.
 const dupServerNameMessage = `server name "prod" is also declared by the server at /servers/0/name; ` +
-	`both are kept, and the name identifies two hosts`
+	`both are kept, and a consumer keying servers by name cannot tell them apart`
 
 // TestDuplicateServerName_EveryRepeatIsReported is the reported half of the
-// rule: a name the document's own servers list declares more than once is an
-// error, once per repeat rather than once per name, sited at the repeat's own
+// rule: a name the document's own servers list declares more than once is a
+// warning, once per repeat rather than once per name, sited at the repeat's own
 // name key and naming the first entry that claimed it. Both servers still lower
 // with the name the document wrote: nothing is dropped and nothing is merged.
+// A 3.1 document is checked too, since its servers lower with the name it wrote
+// although only 3.2 defines the field.
 func TestDuplicateServerName_EveryRepeatIsReported(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -263,6 +265,33 @@ paths: {}
 			want:    []string{"/servers/1/name"},
 			servers: []string{"prod", "prod"},
 		},
+		{
+			name: "one name carried into two entries by a merge key",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+x-base: &b {name: prod}
+servers:
+  - {<<: *b, url: https://a.example.com}
+  - {<<: *b, url: https://b.example.com}
+paths: {}
+`,
+			want:    []string{"/servers/1/name"},
+			servers: []string{"prod", "prod"},
+		},
+		{
+			name: "a 3.1 document, whose servers lower with the name it wrote",
+			spec: `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
+    name: prod
+paths: {}
+`,
+			want:    []string{"/servers/1/name"},
+			servers: []string{"prod", "prod"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -270,7 +299,7 @@ paths: {}
 			doc, diags := parseFull(t, tc.spec)
 
 			assert.Equal(t, len(tc.want),
-				openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityError),
+				openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityWarning),
 				"one diagnostic per repeat, not one per name: %+v", diags)
 			var got []string
 			for _, d := range diags {
@@ -281,7 +310,7 @@ paths: {}
 			assert.Equal(t, tc.want, got, "each repeat sits at its own name key, in source order")
 			for _, ptr := range tc.want {
 				assert.Equal(t, dupServerNameMessage,
-					openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityError, ptr),
+					openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityWarning, ptr),
 					"%s names the repeated name and the first claimant's key", ptr)
 			}
 
@@ -294,9 +323,8 @@ paths: {}
 	}
 }
 
-// TestDuplicateServerName_NilEntryKeepsSourceIndices pins the rule against a
-// list the parser cannot produce: a nil entry between the claimant and the
-// repeat. The pointers must carry the *source* indices, so the repeat at index 2
+// TestDuplicateServerName_NilEntryKeepsSourceIndices pins that the pointers carry
+// *source* indices, so with a skipped entry ahead of them the repeat at index 2
 // names the claimant at index 1 rather than the first surviving server. The
 // document is hand-built for the same reason TestLowerServers_NilEntrySkipped's
 // is: a nil entry never reaches lowering through the parser.
@@ -313,29 +341,30 @@ func TestDuplicateServerName_NilEntryKeepsSourceIndices(t *testing.T) {
 
 	require.Len(t, got, 2, "the nil entry is skipped and both real servers still lower")
 	assert.Equal(t, []string{"prod", "prod"}, []string{got[0].Name.Source, got[1].Name.Source})
-	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityError),
+	require.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateServerName, ir.SeverityWarning),
 		"one report at the repeat: %+v", diags)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateServerName, "/servers/2/name"),
 		"the repeat sits at its source index: %+v", diags)
 	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityError, "/servers/2/name"),
+		openapitest.DiagMessageAt(t, diags, diag.DuplicateServerName, ir.SeverityWarning, "/servers/2/name"),
 		"/servers/1/name", "and names the first claimant at its source index")
 }
 
 // TestDuplicateServerName_NotReported is the tolerated half: the collisions the
 // rule deliberately ignores. Declared names are compared only to other declared
-// names, so a hint colliding with a hint, a declared name equal to another
-// entry's hint, and two empty names are all silent — none of them is a name the
-// document declared twice.
+// names and only as exact strings, so a hint colliding with a hint, a declared
+// name equal to another entry's hint, two names equal only once canonicalized,
+// and two empty names are all silent — none of them is a string the document
+// declared twice.
 func TestDuplicateServerName_NotReported(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		spec string
-		// hintsCollide requires both lowered names to carry the same non-empty
-		// hint, so the row pins the hint boundary only if the hints really do
-		// collide rather than by passing vacuously.
-		hintsCollide bool
+		// collide picks the two lowered words a row claims are equal, and the
+		// row requires them to be, non-empty: it pins a boundary only if the
+		// collision really happens rather than by passing vacuously.
+		collide func(a, b ir.Naming) (string, string)
 	}{
 		{
 			name: "distinct declared names",
@@ -358,7 +387,7 @@ servers:
   - url: https://api.example.com/v-1
 paths: {}
 `,
-			hintsCollide: true,
+			collide: func(a, b ir.Naming) (string, string) { return a.Hint, b.Hint },
 		},
 		{
 			name: "a declared name equal to another entry's hint",
@@ -370,6 +399,33 @@ servers:
     name: https_api_example_com_v_1
 paths: {}
 `,
+			collide: func(a, b ir.Naming) (string, string) { return a.Hint, b.Canonical },
+		},
+		{
+			name: "two names that differ only in case",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
+    name: Prod
+paths: {}
+`,
+			collide: func(a, b ir.Naming) (string, string) { return a.Canonical, b.Canonical },
+		},
+		{
+			name: "two names that differ only in their separator",
+			spec: `openapi: 3.2.0
+info: {title: T, version: "1"}
+servers:
+  - url: https://a.example.com
+    name: prod-eu
+  - url: https://b.example.com
+    name: prod_eu
+paths: {}
+`,
+			collide: func(a, b ir.Naming) (string, string) { return a.Canonical, b.Canonical },
 		},
 		{
 			name: "an empty name is not a name",
@@ -391,13 +447,13 @@ paths: {}
 
 			assert.False(t, openapitest.HasDiag(diags, diag.DuplicateServerName),
 				"nothing is reported: %+v", diags)
-			if !tc.hintsCollide {
+			if tc.collide == nil {
 				return
 			}
 			require.Len(t, doc.Servers, 2)
-			assert.NotEmpty(t, doc.Servers[0].Name.Hint, "the row is about hints, so the names must be hints")
-			assert.Equal(t, doc.Servers[0].Name.Hint, doc.Servers[1].Name.Hint,
-				"and they must really collide, or the row asserts nothing")
+			a, b := tc.collide(doc.Servers[0].Name, doc.Servers[1].Name)
+			assert.NotEmpty(t, a, "the row compares lowered words, so they must be present")
+			assert.Equal(t, a, b, "and they must really collide, or the row asserts nothing")
 		})
 	}
 }

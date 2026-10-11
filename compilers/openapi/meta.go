@@ -219,58 +219,58 @@ func infoDocs(c lowering.Ctx, info *soa.Info) ir.Docs {
 //
 // A declared name one entry repeats from another is reported and nothing else
 // changes: both servers still lower, each with the name the document wrote
-// (duplicateServerNameDiags).
+// (serverNameClaims).
 func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
 	servers := c.Doc.GetServers()
 	out := make([]ir.Server, 0, len(servers))
+	claims := make(serverNameClaims, len(servers))
 	var diags []ir.Diagnostic
 	for i, s := range servers {
 		if s == nil {
 			continue
 		}
-		one, serverDiags := lowerServer(c, s, ids.Ptr("servers", strconv.Itoa(i)))
+		sptr := ids.Ptr("servers", strconv.Itoa(i))
+		one, serverDiags := lowerServer(c, s, sptr)
 		diags = append(diags, serverDiags...)
+		diags = append(diags, claims.claim(c, s.GetName(), sptr)...)
 		out = append(out, one)
 	}
-	diags = append(diags, duplicateServerNameDiags(c, servers)...)
 	if len(out) == 0 {
 		return nil, diags
 	}
 	return out, diags
 }
 
-// duplicateServerNameDiags reports every server in the document's own servers
-// list whose declared name a lower-indexed server already claimed, one
-// diagnostic per repeat, sited at its own name key and naming the first claim.
+// serverNameClaims maps each declared server name to the name key of the first
+// server that declared it. It is consulted in source order and never iterated,
+// so map order cannot reach a diagnostic.
+type serverNameClaims map[string]jsontext.Pointer
+
+// claim records name for the server at sptr, or reports it when an earlier
+// server already declared it, compared as exact strings. An empty name claims
+// nothing, and a URL hint is never a claim: neither is a name the document wrote.
 //
-// Only declared names are compared, and a nil entry or an empty name claims
-// nothing: a hint derived from a URL template is not a claim the document made
-// (serverName). The map is consulted in source order and never iterated, so map
-// order cannot reach a diagnostic.
-func duplicateServerNameDiags(c lowering.Ctx, servers []*soa.Server) []ir.Diagnostic {
-	claimed := make(map[string]jsontext.Pointer, len(servers))
-	var diags []ir.Diagnostic
-	for i, s := range servers {
-		if s == nil {
-			continue
-		}
-		name := s.GetName()
-		if name == "" {
-			continue
-		}
-		ptr := ids.Ptr("servers", strconv.Itoa(i), "name")
-		first, seen := claimed[name]
-		if !seen {
-			claimed[name] = ptr
-			continue
-		}
-		diags = append(diags, c.DiagAt(ir.SeverityError, diag.DuplicateServerName, ptr,
-			"server name %q is also declared by the server at %s; both are kept, and the name identifies two hosts",
-			name, first))
+// The report sits at the repeat's name key, unless only the earlier claim came
+// from the overlay: the overlay then made the two collide, so the report names
+// it as the source a reader has to open.
+func (claims serverNameClaims) claim(c lowering.Ctx, name string, sptr jsontext.Pointer) []ir.Diagnostic {
+	if name == "" {
+		return nil
 	}
-	return diags
+	at := sptr + ids.Ptr("name")
+	first, seen := claims[name]
+	if !seen {
+		claims[name] = at
+		return nil
+	}
+	if c.ProvenanceAt(at).Source == c.SrcIndex && c.ProvenanceAt(first).Source != c.SrcIndex {
+		at, first = first, at
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DuplicateServerName, at,
+		"server name %q is also declared by the server at %s; both are kept, and a consumer "+
+			"keying servers by name cannot tell them apart", name, first)}
 }
 
 // lowerServer lowers one server, named by serverName, keeping its x-* on the
@@ -289,16 +289,17 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
-// serverName builds a server's neutral naming: the declared name (only OpenAPI
-// 3.2 has one), else a hint derived from the URL template, as operationName does
-// for an operation with no operationId (GitHub #258). It names by the whole URL,
-// not the position in servers[], which shifts on reordering, nor a part of it,
-// which drops what the rest distinguishes: one host serving /v1 and /v2 is two
-// servers.
+// serverName builds a server's neutral naming: the declared name (a field
+// OpenAPI 3.2 defines, but read on every version, as the parser does), else a
+// hint derived from the URL template, as operationName does for an operation
+// with no operationId (GitHub #258). It names by the whole URL, not the position
+// in servers[], which shifts on reordering, nor a part of it, which drops what
+// the rest distinguishes: one host serving /v1 and /v2 is two servers.
 //
 // Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
-// sequence), as two enum members can; an emitter uniquifies. Two declared names
-// colliding are the document's error (duplicateServerNameDiags).
+// sequence), as two enum members can; an emitter uniquifies. So can declared
+// names that differ only once canonicalized (prod, Prod). Only declared names
+// equal as exact strings are reported (serverNameClaims).
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)

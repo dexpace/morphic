@@ -143,14 +143,15 @@ const (
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
 	// DuplicateServerName reports a Server.name the document's servers list
-	// declares more than once. Both servers are kept, but a consumer keying by
-	// name cannot tell the two hosts apart.
+	// declares more than once, compared as exact strings. Both servers are kept,
+	// but a consumer keying servers by name cannot tell them apart.
 	//
-	// Error, as ConflictingOperationID is: `name` is the server's identity ("an
-	// optional unique string", OAS 3.2.1 §4.5.1), so the document's own claim is
-	// contradictory. Collisions this compiler makes, like DuplicateStatusKey's or
-	// a URL hint's, only warn. Only declared names in the document's servers
-	// list are compared; path-item and operation servers build no ir.Server.
+	// A warning, not ConflictingOperationID's error: OAS 3.2 calls the name "an
+	// optional unique string" with no RFC 2119 keyword, where operationId's
+	// uniqueness is a MUST, and a YAML alias mounting one server twice repeats a
+	// name the document wrote once. Names equal only once canonicalized, and URL
+	// hints, are tolerated: an emitter uniquifies them. Path-item and operation
+	// servers build no ir.Server and are not compared.
 	DuplicateServerName = "openapi/duplicate-server-name"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so

@@ -63,53 +63,105 @@ func compileWith(t *testing.T, opts openapi.Options) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
-// overlayServerBase declares one named server, and overlayServerPatch appends a
-// second that declares the same name: an array update on an array target appends
-// its items, so the colliding entry is a position the overlay introduced.
-const overlayServerBase = `openapi: 3.2.0
+// TestCompile_OverlayMakingServerNamesCollideCreditsTheOverlay pins the
+// duplicate-server-name rule against the tree the overlay produced rather than
+// the bytes on disk: each base document declares no repeat, so only the patched
+// document has one to report. The report names the overlay as its source, at
+// the entry the overlay wrote, whether that entry comes after the base's
+// claimant (an appended item) or before it (an earlier entry renamed); when the
+// overlay wrote both, at the later one, as in a single document.
+func TestCompile_OverlayMakingServerNamesCollideCreditsTheOverlay(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, base, patch string
+		at, other         string   // the reported name key and the one its message names
+		names             []string // each lowered server's declared name
+	}{
+		{
+			name: "the overlay appends an entry repeating the base's name",
+			base: `openapi: 3.2.0
 info: {title: Pets, version: "1"}
 servers:
   - url: https://prod.example.com
     name: prod
 paths: {}
-`
-
-const overlayServerPatch = `overlay: 1.0.0
+`,
+			patch: `overlay: 1.0.0
 info: {title: Patch, version: "1"}
 actions:
   - target: $.servers
     update:
       - url: https://prod-mirror.example.com
         name: prod
-`
+`,
+			at: "/servers/1/name", other: "/servers/0/name",
+			names: []string{"prod", "prod"},
+		},
+		{
+			name: "the overlay renames an entry ahead of the base's claimant",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+  - url: https://prod.example.com
+    name: prod
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers[0]
+    update: {name: prod}
+`,
+			at: "/servers/0/name", other: "/servers/1/name",
+			names: []string{"prod", "prod"},
+		},
+		{
+			name: "the overlay appends two entries sharing a name",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - {url: https://a.example.com, name: prod}
+      - {url: https://b.example.com, name: prod}
+`,
+			at: "/servers/2/name", other: "/servers/1/name",
+			names: []string{"dev", "prod", "prod"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(tc.base)}},
+				compilers.Options{FormatOptions: openapi.Options{
+					Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tc.patch)},
+				}})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
 
-// TestCompile_OverlayIntroducingADuplicateServerNameCreditsTheOverlay pins the
-// duplicate-server-name rule against the tree the overlay produced rather than
-// the bytes on disk: the base document declares one server, so only the patched
-// document has a repeat to report, and the diagnostic about the appended entry
-// names the overlay as the source it came from. The base's own server keeps the
-// document as its source.
-func TestCompile_OverlayIntroducingADuplicateServerNameCreditsTheOverlay(t *testing.T) {
-	t.Parallel()
-	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "spec.yaml", Data: []byte(overlayServerBase)}},
-		compilers.Options{FormatOptions: openapi.Options{
-			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(overlayServerPatch)},
-		}})
-	require.NoError(t, err)
-	require.NotNil(t, doc, "compile refused: %+v", diags)
+			found := diagnosticsByCodeAndPointer(diags)[diagKey{diag.DuplicateServerName, jsontext.Pointer(tc.at)}]
+			require.Len(t, found, 1, "one report, at the entry the overlay wrote: %+v", diags)
+			assert.Equal(t, ir.SeverityWarning, found[0].Severity)
+			assert.Equal(t, 1, found[0].Provenance.Source,
+				"the overlay made the names collide, so it is the source the report is against")
+			assert.Contains(t, found[0].Message, tc.other, "and the message names the other claimant")
 
-	found := diagnosticsByCodeAndPointer(diags)[diagKey{diag.DuplicateServerName, "/servers/1/name"}]
-	require.Len(t, found, 1, "one report at the entry the overlay appended: %+v", diags)
-	assert.Equal(t, ir.SeverityError, found[0].Severity)
-	assert.Equal(t, 1, found[0].Provenance.Source,
-		"the overlay appended this entry, so the overlay is the source the repeat is reported against")
-	assert.Contains(t, found[0].Message, "/servers/0/name",
-		"and the first claimant is the base document's server")
-
-	require.Len(t, doc.Servers, 2, "both servers still lower, the base's and the overlay's")
-	for i, want := range []string{"prod", "prod"} {
-		assert.Equal(t, want, doc.Servers[i].Name.Source, "server %d keeps the name the document wrote", i)
+			names := make([]string, 0, len(doc.Servers))
+			for _, s := range doc.Servers {
+				names = append(names, s.Name.Source)
+			}
+			assert.Equal(t, tc.names, names, "every server lowered, each with the name the document wrote")
+		})
 	}
 }
 

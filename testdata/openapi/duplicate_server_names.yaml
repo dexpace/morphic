@@ -1,0 +1,16 @@
+# Every way a servers list repeats a declared name: a second entry writing it
+# again, an alias mounting the first entry twice, and a merge key carrying one
+# name into two entries. Each raises only the openapi/duplicate-server-name
+# warning, and this fixture puts that warning under the corpus order-invariance
+# sweep. The last entry differs from the first only in case, which is tolerated.
+openapi: 3.2.0
+info: {title: t, version: "1"}
+x-base: &b {name: edge}
+servers:
+  - &prod {url: https://prod.example.com, name: prod}
+  - {url: https://prod-mirror.example.com, name: prod}
+  - *prod
+  - {<<: *b, url: https://edge-a.example.com}
+  - {<<: *b, url: https://edge-b.example.com}
+  - {url: https://staging.example.com, name: Prod}
+paths: {}
