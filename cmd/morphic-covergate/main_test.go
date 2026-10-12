@@ -85,24 +85,43 @@ func TestRun_JudgesAProfile(t *testing.T) {
 }
 
 // TestRun_BoundsTheListing holds the failure listing to its first maxReported
-// blocks by position, then a count of the rest. Lines 1 to 30 tell a numeric
-// order from a textual one, which would list line 10 before line 2.
+// blocks by position, then a count of the rest. The sizes straddle the bound,
+// where the count line starts, and each output is compared whole. Past ten
+// blocks a textual order would list line 10 before line 2.
 func TestRun_BoundsTheListing(t *testing.T) {
 	t.Parallel()
-	var profile strings.Builder
-	profile.WriteString("mode: atomic\n")
-	for line := range 30 {
-		fmt.Fprintf(&profile, "x/c.go:%d.1,%d.9 1 0\n", line+1, line+1)
+	tests := []struct {
+		name string
+		gaps int
+		over int // blocks past the bound, 0 when the count line is absent
+	}{
+		{"below the bound", maxReported - 1, 0},
+		{"at the bound", maxReported, 0},
+		{"one past the bound", maxReported + 1, 1},
+		{"well past the bound", 2 * maxReported, maxReported},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var profile, want strings.Builder
+			profile.WriteString("mode: atomic\n")
+			for line := 1; line <= tc.gaps; line++ {
+				fmt.Fprintf(&profile, "x/c.go:%d.1,%d.9 1 0\n", line, line)
+				if line <= maxReported {
+					fmt.Fprintf(&want, "COVERAGE FAIL: x/c.go:%d.1,%d.9 (1 statement(s) uncovered)\n", line, line)
+				}
+			}
+			if tc.over > 0 {
+				fmt.Fprintf(&want, "  ... and %d more uncovered block(s)\n", tc.over)
+			}
+			fmt.Fprintf(&want, "Coverage gate failed: %d of %d statements uncovered; 100%% is required.\n", tc.gaps, tc.gaps)
 
-	code, out := judge(t, profile.String())
+			code, out := judge(t, profile.String())
 
-	assert.Equal(t, 1, code)
-	assert.Equal(t, maxReported, strings.Count(out, "COVERAGE FAIL:"))
-	assert.Contains(t, out, "COVERAGE FAIL: x/c.go:25.1,25.9 (1 statement(s) uncovered)")
-	assert.NotContains(t, out, "x/c.go:26.1")
-	assert.Contains(t, out, "  ... and 5 more uncovered block(s)")
-	assert.Contains(t, out, "Coverage gate failed: 30 of 30 statements uncovered; 100% is required.")
+			assert.Equal(t, 1, code)
+			assert.Equal(t, want.String(), out)
+		})
+	}
 }
 
 // TestTallyOf_ListsGapsInFileThenPositionOrder gives tallyOf profiles out of
