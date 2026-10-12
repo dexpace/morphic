@@ -310,12 +310,9 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 // hasDegradedDiag reports whether diags carries a degraded-construct info
 // diagnostic whose message contains want.
 func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want)
+	})
 }
 
 func TestLower_ListConstraints(t *testing.T) {

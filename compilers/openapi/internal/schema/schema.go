@@ -1752,12 +1752,7 @@ func declaresResourceIDAbove(c lowering.Ctx, pointer jsontext.Pointer) bool {
 	// An incomplete walk needs no arm: path holds the nodes reached, and an $id
 	// above a pointer that falls off the tree still binds.
 	path, _ := view.DocumentPath(root, pointer)
-	for _, n := range path {
-		if view.ChildByToken(n, "$id") != nil {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(path, func(n *yaml.Node) bool { return view.ChildByToken(n, "$id") != nil })
 }
 
 // dynamicFragment returns the anchor name a $dynamicRef addresses, or the

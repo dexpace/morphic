@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,12 +55,7 @@ func skipUninterestingDir(root, path string, d fs.DirEntry) error {
 // hasPrefixDir reports whether rel sits inside one of dirs, matching on
 // path-segment boundaries so "irverify" does not match the "ir" owner.
 func hasPrefixDir(rel string, dirs []string) bool {
-	for _, d := range dirs {
-		if rel == d || strings.HasPrefix(rel, d+"/") {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(dirs, func(d string) bool { return rel == d || strings.HasPrefix(rel, d+"/") })
 }
 
 // registryWrites returns a description of every registry construction or write
