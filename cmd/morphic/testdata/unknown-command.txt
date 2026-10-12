@@ -1,11 +1,2 @@
-morphic: unknown command "bogus"
-usage:
-  morphic <command> [flags]
-
-morphic lowers an API spec into Morphic IR.
-
-commands:
-  compile  lower an API spec (OpenAPI 3.x) into Morphic IR JSON
-  validate check an API spec and report its diagnostics, writing no IR
-
-run "morphic help <command>" for command details.
+morphic: unknown command "bogus" for "morphic"
+Try "morphic --help" for usage.

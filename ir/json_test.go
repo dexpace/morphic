@@ -51,7 +51,13 @@ func sampleDocument(t *testing.T) ir.Document {
 		id, td := mk("t/k/"+string(entry.Kind()), entry)
 		types[id] = td
 	}
-	return ir.Document{IRVersion: ir.IRVersion, Name: "kinds", Version: "1", Types: types}
+	return ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"k", "p"}},
+		Name:      "kinds",
+		Version:   "1",
+		Types:     types,
+	}
 }
 
 func TestDocument_JSONRoundTripAllKinds(t *testing.T) {
@@ -638,4 +644,33 @@ func TestDocument_ForeignVersionIsQuotedBounded(t *testing.T) {
 	err := json.Unmarshal([]byte(`{"irVersion":"`+strings.Repeat("9", 100_000)+`"}`), &doc)
 	require.ErrorIs(t, err, ir.ErrVersionIncompatible)
 	assert.Less(t, len(err.Error()), 300, "the error must not echo the whole stamp")
+}
+
+// TestDocument_IDSpacesJSONContract pins the declaration's wire form. It is
+// written with its kinds in sorted order and each list as the producer gave it,
+// and it is absent, not null or empty, when nothing is declared: a reader must
+// not tell a producer that declared nothing from one that never knew to.
+func TestDocument_IDSpacesJSONContract(t *testing.T) {
+	t.Parallel()
+	declared := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{
+		ir.IDKindOp:    {"openapi"},
+		ir.IDKindGroup: {"default", "tags"},
+	}}
+	raw, err := json.Marshal(declared)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"idSpaces":{"g":["default","tags"],"op":["openapi"]}`)
+	assertRoundTrip(t, declared)
+
+	for name, doc := range map[string]ir.Document{
+		"nil":   {IRVersion: ir.IRVersion},
+		"empty": {IRVersion: ir.IRVersion, IDSpaces: map[string][]string{}},
+	} {
+		raw, err := json.Marshal(doc)
+		require.NoError(t, err, name)
+		assert.NotContains(t, string(raw), "idSpaces", name)
+	}
+
+	var decoded ir.Document
+	require.NoError(t, json.Unmarshal([]byte(versioned(`"name":"x"`)), &decoded))
+	assert.Nil(t, decoded.IDSpaces, "a document that does not mention the declaration declares nothing")
 }

@@ -3,6 +3,8 @@ package compilers_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -325,12 +327,53 @@ func TestRegistry_FormatsAreSortedNotRegistrationOrder(t *testing.T) {
 	}, reg.Formats())
 }
 
+// TestRegistry_FormatsBreakANameTieByVersion pins the second key of the order.
+// A registry of a few formats hands them back in an order that is sometimes
+// already sorted, so a dropped tiebreak would pass; twenty-four, registered in
+// the opposite of the answer, make that vanishingly unlikely.
+func TestRegistry_FormatsBreakANameTieByVersion(t *testing.T) {
+	t.Parallel()
+	const minors = 8
+	names := []string{"smithy", "openapi", "graphql"}
+	versions := make([]string, 0, minors)
+	for minor := minors - 1; minor >= 0; minor-- {
+		versions = append(versions, fmt.Sprintf("3.%d", minor))
+	}
+	served := make([]compilers.SourceFormat, 0, len(names)*len(versions))
+	want := make([]compilers.SourceFormat, 0, len(names)*len(versions))
+	for _, name := range names {
+		for _, version := range versions {
+			served = append(served, compilers.SourceFormat{Name: name, Version: version})
+		}
+	}
+	for _, name := range slices.Sorted(slices.Values(names)) {
+		for _, version := range slices.Sorted(slices.Values(versions)) {
+			want = append(want, compilers.SourceFormat{Name: name, Version: version})
+		}
+	}
+	reg := compilers.NewRegistry()
+	require.NoError(t, reg.Register(&stubCompiler{formats: served}))
+
+	assert.Equal(t, want, reg.Formats())
+}
+
 // TestRegistry_FormatsOfAnEmptyRegistryIsEmpty pins that the zero registry
-// answers rather than panicking on its nil map.
+// answers rather than panicking on its nil map, and that the answer is an empty
+// list rather than nil: a caller that encodes it writes [] rather than null.
 func TestRegistry_FormatsOfAnEmptyRegistryIsEmpty(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, compilers.NewRegistry().Formats())
-	assert.Empty(t, new(compilers.Registry).Formats())
+	for name, reg := range map[string]*compilers.Registry{
+		"built":      compilers.NewRegistry(),
+		"zero value": new(compilers.Registry),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			formats := reg.Formats()
+
+			require.NotNil(t, formats)
+			assert.Empty(t, formats)
+		})
+	}
 }
 
 // TestRegistry_DetectCarriesTheParseToItsOwnCompiler pins what makes a parse

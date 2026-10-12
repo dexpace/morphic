@@ -1,0 +1,460 @@
+{
+  "irVersion": "0.7.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "GroupIdentity",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "GroupIdentity",
+        "canonical": "group_identity"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/tags/default",
+          "name": {
+            "source": "default",
+            "canonical": "default"
+          },
+          "docs": {
+            "description": "A declared tag spelled like the group untagged operations fall into"
+          },
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1declared/get",
+              "name": {
+                "source": "declared",
+                "canonical": "declared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "default"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/declared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1declared/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1untagged/get",
+              "name": {
+                "source": "untagged",
+                "canonical": "untagged"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/untagged",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1untagged/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/webhooks",
+          "name": {
+            "source": "webhooks",
+            "canonical": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1named-like-the-webhook-group/get",
+              "name": {
+                "source": "namedLikeWebhooks",
+                "canonical": "named_like_webhooks"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "webhooks"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/named-like-the-webhook-group",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1named-like-the-webhook-group/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/ghost",
+          "name": {
+            "source": "ghost",
+            "canonical": "ghost"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1undeclared/get",
+              "name": {
+                "source": "undeclared",
+                "canonical": "undeclared"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "ghost"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/undeclared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1undeclared/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/a~1b",
+          "name": {
+            "source": "a/b",
+            "canonical": "a_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1slash/get",
+              "name": {
+                "source": "slash",
+                "canonical": "slash"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a/b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/slash",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1slash/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/tags/a~01b",
+          "name": {
+            "source": "a~1b",
+            "canonical": "a_1_b"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tilde/get",
+              "name": {
+                "source": "tilde",
+                "canonical": "tilde"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "a~1b"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tilde",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tilde/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/onEvent/post",
+              "name": {
+                "source": "onEvent",
+                "canonical": "on_event"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "onEvent",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/onEvent/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "default",
+      "docs": {
+        "description": "A declared tag spelled like the group untagged operations fall into"
+      }
+    },
+    {
+      "name": "webhooks",
+      "docs": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "group-identity.yaml",
+      "hash": "79e637d049cd299fe584579e7b8ed9937c25936a87553a6b931df1e1c0ffca94"
+    }
+  ]
+}

@@ -69,6 +69,9 @@ func TestMappingTargets_EverySpellingAndPositionIsOrderFree(t *testing.T) {
 		"/components/schemas/K/$defs/D",
 		"/paths/~1a/get/responses/200/content/application~1json/schema", "/paths/x-p/S",
 	}
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"),
+		[]byte("x-lib: {E: {type: object}}\ncomponents: {schemas: {T: {type: object}}}\n"), 0o600))
 	spellings := []struct {
 		name     string
 		spell    func(pointer string) string
@@ -77,16 +80,17 @@ func TestMappingTargets_EverySpellingAndPositionIsOrderFree(t *testing.T) {
 		{"internal", func(p string) string { return "#" + p }, true},
 		{"percent-encoded", func(p string) string { return "#" + strings.ReplaceAll(p, "~", "%7E") }, true},
 		{"by file name", func(p string) string { return "root.yaml#" + p }, true},
-		{"through a directory", func(p string) string { return "./root.yaml#" + p }, false},
+		{"through a directory", func(p string) string { return "./root.yaml#" + p }, true},
+		{"through its parent", func(p string) string { return "../" + filepath.Base(dir) + "/root.yaml#" + p }, true},
+		{"through a directory and back", func(p string) string { return "sub/../root.yaml#" + p }, true},
+		{"by its absolute path, not cleaned", func(p string) string { return dir + "/./root.yaml#" + p }, true},
+		{"in a directory of its own", func(p string) string { return "sub/root.yaml#" + p }, false},
 		{"in another document", func(p string) string { return "other.yaml#" + p }, false},
 		{"a component's name", func(string) string { return "T" }, true},
 		{"an anchor", func(string) string { return "#Anch" }, false},
 		{"the whole document", func(string) string { return "#" }, false},
 		{"a relative definition", func(string) string { return "#/$defs/D" }, false},
 	}
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"),
-		[]byte("x-lib: {E: {type: object}}\ncomponents: {schemas: {T: {type: object}}}\n"), 0o600))
 	for _, s := range spellings {
 		for _, pointer := range positions {
 			target := s.spell(pointer)

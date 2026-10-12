@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // TestVerify_NoLowercaseRunesAreNeutral pins that a canonical containing a rune
@@ -19,7 +18,7 @@ func TestVerify_NoLowercaseRunesAreNeutral(t *testing.T) {
 	for _, canon := range []string{"ℤ", "\U0001D400", "count_ℤ"} {
 		m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: canon}}
 		doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
-		for _, v := range irverify.Verify(doc) {
+		for _, v := range verifyDeclared(doc) {
 			assert.NotEqualf(t, "ir/naming-cased", v.Code, "no-lowercase rune %q must be neutral", canon)
 		}
 	}
@@ -32,7 +31,7 @@ func TestVerify_TrulyCasedCanonicalStillFlagged(t *testing.T) {
 	m := &ir.Model{ID: "t/x/M", Name: ir.Naming{Source: "M", Canonical: "userID"}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 	var found bool
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/naming-cased" {
 			found = true
 		}
