@@ -576,8 +576,8 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
 }
 
-// TestValidate_ExcessiveGroupNestingIsTruncated drives the ir.MaxGroupDepth guard in
-// forEachGroupOperation: an operation buried below the depth cap is never
+// TestValidate_ExcessiveGroupNestingIsTruncated drives the ir.MaxGroupDepth guard
+// in ir.ForEachOperation: an operation buried below the depth cap is never
 // visited, so its one-way violation goes unreported (the recursion stops). The
 // truncation itself is reported instead — see
 // TestValidate_GroupWalkTruncationIsReported.

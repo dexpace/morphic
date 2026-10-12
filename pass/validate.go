@@ -844,7 +844,9 @@ func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 // the operations that carry a GraphQL binding. The traversal is iterative with a
 // visited set, so it terminates on cyclic type graphs. Operations are the roots
 // and keep the reflection walk, since ir.TypeEdges has no operation form; each
-// type after that is followed through ir.TypeEdges.
+// type after that is followed through ir.TypeEdges, which stops only where the
+// reflection walk has, and checkDanglingRefs reports that.
+//
 // It reports whether the operation walk truncated, since a caller cannot tell an
 // unreachable type from an unvisited one without it.
 func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
@@ -862,19 +864,17 @@ func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 			continue
 		}
 		seen[id] = true
-		for edge := range ir.TypeEdges(doc.Types[id]) {
-			queue = append(queue, edge)
-		}
+		queue = slices.AppendSeq(queue, ir.TypeEdges(doc.Types[id]))
 	}
 	return seen, truncated
 }
 
-// appendTypeIDs appends every TypeID reachable from an operation root to dst.
-// It serves only graphqlReachableTypes's roots, since ir.TypeEdges covers type
-// definitions and has no operation form. Truncation is
-// dropped rather than reported: this feeds reachability, where a truncated walk
-// can only under-report, and checkDanglingRefs already reports the same
-// truncation over the whole document.
+// appendTypeIDs appends every TypeID reachable from an operation root to dst. It
+// serves only graphqlReachableTypes's roots, since ir.TypeEdges covers type
+// definitions and has no operation form. Truncation is dropped rather than
+// reported: this feeds reachability, where a truncated walk can only
+// under-report, and checkDanglingRefs already reports the same truncation over
+// the whole document.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	sites, _ := collectTypeIDs(root, "")
 	for _, s := range sites {
