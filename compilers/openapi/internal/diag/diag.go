@@ -125,7 +125,8 @@ const (
 	// already holds, at the repeat's own position, whether the set lowers to an
 	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
 	// declaration; in an Enum each repeat's member ID ends in its occurrence
-	// number. A list or object entry is not compared (#842).
+	// number. Entries compare as JSON Schema compares instances: a number by its
+	// value, an object regardless of member order.
 	//
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.

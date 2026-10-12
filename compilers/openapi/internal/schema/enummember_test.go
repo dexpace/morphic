@@ -160,13 +160,15 @@ func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
 // TestEnumRepeats_AreReportedWhateverTheSetLowersTo pins the report to the list
 // as written: a repeat is reported where the set degrades to a union, numbers
 // compare by value there too, and a repeated null is reported where a nullable
-// enum keeps no null member. A list entry is not compared (#842).
+// enum keeps no null member. A list or an object compares as an instance does:
+// by its elements' values, an object regardless of member order.
 func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
 	t.Parallel()
 	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    Mixed: {enum: [a, 1, a, 1.0]}
     Nullable: {type: [string, "null"], enum: [a, null, null]}
     Nulls: {enum: [null, null]}
-    Lists: {enum: [[1], [1]]}
+    Lists: {enum: [[1, 2], [2, 1], [1, 2.0]]}
+    Objects: {enum: [{x: 1, y: [a]}, {y: [a], x: 1.0}, {x: 1}, {x: "1"}]}
 `))
 	var at []string
 	for _, d := range diags {
@@ -178,6 +180,7 @@ func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"/components/schemas/Mixed/enum/2", "/components/schemas/Mixed/enum/3",
 		"/components/schemas/Nullable/enum/2", "/components/schemas/Nulls/enum/1",
+		"/components/schemas/Lists/enum/2", "/components/schemas/Objects/enum/1",
 	}, at)
 	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/Mixed/enum/3")
 	assert.Contains(t, msg, "the entry at index 1;", "1.0 repeats 1, not the a between them")
