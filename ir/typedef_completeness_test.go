@@ -150,9 +150,9 @@ func TestTypeDef_HandWrittenKindListsAreComplete(t *testing.T) {
 // construction and never reaches this list.
 func sampleDocumentKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
-	types := sampleDocument(t).Types
-	out := make([]ir.TypeKind, 0, len(types))
-	for _, td := range types {
+	registry := sampleDocument(t).Types
+	out := make([]ir.TypeKind, 0, len(registry))
+	for _, td := range registry {
 		out = append(out, td.Kind())
 	}
 	return out
