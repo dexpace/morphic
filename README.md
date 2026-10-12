@@ -245,7 +245,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,

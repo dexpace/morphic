@@ -255,7 +255,8 @@ morphic/
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
-└── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+└── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
 ```
 
 Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
