@@ -117,11 +117,13 @@ build:
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
-# blocks partly the other's. COVER_FILE names a profile to keep instead.
+# blocks partly the other's. COVER_FILE names a profile to keep instead. A failed
+# mktemp ends the recipe at once: recipe lines run without -e, so otherwise the
+# whole suite would run before anything noticed.
 coverage:
 	@profile="$${COVER_FILE:-}"; \
 	if [ -z "$$profile" ]; then \
-		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")"; \
+		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
 	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
