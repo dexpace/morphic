@@ -274,9 +274,6 @@ git ls-files '*/*.go' | xargs -n1 dirname | sort -u
 Dependency rules, enforced by an architecture test as in oagen:
 
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
-- `ir` owns the shared traversals, both the reflection walk and the typed ones (operations,
-  type edges, composition), so no pass or emitter hand-writes a walker over groups, composition
-  or type edges.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
   never `emitter` or `engine`. A compiler also names the contract package and
@@ -292,6 +289,11 @@ Two caps guard the shape rather than the graph, both in `internal/archtest` and 
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
 `micro-compiler-design.md` is about grew to 159 methods without ever writing a long function.
+
+`ir` also owns the traversals the layers above it share: the reflection walk, and the typed walks
+over operations, type edges and composition. A pass or emitter calls them rather than writing its
+own. That is a convention review holds, not a rule a test checks, since no test can tell a
+hand-written walker from any other loop.
 
 ## 4. Diagnostics & provenance
 

@@ -615,13 +615,14 @@ type Discriminator struct {
 ```
 
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers walk
-`Base`, `Implements`, and `Mixins` for the full shape (`ir.ExposedProps` computes the flat set;
-`ir.Supertypes` and `ir.IsSubtype` compute the subtype relation, which excludes mixins; the
-flattening is computed, never stored). This preserves what oagen and Kiota lose: the difference
-between "inherits from", "conforms to", "mixes in", and "declares". `Base` is single (subtype
-identity); `Implements` is N-ary conformance to `Abstract` models — the distinction matters because
-GraphQL allows multiple interfaces while every class-based target language allows at most one base
-class.
+`Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
+`ir.ExposedProps` computes the flat set of property IDs, and `ir.Supertypes` and `ir.IsSubtype` the
+subtype relation, which excludes mixins. The ordered, override-aware `FlattenedProperties()` that
+emitter-design §3.2 computes `TypePlan.Flattened` with is not provided so far (#812). This preserves
+what oagen and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
+"declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
+models — the distinction matters because GraphQL allows multiple interfaces while every class-based
+target language allows at most one base class.
 
 How compilers classify `allOf`: an entry that is a `$ref` to a schema participating in a
 discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; other `$ref` entries become
