@@ -2,301 +2,253 @@ package ir
 
 import (
 	"iter"
+	"maps"
 	"slices"
 )
 
-// idYield receives one edge and reports whether the walk should continue. The
-// helpers below stop at the first false and never call it again, which is the
-// iter.Seq contract.
-type idYield = func(TypeID) bool
-
-// TypeEdges returns the type IDs td refers to, in field declaration order: every
-// non-empty TypeID position it holds, apart from its own ID. It yields bare
-// IDs, never a [TypeRef], so a reference's Nullable bit is not invented.
+// TypeEdges returns the type IDs td refers to, in the order [WalkValues]
+// reaches them, apart from td's own ID. A self-reference still counts and an
+// empty target does not. It yields bare IDs, never a [TypeRef], so a
+// reference's Nullable bit is not invented, and it covers positions that are
+// not TypeRef fields: discriminator targets, a value's ref and constructor
+// types. A nil or typed-nil td yields nothing.
 //
-// Positions that are not TypeRef fields count too — discriminator targets, a
-// value's ref and constructor types — because the reflection walk reaches them.
-// A nil or typed-nil td yields nothing, and the sequence is not called again
-// once the consumer stops.
+// A value nested more than [MaxWalkDepth] levels deep is not entered. The
+// reflection walk is cut sooner, and pass.Validate reports that cut.
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 	return func(yield func(TypeID) bool) {
 		if IsNilTypeDef(td) {
 			return
 		}
-		typeDefEdges(td, yield)
+		w := edgeWalk{yield: yield}
+		w.def(td)
 	}
 }
 
-// typeDefEdges yields td's edges: the part common to every kind, then the kind's
-// own fields.
-func typeDefEdges(td TypeDef, yield idYield) {
-	if !commonEdges(yield, td.Common()) {
+// edgeWalk is one TypeEdges call: the consumer's yield and whether it has
+// declined more. Every edge leaves through id, so the rule that yield is never
+// called again after it returns false is kept in one place. Once stopped, the
+// walk finishes its pass over the type definition without yielding.
+//
+// Its methods follow field declaration order, which is the order [WalkValues]
+// reaches the same fields in.
+type edgeWalk struct {
+	yield   func(TypeID) bool
+	stopped bool
+}
+
+// id yields id unless it is empty or the consumer has stopped.
+func (w *edgeWalk) id(id TypeID) {
+	if w.stopped || id == "" {
 		return
 	}
+	w.stopped = !w.yield(id)
+}
+
+// ref yields the target of r, if there is a reference at all.
+func (w *edgeWalk) ref(r *TypeRef) {
+	if r != nil {
+		w.id(r.Target)
+	}
+}
+
+// refs yields the target of each reference in rs.
+func (w *edgeWalk) refs(rs []TypeRef) {
+	for i := range rs {
+		w.id(rs[i].Target)
+	}
+}
+
+// def yields td's edges: the part common to every kind, then the kind's own
+// fields.
+func (w *edgeWalk) def(td TypeDef) {
+	w.common(td.Common())
 	switch t := td.(type) {
 	case *Scalar:
-		scalarEdges(t, yield)
+		w.ref(t.Base)
+		w.encoding(t.Encoding)
 	case *Model:
-		modelEdges(t, yield)
+		w.model(t)
 	case *Union:
-		unionEdges(t, yield)
+		w.union(t)
 	case *Enum:
-		enumEdges(t, yield)
+		w.enum(t)
 	case *List:
-		_ = refEdge(yield, &t.Elem) && encodingEdges(yield, t.Encoding)
+		w.ref(&t.Elem)
+		w.encoding(t.Encoding)
 	case *MapT:
-		_ = refEdge(yield, &t.Key) && refEdge(yield, &t.Value)
+		w.ref(&t.Key)
+		w.ref(&t.Value)
 	case *Tuple:
-		refsEdges(yield, t.Elems)
+		w.refs(t.Elems)
 	case *Literal:
-		_ = valueEdges(yield, &t.Value, 0)
+		w.value(&t.Value, 0)
 	default:
 		// Primitive, External and Any hold nothing beyond the common part.
 	}
 }
 
-// idEdge yields id unless it is empty.
-func idEdge(yield idYield, id TypeID) bool {
-	if id == "" {
-		return true
-	}
-	return yield(id)
+// common yields what every kind can hold: the availability timeline, examples
+// and the template instantiation.
+func (w *edgeWalk) common(c *TypeCommon) {
+	w.availability(c.Availability)
+	w.examples(c.Examples)
+	w.instantiation(c.Instantiation)
 }
 
-// refEdge yields the target of r, if there is a reference at all.
-func refEdge(yield idYield, r *TypeRef) bool {
-	if r == nil {
-		return true
-	}
-	return idEdge(yield, r.Target)
-}
-
-// refsEdges yields the target of each reference in refs.
-func refsEdges(yield idYield, refs []TypeRef) bool {
-	for i := range refs {
-		if !refEdge(yield, &refs[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// valueEdges yields the types a value refers to: a ref's declaring type and a
-// constructor's scalar, through every nested list, object member and argument.
-// Nesting below MaxWalkDepth is not entered, the same bound the reflection walk
-// keeps.
-func valueEdges(yield idYield, v *Value, depth int) bool {
+// value yields the types v refers to, through every nested list, object member
+// and constructor argument. depth counts one level per step down; the
+// reflection walk charges each of those steps at least twice, so it is cut
+// first.
+func (w *edgeWalk) value(v *Value, depth int) {
 	if v == nil || depth > MaxWalkDepth {
-		return true
+		return
 	}
-	if v.Ref != nil && !idEdge(yield, v.Ref.Type) {
-		return false
-	}
-	if v.Ctor != nil {
-		if !idEdge(yield, v.Ctor.Scalar) || !valuesEdges(yield, v.Ctor.Args, depth+1) {
-			return false
-		}
-	}
-	if !valuesEdges(yield, v.List, depth+1) {
-		return false
-	}
+	w.values(v.List, depth+1)
 	for i := range v.Object {
-		if !valueEdges(yield, &v.Object[i].Value, depth+1) {
-			return false
-		}
+		w.value(&v.Object[i].Value, depth+1)
 	}
-	return true
+	if v.Ref != nil {
+		w.id(v.Ref.Type)
+	}
+	if c := v.Ctor; c != nil {
+		w.id(c.Scalar)
+		w.values(c.Args, depth+1)
+	}
 }
 
-// valuesEdges yields the edges of each value in vs.
-func valuesEdges(yield idYield, vs []Value, depth int) bool {
+// values yields the edges of each value in vs, all at depth.
+func (w *edgeWalk) values(vs []Value, depth int) {
 	for i := range vs {
-		if !valueEdges(yield, &vs[i], depth) {
-			return false
+		w.value(&vs[i], depth)
+	}
+}
+
+// examples yields the types each example's values and error refer to.
+func (w *edgeWalk) examples(exs []Example) {
+	for i := range exs {
+		ex := &exs[i]
+		w.value(ex.Value, 0)
+		w.value(ex.Headers, 0)
+		w.value(ex.Input, 0)
+		w.value(ex.Output, 0)
+		if e := ex.Error; e != nil {
+			w.ref(&e.Type)
+			w.value(&e.Content, 0)
 		}
 	}
-	return true
 }
 
-// exampleEdges yields the types each example's values and error refer to.
-func exampleEdges(yield idYield, examples []Example) bool {
-	for i := range examples {
-		ex := &examples[i]
-		ok := valueEdges(yield, ex.Value, 0) &&
-			valueEdges(yield, ex.Headers, 0) &&
-			valueEdges(yield, ex.Input, 0) &&
-			valueEdges(yield, ex.Output, 0)
-		if !ok {
-			return false
-		}
-		if ex.Error != nil && !errorExampleEdges(yield, ex.Error) {
-			return false
-		}
-	}
-	return true
-}
-
-// errorExampleEdges yields the error type of a scenario and the content value.
-func errorExampleEdges(yield idYield, e *ErrorExample) bool {
-	return refEdge(yield, &e.Type) && valueEdges(yield, &e.Content, 0)
-}
-
-// availabilityEdges yields the prior types a versioning timeline records.
-func availabilityEdges(yield idYield, a *Availability) bool {
+// availability yields the prior types a versioning timeline records.
+func (w *edgeWalk) availability(a *Availability) {
 	if a == nil {
-		return true
+		return
 	}
 	for i := range a.TypeChangedFrom {
-		if !refEdge(yield, &a.TypeChangedFrom[i].Type) {
-			return false
-		}
+		w.ref(&a.TypeChangedFrom[i].Type)
 	}
-	return true
 }
 
-// encodingEdges yields an encoding's wire type and decoded-schema type.
-func encodingEdges(yield idYield, e *Encoding) bool {
+// encoding yields an encoding's wire type and decoded-schema type.
+func (w *edgeWalk) encoding(e *Encoding) {
 	if e == nil {
-		return true
+		return
 	}
-	return refEdge(yield, e.WireType) && refEdge(yield, e.Schema)
+	w.ref(e.WireType)
+	w.ref(e.Schema)
 }
 
-// instantiationEdges yields the type and value arguments of a monomorphized
+// instantiation yields the type and value arguments of a monomorphized
 // template.
-func instantiationEdges(yield idYield, inst *TemplateInstantiation) bool {
+func (w *edgeWalk) instantiation(inst *TemplateInstantiation) {
 	if inst == nil {
-		return true
+		return
 	}
 	for i := range inst.Args {
-		if !refEdge(yield, inst.Args[i].Type) || !valueEdges(yield, inst.Args[i].Value, 0) {
-			return false
-		}
+		w.ref(inst.Args[i].Type)
+		w.value(inst.Args[i].Value, 0)
 	}
-	return true
 }
 
-// commonEdges yields what every kind can hold: examples, the availability
-// timeline and the template instantiation.
-func commonEdges(yield idYield, c *TypeCommon) bool {
-	return availabilityEdges(yield, c.Availability) &&
-		exampleEdges(yield, c.Examples) &&
-		instantiationEdges(yield, c.Instantiation)
-}
-
-// scalarEdges yields a scalar's base and encoding references.
-func scalarEdges(s *Scalar, yield idYield) {
-	_ = refEdge(yield, s.Base) && encodingEdges(yield, s.Encoding)
-}
-
-// modelEdges yields a model's properties, composition parents, catch-all and
+// model yields a model's properties, composition parents, catch-all and
 // discriminator.
-func modelEdges(m *Model, yield idYield) {
+func (w *edgeWalk) model(m *Model) {
 	for i := range m.Properties {
-		if !propertyEdges(yield, &m.Properties[i]) {
-			return
-		}
+		w.property(&m.Properties[i])
 	}
-	_ = refEdge(yield, m.Base) &&
-		refsEdges(yield, m.Implements) &&
-		refsEdges(yield, m.Mixins) &&
-		additionalEdges(yield, m.AdditionalProps) &&
-		discriminatorEdges(yield, m.Discriminator)
+	w.ref(m.Base)
+	w.refs(m.Implements)
+	w.refs(m.Mixins)
+	w.additional(m.AdditionalProps)
+	w.discriminator(m.Discriminator)
 }
 
-// propertyEdges yields everything a property refers to, its field arguments
+// property yields everything a property refers to, its field arguments
 // included.
-func propertyEdges(yield idYield, p *Property) bool {
-	ok := refEdge(yield, &p.Type) &&
-		valueEdges(yield, p.Default, 0) &&
-		encodingEdges(yield, p.Encoding)
-	if !ok {
-		return false
-	}
+func (w *edgeWalk) property(p *Property) {
+	w.ref(&p.Type)
+	w.value(p.Default, 0)
+	w.encoding(p.Encoding)
 	for i := range p.Args {
-		if !parameterEdges(yield, &p.Args[i]) {
-			return false
-		}
+		w.parameter(&p.Args[i])
 	}
-	return exampleEdges(yield, p.Examples) && availabilityEdges(yield, p.Availability)
+	w.examples(p.Examples)
+	w.availability(p.Availability)
 }
 
-// parameterEdges yields everything a field argument refers to.
-func parameterEdges(yield idYield, p *Parameter) bool {
-	return refEdge(yield, &p.Type) &&
-		valueEdges(yield, p.Default, 0) &&
-		pathRootEdge(yield, p.ValueFrom) &&
-		exampleEdges(yield, p.Examples) &&
-		availabilityEdges(yield, p.Availability)
-}
-
-// pathRootEdge yields the type a property path roots in, when it names one.
-func pathRootEdge(yield idYield, p *PropPath) bool {
-	if p == nil {
-		return true
+// parameter yields everything a field argument refers to.
+func (w *edgeWalk) parameter(p *Parameter) {
+	w.ref(&p.Type)
+	w.value(p.Default, 0)
+	if p.ValueFrom != nil {
+		w.ref(p.ValueFrom.Root)
 	}
-	return refEdge(yield, p.Root)
+	w.availability(p.Availability)
+	w.examples(p.Examples)
 }
 
-// additionalEdges yields the catch-all value and key types and each pattern's
-// value type.
-func additionalEdges(yield idYield, a *AdditionalProps) bool {
+// additional yields the catch-all value and key types and each pattern's value
+// type.
+func (w *edgeWalk) additional(a *AdditionalProps) {
 	if a == nil {
-		return true
+		return
 	}
-	if !refEdge(yield, &a.Value) || !refEdge(yield, a.Key) {
-		return false
-	}
+	w.ref(&a.Value)
+	w.ref(a.Key)
 	for i := range a.Patterns {
-		if !refEdge(yield, &a.Patterns[i].Value) {
-			return false
-		}
+		w.ref(&a.Patterns[i].Value)
 	}
-	return true
 }
 
-// discriminatorEdges yields the mapping targets in sorted key order, then the
+// discriminator yields the mapping targets in sorted key order, then the
 // default target.
-func discriminatorEdges(yield idYield, d *Discriminator) bool {
+func (w *edgeWalk) discriminator(d *Discriminator) {
 	if d == nil {
-		return true
+		return
 	}
-	keys := make([]string, 0, len(d.Mapping))
-	for k := range d.Mapping {
-		keys = append(keys, k)
+	for _, k := range slices.Sorted(maps.Keys(d.Mapping)) {
+		w.id(d.Mapping[k])
 	}
-	slices.Sort(keys)
-	for _, k := range keys {
-		if !idEdge(yield, d.Mapping[k]) {
-			return false
-		}
-	}
-	return idEdge(yield, d.Default)
+	w.id(d.Default)
 }
 
-// unionEdges yields each variant's references, then the discriminator's.
-func unionEdges(u *Union, yield idYield) {
+// union yields each variant's references, then the discriminator's.
+func (w *edgeWalk) union(u *Union) {
 	for i := range u.Variants {
 		v := &u.Variants[i]
-		ok := refEdge(yield, &v.Type) &&
-			exampleEdges(yield, v.Examples) &&
-			availabilityEdges(yield, v.Availability)
-		if !ok {
-			return
-		}
+		w.ref(&v.Type)
+		w.availability(v.Availability)
+		w.examples(v.Examples)
 	}
-	_ = discriminatorEdges(yield, u.Discriminator)
+	w.discriminator(u.Discriminator)
 }
 
-// enumEdges yields each member's value, examples and availability references.
-func enumEdges(e *Enum, yield idYield) {
+// enum yields each member's value, availability and example references.
+func (w *edgeWalk) enum(e *Enum) {
 	for i := range e.Members {
 		m := &e.Members[i]
-		ok := valueEdges(yield, &m.Value, 0) &&
-			exampleEdges(yield, m.Examples) &&
-			availabilityEdges(yield, m.Availability)
-		if !ok {
-			return
-		}
+		w.value(&m.Value, 0)
+		w.availability(m.Availability)
+		w.examples(m.Examples)
 	}
 }

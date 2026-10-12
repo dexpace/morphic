@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,40 +94,40 @@ func (f *filler) fillMap(v reflect.Value) {
 }
 
 // reflectedEdges is the oracle: every non-empty TypeID the reflection walk
-// reaches from td, with the paths it reaches it at, except td's own ID.
-func reflectedEdges(td ir.TypeDef) map[ir.TypeID][]string {
-	want := map[ir.TypeID][]string{}
+// reaches from td except td's own ID, in the order it reaches them, with the
+// path of each.
+func reflectedEdges(td ir.TypeDef) (ids []ir.TypeID, paths []string) {
 	ir.WalkValues(td, "<root>", func(v reflect.Value, path string) bool {
 		if v.Kind() == reflect.String && v.Type() == typeIDReflect && v.String() != "" && path != "<root>.ID" {
-			id := ir.TypeID(v.String())
-			want[id] = append(want[id], path)
+			ids = append(ids, ir.TypeID(v.String()))
+			paths = append(paths, path)
 		}
 		return true
 	})
-	return want
+	return ids, paths
 }
 
-// edgeDiff compares the IDs TypeEdges yields for td with the oracle and returns
-// one line per disagreement, naming the kind and the walk path.
-func edgeDiff(td ir.TypeDef) []string {
-	want := reflectedEdges(td)
-	got := map[ir.TypeID]bool{}
-	for id := range ir.TypeEdges(td) {
-		got[id] = true
+// edgeDiff compares the IDs TypeEdges yields for td with the oracle, ID for ID
+// and in order, and returns "" or a line naming the first disagreement and the
+// walk path it concerns.
+func edgeDiff(td ir.TypeDef) string {
+	want, paths := reflectedEdges(td)
+	got := slices.Collect(ir.TypeEdges(td))
+	if slices.Equal(want, got) {
+		return ""
 	}
-	var out []string
-	for id, paths := range want {
-		if !got[id] {
-			out = append(out, fmt.Sprintf("%s: missing %q at %s", td.Kind(), id, strings.Join(paths, ", ")))
-		}
+	i := 0
+	for i < len(want) && i < len(got) && want[i] == got[i] {
+		i++
 	}
-	for id := range got {
-		if _, ok := want[id]; !ok {
-			out = append(out, fmt.Sprintf("%s: extra %q", td.Kind(), id))
-		}
+	switch {
+	case i == len(got):
+		return fmt.Sprintf("%s: edge %d missing: the walk reaches %q at %s", td.Kind(), i, want[i], paths[i])
+	case i == len(want):
+		return fmt.Sprintf("%s: edge %d extra: TypeEdges yields %q, the walk reaches nothing more", td.Kind(), i, got[i])
+	default:
+		return fmt.Sprintf("%s: edge %d is %q, but the walk reaches %q there, at %s", td.Kind(), i, got[i], want[i], paths[i])
 	}
-	sort.Strings(out)
-	return out
 }
 
 func TestTypeEdges_EveryKindHasAnArm(t *testing.T) {
@@ -183,7 +181,7 @@ func TestTypeEdges_MatchesTheReflectionWalk(t *testing.T) {
 
 func TestTypeEdges_SelfReferenceStillCounts(t *testing.T) {
 	t.Parallel()
-	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: "self"}, Base: &ir.TypeRef{Target: "self"}}
+	m := &ir.Model{ID: "self", Base: &ir.TypeRef{Target: "self"}}
 	assert.Equal(t, []ir.TypeID{"self"}, slices.Collect(ir.TypeEdges(m)))
 	assert.Empty(t, edgeDiff(m))
 }
@@ -241,15 +239,56 @@ func TestTypeEdges_DiscriminatorMappingInSortedOrder(t *testing.T) {
 	assert.Equal(t, []ir.TypeID{"t/a", "t/b", "t/c", "t/default"}, slices.Collect(ir.TypeEdges(u)))
 }
 
-func TestTypeEdges_ValueNestingIsBounded(t *testing.T) {
-	t.Parallel()
-	deep := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/deep"}}
-	for range ir.MaxWalkDepth + 10 {
-		deep = ir.Value{Kind: ir.ValueList, List: []ir.Value{deep}}
+// nestingArms wraps a value one level deeper through each way a Value holds
+// another.
+var nestingArms = map[string]func(ir.Value) ir.Value{
+	"list": func(v ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: []ir.Value{v}} },
+	"object": func(v ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
+	},
+	"ctor": func(v ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Args: []ir.Value{v}}}
+	},
+}
+
+// nestedLiteral returns a literal whose value reaches a ref to "t/deep" through
+// levels nested values.
+func nestedLiteral(wrap func(ir.Value) ir.Value, levels int) *ir.Literal {
+	v := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/deep"}}
+	for range levels {
+		v = wrap(v)
 	}
-	shallow := ir.Value{Kind: ir.ValueList, List: []ir.Value{{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/shallow"}}}}
-	lit := &ir.Literal{Value: ir.Value{Kind: ir.ValueList, List: []ir.Value{deep, shallow}}}
-	assert.Equal(t, []ir.TypeID{"t/shallow"}, slices.Collect(ir.TypeEdges(lit)))
+	return &ir.Literal{Value: v}
+}
+
+func TestTypeEdges_ValueNestingStopsPastTheBound(t *testing.T) {
+	t.Parallel()
+	for arm, wrap := range nestingArms {
+		t.Run(arm, func(t *testing.T) {
+			t.Parallel()
+			at := nestedLiteral(wrap, ir.MaxWalkDepth)
+			assert.Equal(t, []ir.TypeID{"t/deep"}, slices.Collect(ir.TypeEdges(at)), "a value at the bound is entered")
+			past := nestedLiteral(wrap, ir.MaxWalkDepth+1)
+			assert.Empty(t, slices.Collect(ir.TypeEdges(past)), "a value past the bound is not")
+		})
+	}
+}
+
+// TestTypeEdges_OnlyTruncatesWhereTheWalkAlreadyHas holds the reason TypeEdges
+// can stop silently: every level of a value costs the reflection walk at least
+// two steps against TypeEdges' one, so a value deep enough to cut TypeEdges has
+// already cut WalkValues, whose truncation pass.Validate reports.
+func TestTypeEdges_OnlyTruncatesWhereTheWalkAlreadyHas(t *testing.T) {
+	t.Parallel()
+	for arm, wrap := range nestingArms {
+		t.Run(arm, func(t *testing.T) {
+			t.Parallel()
+			lit := nestedLiteral(wrap, ir.MaxWalkDepth+1)
+			require.Empty(t, slices.Collect(ir.TypeEdges(lit)), "the value is past TypeEdges' bound")
+			assert.True(t, ir.WalkValues(lit, "<root>", func(reflect.Value, string) bool { return true }),
+				"WalkValues must have truncated on it too")
+		})
+	}
 }
 
 func TestTypeEdges_ArgumentWithoutValueFromYieldsItsType(t *testing.T) {
