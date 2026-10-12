@@ -82,9 +82,9 @@ func (r *reach) lookups(c refClass) []*posSet {
 	case !strings.HasPrefix(pointer, "/"):
 		return out
 	case c.drifted || strings.HasPrefix(pointer, "/$defs/"):
-		return appendSet(out, r.tree.navigate(r.tree.anywhere, slices.Collect(jsontext.Pointer(pointer).Tokens())))
+		return appendSet(out, r.tree.navigate(r.tree.anywhere, pointerTokens(pointer)))
 	default:
-		if t := r.tree.walk(r.tree.root, slices.Collect(jsontext.Pointer(pointer).Tokens())); t != nil {
+		if t := r.tree.walk(r.tree.root, pointerTokens(pointer)); t != nil {
 			out = append(out, &posSet{members: []*yaml.Node{t}})
 		}
 		return out
@@ -126,7 +126,7 @@ func (r *reach) idLandings(out []*posSet, scope *yaml.Node, ref references.Refer
 	switch pointer := string(ref.GetJSONPointer()); {
 	case pointer == "" || pointer == "/":
 	case strings.HasPrefix(pointer, "/"):
-		tokens = slices.Collect(jsontext.Pointer(pointer).Tokens())
+		tokens = pointerTokens(pointer)
 	default:
 		return out // the anchor half is already among them
 	}
@@ -218,4 +218,8 @@ func lastSegment(uri string) string {
 		return last
 	}
 	return uri
+}
+
+func pointerTokens(pointer string) []string {
+	return slices.Collect(jsontext.Pointer(pointer).Tokens())
 }
