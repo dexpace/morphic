@@ -121,6 +121,39 @@ paths:
 	assert.Contains(t, rules, "validation-required-field", "and validation finds what the build cannot: no responses")
 }
 
+// TestLoad_AFieldTheReferenceAlsoReadsIsReportedOnce pins one finding per
+// malformed value beside a path item's $ref: the library validates the summary
+// and description there as its Reference Object's, so the model's own reading
+// of them adds nothing, while a finding only the model makes, the operation's,
+// is still reported.
+func TestLoad_AFieldTheReferenceAlsoReadsIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: ` + version + `
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    summary: [s]
+    description: [d]
+    put: {deprecated: notabool, responses: {"200": {description: ok}}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)}, Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+
+		lines := map[int]int{}
+		for _, d := range diags {
+			if d.Code == diag.Validation+"/validation-type-mismatch" {
+				lines[d.Provenance.Position.Line]++
+			}
+		}
+		assert.Equal(t, map[int]int{6: 1, 7: 1, 8: 1}, lines,
+			"%s: the summary, the description and the operation's flag, once each", version)
+	}
+}
+
 // TestSiblingsFrom_AParserFaultIsReportedOnce pins what a use site the parser
 // faults on leaves behind: an error where it is written, reported once however
 // many aliases reach it, and no model, so the lowering reads it as having none.

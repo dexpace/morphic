@@ -92,6 +92,32 @@ func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (
 	return siblingsFrom(ctx, soa.Walk(ctx, doc), locate, siblingModel(doc))
 }
 
+// unreported returns the findings of errs that valErrs, the document's own
+// validation's, does not already make at the same node under the same rule.
+// The library reads the summary and description beside a path item's $ref as
+// its Reference Object's and validates them there, so a model holding them too
+// would report one malformed value twice.
+func unreported(errs, valErrs []error) []error {
+	type finding struct {
+		node *yaml.Node
+		rule string
+	}
+	made := make(map[finding]bool, len(valErrs))
+	for _, e := range valErrs {
+		if verr, ok := asValidationError(e); ok && verr.Node != nil {
+			made[finding{verr.Node, verr.Rule}] = true
+		}
+	}
+	out := make([]error, 0, len(errs))
+	for _, e := range errs {
+		if verr, ok := asValidationError(e); ok && made[finding{verr.Node, verr.Rule}] {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 // siblingsFrom is modelSiblings over a walk and a model build the caller
 // supplies, so a test can hand it a walk that panics, or a build that faults.
 //

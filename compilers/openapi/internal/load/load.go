@@ -249,7 +249,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 
 	locate := locator(srcIndex, origin)
 	sibs, sibErrs, sibFaults := modelSiblings(ctx, doc, locate)
-	valErrs = append(valErrs, sibErrs...)
+	valErrs = append(valErrs, unreported(sibErrs, valErrs)...)
 	validation.SortValidationErrors(valErrs)
 	if d, found := opts.chains(ctx, locate, root, doc, sibs); found {
 		if d.Severity == ir.SeverityError {
