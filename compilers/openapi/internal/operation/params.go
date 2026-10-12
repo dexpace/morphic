@@ -354,8 +354,7 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	// dropping content the document states is an emitter's call, not a
 	// compiler's, and this position has an IR field to hold it.
 	if p.Explode != nil {
-		explode := *p.Explode
-		return style, &explode
+		return style, new(*p.Explode)
 	}
 	// Absent one, explode qualifies a style, so a position resolving to no style
 	// gets no default either — a querystring binding's ContentType is the whole
@@ -363,8 +362,7 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	if style == "" {
 		return "", nil
 	}
-	explode := style == string(soa.SerializationStyleForm)
-	return style, &explode
+	return style, new(style == string(soa.SerializationStyleForm))
 }
 
 // defaultParamStyle returns the OpenAPI default serialization style for a

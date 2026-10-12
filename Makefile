@@ -22,8 +22,10 @@ GO ?= go
 # invoke go themselves, and the linter reads the stdlib through `go list`.
 #
 # Moving this means moving GOLANGCI_LINT_VERSION with it, to a release whose
-# staticcheck knows the new stdlib, and rewriting the two rows of
-# rawDivergences that pin an encoding/json escape (#431). Bump the three
+# staticcheck knows the new stdlib; moving golang.org/x/tools in go.mod to a
+# release that reads the new toolchain's export data, which internal/archtest
+# type-checks the lowering packages through; and rewriting the two rows of
+# rawDivergences that pin an encoding/json escape (#431). Bump the four
 # together or the gate fails on something other than the change under test.
 GO_VERSION := $(shell sed -n 's/^go //p' go.mod)
 ifeq ($(GO_VERSION),)

@@ -2,6 +2,8 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -765,9 +767,7 @@ func TestRawChildNodes_AgreesWithRawChildNode(t *testing.T) {
 
 			require.NotEmpty(t, children, "a document node is stepped through to its mapping")
 			keys := append([]string{"title", "absent"}, RawMappingKeys(&doc)...)
-			for key := range children {
-				keys = append(keys, key)
-			}
+			keys = slices.AppendSeq(keys, maps.Keys(children))
 			for _, key := range keys {
 				assert.True(t, RawChildNode(&doc, key) == children[key], "the two readers disagree on %q", key)
 			}

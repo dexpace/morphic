@@ -92,6 +92,8 @@ func (w *valueWalk) children(v reflect.Value, path string, depth int) {
 			w.descend(v.Elem(), path, depth+1)
 		}
 	case reflect.Struct:
+		// Indexed: ranging over v.Fields() puts the loop body on the heap for
+		// every struct the walk enters.
 		t := v.Type()
 		for i := range v.NumField() {
 			w.descend(v.Field(i), fieldPath(path, t.Field(i)), depth+1)
@@ -168,6 +170,7 @@ type mapEntry struct {
 // plain strings and ints all render distinct keys distinctly.
 func orderedEntries(v reflect.Value) []mapEntry {
 	entries := make([]mapEntry, 0, v.Len())
+	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
 	for iter := v.MapRange(); iter.Next(); {
 		k := iter.Key()
 		entries = append(entries, mapEntry{label: fmt.Sprintf("%v", k), key: k, value: iter.Value()})

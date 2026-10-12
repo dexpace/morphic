@@ -2,6 +2,7 @@ package pass_test
 
 import (
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -236,16 +236,14 @@ func irSourcePaths(t *testing.T) []string {
 	t.Helper()
 	_, self, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller must report this test's path")
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(self), "..", "ir", "*.go"))
+	dir := filepath.Join(filepath.Dir(self), "..", "ir")
+	pkg, err := build.ImportDir(dir, 0)
 	require.NoError(t, err)
+	require.NotEmpty(t, pkg.GoFiles, "the ir package must hold production Go sources")
 
-	paths := make([]string, 0, len(matches))
-	for _, path := range matches {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		paths = append(paths, path)
+	paths := make([]string, len(pkg.GoFiles))
+	for i, name := range pkg.GoFiles {
+		paths[i] = filepath.Join(dir, name)
 	}
-	require.NotEmpty(t, paths, "the ir package must hold production Go sources")
 	return paths
 }

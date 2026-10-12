@@ -85,8 +85,7 @@ func schemaKeywordCases(t *testing.T) []readCase {
 	}
 	schema := reflect.TypeFor[core.Schema]()
 	var cases []readCase
-	for i := range schema.NumField() {
-		field := schema.Field(i)
+	for field := range schema.Fields() {
 		keyword, shape := field.Tag.Get("key"), field.Type.String()
 		if !strings.Contains(shape, "jsonschema/oas3/core.Schema,bool]") {
 			continue
