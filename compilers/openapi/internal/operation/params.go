@@ -25,8 +25,7 @@ import (
 // Each parameter lowers at its declaration: the $ref target for a referenced
 // entry, else the list entry itself (issue #107). Its ID is rooted at mount, the
 // operation's mount pointer, not at the declaration it was copied from; a
-// repeat of one name and location keeps its own ID and is reported
-// (paramLedger).
+// repeat of one name and location keeps an ID of its own (paramLedger).
 func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil

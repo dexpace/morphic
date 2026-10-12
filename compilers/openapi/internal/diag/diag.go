@@ -152,16 +152,15 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
-	// DuplicateParameter reports a parameter repeating the name and location of
-	// an earlier one on its operation, once $ref entries are resolved and
-	// path-item entries merged, which OpenAPI forbids. The bundled parser checks
-	// only entries written inline, so it misses one reached through a $ref, and
-	// reports an inline one beside this (#634). Every occurrence is kept, since
-	// neither is wrong on its own, and each repeat's ID ends in its occurrence
-	// number, so no two parameters share one. A repeat no operation lowers is
-	// not seen here (#840).
+	// DuplicateParameter reports a parameter list entry repeating the name and
+	// location of an earlier entry in the same list, its $refs resolved, which
+	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
+	// report, which saw only inline entries: every list the source writes is
+	// checked whether or not it lowers (load), and a list another document
+	// writes where it lowers (the parameter lowering). A lowered list keeps
+	// every occurrence, each repeat's ID ending in its occurrence number.
 	//
-	// Error, as the parser's own report of the inline case is.
+	// Error, as the parser's report was.
 	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so

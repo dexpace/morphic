@@ -2,12 +2,16 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -1187,6 +1191,8 @@ func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
 				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
 
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
+			assert.Zero(t, openapitest.CountDiagsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters, ir.SeverityError),
+				"the parser's own report is dropped, so an inline repeat is one error")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, tc.repeat)
 			assert.Contains(t, msg, tc.first, "the report names the entry the repeat collides with")
 		})
@@ -1254,4 +1260,57 @@ components:
 	}, got)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/components/pathItems/Shared/parameters/1"))
+}
+
+// TestParams_RepeatInAnotherDocumentIsReportedOnce covers the two places a
+// repeat is reported. A list the source writes is load's, even when its entries
+// $ref another document; a list another document writes, which load's walk of
+// the source does not reach, is the lowering's, at the entry it lowered. Each
+// repeat is reported once.
+func TestParams_RepeatInAnotherDocumentIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	const other = `X:
+  parameters:
+    - {name: limit, in: query, schema: {type: integer}}
+    - {name: limit, in: query, schema: {type: string}}
+  get:
+    parameters:
+      - {name: q, in: query, schema: {type: string}}
+      - {name: q, in: header, schema: {type: string}}
+      - {name: q, in: query, schema: {type: string}}
+    responses: {"200": {description: ok}}
+Limit: {name: limit, in: query, schema: {type: integer}}
+`
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x: {$ref: "./other.yaml#/X"}
+  /y:
+    get:
+      parameters:
+        - $ref: "./other.yaml#/Limit"
+        - $ref: "./other.yaml#/Limit"
+      responses: {"200": {description: ok}}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+
+	got := map[jsontext.Pointer]int{}
+	for _, d := range diags {
+		if d.Code == diag.DuplicateParameter {
+			got[d.Provenance.Pointer]++
+		}
+	}
+	assert.Equal(t, map[jsontext.Pointer]int{
+		"/paths/~1x/get/parameters/2": 1,
+		"/paths/~1x/parameters/1":     1,
+		"/paths/~1y/get/parameters/1": 1,
+	}, got)
 }

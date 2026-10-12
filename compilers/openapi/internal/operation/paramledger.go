@@ -18,9 +18,12 @@ type paramSlot struct {
 }
 
 // paramLedger counts how often each slot has been declared on one operation, so
-// a repeat is numbered and reported against the entry that first held the slot.
-// The count follows the merged list, in order, and so never the iteration order
-// of a map.
+// a repeat is numbered. The count follows the merged list, in order, and so
+// never the iteration order of a map.
+//
+// A repeat in a list the source writes is load's to report, once, where it is
+// written (parameterRepeats). One in another document's content, which that
+// walk does not reach, is reported here, at the entry it was lowered from.
 type paramLedger struct {
 	mount   jsontext.Pointer
 	seen    map[paramSlot]int
@@ -33,8 +36,8 @@ func newParamLedger(mount jsontext.Pointer) *paramLedger {
 }
 
 // next returns the ID of the parameter holding name in in, written by the list
-// entry at entry, and the error a repeat raises at that entry. The first holder
-// has the bare ID and no error.
+// entry at entry, and the error a repeat raises there when c lowers another
+// document's content. The first holder has the bare ID and no error.
 func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Pointer) (ir.ParamID, []ir.Diagnostic) {
 	slot := paramSlot{name: name, in: in}
 	l.seen[slot]++
@@ -44,7 +47,9 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 		l.firstAt[slot] = entry
 		return id, nil
 	}
+	if !c.RefScope().Foreign {
+		return id, nil
+	}
 	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"parameter %q in %q repeats the entry at %s; every occurrence is kept, and this one's ID ends in /%d",
-		name, in, l.firstAt[slot], occurrence)}
+		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
 }
