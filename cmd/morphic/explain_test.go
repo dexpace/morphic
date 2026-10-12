@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -209,6 +211,51 @@ func TestNodeAtPointer_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 			require.True(t, ok, "a node declared at the root is still found there")
 			assert.Equal(t, atRoot.ID, id, "the root names that node, never the decoy")
 		})
+	}
+}
+
+// sharedPointer is the coordinate of a oneOf branch the compiler lowers twice,
+// as an anonymous scalar and as the composed model that distributes it
+// (testdata/conformance/openapi/allof-oneof-cooccurrence.yaml, at
+// /components/schemas/Combo/oneOf/0): two nodes, one coordinate.
+const sharedPointer = "/components/schemas/Combo/oneOf/0"
+
+// documentOfSharedNodes returns a document of n model nodes, all stamped at
+// sharedPointer and named t/n/00, t/n/01, and so on.
+func documentOfSharedNodes(n int) *ir.Document {
+	types := make(ir.TypeRegistry, n)
+	for i := range n {
+		id := ir.TypeID(fmt.Sprintf("t/n/%02d", i))
+		types[id] = &ir.Model{ID: id, Provenance: ir.Provenance{Source: 0, Pointer: sharedPointer}}
+	}
+	return &ir.Document{Types: types}
+}
+
+// TestSortedTypeIDs_AreInIDOrder pins the order itself. Sixty-four keys make it
+// all but impossible for an unsorted answer, which Go's randomized map
+// iteration would give, to pass.
+func TestSortedTypeIDs_AreInIDOrder(t *testing.T) {
+	t.Parallel()
+	ids := sortedTypeIDs(documentOfSharedNodes(64))
+
+	assert.Len(t, ids, 64)
+	assert.True(t, slices.IsSorted(ids), "explain output is deterministic only if its walk is")
+}
+
+// TestNodeAtPointer_ASharedPointerNamesTheLeastID pins which node explain names
+// when several sit at one coordinate: the first in ID order, every time. Each
+// round builds a fresh registry, so each draws its own map iteration order, and
+// an unsorted walk would have to name the least ID by luck in all thirty-two.
+func TestNodeAtPointer_ASharedPointerNamesTheLeastID(t *testing.T) {
+	t.Parallel()
+	const types, rounds = 16, 32
+	for round := range rounds {
+		doc := documentOfSharedNodes(types)
+
+		id, _, ok := nodeAtPointer(doc, sharedPointer)
+
+		require.True(t, ok, "round %d: the coordinate holds %d nodes", round, types)
+		require.Equal(t, ir.TypeID("t/n/00"), id, "round %d", round)
 	}
 }
 

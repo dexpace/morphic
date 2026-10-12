@@ -675,7 +675,7 @@ Neither is adopted, for four reasons:
 
 `gods` is separately unsuitable: v1 is `interface{}`-based, and the generic v2 has been at
 `v2.0.0-alpha` since January 2024. The actual need is a few dozen set-shaped maps and a handful of
-sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys` already cover.
+sorts, which `maps.Keys` + `slices.Sorted` already cover.
 
 ## 10. Deliberately out of scope
 
