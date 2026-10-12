@@ -25,11 +25,9 @@ func BenchmarkValidate_Petstore(b *testing.B) {
 
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		diags = pass.Validate(doc)
 	}
-	b.StopTimer()
 
 	// Measure the clean path, and say so: a document Validate rejects would take
 	// different branches and the number would not mean what the name claims.

@@ -2,6 +2,7 @@ package openapitest
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,24 +76,16 @@ func RequireNoErrorDiags(t TB, diags []ir.Diagnostic) {
 // given severity.
 func AssertHasCode(t TB, diags []ir.Diagnostic, code string, sev ir.Severity) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Code == code && d.Severity == sev {
-			return
-		}
+	if !slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code && d.Severity == sev }) {
+		t.Fatalf("expected a %v diagnostic with code %q, got %+v", sev, code, diags)
 	}
-	t.Fatalf("expected a %v diagnostic with code %q, got %+v", sev, code, diags)
 }
 
 // HasDiag reports whether diags contains a diagnostic with the exact code, at
 // any severity. It is the existential half of the vocabulary: use it where a
 // test only needs to know a diagnostic fired, not how many or at what severity.
 func HasDiag(diags []ir.Diagnostic, code string) bool {
-	for _, d := range diags {
-		if d.Code == code {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code })
 }
 
 // HasDiagAt reports whether diags contains a diagnostic with the exact code at
@@ -103,12 +96,9 @@ func HasDiagAt(diags []ir.Diagnostic, code string, sev ir.Severity) bool {
 
 // HasDiagCodeAt reports whether diags carries code at exactly pointer.
 func HasDiagCodeAt(diags []ir.Diagnostic, code, pointer string) bool {
-	for _, d := range diags {
-		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer)
+	})
 }
 
 // CountDiagsAt counts the diagnostics in diags matching code and sev exactly.
@@ -146,23 +136,24 @@ func DiagMessageAt(t TB, diags []ir.Diagnostic, code string, sev ir.Severity, po
 // diags, and whether one was found — the pointer/message inspection counterpart
 // to HasDiagAt/CountDiagsAt.
 func FirstDegradedWarning(diags []ir.Diagnostic) (ir.Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
-			return d, true
-		}
+	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning
+	})
+	if i < 0 {
+		return ir.Diagnostic{}, false
 	}
-	return ir.Diagnostic{}, false
+	return diags[i], true
 }
 
 // AssertInfoDiagAt requires one info diagnostic stamped at pointer.
 func AssertInfoDiagAt(t TB, diags []ir.Diagnostic, pointer string) {
 	t.Helper()
-	for _, d := range diags {
-		if d.Severity == ir.SeverityInfo && d.Provenance.Pointer == jsontext.Pointer(pointer) {
-			return
-		}
+	found := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Severity == ir.SeverityInfo && d.Provenance.Pointer == jsontext.Pointer(pointer)
+	})
+	if !found {
+		assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
 	}
-	assert.Fail(t, "nothing announced this", "no info diagnostic at %q; got %+v", pointer, diags)
 }
 
 // AssertProbeDocsKept checks all three documentation keywords InlineProbeBody

@@ -91,10 +91,7 @@ func parseDecimalBound(v ir.BigVal) (decimalBound, bool) {
 	if i := strings.IndexAny(unsigned, "eE"); i >= 0 {
 		mantissa, expText = unsigned[:i], unsigned[i+1:]
 	}
-	intPart, frac := mantissa, ""
-	if i := strings.IndexByte(mantissa, '.'); i >= 0 {
-		intPart, frac = mantissa[:i], mantissa[i+1:]
-	}
+	intPart, frac, _ := strings.Cut(mantissa, ".")
 
 	digits := intPart + frac
 	if !isDigits(digits) {

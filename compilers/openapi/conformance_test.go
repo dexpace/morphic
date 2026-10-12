@@ -2512,10 +2512,8 @@ func propIDExists(doc *ir.Document, id ir.PropID) bool {
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.ID == id {
-				return true
-			}
+		if slices.ContainsFunc(m.Properties, func(p ir.Property) bool { return p.ID == id }) {
+			return true
 		}
 	}
 	return false
@@ -3160,7 +3158,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := v.Interface().(ir.Unmodeled)
+		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}

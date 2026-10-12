@@ -2,6 +2,7 @@ package irverify_test // external test package — importing across layers is le
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -129,9 +130,7 @@ paths:
 func unmodeledKeys(doc *ir.Document) []string {
 	var keys []string
 	collect := func(p ir.Unmodeled) {
-		for k := range p {
-			keys = append(keys, k)
-		}
+		keys = slices.AppendSeq(keys, maps.Keys(p))
 	}
 	for _, svc := range doc.Services {
 		for _, g := range svc.Groups {

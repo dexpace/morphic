@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -34,7 +35,9 @@ type frame struct {
 	next int
 }
 
-// pointerEscaper escapes a token as RFC 6901 does.
+// pointerEscaper escapes a token as RFC 6901 does, byte for byte: jsontext
+// would spell a byte that is no UTF-8 as U+FFFD, a key the library never
+// compares.
 var pointerEscaper = strings.NewReplacer("~", "~0", "/", "~1")
 
 // indexPositions walks the tree under root once. Aliases are followed, as the
@@ -120,9 +123,9 @@ func (p *positions) pointerOf(node *yaml.Node) jsontext.Pointer {
 		at = o.parent
 	}
 	var sb strings.Builder
-	for i := len(tokens) - 1; i >= 0; i-- {
+	for _, token := range slices.Backward(tokens) {
 		sb.WriteByte('/')
-		sb.WriteString(tokens[i])
+		sb.WriteString(token)
 	}
 	return jsontext.Pointer(sb.String())
 }

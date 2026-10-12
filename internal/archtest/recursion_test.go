@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"cmp"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -8,7 +9,6 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -117,17 +117,14 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		if len(c) == 1 && !calls[c[0]][c[0]] {
 			continue
 		}
-		sort.Strings(c)
+		slices.Sort(c)
 		cycles = append(cycles, c)
 	}
 	// Ties are broken by first member because there is more than one pair now,
-	// and sort.Slice is not stable: length alone would leave the two pairs in
+	// and the sort is not stable: length alone would leave the two pairs in
 	// whichever order the sort happened to land them.
-	sort.Slice(cycles, func(i, j int) bool {
-		if len(cycles[i]) != len(cycles[j]) {
-			return len(cycles[i]) > len(cycles[j])
-		}
-		return cycles[i][0] < cycles[j][0]
+	slices.SortFunc(cycles, func(a, b []string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a[0], b[0]))
 	})
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
@@ -373,7 +370,7 @@ func bindingsOf(d decl) map[string]string {
 	bind(d.recv, d.recvType)
 	bindFields(bind, d.fn.Type.Params)
 	bindFields(bind, d.fn.Type.Results)
-	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(d.fn.Body) {
 		switch v := n.(type) {
 		case *ast.FuncLit:
 			bindFields(bind, v.Type.Params)
@@ -385,8 +382,7 @@ func bindingsOf(d decl) map[string]string {
 		default:
 			// No other node states a type outright for a name it introduces.
 		}
-		return true
-	})
+	}
 
 	for name := range shadowed {
 		delete(env, name)
@@ -548,7 +544,7 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 	// literal's key and a parameter's own name. Counting them would read `.Ref`
 	// on a parsed schema as the schema entry point and tie the package to it.
 	skip := map[*ast.Ident]bool{}
-	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(d.fn.Body) {
 		switch v := n.(type) {
 		case *ast.SelectorExpr:
 			skip[v.Sel] = true
@@ -561,8 +557,7 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 				skip[id] = true
 			}
 		}
-		return true
-	})
+	}
 
 	env := bindingsOf(d)
 	out := map[string]bool{}
@@ -574,7 +569,7 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 			out[name] = true
 		}
 	}
-	ast.Inspect(d.fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(d.fn.Body) {
 		if sel, isSel := n.(*ast.SelectorExpr); isSel {
 			// Recorded against the resolving package rather than the flat
 			// namespace, so a field read on one package's type can never match a
@@ -582,13 +577,13 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 			if name := d.scope.nodeNamed(sel, env, 0); d.scope.declares(name) {
 				out[name] = true
 			}
-			return true
+			continue
 		}
 		if call, isCall := n.(*ast.CallExpr); isCall {
 			if fun, isIdent := call.Fun.(*ast.Ident); isIdent {
 				record(fun.Name)
 			}
-			return true
+			continue
 		}
 		// Position is judged, scope is not: a local shadowing a lowering's name
 		// reads as an edge to it. That errs toward a spurious pinned member,
@@ -597,8 +592,7 @@ func calleesOf(d decl, known map[string]bool) map[string]bool {
 		if isIdent && !skip[id] {
 			record(id.Name)
 		}
-		return true
-	})
+	}
 	return out
 }
 
@@ -628,7 +622,7 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 				succ = append(succ, w)
 			}
 		}
-		sort.Strings(succ)
+		slices.Sort(succ)
 		for _, w := range succ {
 			switch {
 			case !visited(index, w):

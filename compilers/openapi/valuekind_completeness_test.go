@@ -77,18 +77,17 @@ func valueKindSwitches(t *testing.T, declared []string) map[string][]string {
 // body names as case expressions, sorted and deduplicated.
 func valueKindsNamedIn(body *ast.BlockStmt, declared []string) []string {
 	seen := map[string]bool{}
-	ast.Inspect(body, func(n ast.Node) bool {
+	for n := range ast.Preorder(body) {
 		cc, isCase := n.(*ast.CaseClause)
 		if !isCase {
-			return true
+			continue
 		}
 		for _, expr := range cc.List {
 			if name, ok := irSelectorName(expr); ok && slices.Contains(declared, name) {
 				seen[name] = true
 			}
 		}
-		return true
-	})
+	}
 	return slices.Sorted(maps.Keys(seen))
 }
 
