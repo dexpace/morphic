@@ -3076,7 +3076,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := v.Interface().(ir.Unmodeled)
+		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}

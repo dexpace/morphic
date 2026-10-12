@@ -181,7 +181,7 @@ func mergeChain(depth int) string {
 func anchoredReferences(n int) string {
 	var sb strings.Builder
 	sb.WriteString("    Big:\n      properties:\n")
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&sb, "        p%d: {$anchor: a%d, type: string}\n        q%d: {$ref: '#a%d'}\n", i, i, i, i)
 	}
 	return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -199,14 +199,14 @@ var workShapes = []struct {
 }{
 	{"one spelling everywhere", func(n int) string {
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    S%d: {$defs: {a: {$ref: '#/$defs/b'}, b: {type: string}}}\n", i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
 	}},
 	{"a distinct spelling in each", func(n int) string {
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    S%d: {$defs: {k%d: {type: string}}, properties: {p: {$ref: '#/$defs/k%d'}}}\n", i, i, i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -216,7 +216,7 @@ var workShapes = []struct {
 		var sb strings.Builder
 		for j := 0; j < n/6+1; j++ {
 			fmt.Fprintf(&sb, "    M%d:\n      $defs:\n", j)
-			for k := 0; k < 5; k++ {
+			for k := range 5 {
 				fmt.Fprintf(&sb, "        L%d: {$ref: '#/$defs/L%d'}\n", k, k+1)
 			}
 			sb.WriteString("        L5: {type: string}\n")
@@ -235,7 +235,7 @@ var workShapes = []struct {
 	{"a new URI to one duplicated anchor in each", func(n int) string {
 		var sb strings.Builder
 		sb.WriteString("    Big:\n      properties:\n")
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "        p%d: {$anchor: a, type: string}\n        q%d: {$ref: 'u%d#a'}\n", i, i, i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -243,7 +243,7 @@ var workShapes = []struct {
 	{"one schema aliased into a new component in each", func(n int) string {
 		var sb strings.Builder
 		sb.WriteString("    Q: &q {type: string, example: {$anchor: z}}\n")
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    C%d: {properties: {p: *q}}\n", i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -259,7 +259,7 @@ var workShapes = []struct {
 // into a schemas document.
 func repeated(n int, block string) string {
 	var sb strings.Builder
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&sb, block, i, i)
 	}
 	return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -307,11 +307,11 @@ func TestNewReach_ChargesEveryPhase(t *testing.T) {
 	const copies, keys = 40, 50
 	var sb strings.Builder
 	sb.WriteString("    Big: &big {")
-	for k := 0; k < keys; k++ {
+	for k := range keys {
 		fmt.Fprintf(&sb, "k%d: {type: string}, ", k)
 	}
 	sb.WriteString("$anchor: a}\n")
-	for i := 0; i < copies; i++ {
+	for i := range copies {
 		fmt.Fprintf(&sb, "    M%d: {<<: *big, $defs: {d: {$ref: '#'}}, properties: {p: {$ref: '#/$defs/d'}}}\n", i)
 	}
 	doc, root := buildDoc(t, schemasDoc(strings.TrimRight(sb.String(), "\n")))
@@ -415,7 +415,7 @@ func TestCycles_ChargesEveryStep(t *testing.T) {
 	const declarations = 200
 	var sb strings.Builder
 	sb.WriteString("    A:\n      $ref: '#a'\n      properties:\n")
-	for i := 0; i < declarations; i++ {
+	for i := range declarations {
 		fmt.Fprintf(&sb, "        p%d: {$anchor: a, type: string}\n", i)
 	}
 	doc, root := buildDoc(t, schemasDoc(strings.TrimRight(sb.String(), "\n")))

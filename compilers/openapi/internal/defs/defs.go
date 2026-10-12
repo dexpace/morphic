@@ -3,6 +3,7 @@ package defs
 import (
 	"encoding/json/jsontext"
 	"reflect"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -187,9 +188,9 @@ func (r *Reader) placeAt(pos jsontext.Pointer) place {
 		}
 		unread = append(unread, at)
 	}
-	for i := len(unread) - 1; i >= 0; i-- {
-		here = r.read(here, unread[i])
-		r.places[unread[i]] = here
+	for _, u := range slices.Backward(unread) {
+		here = r.read(here, u)
+		r.places[u] = here
 	}
 	return here
 }

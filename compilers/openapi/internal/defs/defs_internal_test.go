@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -397,8 +398,8 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 		assert.Equal(t, fresh[i], ask(shared, q), "forward: %v", q)
 	}
 	reversed := NewReader(root)
-	for i := len(queries) - 1; i >= 0; i-- {
-		assert.Equal(t, fresh[i], ask(reversed, queries[i]), "reversed: %v", queries[i])
+	for i, q := range slices.Backward(queries) {
+		assert.Equal(t, fresh[i], ask(reversed, q), "reversed: %v", q)
 	}
 	var found int
 	for _, r := range fresh {

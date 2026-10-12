@@ -377,7 +377,7 @@ func readReachFuzzGolden(t *testing.T, goldenPath string) []int {
 	require.NoError(t, err, "read golden %s (run with -update to create it)", goldenPath)
 
 	var indices []int
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

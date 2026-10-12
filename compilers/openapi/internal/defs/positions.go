@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -120,9 +121,9 @@ func (p *positions) pointerOf(node *yaml.Node) jsontext.Pointer {
 		at = o.parent
 	}
 	var sb strings.Builder
-	for i := len(tokens) - 1; i >= 0; i-- {
+	for _, token := range slices.Backward(tokens) {
 		sb.WriteByte('/')
-		sb.WriteString(tokens[i])
+		sb.WriteString(token)
 	}
 	return jsontext.Pointer(sb.String())
 }
