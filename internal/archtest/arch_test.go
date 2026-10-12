@@ -255,7 +255,10 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
-	"internal/testspec":   {},
+	// The coverage gate's judge: tooling outside the pipeline, like the harness
+	// command above. x/tools/cover parses and merges the profile it judges.
+	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
+	"internal/testspec":     {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.

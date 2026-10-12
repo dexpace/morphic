@@ -62,10 +62,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
+.PHONY: gate fmt vet lint nolint-grammar nolint build coverage \
 	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz bench-smoke
+gate: fmt vet lint nolint-grammar nolint build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -103,11 +103,27 @@ nolint:
 build:
 	$(GO) build ./...
 
-coverage-count:
-	./scripts/verify-coverage-count.sh
-
+# The suite runs once, under the race detector, and cmd/morphic-covergate judges
+# its profile statement by statement; its doc says why go test's percentage is
+# not enough. -race rides along rather than taking a run of its own: both want
+# the same execution of the same tests, and the profile is identical either way.
+#
+# -timeout is explicit because the compiler refuses documents that would hang
+# the third-party resolver, so a regression there is a test that never returns.
+# 300s clears the slowest package under -race by more than an order of magnitude
+# and still turns a hang into a stack dump naming the stuck goroutine.
+#
+# The profile path is minted per run: go test truncates it at the start and
+# appends each package as it finishes, so two runs sharing one would each judge
+# blocks partly the other's. COVER_FILE names a profile to keep instead.
 coverage:
-	./scripts/check-coverage.sh
+	@profile="$${COVER_FILE:-}"; \
+	if [ -z "$$profile" ]; then \
+		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")"; \
+		trap 'rm -f "$$profile"' EXIT; \
+	fi; \
+	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) run ./cmd/morphic-covergate "$$profile"
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

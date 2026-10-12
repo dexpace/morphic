@@ -32,8 +32,6 @@ jobs:
         run: make nolint
       - name: build
         run: make build
-      - name: coverage counting
-        run: make coverage-count
       - name: test (race detector, exactly 100% coverage)
         run: make coverage
       - name: fuzz

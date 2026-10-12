@@ -271,7 +271,7 @@ pins, so the local command and the job are the same commands in the same order. 
 for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
 rest are individually runnable while iterating.
 
-**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+**Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
 statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 
