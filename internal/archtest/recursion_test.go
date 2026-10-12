@@ -269,9 +269,10 @@ func plantedGraph(t *testing.T, src string) map[string]map[string]bool {
 	return callGraphOf(t, []typedPkg{{files: []*ast.File{f}, info: info}})
 }
 
-// TestLoweringCallGraph_ResolvesWhatSyntaxCannot plants the shapes a parser-only
-// resolver got wrong, and the references that must stay out of the graph.
-func TestLoweringCallGraph_ResolvesWhatSyntaxCannot(t *testing.T) {
+// TestLoweringCallGraph_FollowsWhatTheTypeCheckerResolves plants sources whose
+// edges are decided by what the checker resolves a name to: the references a
+// parser alone gets wrong, and the ones that must stay out of the graph.
+func TestLoweringCallGraph_FollowsWhatTheTypeCheckerResolves(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -472,12 +473,12 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 // GitHub #323 on the tree. Each edge names a method and so decides which
 // lowering runs; a graph resolving only the declaring method's own receiver
 // described every one as absent. The bases cover the shapes these packages
-// write: a constructor's local, a pointer parameter, a composite literal.
+// write: a constructor's local, a pointer parameter, a composite literal, a
+// multi-result bind.
 //
-// Not every selector resolves: anchorWalk.walkMapping reads its pairs through
-// w.view.MappingPairs, whose field type nodeview declares and no package this
-// pin reads holds a node for. It resolves to nothing, not to whatever the flat
-// namespace holds under the same trailing name.
+// Not every selector reaches a node: anchorWalk.walkMapping reads its pairs
+// through w.view.MappingPairs, a method of a type nodeview declares, and no
+// package this pin reads holds a node for it. It adds no edge.
 func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	t.Parallel()
 	graph := loweringCallGraph(t)
