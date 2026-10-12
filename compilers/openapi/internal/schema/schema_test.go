@@ -4274,28 +4274,6 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
-// TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
-// makes two reads of one sub-schema dedup rather than report twice: the
-// diagnostics a constraint read produces are located at the position that read
-// it, not at the position that declared it.
-func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
-	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-	in := []ir.Diagnostic{
-		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
-		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
-	}
-
-	got := schema.StampConstraintDiags(c, in, "/components/schemas/S")
-
-	require.Len(t, got, 2)
-	for _, d := range got {
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
-			"every diagnostic is relocated, not just the first")
-	}
-	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
-}
-
 // TestAllOf_FalseBranchClosesTheComposition pins what a `false` allOf branch
 // does to the composed node. `false` admits nothing, so the composition admits
 // nothing: the model closes and the branch is kept verbatim beside it, which is

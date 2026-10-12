@@ -149,30 +149,27 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointe
 	return diags
 }
 
-// schemaConstraints reads the value constraints of a schema and stamps each
-// constraint diagnostic with pointer's provenance. It returns nil constraints
-// when the schema writes none. It is the shared path for every alias a body
-// reduces to, a named component (lowerComponentSchema) or a $ref-hoisted
-// sub-schema (hoistSubSchema), so a scalar aliasing a shared primitive keeps
-// its constraints, including a bound written beside a $ref.
+// ConstraintsOf returns the value constraints s writes, or nil where it writes
+// none, for the node or carrier at pointer to hold, so a node a position owns,
+// a property and a parameter read them alike.
 //
-// p is the Unmodeled map of the carrier the constraints land on. A co-declared
-// numeric bound with no field in ir.Constraints is kept there, beside the
-// constraints it did not reach (GitHub #286).
-func schemaConstraints(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// p is the Unmodeled map of the node or carrier the constraints land on. A
+// co-declared numeric bound with no field in ir.Constraints is kept there,
+// beside the constraints it did not reach (GitHub #286).
+func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
 	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
 	*p = annotation.MergeUnmodeled(*p, kept)
-	return cons, StampConstraintDiags(c, diags, pointer)
+	return cons, stampConstraintDiags(c, diags, pointer)
 }
 
-// StampConstraintDiags gives every constraint diagnostic the provenance of the
+// stampConstraintDiags gives every constraint diagnostic the provenance of the
 // pointer that read the schema, which is what makes two reads of one sub-schema
 // — its owning property and a $ref that hoists it — identical and so deduped by
 // Diags.Append rather than reported twice.
-func StampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
+func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
 	for i := range diags {
 		diags[i].Provenance = c.ProvenanceAt(pointer)
 	}
@@ -188,7 +185,7 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 	target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(c, &kept, s, pointer)
+	cons, diags := ConstraintsOf(c, &kept, s, pointer)
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
 		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
@@ -1014,7 +1011,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
@@ -1204,10 +1201,8 @@ func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*
 // use-site precedence would publish the wider of the two as the whole truth. It
 // stays on the node the reference points at instead (ir-design §12.2).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := schemaConstraints(c, &p.Unmodeled, ref, pointer)
-	if cons != nil {
-		p.Constraints = cons
-	}
+	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, pointer)
+	p.Constraints = cons
 	return diags
 }
 
@@ -1372,7 +1367,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth 
 			wireRef := ts.PrimRef(*wire)
 			enc.WireType = &wireRef
 		}
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
