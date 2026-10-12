@@ -319,7 +319,7 @@
     {
       "severity": "warning",
       "code": "openapi/duplicate-enum-value",
-      "message": "enum value repeats the member at index 0; every occurrence is kept, and this one's ID ends in /2",
+      "message": "enum value repeats the entry at index 0; every occurrence is kept",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/E/enum/4"

@@ -139,6 +139,8 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"/components/schemas/E/enum/2", "/components/schemas/E/enum/3"}, at)
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, msg, "the entry at index 0;", "the third a repeats the first, not the second")
 }
 
 // TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex covers a nullable enum,
@@ -152,7 +154,33 @@ func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
 `))
 	assert.Equal(t, []string{"s:a", "s:b", "s:a/2"}, memberKeys(enumOf(t, doc, componentID("E"))))
 	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
-	assert.Contains(t, msg, "the member at index 1;")
+	assert.Contains(t, msg, "the entry at index 1;")
+}
+
+// TestEnumRepeats_AreReportedWhateverTheSetLowersTo pins the report to the list
+// as written: a repeat is reported where the set degrades to a union, numbers
+// compare by value there too, and a repeated null is reported where a nullable
+// enum keeps no null member. A list entry is not compared (#842).
+func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
+	t.Parallel()
+	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    Mixed: {enum: [a, 1, a, 1.0]}
+    Nullable: {type: [string, "null"], enum: [a, null, null]}
+    Nulls: {enum: [null, null]}
+    Lists: {enum: [[1], [1]]}
+`))
+	var at []string
+	for _, d := range diags {
+		if d.Code == diag.DuplicateEnumValue {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			at = append(at, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"/components/schemas/Mixed/enum/2", "/components/schemas/Mixed/enum/3",
+		"/components/schemas/Nullable/enum/2", "/components/schemas/Nulls/enum/1",
+	}, at)
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/Mixed/enum/3")
+	assert.Contains(t, msg, "the entry at index 1;", "1.0 repeats 1, not the a between them")
 }
 
 func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {

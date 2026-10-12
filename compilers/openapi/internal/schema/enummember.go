@@ -5,10 +5,13 @@ import (
 	"encoding/json/jsontext"
 	"strconv"
 
+	"github.com/speakeasy-api/openapi/values"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -52,31 +55,35 @@ func numberKey(n ir.BigVal) string {
 	return string(n)
 }
 
-// memberLedger counts how often each key has been seen in one enum, so a repeat
-// is numbered and reported against the member that first held the value.
-type memberLedger struct {
-	pointer jsontext.Pointer
-	seen    map[string]int
-	firstAt map[string]int
-}
-
-// newMemberLedger returns a ledger for the enum at pointer.
-func newMemberLedger(pointer jsontext.Pointer) *memberLedger {
-	return &memberLedger{pointer: pointer, seen: map[string]int{}, firstAt: map[string]int{}}
-}
-
-// next returns the ID of the member holding key at source index index, and the
-// warning a repeated value raises at that entry's own pointer.
-func (l *memberLedger) next(c lowering.Ctx, key string, index int) (ir.EnumMemberID, []ir.Diagnostic) {
-	l.seen[key]++
-	occurrence := l.seen[key]
-	id := ids.EnumMember(l.pointer, key, occurrence)
-	if occurrence == 1 {
-		l.firstAt[key] = index
-		return id, nil
+// enumRepeats reports each entry of the enum at pointer whose value an earlier
+// entry already holds, at the repeat's own pointer. It reads the list as
+// written, so a repeat is reported whether the set lowers to an Enum or
+// degrades to a Union, and a repeated null is reported though a nullable enum
+// keeps no null member.
+//
+// Values compare by enumMemberKey, which keys member IDs too, so a repeat
+// reported in an Enum is a member whose ID ends in its occurrence number. A list
+// or object entry has no key and is never compared (#842).
+func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer) []ir.Diagnostic {
+	firstAt := make(map[string]int, len(nodes))
+	var diags []ir.Diagnostic
+	for i, node := range nodes {
+		val, err := value.FromNode(node)
+		if err != nil {
+			continue
+		}
+		key, keyed := enumMemberKey(val)
+		if !keyed {
+			continue
+		}
+		first, repeated := firstAt[key]
+		if !repeated {
+			firstAt[key] = i
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue,
+			pointer+ids.Ptr("enum", strconv.Itoa(i)),
+			"enum value repeats the entry at index %d; every occurrence is kept", first))
 	}
-	at := l.pointer + ids.Ptr("enum", strconv.Itoa(index))
-	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue, at,
-		"enum value repeats the member at index %d; every occurrence is kept, and this one's ID ends in /%d",
-		l.firstAt[key], occurrence)}
+	return diags
 }

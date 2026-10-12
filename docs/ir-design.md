@@ -285,7 +285,8 @@ An enum member is identified by the enum that declares it and the value it holds
 enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one) and beneath its
 path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
 (`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
-scope is what ties the two IDs together. The key is described in §4.5.
+scope is what ties the two IDs together. The key, and the number a repeated value appends after it,
+are described in §4.5.
 
 `irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
 well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
@@ -765,8 +766,9 @@ significant digit, any others after a point, and the power of ten that digit car
 one is not an `Enum`. A value held twice keeps every member: the first has the bare key, and each
 repeat appends its occurrence number as one more token (`…/<key>/2`), as a repeated parameter does
 (§3.1), which no key can be, since every key opens with its tag and a colon. The OpenAPI compiler
-reports each repeat (`openapi/duplicate-enum-value`). Which repeat holds the bare ID follows source
-order, so a reorder keeps the set of IDs and may move that one.
+reports each repeat in the list as written (`openapi/duplicate-enum-value`), whether the list lowers
+to an `Enum` or degrades to a `Union`. Which repeat holds the bare ID follows source order, so a
+reorder keeps the set of IDs and may move that one.
 `pass.Validate` reports an ID repeated within one enum as `pass/duplicate-enum-member-id`.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has

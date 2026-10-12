@@ -121,11 +121,11 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
-	// DuplicateEnumValue reports an `enum` member whose value an earlier member
-	// already holds. Every occurrence is kept, since dropping one would lose a
-	// declaration, but only the first can hold the bare member ID, and each
-	// repeat's ID ends in its occurrence number: an artifact worth telling the
-	// author of.
+	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
+	// already holds, at the repeat's own position, whether the set lowers to an
+	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
+	// declaration; in an Enum each repeat's member ID ends in its occurrence
+	// number. A list or object entry is not compared (#842).
 	//
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
