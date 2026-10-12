@@ -3729,6 +3729,30 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	}
 }
 
+// TestHoistedScalar_ReportsABoundItCannotConvert pins that every way a scalar
+// hoists a node of its own (format: byte, a format the IR does not place, the
+// content vocabulary) reports a numeric bound that is no decimal, at the
+// position that wrote it, and keeps no constraints in its place.
+func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, schema string }{
+		{"format byte", "{type: string, format: byte, minimum: .inf}"},
+		{"an unplaced format", "{type: number, format: custom, minimum: .inf}"},
+		{"the content vocabulary", "{type: string, contentEncoding: base64, minimum: .inf}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar of its own")
+			require.NotNil(t, sc.Encoding, "carrying what it wrote")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.NumericPrecision, "/components/schemas/A"))
+			assert.Nil(t, sc.Constraints, "and no bound it could not read")
+		})
+	}
+}
+
 // TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
 // position that lowered to a shape with no Encoding field to fill keeps every
 // content keyword verbatim, contentSchema included — the three share one home,
