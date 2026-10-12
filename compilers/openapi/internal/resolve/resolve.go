@@ -451,18 +451,14 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 
 // sameAnchor reports whether two cleaned paths mean the same wherever the
 // working directory is, so that when they differ they name different files:
-// both absolute, or both relative and below it.
+// both absolute, or both below it. Below is filepath.IsLocal, which on Windows
+// also refuses a path rooted without a volume (\a) or naming one (C:a): neither
+// is absolute, and neither is resolved against the working directory alone.
 func sameAnchor(a, b string) bool {
 	if filepath.IsAbs(a) != filepath.IsAbs(b) {
 		return false
 	}
-	return filepath.IsAbs(a) || !climbs(a) && !climbs(b)
-}
-
-// climbs reports whether a cleaned relative path leaves the directory it is
-// relative to.
-func climbs(clean string) bool {
-	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	return filepath.IsAbs(a) || filepath.IsLocal(a) && filepath.IsLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a

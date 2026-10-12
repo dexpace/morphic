@@ -338,20 +338,24 @@ func sameDocumentByWorkingDirectory(a, b string) bool {
 // working directory only where it matters changes no answer. The grid is every
 // pair of spellings of two files and a directory, relative and absolute, with
 // parents climbing out of the working directory and back in, which cleaned
-// strings alone cannot equate.
+// strings alone cannot equate. Each file is also spelled rooted without its
+// volume: on Windows that path is neither absolute nor below the directory,
+// and elsewhere, with no volume, it is the absolute spelling again.
 func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
 	t.Parallel()
 	cwd, err := filepath.Abs(".")
 	require.NoError(t, err)
+	rooted := strings.TrimPrefix(cwd, filepath.VolumeName(cwd))
 	up := filepath.Join("..", filepath.Base(cwd))
 	names := []string{"spec.yaml", "api/spec.yaml", "other.yaml"}
 	forms := []string{"%s", "./%s", "api/../%s", "x/./../%s", up + "/%s", "../../%s"}
 	rest := []string{"", ".", "..", cwd, "https://example.com/spec.yaml", "https://example.com/./spec.yaml"}
-	paths := make([]string, 0, len(names)*len(forms)*4+len(rest))
+	paths := make([]string, 0, len(names)*len(forms)*5+len(rest))
 	for _, name := range names {
 		for _, form := range forms {
 			rel := strings.Replace(form, "%s", name, 1)
-			paths = append(paths, rel, filepath.Join(cwd, rel), cwd+"//"+rel, cwd+"/./"+rel)
+			paths = append(paths, rel, filepath.Join(cwd, rel), cwd+"//"+rel, cwd+"/./"+rel,
+				filepath.Join(rooted, rel))
 		}
 	}
 	paths = append(paths, rest...)
