@@ -1,5 +1,5 @@
 // This file is a package-level suite, not a per-source-file test: it holds the
-// compiler's switch over ir.ValueKind to the set the ir package declares, so it
+// compiler's switches over ir.ValueKind to the set the ir package declares, so it
 // reads two packages' sources rather than exercising one file's behaviour.
 package openapi_test // external test package — the check is syntactic
 
@@ -7,73 +7,90 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
-// valueKindSwitchFile and valueKindSwitchFunc locate the compiler's only switch
-// over ir.ValueKind, addressed relative to this test file.
-const (
-	// The switch lives in another package now, so the path is spelled from this
-	// package's directory. This suite stays here rather than following it: it
-	// already reads the ir package's sources by path, it is about the compiler
-	// rather than about the schema walk, and moving it would mean a second copy
-	// of every ir-source reader below, shared with the unwitnessed-reason suite.
-	valueKindSwitchFile = "internal/schema/compose.go"
-	valueKindSwitchFunc = "enumMemberForm"
-)
-
-// TestEnumMemberForm_NamesEveryValueKind requires enumMemberForm's switch to name
-// every ir.ValueKind constant the ir sources declare.
+// TestValueKindSwitches_NameEveryValueKind requires every switch over
+// ir.ValueKind in this compiler's sources to name every ValueKind constant the
+// ir sources declare.
 //
-// A ValueKind switch ending in a guessing default is neither a compile error nor
-// a test failure: a new kind is absorbed and described as whatever the default
-// asserts. ValueKind is a bare string enum with no marker method to enforce
-// completeness, so deriving the set from the ir sources is what makes the next
-// addition a red test.
-//
-// The check is syntactic, matching case expressions of the form ir.ValueX. An arm
-// may still classify a kind wrongly; it may no longer omit it.
-func TestEnumMemberForm_NamesEveryValueKind(t *testing.T) {
+// A switch ending in a guessing default absorbs a new kind as whatever the
+// default asserts, and ValueKind is a bare string enum with no marker method to
+// enforce completeness. Deriving both sets from the sources makes the next kind,
+// or the next switch, a red test. The check is syntactic: a switch is over
+// ir.ValueKind when one of its own cases names a ValueKind constant.
+func TestValueKindSwitches_NameEveryValueKind(t *testing.T) {
 	t.Parallel()
 	declared := irConstNamesOfType(t, "ValueKind")
 	require.NotEmpty(t, declared, "the ir sources must declare ValueKind constants")
-
-	named := valueKindsNamedInSwitch(t)
-	require.NotEmpty(t, named, "found no ir.Value* case expression in "+valueKindSwitchFunc)
-
 	slices.Sort(declared)
-	slices.Sort(named)
-	if diff := cmp.Diff(declared, named); diff != "" {
-		t.Errorf("%s does not name every ir.ValueKind (-declared in ir +named in the switch):\n%s\n"+
-			"give the missing kind an arm — the default refuses it as a non-member, which may not be what it deserves",
-			valueKindSwitchFunc, diff)
+
+	switches := valueKindSwitches(t, declared)
+	require.NotEmpty(t, switches, "found no switch over ir.ValueKind in the compiler's sources")
+	for at, named := range switches {
+		if diff := cmp.Diff(declared, named); diff != "" {
+			t.Errorf("the switch at %s does not name every ir.ValueKind (-declared in ir +named in the switch):\n%s\n"+
+				"give the missing kind an arm — the default may not be what it deserves", at, diff)
+		}
 	}
 }
 
-// valueKindsNamedInSwitch returns the ir.Value* constant names appearing as case
-// expressions inside valueKindSwitchFunc, deduplicated.
-func valueKindsNamedInSwitch(t *testing.T) []string {
+// valueKindSwitches returns, for each switch in this package's tree whose own
+// cases name an ir.ValueKind constant, the constants they name, sorted and keyed
+// by the switch's position. Test files are not the compiler.
+func valueKindSwitches(t *testing.T, declared []string) map[string][]string {
 	t.Helper()
-	fn := findFuncDecl(t, valueKindSwitchFile, valueKindSwitchFunc)
+	out := map[string][]string{}
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		for n := range ast.Preorder(f) {
+			sw, isSwitch := n.(*ast.SwitchStmt)
+			if !isSwitch {
+				continue
+			}
+			if named := valueKindsNamedIn(sw, declared); len(named) > 0 {
+				out[fset.Position(sw.Pos()).String()] = named
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return out
+}
+
+// valueKindsNamedIn returns the ValueKind constants, of those declared, that
+// sw's own case clauses name, sorted and deduplicated. A switch nested in one of
+// those clauses is a switch of its own, and is read on its own.
+func valueKindsNamedIn(sw *ast.SwitchStmt, declared []string) []string {
 	seen := map[string]bool{}
-	for n := range ast.Preorder(fn.Body) {
-		cc, isCase := n.(*ast.CaseClause)
+	for _, stmt := range sw.Body.List {
+		cc, isCase := stmt.(*ast.CaseClause)
 		if !isCase {
 			continue
 		}
 		for _, expr := range cc.List {
-			if name, ok := irSelectorName(expr); ok {
+			if name, ok := irSelectorName(expr); ok && slices.Contains(declared, name) {
 				seen[name] = true
 			}
 		}
 	}
-	return slices.Collect(maps.Keys(seen))
+	return slices.Sorted(maps.Keys(seen))
 }
 
 // irSelectorName returns the selector name of an expression of the form
@@ -88,23 +105,6 @@ func irSelectorName(expr ast.Expr) (string, bool) {
 		return "", false
 	}
 	return sel.Sel.Name, true
-}
-
-// findFuncDecl parses one file of this package and returns the named top-level
-// function, failing when the file or the function has moved.
-func findFuncDecl(t *testing.T, file, name string) *ast.FuncDecl {
-	t.Helper()
-	f, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
-	require.NoError(t, err, "parsing %s", file)
-	for _, decl := range f.Decls {
-		fn, isFunc := decl.(*ast.FuncDecl)
-		if isFunc && fn.Recv == nil && fn.Name.Name == name {
-			require.NotNil(t, fn.Body, "%s has no body", name)
-			return fn
-		}
-	}
-	t.Fatalf("%s declares no function %s; update this test to follow it", file, name)
-	return nil
 }
 
 // irConst is one declared constant of the ir package: its Go identifier and its

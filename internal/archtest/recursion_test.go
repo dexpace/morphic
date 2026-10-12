@@ -42,6 +42,10 @@ var loweringRecursions = [][]string{
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
 	// self-referential allOf rather than anything in this shape.
 	{"allOfNullVerdict", "conjunctNullVerdict", "refNullVerdict", "schemaNullVerdict"},
+	// The key an enum entry is compared by when the enum repeats it. A list's or
+	// an object's key is built from its elements', each a value keyed the same
+	// way. Bounded by maxValueKeyDepth.
+	{"listKey", "objectKey", "valueKey"},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.

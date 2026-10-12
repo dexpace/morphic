@@ -267,6 +267,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
 	diags = append(diags, resolveDiags...)
+	diags = append(diags, parameterRepeats(pointerAt(srcIndex, origin), soa.Walk(ctx, doc))...)
 
 	return &Document{
 		Doc:     doc,
@@ -309,15 +310,18 @@ func dropped(verr validation.Error) bool {
 // compilerOwned reports whether a finding belongs to a rule the compiler checks
 // itself.
 //
-// operationId uniqueness is the one. The library counts the operations written
-// under paths, walking the model before references are resolved: an operation a
-// YAML alias mounts twice counts twice, a $ref's target counts only where it is
-// written under paths, and no webhook, callback or component operation counts
-// at all. So it refused the alias form where the $ref form drew only a warning,
-// and missed repeats outside paths. The service lowering judges every claim
-// once it has seen them all (GitHub #502).
+// operationId uniqueness: the library counts operations before references
+// resolve, so it read an alias's reuse as a repeat and missed repeats outside
+// paths. The service lowering judges every claim once it has seen them all
+// (GitHub #502).
+//
+// Parameter uniqueness: the library reads only inline entries, so a repeat
+// through a $ref went unreported, and beside the compiler's own report an
+// inline repeat drew two errors. parameterRepeats checks every list the source
+// writes, its $refs resolved (#634, #840).
 func compilerOwned(verr validation.Error) bool {
-	return verr.Rule == validation.RuleValidationOperationIdUnique
+	return verr.Rule == validation.RuleValidationOperationIdUnique ||
+		verr.Rule == validation.RuleValidationOperationParameters
 }
 
 // resolve resolves every reference in doc and reports what each resolution
