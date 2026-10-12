@@ -72,7 +72,7 @@ func registryWrites(path, rel string, src any) ([]string, error) {
 	}
 
 	var found []string
-	ast.Inspect(file, func(n ast.Node) bool {
+	for n := range ast.Preorder(file) {
 		switch node := n.(type) {
 		case *ast.CompositeLit:
 			if isSelector(node.Type, "ir", "TypeRegistry") {
@@ -86,8 +86,7 @@ func registryWrites(path, rel string, src any) ([]string, error) {
 			}
 		default:
 		}
-		return true
-	})
+	}
 	return found, nil
 }
 

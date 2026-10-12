@@ -47,9 +47,8 @@ func checkRawPayloads(doc *ir.Document, _ declarations) ([]Violation, bool) {
 func appendEntries(vs []Violation, m reflect.Value, path string,
 	check func(key string, entry reflect.Value, path string) []Violation,
 ) []Violation {
-	iter := m.MapRange()
-	for iter.Next() {
-		vs = append(vs, check(iter.Key().String(), iter.Value(), path)...)
+	for key, entry := range m.Seq2() {
+		vs = append(vs, check(key.String(), entry, path)...)
 	}
 	return vs
 }

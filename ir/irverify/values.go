@@ -74,13 +74,12 @@ func appendValueViolations(vs []Violation, v reflect.Value, path string) []Viola
 			Path:    path + ".Kind",
 		})
 	}
-	t := v.Type()
-	for i := range t.NumField() {
-		name := t.Field(i).Name
+	for field, value := range v.Fields() {
+		name := field.Name
 		if name == "Kind" {
 			continue
 		}
-		set := payloadSet(v.Field(i))
+		set := payloadSet(value)
 		switch {
 		case name != rule.field && set:
 			vs = append(vs, Violation{

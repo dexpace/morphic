@@ -233,10 +233,10 @@ func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
 		require.NoError(t, err)
-		ast.Inspect(file, func(n ast.Node) bool {
+		for n := range ast.Preorder(file) {
 			spec, ok := n.(*ast.ValueSpec)
 			if !ok {
-				return true
+				continue
 			}
 			// Two spellings declare a target: the declared type carries it
 			// ("X ExtensionTarget = ..."), or a conversion does ("X = Extension-
@@ -250,8 +250,7 @@ func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 					out = append(out, lowering.ExtensionTarget(unquoted))
 				}
 			}
-			return true
-		})
+		}
 	}
 	require.NotEmpty(t, out, "no targets found; the check below would pass vacuously")
 	return out

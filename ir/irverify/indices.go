@@ -81,9 +81,8 @@ func appendResponseIndexViolations(vs []Violation, op reflect.Value, path string
 // sorting first: every violation carries its own key in Path, and Verify orders
 // the whole result by (Code, Path) before returning it.
 func appendSuccessStatusViolations(vs []Violation, status reflect.Value, declared int, path string) []Violation {
-	iter := status.MapRange()
-	for iter.Next() {
-		index := int(iter.Key().Int())
+	for key := range status.Seq() {
+		index := int(key.Int())
 		if index >= 0 && index < declared {
 			continue
 		}

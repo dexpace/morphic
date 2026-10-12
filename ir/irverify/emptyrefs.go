@@ -198,9 +198,9 @@ func appendEmptyRefs(vs []Violation, owner reflect.Value, f idField, path string
 			vs = append(vs, emptyRef(f, at+"[]"+ir.MapKeySuffix))
 		}
 	case idMapValue:
-		for iter := v.MapRange(); iter.Next(); {
-			if iter.Value().String() == "" {
-				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", at, iter.Key())))
+		for key, value := range v.Seq2() {
+			if value.String() == "" {
+				vs = append(vs, emptyRef(f, fmt.Sprintf("%s[%v]", at, key)))
 			}
 		}
 	}

@@ -62,18 +62,17 @@ func valueKindsNamedInSwitch(t *testing.T) []string {
 	t.Helper()
 	fn := findFuncDecl(t, valueKindSwitchFile, valueKindSwitchFunc)
 	seen := map[string]bool{}
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(fn.Body) {
 		cc, isCase := n.(*ast.CaseClause)
 		if !isCase {
-			return true
+			continue
 		}
 		for _, expr := range cc.List {
 			if name, ok := irSelectorName(expr); ok {
 				seen[name] = true
 			}
 		}
-		return true
-	})
+	}
 	return slices.Collect(maps.Keys(seen))
 }
 
