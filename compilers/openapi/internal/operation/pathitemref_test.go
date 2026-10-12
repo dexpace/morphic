@@ -535,7 +535,7 @@ func TestPathItemRefSiblings_UnresolvedLinkIsReported(t *testing.T) {
 
 // pathItemRefCollisionSpec declares the same constructs on both sides of one
 // $ref: the method key, the summary, the servers, an x-* name, an undeclared key
-// and an item parameter pair.
+// and an item parameter pair, typed apart so the one lowered names its side.
 const pathItemRefCollisionSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -558,7 +558,7 @@ paths:
     x-shared: ref
     bogusBoth: {responses: {"200": {description: REF}}}
     parameters:
-      - {name: dup, in: query, schema: {type: string}}
+      - {name: dup, in: query, schema: {type: integer}}
     get:
       operationId: refGet
       responses: {"200": {description: OK}}
@@ -618,6 +618,9 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 		"the referent's key is not written, so nothing is left to say it was dropped")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning,
 		"/paths/~1a/parameters/0"), `the parameter "dup" in query here`, "a parameter is named as written")
+	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
+	assert.Equal(t, ir.TypeID("t/prim/string"), getA.Params[0].Type.Target, "the use site's is the one kept")
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), getA.Params[0].Provenance.Pointer)
 
 	// One operation at the mount, so no OpID is claimed twice.
 	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
@@ -796,7 +799,7 @@ paths:
     x-shared: ref
     bogusBoth: {responses: {"200": {description: REF}}}
     parameters:
-      - {name: dup, in: query, schema: {type: string}}
+      - {name: dup, in: query, schema: {type: integer}}
     get:
       operationId: refGet
       responses: {"200": {description: OK}}
@@ -1228,6 +1231,32 @@ paths:
 
 	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
 	assert.Contains(t, message, "at ./item.yaml#/get;", "the position is the fragment of the document named")
+}
+
+// TestPathItemRefSiblings_AnAliasDeclaresAtItsOwnPosition pins where an alias
+// of a use site declares the fields beside its $ref: at the alias's own path,
+// as an aliased inline item declares there, not where the load phase first met
+// the mapping.
+func TestPathItemRefSiblings_AnAliasDeclaresAtItsOwnPosition(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, item string }{
+		{"beside a $ref", `{$ref: '#/paths/~1b', put: {operationId: putA, responses: {"200": {description: OK}}}}`},
+		{"an inline item", `{put: {operationId: putA, responses: {"200": {description: OK}}}}`},
+	} {
+		doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: &a `+tc.item+`
+  /x: *a
+  /b:
+    get: {operationId: getB, responses: {"200": {description: OK}}}
+`)
+		openapitest.RequireNoErrorDiags(t, diags)
+
+		assert.Equal(t, jsontext.Pointer("/paths/~1a/put"), opByPath(t, doc, "PUT", "/a").Provenance.Pointer, tc.name)
+		assert.Equal(t, jsontext.Pointer("/paths/~1x/put"), opByPath(t, doc, "PUT", "/x").Provenance.Pointer,
+			"%s: the alias declares at its own path", tc.name)
+	}
 }
 
 // TestPathItemRefSiblings_AMergedRefIsNoReference pins the library's reading of

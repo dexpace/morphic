@@ -7,6 +7,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -336,6 +337,90 @@ func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 		}
 		assert.Equal(t, stopAt, last)
 	}
+}
+
+// TestWalkSource_ReleasesEveryWalkItOpens pins that a reader stopping inside a
+// model nested in another leaves no walk running. Each open walk is a pulled
+// iterator, whose goroutine lives until it is stopped or runs out, and the
+// leak check does not see one left suspended. Not parallel, since it counts
+// the process's goroutines.
+func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
+	doc := modelOf(t, siblingSpec)
+	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	nested := "/paths/~1a/put/callbacks/cb/{$request.body#~1url}/"
+	const reads = 100
+	before := runtime.NumGoroutine()
+	for range reads {
+		stopped := false
+		for item := range walkSource(t.Context(), doc, sibs) {
+			if strings.HasPrefix(string(item.Location.ToJSONPointer()), nested) {
+				stopped = true
+				break
+			}
+		}
+		require.True(t, stopped, "the read stops with three walks open")
+	}
+	assert.Less(t, runtime.NumGoroutine()-before, reads, "no read leaves its walks suspended")
+}
+
+// TestLoad_AFieldTheParserFaultsOnIsReported pins the parser fault's way into
+// the load phase's report, for shapes a document can write beside a $ref: an
+// error where the use site is written, once, and the document still loads, so
+// the fields are never dropped in silence.
+func TestLoad_AFieldTheParserFaultsOnIsReported(t *testing.T) {
+	t.Parallel()
+	for _, beside := range []string{
+		"servers: [null]",
+		"parameters: [{$ref: null}]",
+		"put: {requestBody: {$ref: null}, responses: {'200': {description: ok}}}",
+	} {
+		doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    ` + beside + `
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)}, Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc, "%s: the document still loads", beside)
+
+		var faults []ir.Diagnostic
+		for _, d := range diags {
+			if d.Code == diag.Validation && strings.Contains(d.Message, "could not be read") {
+				faults = append(faults, d)
+			}
+		}
+		require.Len(t, faults, 1, "%s: reported once", beside)
+		assert.Equal(t, ir.SeverityError, faults[0].Severity)
+		assert.Equal(t, 5, faults[0].Provenance.Position.Line, "%s: sited where the use site is written", beside)
+	}
+}
+
+// TestLoad_TheFieldsBesideARefAreReportedInSourceOrder pins where the model's
+// findings land among the document's: in the order the source writes them, as
+// the document's own are, not after them.
+func TestLoad_TheFieldsBesideARefAreReportedInSourceOrder(t *testing.T) {
+	t.Parallel()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put: {deprecated: notabool, responses: {"200": {description: ok}}}
+  /b:
+    get: {deprecated: alsonotabool, responses: {"200": {description: ok}}}
+`)}, Options{})
+	require.NoError(t, err)
+
+	var lines []int
+	for _, d := range diags {
+		if strings.HasPrefix(d.Code, diag.Validation+"/") {
+			lines = append(lines, d.Provenance.Position.Line)
+		}
+	}
+	assert.Equal(t, []int{6, 8}, lines, "the finding beside the $ref first, as the source writes it")
 }
 
 // loadSiblingFixture writes main beside a target document and loads main with
