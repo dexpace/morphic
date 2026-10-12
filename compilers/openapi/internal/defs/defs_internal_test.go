@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -397,8 +398,8 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 		assert.Equal(t, fresh[i], ask(shared, q), "forward: %v", q)
 	}
 	reversed := NewReader(root)
-	for i := len(queries) - 1; i >= 0; i-- {
-		assert.Equal(t, fresh[i], ask(reversed, queries[i]), "reversed: %v", queries[i])
+	for i, q := range slices.Backward(queries) {
+		assert.Equal(t, fresh[i], ask(reversed, q), "reversed: %v", q)
 	}
 	var found int
 	for _, r := range fresh {
@@ -578,10 +579,10 @@ func TestOwnResource(t *testing.T) {
 	assert.False(t, ownResource(plain), "no $id and no registered base on a freshly parsed schema")
 }
 
-// TestParentPointer pins getParentJSONPointer's own bound: everything before
-// the last '/', and "" once there is no '/' left to strip — the root itself is
-// never an answer.
-func TestParentPointer(t *testing.T) {
+// TestPointerParent_MatchesTheResolversBound pins that Pointer.Parent has
+// getParentJSONPointer's bound, on which the $defs walk relies: everything before
+// the last '/', and "" once none is left, so the root is never an answer.
+func TestPointerParent_MatchesTheResolversBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -597,7 +598,7 @@ func TestParentPointer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, parentPointer(tc.in))
+			assert.Equal(t, tc.want, tc.in.Parent())
 		})
 	}
 }

@@ -3,6 +3,7 @@ package load
 import (
 	"encoding/json/jsontext"
 	"net/url"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -213,16 +214,12 @@ func keyOfURI(uri string) uriKey {
 func lastSegment(uri string) string {
 	uri, _, _ = strings.Cut(uri, "#")
 	uri, _, _ = strings.Cut(uri, "?")
-	if i := strings.LastIndexByte(uri, '/'); i >= 0 {
-		return uri[i+1:]
+	if _, last, ok := strings.CutLast(uri, "/"); ok {
+		return last
 	}
 	return uri
 }
 
 func pointerTokens(pointer string) []string {
-	var out []string
-	for t := range jsontext.Pointer(pointer).Tokens() {
-		out = append(out, t)
-	}
-	return out
+	return slices.Collect(jsontext.Pointer(pointer).Tokens())
 }

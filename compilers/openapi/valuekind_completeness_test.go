@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"slices"
 	"strconv"
 	"testing"
@@ -61,23 +62,18 @@ func valueKindsNamedInSwitch(t *testing.T) []string {
 	t.Helper()
 	fn := findFuncDecl(t, valueKindSwitchFile, valueKindSwitchFunc)
 	seen := map[string]bool{}
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(fn.Body) {
 		cc, isCase := n.(*ast.CaseClause)
 		if !isCase {
-			return true
+			continue
 		}
 		for _, expr := range cc.List {
 			if name, ok := irSelectorName(expr); ok {
 				seen[name] = true
 			}
 		}
-		return true
-	})
-	out := make([]string, 0, len(seen))
-	for name := range seen {
-		out = append(out, name)
 	}
-	return out
+	return slices.Collect(maps.Keys(seen))
 }
 
 // irSelectorName returns the selector name of an expression of the form

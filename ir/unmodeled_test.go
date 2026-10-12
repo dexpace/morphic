@@ -4,7 +4,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -70,10 +72,7 @@ func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredReasons(t)
 
-	want := make([]string, 0, len(unmodeledReasonWire))
-	for _, s := range unmodeledReasonWire {
-		want = append(want, s)
-	}
+	want := slices.Collect(maps.Values(unmodeledReasonWire))
 	require.ElementsMatch(t, want, declared)
 
 	for _, d := range declared {
