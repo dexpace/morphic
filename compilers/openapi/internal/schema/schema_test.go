@@ -3753,6 +3753,43 @@ func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
 	}
 }
 
+// TestAlias_CarriesTheBoundsWrittenBesideIt pins that an alias a position
+// hoists to own what it wrote keeps the value constraints written beside it:
+// beside a union of nothing but null, and beside an applicator its lowered node
+// has no home for. The alias owns the pointer, so hoistDeclarationHome hoists
+// nothing else that could carry them.
+func TestAlias_CarriesTheBoundsWrittenBesideIt(t *testing.T) {
+	t.Parallel()
+	one, two, three := ir.BigVal("1"), ir.BigVal("2"), ir.BigVal("3")
+	six := int64(6)
+	cases := []struct {
+		name, schema string
+		want         ir.Constraints
+	}{
+		{
+			name:   "a null-only union",
+			schema: `{oneOf: [{type: "null"}], minimum: 3, exclusiveMinimum: 1}`,
+			want:   ir.Constraints{Min: &three, ExclusiveMin: &one},
+		},
+		{
+			name:   "an applicator with no home",
+			schema: "{items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}",
+			want:   ir.Constraints{Min: &two, ExclusiveMin: &one, MinLength: &six},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			sc, ok := typeByName(doc, "A").(*ir.Scalar)
+			require.True(t, ok, "the position hoists an alias of its own")
+			require.NotNil(t, sc.Constraints, "carrying the bounds written beside it")
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
+		})
+	}
+}
+
 // TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
 // position that lowered to a shape with no Encoding field to fill keeps every
 // content keyword verbatim, contentSchema included — the three share one home,
