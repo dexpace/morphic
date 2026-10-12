@@ -1202,6 +1202,34 @@ paths:
 	assert.Contains(t, message, "./target.yaml#/paths/~1b/get", "another document's position is named by the reference")
 }
 
+// TestPathItemRefSiblings_AWholeDocumentReferentIsNamedByItsFragment pins how a
+// finding names a position in a document a $ref takes whole, the common shape
+// of a path split into its own file: with the empty fragment, so the pointer
+// after it reads as one rather than as a file path.
+func TestPathItemRefSiblings_AWholeDocumentReferentIsNamedByItsFragment(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "item.yaml"), []byte(`get:
+  operationId: itemGet
+  responses: {"200": {description: OK}}
+`), 0o600))
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    $ref: './item.yaml'
+    get:
+      operationId: useGet
+      responses: {"200": {description: OK}}
+`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
+	assert.Contains(t, message, "at ./item.yaml#/get;", "the position is the fragment of the document named")
+}
+
 // TestPathItemRefSiblings_AMergedRefIsNoReference pins the library's reading of
 // a $ref a merge key supplies: none, so the item is inline, and nothing in it
 // collides with itself.

@@ -94,7 +94,9 @@ func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, for
 // declared at declPtr. A nearer layer declaring at declPtr too is the use site
 // of an item another document holds, which no pointer here addresses: the item
 // is then declared under the use site's "$ref", a position the source cannot
-// name, so the two never intern a type at one pointer (invariant 3).
+// name, so the two never intern a type at one pointer (invariant 3). A finding
+// names its positions by the reference, given a fragment when it has none so a
+// pointer appended to it reads as one.
 func referent(use lowering.Ctx, rp, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
 	nearer []layer,
 ) layer {
@@ -104,6 +106,9 @@ func referent(use lowering.Ctx, rp, last *soa.ReferencedPathItem, pi *soa.PathIt
 	}
 	ref.ptr += ids.Ptr("$ref")
 	ref.name = string(last.GetReference())
+	if !last.GetReference().HasJSONPointer() {
+		ref.name += "#"
+	}
 	return ref
 }
 
