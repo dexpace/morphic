@@ -384,7 +384,7 @@ func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 	t.Parallel()
 	get := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
-	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/post/p", "param/x/get/p")
+	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
 
 	diags := pass.Validate(docWithOperations(get, post))
 
@@ -394,7 +394,9 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 			at = append(at, d.Provenance.Node)
 		}
 	}
-	assert.Equal(t, []string{"op/x/post/pagination/inputCursor", "op/x/post/idempotency/tokenParam"}, at)
+	assert.Equal(t, []string{
+		"op/x/post/pagination/inputCursor", "op/x/post/pagination/inputLimit", "op/x/post/idempotency/tokenParam",
+	}, at)
 }
 
 func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {

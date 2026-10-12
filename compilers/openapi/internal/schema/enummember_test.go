@@ -121,6 +121,20 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 	assert.Equal(t, []string{"/components/schemas/E/enum/2", "/components/schemas/E/enum/3"}, at)
 }
 
+// TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex covers a nullable enum,
+// whose null is not a member: the pointer a repeat is reported at, and the index
+// it names, are positions in the enum as written, not in the member list.
+func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    E:
+      type: [string, "null"]
+      enum: [null, a, b, a]
+`))
+	assert.Equal(t, []string{"s:a", "s:b", "s:a#2"}, memberKeys(enumOf(t, doc, componentID("E"))))
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, msg, "the member at index 1;")
+}
+
 func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {
 	t.Parallel()
 	doc, _ := lowerSpec(t, openapitest.ComponentSpec(`    A:
