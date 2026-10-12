@@ -1,7 +1,8 @@
 package irverify
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -39,11 +40,8 @@ func Verify(doc *ir.Document) []Violation {
 	// contributes no path segment, so two promoted fields of the same name would
 	// collide — and a stable sort leaves those in the walk's deterministic order
 	// rather than an unspecified one.
-	sort.SliceStable(vs, func(i, j int) bool {
-		if vs[i].Code != vs[j].Code {
-			return vs[i].Code < vs[j].Code
-		}
-		return vs[i].Path < vs[j].Path
+	slices.SortStableFunc(vs, func(a, b Violation) int {
+		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Path, b.Path))
 	})
 	return vs
 }

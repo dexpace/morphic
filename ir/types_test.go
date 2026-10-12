@@ -2,6 +2,8 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -400,10 +402,7 @@ func TestPrimKind_TiesToConstBlock(t *testing.T) {
 		assert.True(t, ir.PrimKind(c.value).Valid(), "declared kind %q must be Valid", c.value)
 	}
 
-	spelled := make([]string, 0, len(primKindSpellings))
-	for _, s := range primKindSpellings {
-		spelled = append(spelled, s)
-	}
+	spelled := slices.Collect(maps.Values(primKindSpellings))
 	require.ElementsMatch(t, spelled, values)
 }
 

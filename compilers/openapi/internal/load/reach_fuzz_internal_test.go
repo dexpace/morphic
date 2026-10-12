@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -177,7 +178,7 @@ func genFuzzChildren(rng *rand.Rand, depth int, keys []string) map[string]*reach
 // repeats — a size from 1 to len(pool), inclusive.
 func fuzzSample(rng *rand.Rand, pool []string) []string {
 	n := 1 + rng.Intn(len(pool))
-	picked := append([]string(nil), pool...)
+	picked := slices.Clone(pool)
 	rng.Shuffle(len(picked), func(i, j int) { picked[i], picked[j] = picked[j], picked[i] })
 	return picked[:n]
 }

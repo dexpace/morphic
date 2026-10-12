@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"cmp"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -8,7 +9,6 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -117,17 +117,14 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		if len(c) == 1 && !calls[c[0]][c[0]] {
 			continue
 		}
-		sort.Strings(c)
+		slices.Sort(c)
 		cycles = append(cycles, c)
 	}
 	// Ties are broken by first member because there is more than one pair now,
-	// and sort.Slice is not stable: length alone would leave the two pairs in
+	// and the sort is not stable: length alone would leave the two pairs in
 	// whichever order the sort happened to land them.
-	sort.Slice(cycles, func(i, j int) bool {
-		if len(cycles[i]) != len(cycles[j]) {
-			return len(cycles[i]) > len(cycles[j])
-		}
-		return cycles[i][0] < cycles[j][0]
+	slices.SortFunc(cycles, func(a, b []string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a[0], b[0]))
 	})
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
@@ -628,7 +625,7 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 				succ = append(succ, w)
 			}
 		}
-		sort.Strings(succ)
+		slices.Sort(succ)
 		for _, w := range succ {
 			switch {
 			case !visited(index, w):

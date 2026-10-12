@@ -1,6 +1,8 @@
 package pass_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -354,11 +356,7 @@ func encodingKeys(t *testing.T, doc *ir.Document) []ir.PropID {
 	req := doc.Services[0].Groups[0].Operations[0].Request
 	require.NotNil(t, req)
 	require.Len(t, req.Contents, 1)
-	keys := make([]ir.PropID, 0, len(req.Contents[0].Encoding))
-	for key := range req.Contents[0].Encoding {
-		keys = append(keys, key)
-	}
-	return keys
+	return slices.Collect(maps.Keys(req.Contents[0].Encoding))
 }
 
 // TestValidate_EncodingKeyDiagnosticsAreDeterministic pins invariant 7 for the

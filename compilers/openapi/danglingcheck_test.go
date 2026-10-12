@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,7 +42,7 @@ func danglingRefs(doc *ir.Document) []string {
 		}
 		out = append(out, fmt.Sprintf("%s: %s", v.Path, v.Message))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

@@ -1,11 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"io"
 	"maps"
 	"slices"
-	"sort"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -98,7 +98,7 @@ func coordinatesBelow(doc *ir.Document, pointer jsontext.Pointer) []coordinate {
 			out = append(out, coordinate{pointer: p, id: id, kind: td.Kind()})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].pointer < out[j].pointer })
+	slices.SortStableFunc(out, func(a, b coordinate) int { return cmp.Compare(a.pointer, b.pointer) })
 	return out
 }
 

@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"slices"
 	"strconv"
 	"testing"
@@ -73,11 +74,7 @@ func valueKindsNamedInSwitch(t *testing.T) []string {
 		}
 		return true
 	})
-	out := make([]string, 0, len(seen))
-	for name := range seen {
-		out = append(out, name)
-	}
-	return out
+	return slices.Collect(maps.Keys(seen))
 }
 
 // irSelectorName returns the selector name of an expression of the form
