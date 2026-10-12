@@ -126,8 +126,9 @@ func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 }
 
 // sortedTypeIDs returns the registry's keys in sorted order so explain output is
-// deterministic (invariant 7). A compile that produced no document passes nil,
-// which has none.
+// deterministic (invariant 7): nodeAtPointer names the first node at a pointer,
+// and several can share one. A nil document, which a compile that produced none
+// passes, has no types.
 func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
 	if doc == nil {
 		return nil
