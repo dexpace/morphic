@@ -665,13 +665,25 @@ func effectiveWireName(p ir.Property) string {
 // checkParamBindings validates each HTTP binding's parameter bindings against
 // the operation's logical parameters.
 func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
+	declared := declaredParamIDs(doc)
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {
 		for i := range op.Bindings.HTTP {
-			diags = append(diags, checkHTTPParamBinding(op, i)...)
+			diags = append(diags, checkHTTPParamBinding(op, i, declared)...)
 		}
 	})
 	return diags
+}
+
+// declaredParamIDs returns the ID of every parameter any operation declares.
+func declaredParamIDs(doc *ir.Document) map[ir.ParamID]bool {
+	declared := map[ir.ParamID]bool{}
+	forEachOperation(doc, func(op ir.Operation) {
+		for _, p := range op.Params {
+			declared[p.ID] = true
+		}
+	})
+	return declared
 }
 
 // paramLocation keys the per-location bound-once count: a parameter is
@@ -683,22 +695,27 @@ type paramLocation struct {
 }
 
 // checkHTTPParamBinding validates one HTTP binding: a parameter this operation
-// does not declare is an error, a param bound twice in one non-host location is an error, and an
-// unbound parameter is a warning (body-carried operations bind nothing).
-func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
+// does not declare is an error, a param bound twice in one non-host location is
+// an error, and an unbound parameter is a warning (body-carried operations bind
+// nothing). An ID no operation declares is the dangling walk's, reported once
+// there, as checkParamReferences leaves it; an empty one has no other report.
+func checkHTTPParamBinding(op ir.Operation, idx int, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
 	where := fmt.Sprintf("%s/bindings/http/%d", op.ID, idx)
-	known := make(map[ir.ParamID]bool, len(op.Params))
+	names := make(map[ir.ParamID]string, len(op.Params))
 	for _, p := range op.Params {
-		known[p.ID] = true
+		names[p.ID] = p.Name.Source
 	}
 	var diags []ir.Diagnostic
 	bound := make(map[ir.ParamID]int, len(op.Params))
 	perLocation := make(map[paramLocation]int, len(b.ParamBindings))
 	for _, pb := range b.ParamBindings {
-		if !known[pb.Param] {
-			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
+		name, own := names[pb.Param]
+		if !own {
+			if pb.Param == "" || declared[pb.Param] {
+				diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+					fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
+			}
 			continue
 		}
 		bound[pb.Param]++
@@ -708,7 +725,7 @@ func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", pb.Param, pb.Location, where),
+				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", name, pb.Location, where),
 				where))
 		}
 	}
@@ -760,16 +777,9 @@ func operationParamRefs(op ir.Operation) []paramRef {
 // the wrong operation's parameter. An ID no operation declares is the dangling
 // walk's, reported once there; an empty one is irverify's.
 func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
-	var ops []ir.Operation
-	declared := map[ir.ParamID]bool{}
-	forEachOperation(doc, func(op ir.Operation) {
-		ops = append(ops, op)
-		for _, p := range op.Params {
-			declared[p.ID] = true
-		}
-	})
+	declared := declaredParamIDs(doc)
 	var diags []ir.Diagnostic
-	for _, op := range ops {
+	forEachOperation(doc, func(op ir.Operation) {
 		own := make(map[ir.ParamID]bool, len(op.Params))
 		for _, p := range op.Params {
 			own[p.ID] = true
@@ -782,7 +792,7 @@ func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
 				fmt.Sprintf("%s names parameter %q, which this operation does not declare", ref.where, ref.id),
 				ref.where))
 		}
-	}
+	})
 	return diags
 }
 

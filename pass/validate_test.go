@@ -100,19 +100,30 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 	assert.Contains(t, codes(diags), "pass/duplicate-wire-name")
 }
 
-func TestValidate_ParamBinding_UnknownParam(t *testing.T) {
+// TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling pins that a
+// binding naming an ID no operation declares draws the dangling walk's report
+// alone. The declared parameter is bound too, so no unbound warning shares the
+// mismatch code.
+func TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{
-		ID:     "op",
-		Params: []ir.Parameter{{ID: "param/x/op/id/path", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
-			Method: "GET", URITemplate: "/x",
-			ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/op/ghost/path", Location: ir.HTTPLocationPath}},
-		}}},
-	}
+	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Param: "param/x/op/ghost/query", Location: ir.HTTPLocationQuery})
 	diags := pass.Validate(docWithOperation(op))
-	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
+}
+
+// TestValidate_ParamBinding_EmptyParamIsRejected pins that a binding naming no
+// parameter at all is reported here: the dangling walk skips an empty ID.
+func TestValidate_ParamBinding_EmptyParamIsRejected(t *testing.T) {
+	t.Parallel()
+	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
+	diags := pass.Validate(docWithOperation(op))
+	assert.Equal(t, 1, countCode(t, diags, "pass/param-binding-mismatch"))
+	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
 
 func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
@@ -128,9 +139,15 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 			},
 		}}},
 	}
-	diags := pass.Validate(docWithOperation(op))
-	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+	var messages []string
+	for _, d := range pass.Validate(docWithOperation(op)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			messages = append(messages, d.Message)
+		}
+	}
+	require.Len(t, messages, 1)
+	assert.Contains(t, messages[0], `parameter "id" is bound more than once in location "query"`,
+		"the report names the parameter, not its ID")
 }
 
 // paramBindingOp returns an operation declaring the given parameters and
