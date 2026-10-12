@@ -20,7 +20,8 @@ func enumOf(t *testing.T, doc *ir.Document, id ir.TypeID) []ir.EnumMember {
 	return enum.Members
 }
 
-// memberKeys returns the last segment of each member's ID, which is the key.
+// memberKeys returns each member's ID past its enum's path: the key, and a
+// repeat's occurrence number after it.
 func memberKeys(members []ir.EnumMember) []string {
 	keys := make([]string, 0, len(members))
 	for _, m := range members {
@@ -62,7 +63,7 @@ func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
       enum: [10, 10.0, 1e1, 100]
 `))
 	members := enumOf(t, doc, componentID("N"))
-	assert.Equal(t, []string{"n:1e1", "n:1e1#2", "n:1e1#3", "n:1e2"}, memberKeys(members))
+	assert.Equal(t, []string{"n:1e1", "n:1e1/2", "n:1e1/3", "n:1e2"}, memberKeys(members))
 	spelled := make([]ir.BigVal, 0, len(members))
 	for _, m := range members {
 		spelled = append(spelled, m.Value.Num)
@@ -128,7 +129,7 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
       type: string
       enum: [a, b, a, a]
 `))
-	assert.Equal(t, []string{"s:a", "s:b", "s:a#2", "s:a#3"}, memberKeys(enumOf(t, doc, componentID("E"))))
+	assert.Equal(t, []string{"s:a", "s:b", "s:a/2", "s:a/3"}, memberKeys(enumOf(t, doc, componentID("E"))))
 
 	var at []string
 	for _, d := range diags {
@@ -149,7 +150,7 @@ func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
       type: [string, "null"]
       enum: [null, a, b, a]
 `))
-	assert.Equal(t, []string{"s:a", "s:b", "s:a#2"}, memberKeys(enumOf(t, doc, componentID("E"))))
+	assert.Equal(t, []string{"s:a", "s:b", "s:a/2"}, memberKeys(enumOf(t, doc, componentID("E"))))
 	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
 	assert.Contains(t, msg, "the member at index 1;")
 }

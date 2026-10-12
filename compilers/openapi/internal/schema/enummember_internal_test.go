@@ -7,11 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestEnumMemberKey_EncodesEveryAdmissibleKind writes each key out: a tag for
-// the kind of value, then the value with % and # escaped, in that order.
+// the kind of value, a colon, then the value as it is: the ID escapes the whole
+// key as one pointer token.
 func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -21,8 +23,7 @@ func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
 	}{
 		{"string", ir.Value{Kind: ir.ValueString, Str: "a-b"}, "s:a-b"},
 		{"string keeping a slash", ir.Value{Kind: ir.ValueString, Str: "a/b"}, "s:a/b"},
-		{"string with % and #", ir.Value{Kind: ir.ValueString, Str: "100%#1"}, "s:100%25%231"},
-		{"string with an escape already spelled", ir.Value{Kind: ir.ValueString, Str: "%23"}, "s:%2523"},
+		{"string with % and #", ir.Value{Kind: ir.ValueString, Str: "100%#1"}, "s:100%#1"},
 		{"empty string", ir.Value{Kind: ir.ValueString}, "s:"},
 		{"symbol", ir.Value{Kind: ir.ValueSymbol, Str: "ok"}, "y:ok"},
 		{"number", ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("-1.5")}, "n:-1.5e0"},
@@ -43,8 +44,8 @@ func TestEnumMemberKey_EncodesEveryAdmissibleKind(t *testing.T) {
 }
 
 // TestEnumMemberKey_IsInjectiveAcrossKinds holds that two values of different
-// kinds never share a key, whatever text they spell, and that a repeat's suffix
-// cannot be spelled by a value.
+// kinds never share a key, whatever text they spell, and that no value's ID is
+// the ID of a repeat: the string a/2 is not the second a.
 func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 	t.Parallel()
 	values := []ir.Value{
@@ -55,21 +56,19 @@ func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 		{Kind: ir.ValueBool, Bool: true},
 		{Kind: ir.ValueString, Str: ""},
 		{Kind: ir.ValueNull},
-		{Kind: ir.ValueString, Str: "a#2"},
+		{Kind: ir.ValueString, Str: "a/2"},
 		{Kind: ir.ValueString, Str: "a"},
 	}
+	const enum = jsontext.Pointer("/components/schemas/E")
+	repeat := ids.EnumMember(enum, "s:a", 2)
 	seen := map[string]int{}
 	for i, v := range values {
 		key, ok := enumMemberKey(v)
 		require.True(t, ok)
 		require.NotContains(t, seen, key, "values %d and %d share a key", seen[key], i)
 		seen[key] = i
+		assert.NotEqual(t, repeat, ids.EnumMember(enum, key, 1), "value %d spells the second a", i)
 	}
-
-	const enum = jsontext.Pointer("/components/schemas/E")
-	repeat := memberID(enum, "s:a", 2)
-	literal, _ := enumMemberKey(ir.Value{Kind: ir.ValueString, Str: "a#2"})
-	assert.NotEqual(t, repeat, memberID(enum, literal, 1), "the string a#2 is not the second a")
 }
 
 // TestEnumMemberKey_RefusesWhatNoEnumHolds pins the kinds with no key. A list,
@@ -85,16 +84,4 @@ func TestEnumMemberKey_RefusesWhatNoEnumHolds(t *testing.T) {
 		assert.False(t, ok, "%s has no key", kind)
 		assert.Empty(t, key)
 	}
-}
-
-// TestMemberID_FirstOccurrenceKeepsTheBareID pins the numbering: the first
-// holder of a value has the bare key, repeats take #2, #3, and the enum's own
-// namespace decides between a named and an anonymous enum.
-func TestMemberID_FirstOccurrenceKeepsTheBareID(t *testing.T) {
-	t.Parallel()
-	const named, inline = jsontext.Pointer("/components/schemas/E"), jsontext.Pointer("/components/schemas/S/properties/p")
-	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/E/s:a"), memberID(named, "s:a", 1))
-	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/E/s:a#2"), memberID(named, "s:a", 2))
-	assert.Equal(t, ir.EnumMemberID("e/openapi/components/schemas/E/s:a#3"), memberID(named, "s:a", 3))
-	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/S/properties/p/s:a"), memberID(inline, "s:a", 1))
 }

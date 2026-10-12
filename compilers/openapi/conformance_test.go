@@ -1912,11 +1912,12 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // assertEnumMemberIdentity pins what identifies an enum member: the value it
 // holds, tagged by kind, under the enum that declares it. The list repeats a
-// value, includes names that spell one canonical word sequence, and carries
-// the characters the key escapes, so a derivation from the name, the position or
-// the unescaped value changes an ID. The IDs are written out rather than
-// derived, so the test cannot agree with a change to the derivation. The repeat
-// is kept, takes a numbered suffix and is reported once at its own entry.
+// value, includes names that spell one canonical word sequence, and carries the
+// characters a pointer token escapes, so a derivation from the name, the
+// position or the unescaped value changes an ID. The IDs are written out, not
+// derived. The repeat is kept, its ID ends in its occurrence number, and it is
+// reported once at its own entry; the string spelling that ID's tail is no
+// repeat.
 func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	memberIDs := func(id ir.TypeID) []ir.EnumMemberID {
 		enum, ok := doc.Types[id].(*ir.Enum)
@@ -1931,9 +1932,9 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"e/openapi/components/schemas/E/s:a-b",
 		"e/openapi/components/schemas/E/s:a_b",
 		"e/openapi/components/schemas/E/s:A B",
-		"e/openapi/components/schemas/E/s:a~1b",
-		"e/openapi/components/schemas/E/s:a%23b",
-		"e/openapi/components/schemas/E/s:a-b#2",
+		"e/openapi/components/schemas/E/s:a~0b",
+		"e/openapi/components/schemas/E/s:a-b/2",
+		"e/openapi/components/schemas/E/s:a-b~12",
 	}, memberIDs("t/openapi/components/schemas/E"))
 	assert.Equal(t, []ir.EnumMemberID{
 		"e/openapi/components/schemas/N/n:-1e0",
@@ -1951,7 +1952,7 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 			repeats = append(repeats, string(d.Provenance.Pointer))
 		}
 	}
-	assert.Equal(t, []string{"/components/schemas/E/enum/5"}, repeats)
+	assert.Equal(t, []string{"/components/schemas/E/enum/4"}, repeats)
 }
 
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

@@ -39,7 +39,7 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 	slot := paramSlot{name: name, in: in}
 	l.seen[slot]++
 	occurrence := l.seen[slot]
-	id := ids.ParamRepeat(l.mount, name, in, occurrence)
+	id := ids.Param(l.mount, name, in, occurrence)
 	if occurrence == 1 {
 		l.firstAt[slot] = entry
 		return id, nil

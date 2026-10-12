@@ -41,7 +41,7 @@ func memberViolations(doc *ir.Document) map[string][]string {
 func TestVerify_DerivedMemberIDsAreClean(t *testing.T) {
 	t.Parallel()
 	named := memberDoc("t/openapi/components/schemas/E",
-		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a#2", "e/openapi/components/schemas/E/n:-1")
+		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a/2", "e/openapi/components/schemas/E/n:-1")
 	inline := memberDoc("t/anon/paths/~1x/get/schema", "e/anon/paths/~1x/get/schema/s:a")
 	assert.Empty(t, memberViolations(named))
 	assert.Empty(t, memberViolations(inline))

@@ -123,8 +123,9 @@ const (
 	EmptyEnum = "openapi/empty-enum"
 	// DuplicateEnumValue reports an `enum` member whose value an earlier member
 	// already holds. Every occurrence is kept, since dropping one would lose a
-	// declaration, but only the first can hold the bare member ID: the repeats
-	// take a numbered suffix, which is an artefact worth telling the author of.
+	// declaration, but only the first can hold the bare member ID, and each
+	// repeat's ID ends in its occurrence number: an artifact worth telling the
+	// author of.
 	//
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
