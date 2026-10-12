@@ -1360,7 +1360,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
-	return hoistContentScalar(c, ts, anchors, depth, s, prim, pointer, hint)
+	return hoistFormatScalar(c, ts, anchors, depth, s, prim, "", pointer, hint)
 }
 
 // hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
@@ -1391,7 +1391,9 @@ func hoistByteScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 }
 
 // hoistFormatScalar hoists a scalar over base carrying an unknown format as its
-// encoding name, preserving the format losslessly.
+// encoding name, preserving the format losslessly. An empty format gives the
+// content vocabulary written at pointer a node of its own to sit on, carrying
+// the position's value constraints for the reason hoistByteScalar records.
 func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, format string, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -1403,28 +1405,6 @@ func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, 
 		return &ir.Scalar{
 			TypeCommon:  common,
 			Base:        &baseRef,
-			Encoding:    enc,
-			Constraints: cons,
-		}
-	})
-	return id, diags
-}
-
-// hoistContentScalar hoists a scalar over the shared primitive a known
-// (type, format) pair maps to, giving the content vocabulary written here a node
-// of its own to sit on. It carries the position's value constraints for the
-// reason hoistByteScalar records.
-func hoistContentScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, prim ir.PrimKind, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := ts.PrimRef(prim)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "", &common, pointer, hint)
-		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &base,
 			Encoding:    enc,
 			Constraints: cons,
 		}
