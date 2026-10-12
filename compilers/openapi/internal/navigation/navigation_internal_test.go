@@ -10,8 +10,9 @@ import (
 
 // TestKeyed_CostsNoAllocation holds keyed, which runs as pointer reads step
 // through models, at no allocation. Ranging over reflect.Type.Fields costs it
-// four a call, and modernize proposes exactly that rewrite, which .golangci.yml
-// declines for this file. It is not run in parallel: AllocsPerRun measures the
+// four a call, and go fix and modernize both propose exactly that rewrite.
+// .golangci.yml declines it for this file; go fix would apply it, and this test
+// is what catches that. It is not run in parallel: AllocsPerRun measures the
 // process.
 func TestKeyed_CostsNoAllocation(t *testing.T) {
 	type model struct {

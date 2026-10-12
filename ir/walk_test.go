@@ -244,9 +244,10 @@ type (
 // TestWalkValues_StructsAndMapsCostNoAllocation holds the walk's cost per struct
 // and per map at nothing, since pass.Validate walks a whole document on every
 // compile. Ranging over reflect.Value.Fields or Seq2 instead of indexing puts
-// the loop body on the heap each time, and raised Validate's allocations by
-// more than half. The chain builds no path string, so any growth with depth is
-// the walk's own. It is not run in parallel: AllocsPerRun measures the process.
+// the loop body on the heap each time, which on Petstore adds more than half
+// again to Validate's allocations. The chain builds no path string, so any
+// growth with depth is the walk's own. It is not run in parallel: AllocsPerRun
+// measures the process.
 func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 	var shallow, deep any = walkLevel4{walkEmptyMap: walkEmptyMap{}}, walkLevel1{
 		walkLevel2: walkLevel2{
