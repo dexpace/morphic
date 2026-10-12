@@ -1534,8 +1534,9 @@ type PropPath struct {
 }
 type ParamPath struct{ Param ParamID; Segments []PropID }
 // ParamPath.Param, like Idempotency.TokenParam, names a parameter of the operation
-// carrying it: another operation's ParamID is a well-formed reference to the wrong
-// parameter, and pass.Validate rejects it (pass/param-binding-mismatch).
+// carrying it: another operation's ParamID, or a field argument's, is a well-formed
+// reference to the wrong parameter, and pass.Validate rejects it
+// (pass/param-binding-mismatch).
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …

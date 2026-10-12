@@ -424,16 +424,58 @@ func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testin
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
 
+// TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean pins that
+// an empty token is no reference: it is how an operation that is not
+// token-keyed spells having none.
 func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "")
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
-	// Another operation holds a parameter with no ID, so "" is a declared ID
-	// somewhere and only the empty-ID rule keeps the empty token from naming it.
-	unidentified := ir.Operation{ID: "op/x/other", Params: []ir.Parameter{{Name: ir.Naming{Source: "q"}}}}
-	diags := pass.Validate(docWithOperations(op, unidentified))
+	diags := pass.Validate(docWithOperations(op))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
+}
+
+// TestValidate_ParamReferences_EmptyPaginationInputIsRejected pins that a
+// pagination input naming no parameter is reported here, as an empty binding
+// is: the dangling walk skips an empty ID.
+func TestValidate_ParamReferences_EmptyPaginationInputIsRejected(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/get", "param/x/get/p", "", "param/x/get/p", "param/x/get/p")
+	var at []string
+	for _, d := range pass.Validate(docWithOperations(op)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/get/pagination/inputCursor"}, at)
+}
+
+// TestValidate_ParamReferences_FieldArgumentIsRejected pins that a binding or a
+// pagination input naming a field argument is reported. The argument is a
+// declared parameter, so the dangling walk resolves the reference and only this
+// check can say it is no parameter of the operation.
+func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
+	t.Parallel()
+	const arg = ir.ParamID("param/x/m/a/limit")
+	op := paramBindingOp("op/x/get", ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Param: arg, Location: ir.HTTPLocationQuery})
+	op.Pagination = &ir.Pagination{InputLimit: &ir.ParamPath{Param: arg}}
+	doc := docWithOperations(op)
+	model, ok := doc.Types["t/m"].(*ir.Model)
+	require.True(t, ok)
+	model.Properties[0].Args = []ir.Parameter{{ID: arg, Name: ir.Naming{Source: "limit"}, Type: ir.TypeRef{Target: "t/prim/string"}}}
+
+	diags := pass.Validate(doc)
+	var at []string
+	for _, d := range diags {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/get/bindings/http/0", "op/x/get/pagination/inputLimit"}, at)
+	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"), "the argument is declared")
 }
 
 // TestValidate_DuplicateEnumMemberIDIsAnError pins that two members of one enum
