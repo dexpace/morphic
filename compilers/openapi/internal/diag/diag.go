@@ -156,7 +156,8 @@ const (
 	// only entries written inline, so it misses one reached through a $ref, and
 	// reports an inline one beside this (#634). Every occurrence is kept, since
 	// neither is wrong on its own, and each repeat's ID ends in its occurrence
-	// number, so no two parameters share one.
+	// number, so no two parameters share one. A repeat no operation lowers is
+	// not seen here (#840).
 	//
 	// Error, as the parser's own report of the inline case is.
 	DuplicateParameter = "openapi/duplicate-parameter"
