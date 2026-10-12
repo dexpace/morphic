@@ -45,6 +45,6 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 		return id, nil
 	}
 	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"parameter %q in %q repeats the one declared at %s; every occurrence is kept, and this one's ID ends in /%d",
+		"parameter %q in %q repeats the entry at %s; every occurrence is kept, and this one's ID ends in /%d",
 		name, in, l.firstAt[slot], occurrence)}
 }

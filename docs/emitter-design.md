@@ -788,8 +788,8 @@ depends on the rendered identifier (§13 test T-4). Collisions are resolved dete
 collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
 in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
-`EnumMember.ID`, which is the value a member holds, so two members whose names render alike are
-two entries to disambiguate and reordering the members renames none.
+`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
+alike are two entries to disambiguate and reordering the members renames none.
 
 ### 4.13 Interface extraction & request shaping
 

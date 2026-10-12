@@ -37,8 +37,8 @@ func BigValEqual(a, b ir.BigVal) bool {
 // zero is "0".
 //
 // It reads the literal as BigValEqual does, so two literals share a spelling
-// exactly when BigValEqual calls them equal, and it is as total: the exponent is
-// carried as text, never materialized. ok is false outside the decimal grammar.
+// exactly when BigValEqual calls them equal, and like BigValEqual it never
+// materializes the exponent. ok is false outside the decimal grammar.
 func CanonicalDecimal(v ir.BigVal) (string, bool) {
 	d, ok := parseDecimalBound(v)
 	if !ok {
