@@ -192,7 +192,7 @@ it sees. Changes made together in one bump are listed together under it.
     could see an ID that lost the separator before its path in an operation, a service or a group,
     which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
     cannot tell which namespaces a producer minted in.
-- **0.8.0** — parameters gained an identity:
+- **0.8.0** — parameters and enum members gained an identity:
   - `Parameter` gained `ID`. A parameter had been named by its name, which one operation can repeat:
     `id` in the path and `id` in the query are two parameters. `HTTPParamBinding.Param`,
     `ParamPath.Param` and `Idempotency.TokenParam` changed from the parameter's name to its
@@ -223,11 +223,11 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's, because a JSON
-Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
-nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
-namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
-rule §4.3 states for distributed unions.
+`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's,
+because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different
+things and nothing outside the format can compute one. A node a lowering *mints* rather than finds
+takes a namespace of its own, so no pointer a reference can spell ever reaches it — the general form
+of the rule §4.3 states for distributed unions.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -266,13 +266,19 @@ source's location. A path-item parameter copied into two operations is two param
 apiece, and a path item reached from two paths gives each mount's parameters IDs rooted at that
 mount. The mount rather than the declaration scopes it, which is the reason an operation is
 identified by its mount (#107), and for the same reason a parameter is exempt from the agreement
-below: its provenance records the declaration it was read from. No list index is used, so
-reordering a parameter list renames nothing. A name and location an operation holds twice, which
-OpenAPI forbids but a `$ref` gets past the bundled parser's check, keeps both parameters: the first
-in list order has the bare ID, each repeat appends its occurrence number as one more token
-(`…/<in>/2`), and the compiler reports it (`openapi/duplicate-parameter`). The path is injective
-and the only rule minting into kind `param`, so it takes the format's own namespace, `openapi`,
-with no space of its own.
+below: its provenance records the declaration it was read from. No list index is used, so reordering
+a parameter list renames nothing. A name and location an operation holds twice, which OpenAPI
+forbids but a `$ref` gets past the bundled parser's check, keeps both parameters: the first in list
+order has the bare ID, each repeat appends its occurrence number as one more token (`…/<in>/2`), and
+the compiler reports it (`openapi/duplicate-parameter`). The path is injective and the only rule
+minting into kind `param`, so it takes the format's own namespace, `openapi`, with no space of its
+own.
+
+Two things are left open. Nothing holds a parameter's ID beneath its own operation's: `irverify`
+checks it against the grammar, and the OpenAPI compiler roots both at one mount, but a parameter
+carrying another operation's path is not reported. And `Property.Args` holds `Parameter`s too, but
+no compiler lowers field arguments yet, so their IDs have no grammar; the first compiler that mints
+them fixes it here.
 
 An enum member is identified by the enum that declares it and the value it holds:
 `e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
@@ -289,9 +295,10 @@ document declares (`ir/id-space-undeclared`).
 The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
 namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
 security scheme and a property are held to it. An operation is not, because its provenance records
-where its body is declared and its ID where it is mounted, and the two differ for an operation reached
-through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A service records no pointer, and a group, formed by
-a rule from every operation sharing a key, has no single position to record.
+where its body is declared and its ID where it is mounted, and the two differ for an operation
+reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A
+service records no pointer, and a group, formed by a rule from every operation sharing a key, has no
+single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
@@ -1635,11 +1642,11 @@ type HTTPParamBinding struct {
 type Callback struct { Expression string; Operations []OpID }
 ```
 
-Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per non-host location; a `host` binding is
-additive** — Smithy `@hostLabel` members expand into the host prefix *and* still serialize at
-their modeled location, by spec. TypeSpec's `HttpProperty` role+path flattening is the model
-here: nested `@header`/`@body` annotations resolve to explicit `(role, wire name, path)`
-bindings rather than restructured models.
+Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per
+non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host
+prefix *and* still serialize at their modeled location, by spec. TypeSpec's `HttpProperty` role+path
+flattening is the model here: nested `@header`/`@body` annotations resolve to explicit
+`(role, wire name, path)` bindings rather than restructured models.
 
 ### 8.2 RPC
 
