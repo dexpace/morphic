@@ -742,11 +742,7 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 	if content == nil || content.Len() == 0 {
 		return nil
 	}
-	keys := make([]string, 0, content.Len())
-	for mt := range content.All() {
-		keys = append(keys, mt)
-	}
-	return keys
+	return slices.Collect(content.Keys())
 }
 
 // requestBodyHint derives an anonymous-type naming hint for a request body from

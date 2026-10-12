@@ -214,7 +214,7 @@ var workShapes = []struct {
 	{"an anchor per reference in one schema", anchoredReferences},
 	{"a layered chain", func(n int) string {
 		var sb strings.Builder
-		for j := 0; j < n/6+1; j++ {
+		for j := range n/6 + 1 {
 			fmt.Fprintf(&sb, "    M%d:\n      $defs:\n", j)
 			for k := range 5 {
 				fmt.Fprintf(&sb, "        L%d: {$ref: '#/$defs/L%d'}\n", k, k+1)
