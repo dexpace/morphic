@@ -3,64 +3,62 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
 )
 
-// ValidatePass is the name of the validate pass, for callers that may not
-// import pass.
+// ValidatePass names the validate pass, for a caller that does not import pass.
 const ValidatePass = pass.ValidateName
 
-// ErrUnknownPass reports a RunOptions.DisablePasses name that no pass the
-// engine composes carries. It is a Go error rather than a diagnostic: an
-// unknown option names no defect in the spec and has no provenance to carry,
-// so it is the caller's misuse.
-var ErrUnknownPass = errors.New("engine: unknown pass")
+// ErrUnknownPass reports a RunOptions.DisablePasses name that none of the
+// engine's passes carries. It is a Go error rather than a diagnostic because it
+// names no defect in the spec: the run was misconfigured.
+var ErrUnknownPass = errors.New("unknown pass")
 
-// errNilPassDocument reports a pass that returned no document, which would
-// otherwise silently keep or lose the previous one.
-var errNilPassDocument = errors.New("engine: pass returned a nil document")
+// errNoDocument reports a pass that broke its contract by returning no
+// document. Keeping the previous one would hide the bug, and stopping without
+// one would report the spec as refused.
+var errNoDocument = errors.New("returned no document")
 
-// DefaultPasses returns the passes a default engine runs, in run order. The
-// order is explicit here, and nowhere else, because the engine is the only
-// composer of passes.
-func DefaultPasses() []pass.Pass {
-	return []pass.Pass{pass.NewValidate()}
+// defaultPasses returns the passes every engine runs, in the order it runs
+// them. This is the one place that order is written down.
+func defaultPasses() []pass.Pass {
+	return []pass.Pass{pass.Validator{}}
 }
 
-// disabledSet resolves names against passes, refusing any that no pass carries.
-func disabledSet(passes []pass.Pass, names []string) (map[string]struct{}, error) {
-	known := make(map[string]struct{}, len(passes))
-	for _, p := range passes {
-		known[p.Name()] = struct{}{}
+// enabledPasses returns, in run order, those of e's passes that disabled does
+// not name, and refuses a name none of them carries, for the reason
+// RunOptions.DisablePasses gives.
+func (e *Engine) enabledPasses(disabled []string) ([]pass.Pass, error) {
+	names := make([]string, 0, len(e.passes))
+	for _, p := range e.passes {
+		names = append(names, p.Name())
+	}
+	for _, name := range disabled {
+		if !slices.Contains(names, name) {
+			return nil, fmt.Errorf("engine: disable %q (known: %s): %w",
+				name, strings.Join(names, ", "), ErrUnknownPass)
+		}
 	}
 
-	set := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		if _, ok := known[name]; !ok {
-			return nil, fmt.Errorf("%w %q", ErrUnknownPass, name)
-		}
-		set[name] = struct{}{}
-	}
-	return set, nil
+	return slices.DeleteFunc(slices.Clone(e.passes), func(p pass.Pass) bool {
+		return slices.Contains(disabled, p.Name())
+	}), nil
 }
 
-// runPasses runs every enabled pass in order, each over the previous one's
-// output, and returns the final document with every diagnostic produced.
-func runPasses(doc *ir.Document, passes []pass.Pass, disabled map[string]struct{}) (*ir.Document, []ir.Diagnostic, error) {
-	cur := doc
-	var produced []ir.Diagnostic
+// runPasses runs passes in order, each over the document the one before it
+// returned, and returns the last document with every diagnostic they reported.
+func runPasses(doc *ir.Document, passes []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	var found []ir.Diagnostic
 	for _, p := range passes {
-		if _, off := disabled[p.Name()]; off {
-			continue
-		}
-		next, diags := p.Run(cur)
+		next, diags := p.Run(doc)
 		if next == nil {
-			return nil, nil, fmt.Errorf("%w: %s", errNilPassDocument, p.Name())
+			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errNoDocument)
 		}
-		produced = append(produced, diags...)
-		cur = next
+		doc, found = next, append(found, diags...)
 	}
-	return cur, produced, nil
+	return doc, found, nil
 }

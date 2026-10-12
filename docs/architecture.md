@@ -122,16 +122,26 @@ all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
-A pass is a `pass.Pass`: a stable `Name()` and a pure `Run(*ir.Document) (*ir.Document,
-[]ir.Diagnostic)` that never mutates its input. A transform returns a new document; an
-analysis such as `validate` returns its input unchanged with its diagnostics. The ordered list
-lives in `engine.DefaultPasses`, not in `pass/`: composing passes is orchestration, which only
-the engine does. The engine runs the list after a successful compile, threads each pass's output
-into the next, and merges every diagnostic with the compiler's. A caller turns a pass off by
-name (`RunOptions.DisablePasses`, `--disable-pass`); an unknown name is a Go error
-(`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the spec.
+Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()`
+and a `Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A
+transform returns a new document, which may share whatever it left unchanged; an analysis such as
+`validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
+emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the
+document is a diagnostic, and anything else is a bug in the pass. A pass that takes settings, as
+`filter`, `version-slice` and `overlay` will, holds them on its own value, so `Run` keeps one
+signature for every pass; how a caller supplies them is decided with the first of them.
 
-Built today, and the whole of the default list:
+The order is written once, in the `engine` package's default list, not in `pass/`: composing
+passes is orchestration, which only the engine does. The engine runs the list after a successful
+compile and threads each pass's output into the next. It owns `Document.Diagnostics`, writing the
+compiler's findings and every pass's onto the document it returns, so a transform that builds a
+fresh document cannot lose any. A caller turns a pass off by name (`RunOptions.DisablePasses`,
+`--disable-pass`); a name no pass carries is a Go error (`engine.ErrUnknownPass`), not a
+diagnostic, because it names no defect in the spec. Turning a pass *on* by name is the other half
+of that option, and it lands with the first pass that is off by default, as the convenience
+simplifications of reference-learnings.md §B0 are to be.
+
+Built, and in the default list:
 
 - **validate** — referential integrity (every typed-ID reference resolves to something the document
   declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
@@ -139,7 +149,7 @@ Built today, and the whole of the default list:
   variants, wire-name uniqueness within a model, binding completeness (every operation parameter
   is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
 
-Designed but not built; none is in the default list, and none is a flag or option today:
+Designed, not yet built:
 
 - **link** — resolve cross-document references when multiple specs are parsed into one document
   (multi-service, spec-stitching).

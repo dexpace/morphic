@@ -335,8 +335,9 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	assert.NotContains(t, stderr.String(), spec+":", "the spec is clean; the overlay is what refused")
 }
 
-// TestRun_UnknownPassIsMisuse pins that an invented --disable-pass name is
-// refused with exit 2 by both commands, not ignored.
+// TestRun_UnknownPassIsMisuse pins that a --disable-pass name no pass carries
+// is refused with exit 2 by both commands rather than ignored, and that the
+// refusal names the passes there are.
 func TestRun_UnknownPassIsMisuse(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
@@ -345,7 +346,8 @@ func TestRun_UnknownPassIsMisuse(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		code := run([]string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
 
-		assert.Equal(t, 2, code, cmd)
-		assert.Contains(t, stderr.String(), "no-such-pass", cmd)
+		assert.Equal(t, exitFailure, code, cmd)
+		assert.Contains(t, stderr.String(), `"no-such-pass" (known: validate)`, cmd)
+		assert.Empty(t, stdout.String(), cmd)
 	}
 }

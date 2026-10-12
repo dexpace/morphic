@@ -26,7 +26,10 @@ import (
 type RunOptions struct {
 	FormatOptions   any               `json:"formatOptions,omitzero"`
 	CompilerOptions map[string]string `json:"compilerOptions,omitempty"`
-	DisablePasses   []string          `json:"disablePasses,omitempty"`
+	// DisablePasses names passes the run skips. A name none of the engine's
+	// passes carries fails the run with ErrUnknownPass before the spec is read,
+	// since ignoring a misspelt one would leave its pass running unseen.
+	DisablePasses []string `json:"disablePasses,omitempty"`
 }
 
 // errOptionChannels reports both option channels set at once. Which one wins
@@ -52,16 +55,14 @@ type Result struct {
 	Format      compilers.SourceFormat `json:"format"`
 }
 
-// Engine orchestrates the detect → compiler → passes pipeline over a registry
-// of compilers.
+// Engine orchestrates the detect → compiler → passes pipeline.
 //
 // An Engine is safe for concurrent use, and concurrent runs over one spec yield
 // identical documents, not merely uncorrupted ones. Run builds a fresh
 // compilers.Source per call, so the state a compiler leaves on one
 // (Source.Parsed) is never shared between runs. NewWith finishes the registry
-// before the Engine exists, and Run only reads it. The rest is
-// compilers.Compiler's purity: a compiler holding package-level mutable state
-// would break both.
+// and the pass list before the Engine exists, and Run only reads them. The rest
+// is the purity of compilers and passes: one holding mutable state breaks both.
 //
 // TestEngine_ConcurrentRunSharesOneEngine pins both properties: the second on
 // every run, the first only under -race, which the coverage gate uses.
@@ -71,16 +72,17 @@ type Engine struct {
 }
 
 // New composes the default engine: a registry with every built-in compiler
-// registered. Future compilers are added here and only here.
+// registered, and the default passes. Future compilers are added here and only
+// here.
 func New() (*Engine, error) {
 	return NewWith(openapi.New())
 }
 
 // NewWith registers the given compilers into a fresh registry and wraps it in
-// an Engine, for tests and embedders that need a custom compiler set. A nil
-// compiler and a register failure (a compiler reporting no formats, or two
-// claiming the same format) surface as a Go error rather than a panic, naming
-// the argument position.
+// an Engine running the default passes, for tests and embedders that need a
+// custom compiler set. A nil compiler and a register failure (a compiler
+// reporting no formats, or two claiming the same format) surface as a Go error
+// rather than a panic, naming the argument position.
 //
 // An empty set is refused. A built engine cannot gain a compiler, so one with
 // none could compile nothing and would report every source as unrecognized,
@@ -96,7 +98,7 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 			return nil, fmt.Errorf("engine: register compiler %d: %w", i, err)
 		}
 	}
-	return &Engine{registry: reg, passes: DefaultPasses()}, nil
+	return &Engine{registry: reg, passes: defaultPasses()}, nil
 }
 
 // Run executes the pipeline for the spec at specPath: read it, compile it with
@@ -104,10 +106,10 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 // opts.DisablePasses, in order.
 //
 // A Go error is reserved for I/O and programmer errors: an unreadable file, a
-// compiler breaking its contract, or a name ErrUnknownPass refuses. Everything
-// wrong with the spec itself is a diagnostic in the Result, so a caller can
-// treat a Go error as misuse, as the CLI does. Calls may overlap; each owns the
-// document it returns.
+// compiler or pass breaking its contract, or a name ErrUnknownPass refuses.
+// Everything wrong with the spec itself, a source no compiler can lower
+// included, is a diagnostic in the Result, so a caller can treat a Go error as
+// misuse, as the CLI does. Calls may overlap; each owns the document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting
@@ -125,7 +127,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return nil, errOptionChannels
 	}
 
-	disabled, err := disabledSet(e.passes, opts.DisablePasses)
+	passes, err := e.enabledPasses(opts.DisablePasses)
 	if err != nil {
 		return nil, err
 	}
@@ -167,16 +169,19 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 		return &Result{Diagnostics: diags, Format: format,
 			Sources: det.Compiler.SourceTable(sources, det.Options)}, nil
 	}
-	doc, passDiags, err := runPasses(doc, e.passes, disabled)
-	if err != nil {
-		return nil, err
-	}
-	diags = append(diags, passDiags...)
 	// Both channels end up carrying the whole list: the Result is what a caller
 	// gates on, and the document is what gets persisted (golden snapshots, IR
 	// diff, caches, emitters). Merging rather than picking one is what keeps a
-	// finding its compiler put on only one of them — see mergeDiagnostics.
-	doc.Diagnostics = mergeDiagnostics(doc.Diagnostics, diags)
+	// finding its compiler put on only one of them — see mergeDiagnostics. The
+	// compiler's list is taken before any pass runs, since the passes' contract
+	// leaves Document.Diagnostics to the engine: a transform that builds a
+	// fresh document cannot lose what the compiler stored on the old one.
+	compiled := mergeDiagnostics(doc.Diagnostics, diags)
+	doc, found, err := runPasses(doc, passes)
+	if err != nil {
+		return nil, err
+	}
+	doc.Diagnostics = mergeDiagnostics(compiled, found)
 	return &Result{Document: doc, Diagnostics: doc.Diagnostics, Sources: doc.Sources, Format: format}, nil
 }
 
