@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
-	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -157,7 +156,10 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// end of a $ref chain, since one hop would take the default and description
 	// off an intermediate reference instead of the schema that declares them.
 	tgt := resolve.TargetSchema(js, s)
-	diags := fillParamDefault(c, param, s, tgt, pointer)
+	def, diags := schema.DefaultOf(c, s, tgt, pointer)
+	if def != nil {
+		param.Default = def
+	}
 
 	// The co-declared bound keyword ir.Constraints has no field for is kept on
 	// the parameter, the carrier at this position, exactly as a property keeps
@@ -173,26 +175,6 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
 	return append(diags, schema.PreserveRefSiteKeywords(c, ts, &param.Unmodeled, js, param.Type, pointer)...)
-}
-
-// fillParamDefault sets the parameter default, preferring the use-site node
-// over the $ref target's; an unconvertible node yields a diagnostic. It mirrors
-// fillPropertyDefault — the same keyword, read the same way, at the other
-// carrier.
-func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	node := s.GetDefault()
-	if node == nil && tgt != nil {
-		node = tgt.GetDefault()
-	}
-	if node == nil {
-		return nil
-	}
-	v, err := value.FromNode(node)
-	if err != nil {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())}
-	}
-	param.Default = &v
-	return nil
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the

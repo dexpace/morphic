@@ -1104,7 +1104,10 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 		return nil
 	}
 	tgt := resolve.TargetSchema(js, ref)
-	diags := fillPropertyDefault(c, p, ref, tgt, pointer)
+	def, diags := DefaultOf(c, ref, tgt, pointer)
+	if def != nil {
+		p.Default = def
+	}
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
@@ -1185,23 +1188,23 @@ func LoweredToOwnNode(ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef)
 	return owned && id == t.Target
 }
 
-// fillPropertyDefault sets the property default, preferring the use-site node
-// over the $ref target's; an unconvertible node yields a diagnostic.
-func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	node := ref.GetDefault()
+// DefaultOf returns the default s declares, preferring the use-site node over
+// the $ref target tgt's, for a carrier to keep. A schema declaring none yields
+// nothing; an unconvertible node yields a diagnostic and no value.
+func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
+	node := s.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
 	}
 	if node == nil {
-		return nil
+		return nil, nil
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 			"default: %s", err.Error())}
 	}
-	p.Default = &v
-	return nil
+	return &v, nil
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints, and the

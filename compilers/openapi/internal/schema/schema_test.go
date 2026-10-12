@@ -441,6 +441,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 		}
 	}
 	assert.True(t, sawDefaultWarn, "malformed default warns")
+	assert.Nil(t, byWire["badDefault"].Default, "and is dropped with its warning, not kept as a zero value")
 }
 
 func TestLower_RefTargetDescriptionFallback(t *testing.T) {
