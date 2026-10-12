@@ -188,13 +188,18 @@ func (o owners) cedes(i int) func(key string) bool {
 // declaration a nearer one takes over, sited at the keeper's and naming the
 // other's position, so neither is silent. One layer, every mount with nothing
 // beside a $ref, keeps all it declares.
+//
+// A farther layer is looked up by key, never scanned, so the work is the
+// constructs times the layers, which the reference chain bound caps.
 func (m pathItemMount) precedence(docs bool) (owners, []ir.Diagnostic) {
 	if len(m.layers) == 1 {
 		return owners{}, nil
 	}
 	decls := make([][]itemConstruct, len(m.layers))
+	first := make([]map[string]itemConstruct, len(m.layers))
 	for i, l := range m.layers {
 		decls[i] = itemConstructs(l, docs)
+		first[i] = firstDeclared(decls[i])
 	}
 	owner := owners{}
 	var diags []ir.Diagnostic
@@ -205,16 +210,28 @@ func (m pathItemMount) precedence(docs bool) (owners, []ir.Diagnostic) {
 			}
 			owner[d.key] = i
 			for j := i + 1; j < len(m.layers); j++ {
-				if k := slices.IndexFunc(decls[j], func(o itemConstruct) bool { return o.key == d.key }); k >= 0 {
+				if other, ok := first[j][d.key]; ok {
 					diags = append(diags, l.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, l.ptr+d.rel,
 						"the field beside the path item's $ref declares %s here, which the path item it references "+
 							"also declares at %s; the declaration here is the one kept at this mount",
-						d.label, m.layers[j].name+string(decls[j][k].rel)))
+						d.label, m.layers[j].name+string(other.rel)))
 				}
 			}
 		}
 	}
 	return owner, diags
+}
+
+// firstDeclared indexes one layer's constructs by key, each to the first that
+// declares it, which is the one a finding names.
+func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
+	first := make(map[string]itemConstruct, len(decls))
+	for _, d := range decls {
+		if _, seen := first[d.key]; !seen {
+			first[d.key] = d
+		}
+	}
+	return first
 }
 
 // itemParams is the mount's path-item parameter list: each layer's entries,
