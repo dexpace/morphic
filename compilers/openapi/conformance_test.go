@@ -207,6 +207,7 @@ func conformanceCases() []conformanceCase {
 		{"multi-content", assertMultiContent, []string{"multi-content"}},
 		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
 		{"file-body", assertFileBody, nil},
+		{"media-type-spelling", assertMediaTypeSpelling, []string{"multipart-encoding"}},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
 		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
 		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
@@ -2479,6 +2480,43 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	resp := firstContent(t, op)
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+}
+
+// assertMediaTypeSpelling pins that a media type is classified by its type alone
+// while the IR keeps the key as written. One content per classification: a
+// multipart body, a form-urlencoded body and a file body with no schema, the
+// last on both sides of an operation.
+func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	upload, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	multipart := requestContent(t, upload)
+	assert.Equal(t, "Multipart/Form-Data", multipart.MediaType)
+	require.Len(t, multipart.Encoding, 1, "a mixed-case multipart key keeps its part encoding")
+	for _, pe := range multipart.Encoding {
+		assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
+		assert.True(t, pe.Filename)
+	}
+
+	submit, ok := opByName(doc, "submit")
+	require.True(t, ok)
+	form := requestContent(t, submit)
+	assert.Equal(t, "Application/X-WWW-Form-Urlencoded; charset=utf-8", form.MediaType)
+	require.Len(t, form.Encoding, 1, "a parameterized form-urlencoded key keeps its part encoding")
+	for _, pe := range form.Encoding {
+		assert.True(t, pe.Multi)
+	}
+
+	blob, ok := opByName(doc, "putBlob")
+	require.True(t, ok)
+	req := requestContent(t, blob)
+	require.NotNil(t, req.File, "a mixed-case octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"Application/Octet-Stream"}, req.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), req.Type.Target)
+
+	resp := firstContent(t, blob)
+	require.NotNil(t, resp.File, "a parameterized octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"application/octet-stream; type=tar"}, resp.File.ContentTypes)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
 }
 
