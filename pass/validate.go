@@ -9,11 +9,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxGroupDepth bounds recursion over nested operation groups; deeper nesting is
-// pathological and is truncated rather than allowed to blow the stack, which
-// checkGroupWalkTruncated reports as ir/walk-truncated.
-const maxGroupDepth = 128
-
 // Validate checks a Document for referential-integrity violations and returns
 // the diagnostics it finds, most-structural first. It is pure: it never mutates
 // doc and holds no package-level state. An empty result means the document is
@@ -142,7 +137,7 @@ func appendServerIndexDiags(dst []ir.Diagnostic, indices []int, declared int, wh
 // are, and are enumerated here for the same reason.
 func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for i, b := range op.Bindings.HTTP {
 			where := fmt.Sprintf("%s/bindings/http/%d", op.ID, i)
 			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(op.Responses), where)
@@ -261,7 +256,7 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID)+"/commonErrors", fn)
 	}
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.Request != nil {
 			fn(payloadSite{payload: op.Request, where: string(op.ID) + "/request", request: true})
 		}
@@ -290,13 +285,17 @@ func forEachErrorPayload(errs []ir.ErrorCase, where string, fn func(payloadSite)
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
 // key in each of the payload's contents; where locates the payload's owner.
+//
+// A content whose type no entry declares exposes no part, so each of its keys
+// is reported beside checkDanglingRefs's finding on the type. The claims
+// differ, as with checkMapping.
 func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
 	for i, c := range payload.Contents {
 		if len(c.Encoding) == 0 {
 			continue
 		}
 		at := fmt.Sprintf("%s/contents/%d", where, i)
-		dst = appendUnknownPartDiags(dst, c, exposedProps(doc, c.Type.Target), at)
+		dst = appendUnknownPartDiags(dst, c, ir.ExposedProps(doc, c.Type.Target), at)
 	}
 	return dst
 }
@@ -313,72 +312,6 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.Prop
 		dst = append(dst, diag(ir.SeverityError, "ir/encoding-key-unknown-property",
 			fmt.Sprintf("encoding key %q at %s addresses no property of the content's type %q",
 				key, at, c.Type.Target), at))
-	}
-	return dst
-}
-
-// exposedProps returns the property IDs a type exposes: its own plus those it
-// composes in (§4.3), the flat set an emitter renders. A root naming no model,
-// undeclared or empty, exposes none, so every reference against it is reported
-// beside checkDanglingRefs's finding on it; the claims differ, as with
-// checkMapping.
-//
-// It serves the two checks with a root written down: a content's multipart
-// parts and a model discriminator's tag property. An alias scalar exposes the
-// parts of the model its Base names, which is how a $ref carrying siblings
-// arrives. A visited set terminates cycles.
-func exposedProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
-	props := map[ir.PropID]bool{}
-	seen := map[ir.TypeID]bool{}
-	queue := []ir.TypeID{root}
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		td := doc.Types[id]
-		if ir.IsNilTypeDef(td) {
-			continue // undeclared, or the typed nil checkNilTypes reports
-		}
-		queue = appendPartSources(queue, props, td)
-	}
-	return props
-}
-
-// appendPartSources records td's own part properties in props and appends the
-// nodes the rest come from: a model's composition parents, an alias scalar's
-// base. No other kind carries parts or says where to find them.
-func appendPartSources(dst []ir.TypeID, props map[ir.PropID]bool, td ir.TypeDef) []ir.TypeID {
-	switch t := td.(type) {
-	case *ir.Model:
-		for _, p := range t.Properties {
-			props[p.ID] = true
-		}
-		return appendCompositionParents(dst, t)
-	case *ir.Scalar:
-		if t.Base == nil {
-			return dst // an opaque scalar stands for nothing.
-		}
-		return append(dst, t.Base.Target)
-	default:
-		return dst // no other kind exposes parts.
-	}
-}
-
-// appendCompositionParents appends m's base, interfaces and mixins to dst. All
-// three contribute to the flat property set an emitter computes (§4.3), so a part
-// inherited through any of them is a legal encoding key.
-func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
-	if m.Base != nil {
-		dst = append(dst, m.Base.Target)
-	}
-	for _, r := range m.Implements {
-		dst = append(dst, r.Target)
-	}
-	for _, r := range m.Mixins {
-		dst = append(dst, r.Target)
 	}
 	return dst
 }
@@ -464,7 +397,7 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 	}
 	diags := checkDiscriminatorProperty(doc, m)
 	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
-		return isSubtype(doc, target, m.ID)
+		return ir.IsSubtype(doc, target, m.ID)
 	})...)
 }
 
@@ -477,7 +410,7 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 // an emitter building a decoder reads the tag off *this* model's instance.
 func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 	prop := m.Discriminator.Property
-	if prop == "" || exposedProps(doc, m.ID)[prop] {
+	if prop == "" || ir.ExposedProps(doc, m.ID)[prop] {
 		return nil
 	}
 	where := string(m.ID)
@@ -530,74 +463,6 @@ func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bo
 		return false, "is not a variant of it"
 	}
 	return true, ""
-}
-
-// isSubtype reports whether target is a declared subtype of base at any distance
-// along the composition chain, via single inheritance or interface conformance.
-//
-// The relation is the transitive closure, since a base tagging a grandchild is
-// legal in every source format.
-//
-// A composition parent naming an alias scalar is read through it: a $ref
-// carrying siblings composes the branch's own node, not the referenced schema
-// (ir-design §4.3), so such a subtype names its parent one hop further away
-// than the mapping spells it. exposedProps reads composition the same way. A
-// visited set terminates cycles.
-func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
-	seen := map[ir.TypeID]bool{}
-	queue := []ir.TypeID{target}
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		sub, ok := doc.Types[id].(*ir.Model)
-		if !ok {
-			continue // no other kind declares a supertype.
-		}
-		supers := appendSupertypes(nil, doc, sub)
-		if slices.Contains(supers, base) {
-			return true
-		}
-		queue = append(queue, supers...)
-	}
-	return false
-}
-
-// appendSupertypes appends m's immediate supertypes to dst: its single-inheritance
-// Base and every interface it conforms to, each read through the alias scalars
-// standing in for it.
-//
-// Mixins are absent on purpose, which is what separates this from
-// appendCompositionParents: a mixin contributes members to a model without making
-// it a member of anything, so it belongs to the flat property set and not to
-// subtype identity.
-func appendSupertypes(dst []ir.TypeID, doc *ir.Document, m *ir.Model) []ir.TypeID {
-	if m.Base != nil {
-		dst = append(dst, aliasedType(doc, m.Base.Target))
-	}
-	for _, r := range m.Implements {
-		dst = append(dst, aliasedType(doc, r.Target))
-	}
-	return dst
-}
-
-// aliasedType follows a chain of alias scalars — a Scalar whose Base names
-// another type — to the type it stands for, returning id unchanged when it names
-// no alias. The visited set bounds it: the IR permits a cyclic alias chain, and
-// a walk over one must terminate rather than spin.
-func aliasedType(doc *ir.Document, id ir.TypeID) ir.TypeID {
-	seen := make(map[ir.TypeID]bool)
-	for {
-		s, ok := doc.Types[id].(*ir.Scalar)
-		if !ok || s.Base == nil || seen[id] {
-			return id
-		}
-		seen[id] = true
-		id = s.Base.Target
-	}
 }
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
@@ -702,7 +567,7 @@ func danglingWalkSkips(id ir.ParamID, declared map[ir.ParamID]bool) bool {
 // the operation's logical parameters.
 func checkParamBindings(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for i := range op.Bindings.HTTP {
 			diags = append(diags, checkHTTPParamBinding(op, i, declared)...)
 		}
@@ -806,7 +671,7 @@ func operationParamRefs(op ir.Operation) []paramRef {
 // (danglingWalkSkips).
 func checkParamReferences(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		own := make(map[ir.ParamID]bool, len(op.Params))
 		for _, p := range op.Params {
 			own[p.ID] = true
@@ -830,7 +695,7 @@ func checkParamReferences(doc *ir.Document, declared map[ir.ParamID]bool) []ir.D
 // the token names the operation's own parameter is checkParamReferences'.
 func checkIdempotency(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		idem := op.Idempotency
 		hasToken := idem.TokenParam != ""
 		if hasToken == (idem.Kind == ir.IdempotencyToken) {
@@ -857,11 +722,11 @@ func checkIdempotency(doc *ir.Document) []ir.Diagnostic {
 // channel forbids. The code keeps the pass/ namespace: this is a containment
 // judgement the pass owns outright, not a broken reference.
 //
-// It enters through forEachOperation, so it inherits the group-depth bound that
+// It enters through ir.ForEachOperation, so it inherits the group-depth bound that
 // checkGroupWalkTruncated reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		diags = append(diags, checkBoundMessages(doc, op)...)
 	})
 	return diags
@@ -923,7 +788,7 @@ func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 // checkOneWay reports one-way operations that nonetheless declare responses.
 func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.OneWay && len(op.Responses) > 0 {
 			diags = append(diags, diag(ir.SeverityError, "pass/oneway-with-responses",
 				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, len(op.Responses)),
@@ -941,11 +806,11 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 // still returns "internally consistent". The sibling reference walk reports its
 // own cap the same way.
 func checkGroupWalkTruncated(doc *ir.Document) []ir.Diagnostic {
-	if !forEachOperation(doc, func(ir.Operation) {}) {
+	if !ir.ForEachOperation(doc, func(ir.Operation) {}) {
 		return nil
 	}
 	return []ir.Diagnostic{diag(ir.SeverityError, "ir/walk-truncated",
-		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", maxGroupDepth),
+		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", ir.MaxGroupDepth),
 		ir.DocumentPath)}
 }
 
@@ -981,13 +846,17 @@ func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 
 // graphqlReachableTypes returns the set of type IDs transitively reachable from
 // the operations that carry a GraphQL binding. The traversal is iterative with a
-// visited set, so it terminates on cyclic type graphs.
+// visited set, so it terminates on cyclic type graphs. Operations are the roots
+// and keep the reflection walk, since ir.TypeEdges has no operation form; each
+// type after that is followed through ir.TypeEdges, which stops only where the
+// reflection walk has, and checkDanglingRefs reports that.
+//
 // It reports whether the operation walk truncated, since a caller cannot tell an
 // unreachable type from an unvisited one without it.
 func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
-	truncated := forEachOperation(doc, func(op ir.Operation) {
+	truncated := ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.Bindings.GraphQL != nil {
 			queue = appendTypeIDs(queue, op)
 		}
@@ -999,62 +868,23 @@ func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 			continue
 		}
 		seen[id] = true
-		if td, ok := doc.Types[id]; ok {
-			queue = appendTypeIDs(queue, td)
-		}
+		queue = slices.AppendSeq(queue, ir.TypeEdges(doc.Types[id]))
 	}
 	return seen, truncated
 }
 
-// appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
-// dropped rather than reported: this feeds reachability, where a truncated walk
-// can only under-report, and checkDanglingRefs already reports the same
-// truncation over the whole document.
+// appendTypeIDs appends every TypeID reachable from an operation root to dst. It
+// serves only graphqlReachableTypes's roots, since ir.TypeEdges covers type
+// definitions and has no operation form. Truncation is dropped rather than
+// reported: this feeds reachability, where a truncated walk can only
+// under-report, and checkDanglingRefs already reports the same truncation over
+// the whole document.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	sites, _ := collectTypeIDs(root, "")
 	for _, s := range sites {
 		dst = append(dst, ir.TypeID(s.id))
 	}
 	return dst
-}
-
-// forEachOperation invokes fn for every operation in the document, descending
-// nested operation groups up to maxGroupDepth.
-//
-// It reports whether the walk stopped at the cap before reaching every
-// operation, so a caller deciding something from what it saw can tell an absent
-// operation from an unvisited one.
-func forEachOperation(doc *ir.Document, fn func(ir.Operation)) bool {
-	truncated := false
-	for _, svc := range doc.Services {
-		if forEachGroupOperation(svc.Groups, 0, fn) {
-			truncated = true
-		}
-	}
-	return truncated
-}
-
-// forEachGroupOperation walks a group tree, invoking fn per operation.
-// forEachGroupOperation walks groups depth-first, reporting whether the bound
-// cut the descent short.
-func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Operation)) bool {
-	if depth > maxGroupDepth {
-		// Only a non-empty slice is being skipped. Every leaf recurses once into
-		// its own empty Groups, so reporting the cap unconditionally would claim
-		// truncation for a walk that reached everything — at exactly the depth
-		// where the last operation still fits.
-		return len(groups) > 0
-	}
-	truncated := false
-	for _, g := range groups {
-		for _, op := range g.Operations {
-			fn(op)
-		}
-		if forEachGroupOperation(g.Groups, depth+1, fn) {
-			truncated = true
-		}
-	}
-	return truncated
 }
 
 // diag builds a Diagnostic located in the document rather than in a source.

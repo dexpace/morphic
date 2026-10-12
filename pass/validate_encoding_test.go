@@ -288,6 +288,21 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 	}
 }
 
+// TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef
+// holds the double report appendEncodingKeyDiags documents: the type is a
+// broken reference, and the key, a different claim, routes no part.
+func TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	c := requestContent(doc)
+	c.Type = ir.TypeRef{Target: "t/missing"}
+	c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
+
+	got := codes(pass.Validate(doc))
+	assert.Contains(t, got, "ir/dangling-type-ref")
+	assert.Contains(t, got, "ir/encoding-key-unknown-property")
+}
+
 // aliasMultipartSpec is a multipart body written so the media schema lowers to an
 // alias over the model that declares the parts: a $ref carrying siblings has
 // nowhere but an alias to keep them, and a component that is a bare $ref is one.
