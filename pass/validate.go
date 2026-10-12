@@ -26,9 +26,12 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	if doc == nil {
 		return nil
 	}
+	// Read once: the dangling walk resolves against these, and checkParams
+	// leaves to it exactly what it reports.
+	decls, declTruncated := ir.DeclaredIDs(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
-	diags = append(diags, checkDanglingRefs(doc)...)
+	diags = append(diags, checkDanglingRefs(doc, decls, declTruncated)...)
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
@@ -37,7 +40,9 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
-	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkDuplicateMemberIDs(doc)...)
+	diags = append(diags, checkParams(doc, decls)...)
+	diags = append(diags, checkIdempotency(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
@@ -46,7 +51,8 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 
 // checkDanglingRefs reports every typed-ID reference that resolves to no entry
 // in the registry declaring that class of ID — a TypeRef.Target into doc.Types,
-// a SchemeUse.Scheme into doc.Auth — wherever it sits.
+// a SchemeUse.Scheme into doc.Auth — wherever it sits. decls and declTruncated
+// are ir.DeclaredIDs(doc).
 //
 // Sites and registries come from reflection over the document's own shape
 // (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
@@ -54,12 +60,11 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 // by hand below, and ir.PropID is checkPropIDRefs's. Provenance.Source is
 // irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
 // diagnostics would make a document-wide check report its own output.
-func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
+func checkDanglingRefs(doc *ir.Document, decls []ir.IDDeclaration, declTruncated bool) []ir.Diagnostic {
 	// Document has no map for OpID, ServiceID or GroupID: an ir.Operation and an
 	// ir.OperationGroup are declared in the Service→OperationGroup tree and an
 	// ir.Service in a slice (GitHub #50), so their registries come from the
 	// identities the nodes declare.
-	decls, declTruncated := ir.DeclaredIDs(doc)
 	regs := ir.DocumentRegistries(doc)
 	// A registry built from a truncated walk says "not declared" of a node it
 	// never reached, so a legitimate operation past the depth bound would be
@@ -622,6 +627,36 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
+// checkDuplicateMemberIDs reports an enum that gives two members one ID.
+//
+// A member is identified by its value in its enum, and a repeated value's ID ends
+// in its occurrence number, so a compiler following ir-design §4.5 never trips
+// this. A document that does has two members an emitter cannot tell apart,
+// which is what keying collision resolution by ID (emitter-design §4.12) rests
+// on not happening.
+func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range liveTypeIDs(doc) {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		if !ok {
+			continue
+		}
+		seen := make(map[ir.EnumMemberID]bool, len(enum.Members))
+		for i, m := range enum.Members {
+			if m.ID == "" {
+				continue
+			}
+			if seen[m.ID] {
+				at := fmt.Sprintf("%s/members/%d", id, i)
+				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-enum-member-id",
+					fmt.Sprintf("enum %s has more than one member with id %q", id, m.ID), at))
+			}
+			seen[m.ID] = true
+		}
+	}
+	return diags
+}
+
 // effectiveWireName is the on-wire name of a property: its explicit WireName, or
 // its source name when no override is set.
 func effectiveWireName(p ir.Property) string {
@@ -631,45 +666,90 @@ func effectiveWireName(p ir.Property) string {
 	return p.Name.Source
 }
 
+// checkParams holds every reference an operation makes to a parameter — its
+// HTTP bindings, its pagination inputs and its idempotency token — to the
+// parameters it declares. decls is ir.DeclaredIDs(doc), read once per
+// validation for the dangling walk and this check alike.
+func checkParams(doc *ir.Document, decls []ir.IDDeclaration) []ir.Diagnostic {
+	declared := declaredParamIDs(decls)
+	return append(checkParamBindings(doc, declared), checkParamReferences(doc, declared)...)
+}
+
+// declaredParamIDs returns the ID of every parameter decls holds: an
+// operation's, and a field argument's (Property.Args) too, since the dangling
+// walk resolves a reference against both.
+func declaredParamIDs(decls []ir.IDDeclaration) map[ir.ParamID]bool {
+	paramClass := reflect.TypeFor[ir.ParamID]()
+	declared := map[ir.ParamID]bool{}
+	for _, d := range decls {
+		if d.Class == paramClass {
+			declared[ir.ParamID(d.ID)] = true
+		}
+	}
+	return declared
+}
+
+// danglingWalkSkips reports whether the dangling walk is silent on a reference
+// to id, so that naming no parameter of its own operation is reported here. The
+// walk resolves a declared ID, another operation's or a field argument's, and
+// skips an empty one; it reports one the document declares nowhere, once. Past
+// the walk's depth bound neither reports it, and ir/walk-truncated says why.
+func danglingWalkSkips(id ir.ParamID, declared map[ir.ParamID]bool) bool {
+	return id == "" || declared[id]
+}
+
 // checkParamBindings validates each HTTP binding's parameter bindings against
 // the operation's logical parameters.
-func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
+func checkParamBindings(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {
 		for i := range op.Bindings.HTTP {
-			diags = append(diags, checkHTTPParamBinding(op, i)...)
+			diags = append(diags, checkHTTPParamBinding(op, i, declared)...)
 		}
 	})
 	return diags
 }
 
-// checkHTTPParamBinding validates one HTTP binding: unknown parameter names are
-// errors, a param bound twice in one non-host location is an error, and an
-// unbound parameter is a warning (body-carried operations bind nothing).
-func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
+// paramLocation keys the per-location bound-once count: a parameter is
+// identified by its ID, not its name, so two parameters sharing a name never
+// count against each other.
+type paramLocation struct {
+	param    ir.ParamID
+	location ir.HTTPLocation
+}
+
+// checkHTTPParamBinding validates one HTTP binding: a parameter this operation
+// does not declare is an error unless the dangling walk reports it
+// (danglingWalkSkips), a param bound twice in one non-host location is an
+// error, and an unbound parameter is a warning (body-carried operations bind
+// nothing).
+func checkHTTPParamBinding(op ir.Operation, idx int, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
 	where := fmt.Sprintf("%s/bindings/http/%d", op.ID, idx)
-	known := make(map[string]bool, len(op.Params))
+	names := make(map[ir.ParamID]string, len(op.Params))
 	for _, p := range op.Params {
-		known[p.Name.Source] = true
+		names[p.ID] = p.Name.Source
 	}
 	var diags []ir.Diagnostic
-	bound := make(map[string]int, len(op.Params))
-	perLocation := make(map[string]int, len(b.ParamBindings))
+	bound := make(map[ir.ParamID]int, len(op.Params))
+	perLocation := make(map[paramLocation]int, len(b.ParamBindings))
 	for _, pb := range b.ParamBindings {
-		if !known[pb.Param] {
-			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("binding on %s names unknown parameter %q", where, pb.Param), where))
+		name, own := names[pb.Param]
+		if !own {
+			if danglingWalkSkips(pb.Param, declared) {
+				diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+					fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
+			}
 			continue
 		}
 		bound[pb.Param]++
 		if pb.Location == ir.HTTPLocationHost {
 			continue // host labels are additive; a param may fill several.
 		}
-		key := pb.Param + "\x00" + string(pb.Location)
+		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", pb.Param, pb.Location, where),
+				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", name, pb.Location, where),
 				where))
 		}
 	}
@@ -678,15 +758,92 @@ func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 
 // unboundParamWarnings reports each logical parameter that no binding placed on
 // the wire.
-func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) []ir.Diagnostic {
+func unboundParamWarnings(op ir.Operation, bound map[ir.ParamID]int, where string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, p := range op.Params {
-		if bound[p.Name.Source] == 0 {
+		if bound[p.ID] == 0 {
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))
 		}
 	}
+	return diags
+}
+
+// paramRef is one reference an operation makes to a parameter outside its HTTP
+// bindings, with the location it is reported at.
+type paramRef struct {
+	id    ir.ParamID
+	where string
+}
+
+// operationParamRefs lists the parameter references op carries besides its
+// bindings: the pagination inputs and the idempotency token. An absent input is
+// no reference, and neither is an empty token, which is how an operation that
+// is not token-keyed spells having none. An input with an empty ID is one.
+func operationParamRefs(op ir.Operation) []paramRef {
+	var refs []paramRef
+	if pg := op.Pagination; pg != nil {
+		if pg.InputCursor != nil {
+			refs = append(refs, paramRef{pg.InputCursor.Param, fmt.Sprintf("%s/pagination/inputCursor", op.ID)})
+		}
+		if pg.InputLimit != nil {
+			refs = append(refs, paramRef{pg.InputLimit.Param, fmt.Sprintf("%s/pagination/inputLimit", op.ID)})
+		}
+	}
+	if token := op.Idempotency.TokenParam; token != "" {
+		refs = append(refs, paramRef{token, fmt.Sprintf("%s/idempotency/tokenParam", op.ID)})
+	}
+	return refs
+}
+
+// checkParamReferences holds an operation's pagination inputs and idempotency
+// token to the parameters that operation declares.
+//
+// Another operation's parameter is a well-formed reference, so the registry walk
+// has nothing to say about it, while an emitter reads the pagination cursor off
+// the wrong operation's parameter. What the dangling walk reports is left to it
+// (danglingWalkSkips).
+func checkParamReferences(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		own := make(map[ir.ParamID]bool, len(op.Params))
+		for _, p := range op.Params {
+			own[p.ID] = true
+		}
+		for _, ref := range operationParamRefs(op) {
+			if own[ref.id] || !danglingWalkSkips(ref.id, declared) {
+				continue
+			}
+			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+				fmt.Sprintf("%s names parameter %q, which this operation does not declare", ref.where, ref.id),
+				ref.where))
+		}
+	})
+	return diags
+}
+
+// checkIdempotency reports an operation whose idempotency token disagrees with
+// its kind, which ir.Idempotency pairs: the token kind naming no TokenParam
+// leaves an emitter no parameter to carry the token, and a TokenParam on any
+// other kind is a token an emitter reading it alone would send unasked. Whether
+// the token names the operation's own parameter is checkParamReferences'.
+func checkIdempotency(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	forEachOperation(doc, func(op ir.Operation) {
+		idem := op.Idempotency
+		hasToken := idem.TokenParam != ""
+		if hasToken == (idem.Kind == ir.IdempotencyToken) {
+			return
+		}
+		where := fmt.Sprintf("%s/idempotency", op.ID)
+		msg := fmt.Sprintf("%s is idempotent by token but names no token parameter", op.ID)
+		if hasToken {
+			msg = fmt.Sprintf("%s names token parameter %q under idempotency kind %q, which takes none",
+				op.ID, idem.TokenParam, idem.Kind)
+		}
+		diags = append(diags, diag(ir.SeverityError, "pass/idempotency-token-mismatch", msg, where))
+	})
 	return diags
 }
 

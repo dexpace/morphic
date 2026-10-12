@@ -11,8 +11,6 @@ import "strings"
 // drift apart. The IR never records the result: a caller normalizes a copy, and
 // the IR keeps the spelling the document wrote.
 func NormalizeMediaType(mediaType string) string {
-	if i := strings.IndexByte(mediaType, ';'); i >= 0 {
-		mediaType = mediaType[:i]
-	}
+	mediaType, _, _ = strings.Cut(mediaType, ";")
 	return strings.ToLower(strings.TrimSpace(mediaType))
 }

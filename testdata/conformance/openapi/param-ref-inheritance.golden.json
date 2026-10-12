@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +60,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1items/get/parameters/cursor/query",
                   "name": {
                     "source": "cursor",
                     "canonical": "cursor"
@@ -77,6 +85,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1items/get/parameters/override/query",
                   "name": {
                     "source": "override",
                     "canonical": "override"
@@ -133,7 +142,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "cursor",
+                        "param": "param/openapi/paths/~1items/get/parameters/cursor/query",
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
@@ -141,7 +150,7 @@
                         "allowReserved": false
                       },
                       {
-                        "param": "override",
+                        "param": "param/openapi/paths/~1items/get/parameters/override/query",
                         "location": "query",
                         "wireName": "override",
                         "style": "form",

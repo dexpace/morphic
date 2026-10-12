@@ -174,17 +174,17 @@ func ReadingOf(node any, token string) (Reading, *yaml.Node) {
 // the library reads it in the mapping the object was built from. An index on
 // a struct the library also reads by index is retried (Retried).
 func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
-	if m, ok := v.Interface().(model); ok {
+	if m, ok := reflect.TypeAssert[model](v); ok {
 		core := reflect.Indirect(reflect.ValueOf(m.GetCoreAny()))
 		if core.Kind() != reflect.Struct || embedsAnswer(v, token) || keyed(core.Type(), token, false) {
 			return Answering, nil
 		}
 		return builtFrom(v)
 	}
-	if _, ok := v.Interface().(jsonpointer.IndexNavigable); ok && IsIndex(token) {
+	if _, ok := reflect.TypeAssert[jsonpointer.IndexNavigable](v); ok && IsIndex(token) {
 		return Retried, nil
 	}
-	if _, ok := v.Interface().(jsonpointer.KeyNavigable); ok {
+	if _, ok := reflect.TypeAssert[jsonpointer.KeyNavigable](v); ok {
 		return Answering, nil // it answers token or fails; none in v1.25.2 defers to its fields
 	}
 	if keyed(reflect.Indirect(v).Type(), token, true) {
@@ -219,13 +219,13 @@ func embeddedMap(f reflect.Value) (jsonpointer.KeyNavigable, bool) {
 		if f.IsNil() {
 			return nil, false
 		}
-		m, ok := f.Interface().(jsonpointer.KeyNavigable)
+		m, ok := reflect.TypeAssert[jsonpointer.KeyNavigable](f)
 		return m, ok
 	}
 	if !f.CanAddr() || !reflect.PointerTo(f.Type()).Implements(reflect.TypeFor[sequencedMap]()) {
 		return nil, false
 	}
-	m, ok := f.Addr().Interface().(jsonpointer.KeyNavigable)
+	m, ok := reflect.TypeAssert[jsonpointer.KeyNavigable](f.Addr())
 	return m, ok
 }
 
@@ -234,6 +234,7 @@ func embeddedMap(f reflect.Value) (jsonpointer.KeyNavigable, bool) {
 // model's core is read by tag alone, so there an untagged field answers the
 // empty key, as the library finds it.
 func keyed(t reflect.Type, key string, byName bool) bool {
+	// Indexed: ranging over t.Fields() costs four allocations a call.
 	for i := range t.NumField() {
 		f := t.Field(i)
 		if !f.IsExported() {
@@ -253,7 +254,7 @@ func keyed(t reflect.Type, key string, byName bool) bool {
 // builtFrom returns the mapping the object in v was built from, which the
 // library reads a token in that no field answers, or that it fails without one.
 func builtFrom(v reflect.Value) (Reading, *yaml.Node) {
-	built, ok := v.Interface().(marshaller.RootNodeAccessor)
+	built, ok := reflect.TypeAssert[marshaller.RootNodeAccessor](v)
 	if !ok {
 		return Answering, nil
 	}

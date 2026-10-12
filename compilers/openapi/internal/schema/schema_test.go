@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -311,12 +310,9 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 // hasDegradedDiag reports whether diags carries a degraded-construct info
 // diagnostic whose message contains want.
 func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want)
+	})
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -2860,7 +2856,7 @@ func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	for i, d := range diags {
 		out[i] = fmt.Sprintf("%s\t%s\t%s\t%+v", d.Severity, d.Code, d.Message, d.Provenance)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -4067,7 +4063,7 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 	for _, d := range diags {
 		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", d.Severity, d.Code, d.Provenance.Pointer))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -4434,7 +4430,7 @@ func TestResidueKeywords_HandsBackACopy(t *testing.T) {
 	first := schema.ResidueKeywords()
 	require.NotEmpty(t, first, "an empty list would make this pass vacuously")
 
-	clobbered := append([]string(nil), first...)
+	clobbered := slices.Clone(first)
 	for i := range first {
 		first[i] = "clobbered"
 	}

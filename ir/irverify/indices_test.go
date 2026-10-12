@@ -232,14 +232,13 @@ func declaredIntegerFields(t *testing.T) []string {
 	for _, path := range irSourceFiles(t) {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 		require.NoError(t, err)
-		ast.Inspect(f, func(node ast.Node) bool {
+		for node := range ast.Preorder(f) {
 			ts, ok := node.(*ast.TypeSpec)
 			if !ok {
-				return true
+				continue
 			}
 			names = append(names, integerFieldsOf(t, decls, ts)...)
-			return true
-		})
+		}
 	}
 	return names
 }

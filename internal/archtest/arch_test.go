@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -255,7 +256,10 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
-	"internal/testspec":   {},
+	// The coverage gate's judge: tooling outside the pipeline, like the harness
+	// command above. x/tools/cover parses and merges the profile it judges.
+	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
+	"internal/testspec":     {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
@@ -284,7 +288,7 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			if _, err := os.Stat(base); os.IsNotExist(err) {
+			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
 			violations, err := walkImports(dir, base, allowed)
@@ -486,7 +490,7 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	var violations []string
 	for _, imp := range f.Imports {
 		ip := strings.Trim(imp.Path.Value, `"`)
-		if !strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
+		if first, _, _ := strings.Cut(ip, "/"); !strings.Contains(first, ".") {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.

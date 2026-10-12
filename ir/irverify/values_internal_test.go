@@ -47,8 +47,8 @@ func TestValuePayloads_CoverTheDeclaredKinds(t *testing.T) {
 func TestValuePayloads_NameValueFields(t *testing.T) {
 	t.Parallel()
 	selected := make(map[string]bool, valueType.NumField())
-	for i := range valueType.NumField() {
-		name := valueType.Field(i).Name
+	for field := range valueType.Fields() {
+		name := field.Name
 		if name != "Kind" {
 			selected[name] = false
 		}
