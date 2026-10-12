@@ -63,7 +63,7 @@ func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
 `))
 	members := enumOf(t, doc, componentID("N"))
 	assert.Equal(t, []string{"n:1e1", "n:1e1#2", "n:1e1#3", "n:1e2"}, memberKeys(members))
-	var spelled []ir.BigVal
+	spelled := make([]ir.BigVal, 0, len(members))
 	for _, m := range members {
 		spelled = append(spelled, m.Value.Num)
 	}

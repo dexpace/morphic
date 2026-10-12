@@ -392,7 +392,7 @@ func docWithOperations(ops ...ir.Operation) *ir.Document {
 
 func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 	t.Parallel()
-	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
+	op := paramRefOp("op/x/put", "param/x/put/p", "param/x/put/p", "param/x/put/p", "param/x/put/p")
 	diags := pass.Validate(docWithOperations(op))
 	assert.NotContains(t, codes(diags), "pass/param-binding-mismatch")
 	assert.NotContains(t, codes(diags), "ir/dangling-param-ref")

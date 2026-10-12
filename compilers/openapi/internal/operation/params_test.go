@@ -1215,7 +1215,7 @@ func TestParams_RepeatsAreNumberedInListOrder(t *testing.T) {
 	op := openapitest.FindOp(t, doc, "g")
 
 	const base = "param/openapi/paths/~1x/get/parameters/limit/query"
-	var got []ir.ParamID
+	got := make([]ir.ParamID, 0, len(op.Params))
 	for _, p := range op.Params {
 		got = append(got, p.ID)
 	}
