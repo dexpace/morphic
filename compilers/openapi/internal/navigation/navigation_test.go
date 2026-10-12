@@ -359,6 +359,25 @@ func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 	}
 }
 
+// TestIsIndex_ReadsAsciiDigitsWithNoLeadingZero pins which tokens the library
+// reads as an array index: a run of ASCII digits, with no leading zero unless
+// the token is "0" itself. A sign, a fraction, a space, the empty token and a
+// digit of another script are keys.
+func TestIsIndex_ReadsAsciiDigitsWithNoLeadingZero(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		token string
+		want  bool
+	}{
+		{"0", true}, {"7", true}, {"10", true}, {"9007199254740993", true},
+		{"", false}, {"00", false}, {"01", false}, {"-1", false}, {"+1", false},
+		{"1a", false}, {"1.0", false}, {" 1", false}, {"\u0661", false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, navigation.IsIndex(tt.token), "%q", tt.token)
+	}
+}
+
 // stepDoc is a document a step reads past a path item and an operation's
 // responses, which the model holds by value, and through a response keyed by
 // the empty string.

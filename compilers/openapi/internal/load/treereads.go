@@ -159,18 +159,9 @@ func partsOf(pointer string) ([]part, bool) {
 	tokens := strings.Split(strings.TrimPrefix(pointer, "/"), "/")
 	parts := make([]part, len(tokens))
 	for i, token := range tokens {
-		parts[i] = part{value: token, index: isIndex(token)}
+		parts[i] = part{value: token, index: navigation.IsIndex(token)}
 	}
 	return parts, true
-}
-
-// isIndex reports whether the library reads token as an index: digits, with
-// no leading zero unless it is one.
-func isIndex(token string) bool {
-	if token == "" || len(token) > 1 && token[0] == '0' {
-		return false
-	}
-	return strings.Trim(token, "0123456789") == ""
 }
 
 // unescaped returns the key token names, decoded as the library decodes it.

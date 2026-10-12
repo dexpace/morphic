@@ -181,7 +181,7 @@ func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
 		}
 		return builtFrom(v)
 	}
-	if _, ok := v.Interface().(jsonpointer.IndexNavigable); ok && isIndex(token) {
+	if _, ok := v.Interface().(jsonpointer.IndexNavigable); ok && IsIndex(token) {
 		return Retried, nil
 	}
 	if _, ok := v.Interface().(jsonpointer.KeyNavigable); ok {
@@ -264,9 +264,9 @@ func builtFrom(v reflect.Value) (Reading, *yaml.Node) {
 	return Leaving, root
 }
 
-// isIndex reports whether the library reads token as an index: digits, with
+// IsIndex reports whether the library reads token as an index: digits, with
 // no leading zero unless it is one.
-func isIndex(token string) bool {
+func IsIndex(token string) bool {
 	if token == "" || len(token) > 1 && token[0] == '0' {
 		return false
 	}
