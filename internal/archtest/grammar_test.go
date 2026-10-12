@@ -229,7 +229,7 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 		found = append(found, fmt.Sprintf("%s:%d: %s an ir.%s rather than deriving it through the framework",
 			rel, fset.Position(pos).Line, how, idType))
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
+	for n := range ast.Preorder(file) {
 		switch node := n.(type) {
 		case *ast.CallExpr:
 			if idType, ok := idTypeName(node.Fun, names.ir); ok {
@@ -248,8 +248,7 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 			found = append(found, fmt.Sprintf("%s:%d: %s; a compile.Space is a literal, or the path glued onto it loses its separator",
 				rel, fset.Position(n.Pos()).Line, how))
 		}
-		return true
-	})
+	}
 	return found, nil
 }
 
@@ -382,7 +381,7 @@ func nameChannelViolations(path, rel string, src any) ([]string, error) {
 		found = append(found, fmt.Sprintf("%s:%d: %s is filled by %s rather than by the framework",
 			rel, fset.Position(expr.Pos()).Line, field, exprText(fset, expr)))
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
+	for n := range ast.Preorder(file) {
 		switch node := n.(type) {
 		case *ast.CompositeLit:
 			reportNameChannelField(node, report)
@@ -390,8 +389,7 @@ func nameChannelViolations(path, rel string, src any) ([]string, error) {
 			reportNameChannelAssign(node, report)
 		default:
 		}
-		return true
-	})
+	}
 	return found, nil
 }
 

@@ -974,8 +974,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 	if !branch.Nullable {
 		return false
 	}
-	budget := maxNullConjuncts
-	return schemaNullVerdict(body, &budget) != nullForbidden
+	return schemaNullVerdict(body, new(maxNullConjuncts)) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -1367,13 +1366,13 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 				n, c.Limits.MaxEnumMembers))
 			return &ir.Any{TypeCommon: common}
 		}
-		members, memberPrim, memberDiags, ok := enumMembers(c, s.GetEnum(), schemaAdmitsNull(s), pointer)
+		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
 			return def
 		}
-		diags = append(diags, memberDiags...)
 		return &ir.Enum{
 			TypeCommon: common,
 			ValueType:  enumValueType(s, memberPrim),
@@ -1413,18 +1412,17 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 // kept. The PrimKind is the one every kept member maps to, meaningful only when
 // ok.
 //
-// Each member's ID is keyed by its value under the enum at pointer; a repeated
-// value is kept, numbered and reported. Diagnostics come back only when ok.
-func enumMembers(c lowering.Ctx, nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, []ir.Diagnostic, bool) {
+// Each member's ID is keyed by its value under the enum at pointer, and a
+// repeated value is kept, its ID numbered by occurrence; enumRepeats reports it.
+func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
-	ledger := newMemberLedger(pointer)
-	var diags []ir.Diagnostic
+	occurrences := make(map[string]int, len(nodes))
 	var kind ir.ValueKind
 	var prim ir.PrimKind
-	for i, node := range nodes {
+	for _, node := range nodes {
 		val, err := value.FromNode(node)
 		if err != nil {
-			return nil, "", nil, false
+			return nil, "", false
 		}
 		if dropNull && val.Kind == ir.ValueNull {
 			continue
@@ -1432,25 +1430,24 @@ func enumMembers(c lowering.Ctx, nodes []values.Value, dropNull bool, pointer js
 		memberPrim, text, admissible := enumMemberForm(val)
 		key, keyed := enumMemberKey(val)
 		if !admissible || !keyed {
-			return nil, "", nil, false
+			return nil, "", false
 		}
 		if len(members) == 0 {
 			kind, prim = val.Kind, memberPrim
 		} else if val.Kind != kind {
-			return nil, "", nil, false
+			return nil, "", false
 		}
-		id, repeatDiags := ledger.next(c, key, i)
-		diags = append(diags, repeatDiags...)
+		occurrences[key]++
 		members = append(members, ir.EnumMember{
-			ID:    id,
+			ID:    ids.EnumMember(pointer, key, occurrences[key]),
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})
 	}
 	if len(members) == 0 {
-		return nil, "", nil, false
+		return nil, "", false
 	}
-	return members, prim, diags, true
+	return members, prim, true
 }
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
@@ -1532,9 +1529,9 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// It is the compiler's single switch over ir.ValueKind, with one arm per kind;
-// TestEnumMemberForm_NamesEveryValueKind reddens when ir adds a kind without an
-// arm. The default arm refuses a kind rather than assert a type the source
+// Its switch has one arm per ir.ValueKind, as enumMemberKey's does;
+// TestValueKindSwitches_NameEveryValueKind reddens when ir adds a kind either
+// lacks. The default arm refuses a kind rather than assert a type the source
 // never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {

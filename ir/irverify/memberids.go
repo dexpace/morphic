@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,9 +16,10 @@ import (
 // only check tying a member's ID to its enum's.
 //
 // A malformed or empty member ID is skipped: checkDeclaredIDs reports those once.
+// Enums are visited in ID order, so the report does not follow map iteration.
 func checkMemberIDs(doc *ir.Document) []Violation {
 	var vs []Violation
-	for _, id := range sortedTypeIDs(doc) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		enum, isEnum := doc.Types[id].(*ir.Enum)
 		if !isEnum || enum == nil {
 			continue
@@ -51,15 +53,4 @@ func memberScopeViolation(enumID ir.TypeID, member ir.EnumMemberID, i int) (Viol
 			" and beneath the path " + enumPath + " of its enum " + string(enumID),
 		Path: ir.DocumentPath + ".Types[" + string(enumID) + "].Members[" + strconv.Itoa(i) + "]",
 	}, true
-}
-
-// sortedTypeIDs returns the registry's keys in byte order, so the report does not
-// follow map iteration.
-func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
-	ids := make([]ir.TypeID, 0, len(doc.Types))
-	for id := range doc.Types {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
 }

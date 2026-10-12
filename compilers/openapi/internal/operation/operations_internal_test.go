@@ -2,9 +2,9 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -375,11 +375,7 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 		seen[strings.ToUpper(c)] = true
 		seen[strings.ToLower(c)] = true
 	}
-	names := make([]string, 0, len(seen))
-	for n := range seen {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(seen))
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {

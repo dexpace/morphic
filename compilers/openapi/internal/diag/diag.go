@@ -121,10 +121,12 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
-	// DuplicateEnumValue reports an `enum` member whose value an earlier member
-	// already holds. Every occurrence is kept, since dropping one would lose a
-	// declaration, but only the first can hold the bare member ID: the repeats
-	// take a numbered suffix, which is an artefact worth telling the author of.
+	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
+	// already holds, at the repeat's own position, whether the set lowers to an
+	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
+	// declaration; in an Enum each repeat's member ID ends in its occurrence
+	// number. Entries compare as JSON Schema compares instances: a number by its
+	// value, an object regardless of member order.
 	//
 	// Warning: the document is well-formed, and JSON Schema's own uniqueness
 	// requirement on enum is a SHOULD.
@@ -150,6 +152,16 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateParameter reports a parameter list entry repeating the name and
+	// location of an earlier entry in the same list, its $refs resolved, which
+	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
+	// report, which saw only inline entries: every list the source writes is
+	// checked whether or not it lowers (load), and a list another document
+	// writes where it lowers (the parameter lowering). A lowered list keeps
+	// every occurrence, each repeat's ID ending in its occurrence number.
+	//
+	// Error, as the parser's report was.
+	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's

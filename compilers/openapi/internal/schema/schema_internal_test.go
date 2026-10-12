@@ -201,8 +201,7 @@ func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	emptyRef := references.Reference("")
-	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
 	cons, diags := schemaConstraints(l.ctx, &kept, annotation.SchemaOf(js), "/p")
 	assert.Nil(t, cons)
@@ -618,12 +617,10 @@ func TestSchemaNullVerdict_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	budget := 1
-	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, &budget),
+	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, new(1)),
 		"the fixture admits null while there is budget to read it")
 
-	spent := 0
-	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, &spent),
+	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, new(0)),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }

@@ -20,7 +20,8 @@ func enumOf(t *testing.T, doc *ir.Document, id ir.TypeID) []ir.EnumMember {
 	return enum.Members
 }
 
-// memberKeys returns the last segment of each member's ID, which is the key.
+// memberKeys returns each member's ID past its enum's path: the key, and a
+// repeat's occurrence number after it.
 func memberKeys(members []ir.EnumMember) []string {
 	keys := make([]string, 0, len(members))
 	for _, m := range members {
@@ -49,7 +50,26 @@ func TestEnumMemberIDs_SignedNumbersAreThreeIDs(t *testing.T) {
       type: integer
       enum: [-1, 1, 0]
 `))
-	assert.Equal(t, []string{"n:-1", "n:1", "n:0"}, memberKeys(enumOf(t, doc, componentID("N"))))
+	assert.Equal(t, []string{"n:-1e0", "n:1e0", "n:0"}, memberKeys(enumOf(t, doc, componentID("N"))))
+}
+
+// TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat holds a number's key to its
+// value: 10, 10.0 and 1e1 are one number, so the second and third are repeats,
+// each keeping the spelling it was written with.
+func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    N:
+      type: number
+      enum: [10, 10.0, 1e1, 100]
+`))
+	members := enumOf(t, doc, componentID("N"))
+	assert.Equal(t, []string{"n:1e1", "n:1e1/2", "n:1e1/3", "n:1e2"}, memberKeys(members))
+	spelled := make([]ir.BigVal, 0, len(members))
+	for _, m := range members {
+		spelled = append(spelled, m.Value.Num)
+	}
+	assert.Equal(t, []ir.BigVal{"10", "10.0", "1e1", "100"}, spelled, "the value is kept as written")
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning))
 }
 
 func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
@@ -85,7 +105,7 @@ func TestEnumMemberIDs_StringAndNumberOfEqualTextDiffer(t *testing.T) {
 	for _, name := range []string{"S", "N", "B", "T"} {
 		keys[memberKeys(enumOf(t, doc, componentID(name)))[0]] = true
 	}
-	assert.Equal(t, map[string]bool{"s:1": true, "n:1": true, "s:true": true, "b:true": true}, keys)
+	assert.Equal(t, map[string]bool{"s:1": true, "n:1e0": true, "s:true": true, "b:true": true}, keys)
 }
 
 func TestEnumMemberIDs_ReorderKeepsTheIDSet(t *testing.T) {
@@ -109,7 +129,7 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
       type: string
       enum: [a, b, a, a]
 `))
-	assert.Equal(t, []string{"s:a", "s:b", "s:a#2", "s:a#3"}, memberKeys(enumOf(t, doc, componentID("E"))))
+	assert.Equal(t, []string{"s:a", "s:b", "s:a/2", "s:a/3"}, memberKeys(enumOf(t, doc, componentID("E"))))
 
 	var at []string
 	for _, d := range diags {
@@ -119,6 +139,51 @@ func TestEnumMemberIDs_RepeatedValueIsKeptSuffixedAndWarned(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"/components/schemas/E/enum/2", "/components/schemas/E/enum/3"}, at)
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, msg, "the entry at index 0;", "the third a repeats the first, not the second")
+}
+
+// TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex covers a nullable enum,
+// whose null is not a member: the pointer a repeat is reported at, and the index
+// it names, are positions in the enum as written, not in the member list.
+func TestEnumMemberIDs_RepeatIsReportedAtItsSourceIndex(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    E:
+      type: [string, "null"]
+      enum: [null, a, b, a]
+`))
+	assert.Equal(t, []string{"s:a", "s:b", "s:a/2"}, memberKeys(enumOf(t, doc, componentID("E"))))
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/E/enum/3")
+	assert.Contains(t, msg, "the entry at index 1;")
+}
+
+// TestEnumRepeats_AreReportedWhateverTheSetLowersTo pins the report to the list
+// as written: a repeat is reported where the set degrades to a union, numbers
+// compare by value there too, and a repeated null is reported where a nullable
+// enum keeps no null member. A list or an object compares as an instance does:
+// by its elements' values, an object regardless of member order.
+func TestEnumRepeats_AreReportedWhateverTheSetLowersTo(t *testing.T) {
+	t.Parallel()
+	_, diags := lowerSpec(t, openapitest.ComponentSpec(`    Mixed: {enum: [a, 1, a, 1.0]}
+    Nullable: {type: [string, "null"], enum: [a, null, null]}
+    Nulls: {enum: [null, null]}
+    Lists: {enum: [[1, 2], [2, 1], [1, 2.0]]}
+    Objects: {enum: [{x: 1, y: [a]}, {y: [a], x: 1.0}, {x: 1}, {x: "1"}]}
+`))
+	var at []string
+	for _, d := range diags {
+		if d.Code == diag.DuplicateEnumValue {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			at = append(at, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"/components/schemas/Mixed/enum/2", "/components/schemas/Mixed/enum/3",
+		"/components/schemas/Nullable/enum/2", "/components/schemas/Nulls/enum/1",
+		"/components/schemas/Lists/enum/2", "/components/schemas/Objects/enum/1",
+	}, at)
+	msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateEnumValue, ir.SeverityWarning, "/components/schemas/Mixed/enum/3")
+	assert.Contains(t, msg, "the entry at index 1;", "1.0 repeats 1, not the a between them")
 }
 
 func TestEnumMemberIDs_AreScopedToTheirEnum(t *testing.T) {

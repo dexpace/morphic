@@ -26,8 +26,7 @@ func BenchmarkCompile_Petstore(b *testing.B) {
 	src := []compilers.Source{{Path: "petstore.yaml", Data: data}}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		doc, _, err := c.Compile(b.Context(), src, compilers.Options{})
 		if err != nil {
 			b.Fatalf("compile: %v", err)
@@ -46,8 +45,7 @@ func BenchmarkMarshalDocument_Petstore(b *testing.B) {
 	doc := compilePetstore(b)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if _, err := json.Marshal(doc); err != nil {
 			b.Fatalf("marshal: %v", err)
 		}
@@ -62,8 +60,7 @@ func BenchmarkUnmarshalDocument_Petstore(b *testing.B) {
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		var back ir.Document
 		if err := json.Unmarshal(encoded, &back); err != nil {
 			b.Fatalf("unmarshal: %v", err)

@@ -720,8 +720,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if payload == nil {
 		return diags
 	}
-	required := rb.GetRequired()
-	payload.Required = &required
+	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own. Both reads sit
 	// after the payload guard because ir.Payload is the body's only carrier: a
@@ -743,11 +742,7 @@ func contentTypeKeys(content *sequencedmap.Map[string, *soa.MediaType]) []string
 	if content == nil || content.Len() == 0 {
 		return nil
 	}
-	keys := make([]string, 0, content.Len())
-	for mt := range content.All() {
-		keys = append(keys, mt)
-	}
-	return keys
+	return slices.Collect(content.Keys())
 }
 
 // requestBodyHint derives an anonymous-type naming hint for a request body from
@@ -777,6 +772,7 @@ func splitContentTypes(raw string) []string {
 // isFormContent reports whether a media type is multipart or url-encoded form
 // content, whose parts carry per-property encoding.
 func isFormContent(mt string) bool {
+	mt = lowering.NormalizeMediaType(mt)
 	return strings.HasPrefix(mt, "multipart/") || mt == "application/x-www-form-urlencoded"
 }
 
@@ -785,14 +781,14 @@ func isFormContent(mt string) bool {
 func isBinaryBody(mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	s := schemaOf(js)
 	if s == nil {
-		return mt == "application/octet-stream"
+		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
 	return schemaIsBinary(s)
 }
 
 // schemaIsBinary reports whether a schema is a string+binary body.
 func schemaIsBinary(s *oas3.Schema) bool {
-	return s.GetFormat() == "binary" && schemaHasType(s, oas3.SchemaTypeString)
+	return s.GetFormat() == "binary" && slices.Contains(s.GetType(), oas3.SchemaTypeString)
 }
 
 // schemaIsFilePart reports whether a multipart part schema is a file
@@ -802,18 +798,13 @@ func schemaIsFilePart(s *oas3.Schema) bool {
 	if f != "binary" && f != "byte" {
 		return false
 	}
-	return schemaHasType(s, oas3.SchemaTypeString)
+	return slices.Contains(s.GetType(), oas3.SchemaTypeString)
 }
 
 // schemaIsArray reports whether a schema declares the array type (a repeated
 // multipart part).
 func schemaIsArray(s *oas3.Schema) bool {
-	return schemaHasType(s, oas3.SchemaTypeArray)
-}
-
-// schemaHasType reports whether a schema's declared type set contains st.
-func schemaHasType(s *oas3.Schema, st oas3.SchemaType) bool {
-	return slices.Contains(s.GetType(), st)
+	return slices.Contains(s.GetType(), oas3.SchemaTypeArray)
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,

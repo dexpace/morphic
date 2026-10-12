@@ -29,8 +29,8 @@ func TestSettingFlag_SetCollectsPairs(t *testing.T) {
 
 func TestSettingFlag_StringOfNilRendersEmpty(t *testing.T) {
 	t.Parallel()
-	// The flag package renders a zero value to decide whether to print a
-	// default, so this is reached before any -opt is typed.
+	// pflag renders a zero value to decide whether to print a
+	// default, so this is reached before any --opt is typed.
 	var unset settingFlag
 	assert.Empty(t, unset.String())
 }
@@ -61,4 +61,14 @@ func TestSettingFlag_SetRefusals(t *testing.T) {
 
 	var unset settingFlag
 	assert.Error(t, unset.Set("grouping=tags"), "a nil set must refuse rather than panic")
+}
+
+// TestFlagValues_TypeNames pins the names help documents a flag's value by.
+// pflag asks for one where the standard library's flag package did not, and an
+// empty name would render as a bare flag with no hint of what it takes.
+func TestFlagValues_TypeNames(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "key=value", settingFlag{}.Type())
+	assert.Equal(t, "pointer", (&pointerFlag{}).Type())
 }

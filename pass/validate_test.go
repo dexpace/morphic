@@ -100,19 +100,30 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 	assert.Contains(t, codes(diags), "pass/duplicate-wire-name")
 }
 
-func TestValidate_ParamBinding_UnknownParam(t *testing.T) {
+// TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling pins that a
+// binding naming an ID no operation declares draws the dangling walk's report
+// alone. The declared parameter is bound too, so no unbound warning shares the
+// mismatch code.
+func TestValidate_ParamBinding_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
 	t.Parallel()
-	op := ir.Operation{
-		ID:     "op",
-		Params: []ir.Parameter{{ID: "param/x/op/id/path", Name: ir.Naming{Source: "id"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
-		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
-			Method: "GET", URITemplate: "/x",
-			ParamBindings: []ir.HTTPParamBinding{{Param: "param/x/op/ghost/path", Location: ir.HTTPLocationPath}},
-		}}},
-	}
+	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Param: "param/x/op/ghost/query", Location: ir.HTTPLocationQuery})
 	diags := pass.Validate(docWithOperation(op))
-	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+	assert.Equal(t, 1, countCode(t, diags, "ir/dangling-param-ref"))
+	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
+}
+
+// TestValidate_ParamBinding_EmptyParamIsRejected pins that a binding naming no
+// parameter at all is reported here: the dangling walk skips an empty ID.
+func TestValidate_ParamBinding_EmptyParamIsRejected(t *testing.T) {
+	t.Parallel()
+	op := paramBindingOp("op", ir.Parameter{ID: "param/x/op/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Location: ir.HTTPLocationQuery})
+	diags := pass.Validate(docWithOperation(op))
+	assert.Equal(t, 1, countCode(t, diags, "pass/param-binding-mismatch"))
+	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
 }
 
 func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
@@ -128,9 +139,15 @@ func TestValidate_ParamBinding_DoubleBound(t *testing.T) {
 			},
 		}}},
 	}
-	diags := pass.Validate(docWithOperation(op))
-	require.NotEmpty(t, diags)
-	assert.Contains(t, codes(diags), "pass/param-binding-mismatch")
+	var messages []string
+	for _, d := range pass.Validate(docWithOperation(op)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			messages = append(messages, d.Message)
+		}
+	}
+	require.Len(t, messages, 1)
+	assert.Contains(t, messages[0], `parameter "id" is bound more than once in location "query"`,
+		"the report names the parameter, not its ID")
 }
 
 // paramBindingOp returns an operation declaring the given parameters and
@@ -375,7 +392,7 @@ func docWithOperations(ops ...ir.Operation) *ir.Document {
 
 func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 	t.Parallel()
-	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
+	op := paramRefOp("op/x/put", "param/x/put/p", "param/x/put/p", "param/x/put/p", "param/x/put/p")
 	diags := pass.Validate(docWithOperations(op))
 	assert.NotContains(t, codes(diags), "pass/param-binding-mismatch")
 	assert.NotContains(t, codes(diags), "ir/dangling-param-ref")
@@ -384,7 +401,7 @@ func TestValidate_ParamReferences_OwnOperationIsClean(t *testing.T) {
 func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 	t.Parallel()
 	get := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
-	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/post/p", "param/x/get/p")
+	post := paramRefOp("op/x/post", "param/x/post/p", "param/x/get/p", "param/x/get/p", "param/x/get/p")
 
 	diags := pass.Validate(docWithOperations(get, post))
 
@@ -394,7 +411,9 @@ func TestValidate_ParamReferences_OtherOperationsParamIsRejected(t *testing.T) {
 			at = append(at, d.Provenance.Node)
 		}
 	}
-	assert.Equal(t, []string{"op/x/post/pagination/inputCursor", "op/x/post/idempotency/tokenParam"}, at)
+	assert.Equal(t, []string{
+		"op/x/post/pagination/inputCursor", "op/x/post/pagination/inputLimit", "op/x/post/idempotency/tokenParam",
+	}, at)
 }
 
 func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testing.T) {
@@ -405,16 +424,58 @@ func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testin
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
 
+// TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean pins that
+// an empty token is no reference: it is how an operation that is not
+// token-keyed spells having none.
 func TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean(t *testing.T) {
 	t.Parallel()
 	op := paramRefOp("op/x/get", "param/x/get/p", "param/x/get/p", "param/x/get/p", "")
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
-	// Another operation holds a parameter with no ID, so "" is a declared ID
-	// somewhere and only the empty-ID rule keeps the empty token from naming it.
-	unidentified := ir.Operation{ID: "op/x/other", Params: []ir.Parameter{{Name: ir.Naming{Source: "q"}}}}
-	diags := pass.Validate(docWithOperations(op, unidentified))
+	diags := pass.Validate(docWithOperations(op))
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"))
 	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"))
+}
+
+// TestValidate_ParamReferences_EmptyPaginationInputIsRejected pins that a
+// pagination input naming no parameter is reported here, as an empty binding
+// is: the dangling walk skips an empty ID.
+func TestValidate_ParamReferences_EmptyPaginationInputIsRejected(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/get", "param/x/get/p", "", "param/x/get/p", "param/x/get/p")
+	var at []string
+	for _, d := range pass.Validate(docWithOperations(op)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/get/pagination/inputCursor"}, at)
+}
+
+// TestValidate_ParamReferences_FieldArgumentIsRejected pins that a binding or a
+// pagination input naming a field argument is reported. The argument is a
+// declared parameter, so the dangling walk resolves the reference and only this
+// check can say it is no parameter of the operation.
+func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
+	t.Parallel()
+	const arg = ir.ParamID("param/x/m/a/limit")
+	op := paramBindingOp("op/x/get", ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}})
+	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
+		ir.HTTPParamBinding{Param: arg, Location: ir.HTTPLocationQuery})
+	op.Pagination = &ir.Pagination{InputLimit: &ir.ParamPath{Param: arg}}
+	doc := docWithOperations(op)
+	model, ok := doc.Types["t/m"].(*ir.Model)
+	require.True(t, ok)
+	model.Properties[0].Args = []ir.Parameter{{ID: arg, Name: ir.Naming{Source: "limit"}, Type: ir.TypeRef{Target: "t/prim/string"}}}
+
+	diags := pass.Validate(doc)
+	var at []string
+	for _, d := range diags {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/get/bindings/http/0", "op/x/get/pagination/inputLimit"}, at)
+	assert.Zero(t, countCode(t, diags, "ir/dangling-param-ref"), "the argument is declared")
 }
 
 // TestValidate_DuplicateEnumMemberIDIsAnError pins that two members of one enum
@@ -442,4 +503,45 @@ func TestValidate_DuplicateEnumMemberIDIsAnError(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"t/e/members/2"}, at)
+}
+
+// TestValidate_IdempotencyTokenIsPairedWithItsKind pins checkIdempotency over
+// every pairing: a token named exactly when the kind is the token kind is clean,
+// and either half without the other is an error at the operation's idempotency,
+// saying which half is missing.
+func TestValidate_IdempotencyTokenIsPairedWithItsKind(t *testing.T) {
+	t.Parallel()
+	const token = ir.ParamID("param/x/put/key")
+	const noToken, unasked = "names no token parameter", `names token parameter "param/x/put/key"`
+	for _, tc := range []struct {
+		name string
+		idem ir.Idempotency
+		want string
+	}{
+		{"the token kind with its token", ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: token}, ""},
+		{"another kind without one", ir.Idempotency{Kind: ir.IdempotencySafe}, ""},
+		{"no kind and no token", ir.Idempotency{}, ""},
+		{"the token kind without its token", ir.Idempotency{Kind: ir.IdempotencyToken}, noToken},
+		{"a token under another kind", ir.Idempotency{Kind: ir.IdempotencyIdempotent, TokenParam: token}, unasked},
+		{"a token under no kind", ir.Idempotency{TokenParam: token}, unasked},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			op := ir.Operation{ID: "op/x/put", Params: []ir.Parameter{{ID: token, Name: ir.Naming{Source: "key"}}}, Idempotency: tc.idem}
+			var got []ir.Diagnostic
+			for _, d := range pass.Validate(docWithOperations(op)) {
+				if d.Code == "pass/idempotency-token-mismatch" {
+					got = append(got, d)
+				}
+			}
+			if tc.want == "" {
+				assert.Empty(t, got)
+				return
+			}
+			require.Len(t, got, 1)
+			assert.Equal(t, ir.SeverityError, got[0].Severity)
+			assert.Equal(t, "op/x/put/idempotency", got[0].Provenance.Node)
+			assert.Contains(t, got[0].Message, tc.want)
+		})
+	}
 }

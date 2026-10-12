@@ -122,21 +122,27 @@ morphic compile openapi.yaml --explain /components/schemas/Pet
 ```
 
 `compile` lowers one spec into IR JSON and writes diagnostics to stderr. Stdout is indented for
-reading; a file written with `-o` is compact, about half the bytes, unless `--pretty` asks for the
-indented form. `validate` runs the same pipeline and drops the document, for a check that wants
-the diagnostics and the exit code and nothing else.
+reading; a file written with `-o`/`--output` is compact, about half the bytes, unless `--pretty`
+asks for the indented form. `validate` runs the same pipeline and drops the document, for a
+check that wants the diagnostics and the exit code and nothing else.
 
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
-prints a command's flags. Help always goes to stdout and exits `0`.
+prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
+Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones. A long
+flag typed with one dash is refused, with the two-dash spelling to use.
+
+`morphic --version` prints the build and the version of the IR schema its output follows.
+`morphic completion bash|zsh|fish|powershell` prints a completion script for that shell, which
+completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
 | `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
-| `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
-| `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. |
+| `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
+| `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -238,8 +244,8 @@ entry in that test allows, and nothing from a layer above its own.
 | `pass/` | 1: IR → IR passes | `ir` only |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `cmd/morphic/` | 4: CLI | `engine` + `ir` |
-| `cmd/morphic-harness/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
+| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,

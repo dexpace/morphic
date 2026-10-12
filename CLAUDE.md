@@ -116,9 +116,11 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-covergate/
+             Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
 ```
 
@@ -271,7 +273,7 @@ pins, so the local command and the job are the same commands in the same order. 
 for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
 rest are individually runnable while iterating.
 
-**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+**Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
 statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 

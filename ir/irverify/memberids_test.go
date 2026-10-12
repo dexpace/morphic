@@ -41,7 +41,7 @@ func memberViolations(doc *ir.Document) map[string][]string {
 func TestVerify_DerivedMemberIDsAreClean(t *testing.T) {
 	t.Parallel()
 	named := memberDoc("t/openapi/components/schemas/E",
-		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a#2", "e/openapi/components/schemas/E/n:-1")
+		"e/openapi/components/schemas/E/s:a", "e/openapi/components/schemas/E/s:a/2", "e/openapi/components/schemas/E/n:-1")
 	inline := memberDoc("t/anon/paths/~1x/get/schema", "e/anon/paths/~1x/get/schema/s:a")
 	assert.Empty(t, memberViolations(named))
 	assert.Empty(t, memberViolations(inline))
@@ -66,6 +66,7 @@ func TestVerify_MemberIDOutsideItsEnumIsAViolation(t *testing.T) {
 		{"a sibling sharing the enum's name as a prefix", "e/openapi/components/schemas/E2/s:a"},
 		{"another namespace", "e/anon/components/schemas/E/s:a"},
 		{"the enum's own path with no key", "e/openapi/components/schemas/E"},
+		{"the enum's own path with an empty key", "e/openapi/components/schemas/E/"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

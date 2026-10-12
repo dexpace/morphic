@@ -147,31 +147,40 @@ func Prop(pointer jsontext.Pointer) ir.PropID {
 	return compile.PropID(OpenAPISpace, string(pointer))
 }
 
-// Param returns the stable ID of the parameter called name in location in, as
-// declared on the operation mounted at mount.
+// Param returns the stable ID of the occurrence-th parameter, counting from one,
+// to hold name in location in on the operation mounted at mount.
 //
 // The mount is the pointer the operation lowers at, so a path item $ref'd from
-// two paths gives each mount's parameters IDs of their own. The name is one
-// escaped token and in is the source's location, so a name and a location
-// cannot be confused and a reordered list renames nothing. A parameter is
-// identified by its name and location together: two may share a name.
-func Param(mount jsontext.Pointer, name, in string) ir.ParamID {
-	return compile.ParamID(OpenAPISpace, string(mount+Ptr("parameters", name, in)))
+// two paths gives each mount its own parameter IDs. The name is one escaped
+// token and in is the source's location, so a name and a location cannot be
+// confused, and reordering a list without repeats renames nothing. A repeat's
+// number follows the location (numbered) and equals no other parameter's ID:
+// that would take an operation mounted at another's parameters list.
+func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
+	return compile.ParamID(OpenAPISpace, string(numbered(mount+Ptr("parameters", name, in), occurrence)))
 }
 
-// EnumMember returns the stable ID of the member of the enum at enumPointer
-// that holds key.
+// EnumMember returns the stable ID of the occurrence-th member, counting from
+// one, of the enum at enumPointer to hold key.
 //
-// It lives in the namespace of the enum's own TypeID, chosen the way ForPointer
-// chooses it, so the member sits under the type that declares it. The key is
-// escaped as one RFC 6901 token; the caller builds it from the member's value,
-// never from its name or position.
-func EnumMember(enumPointer jsontext.Pointer, key string) ir.EnumMemberID {
-	path := string(enumPointer + Ptr(key))
-	if _, ok := ComponentSchemaName(enumPointer); ok {
-		return compile.EnumMemberID(OpenAPISpace, path)
+// It lives in the namespace of the enum's own TypeID, which schemaSpace chooses
+// for both, so the member sits under the type that declares it. The key is one
+// escaped token, built by the caller from the member's value, never from its
+// name or position. A repeat's number follows the key (numbered) and is never
+// a key itself, since a key opens with a kind tag and a colon.
+func EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
+	return compile.EnumMemberID(schemaSpace(enumPointer), string(numbered(enumPointer+Ptr(key), occurrence)))
+}
+
+// numbered returns the path of the occurrence-th holder of the identity at
+// path: path itself for the first, and path with the occurrence appended as one
+// more token for each repeat. A source that repeats nothing carries no number,
+// and reordering it renames nothing.
+func numbered(path jsontext.Pointer, occurrence int) jsontext.Pointer {
+	if occurrence < 2 {
+		return path
 	}
-	return compile.EnumMemberID(AnonSpace, path)
+	return path + Ptr(strconv.Itoa(occurrence))
 }
 
 // Auth returns the stable ID of the named security scheme.
@@ -260,10 +269,20 @@ func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
 func ForPointer(pointer jsontext.Pointer) ir.TypeID {
-	if _, ok := ComponentSchemaName(pointer); ok {
+	if schemaSpace(pointer) == OpenAPISpace {
 		return NamedType(pointer)
 	}
 	return AnonType(pointer)
+}
+
+// schemaSpace returns the namespace of the type a schema at pointer lowers to:
+// OpenAPISpace for a top-level component schema, the one kind that declares a
+// named type, and AnonSpace for every other position.
+func schemaSpace(pointer jsontext.Pointer) compile.Space {
+	if _, ok := ComponentSchemaName(pointer); ok {
+		return OpenAPISpace
+	}
+	return AnonSpace
 }
 
 // ComponentSchemaName reports whether pointer addresses a top-level component

@@ -209,6 +209,7 @@ func conformanceCases() []conformanceCase {
 		{"multi-content", assertMultiContent, []string{"multi-content"}},
 		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
 		{"file-body", assertFileBody, nil},
+		{"media-type-spelling", assertMediaTypeSpelling, []string{"multipart-encoding"}},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
 		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
 		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
@@ -1911,11 +1912,12 @@ func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // assertEnumMemberIdentity pins what identifies an enum member: the value it
 // holds, tagged by kind, under the enum that declares it. The list repeats a
-// value, includes names that spell one canonical word sequence, and carries
-// the characters the key escapes, so a derivation from the name, the position or
-// the unescaped value changes an ID. The IDs are written out rather than
-// derived, so the test cannot agree with a change to the derivation. The repeat
-// is kept, takes a numbered suffix and is reported once at its own entry.
+// value, includes names that spell one canonical word sequence, and carries the
+// characters a pointer token escapes, so a derivation from the name, the
+// position or the unescaped value changes an ID. The IDs are written out, not
+// derived. The repeat is kept, its ID ends in its occurrence number, and it is
+// reported once at its own entry; the string spelling that ID's tail is no
+// repeat.
 func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	memberIDs := func(id ir.TypeID) []ir.EnumMemberID {
 		enum, ok := doc.Types[id].(*ir.Enum)
@@ -1930,13 +1932,13 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"e/openapi/components/schemas/E/s:a-b",
 		"e/openapi/components/schemas/E/s:a_b",
 		"e/openapi/components/schemas/E/s:A B",
-		"e/openapi/components/schemas/E/s:a~1b",
-		"e/openapi/components/schemas/E/s:a%23b",
-		"e/openapi/components/schemas/E/s:a-b#2",
+		"e/openapi/components/schemas/E/s:a~0b",
+		"e/openapi/components/schemas/E/s:a-b/2",
+		"e/openapi/components/schemas/E/s:a-b~12",
 	}, memberIDs("t/openapi/components/schemas/E"))
 	assert.Equal(t, []ir.EnumMemberID{
-		"e/openapi/components/schemas/N/n:-1",
-		"e/openapi/components/schemas/N/n:1",
+		"e/openapi/components/schemas/N/n:-1e0",
+		"e/openapi/components/schemas/N/n:1e0",
 		"e/openapi/components/schemas/N/n:0",
 	}, memberIDs("t/openapi/components/schemas/N"))
 	assert.Equal(t, []ir.EnumMemberID{
@@ -1950,7 +1952,7 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 			repeats = append(repeats, string(d.Provenance.Pointer))
 		}
 	}
-	assert.Equal(t, []string{"/components/schemas/E/enum/5"}, repeats)
+	assert.Equal(t, []string{"/components/schemas/E/enum/4"}, repeats)
 }
 
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -2012,12 +2014,12 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
-// paramID is a parameter's identity. OpenAPI keys the Parameter object on
-// (name, in), so two parameters may legally share a name at different
-// locations; a map keyed on the name alone silently keeps one of such a pair and
-// compares the other against nothing. The compiler itself is keyed on both.
-type paramID struct {
-	Param    string
+// paramSlot is what OpenAPI identifies a parameter by: its name and location.
+// Two parameters may legally share a name at different locations, so a map
+// keyed on the name alone silently keeps one of such a pair and compares the
+// other against nothing.
+type paramSlot struct {
+	Name     string
 	Location ir.HTTPLocation
 }
 
@@ -2105,8 +2107,8 @@ func paramStyleExplodeDefault(style string) bool {
 // Generating moves the question up: the table and the fixture can still shrink
 // together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
-func paramStyleMatrixWant() map[paramID]paramWire {
-	want := map[paramID]paramWire{}
+func paramStyleMatrixWant() map[paramSlot]paramWire {
+	want := map[paramSlot]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
@@ -2116,11 +2118,11 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 			{"NoExplode", false},
 			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
 		} {
-			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
 		}
 	}
 	for _, d := range paramStyleDefaultStyles() {
-		want[paramID{string(d.location) + "Defaulted", d.location}] =
+		want[paramSlot{string(d.location) + "Defaulted", d.location}] =
 			paramWire{d.style, paramStyleExplodeDefault(d.style)}
 	}
 	return want
@@ -2177,12 +2179,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 
-	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.WireName)
-		id := paramID{Param: pb.WireName, Location: pb.Location}
-		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
-		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
+		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
+		got[slot] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
 		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
@@ -2511,10 +2513,8 @@ func propIDExists(doc *ir.Document, id ir.PropID) bool {
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.ID == id {
-				return true
-			}
+		if slices.ContainsFunc(m.Properties, func(p ir.Property) bool { return p.ID == id }) {
+			return true
 		}
 	}
 	return false
@@ -2563,6 +2563,43 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	resp := firstContent(t, op)
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+}
+
+// assertMediaTypeSpelling pins that a media type is classified by its type alone
+// while the IR keeps the key as written. One content per classification: a
+// multipart body, a form-urlencoded body and a file body with no schema, the
+// last on both sides of an operation.
+func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	upload, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	multipart := requestContent(t, upload)
+	assert.Equal(t, "Multipart/Form-Data", multipart.MediaType)
+	require.Len(t, multipart.Encoding, 1, "a mixed-case multipart key keeps its part encoding")
+	for _, pe := range multipart.Encoding {
+		assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
+		assert.True(t, pe.Filename)
+	}
+
+	submit, ok := opByName(doc, "submit")
+	require.True(t, ok)
+	form := requestContent(t, submit)
+	assert.Equal(t, "Application/X-WWW-Form-Urlencoded; charset=utf-8", form.MediaType)
+	require.Len(t, form.Encoding, 1, "a parameterized form-urlencoded key keeps its part encoding")
+	for _, pe := range form.Encoding {
+		assert.True(t, pe.Multi)
+	}
+
+	blob, ok := opByName(doc, "putBlob")
+	require.True(t, ok)
+	req := requestContent(t, blob)
+	require.NotNil(t, req.File, "a mixed-case octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"Application/Octet-Stream"}, req.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), req.Type.Target)
+
+	resp := firstContent(t, blob)
+	require.NotNil(t, resp.File, "a parameterized octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"application/octet-stream; type=tar"}, resp.File.ContentTypes)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
 }
 
@@ -3122,7 +3159,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := v.Interface().(ir.Unmodeled)
+		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}

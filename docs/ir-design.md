@@ -192,7 +192,7 @@ it sees. Changes made together in one bump are listed together under it.
     could see an ID that lost the separator before its path in an operation, a service or a group,
     which record no pointer to agree with. A consumer pinned to 0.6.0 finds no `idSpaces` and
     cannot tell which namespaces a producer minted in.
-- **0.8.0** — parameters gained an identity:
+- **0.8.0** — parameters and enum members gained an identity:
   - `Parameter` gained `ID`. A parameter had been named by its name, which one operation can repeat:
     `id` in the path and `id` in the query are two parameters. `HTTPParamBinding.Param`,
     `ParamPath.Param` and `Idempotency.TokenParam` changed from the parameter's name to its
@@ -223,11 +223,11 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's, because a JSON
-Pointer, a GraphQL structural path and a protobuf fully-qualified name are different things and
-nothing outside the format can compute one. A node a lowering *mints* rather than finds takes a
-namespace of its own, so no pointer a reference can spell ever reaches it — the general form of the
-rule §4.3 states for distributed unions.
+`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's,
+because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different
+things and nothing outside the format can compute one. A node a lowering *mints* rather than finds
+takes a namespace of its own, so no pointer a reference can spell ever reaches it — the general form
+of the rule §4.3 states for distributed unions.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is
@@ -266,16 +266,28 @@ source's location. A path-item parameter copied into two operations is two param
 apiece, and a path item reached from two paths gives each mount's parameters IDs rooted at that
 mount. The mount rather than the declaration scopes it, which is the reason an operation is
 identified by its mount (#107), and for the same reason a parameter is exempt from the agreement
-below: its provenance records the declaration it was read from. No list index is used, so
-reordering a parameter list renames nothing. The path is injective and the only rule minting into
-kind `param`, so it takes the format's own namespace, `openapi`, with no space of its own.
+below: its provenance records the declaration it was read from. No list index is used, so reordering
+a parameter list renames nothing unless the list repeats a name and location. OpenAPI forbids a
+repeat, but one reached through a `$ref` gets past the bundled parser's check, and both parameters
+are kept: the first in list order has the bare ID, each repeat appends its occurrence number as one
+more token (`…/<in>/2`), and the compiler reports it (`openapi/duplicate-parameter`), in every list
+the source writes whether or not an operation lowers it. The path is injective and the only rule
+minting into kind `param`, so it takes the format's own namespace, `openapi`, with no space of its
+own.
+
+Two things are left open. Nothing holds a parameter's ID beneath its own operation's: `irverify`
+checks it against the grammar, and the OpenAPI compiler roots both at one mount, but a parameter
+carrying another operation's path is not reported. And `Property.Args` holds `Parameter`s too, but
+no compiler lowers field arguments yet, so their IDs have no grammar; the first compiler that mints
+them fixes it here.
 
 An enum member is identified by the enum that declares it and the value it holds:
 `e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
 enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one) and beneath its
 path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
 (`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
-scope is what ties the two IDs together. The key is described in §4.5.
+scope is what ties the two IDs together. The key, and the number a repeated value appends after it,
+are described in §4.5.
 
 `irverify` holds every class of ID that has a kind prefix to the grammar, in three ways. An ID is
 well-formed (`ir/id-malformed`). It carries the pointer its node records, where the node records the
@@ -285,9 +297,10 @@ document declares (`ir/id-space-undeclared`).
 The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
 namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
 security scheme and a property are held to it. An operation is not, because its provenance records
-where its body is declared and its ID where it is mounted, and the two differ for an operation reached
-through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A service records no pointer, and a group, formed by
-a rule from every operation sharing a key, has no single position to record.
+where its body is declared and its ID where it is mounted, and the two differ for an operation
+reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A
+service records no pointer, and a group, formed by a rule from every operation sharing a key, has no
+single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
@@ -722,7 +735,8 @@ type Enum struct {
 }
 
 type EnumMember struct {
-    ID         EnumMemberID // e/<enum's namespace>/<enum's path>/<key>, keyed by the value held
+    ID         EnumMemberID // e/<enum's namespace>/<enum's path>/<key>, keyed by the value held,
+                            // and /<n> after it on the n-th holder of one value
     Name       Naming
     Value      Value        // typed value, matches ValueType
     WireName   string       // serialized form when it differs from Value (rare)
@@ -743,16 +757,21 @@ Duplicate member values are legal (protobuf `allow_alias`); slice order preserve
 canonical for serialization, and the validate pass must not reject them.
 
 A member's `ID` is keyed by the value it holds, never by its name or its position: `a-b` and `a_b`
-render from the same words and are still two members, and reordering the list renames none. The
-key is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string,
-`y` symbol, `n` the canonical decimal, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null —
-so the string `1` and the number `1` are two members. The payload has `%` written `%25` and `#`
-written `%23` first. A list, object, reference or constructor value has no key, and an enum holding
-one is not an `Enum`. A value held twice keeps every member: the first has the bare key, the
-repeats take `#2`, `#3`, and so on, and the OpenAPI compiler reports each repeat
-(`openapi/duplicate-enum-value`). Which repeat holds the bare ID follows source order, so a reorder
-keeps the set of IDs and may move that one. `pass.Validate` reports an ID repeated within one enum
-as `pass/duplicate-enum-member-id`.
+render from the same words and are still two members, and reordering a list that holds each value
+once renames none. The key
+is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string, `y`
+symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
+and the number `1` are two members. A number's payload is its canonical decimal: the leading
+significant digit, any others after a point, and the power of ten that digit carries, so `1500`,
+`1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the key is canonical: the member's
+`Value` is unchanged. A list, object, reference or constructor value has no key, and an enum holding
+one is not an `Enum`. A value held twice keeps every member: the first has the bare key, and each
+repeat appends its occurrence number as one more token (`…/<key>/2`), as a repeated parameter does
+(§3.1), which no key can be, since every key opens with its tag and a colon. The OpenAPI compiler
+reports each repeat in the list as written (`openapi/duplicate-enum-value`), whether the list lowers
+to an `Enum` or degrades to a `Union`. Which repeat holds the bare ID follows source order, so a
+reorder keeps the set of IDs and may move that one.
+`pass.Validate` reports an ID repeated within one enum as `pass/duplicate-enum-member-id`.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's
@@ -1348,6 +1367,8 @@ type Operation struct {
     LongRunning *LongRunning
     Idempotency Idempotency       // unknown | safe | idempotent | idempotency_token(param)
                                   // safe = no side effects (Smithy @readonly, HTTP GET semantics)
+                                  // TokenParam is set exactly for idempotency_token; validate
+                                  // rejects either half alone (pass/idempotency-token-mismatch)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
     Tags       []string
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
@@ -1362,8 +1383,9 @@ type Operation struct {
 }
 
 type Parameter struct {
-    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>; the
-                                   // bindings, pagination inputs and idempotency token name a
+    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
+                                   // /<n> after it on the n-th holder of one name and location;
+                                   // the bindings, pagination inputs and idempotency token name a
                                    // parameter by it, not by Name, which two locations may share
     Name       Naming
     Type       TypeRef
@@ -1518,8 +1540,9 @@ type PropPath struct {
 }
 type ParamPath struct{ Param ParamID; Segments []PropID }
 // ParamPath.Param, like Idempotency.TokenParam, names a parameter of the operation
-// carrying it: another operation's ParamID is a well-formed reference to the wrong
-// parameter, and pass.Validate rejects it (pass/param-binding-mismatch).
+// carrying it: another operation's ParamID, or a field argument's, is a well-formed
+// reference to the wrong parameter, and pass.Validate rejects it
+// (pass/param-binding-mismatch).
 
 type LongRunning struct {
     FinalStateVia string       // "operation-location" | "status-monitor" | "original-uri" | …
@@ -1630,11 +1653,11 @@ type HTTPParamBinding struct {
 type Callback struct { Expression string; Operations []OpID }
 ```
 
-Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per non-host location; a `host` binding is
-additive** — Smithy `@hostLabel` members expand into the host prefix *and* still serialize at
-their modeled location, by spec. TypeSpec's `HttpProperty` role+path flattening is the model
-here: nested `@header`/`@body` annotations resolve to explicit `(role, wire name, path)`
-bindings rather than restructured models.
+Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per
+non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host
+prefix *and* still serialize at their modeled location, by spec. TypeSpec's `HttpProperty` role+path
+flattening is the model here: nested `@header`/`@body` annotations resolve to explicit
+`(role, wire name, path)` bindings rather than restructured models.
 
 ### 8.2 RPC
 

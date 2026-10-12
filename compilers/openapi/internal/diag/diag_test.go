@@ -4,9 +4,9 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
-	"os"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -137,7 +137,7 @@ func codes() []string {
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
-		diag.DuplicateStatusKey,
+		diag.DuplicateStatusKey, diag.DuplicateParameter,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.DisjointVisibility,
@@ -188,24 +188,19 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 // right by accident until it was not.
 func declaredCodeCount(t *testing.T) int {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	pkg, err := build.ImportDir(".", 0)
 	require.NoError(t, err)
+	require.NotEmpty(t, pkg.GoFiles, "found no non-test source to read the codes from")
 
 	fset := token.NewFileSet()
-	var n, parsed int
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
+	var n int
+	for _, name := range pkg.GoFiles {
 		file, parseErr := parser.ParseFile(fset, name, nil, 0)
 		require.NoError(t, parseErr)
-		parsed++
 		for _, decl := range file.Decls {
 			n += constNamesIn(decl)
 		}
 	}
-	require.Positive(t, parsed, "found no non-test source to read the codes from")
 	require.Positive(t, n, "found no declared codes to count")
 	return n
 }
