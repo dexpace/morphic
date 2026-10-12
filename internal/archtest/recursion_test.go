@@ -1152,8 +1152,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	require.NotEmpty(t, found, "no package declares a lowering; the walk or the context type moved")
 
 	derived := slices.Sorted(maps.Keys(found))
-	listed := append([]string(nil), loweringPackages...)
-	sort.Strings(listed)
+	listed := slices.Sorted(slices.Values(loweringPackages))
 
 	assert.Equal(t, derived, listed,
 		"the packages this pin reads must be the packages that lower; a listed one that no longer "+

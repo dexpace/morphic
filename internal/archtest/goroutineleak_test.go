@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -167,7 +166,7 @@ func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
 		if !state.startsGoroutine || state.hasCall {
 			continue
 		}
-		sort.Strings(state.goroutineFiles)
+		slices.Sort(state.goroutineFiles)
 		violations = append(violations, fmt.Sprintf(
 			"%s: starts a goroutine (%s) with no _test.go file calling leakcheck.Main",
 			dir, strings.Join(state.goroutineFiles, ", ")))
