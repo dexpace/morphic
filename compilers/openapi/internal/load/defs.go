@@ -84,8 +84,7 @@ func (r heldRef) restore() { r.js.GetSchema().Ref = r.written }
 func (r heldRef) retarget() {
 	r.hold()
 	if r.target != nil {
-		ref := references.Reference("#" + fragmentOf(r.at))
-		r.js.GetSchema().Ref = &ref
+		r.js.GetSchema().Ref = new(references.Reference("#" + fragmentOf(r.at)))
 	}
 }
 

@@ -191,9 +191,8 @@ func internAlias(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hi
 	target ir.TypeRef, constraints *ir.Constraints, kept ir.Unmodeled,
 ) ir.TypeID {
 	return internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := target
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
-		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
+		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: constraints}
 	})
 }
 

@@ -720,8 +720,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if payload == nil {
 		return diags
 	}
-	required := rb.GetRequired()
-	payload.Required = &required
+	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own. Both reads sit
 	// after the payload guard because ir.Payload is the body's only carrier: a
