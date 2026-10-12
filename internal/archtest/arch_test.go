@@ -58,11 +58,11 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
-	// The yaml.v3 node vocabulary: the tag a resolved `<<` merge key carries and
-	// the constructors for the node kinds a parse produces. It reaches yaml and
-	// nothing else, which is what lets the view below import it rather than the
-	// other way round — nodeview's own internal tests build these nodes, and an
-	// internal test file cannot import a package that imports its own.
+	// The yaml.v3 nodes tests build trees from: the constructors for the node
+	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
+	// nothing else, so any package's internal tests can import it, nodeview's
+	// included: an internal test file cannot import a package that imports its
+	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
 	// through aliases and `<<` merge keys. It reaches the library's yml package
