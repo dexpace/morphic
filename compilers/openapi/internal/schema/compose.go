@@ -572,9 +572,7 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 	// the preserved union attaches to a node this pointer owns and not to the
 	// primitive every other unrelated position also resolves to.
 	inner := ts.PrimID(ir.PrimAny)
-	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(c, &kept, s, pointer)
-	owner := internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
+	owner, diags := internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner, Nullable: true})
 	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 }
 
