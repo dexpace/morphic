@@ -269,7 +269,7 @@ func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema
 }
 
 // paramHoldsResidue reports whether ir.Parameter has a field for a residue
-// keyword. Only `default` does — Parameter.Default, which fillParamDefault
+// keyword. Only `default` does — Parameter.Default, which fillParamSchema
 // fills — so recording it verbatim as well would give one declaration two homes.
 func paramHoldsResidue(keyword string) bool {
 	return keyword == "default"
