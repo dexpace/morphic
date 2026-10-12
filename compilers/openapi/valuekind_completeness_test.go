@@ -26,8 +26,8 @@ import (
 // A switch ending in a guessing default absorbs a new kind as whatever the
 // default asserts, and ValueKind is a bare string enum with no marker method to
 // enforce completeness. Deriving both sets from the sources makes the next kind,
-// or the next switch, a red test. The check is syntactic: a function holds such
-// a switch when a case names a ValueKind constant.
+// or the next switch, a red test. The check is syntactic: a switch is over
+// ir.ValueKind when one of its own cases names a ValueKind constant.
 func TestValueKindSwitches_NameEveryValueKind(t *testing.T) {
 	t.Parallel()
 	declared := irConstNamesOfType(t, "ValueKind")
@@ -38,33 +38,34 @@ func TestValueKindSwitches_NameEveryValueKind(t *testing.T) {
 	require.NotEmpty(t, switches, "found no switch over ir.ValueKind in the compiler's sources")
 	for at, named := range switches {
 		if diff := cmp.Diff(declared, named); diff != "" {
-			t.Errorf("%s does not name every ir.ValueKind (-declared in ir +named in the switch):\n%s\n"+
+			t.Errorf("the switch at %s does not name every ir.ValueKind (-declared in ir +named in the switch):\n%s\n"+
 				"give the missing kind an arm — the default may not be what it deserves", at, diff)
 		}
 	}
 }
 
-// valueKindSwitches returns, for each function in this package's tree that
-// names an ir.ValueKind constant in a case clause, the constants it names,
-// sorted and keyed by file and function. Test files are not the compiler.
+// valueKindSwitches returns, for each switch in this package's tree whose own
+// cases name an ir.ValueKind constant, the constants they name, sorted and keyed
+// by the switch's position. Test files are not the compiler.
 func valueKindSwitches(t *testing.T, declared []string) map[string][]string {
 	t.Helper()
 	out := map[string][]string{}
+	fset := token.NewFileSet()
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if err != nil {
 			return err
 		}
-		for _, decl := range f.Decls {
-			fn, isFunc := decl.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil {
+		for n := range ast.Preorder(f) {
+			sw, isSwitch := n.(*ast.SwitchStmt)
+			if !isSwitch {
 				continue
 			}
-			if named := valueKindsNamedIn(fn.Body, declared); len(named) > 0 {
-				out[path+": "+fn.Name.Name] = named
+			if named := valueKindsNamedIn(sw, declared); len(named) > 0 {
+				out[fset.Position(sw.Pos()).String()] = named
 			}
 		}
 		return nil
@@ -74,11 +75,12 @@ func valueKindSwitches(t *testing.T, declared []string) map[string][]string {
 }
 
 // valueKindsNamedIn returns the ValueKind constants, of those declared, that
-// body names as case expressions, sorted and deduplicated.
-func valueKindsNamedIn(body *ast.BlockStmt, declared []string) []string {
+// sw's own case clauses name, sorted and deduplicated. A switch nested in one of
+// those clauses is a switch of its own, and is read on its own.
+func valueKindsNamedIn(sw *ast.SwitchStmt, declared []string) []string {
 	seen := map[string]bool{}
-	for n := range ast.Preorder(body) {
-		cc, isCase := n.(*ast.CaseClause)
+	for _, stmt := range sw.Body.List {
+		cc, isCase := stmt.(*ast.CaseClause)
 		if !isCase {
 			continue
 		}
