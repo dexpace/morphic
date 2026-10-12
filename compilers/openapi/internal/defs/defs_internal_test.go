@@ -579,10 +579,10 @@ func TestOwnResource(t *testing.T) {
 	assert.False(t, ownResource(plain), "no $id and no registered base on a freshly parsed schema")
 }
 
-// TestParentPointer pins getParentJSONPointer's own bound: everything before
-// the last '/', and "" once there is no '/' left to strip — the root itself is
-// never an answer.
-func TestParentPointer(t *testing.T) {
+// TestPointerParent_MatchesTheResolversBound pins that Pointer.Parent has
+// getParentJSONPointer's bound, on which the $defs walk relies: everything before
+// the last '/', and "" once none is left, so the root is never an answer.
+func TestPointerParent_MatchesTheResolversBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -598,7 +598,7 @@ func TestParentPointer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, parentPointer(tc.in))
+			assert.Equal(t, tc.want, tc.in.Parent())
 		})
 	}
 }

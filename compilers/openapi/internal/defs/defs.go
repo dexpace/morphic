@@ -162,7 +162,7 @@ func (r *Reader) targetFrom(from, pointer jsontext.Pointer) (*schemaRef, jsontex
 	}
 	// Only an object with a $defs of its own can answer, and each holder is
 	// closer to the root than the last, which bounds the walk.
-	for anc := parentPointer(from); anc != ""; {
+	for anc := from.Parent(); anc != ""; {
 		here := r.placeAt(anc)
 		if here.hasDefs {
 			r.reads++
@@ -178,10 +178,12 @@ func (r *Reader) targetFrom(from, pointer jsontext.Pointer) (*schemaRef, jsontex
 // placeAt returns what the document holds at pos. Each position is read from
 // the one at its parent and remembered, so the walk down to a position starts
 // at the closest one already read. Every step shortens the position.
+// Pointer.Parent is the resolver's getParentJSONPointer: everything before the
+// last '/', and "" once none is left, so the root itself is never searched.
 func (r *Reader) placeAt(pos jsontext.Pointer) place {
 	var unread []jsontext.Pointer
 	here := place{value: r.doc, held: true}
-	for at := pos; at != ""; at = parentPointer(at) {
+	for at := pos; at != ""; at = at.Parent() {
 		if read, ok := r.places[at]; ok {
 			here = read
 			break
@@ -200,7 +202,7 @@ func (r *Reader) placeAt(pos jsontext.Pointer) place {
 // below it either, as the resolver reading a path from the root finds, and nor
 // does one in raw YAML, which holds no schema to read a $defs pointer in.
 func (r *Reader) read(parent place, at jsontext.Pointer) place {
-	above := parentPointer(at)
+	above := at.Parent()
 	next := place{holder: parent.holder}
 	if parent.hasDefs { // never the root, whose place is not read for one
 		next.holder = above
@@ -292,14 +294,4 @@ func ownResource(s *oas3.Schema) bool {
 	base := s.GetEffectiveBaseURI()
 	reg := s.GetSchemaRegistry()
 	return reg != nil && base != "" && base != reg.GetDocumentBaseURI()
-}
-
-// parentPointer is the resolver's getParentJSONPointer: everything before the
-// last '/', and "" once no ancestor is left — the root itself is never searched.
-func parentPointer(p jsontext.Pointer) jsontext.Pointer {
-	i := strings.LastIndexByte(string(p), '/')
-	if i <= 0 {
-		return ""
-	}
-	return p[:i]
 }

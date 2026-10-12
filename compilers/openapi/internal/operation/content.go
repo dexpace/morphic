@@ -793,7 +793,7 @@ func isBinaryBody(mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 
 // schemaIsBinary reports whether a schema is a string+binary body.
 func schemaIsBinary(s *oas3.Schema) bool {
-	return s.GetFormat() == "binary" && schemaHasType(s, oas3.SchemaTypeString)
+	return s.GetFormat() == "binary" && slices.Contains(s.GetType(), oas3.SchemaTypeString)
 }
 
 // schemaIsFilePart reports whether a multipart part schema is a file
@@ -803,18 +803,13 @@ func schemaIsFilePart(s *oas3.Schema) bool {
 	if f != "binary" && f != "byte" {
 		return false
 	}
-	return schemaHasType(s, oas3.SchemaTypeString)
+	return slices.Contains(s.GetType(), oas3.SchemaTypeString)
 }
 
 // schemaIsArray reports whether a schema declares the array type (a repeated
 // multipart part).
 func schemaIsArray(s *oas3.Schema) bool {
-	return schemaHasType(s, oas3.SchemaTypeArray)
-}
-
-// schemaHasType reports whether a schema's declared type set contains st.
-func schemaHasType(s *oas3.Schema, st oas3.SchemaType) bool {
-	return slices.Contains(s.GetType(), st)
+	return slices.Contains(s.GetType(), oas3.SchemaTypeArray)
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,

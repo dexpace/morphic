@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -284,7 +285,7 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			if _, err := os.Stat(base); os.IsNotExist(err) {
+			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
 			violations, err := walkImports(dir, base, allowed)
