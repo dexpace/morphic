@@ -1172,9 +1172,10 @@ func LoweredToOwnNode(ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef)
 	return owned && id == t.Target
 }
 
-// DefaultOf returns the default s declares, preferring the use-site node over
-// the $ref target tgt's, for a carrier to keep. A schema declaring none yields
-// nothing; an unconvertible node yields a diagnostic and no value.
+// DefaultOf returns the default s writes, or else the one its $ref target tgt
+// writes, for the carrier at pointer to keep: a property or a parameter. A
+// schema writing none yields nothing; an unconvertible node yields a
+// diagnostic and no value.
 func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
 	node := s.GetDefault()
 	if node == nil && tgt != nil {
