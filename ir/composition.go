@@ -54,7 +54,8 @@ func aliasTarget(doc *Document, id TypeID) TypeID {
 // IsSubtype reports whether target is a declared subtype of base at any distance
 // along [Supertypes], the transitive closure a base tagging a grandchild needs.
 // The relation is not reflexive unless a cycle leads back, and target itself is
-// not read through an alias. A visited set ends the walk on a cyclic hierarchy.
+// not read through an alias (#844). A visited set ends the walk on a cyclic
+// hierarchy.
 func IsSubtype(doc *Document, target, base TypeID) bool {
 	seen := map[TypeID]bool{}
 	queue := []TypeID{target}

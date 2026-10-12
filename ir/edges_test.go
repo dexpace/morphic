@@ -186,6 +186,17 @@ func TestTypeEdges_SelfReferenceStillCounts(t *testing.T) {
 	assert.Empty(t, edgeDiff(m))
 }
 
+// TestTypeEdges_SharedPointerIsFollowedFromEachField pins where TypeEdges and
+// its oracle differ: the reflection walk enters a shared pointer once, while
+// TypeEdges reads the tree the document's JSON encodes, one edge per field.
+func TestTypeEdges_SharedPointerIsFollowedFromEachField(t *testing.T) {
+	t.Parallel()
+	v := &ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/shared"}}
+	m := &ir.Model{Properties: []ir.Property{{Default: v}, {Default: v}}}
+	assert.Equal(t, []ir.TypeID{"t/shared", "t/shared"}, slices.Collect(ir.TypeEdges(m)))
+	assert.NotEmpty(t, edgeDiff(m), "the reflection walk reaches the shared value once")
+}
+
 func TestTypeEdges_StopsWhenTheConsumerBreaks(t *testing.T) {
 	t.Parallel()
 	for _, k := range allKinds {

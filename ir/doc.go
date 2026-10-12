@@ -7,9 +7,9 @@
 // through JSON deterministically.
 //
 // It also owns the shared traversals: [WalkValues], the bounded, cycle-guarded,
-// deterministically ordered reflection walk, [DocumentRegistries], and the typed
-// [ForEachOperation], [TypeEdges] and composition helpers ([Supertypes],
-// [IsSubtype], [ExposedProps]).
+// deterministically ordered reflection walk; [DocumentRegistries], read off
+// Document's own shape; and the typed [ForEachOperation], [TypeEdges] and
+// composition helpers ([Supertypes], [IsSubtype], [ExposedProps]).
 //
 // It imports only the standard library and does no I/O; its plain-data types
 // are safe for concurrent reads.

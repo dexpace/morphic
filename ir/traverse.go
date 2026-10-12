@@ -10,9 +10,11 @@ const MaxGroupDepth = 128
 // declaration order, descending nested operation groups up to [MaxGroupDepth].
 // A nil doc visits nothing.
 //
-// It reports whether the walk stopped at the cap with groups left unvisited, so
-// a caller deciding something from what it saw can tell an absent operation from
-// an unvisited one.
+// Groups past the cap are skipped and every other group is still visited. It
+// reports whether any were skipped, so a caller deciding something from what
+// it saw can tell an absent operation from an unvisited one. A group slice two
+// groups share is walked from each, so aliasing costs the unfolded size
+// (#736).
 func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 	if doc == nil {
 		return false

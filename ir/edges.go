@@ -7,14 +7,15 @@ import (
 )
 
 // TypeEdges returns the type IDs td refers to, in the order [WalkValues]
-// reaches them, apart from td's own ID. A self-reference still counts and an
-// empty target does not. It yields bare IDs, never a [TypeRef], so a
-// reference's Nullable bit is not invented, and it covers positions that are
-// not TypeRef fields: discriminator targets, a value's ref and constructor
-// types. A nil or typed-nil td yields nothing.
+// reaches them, apart from td's own ID. A self-reference counts and an empty
+// target does not. It yields bare IDs, inventing no Nullable bit, and covers
+// positions that are not TypeRef fields: discriminator targets, a value's ref
+// and constructor types. A nil or typed-nil td yields nothing.
 //
-// A value nested more than [MaxWalkDepth] levels deep is not entered. The
-// reflection walk is cut sooner, and pass.Validate reports that cut.
+// A value nested past [MaxWalkDepth] levels is not entered; the reflection
+// walk is cut sooner, and pass.Validate reports that. A pointer two fields
+// share is followed from each, though WalkValues enters it once, so aliasing
+// costs the unfolded size (#736).
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 	return func(yield func(TypeID) bool) {
 		if IsNilTypeDef(td) {
