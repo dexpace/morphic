@@ -15,7 +15,7 @@ func TestValidate_TypedNilMappingTargetDoesNotPanic(t *testing.T) {
 	var nilModel *ir.Model
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"m": &ir.Model{
-			TypeCommon:    ir.TypeCommon{ID: "m"},
+			ID:            "m",
 			Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"x": "n"}},
 		},
 		"n": nilModel,
@@ -34,11 +34,11 @@ func TestValidate_TypedNilAliasInSupertypeChainDoesNotPanic(t *testing.T) {
 	var nilScalar *ir.Scalar
 	doc := &ir.Document{Types: ir.TypeRegistry{
 		"m": &ir.Model{
-			TypeCommon:    ir.TypeCommon{ID: "m"},
+			ID:            "m",
 			Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"x": "s"}},
 		},
-		"s": &ir.Model{TypeCommon: ir.TypeCommon{ID: "s"}, Implements: []ir.TypeRef{{Target: "a"}}},
-		"a": &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "a"}, Base: &ir.TypeRef{Target: "z"}},
+		"s": &ir.Model{ID: "s", Implements: []ir.TypeRef{{Target: "a"}}},
+		"a": &ir.Scalar{ID: "a", Base: &ir.TypeRef{Target: "z"}},
 		"z": nilScalar,
 	}}
 

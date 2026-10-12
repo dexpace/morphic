@@ -75,11 +75,9 @@ func BenchmarkValidate_Large(b *testing.B) {
 
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		diags = pass.Validate(doc)
 	}
-	b.StopTimer()
 
 	for _, d := range diags {
 		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
@@ -208,11 +206,9 @@ func BenchmarkValidate_GraphQLReachability(b *testing.B) {
 
 	var diags []ir.Diagnostic
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		diags = pass.Validate(doc)
 	}
-	b.StopTimer()
 
 	for _, d := range diags {
 		require.NotEqual(b, ir.SeverityError, d.Severity, "unexpected validate error: %+v", d)
@@ -228,13 +224,13 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 	str := ir.TypeID("t/prim/string")
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion, Name: "gql", Version: "1",
-		Types: ir.TypeRegistry{str: &ir.Primitive{TypeCommon: ir.TypeCommon{ID: str}, Prim: "string"}},
+		Types: ir.TypeRegistry{str: &ir.Primitive{ID: str, Prim: "string"}},
 	}
 	ids := make([]ir.TypeID, 1, 1+gqlTypes)
 	ids[0] = str
 	var models []ir.TypeID
 	rng := rand.New(rand.NewPCG(1, 2)) // fixed seed: the same document every run
-	pick := func(int, int) ir.TypeRef {
+	pick := func() ir.TypeRef {
 		return ir.TypeRef{Target: ids[len(ids)-1-rng.IntN(min(len(ids), gqlRefWindow))]}
 	}
 	for i := range gqlTypes {
@@ -248,15 +244,15 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 			}
 			doc.Types[id] = &ir.Scalar{TypeCommon: common, Base: &base}
 		case 2:
-			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick(i, 1)}
+			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick()}
 		case 3:
-			doc.Types[id] = &ir.MapT{TypeCommon: common, Key: ir.TypeRef{Target: str}, Value: pick(i, 2)}
+			doc.Types[id] = &ir.MapT{TypeCommon: common, Key: ir.TypeRef{Target: str}, Value: pick()}
 		case 4:
 			doc.Types[id] = &ir.Union{TypeCommon: common, Variants: []ir.Variant{
-				{Type: pick(i, 3)}, {Type: pick(i, 4)}, {Type: pick(i, 5)},
+				{Type: pick()}, {Type: pick()}, {Type: pick()},
 			}}
 		default:
-			doc.Types[id] = graphQLModel(common, i, pick, models, rng)
+			doc.Types[id] = graphQLModel(common, pick, models, rng)
 			models = append(models, id)
 		}
 		ids = append(ids, id)
@@ -271,14 +267,14 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 
 // graphQLModel builds a model with three properties, an earlier model as its
 // base and another as a mixin when any exist.
-func graphQLModel(common ir.TypeCommon, i int, pick func(int, int) ir.TypeRef, models []ir.TypeID, rng *rand.Rand) *ir.Model {
+func graphQLModel(common ir.TypeCommon, pick func() ir.TypeRef, models []ir.TypeID, rng *rand.Rand) *ir.Model {
 	m := &ir.Model{TypeCommon: common}
 	for p := range 3 {
 		m.Properties = append(m.Properties, ir.Property{
 			ID:       ir.PropID(fmt.Sprintf("p/%s/%d", common.ID, p)),
 			Name:     ir.Naming{Source: fmt.Sprintf("f%d", p)},
 			WireName: fmt.Sprintf("f%d", p),
-			Type:     pick(i, 6+p),
+			Type:     pick(),
 		})
 	}
 	if len(models) >= 2 {
