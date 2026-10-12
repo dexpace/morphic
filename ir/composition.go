@@ -77,9 +77,9 @@ func IsSubtype(doc *Document, target, base TypeID) bool {
 
 // ExposedProps returns the property IDs the type root names exposes: its own
 // plus those it composes in through Base, Implements and Mixins (ir-design
-// §4.3), the flat set an emitter renders. An alias scalar exposes the parts of
-// the model its Base names. A root naming no live model exposes none. A visited
-// set ends the walk on a cyclic hierarchy.
+// §4.3), the flat set an emitter renders. A root naming an alias scalar exposes
+// the parts of the model the alias stands for, and one naming neither that nor
+// a live model exposes none. A visited set ends the walk on a cyclic hierarchy.
 func ExposedProps(doc *Document, root TypeID) map[PropID]bool {
 	props := map[PropID]bool{}
 	if doc == nil {
