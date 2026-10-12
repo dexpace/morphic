@@ -136,6 +136,8 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 		// A scalar or an alias holds no path below it.
 	}
 	for i, c := range children {
+		// The library's escaper keeps a byte that is no UTF-8, which AppendToken
+		// would spell as U+FFFD, a key the library never compares.
 		p := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
 		*out = append(*out, p)
 		if !treePaths(t, c, p, out, refs, depth+1) {
