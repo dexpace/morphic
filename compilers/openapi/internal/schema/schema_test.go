@@ -425,9 +425,10 @@ func TestLower_ListWithoutItems(t *testing.T) {
 	}
 }
 
-// TestLower_ListWithoutItemsRebuiltWarnsOnce pins the one path where the guard
-// runs twice: a $ref naming the property's coordinate, declared before its
-// owner, builds the node, and the declaration builds it again
+// TestLower_ListWithoutItemsRebuiltWarnsOnce pins the path where the guard runs
+// twice: a $ref naming a coordinate inside another declaration (a property
+// here; an `items` or a parameter's schema takes the same path), lowered before
+// that declaration, builds the node, and the declaration builds it again
 // (Types.InternDeclared). The caller still sees one warning, because
 // compile.Diags drops identical diagnostics; both orders are asserted.
 func TestLower_ListWithoutItemsRebuiltWarnsOnce(t *testing.T) {

@@ -336,11 +336,13 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
 // IsOpenAPI30 reports whether this document's dialect is OpenAPI 3.0 rather
-// than the 2020-12 dialect of 3.1 and 3.2. Each 3.0-ism asks this one question:
-// a boolean exclusiveMinimum/exclusiveMaximum, an array schema that must write
-// `items`. An unrecognized version, and a context with no document, answer
-// false. It reads the entry document's version, whichever document holds the
-// schema, so a 3.1 file reached by $ref from a 3.0 root is read as 3.0.
+// than the 2020-12 dialect of 3.1 and 3.2. A reading that differs by dialect,
+// such as a boolean exclusiveMinimum or a required `items`, asks this rather
+// than parsing the version itself; `nullable` is still read in every dialect
+// (GitHub #632). An unrecognized version, and a context with no document,
+// answer false. It reads the entry document's version, whichever document holds
+// the schema, so a 3.1 file reached by $ref from a 3.0 root is read as 3.0
+// (GitHub #839).
 func (c Ctx) IsOpenAPI30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"

@@ -172,9 +172,9 @@ func TestIsOpenAPI30_TheZeroContextReadsAs2020(t *testing.T) {
 }
 
 // TestIsOpenAPI30_FollowsTheDialect pins which documents read as OpenAPI 3.0.
-// Every 3.0-ism keys on this answer: reading 3.0 as 2020-12 turns a boolean
-// exclusiveMinimum into a numeric bound and silences a missing `items`, and the
-// reverse warns on every legal 3.1 array.
+// A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
+// turns a boolean exclusiveMinimum into a numeric bound and silences a missing
+// `items`, and the reverse warns on every 3.1 array that omits `items`.
 func TestIsOpenAPI30_FollowsTheDialect(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
