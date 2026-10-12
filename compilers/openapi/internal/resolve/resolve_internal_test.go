@@ -340,7 +340,9 @@ func sameDocumentByWorkingDirectory(a, b string) bool {
 // parents climbing out of the working directory and back in, which cleaned
 // strings alone cannot equate. Each file is also spelled rooted without its
 // volume: on Windows that path is neither absolute nor below the directory,
-// and elsewhere, with no volume, it is the absolute spelling again.
+// and elsewhere, with no volume, it is the absolute spelling again. So only a
+// Windows run reaches that form here; the test for non-local Windows paths pins
+// it on any host.
 func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
 	t.Parallel()
 	cwd, err := filepath.Abs(".")
@@ -409,9 +411,76 @@ func TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters(t *testing.T) {
 			return filepath.Join(c.wd, p), nil
 		}
 
-		got := sameDocument(c.a, c.b, abs)
+		rules := systemRules()
+		rules.abs = abs
+
+		got := sameDocument(c.a, c.b, rules)
 
 		assert.Equal(t, c.same, got, "%q %q from %s", c.a, c.b, c.wd)
+		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
+	}
+}
+
+// TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths pins how
+// SameDocument treats the Windows paths that are neither absolute nor below the
+// working directory: one rooted without a volume, one naming a drive, a
+// reserved name. Each is made absolute before it is compared, so two spellings
+// of one file are one document. The table states what filepath documents for
+// Windows (IsAbs, IsLocal) and what Abs names, so the test checks how
+// SameDocument uses those answers on any host; only a Windows run of the grid
+// test checks the answers themselves.
+func TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths(t *testing.T) {
+	t.Parallel()
+	// A path's reading on Windows with C:\specs the working directory: whether
+	// IsAbs and IsLocal accept it, and the file Abs names.
+	type reading struct {
+		abs, local bool
+		file       string
+	}
+	windows := map[string]reading{
+		`C:\specs\api.yaml`:   {abs: true, file: `C:\specs\api.yaml`},
+		`C:\specs\other.yaml`: {abs: true, file: `C:\specs\other.yaml`},
+		`api.yaml`:            {local: true, file: `C:\specs\api.yaml`},
+		`sub\api.yaml`:        {local: true, file: `C:\specs\sub\api.yaml`},
+		`\specs\api.yaml`:     {file: `C:\specs\api.yaml`},     // rooted, no volume
+		`C:sub\api.yaml`:      {file: `C:\specs\sub\api.yaml`}, // names a drive; the backslash makes IsURL read a file
+		`NUL`:                 {file: `\\.\NUL`},               // a reserved name
+	}
+	read := func(path string) reading {
+		r, ok := windows[path]
+		if !ok {
+			t.Errorf("path %q has no Windows reading in this test", path)
+		}
+		return r
+	}
+	for _, c := range []struct {
+		a, b  string
+		same  bool
+		reads bool
+	}{
+		{`\specs\api.yaml`, `api.yaml`, true, true},
+		{`api.yaml`, `\specs\api.yaml`, true, true},
+		{`C:sub\api.yaml`, `sub\api.yaml`, true, true},
+		{`sub\api.yaml`, `C:sub\api.yaml`, true, true},
+		{`\specs\api.yaml`, `C:\specs\api.yaml`, true, true},
+		{`NUL`, `api.yaml`, false, true},
+		{`api.yaml`, `sub\api.yaml`, false, false},
+		{`C:\specs\api.yaml`, `C:\specs\other.yaml`, false, false},
+	} {
+		require.Equal(t, c.same, read(c.a).file == read(c.b).file, "the table disagrees with the row %q %q", c.a, c.b)
+		reads := 0
+		rules := pathRules{
+			abs: func(path string) (string, error) {
+				reads++
+				return read(path).file, nil
+			},
+			isAbs:   func(path string) bool { return read(path).abs },
+			isLocal: func(path string) bool { return read(path).local },
+		}
+
+		got := sameDocument(c.a, c.b, rules)
+
+		assert.Equal(t, c.same, got, "%q %q", c.a, c.b)
 		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
 	}
 }

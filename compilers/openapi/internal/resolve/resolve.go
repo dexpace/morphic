@@ -422,12 +422,26 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // The working directory is read only to tell a relative path from an absolute
 // one, or one climbing out of it.
 func SameDocument(a, b string) bool {
-	return sameDocument(a, b, filepath.Abs)
+	return sameDocument(a, b, systemRules())
 }
 
-// sameDocument is SameDocument with the way to make a path absolute handed in,
-// so a test can count how often the working directory is read.
-func sameDocument(a, b string, abs func(string) (string, error)) bool {
+// pathRules is how the file system reads a path. A test hands in another
+// system's reading, so the Windows forms are checked on any host.
+type pathRules struct {
+	abs     func(path string) (string, error) // against the working directory
+	isAbs   func(path string) bool
+	isLocal func(path string) bool
+}
+
+// systemRules returns filepath's reading of a path on this system.
+func systemRules() pathRules {
+	return pathRules{abs: filepath.Abs, isAbs: filepath.IsAbs, isLocal: filepath.IsLocal}
+}
+
+// sameDocument is SameDocument with the file system's reading handed in, so a
+// test can count how often the working directory is read, and read paths as
+// another system does.
+func sameDocument(a, b string, rules pathRules) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -441,11 +455,11 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 	if a == b {
 		return true
 	}
-	if sameAnchor(a, b) {
+	if sameAnchor(a, b, rules) {
 		return false
 	}
-	absA, errA := abs(a)
-	absB, errB := abs(b)
+	absA, errA := rules.abs(a)
+	absB, errB := rules.abs(b)
 	return errA == nil && errB == nil && absA == absB
 }
 
@@ -454,11 +468,11 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 // both absolute, or both below it. Below is filepath.IsLocal, which on Windows
 // also refuses a path rooted without a volume (\a) or naming one (C:a): neither
 // is absolute, and neither is resolved against the working directory alone.
-func sameAnchor(a, b string) bool {
-	if filepath.IsAbs(a) != filepath.IsAbs(b) {
+func sameAnchor(a, b string, rules pathRules) bool {
+	if rules.isAbs(a) != rules.isAbs(b) {
 		return false
 	}
-	return filepath.IsAbs(a) || filepath.IsLocal(a) && filepath.IsLocal(b)
+	return rules.isAbs(a) || rules.isLocal(a) && rules.isLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a
