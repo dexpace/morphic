@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // pathItemRefSiblingsSpec is the issue's own reproducer: a path whose whole
@@ -86,7 +89,7 @@ webhooks:
     summary: written beside the ref
     servers: [{url: https://use.example}]
     x-beside: use
-    bogusUse: use
+    bogusUse: {responses: {"200": {description: use}}}
     parameters:
       - {name: useParam, in: query, schema: {type: string}}
     post:
@@ -100,9 +103,9 @@ components:
         responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_WebhookRoute holds the seam to the webhook route: the
-// same read, the same model and the same carriers, reached under webhooks rather
-// than paths. Every item-level construct the paths route asserts lands on every
+// TestPathItemRefSiblings_WebhookRoute holds the webhook route to the paths
+// route's reading: the same model and the same carriers, reached under webhooks
+// rather than paths. Every item-level construct the paths route asserts lands on every
 // operation mounted here, under the hook's own use site.
 func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	t.Parallel()
@@ -140,7 +143,7 @@ paths:
             summary: written beside the ref
             servers: [{url: https://use.example}]
             x-beside: use
-            bogusUse: use
+            bogusUse: {responses: {"200": {description: use}}}
             parameters:
               - {name: useParam, in: query, schema: {type: string}}
             post:
@@ -155,11 +158,9 @@ components:
         responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_CallbackRoute holds the seam to the callback route,
-// which a document-level walk cannot reach: a $ref'd callback's expressions are
-// walked only from the mount that references it. As on the paths route, every
-// item-level construct lands on every operation mounted at the expression, under
-// the expression's own use site.
+// TestPathItemRefSiblings_CallbackRoute holds the callback route to the paths
+// route's reading: every item-level construct lands on every operation mounted
+// at the expression, under the expression's own use site.
 func TestPathItemRefSiblings_CallbackRoute(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefCallbackSpec)
@@ -180,20 +181,17 @@ func TestPathItemRefSiblings_CallbackRoute(t *testing.T) {
 		"and the census names the use site's undeclared key where it was written")
 }
 
-// pathItemRefSiblingsExternalFixture is the external-ref half of the seam: its
-// path item carries a $ref plus siblings, and the operation written beside the
-// $ref writes a parameter reference that leaves the document for the target
-// fixture beside it (resolve_target_path_item_sibling.yaml).
+// pathItemRefSiblingsExternalFixture's path item carries a $ref plus siblings,
+// and the operation written beside the $ref writes a parameter reference that
+// leaves the document for the target fixture beside it
+// (resolve_target_path_item_sibling.yaml).
 const pathItemRefSiblingsExternalFixture = "../../../../testdata/openapi/resolve_main_path_item_sibling.yaml"
 
-// TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy pins the loader's
-// own external-reference policy onto the seam. A sibling subtree is read from
-// raw nodes the loader never modelled, so only the seam can resolve a reference
-// written inside it — which means it must follow the same allow-external-refs
-// option the loader follows, and must report what it cannot resolve rather than
-// drop it. With the option the target file's component lands on the IR at the
-// sibling operation; without it the reference is an unresolved-ref diagnostic
-// sited at the use site.
+// TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy pins that a
+// reference written beside a $ref follows the compile's external-reference
+// policy, as every reference the load phase resolves does. With the option the
+// target file's component lands on the IR at the sibling operation; without it
+// the reference is reported unresolved once, where it is written.
 func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(pathItemRefSiblingsExternalFixture)
@@ -216,8 +214,8 @@ func TestPathItemRefSiblings_ExternalRefFollowsTheCompilesPolicy(t *testing.T) {
 	assert.Equal(t, "extSibling", getA.Params[0].Name.Source)
 
 	refused, refusedDiags := compiled(false)
-	assert.True(t, openapitest.HasDiagCodeAt(refusedDiags, diag.UnresolvedRef, "/paths/~1a"),
-		"without the option the sibling's external reference is reported, not dropped")
+	assert.Equal(t, []string{"/paths/~1a/get/parameters/0"}, unresolvedAt(refusedDiags),
+		"without the option the sibling's external reference is reported once, where it is written")
 	refusedA := opByPath(t, refused, "GET", "/a")
 	assert.Empty(t, refusedA.Params, "and no unresolved parameter reaches the IR")
 }
@@ -313,7 +311,7 @@ paths:
     summary: written beside the ref
     servers: [{url: https://use.example}]
     x-beside: use
-    bogusUse: use
+    bogusUse: {responses: {"200": {description: use}}}
     parameters:
       - {name: useParam, in: query, schema: {type: string}}
     put:
@@ -376,7 +374,7 @@ func assertPathItemSiblingConstructs(t *testing.T, op ir.Operation, usePtr strin
 
 	unknown, ok := op.Unmodeled["openapi:pathItem/bogusUse"]
 	require.True(t, ok, "%s keeps the use site's undeclared key", where)
-	assert.JSONEq(t, `"use"`, string(unknown.Value))
+	assert.JSONEq(t, `{"responses":{"200":{"description":"use"}}}`, string(unknown.Value))
 	assert.Equal(t, jsontext.Pointer(usePtr+"/bogusUse"), unknown.Provenance.Pointer)
 
 	require.Len(t, op.Params, 1, "%s merges the use site's item parameter", where)
@@ -385,8 +383,8 @@ func assertPathItemSiblingConstructs(t *testing.T, op ir.Operation, usePtr strin
 }
 
 // TestPathItemRefSiblings_ReferenceKindsResolve pins that a reference written
-// inside the sibling subtree is resolved before it is lowered: the loader never
-// walks these nodes, so nothing else in the compile resolves them.
+// inside the fields beside a $ref is resolved before it is lowered, which the
+// load phase does with the rest of the document.
 //
 // It exercises every reference kind a path-item subtree reaches: a parameter, a
 // request body, a response and a callback on the sibling operation, and a
@@ -423,6 +421,12 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	require.True(t, ok, "the sibling response's $ref'd link is kept verbatim")
 	assert.Contains(t, string(links.Value), "RefL",
 		"a Link Object has no IR home, so the map reaches the IR under its own key")
+
+	cbPost := openapitest.FindOp(t, doc, "cbPost")
+	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,
+		"a $ref'd callback resolves, and its operation mounts under the operation beside the $ref")
+	require.Len(t, getA.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{cbPost.ID}, getA.Bindings.HTTP[0].Callbacks[0].Operations)
 }
 
 // responseByStatus returns the single success response an operation declares for
@@ -516,8 +520,8 @@ paths:
       responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_UnresolvedLinkIsReported pins that the seam reaches a
-// link reference written in the sibling subtree: a link whose declaration is
+// TestPathItemRefSiblings_UnresolvedLinkIsReported pins that resolution reaches
+// a link reference written beside a $ref: a link whose declaration is
 // absent is reported like any other unresolved reference there, which is what
 // makes the resolving half of the kinds fixture above mean something. It is also
 // the one reference kind whose resolution no IR field records — nothing reads a
@@ -525,8 +529,8 @@ paths:
 func TestPathItemRefSiblings_UnresolvedLinkIsReported(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, pathItemRefDanglingLinkSpec)
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/paths/~1a"),
-		"the link reference the loader never walks is resolved here and reported")
+	assert.Equal(t, []string{"/paths/~1a/get/responses/200/links/next"}, unresolvedAt(diags),
+		"the link reference beside the $ref is resolved with the document and reported where it is written")
 }
 
 // pathItemRefCollisionSpec declares the same constructs on both sides of one
@@ -562,9 +566,9 @@ paths:
 
 // TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins pins the collision rule
 // GitHub #577 settles: OpenAPI leaves the result of a field written beside a
-// $ref undefined, so the compiler applies the use-site precedence it already
-// applies to a $ref-adjacent schema sibling, and reports the losing declaration
-// rather than dropping it in silence.
+// $ref undefined, so the use site's declaration wins every construct, as a
+// $ref-adjacent schema sibling's does, and the losing one is reported rather
+// than dropped in silence.
 func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefCollisionSpec)
@@ -605,6 +609,15 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	ext, ok := getA.Unmodeled["openapi:pathItem/x-shared"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use"`, string(ext.Value))
+	bogus, ok := getA.Unmodeled["openapi:pathItem/bogusBoth"]
+	require.True(t, ok)
+	assert.JSONEq(t, `{"responses":{"200":{"description":"USE"}}}`, string(bogus.Value),
+		"an undeclared key is the use site's too, as every other construct is")
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/bogusBoth"), bogus.Provenance.Pointer)
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken),
+		"the referent's key is not written, so nothing is left to say it was dropped")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning,
+		"/paths/~1a/parameters/0"), `the parameter "dup" in query here`, "a parameter is named as written")
 
 	// One operation at the mount, so no OpID is claimed twice.
 	assert.False(t, openapitest.HasDiag(diags, diag.DuplicateOperationID))
@@ -655,22 +668,21 @@ paths:
     get:
       operationId: getA
       responses: {"200": {description: OK}}
-      responses: {"200": {description: OK}}
   /b:
     post:
       operationId: postB
       responses: {"200": {description: OK}}
 `
 
-// TestPathItemRefSiblings_UnresolvedIsReported pins that a reference the loader
-// never walks is resolved at the mount and reported when it does not resolve,
+// TestPathItemRefSiblings_UnresolvedIsReported pins that a reference written
+// beside a $ref that does not resolve is reported once, where it is written,
 // rather than silently reaching the IR unresolved.
 func TestPathItemRefSiblings_UnresolvedIsReported(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, pathItemRefBrokenSpec)
 
-	require.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/paths/~1a"),
-		"the failure is sited at the use site the reference was written beside")
+	assert.Equal(t, []string{"/paths/~1a/parameters/0"}, unresolvedAt(diags),
+		"the failure is reported once, at the reference written beside the $ref")
 }
 
 // pathItemRefUnmountedWebhookSpec mounts nothing on either side of a webhook's
@@ -808,11 +820,15 @@ paths:
 // be the same set of (code, pointer) pairs.
 func TestPathItemRefSiblings_CollisionIsOrderIndependent(t *testing.T) {
 	t.Parallel()
-	_, forward := parseFull(t, pathItemRefCollisionSpec)
-	_, reversed := parseFull(t, pathItemRefCollisionReversedSpec)
+	forwardDoc, forward := parseFull(t, pathItemRefCollisionSpec)
+	reversedDoc, reversed := parseFull(t, pathItemRefCollisionReversedSpec)
 
 	assert.Equal(t, collisionFindings(t, forward), collisionFindings(t, reversed),
 		"a collision is a property of the document, not of the order it was written in")
+	for _, at := range []struct{ method, uri string }{{"GET", "/a"}, {"GET", "/b"}} {
+		want, got := opByPath(t, forwardDoc, at.method, at.uri), opByPath(t, reversedDoc, at.method, at.uri)
+		assert.Empty(t, cmp.Diff(want, got), "what %s %s lowers to, the winners included, follows no order", at.method, at.uri)
+	}
 }
 
 // collisionFindings returns the colliding constructs' findings as sorted
@@ -827,4 +843,379 @@ func collisionFindings(t *testing.T, diags []ir.Diagnostic) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// unresolvedAt returns the pointer of every unresolved-ref finding, in the
+// order they were reported.
+func unresolvedAt(diags []ir.Diagnostic) []string {
+	var at []string
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			at = append(at, string(d.Provenance.Pointer))
+		}
+	}
+	return at
+}
+
+// pathItemRefSharedCallbackSpec has two operations share one $ref'd callback
+// whose expression writes an operation beside its $ref, and a components path
+// item carrying such a callback inline mounted at a path and a webhook.
+const pathItemRefSharedCallbackSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /one:
+    post:
+      callbacks: {cb: {$ref: '#/components/callbacks/CB'}}
+      responses: {"200": {description: OK}}
+  /two:
+    post:
+      callbacks: {cb: {$ref: '#/components/callbacks/CB'}}
+      responses: {"200": {description: OK}}
+  /three: {$ref: '#/components/pathItems/Inline'}
+webhooks:
+  hook: {$ref: '#/components/pathItems/Inline'}
+components:
+  pathItems:
+    Target:
+      post: {responses: {"200": {description: OK}}}
+    Inline:
+      post:
+        callbacks:
+          cb:
+            '{$request.body#/url}':
+              $ref: '#/components/pathItems/Target'
+              put: {responses: {"200": {description: OK}}}
+        responses: {"200": {description: OK}}
+  callbacks:
+    CB:
+      '{$request.body#/url}':
+        $ref: '#/components/pathItems/Target'
+        put: {responses: {"200": {description: OK}}}
+`
+
+// TestPathItemRefSiblings_ASharedCallbackMountsPerParent pins the identity of an
+// operation written beside a callback expression's $ref: it mounts under each
+// parent, as the referenced item's own do, and is declared once, where the
+// expression writes it. Mounted at the declaration, every parent sharing the
+// callback produced one operation ID.
+func TestPathItemRefSiblings_ASharedCallbackMountsPerParent(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemRefSharedCallbackSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, irverify.Verify(doc), "no operation ID is declared twice")
+
+	const expr = "/callbacks/cb/{$request.body#~1url}/put"
+	puts := map[ir.OpID]jsontext.Pointer{}
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			if strings.HasSuffix(string(op.ID), expr) {
+				puts[op.ID] = op.Provenance.Pointer
+			}
+		}
+	}
+	assert.Equal(t, map[ir.OpID]jsontext.Pointer{
+		"op/openapi/paths/~1one/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"op/openapi/paths/~1two/post" + expr:   "/components/callbacks/CB/{$request.body#~1url}/put",
+		"op/openapi/paths/~1three/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+		"op/openapi/webhooks/hook/post" + expr: "/components/pathItems/Inline/post/callbacks/cb/{$request.body#~1url}/put",
+	}, puts, "one operation per parent, each declared where the expression writes it")
+}
+
+// pathItemRefUnmountedCollisionSpec declares the same constructs on both sides
+// of a $ref neither side mounts an operation for.
+const pathItemRefUnmountedCollisionSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    summary: use summary
+    x-both: use
+    bogusBoth: {responses: {"200": {description: USE}}}
+  /b:
+    summary: ref summary
+    x-both: ref
+    bogusBoth: {responses: {"200": {description: REF}}}
+`
+
+// TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite pins precedence on
+// the carrier an item mounting no operation uses: the use site keeps every
+// construct there too, and a summary, which that carrier keeps from neither
+// side, is reported as colliding nowhere.
+func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemRefUnmountedCollisionSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	svc := doc.Services[0]
+	for key, want := range map[string]string{
+		"openapi:pathItem/paths/~1a/x-both":    `"use"`,
+		"openapi:pathItem/paths/~1a/bogusBoth": `{"responses":{"200":{"description":"USE"}}}`,
+	} {
+		entry, ok := svc.Unmodeled[key]
+		require.True(t, ok, key)
+		assert.JSONEq(t, want, string(entry.Value), key)
+		assert.True(t, strings.HasPrefix(string(entry.Provenance.Pointer), "/paths/~1a/"), key)
+	}
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/x-both"))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/bogusBoth"))
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/summary"),
+		"neither summary is kept, so neither is the one kept")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+}
+
+// pathItemRefChainSpec chains /a to /b to /c, with fields beside both $refs.
+const pathItemRefChainSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    summary: from a
+    get:
+      operationId: getFromA
+      responses: {"200": {description: OK}}
+  /b:
+    $ref: '#/paths/~1c'
+    summary: from b
+    servers: [{url: https://b.example}]
+    get:
+      operationId: getFromB
+      responses: {"200": {description: OK}}
+    put:
+      operationId: putFromB
+      responses: {"200": {description: OK}}
+  /c:
+    get:
+      operationId: getFromC
+      responses: {"200": {description: OK}}
+    post:
+      operationId: postFromC
+      responses: {"200": {description: OK}}
+`
+
+// TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef pins a chain: the
+// path item a $ref names is that item with the fields beside its own $ref, so
+// /a mounts /b's put and /c's post, takes /b's servers, and keeps its own get
+// and summary over both deeper ones, each loser named once.
+func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemRefChainSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, irverify.Verify(doc))
+
+	for method, decl := range map[string]jsontext.Pointer{
+		"GET": "/paths/~1a/get", "PUT": "/paths/~1b/put", "POST": "/paths/~1c/post",
+	} {
+		op := opByPath(t, doc, method, "/a")
+		assert.Equal(t, decl, op.Provenance.Pointer, "%s at /a is declared where the chain writes it", method)
+		summary, ok := op.Unmodeled["openapi:pathItemSummary"]
+		require.True(t, ok)
+		assert.JSONEq(t, `"from a"`, string(summary.Value))
+		servers, ok := op.Unmodeled["openapi:servers"]
+		require.True(t, ok, "%s at /a carries the servers beside /b's $ref", method)
+		assert.JSONEq(t, `[{"url":"https://b.example"}]`, string(servers.Value))
+	}
+	var collided []string
+	for _, d := range diags {
+		if d.Code == diag.PathItemRefCollision {
+			collided = append(collided, string(d.Provenance.Pointer)+" "+d.Message[strings.Index(d.Message, "declares at ")+len("declares at "):strings.Index(d.Message, ";")])
+		}
+	}
+	slices.Sort(collided)
+	assert.Equal(t, []string{
+		"/paths/~1a/get /paths/~1b/get",
+		"/paths/~1a/get /paths/~1c/get",
+		"/paths/~1a/summary /paths/~1b/summary",
+		"/paths/~1b/get /paths/~1c/get",
+	}, collided, "each declaration a nearer one takes over is named once, at the one kept")
+}
+
+// TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported pins the chain
+// this compiler cannot read all of: the fields beside a $ref in another
+// document are not modelled, and saying so is what keeps them from being
+// dropped in silence.
+func TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    $ref: '#/components/pathItems/P'
+    put: {responses: {"200": {description: OK}}}
+components:
+  pathItems:
+    P:
+      get: {responses: {"200": {description: OK}}}
+`), 0o600))
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: './other.yaml#/paths/~1x'}
+`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	opByPath(t, doc, "GET", "/a")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1a")
+	assert.Contains(t, message, "./other.yaml#/paths/~1x", "the reference reaching the unread fields is named")
+	assert.Contains(t, message, "not lowered")
+}
+
+// pathItemRefCallbackSiblingSpec writes an expression beside a Callback
+// Object's $ref, which OpenAPI says to ignore: a Reference Object's other
+// fields are not the callback's.
+const pathItemRefCallbackSiblingSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /one:
+    post:
+      operationId: one
+      callbacks:
+        cb:
+          $ref: '%s#/components/callbacks/CB'
+          '{$request.body#/url}':
+            $ref: '#/components/pathItems/T'
+            patch:
+              operationId: ignoredSibling
+              responses: {"200": {description: OK}}
+      responses: {"200": {description: OK}}
+components:
+  pathItems:
+    T:
+      post: {responses: {"200": {description: OK}}}
+  callbacks:
+    CB:
+      '{$request.body#/url}':
+        post:
+          operationId: cbPost
+          responses: {"200": {description: OK}}
+`
+
+// TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored pins where
+// the fields beside a $ref are read from: the source, at the $ref that writes
+// them, never at a position another document's content was mounted at, so an
+// expression beside a Callback Object's $ref is ignored however the callback
+// resolves.
+func TestPathItemRefSiblings_AnExpressionBesideACallbackRefIsIgnored(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	other := strings.Replace(pathItemRefCallbackSiblingSpec, "%s", "", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+	for _, at := range []string{"", "./other.yaml"} {
+		doc, _, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(strings.Replace(pathItemRefCallbackSiblingSpec, "%s", at, 1))}},
+			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		openapitest.FindOp(t, doc, "cbPost")
+		for _, g := range doc.Services[0].Groups {
+			for _, op := range g.Operations {
+				assert.NotEqual(t, "ignoredSibling", op.Name.Source, "callback %q", at)
+			}
+		}
+	}
+}
+
+// TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions pins the one
+// mount where both declarations would share pointers: a use site writing item
+// parameters beside a $ref to another document's path item, whose content is
+// placed at the use site because no pointer here addresses it. Each parameter
+// keeps the type its own schema declares.
+func TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "target.yaml"), []byte(`openapi: 3.1.0
+info: {title: Target, version: "1"}
+paths:
+  /b:
+    parameters:
+      - {name: refP, in: header, schema: {type: object, properties: {fromRef: {type: integer}}}}
+    get:
+      operationId: refGet
+      responses: {"200": {description: OK}}
+    post:
+      operationId: postB
+      responses: {"200": {description: OK}}
+`), 0o600))
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "main.yaml"), Data: []byte(`openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    $ref: './target.yaml#/paths/~1b'
+    parameters:
+      - {name: useP, in: query, schema: {type: object, properties: {fromUse: {type: string}}}}
+    get:
+      operationId: useGet
+      responses: {"200": {description: OK}}
+`)}}, compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Empty(t, irverify.Verify(doc))
+
+	props := func(p ir.Parameter) []string {
+		t.Helper()
+		def, ok := doc.Types[p.Type.Target]
+		require.True(t, ok, "%s has a type", p.Name.Source)
+		model, ok := def.(*ir.Model)
+		require.True(t, ok)
+		names := make([]string, 0, len(model.Properties))
+		for _, prop := range model.Properties {
+			names = append(names, prop.Name.Source)
+		}
+		return names
+	}
+	for _, op := range []ir.Operation{opByPath(t, doc, "GET", "/a"), opByPath(t, doc, "POST", "/a")} {
+		assert.Equal(t, []string{"fromUse"}, props(paramNamed(t, op, "useP")))
+		assert.Equal(t, []string{"fromRef"}, props(paramNamed(t, op, "refP")),
+			"the referent's parameter keeps its own schema, not the use site's at the same index")
+	}
+	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
+	assert.Contains(t, message, "./target.yaml#/paths/~1b/get", "another document's position is named by the reference")
+}
+
+// TestPathItemRefSiblings_AMergedRefIsNoReference pins the library's reading of
+// a $ref a merge key supplies: none, so the item is inline, and nothing in it
+// collides with itself.
+func TestPathItemRefSiblings_AMergedRefIsNoReference(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-base: &base {$ref: '#/paths/~1b'}
+paths:
+  /a:
+    <<: *base
+    put: {responses: {"200": {description: OK}}}
+  /b:
+    get: {responses: {"200": {description: OK}}}
+`)
+	assert.False(t, openapitest.HasDiag(diags, diag.PathItemRefCollision))
+}
+
+// TestPathItemRefSiblings_MalformedFieldsAreReported pins that the fields
+// beside a $ref are validated as an inline item's are: a value of the wrong
+// type is an error where it is written, not accepted in silence.
+func TestPathItemRefSiblings_MalformedFieldsAreReported(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put:
+      deprecated: notabool
+      parameters: [{name: q, in: query, required: maybe, schema: {type: string}}]
+      responses: {"200": {description: OK}}
+  /b:
+    get: {responses: {"200": {description: OK}}}
+`)
+	var lines []int
+	for _, d := range diags {
+		if d.Code == diag.Validation+"/validation-type-mismatch" {
+			lines = append(lines, d.Provenance.Position.Line)
+		}
+	}
+	slices.Sort(lines)
+	assert.Equal(t, []int{7, 8}, lines, "each value of the wrong type is reported where it is written")
 }

@@ -96,15 +96,6 @@ type Ctx struct {
 	// keeps it scoped to the subtree that copy is threaded through.
 	namesByReference bool
 
-	// allowExternalRefs is the reference-resolution policy the compile was
-	// given, carried so a lowering that resolves a reference of its own — the
-	// fields a path item's use site writes beside its $ref, which the loader
-	// never models and so never resolves — reaches outside the document exactly
-	// when the loader would. Unexported and read through AllowExternalRefs, for
-	// the reason the fields above are: the zero value has to be the loader's
-	// own default, which is to refuse.
-	allowExternalRefs bool
-
 	// auth is the document's declared security schemes, keyed by the IDs a
 	// requirement names. It is unexported, and read through a predicate rather
 	// than handed back, for the reason schemas is.
@@ -137,6 +128,11 @@ type Ctx struct {
 	// the load phase resolved as a $ref to it is. Its zero value holds none.
 	// Unexported for the reason schemas is, and read only through RefScope.
 	targets load.MappingTargets
+
+	// siblings holds the fields the source writes beside its path items' $refs,
+	// which the load phase modelled and resolved. Its zero value holds none.
+	// Unexported for the reason schemas is, and read only through SiblingsOf.
+	siblings load.Siblings
 
 	// typePositions remembers each answer TypePosition read. Copies share it on
 	// purpose, as they share defsReader: an answer reads only the document and
@@ -290,22 +286,26 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	return c.NamingByReference()
 }
 
-// WithExternalRefs returns a copy of c carrying the reference-resolution policy
-// the compile was given.
-//
-// A copy rather than a fresh context, and the same shape as WithAuth and
-// NamingByReference: the document, its identity and index, and the declared-name
-// index all have to survive the extension.
-func (c Ctx) WithExternalRefs(allow bool) Ctx {
-	c.allowExternalRefs = allow
+// WithSiblings returns a copy of c carrying the fields the load phase modelled
+// beside the document's path item $refs. They come with the document, as the
+// mapping targets do, because their references are resolved, and only the load
+// phase may run the resolver (GitHub #757).
+func (c Ctx) WithSiblings(siblings load.Siblings) Ctx {
+	c.siblings = siblings
 	return c
 }
 
-// AllowExternalRefs reports whether reference resolution may leave this
-// document. It is the loader's own policy read back, so a reference resolved at
-// a later lowering is refused on exactly the compiles the loader would have
-// refused it on.
-func (c Ctx) AllowExternalRefs() bool { return c.allowExternalRefs }
+// SiblingsOf returns the fields written beside rp's $ref, and false when rp is
+// no reference or writes nothing beside one.
+func (c Ctx) SiblingsOf(rp *soa.ReferencedPathItem) (load.Sibling, bool) {
+	return c.siblings.Of(rp)
+}
+
+// SiblingsUnread reports whether rp writes fields beside its $ref that the load
+// phase did not model, which only one in another document does.
+func (c Ctx) SiblingsUnread(rp *soa.ReferencedPathItem) bool {
+	return c.siblings.Unread(rp)
+}
 
 // Within returns c for lowering what the entry ref resolves to, in the scope
 // resolve.ScopeOf reads it in: Foreign when another document holds it,

@@ -319,7 +319,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 			reader = &r
 		}
 
-		got := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, reader)
+		got := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, reader)
 
 		assert.Equal(t, allow, got.loops != nil, "external references %t", allow)
 	}
@@ -641,7 +641,7 @@ func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		require.NoError(t, err)
 		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil)))
 
-		reader.hold(t.Context())
+		reader.hold(t.Context(), Siblings{})
 
 		_, held := doc.GetCachedExternalDocument("root.yaml")
 		assert.Equal(t, c.held, held, "spelling $id: %t", !c.held)

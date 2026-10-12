@@ -66,12 +66,12 @@ type targetKey struct {
 // reports each finding once, at a $ref that reaches it (see reached). A finding
 // known, the source's own validation's, is not reported again: a node a $ref
 // reads as another kind holds what the source declares inside it.
-func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
+func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	opts Options, known map[findingKey]bool,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts)
 	maps.Copy(checks.reported, known)
-	return checkReached(ctx, at, soa.Walk(ctx, doc), checks)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), checks)
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test

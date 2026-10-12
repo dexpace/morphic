@@ -384,7 +384,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
 	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs)
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, Options{}, nil)
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, Options{}, nil)
 	pass.targets.limit = limit
 	_, diags := pass.run(doc)
 	return pass.targets, diags
@@ -1176,7 +1176,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 		return again, err
 	}
 
-	resolved, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
+	resolved, _, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
 		newSourceDocument("root.yaml", data, root, nil), Options{AllowExternalRefs: true}, rebuild)
 
 	require.NoError(t, err)
@@ -1278,7 +1278,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
 	_, diags := pass.run(doc)
 	return pass.targets, diags
 }

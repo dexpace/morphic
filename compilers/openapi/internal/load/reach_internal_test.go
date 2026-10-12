@@ -59,7 +59,7 @@ func assertRefused(t *testing.T, spec string) {
 func assertNotRefusedByReach(t *testing.T, spec string) {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
-	_, found := chainCycle(t.Context(), scan.InSource(0), root, doc)
+	_, found := chainCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
 	assert.False(t, found, "must not be refused as a reference cycle")
 }
 
@@ -893,7 +893,7 @@ components:
 func assertRefusedByReach(t *testing.T, spec string) {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
-	d, found := chainCycle(t.Context(), scan.InSource(0), root, doc)
+	d, found := chainCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
 	require.True(t, found, "must be refused as a reference-chain cycle")
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	assert.Equal(t, diag.CyclicRef, d.Code)
@@ -939,7 +939,7 @@ func TestReachCycle_OrderInvariant(t *testing.T) {
 func reachDiagFor(t *testing.T, spec string) (ir.Diagnostic, bool) {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
-	return chainCycle(t.Context(), scan.InSource(0), root, doc)
+	return chainCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
 }
 
 // TestChainCycle_GateSkipsPlainPointerDocuments drives chainCycle's own fast
@@ -1072,7 +1072,7 @@ components:
     B: {type: string}
 `
 	doc, root := buildDoc(t, spec)
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 
 	bNode := r.tree.walk(r.tree.root, []string{"components", "schemas", "B"})
 	xNode := r.tree.walk(r.tree.root, []string{"x-a"})
@@ -1139,7 +1139,7 @@ components:
         n: {type: integer}
 `
 	doc, root := buildDoc(t, spec)
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	at := func(tokens ...string) *yaml.Node {
 		return r.tree.walk(r.tree.root, append([]string{"components", "schemas"}, tokens...))
 	}
@@ -1172,7 +1172,7 @@ func TestReach_ReadsHeldDefinitionsThroughOneReader(t *testing.T) {
 	rule := defs.NewReader(doc)
 	r.rule = rule
 
-	r.collect(t.Context(), doc)
+	r.collect(walkSource(t.Context(), doc, Siblings{}))
 
 	require.Len(t, r.held, depth)
 	assert.Same(t, rule, r.rule, "no reference swapped the reader for one with no memory")
@@ -1198,7 +1198,7 @@ components:
         m: {$ref: "#/"}
 `
 	doc, root := buildDoc(t, spec)
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	defsNode := r.tree.walk(r.tree.root, []string{"components", "schemas", "A", "$defs"})
 	require.NotNil(t, defsNode)
 	assert.Empty(t, landings(r, r.tree.child(defsNode, "n")))

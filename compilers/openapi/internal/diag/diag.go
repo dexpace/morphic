@@ -151,7 +151,8 @@ const (
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or — for an annotation like a default or example — dropped.
+	// the top type), or dropped — an annotation like a default or example, or
+	// the fields another document writes beside a path item $ref a chain passes.
 	// It marks the lossy lowerings the compiler reports, not a guarantee that
 	// every lossy lowering is reported.
 	DegradedConstruct = "openapi/degraded-construct"
@@ -238,15 +239,17 @@ const (
 	// the document describes, webhooks and callbacks included, and this is the
 	// document repeating it, so it is an error (GitHub #502).
 	ConflictingOperationID = "openapi/conflicting-operation-id"
-	// PathItemRefCollision reports a construct both a path item's use site,
-	// beside its $ref, and the referenced item declare: a method or
-	// additionalOperations key, summary, description, servers, x-* name,
-	// undeclared key, or item-level (name, in) parameter.
+	// PathItemRefCollision reports a construct declared beside a path item's
+	// $ref that the item it references declares too, or the fields beside a
+	// later $ref of its chain: a method or additionalOperations key, summary,
+	// description, servers, x-* name, undeclared key, or item-level (name, in)
+	// parameter.
 	//
-	// OpenAPI does not say which declaration wins, so the use site's does, as
-	// for a $ref-adjacent schema sibling, and the loser is not lowered there.
-	// A warning, as InvalidStatusKey is: the document still lowers, nothing is
-	// lost unnamed, and an error would stop harness.Check early (GitHub #577).
+	// OpenAPI does not say which declaration wins, so the one nearer the use
+	// site does, as for a $ref-adjacent schema sibling, and the other is not
+	// lowered at that mount. A warning, as InvalidStatusKey is: the document
+	// still lowers, nothing is lost unnamed, and an error would stop
+	// harness.Check early (GitHub #577).
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`

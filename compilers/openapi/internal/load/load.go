@@ -81,7 +81,7 @@ type Options struct {
 	// chainCheck runs the reference-chain cycle refusal, or nil for chainCycle
 	// itself. It is unexported because it is this package's test seam: the fuzz
 	// oracle turns the check off to find what it stands between the resolver and.
-	chainCheck func(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool)
+	chainCheck func(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings) (ir.Diagnostic, bool)
 }
 
 // exceeds reports whether an observed count crosses limit, treating a zero or
@@ -162,6 +162,9 @@ type Document struct {
 	// Overlay attributes the positions an applied overlay is answerable for. Its
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
+	// Siblings holds the fields the source writes beside its path items' $refs,
+	// modelled and resolved with the document.
+	Siblings Siblings
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -245,14 +248,18 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	locate := locator(srcIndex, origin)
-	if d, found := opts.chains(ctx, locate, root, doc); found {
+	sibs, sibErrs, sibFaults := modelSiblings(ctx, doc, locate)
+	valErrs = append(valErrs, sibErrs...)
+	validation.SortValidationErrors(valErrs)
+	if d, found := opts.chains(ctx, locate, root, doc, sibs); found {
 		if d.Severity == ir.SeverityError {
 			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
 		}
 		cyc = append(cyc, d)
 	}
 	diags := cyc
-	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
+	diags = append(diags, sibFaults...)
+	diags = append(diags, findings(ctx, locate, doc, sibs, valErrs, minor)...)
 	rebuildDoc := opts.rebuildDoc
 	if rebuildDoc == nil {
 		rebuildDoc = unmarshal
@@ -262,7 +269,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		return again, err
 	}
 	self := newSourceDocument(src.Path, src.Data, root, valErrs)
-	doc, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, self, opts, rebuild)
+	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts, rebuild)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -276,7 +283,8 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			Path:   src.Path,
 			Hash:   parsed.Hash(),
 		},
-		Overlay: origin,
+		Overlay:  origin,
+		Siblings: sibs,
 	}, diags, nil
 }
 
@@ -285,8 +293,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 // a numeric literal Morphic captures losslessly anyway, and a schema finding
 // raised only because the library checked against the wrong meta-schema — and
 // the findings of a rule the compiler checks itself.
-func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string) []ir.Diagnostic {
-	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
+func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, sibs Siblings, valErrs []error, minor string,
+) []ir.Diagnostic {
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, sibs, minor)
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
@@ -330,18 +339,18 @@ func compilerOwned(verr validation.Error) bool {
 // resolution's objects are discarded when a rebuild replaces it, so validating
 // them would be work whose findings are thrown away, or findings reported
 // about objects the IR is not built from.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, MappingTargets, []ir.Diagnostic, error) {
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
-		targets, diags := resolveWith(ctx, at, doc, self, opts, nil)
-		return doc, targets, diags, nil
+		targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, nil)
+		return doc, sibs, targets, diags, nil
 	}
-	resolved, targets, diags, err := resolveExternal(ctx, at, doc, self, opts, rebuild)
+	resolved, sibs, targets, diags, err := resolveExternal(ctx, at, doc, sibs, self, opts, rebuild)
 	if err != nil {
-		return nil, MappingTargets{}, nil, err
+		return nil, Siblings{}, MappingTargets{}, nil, err
 	}
-	return resolved, targets, append(diags, validateReached(ctx, at, resolved, opts, self.found)...), nil
+	return resolved, sibs, targets, append(diags, validateReached(ctx, at, resolved, sibs, opts, self.found)...), nil
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -515,11 +524,11 @@ const metaSchemaReconciledMinor = "3.2"
 // so validating every schema twice, at the document's version and as the
 // library does, isolates them: a finding only the second run raises is an
 // artifact and the rest stay.
-func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string) map[string]bool {
+func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, minor string) map[string]bool {
 	if minor != metaSchemaReconciledMinor {
 		return nil
 	}
-	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }, doc.OpenAPI)
+	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return walkSource(ctx, doc, sibs) }, doc.OpenAPI)
 }
 
 // schemaArtifacts returns the findings sites schema validation raises over the

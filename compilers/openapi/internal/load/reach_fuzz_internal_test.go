@@ -74,7 +74,7 @@ func runReachFuzzOracle(specPath string) int {
 // noChainCheck is chainCheck turned off: the oracle's pipeline runs every
 // other refusal Load has, so what crashes is exactly what the check stands
 // between the resolver and.
-func noChainCheck(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI) (ir.Diagnostic, bool) {
+func noChainCheck(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI, Siblings) (ir.Diagnostic, bool) {
 	return ir.Diagnostic{}, false
 }
 

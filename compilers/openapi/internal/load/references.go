@@ -35,17 +35,17 @@ type resolvable interface {
 // A "#/$defs/..." reference is held out of that walk and resolved after it (see
 // withDefsHeld). A finding is reported once (see reachedFindings), and not
 // where the source's own validation reported it.
-func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, reader *external,
+func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, reader *external,
 ) (MappingTargets, []ir.Diagnostic) {
-	return newResolution(ctx, at, doc, self, opts, reader).run(doc)
+	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(doc)
 }
 
 // run is resolveWith's work over doc, the document p was made for.
 func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
-	held := heldRefs(p.ctx, doc, defs.NewReader(doc))
+	held := heldRefs(p.ctx, doc, p.sibs, defs.NewReader(doc))
 	withDefsHeld(held, func() {
-		p.fail(eachSighting(soa.Walk(p.ctx, doc), resolverPanics,
+		p.fail(eachSighting(walkSource(p.ctx, doc, p.sibs), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
 				p.targets.see(site, model)
 				if r, ok := model.(resolvable); ok && r.IsReference() {
@@ -92,12 +92,15 @@ type resolution struct {
 	loops    *loops
 	failures []ir.Diagnostic
 	found    reachedFindings
+	// sibs is what the source writes beside its path items' $refs, walked
+	// after doc as the rest of the source.
+	sibs Siblings
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
 // where the resolver looks for it when reader reads other documents.
-func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, reader *external,
+func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, reader *external,
 ) *resolution {
 	resolveOpts := references.ResolveOptions{
 		TargetLocation:      self.path,
@@ -107,9 +110,9 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	if reader != nil {
 		resolveOpts.VirtualFS = *reader
 		resolveOpts.HTTPClient = *reader
-		reader.hold(ctx)
+		reader.hold(ctx, sibs)
 	}
-	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader,
+	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs,
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found:   reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}}
 	if reader != nil {

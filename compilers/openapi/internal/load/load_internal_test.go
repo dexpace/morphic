@@ -405,8 +405,8 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseSpec(t, minimal31)
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
+	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.1"))
+	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.0"))
 }
 
 // countErrorsAt counts the error-severity diagnostics carrying code. Severity is

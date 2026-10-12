@@ -101,6 +101,30 @@ func ObjectAt[T, S any, R interface {
 	return obj, pointer
 }
 
+// Hops returns the references the chain of ref passes through after ref itself,
+// nearest first: each entry its resolution recorded that is a reference too.
+// The entry the chain ends at is no hop, and neither an inline entry nor one
+// that resolved nothing has any. Past maxRefChain entries the rest are not read.
+func Hops[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	IsReference() bool
+}](ref R) []R {
+	var hops []R
+	for range maxRefChain {
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil || info.Object == nil {
+			break
+		}
+		ref = R(info.Object)
+		if !ref.IsReference() {
+			break
+		}
+		hops = append(hops, ref)
+	}
+	return hops
+}
+
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is
 // where the last hop of its chain found it (see reached): a Foreign scope over
 // the document the resolver read it by, or, when that hop resolved against the

@@ -28,12 +28,12 @@ type heldRef struct {
 // document. A tree that spells no such pointer is not walked: that is every
 // document without a $defs reference, and the walk is a second pass over the
 // whole model.
-func heldRefs(ctx context.Context, doc *soa.OpenAPI, rule *defs.Reader) []heldRef {
+func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.Reader) []heldRef {
 	if !anyScalar(doc.GetRootNode(), isDefsRef) {
 		return nil
 	}
 	var out []heldRef
-	for item := range soa.Walk(ctx, doc) {
+	for item := range walkSource(ctx, doc, sibs) {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Schema: func(js *schemaRef) error {
 			pointer, ok := heldDefsPointer(js)

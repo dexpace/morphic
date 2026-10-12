@@ -181,6 +181,31 @@ func TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments(t *testing.T) {
 	}
 }
 
+// TestHops_ListsTheReferencesAChainPassesThrough pins Hops over an alias
+// chain: each alias the chain passes after the entry's own $ref, nearest first,
+// none for the declaration it ends at or for an inline entry, and no more than
+// the bound reads.
+func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
+	t.Parallel()
+	for hops, want := range map[int]int{0: 0, 3: 3, resolve.MaxRefChain + 4: resolve.MaxRefChain} {
+		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		item, ok := doc.Doc.Paths.Get("/a")
+		require.True(t, ok)
+		assert.Empty(t, resolve.Hops[soa.PathItem](item), "an inline entry has no hops")
+		param := item.GetObject().Get().GetParameters()[0]
+
+		got := resolve.Hops[soa.Parameter](param)
+
+		require.Len(t, got, want, "%d hops", hops)
+		for i, hop := range got {
+			assert.Equal(t, "#/components/parameters/P"+strconv.Itoa(i+1), string(hop.GetReference()),
+				"hop %d is P%d, written as a $ref to the next", i, i)
+		}
+	}
+}
+
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
 // alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
 // parameter declaration. The walk therefore takes hops+1 steps: one from the

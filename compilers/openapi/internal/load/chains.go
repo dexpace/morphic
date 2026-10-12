@@ -32,11 +32,12 @@ func recoverChains(locate scan.Locator, walk func() (ir.Diagnostic, bool)) (d ir
 
 // chains runs the reference-chain cycle refusal: chainCycle, or the check a
 // test put in its place.
-func (o Options) chains(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+func (o Options) chains(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
+) (ir.Diagnostic, bool) {
 	if o.chainCheck != nil {
-		return o.chainCheck(ctx, locate, root, doc)
+		return o.chainCheck(ctx, locate, root, doc, sibs)
 	}
-	return chainCycle(ctx, locate, root, doc)
+	return chainCycle(ctx, locate, root, doc, sibs)
 }
 
 // chainCycle runs the reach check when the tree can hold a lookup the
@@ -44,11 +45,12 @@ func (o Options) chains(ctx context.Context, locate scan.Locator, root *yaml.Nod
 // /$defs/ pointer resolved against something other than the root. Without
 // either, every chain is root pointers, which that scan has already refused a
 // cycle of.
-func chainCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+func chainCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
+) (ir.Diagnostic, bool) {
 	if !needsChainModel(root) {
 		return ir.Diagnostic{}, false
 	}
-	return reachCycle(ctx, locate, root, doc)
+	return reachCycle(ctx, locate, root, doc, sibs)
 }
 
 // needsChainModel reports whether any scalar in the tree spells $anchor or $id,

@@ -32,12 +32,9 @@ var loweringRecursions = [][]string{
 	schemaRecursion,
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
-	// reaches itself through them. mountOperation and mountedOperations are in the
-	// cycle for the same reason lowerPathItem and lowerWebhooks are outside it:
-	// every route lowers a path item's operations through them, so the callback
-	// route reaches lowerOperation through the same two functions the other two
-	// routes do.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountOperation", "mountedOperations"},
+	// reaches itself through them. Every route lowers a path item's operations
+	// through pathItemMount, so the callback route's cycle passes through it too.
+	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "pathItemMount.lower", "pathItemMount.mountOperation"},
 	// The nullability predicate. JSON Schema conjoins keywords, so whether a
 	// schema admits null is decided by its allOf conjuncts as much as by its own
 	// type set, and a conjunct is reached through a $ref whose target is a schema
@@ -1118,8 +1115,9 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	edges := [][2]string{
 		{"dynamicAnchors", "anchorWalk.walk"},      // w := newAnchorWalk(…)
 		{"LowerService", "serviceGroups.finalize"}, // groups := newServiceGroups()
-		{"lowerPathItem", "serviceGroups.group"},   // a *serviceGroups parameter
-		{"lowerWebhooks", "serviceGroups.group"},   // the same, in the other caller
+		{"lowerPaths", "serviceGroups.add"},        // a *serviceGroups parameter
+		{"lowerWebhooks", "serviceGroups.add"},     // the same, in the other caller
+		{"lowerPaths", "pathItemMount.lower"},      // m := newMount(…)
 		{"soleAnchorSite", "AnchorIndex.sites"},    // an *AnchorIndex parameter
 		{"dynamicHop", "AnchorIndex.sites"},        // the same, in the other caller
 		{"optionsFrom", "Options.withDefaults"},    // Options{}.withDefaults()

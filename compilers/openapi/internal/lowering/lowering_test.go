@@ -474,23 +474,34 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"a diagnostic is stamped through the same question")
 }
 
-// TestCtx_ExternalRefsIsTheCallersPolicyOnACopy holds the reference-resolution
-// policy the seam reads: it is set on a copy, so the compile's own answer
-// survives, and the zero context refuses — the loader's own default, so a
-// context nobody extended cannot resolve outside the document by accident.
-func TestCtx_ExternalRefsIsTheCallersPolicyOnACopy(t *testing.T) {
+// TestCtx_SiblingsAreTheLoadPhasesOnACopy holds where a lowering reads the
+// fields beside a path item's $ref: from the load phase's model, carried on the
+// copy WithSiblings returns, while the context it was made from holds none.
+func TestCtx_SiblingsAreTheLoadPhasesOnACopy(t *testing.T) {
 	t.Parallel()
-	declaring := lowering.Ctx{}
-	assert.False(t, declaring.AllowExternalRefs(),
-		"the zero context performs no I/O, exactly as the loader's zero options do")
+	spec := openapitest.PathsSpec(`  /a:
+    $ref: '#/paths/~1b'
+    put: {responses: {"200": {description: ok}}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	carrying := base.WithSiblings(doc.Siblings)
+	rp, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
 
-	allowing := declaring.WithExternalRefs(true)
-	assert.True(t, allowing.AllowExternalRefs())
-	assert.False(t, declaring.AllowExternalRefs(),
-		"the caller's context is unchanged, so the policy cannot be widened downstream")
+	sib, ok := carrying.SiblingsOf(rp)
+	require.True(t, ok, "the copy reads the load phase's model")
+	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
+	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
+	assert.False(t, carrying.SiblingsUnread(rp), "a source use site is read")
 
-	assert.False(t, allowing.WithExternalRefs(false).AllowExternalRefs(),
-		"and a context can be narrowed back, which is what a later phase would do")
+	_, ok = base.SiblingsOf(rp)
+	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
 // TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to
