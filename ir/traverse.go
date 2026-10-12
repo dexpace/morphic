@@ -6,9 +6,9 @@ package ir
 // is truncated rather than allowed to exhaust the stack.
 const MaxGroupDepth = 128
 
-// ForEachOperation calls fn for every operation in doc, in declaration order,
-// descending nested operation groups up to [MaxGroupDepth]. A nil doc visits
-// nothing.
+// ForEachOperation calls the non-nil fn for every operation in doc, in
+// declaration order, descending nested operation groups up to [MaxGroupDepth].
+// A nil doc visits nothing.
 //
 // It reports whether the walk stopped at the cap with groups left unvisited, so
 // a caller deciding something from what it saw can tell an absent operation from
