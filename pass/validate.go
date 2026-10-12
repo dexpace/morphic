@@ -285,6 +285,10 @@ func forEachErrorPayload(errs []ir.ErrorCase, where string, fn func(payloadSite)
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
 // key in each of the payload's contents; where locates the payload's owner.
+//
+// A content whose type no entry declares exposes no part, so each of its keys
+// is reported beside checkDanglingRefs's finding on the type. The claims
+// differ, as with checkMapping.
 func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
 	for i, c := range payload.Contents {
 		if len(c.Encoding) == 0 {
