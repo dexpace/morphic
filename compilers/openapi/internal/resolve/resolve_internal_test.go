@@ -373,7 +373,7 @@ func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
 // absolute paths, or two relative ones that stay below it, are compared as
 // cleaned and never read it, so a compile that names no document through an
 // absolute path has no ambient read. A relative path against an absolute one,
-// or one climbing out of the directory, cannot be told apart without it.
+// or one not below the directory, cannot be told apart without it.
 func TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {

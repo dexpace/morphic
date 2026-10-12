@@ -420,7 +420,7 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // as spelled, and an empty path names none.
 //
 // The working directory is read only to tell a relative path from an absolute
-// one, or one climbing out of it.
+// one, or from one not below it (filepath.IsLocal).
 func SameDocument(a, b string) bool {
 	return sameDocument(a, b, systemRules())
 }
@@ -466,8 +466,9 @@ func sameDocument(a, b string, rules pathRules) bool {
 // sameAnchor reports whether two cleaned paths mean the same wherever the
 // working directory is, so that when they differ they name different files:
 // both absolute, or both below it. Below is filepath.IsLocal, which on Windows
-// also refuses a path rooted without a volume (\a) or naming one (C:a): neither
-// is absolute, and neither is resolved against the working directory alone.
+// also refuses a path rooted without a volume (\a\b), one naming a drive
+// (C:a\b) and a reserved name (NUL): none is absolute, and each is made so
+// before it is compared.
 func sameAnchor(a, b string, rules pathRules) bool {
 	if rules.isAbs(a) != rules.isAbs(b) {
 		return false
