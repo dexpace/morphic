@@ -858,10 +858,10 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 // call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
 // exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
 // which only a 3.0 document reads as a modifier: for a component schema
-// (schema.go schemaConstraints) and for a parameter's schema (params.go
-// fillParamSchema). And a oneOf that will not render is reported rather than
-// kept (schema.go preserveBranchSets), which is an error a clean fixture cannot
-// carry.
+// (schema.go hoistDeclarationHome) and for a parameter's schema (params.go
+// fillParamSchema), each through schema.ConstraintsOf. And a oneOf that will
+// not render is reported rather than kept (schema.go preserveBranchSets), which
+// is an error a clean fixture cannot carry.
 func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.0.3
@@ -908,7 +908,7 @@ actions:
 	entries := unmodeledEntriesByPath(doc)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
-		"a component schema's kept modifier (schema.go schemaConstraints)")
+		"a component schema's kept modifier (schema.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")

@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
-	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -142,8 +141,8 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
-// constraints. Numeric bounds flow through annotation.Constraints, which reads
-// raw decimal nodes rather than the *float64 model fields.
+// constraints through the readers a property's go through (schema.DefaultOf,
+// schema.ConstraintsOf), so the two carriers cannot read one schema apart.
 //
 // A schema spelled {$ref: …} resolves its target so the annotations that
 // inherit from it still reach the parameter (ir-design §14, GitHub #131).
@@ -163,42 +162,17 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// end of a $ref chain, since one hop would take the default and description
 	// off an intermediate reference instead of the schema that declares them.
 	tgt := resolve.TargetSchema(js, s)
-	diags := fillParamDefault(c, param, s, tgt, pointer)
+	def, diags := schema.DefaultOf(c, s, tgt, pointer)
+	param.Default = def
 
-	// The co-declared bound keyword ir.Constraints has no field for is kept on
-	// the parameter, the carrier at this position, exactly as a property keeps
-	// its own (GitHub #286).
-	cons, kept, consDiags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
-	diags = append(diags, schema.StampConstraintDiags(c, consDiags, pointer)...)
-	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, kept)
-	if cons != nil {
-		param.Constraints = cons
-	}
+	cons, consDiags := schema.ConstraintsOf(c, &param.Unmodeled, s, pointer)
+	param.Constraints = cons
+	diags = append(diags, consDiags...)
 	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, s, tgt, pointer)...)
 	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
 	return append(diags, schema.PreserveRefSiteKeywords(c, ts, &param.Unmodeled, js, param.Type, pointer)...)
-}
-
-// fillParamDefault sets the parameter default, preferring the use-site node
-// over the $ref target's; an unconvertible node yields a diagnostic. It mirrors
-// fillPropertyDefault — the same keyword, read the same way, at the other
-// carrier.
-func fillParamDefault(c lowering.Ctx, param *ir.Parameter, s, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	node := s.GetDefault()
-	if node == nil && tgt != nil {
-		node = tgt.GetDefault()
-	}
-	if node == nil {
-		return nil
-	}
-	v, err := value.FromNode(node)
-	if err != nil {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "default: %s", err.Error())}
-	}
-	param.Default = &v
-	return nil
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
@@ -289,7 +263,7 @@ func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema
 }
 
 // paramHoldsResidue reports whether ir.Parameter has a field for a residue
-// keyword. Only `default` does — Parameter.Default, which fillParamDefault
+// keyword. Only `default` does — Parameter.Default, which fillParamSchema
 // fills — so recording it verbatim as well would give one declaration two homes.
 func paramHoldsResidue(keyword string) bool {
 	return keyword == "default"

@@ -42,14 +42,14 @@ var loweringRecursions = [][]string{
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
 	// self-referential allOf rather than anything in this shape.
 	{"allOfNullVerdict", "conjunctNullVerdict", "refNullVerdict", "schemaNullVerdict"},
+	// Callbacks. An operation may declare callbacks, each of which is a path item
+	// holding operations of its own (ir-design §8.1), so the operation lowering
+	// reaches itself through them.
+	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
-	// Callbacks. An operation may declare callbacks, each of which is a path item
-	// holding operations of its own (ir-design §8.1), so the operation lowering
-	// reaches itself through them.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation"},
 	// The $dynamicAnchor index. walk hands a mapping to walkMapping, which walks
 	// each of that mapping's values back through walk. Bounded by charge, which
 	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
@@ -81,12 +81,12 @@ var schemaRecursion = []string{
 	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
-	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
-	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
-	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
-	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
-	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"fillModelProperties", "hoistScalar", "hoistSubSchema", "lower", "lowerAllOf",
+	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
+	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef",
+	"resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 

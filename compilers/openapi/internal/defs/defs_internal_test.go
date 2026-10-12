@@ -305,7 +305,8 @@ func TestMappingTarget_GuardClauses(t *testing.T) {
 // TestLocalDef drives tryResolveLocalDefs' own branches directly: a schema
 // that is not a resource at all, a resource whose pointer carries a rest path
 // (never handled locally, whatever the schema is), a resource with no $defs of
-// its own, and a resource whose $defs does not carry the requested key.
+// its own, a resource whose $defs does not carry the requested key, how the key
+// is decoded, and a trailing slash.
 func TestLocalDef(t *testing.T) {
 	t.Parallel()
 
@@ -336,6 +337,27 @@ func TestLocalDef(t *testing.T) {
 		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  n: {type: string}\n")
 		_, ok := localDef(owner, "/$defs/missing")
 		assert.False(t, ok)
+	})
+
+	t.Run("the key is decoded as the library decodes it", func(t *testing.T) {
+		t.Parallel()
+		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  a/b: {type: string}\n  \"~1\": {type: string}\n  \"a~2\": {type: string}\n")
+		defs := owner.GetSchema().GetDefs()
+		for pointer, key := range map[jsontext.Pointer]string{"/$defs/a~1b": "a/b", "/$defs/~01": "~1", "/$defs/a~2": "a~2"} {
+			got, ok := localDef(owner, pointer)
+			want, _ := defs.Get(key)
+			assert.True(t, ok, "%q", pointer)
+			assert.Same(t, want, got, "%q reads %q", pointer, key)
+		}
+	})
+
+	t.Run("a trailing slash reads as the key alone", func(t *testing.T) {
+		t.Parallel()
+		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  n: {type: string}\n")
+		_, ok := localDef(owner, "/$defs/n/")
+		assert.True(t, ok, "tryResolveLocalDefs declines it; GitHub #843 makes this read as it does")
+		_, ok = localDef(owner, "/$defs/n//")
+		assert.False(t, ok, "past one trailing slash, a path")
 	})
 }
 

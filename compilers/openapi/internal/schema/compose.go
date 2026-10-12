@@ -38,7 +38,7 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, s, pointer)...)
@@ -572,9 +572,7 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 	// the preserved union attaches to a node this pointer owns and not to the
 	// primitive every other unrelated position also resolves to.
 	inner := ts.PrimID(ir.PrimAny)
-	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(c, &kept, s, pointer)
-	owner := internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
+	owner, diags := internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner, Nullable: true})
 	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 }
 
@@ -988,7 +986,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 // constrains both sides of the disjunction and this path never runs the
 // pointer's own census.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := schemaConstraints(c, &common.Unmodeled, body.schema, body.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)

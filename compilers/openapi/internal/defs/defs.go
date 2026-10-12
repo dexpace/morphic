@@ -17,7 +17,11 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
 // defsPrefix opens every pointer the resolver reads relative to the schema that
 // spells it rather than to the document (oas3 resolveDefsReference, v1.25.2).
-const defsPrefix = "/$defs/"
+// defsRoot is the position it opens.
+const (
+	defsRoot   = "/$defs"
+	defsPrefix = defsRoot + "/"
+)
 
 // Navigable is the parsed document a $defs pointer is navigated in: the root
 // every ancestor pointer is read from.
@@ -267,21 +271,27 @@ func defAt(obj any, pointer jsontext.Pointer) (*schemaRef, bool) {
 // localDef is tryResolveLocalDefs: a schema carrying its own $id, or sitting
 // in a resource whose base differs from its document's, reads "#/$defs/k" in
 // its own definitions — k alone, with no path beyond it.
+//
+// The key is decoded as jsontext decodes a token, without the validation
+// navigation.Tokens applies, since tryResolveLocalDefs applies none. A trailing
+// empty token is read as no token, which the library does not do (GitHub #843).
 func localDef(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, bool) {
 	s := js.GetSchema()
 	if s == nil || !ownResource(s) {
 		return nil, false
 	}
-	key, rest, _ := strings.Cut(string(pointer)[len(defsPrefix):], "/")
-	if rest != "" {
+	tokens := slices.Collect(pointer[len(defsRoot):].Tokens())
+	if len(tokens) == 2 && tokens[1] == "" {
+		tokens = tokens[:1]
+	}
+	if len(tokens) != 1 {
 		return nil, false
 	}
-	key = strings.ReplaceAll(strings.ReplaceAll(key, "~1", "/"), "~0", "~")
 	defs := s.GetDefs()
 	if defs == nil {
 		return nil, false
 	}
-	d, ok := defs.Get(key)
+	d, ok := defs.Get(tokens[0])
 	return d, ok && d != nil
 }
 

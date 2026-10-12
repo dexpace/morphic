@@ -83,6 +83,7 @@ var rules = map[string][]string{
 	// resolver its answer and the lowering that names the target can both reach
 	// the one rule.
 	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/navigation",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
@@ -238,6 +239,7 @@ var rules = map[string][]string{
 	// it reached. Widening this entry is how that becomes true silently.
 	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
