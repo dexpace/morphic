@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -888,36 +889,38 @@ func (danglingDocCompiler) Compile(context.Context, []compilers.Source, compiler
 	}, nil, nil
 }
 
-// TestRun_SkipValidateSilencesTheValidatePass pins that --skip-validate and
-// --disable-pass validate each switch the pass off end to end: the same
-// document reports its dangling ref by default and nothing under either flag.
-func TestRun_SkipValidateSilencesTheValidatePass(t *testing.T) {
+// TestRun_PassFlagsSilenceTheValidatePass pins that --skip-validate and
+// --disable-pass validate each turn the pass off end to end, on both commands:
+// the document's dangling ref fails the run by default and goes unreported
+// under either flag.
+func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
 	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
-	tests := []struct {
-		name string
-		args []string
-		want bool
-	}{
-		{"default", nil, true},
-		{"--skip-validate", []string{"--skip-validate"}, false},
-		{"--disable-pass validate", []string{"--disable-pass", "validate"}, false},
+	commands := [][]string{
+		{"compile", spec, "-o", filepath.Join(t.TempDir(), "ir.json")},
+		{"validate", spec},
 	}
-	for _, cmd := range []string{"compile", "validate"} {
+	tests := []struct {
+		flags []string
+		want  int
+	}{
+		{nil, exitFindings},
+		{[]string{"--skip-validate"}, 0},
+		{[]string{"--disable-pass", "validate"}, 0},
+	}
+	for _, command := range commands {
 		for _, tt := range tests {
 			var stdout, stderr bytes.Buffer
-			args := append([]string{cmd, spec, "-o", filepath.Join(t.TempDir(), "ir.json")}, tt.args...)
-			if cmd == "validate" {
-				args = append([]string{cmd, spec}, tt.args...)
-			}
+			args := slices.Concat(command, tt.flags)
 
-			run(args, &stdout, &stderr)
+			code := run(args, &stdout, &stderr)
 
-			assert.Equal(t, tt.want, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
-				"%s %s: stderr %q", cmd, tt.name, stderr.String())
+			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
+			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
+				"%v: stderr %q", args, stderr.String())
 		}
 	}
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -76,31 +75,21 @@ func (f *pointerFlag) Set(raw string) error {
 	return nil
 }
 
-// passFlag collects the repeated `-disable-pass name` values. It carries names
-// verbatim: which names exist is the engine's to say, and it refuses an unknown
-// one, so the CLI keeps no second list.
+// passFlag collects the repeated `--disable-pass name` values, verbatim and in
+// order. Which names exist, and what a repeated or empty one means, is the
+// engine's to say: checking them here as well would keep a second copy of a
+// list the CLI cannot see change.
 type passFlag []string
 
-// String renders the names as typed. The flag package calls it on a zero value
-// to decide whether to print a default, and the empty string prints none.
-func (p *passFlag) String() string {
-	if p == nil {
-		return ""
-	}
-	return strings.Join(*p, " ")
-}
+// String renders the names as typed. A flag never given renders as the empty
+// string, which pflag reads as having no default.
+func (p *passFlag) String() string { return strings.Join(*p, " ") }
 
-// Type is the name help documents the flag's value by.
+// Type names the value in flag documentation.
 func (p *passFlag) Type() string { return "name" }
 
-// Set records one pass name. An empty name is refused, and a repeated one is
-// recorded once.
+// Set records one pass name.
 func (p *passFlag) Set(raw string) error {
-	if raw == "" {
-		return errors.New("empty pass name")
-	}
-	if !slices.Contains(*p, raw) {
-		*p = append(*p, raw)
-	}
+	*p = append(*p, raw)
 	return nil
 }

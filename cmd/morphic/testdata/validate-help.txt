@@ -25,7 +25,7 @@ Examples:
   morphic validate openapi.yaml --fail-on warning
 
 Flags:
-      --disable-pass name   disable the named IR pass (repeatable)
+      --disable-pass name   turn off the IR pass with this name (repeatable)
       --fail-on string      exit 1 on diagnostics at or above this severity: error or warning (default "error")
   -h, --help                help for validate
       --opt key=value       set one key=value option on the compiler the spec selects (repeatable)

@@ -8,8 +8,9 @@ stamped at it — instead of writing the document. The coordinate is a JSON
 Pointer, so '' is the whole document. It writes no file, so it cannot be
 combined with --output.
 
---disable-pass turns off the named IR pass, and may be repeated; a name no pass
-carries is refused (exit 2). --skip-validate is its alias for validate.
+--disable-pass turns off one IR pass by name, and may be repeated. A name no
+pass carries is refused (exit 2) with the names that exist. --skip-validate is
+--disable-pass validate under its older name.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -38,7 +39,7 @@ Examples:
   morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 
 Flags:
-      --disable-pass name   disable the named IR pass (repeatable)
+      --disable-pass name   turn off the IR pass with this name (repeatable)
       --explain pointer     report what compiling produced at this pointer instead of the IR; '' is the whole document
       --fail-on string      exit 1 on diagnostics at or above this severity: error or warning (default "error")
   -h, --help                help for compile
