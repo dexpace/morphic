@@ -3,9 +3,12 @@ package nodeview
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -131,49 +134,6 @@ func pairMap(pairs []Pair) map[string]string {
 		out[p.Key] = p.Val.Value
 	}
 	return out
-}
-
-// TestMappingPairs_ExpandsOnlyAParsedMergeKey reads each spelling of `<<` the
-// parser produces through the view. Plain, non-specific and explicitly tagged
-// keys all resolve to the merge tag and merge; a quoted one resolves to a
-// string and is an ordinary key named "<<".
-func TestMappingPairs_ExpandsOnlyAParsedMergeKey(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, src string
-		merges    bool
-	}{
-		{"plain", "b: &b {k: v}\nA:\n  <<: *b\n", true},
-		{"non-specific tag", "b: &b {k: v}\nA:\n  ! <<: *b\n", true},
-		{"explicit merge tag", "b: &b {k: v}\nA:\n  !!merge <<: *b\n", true},
-		{"quoted", "b: &b {k: v}\nA:\n  '<<': *b\n", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var root yaml.Node
-			require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root))
-			v := New()
-			a := pairNamed(t, v.MappingPairs(DocumentRoot(&root)), "A")
-
-			got := pairMap(v.MappingPairs(a))
-
-			_, merged := got["k"]
-			assert.Equal(t, tc.merges, merged, "pairs %v", got)
-		})
-	}
-}
-
-// pairNamed returns the value of the pair keyed name.
-func pairNamed(t *testing.T, pairs []Pair, name string) *yaml.Node {
-	t.Helper()
-	for _, p := range pairs {
-		if p.Key == name {
-			return p.Val
-		}
-	}
-	require.Failf(t, "no pair", "no pair keyed %q", name)
-	return nil
 }
 
 func TestPureRefTarget_Cases(t *testing.T) {
@@ -391,6 +351,58 @@ func TestMappingPairs_MergeKeySources(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestMappingPairs_MergeKeySpellings holds the view to the library on which key
+// merges: each key is read through both, and the view must present the keys the
+// unmarshaller does. The spellings are the ones a hand-written predicate gets
+// wrong: ignoring the tag merges a quoted '<<', reading only the tag merges
+// `!!merge other`, and resolving the key first merges an alias the library
+// reads as the ordinary key "<<".
+func TestMappingPairs_MergeKeySpellings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, key string
+		merges    bool
+	}{
+		{"plain", "<<", true},
+		{"non-specific tag", "! <<", true},
+		{"merge tag", "!!merge <<", true},
+		{"verbatim merge tag", "!<tag:yaml.org,2002:merge> <<", true},
+		{"merge tag on a quoted key", "!!merge '<<'", true},
+		{"quoted", "'<<'", false},
+		{"string tag", "!!str <<", false},
+		{"local tag", "!merge <<", false},
+		{"merge tag on another key", "!!merge other", false},
+		{"alias to a merge key", "*m", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// m anchors a merge key for the alias case to stand in for.
+			src := fmt.Sprintf("b: &b {k: v}\nm: {&m <<: *b}\nuse:\n  %s : *b\n", tc.key)
+			use := New().ChildByToken(yamlDoc(t, src), "use")
+			require.NotNil(t, use, "the fixture declares a `use` mapping")
+
+			got := pairMap(New().MappingPairs(use))
+
+			assert.Equal(t, libraryKeys(use), slices.Sorted(maps.Keys(got)), "the view presents the library's keys")
+			_, merged := got["k"]
+			assert.Equal(t, tc.merges, merged, "pairs %v", got)
+		})
+	}
+}
+
+// libraryKeys returns the keys of mapping n as the unmarshaller reads them,
+// sorted: expanded by yml.ResolveMergeKeys, each key resolved through an alias.
+func libraryKeys(n *yaml.Node) []string {
+	content := yml.ResolveMergeKeys(n.Content)
+	keys := make([]string, 0, len(content)/2)
+	for i := 0; i+1 < len(content); i += 2 {
+		keys = append(keys, yml.ResolveAlias(content[i]).Value)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 // TestExhausted_ReportsAnIncompleteExpansion pins the signal a caller refusing a

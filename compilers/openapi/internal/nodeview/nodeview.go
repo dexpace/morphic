@@ -228,9 +228,9 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		raw, val := n.Content[i], Deref(n.Content[i+1])
 		// The library's own predicate, so the view and the unmarshaller cannot
-		// disagree about which key merges. It reads the key undereferenced and by
-		// resolved tag, and every `<<` merges, not only the last as in yaml.v3's
-		// decoder, hence the accumulation.
+		// disagree about which key merges. It is handed the key unresolved, as the
+		// library hands it: an alias standing in for `<<` is an ordinary key. Every
+		// `<<` merges, not only the last as in yaml.v3's decoder.
 		if yml.IsMergeKey(raw) {
 			got := v.mergeSource(val, depth+1)
 			merged = append(merged, got.pairs...)
