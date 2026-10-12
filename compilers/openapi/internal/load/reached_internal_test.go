@@ -582,7 +582,8 @@ components:
 
 // reachWantDiags is the exact diagnostic list
 // TestResolve_ValidatesWhatAnExternalReferenceReaches expects, with other.yaml
-// at otherPath: resolution's own finding first, then validation's, by site.
+// at otherPath: resolution's own finding first, then validation's, by site,
+// then the repeat /z's list writes by naming P twice.
 func reachWantDiags(otherPath string) []ir.Diagnostic {
 	return []ir.Diagnostic{
 		{
@@ -622,6 +623,12 @@ func reachWantDiags(otherPath string) []ir.Diagnostic {
 			Code:       diag.Validation + "/validation-invalid-schema",
 			Message:    "schema.minLength minimum: got -1, want 0, at 27:45 of " + otherPath,
 			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/responses/200"},
+		},
+		{
+			Severity:   ir.SeverityError,
+			Code:       diag.DuplicateParameter,
+			Message:    `parameter "p" in "sideways" repeats the entry at /paths/~1z/get/parameters/0`,
+			Provenance: ir.Provenance{Source: 0, Pointer: "/paths/~1z/get/parameters/1"},
 		},
 	}
 }

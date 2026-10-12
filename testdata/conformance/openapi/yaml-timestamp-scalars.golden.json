@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -142,6 +149,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/D/s:2021-01-01",
           "name": {
             "source": "2021-01-01",
             "canonical": "2021_01_01"
@@ -153,6 +161,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/D/s:2022-02-02",
           "name": {
             "source": "2022-02-02",
             "canonical": "2022_02_02"

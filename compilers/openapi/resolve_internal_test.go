@@ -66,8 +66,7 @@ components:
 // annotation.At reports a declaration, not a reference with a nil Referent.
 func TestSiteAt_EmptyRefIsDeclaration(t *testing.T) {
 	t.Parallel()
-	emptyRef := references.Reference("")
-	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 
 	s := annotation.At(js)
 	assert.Equal(t, annotation.Declaration, s.Kind, "an empty $ref resolves nowhere, so it is not a reference site")

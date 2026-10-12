@@ -8,6 +8,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"slices"
 	"sync"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -378,13 +379,11 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
 func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
-	for _, m := range missed {
+	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
-		if tree, ok := cached.(*yaml.Node); ok && hasAnchor(tree) {
-			return true
-		}
-	}
-	return false
+		tree, ok := cached.(*yaml.Node)
+		return ok && hasAnchor(tree)
+	})
 }
 
 // hasAnchor reports whether any node of the tree under root carries an anchor.

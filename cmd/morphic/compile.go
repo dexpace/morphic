@@ -287,10 +287,8 @@ func writeFailureExit(code int) int {
 // otherwise 0. failOn is one of "error" or "warning".
 func exitCodeFor(diags []ir.Diagnostic, failOn string) int {
 	threshold := severityRank(ir.Severity(failOn))
-	for _, d := range diags {
-		if severityRank(d.Severity) >= threshold {
-			return 1
-		}
+	if slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return severityRank(d.Severity) >= threshold }) {
+		return 1
 	}
 	return 0
 }

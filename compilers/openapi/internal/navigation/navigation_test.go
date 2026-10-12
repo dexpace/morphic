@@ -336,7 +336,7 @@ func parsedUnresolved(t *testing.T) any {
 // TestTokens_DecodesAsTheLibraryReads pins how a pointer is split: "/" is the
 // root, each other token is decoded, an empty one is kept, and what the
 // library's validation refuses is no pointer, though it accepts a byte that is
-// no UTF-8.
+// no UTF-8. Each row is checked against the library's own decoding too.
 func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 	t.Parallel()
 	for pointer, want := range map[jsontext.Pointer][]string{
@@ -351,11 +351,98 @@ func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 		require.True(t, ok, "%q", pointer)
 		assert.Equal(t, len(want), len(got), "%q", pointer)
 		assert.Equal(t, want, append([]string{}, got...), "%q", pointer)
+		lib, err := libraryTokens(pointer)
+		require.NoError(t, err, "%q", pointer)
+		assert.Equal(t, want, lib, "%q: the library", pointer)
 	}
 	for _, pointer := range []jsontext.Pointer{"", "a", "/~2", "/~", "/a~", "/\U0001F600"} {
 		_, ok := navigation.Tokens(pointer)
 		assert.False(t, ok, "%q", pointer)
-		assert.Error(t, jsonpointer.JSONPointer(pointer).Validate(), "%q: the library refuses it too", pointer)
+		_, err := libraryTokens(pointer)
+		assert.ErrorIs(t, err, jsonpointer.ErrValidation, "%q: the library refuses it too", pointer)
+	}
+}
+
+// keyProbe is a struct the library reads by key alone. It records each key it
+// is handed, decoded as the library decodes it, and reads on from itself, so
+// the library's read of any pointer it accepts hands it every token.
+type keyProbe struct{ keys *[]string }
+
+func (p keyProbe) NavigateWithKey(key string) (any, error) {
+	*p.keys = append(*p.keys, key)
+	return p, nil
+}
+
+// libraryTokens returns the tokens the library decodes pointer into, or its
+// error for a pointer it refuses.
+func libraryTokens(pointer jsontext.Pointer) ([]string, error) {
+	keys := []string{}
+	_, err := jsonpointer.GetTarget(keyProbe{&keys}, jsonpointer.JSONPointer(pointer))
+	return keys, err
+}
+
+// FuzzTokens_DecodesAsTheLibraryReads holds Tokens to the library on any
+// pointer: it refuses what the library refuses, a malformed escape included,
+// and decodes every other into the keys the library hands a struct it reads by
+// key, bytes that are no UTF-8 included.
+func FuzzTokens_DecodesAsTheLibraryReads(f *testing.F) {
+	for _, seed := range []string{
+		"/", "", "a", "//x", "/a~1b/~0c/", "/~01", "/~10", "/~2", "/a~", "/0/00",
+		"/a\xffb", "/\xc3", "/\U0001F600", "/\uFFFF",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, pointer string) {
+		got, ok := navigation.Tokens(jsontext.Pointer(pointer))
+		lib, err := libraryTokens(jsontext.Pointer(pointer))
+		require.Equal(t, err == nil, ok, "%q: %v", pointer, err)
+		if ok {
+			require.Equal(t, lib, append([]string{}, got...), "%q", pointer)
+		}
+	})
+}
+
+// indexProbe is a struct the library reads by key or by index, and records
+// whether it was handed a token as an index.
+type indexProbe struct{ indexed *bool }
+
+func (p indexProbe) NavigateWithKey(string) (any, error) { return nil, errors.New("no such key") }
+
+func (p indexProbe) NavigateWithIndex(int) (any, error) {
+	*p.indexed = true
+	return nil, errors.New("no such index")
+}
+
+// libraryReadsAsIndex reports whether the library hands token to
+// NavigateWithIndex, which it does for the tokens it types as an index. The
+// empty token is followed by another, since "/" alone is the root.
+func libraryReadsAsIndex(t *testing.T, token string) bool {
+	t.Helper()
+	var indexed bool
+	_, err := jsonpointer.GetTarget(indexProbe{&indexed}, jsonpointer.JSONPointer("/"+token+"/"))
+	require.Error(t, err, "the probe holds nothing under %q", token)
+	return indexed
+}
+
+// TestIsIndex_MatchesTheLibrarysTokenTyping holds IsIndex to the library
+// itself: ASCII digits, no leading zero unless the token is "0", whatever their
+// number. A sign, a fraction, a space, a line end, the empty token and a digit
+// of another script are keys. The wanted column is checked against the library
+// too, so a release that retypes a token reddens the table, not only IsIndex.
+func TestIsIndex_MatchesTheLibrarysTokenTyping(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		token string
+		want  bool
+	}{
+		{"0", true}, {"7", true}, {"10", true}, {"9007199254740993", true},
+		{"18446744073709551616", true}, {"99999999999999999999999999", true},
+		{"", false}, {"00", false}, {"01", false}, {"-1", false}, {"+1", false},
+		{"1a", false}, {"1.0", false}, {" 1", false}, {"1\n", false}, {"\u0661", false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, libraryReadsAsIndex(t, tt.token), "%q: the library", tt.token)
+		assert.Equal(t, tt.want, navigation.IsIndex(tt.token), "%q: IsIndex", tt.token)
 	}
 }
 

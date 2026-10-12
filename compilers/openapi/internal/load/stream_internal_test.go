@@ -2,6 +2,7 @@ package load
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -435,7 +436,7 @@ func TestLoad_AParseIsCheckedAgainstTheBytesBesideIt(t *testing.T) {
 func TestLoad_AParseOfEqualBytesIsTheSameParse(t *testing.T) {
 	t.Parallel()
 	data := []byte(minimal31)
-	equal := append([]byte(nil), data...)
+	equal := slices.Clone(data)
 	parsed, err := Decode(equal)
 	require.NoError(t, err)
 	titleOf(t, parsed).Value = "FromAnEqualButOtherBuffer"

@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -25,7 +26,7 @@ type BigVal string
 // JSON-invalid affixes are normalized).
 func NewBigVal(s string) (BigVal, error) {
 	if s == "" {
-		return "", fmt.Errorf("bigval: empty numeric literal")
+		return "", errors.New("bigval: empty numeric literal")
 	}
 	if !isDecimalLiteral(s) {
 		return "", fmt.Errorf("bigval: not a decimal numeric literal %q", s)
@@ -145,7 +146,7 @@ func canonicalDecimal(s string) string {
 	}
 
 	sign := ""
-	if len(mantissa) > 0 && (mantissa[0] == '+' || mantissa[0] == '-') {
+	if mantissa != "" && (mantissa[0] == '+' || mantissa[0] == '-') {
 		if mantissa[0] == '-' {
 			sign = "-"
 		}

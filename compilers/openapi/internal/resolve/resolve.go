@@ -420,14 +420,28 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // as spelled, and an empty path names none.
 //
 // The working directory is read only to tell a relative path from an absolute
-// one, or one climbing out of it.
+// one, or from one not below it (filepath.IsLocal).
 func SameDocument(a, b string) bool {
-	return sameDocument(a, b, filepath.Abs)
+	return sameDocument(a, b, systemRules())
 }
 
-// sameDocument is SameDocument with the way to make a path absolute handed in,
-// so a test can count how often the working directory is read.
-func sameDocument(a, b string, abs func(string) (string, error)) bool {
+// pathRules is how the file system reads a path. A test hands in another
+// system's reading, so the Windows forms are checked on any host.
+type pathRules struct {
+	abs     func(path string) (string, error) // against the working directory
+	isAbs   func(path string) bool
+	isLocal func(path string) bool
+}
+
+// systemRules returns filepath's reading of a path on this system.
+func systemRules() pathRules {
+	return pathRules{abs: filepath.Abs, isAbs: filepath.IsAbs, isLocal: filepath.IsLocal}
+}
+
+// sameDocument is SameDocument with the file system's reading handed in, so a
+// test can count how often the working directory is read, and read paths as
+// another system does.
+func sameDocument(a, b string, rules pathRules) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -441,28 +455,25 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 	if a == b {
 		return true
 	}
-	if sameAnchor(a, b) {
+	if sameAnchor(a, b, rules) {
 		return false
 	}
-	absA, errA := abs(a)
-	absB, errB := abs(b)
+	absA, errA := rules.abs(a)
+	absB, errB := rules.abs(b)
 	return errA == nil && errB == nil && absA == absB
 }
 
 // sameAnchor reports whether two cleaned paths mean the same wherever the
 // working directory is, so that when they differ they name different files:
-// both absolute, or both relative and below it.
-func sameAnchor(a, b string) bool {
-	if filepath.IsAbs(a) != filepath.IsAbs(b) {
+// both absolute, or both below it. Below is filepath.IsLocal, which on Windows
+// also refuses a path rooted without a volume (\a\b), one naming a drive
+// (C:a\b) and a reserved name (NUL): none is absolute, and each is made so
+// before it is compared.
+func sameAnchor(a, b string, rules pathRules) bool {
+	if rules.isAbs(a) != rules.isAbs(b) {
 		return false
 	}
-	return filepath.IsAbs(a) || !climbs(a) && !climbs(b)
-}
-
-// climbs reports whether a cleaned relative path leaves the directory it is
-// relative to.
-func climbs(clean string) bool {
-	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	return rules.isAbs(a) || rules.isLocal(a) && rules.isLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a

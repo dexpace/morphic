@@ -7,6 +7,7 @@ import (
 	"encoding/json/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func TestReuse_MatchesAFreshParseAcrossTheCorpus(t *testing.T) {
 
 			// A second buffer, because a compile writes through the tree it is
 			// given and the bytes must not be shared between the two runs.
-			reusedData := append([]byte(nil), data...)
+			reusedData := slices.Clone(data)
 			src := compilers.Source{Path: path, Data: reusedData}
 			rec, _, ok := openapi.New().Detect(src, compilers.Options{})
 			if !ok {
