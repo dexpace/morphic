@@ -8,13 +8,17 @@ linters:
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
     - gocritic
+    - intrange # for i := range n, where a counted loop only counts
     - misspell
+    - modernize # the standard library and language forms go fix and the modernize analyzers propose
     - nilerr
     - nolintlint # a suppression outliving what it suppressed is invisible without this
     - prealloc
     - revive
     - unconvert
     - unparam
+    - usestdlibvars # http.MethodGet over "GET", and the like
+    - usetesting # t.Context, t.Chdir and t.TempDir over their context and os spellings
   settings:
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
@@ -58,6 +62,12 @@ linters:
         linters:
           - funlen
           - gocognit
+      # A unix socket path is capped near 104 bytes and t.TempDir spells the
+      # whole test name into its path, so this test builds a short one itself.
+      - path: internal/harness/path_test\.go
+        linters:
+          - usetesting
+        text: os\.MkdirTemp
 
 formatters:
   enable:
