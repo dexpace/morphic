@@ -412,7 +412,7 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive. The alias carries the position's value constraints for
-		// the reason hoistByteScalar records: owning the node is what stops
+		// the reason hoistScalar records: owning the node is what stops
 		// hoistDeclarationHome hoisting the alias that would otherwise carry them.
 		// kept travels with them, so the co-declared bound keyword that reaches no
 		// Constraints field lands on the same node as the bounds it lost to.
@@ -1349,7 +1349,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistByteScalar(c, ts, anchors, depth, s, pointer, hint)
+		return hoistScalar(c, ts, anchors, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -1357,51 +1357,33 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	}
 	prim, known := formatTable[key]
 	if !known {
-		return hoistFormatScalar(c, ts, anchors, depth, s, baseForType(st), format, pointer, hint)
+		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
 	}
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
-	return hoistFormatScalar(c, ts, anchors, depth, s, prim, "", pointer, hint)
+	return hoistScalar(c, ts, anchors, depth, s, prim, "", nil, pointer, hint)
 }
 
-// hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
+// hoistScalar hoists a scalar over base, giving what the position wrote a node
+// of its own to sit on: the encoding scalarEncoding builds from formatName and,
+// when wire is non-nil, the primitive the encoded value travels as.
 //
-// Every hoister here carries the position's value constraints itself, because
-// owning a node is what stops hoistDeclarationHome hoisting the alias that would
+// The node carries the position's value constraints itself, because owning a
+// node is what stops hoistDeclarationHome hoisting the alias that would
 // otherwise carry them: that fallback resolves to whatever node the pointer
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
-func hoistByteScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := ts.PrimRef(ir.PrimBytes)
-		wire := ts.PrimRef(ir.PrimString)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "base64", &common, pointer, hint)
-		diags = append(diags, encDiags...)
-		enc.WireType = &wire
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &base,
-			Encoding:    enc,
-			Constraints: cons,
-		}
-	})
-	return id, diags
-}
-
-// hoistFormatScalar hoists a scalar over base carrying an unknown format as its
-// encoding name, preserving the format losslessly. An empty format gives the
-// content vocabulary written at pointer a node of its own to sit on, carrying
-// the position's value constraints for the reason hoistByteScalar records.
-func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, format string, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, formatName string, wire *ir.PrimKind, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, format, &common, pointer, hint)
+		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, formatName, &common, pointer, hint)
 		diags = append(diags, encDiags...)
+		if wire != nil {
+			wireRef := ts.PrimRef(*wire)
+			enc.WireType = &wireRef
+		}
 		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
