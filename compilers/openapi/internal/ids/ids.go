@@ -176,16 +176,12 @@ func ParamRepeat(mount jsontext.Pointer, name, in string, occurrence int) ir.Par
 // EnumMember returns the stable ID of the member of the enum at enumPointer
 // that holds key.
 //
-// It lives in the namespace of the enum's own TypeID, chosen the way ForPointer
-// chooses it, so the member sits under the type that declares it. The key is
+// It lives in the namespace of the enum's own TypeID, which schemaSpace chooses
+// for both, so the member sits under the type that declares it. The key is
 // escaped as one RFC 6901 token; the caller builds it from the member's value,
 // never from its name or position.
 func EnumMember(enumPointer jsontext.Pointer, key string) ir.EnumMemberID {
-	path := string(enumPointer + Ptr(key))
-	if _, ok := ComponentSchemaName(enumPointer); ok {
-		return compile.EnumMemberID(OpenAPISpace, path)
-	}
-	return compile.EnumMemberID(AnonSpace, path)
+	return compile.EnumMemberID(schemaSpace(enumPointer), string(enumPointer+Ptr(key)))
 }
 
 // Auth returns the stable ID of the named security scheme.
@@ -274,10 +270,17 @@ func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
 func ForPointer(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(schemaSpace(pointer), string(pointer))
+}
+
+// schemaSpace returns the namespace of the type a schema at pointer lowers to:
+// OpenAPISpace for a top-level component schema, the one kind that declares a
+// named type, and AnonSpace for every other position.
+func schemaSpace(pointer jsontext.Pointer) compile.Space {
 	if _, ok := ComponentSchemaName(pointer); ok {
-		return NamedType(pointer)
+		return OpenAPISpace
 	}
-	return AnonType(pointer)
+	return AnonSpace
 }
 
 // ComponentSchemaName reports whether pointer addresses a top-level component
