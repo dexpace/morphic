@@ -1126,3 +1126,142 @@ func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {
 		"param/openapi/paths/~1b/get/parameters/limit/query",
 	}, shared, "a path item mounted twice roots each mount's parameters at that mount")
 }
+
+// repeatSpec returns a document whose one operation, GET /x, merges pathLevel
+// and opLevel, written as YAML flow entries. Limit and Limit2 are two
+// components holding the same name and location.
+func repeatSpec(pathLevel, opLevel []string) string {
+	list := func(indent string, entries []string) string {
+		if len(entries) == 0 {
+			return ""
+		}
+		out := indent + "parameters:\n"
+		for _, e := range entries {
+			out += indent + "  - " + e + "\n"
+		}
+		return out
+	}
+	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n" +
+		list("    ", pathLevel) +
+		"    get:\n      operationId: g\n" +
+		list("      ", opLevel) +
+		"      responses: {\"200\": {description: ok}}\n" +
+		"components:\n  parameters:\n" +
+		"    Limit: {name: limit, in: query, schema: {type: integer}}\n" +
+		"    Limit2: {name: limit, in: query, schema: {type: string}}\n"
+}
+
+// TestParams_RepeatedNameAndLocationKeepsEveryParameter covers a merged list
+// holding one name and location twice. OpenAPI forbids it, but the bundled
+// parser checks only entries written inline, so a $ref'd repeat reaches the
+// lowering. Each occurrence is kept under an ID of its own, the first holding
+// the bare one, and the repeat is reported at its own list entry.
+func TestParams_RepeatedNameAndLocationKeepsEveryParameter(t *testing.T) {
+	t.Parallel()
+	const (
+		inline = "{name: limit, in: query, schema: {type: boolean}}"
+		limit  = `{$ref: "#/components/parameters/Limit"}`
+		limit2 = `{$ref: "#/components/parameters/Limit2"}`
+	)
+	tests := []struct {
+		name               string
+		pathLevel, opLevel []string
+		first, repeat      string
+	}{
+		{name: "one component twice", opLevel: []string{limit, limit},
+			first: "/paths/~1x/get/parameters/0", repeat: "/paths/~1x/get/parameters/1"},
+		{name: "a component, then an inline entry", opLevel: []string{limit, inline},
+			first: "/paths/~1x/get/parameters/0", repeat: "/paths/~1x/get/parameters/1"},
+		{name: "an inline entry, then a component", opLevel: []string{inline, limit},
+			first: "/paths/~1x/get/parameters/0", repeat: "/paths/~1x/get/parameters/1"},
+		{name: "two components holding one slot", opLevel: []string{limit, limit2},
+			first: "/paths/~1x/get/parameters/0", repeat: "/paths/~1x/get/parameters/1"},
+		{name: "two inline entries", opLevel: []string{inline, inline},
+			first: "/paths/~1x/get/parameters/0", repeat: "/paths/~1x/get/parameters/1"},
+		{name: "a pair on the path item", pathLevel: []string{limit, limit2},
+			first: "/paths/~1x/parameters/0", repeat: "/paths/~1x/parameters/1"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, repeatSpec(tc.pathLevel, tc.opLevel))
+			op := openapitest.FindOp(t, doc, "g")
+
+			require.Len(t, op.Params, 2, "neither occurrence is dropped")
+			assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/limit/query"), op.Params[0].ID,
+				"the first in list order holds the bare ID")
+			assert.Equal(t, ir.ParamID("param/openapi/paths/~1x/get/parameters/limit/query/2"), op.Params[1].ID)
+			bindings := op.Bindings.HTTP[0].ParamBindings
+			require.Len(t, bindings, 2)
+			assert.Equal(t, []ir.ParamID{op.Params[0].ID, op.Params[1].ID},
+				[]ir.ParamID{bindings[0].Param, bindings[1].Param}, "each binding names its own parameter")
+
+			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
+			msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, tc.repeat)
+			assert.Contains(t, msg, tc.first, "the report names the entry the repeat collides with")
+		})
+	}
+}
+
+// TestParams_RepeatsAreNumberedInListOrder holds the occurrence number to the
+// entry's place among the parameters holding its slot, and each report to the
+// first of them, not to the occurrence just before.
+func TestParams_RepeatsAreNumberedInListOrder(t *testing.T) {
+	t.Parallel()
+	const limit = `{$ref: "#/components/parameters/Limit"}`
+	doc, diags := parseFull(t, repeatSpec(nil, []string{
+		limit, "{name: id, in: query, schema: {type: string}}", limit, limit,
+	}))
+	op := openapitest.FindOp(t, doc, "g")
+
+	const base = "param/openapi/paths/~1x/get/parameters/limit/query"
+	var got []ir.ParamID
+	for _, p := range op.Params {
+		got = append(got, p.ID)
+	}
+	assert.Equal(t, []ir.ParamID{base, "param/openapi/paths/~1x/get/parameters/id/query", base + "/2", base + "/3"}, got)
+	for _, repeat := range []string{"/paths/~1x/get/parameters/2", "/paths/~1x/get/parameters/3"} {
+		msg := openapitest.DiagMessageAt(t, diags, diag.DuplicateParameter, ir.SeverityError, repeat)
+		assert.Contains(t, msg, "/paths/~1x/get/parameters/0")
+	}
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
+}
+
+// TestParams_RepeatOnAPathItemMountedTwiceIsReportedOnce covers a repeat inside
+// a path item two paths $ref. Each mount's operation numbers its own copy, but
+// the defect is one written list entry, so it is one report.
+func TestParams_RepeatOnAPathItemMountedTwiceIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: "#/components/pathItems/Shared"}
+  /b: {$ref: "#/components/pathItems/Shared"}
+components:
+  parameters:
+    Limit: {name: limit, in: query, schema: {type: integer}}
+  pathItems:
+    Shared:
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Limit"
+      get:
+        responses: {"200": {description: ok}}
+`)
+	var got []ir.ParamID
+	for _, g := range doc.Services[0].Groups {
+		for _, o := range g.Operations {
+			for _, p := range o.Params {
+				got = append(got, p.ID)
+			}
+		}
+	}
+	assert.ElementsMatch(t, []ir.ParamID{
+		"param/openapi/paths/~1a/get/parameters/limit/query",
+		"param/openapi/paths/~1a/get/parameters/limit/query/2",
+		"param/openapi/paths/~1b/get/parameters/limit/query",
+		"param/openapi/paths/~1b/get/parameters/limit/query/2",
+	}, got)
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DuplicateParameter, ir.SeverityError))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateParameter, "/components/pathItems/Shared/parameters/1"))
+}

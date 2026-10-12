@@ -159,6 +159,20 @@ func Param(mount jsontext.Pointer, name, in string) ir.ParamID {
 	return compile.ParamID(OpenAPISpace, string(mount+Ptr("parameters", name, in)))
 }
 
+// ParamRepeat returns the stable ID of the occurrence-th parameter on the
+// operation mounted at mount to hold name in in, counting from one.
+//
+// The first, or any occurrence below two, is Param's ID. Each repeat appends its
+// number as one more token, so it equals no other parameter's ID: that would
+// take an operation mounted at another operation's parameters list, and OpenAPI
+// mounts none there.
+func ParamRepeat(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
+	if occurrence < 2 {
+		return Param(mount, name, in)
+	}
+	return compile.ParamID(OpenAPISpace, string(mount+Ptr("parameters", name, in, strconv.Itoa(occurrence))))
+}
+
 // EnumMember returns the stable ID of the member of the enum at enumPointer
 // that holds key.
 //

@@ -150,6 +150,16 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateParameter reports a parameter repeating the name and location of
+	// an earlier one on its operation, once $ref entries are resolved and
+	// path-item entries merged, which OpenAPI forbids. The bundled parser checks
+	// only entries written inline, so it misses one reached through a $ref, and
+	// reports an inline one beside this (#634). Every occurrence is kept, since
+	// neither is wrong on its own, and each repeat's ID ends in its occurrence
+	// number, so no two parameters share one.
+	//
+	// Error, as the parser's own report of the inline case is.
+	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's

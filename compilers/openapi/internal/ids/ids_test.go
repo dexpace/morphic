@@ -405,7 +405,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 // TestParam_ScopesByOperationNameAndLocation pins the spelling of a parameter ID
 // and what it is scoped by, written out rather than derived. The mount, the name
 // and the location each change it; the name is one escaped token, so a slash in
-// it never reads as two segments.
+// it never reads as two segments. A repeat appends its occurrence number.
 func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 	t.Parallel()
 	const mount = jsontext.Pointer("/paths/~1items/get")
@@ -419,6 +419,8 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 		{name: "another operation", got: ids.Param("/paths/~1items/post", "id", "query"), want: "param/openapi/paths/~1items/post/parameters/id/query"},
 		{name: "a slash in the name", got: ids.Param(mount, "a/b", "header"), want: "param/openapi/paths/~1items/get/parameters/a~1b/header"},
 		{name: "a tilde in the name", got: ids.Param(mount, "a~b", "header"), want: "param/openapi/paths/~1items/get/parameters/a~0b/header"},
+		{name: "a repeat", got: ids.ParamRepeat(mount, "id", "cookie", 2), want: "param/openapi/paths/~1items/get/parameters/id/cookie/2"},
+		{name: "a third occurrence", got: ids.ParamRepeat(mount, "id", "cookie", 3), want: "param/openapi/paths/~1items/get/parameters/id/cookie/3"},
 	}
 	seen := map[ir.ParamID]string{}
 	for _, tc := range tests {
@@ -430,6 +432,8 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 		require.NotContains(t, seen, tc.got, "%s and %s share an ID", tc.name, seen[tc.got])
 		seen[tc.got] = tc.name
 	}
+	assert.Equal(t, ids.Param(mount, "id", "query"), ids.ParamRepeat(mount, "id", "query", 1),
+		"the first occurrence holds the bare ID")
 }
 
 // TestEnumMember_LivesInItsEnumsSpaceAndPath pins the namespace of a member to

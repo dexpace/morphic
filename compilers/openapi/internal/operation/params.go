@@ -24,7 +24,9 @@ import (
 // input; the binding side carries the location, style, and explode facts.
 // Each parameter lowers at its declaration: the $ref target for a referenced
 // entry, else the list entry itself (issue #107). Its ID is rooted at mount, the
-// operation's mount pointer, not at the declaration it was copied from.
+// operation's mount pointer, not at the declaration it was copied from; a
+// repeat of one name and location keeps its own ID and is reported
+// (paramLedger).
 func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
@@ -32,12 +34,15 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	var diags []ir.Diagnostic
 	logical := make([]ir.Parameter, 0, len(params))
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
+	ledger := newParamLedger(mount)
 	for _, sp := range params {
 		p, pptr := resolve.ObjectAt[soa.Parameter](c.RefScope(), sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, mount, p, pptr)
+		id, repeatDiags := ledger.next(c, p.GetName(), string(p.GetIn()), sp.pointer)
+		diags = append(diags, repeatDiags...)
+		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
@@ -46,11 +51,10 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 }
 
 // lowerParameter lowers one resolved parameter into its logical Parameter and
-// HTTP binding. Path parameters are always required regardless of the declared
-// flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, mount jsontext.Pointer, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+// HTTP binding, both naming the parameter by id. Path parameters are always
+// required regardless of the declared flag (OpenAPI requires it).
+func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
-	id := ids.Param(mount, name, string(in))
 	param := ir.Parameter{
 		ID:         id,
 		Name:       compile.NamingFor(name),
