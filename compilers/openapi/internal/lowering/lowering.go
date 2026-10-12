@@ -302,7 +302,8 @@ func (c Ctx) SiblingsOf(rp *soa.ReferencedPathItem) (load.Sibling, bool) {
 }
 
 // SiblingsUnread reports whether rp writes fields beside its $ref that the load
-// phase did not model, which only one in another document does.
+// phase did not model: one its walk of the source does not reach, in another
+// document or at a position of the source no object it walks holds.
 func (c Ctx) SiblingsUnread(rp *soa.ReferencedPathItem) bool {
 	return c.siblings.Unread(rp)
 }

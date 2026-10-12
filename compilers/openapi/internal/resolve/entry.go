@@ -101,26 +101,36 @@ func ObjectAt[T, S any, R interface {
 	return obj, pointer
 }
 
+// Hop is one reference a chain passes through after its entry, and whether
+// another document holds it, as the hop before it found it.
+type Hop[R any] struct {
+	Ref     R
+	Foreign bool
+}
+
 // Hops returns the references the chain of ref passes through after ref itself,
-// nearest first: each entry its resolution recorded that is a reference too.
+// nearest first: each entry its resolution recorded that is a reference too,
+// read from scope, the scope ref is read in, as ScopeOf reads a chain's end.
 // The entry the chain ends at is no hop, and neither an inline entry nor one
 // that resolved nothing has any. Past maxRefChain entries the rest are not read.
 func Hops[T, S any, R interface {
 	*S
 	Referenced[T, S]
 	IsReference() bool
-}](ref R) []R {
-	var hops []R
+}](scope Scope, ref R) []Hop[R] {
+	var hops []Hop[R]
 	for range maxRefChain {
 		info := ref.GetReferenceResolutionInfo()
 		if info == nil || info.Object == nil {
 			break
 		}
+		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
+			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
 		ref = R(info.Object)
 		if !ref.IsReference() {
 			break
 		}
-		hops = append(hops, ref)
+		hops = append(hops, Hop[R]{Ref: ref, Foreign: scope.Foreign})
 	}
 	return hops
 }

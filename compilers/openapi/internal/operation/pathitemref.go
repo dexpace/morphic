@@ -48,19 +48,21 @@ type pathItemMount struct {
 
 // newMount returns the mount of the path item rp names, written at usePtr and
 // read in use, whose chain ends at pi, declared at declPtr. The fields beside a
-// $ref of the chain that another document writes are not modelled, so each
-// such $ref is reported rather than dropped in silence.
+// $ref of the chain that the load phase did not model are reported rather than
+// dropped in silence (see unreadFields).
 func newMount(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
 ) pathItemMount {
 	source := use.InScope(use.RefScope().InSource())
 	var layers []layer
 	var diags []ir.Diagnostic
 	reached, last := string(usePtr), rp
-	for i, hop := range append([]*soa.ReferencedPathItem{rp}, resolve.Hops[soa.PathItem](rp)...) {
+	entry := resolve.Hop[*soa.ReferencedPathItem]{Ref: rp, Foreign: use.RefScope().Foreign}
+	for i, hop := range append([]resolve.Hop[*soa.ReferencedPathItem]{entry},
+		resolve.Hops[soa.PathItem](use.RefScope(), rp)...) {
 		if i > 0 {
-			reached, last = string(last.GetReference()), hop
+			reached, last = string(last.GetReference()), hop.Ref
 		}
-		if sib, ok := use.SiblingsOf(hop); ok {
+		if sib, ok := use.SiblingsOf(hop.Ref); ok {
 			ptr := sib.Pointer
 			if i == 0 {
 				ptr = usePtr // an alias's own position, as for an inline item
@@ -68,13 +70,24 @@ func newMount(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, us
 			layers = append(layers, layer{item: sib.Item, ptr: ptr, name: string(ptr), in: source})
 			continue
 		}
-		if use.SiblingsUnread(hop) {
-			diags = append(diags, use.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, usePtr,
-				"the path item at %s writes fields beside its $ref in another document, which this compiler "+
-					"does not read; they are not lowered at this mount", reached))
+		if use.SiblingsUnread(hop.Ref) {
+			diags = append(diags, unreadFields(use, usePtr, reached, hop.Foreign))
 		}
 	}
 	return pathItemMount{layers: append(layers, referent(use, rp, last, pi, declPtr, layers)), found: diags}
+}
+
+// unreadFields reports, at the mount's use site, the fields written beside the
+// $ref of the path item at reached that the load phase did not model: another
+// document's, which it does not walk, or those at a position of this one its
+// walk does not reach, such as under an x-* key (GitHub #823).
+func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, foreign bool) ir.Diagnostic {
+	where := "at a position the compiler's walk of this document does not reach"
+	if foreign {
+		where = "in another document, which this compiler does not read"
+	}
+	return use.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, usePtr,
+		"the path item at %s writes fields beside its $ref %s; they are not lowered at this mount", reached, where)
 }
 
 // referent returns the layer of pi, the item rp's chain ends at through last,

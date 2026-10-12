@@ -1059,7 +1059,34 @@ paths:
 	opByPath(t, doc, "GET", "/a")
 	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1a")
 	assert.Contains(t, message, "./other.yaml#/paths/~1x", "the reference reaching the unread fields is named")
+	assert.Contains(t, message, "in another document")
 	assert.Contains(t, message, "not lowered")
+}
+
+// TestPathItemRefSiblings_FieldsTheWalkDoesNotReachAreReported pins the other
+// chain this compiler cannot read all of: a hop in this document at a position
+// no object its walk holds, here under an x-* key, is not modelled either, and
+// the report says where it is rather than calling it another document's.
+func TestPathItemRefSiblings_FieldsTheWalkDoesNotReachAreReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-shared:
+  item:
+    $ref: '#/paths/~1b'
+    put: {operationId: putShared, responses: {"200": {description: OK}}}
+paths:
+  /a: {$ref: '#/x-shared/item'}
+  /b:
+    get: {operationId: getB, responses: {"200": {description: OK}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Equal(t, "getB", opByPath(t, doc, "GET", "/a").Name.Source, "the item the chain ends at still mounts")
+	message := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1a")
+	assert.Contains(t, message, "#/x-shared/item", "the reference reaching the unread fields is named")
+	assert.Contains(t, message, "does not reach")
+	assert.NotContains(t, message, "another document", "the hop is this document's")
 }
 
 // pathItemRefCallbackSiblingSpec writes an expression beside a Callback

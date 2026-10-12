@@ -60,7 +60,8 @@ func (s Siblings) Of(rp *soa.ReferencedPathItem) (Sibling, bool) {
 }
 
 // Unread reports whether rp writes fields beside its $ref that no model holds:
-// a reference in another document, whose content this phase does not walk.
+// a reference this phase's walk does not reach, in another document or at a
+// position of the source no object it walks holds, such as under an x-* key.
 // One the parser faulted on was reported where it is written, so it is not.
 func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
 	if !rp.IsReference() {

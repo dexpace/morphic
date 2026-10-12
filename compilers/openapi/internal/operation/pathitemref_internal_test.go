@@ -4,7 +4,13 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // TestFirstDeclared_KeepsEachKeysFirstDeclaration pins the index precedence
@@ -22,4 +28,45 @@ func TestFirstDeclared_KeepsEachKeysFirstDeclaration(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/first"), got["k"].rel, "a repeated key keeps its first declaration")
 	assert.Equal(t, jsontext.Pointer("/other"), got["other"].rel)
 	assert.Empty(t, firstDeclared(nil))
+}
+
+// TestNewMount_NamesWhereTheUseSitesOwnUnreadFieldsAre pins the use site's own
+// place in the report of fields no model holds: read in another document's
+// scope they are that document's, and read in the source's they are fields its
+// walk did not reach. A compile rarely gets here, since a $ref inside another
+// document's content is never resolved (GitHub #751) and a source use site goes
+// unmodelled only when a walk panic stops the search, so the context is built
+// without the load phase's models.
+func TestNewMount_NamesWhereTheUseSitesOwnUnreadFieldsAre(t *testing.T) {
+	t.Parallel()
+	l, diags := loweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put: {responses: {"200": {description: OK}}}
+  /b:
+    get: {responses: {"200": {description: OK}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	rp, ok := l.ctx.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	usePtr := jsontext.Pointer("/paths/~1a")
+	pi, declPtr := resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
+	require.NotNil(t, pi)
+
+	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
+		use := l.ctx
+		if foreign {
+			scope := use.RefScope()
+			scope.Foreign, scope.Holder = true, "other.yaml"
+			use = use.InScope(scope)
+		}
+
+		m := newMount(use, rp, pi, usePtr, declPtr)
+
+		require.Len(t, m.found, 1, "foreign %t: the use site's fields, and no hop's", foreign)
+		assert.Equal(t, diag.DegradedConstruct, m.found[0].Code)
+		assert.Contains(t, m.found[0].Message, want, "foreign %t", foreign)
+	}
 }

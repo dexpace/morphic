@@ -179,10 +179,10 @@ func TestSiblingModel_FaultsAreErrorsNotPanics(t *testing.T) {
 	require.Error(t, err, "a nil node faults the parser")
 }
 
-// TestSiblings_UnreadIsAnotherDocumentsFields pins Unread: a reference writing
+// TestSiblings_UnreadIsFieldsNoModelHolds pins Unread: a reference writing
 // fields beside its $ref that no model holds, which a set built from another
 // document's walk leaves every one of this document's.
-func TestSiblings_UnreadIsAnotherDocumentsFields(t *testing.T) {
+func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
 	var none Siblings
