@@ -68,6 +68,13 @@ linters:
         linters:
           - usetesting
         text: os\.MkdirTemp
+      # keyed runs as pointer reads step through models, and the Type.Fields
+      # range this proposes costs it four allocations a call where indexing
+      # costs none. TestKeyed_CostsNoAllocation holds it there.
+      - path: compilers/openapi/internal/navigation/navigation\.go
+        linters:
+          - modernize
+        text: stditerators
 
 formatters:
   enable:

@@ -234,7 +234,9 @@ func embeddedMap(f reflect.Value) (jsonpointer.KeyNavigable, bool) {
 // model's core is read by tag alone, so there an untagged field answers the
 // empty key, as the library finds it.
 func keyed(t reflect.Type, key string, byName bool) bool {
-	for f := range t.Fields() {
+	// Indexed: ranging over t.Fields() costs four allocations a call.
+	for i := range t.NumField() {
+		f := t.Field(i)
 		if !f.IsExported() {
 			continue
 		}
