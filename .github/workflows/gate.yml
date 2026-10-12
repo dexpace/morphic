@@ -26,8 +26,6 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ steps.lint-version.outputs.version }}
-      - name: nolint grammar
-        run: make nolint-grammar
       - name: nolint directives
         run: make nolint
       - name: build

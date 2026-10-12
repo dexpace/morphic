@@ -62,10 +62,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
+.PHONY: gate fmt vet lint nolint build coverage-count coverage \
 	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz bench-smoke
+gate: fmt vet lint nolint build coverage-count coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -91,14 +91,17 @@ lint:
 	fi
 	golangci-lint run
 
-# Both nolint checks run after lint, and in CI reach the golangci-lint the lint
-# step left on PATH: they ask it which linters it is running, which only
-# describes that step if it is the same build.
-nolint-grammar:
-	./scripts/verify-nolint-grammar.sh
-
+# No //nolint directive may stand in the source. Suppressions live in
+# .golangci.yml's exclusions, where a reader finds every one in a single place.
+# A directive naming a disabled or nonexistent linter is read by nothing, so it
+# would outlive what it suppressed without any check noticing.
 nolint:
-	./scripts/check-nolint-linters.sh
+	@found="$$(git grep -n '//nolint' -- '*.go')"; \
+	if [ -n "$$found" ]; then \
+		echo "nolint: directives found; add an exclusion in .golangci.yml instead:" >&2; \
+		echo "$$found" >&2; \
+		exit 1; \
+	fi
 
 build:
 	$(GO) build ./...
