@@ -78,6 +78,16 @@ func TestStringConsts_Refusals(t *testing.T) {
 	}
 }
 
+// TestTypesDeclaring_CountsOnlyOwnMethods holds the reader to what a sealed
+// sum needs: Wrapper reaches Method by embedding and is not listed, an alias
+// adds no type, and a pointer receiver declares as much as a value one.
+func TestTypesDeclaring_CountsOnlyOwnMethods(t *testing.T) {
+	t.Parallel()
+	p := fixture(t)
+	assert.Equal(t, []string{"Color", "Shade"}, p.TypesDeclaring("Method"))
+	assert.Empty(t, p.TypesDeclaring("Missing"))
+}
+
 func TestFuncDecl(t *testing.T) {
 	t.Parallel()
 	p := fixture(t)

@@ -98,6 +98,35 @@ func (p *Package) StringConsts(typeName string) ([]Const, error) {
 	return out, nil
 }
 
+// TypesDeclaring returns, sorted, the names of the package's types that
+// declare the method name themselves. A type reaching it only by embedding is
+// not one: a sealed sum's members are the types that declare its marker.
+func (p *Package) TypesDeclaring(method string) []string {
+	scope := p.Types.Scope()
+	var out []string
+	for _, name := range scope.Names() {
+		tn, isType := scope.Lookup(name).(*types.TypeName)
+		if !isType {
+			continue
+		}
+		named, isNamed := tn.Type().(*types.Named)
+		if isNamed && declares(named, method) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// declares reports whether named declares the method itself.
+func declares(named *types.Named, method string) bool {
+	for m := range named.Methods() {
+		if m.Name() == method {
+			return true
+		}
+	}
+	return false
+}
+
 // FuncDecl returns the declaration of the package-level function name.
 func (p *Package) FuncDecl(name string) (*ast.FuncDecl, error) {
 	for _, f := range p.Syntax {

@@ -162,15 +162,14 @@ func isCheckShaped(sig *types.Signature, violations types.Type) bool {
 // callsWalkValues reports whether fn's body refers to ir.WalkValues, resolved
 // through info so an import renamed or dotted still counts.
 func callsWalkValues(info *types.Info, fn *ast.FuncDecl) bool {
-	var found bool
-	ast.Inspect(fn, func(node ast.Node) bool {
+	for node := range ast.Preorder(fn) {
 		ident, isIdent := node.(*ast.Ident)
 		if !isIdent {
+			continue
+		}
+		if walk, isFunc := info.Uses[ident].(*types.Func); isFunc && walk.FullName() == irPath+".WalkValues" {
 			return true
 		}
-		walk, isFunc := info.Uses[ident].(*types.Func)
-		found = found || (isFunc && walk.FullName() == irPath+".WalkValues")
-		return true
-	})
-	return found
+	}
+	return false
 }

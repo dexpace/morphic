@@ -85,15 +85,15 @@ func valueKindsNamedInSwitch(t *testing.T) []string {
 	require.NotNil(t, fn.Body, "%s has no body", valueKindSwitchFunc)
 
 	seen := map[string]bool{}
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(fn.Body) {
 		sw, isSwitch := n.(*ast.SwitchStmt)
-		if isSwitch && sw.Tag != nil && isIRNamed(p.Info.TypeOf(sw.Tag), "ValueKind") {
-			for _, value := range caseValues(t, p.Info, sw) {
-				seen[value] = true
-			}
+		if !isSwitch || sw.Tag == nil || !isIRNamed(p.Info.TypeOf(sw.Tag), "ValueKind") {
+			continue
 		}
-		return true
-	})
+		for _, value := range caseValues(t, p.Info, sw) {
+			seen[value] = true
+		}
+	}
 	return slices.Sorted(maps.Keys(seen))
 }
 

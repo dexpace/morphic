@@ -31,3 +31,12 @@ func Hello() {}
 
 // Method is a method, so it is no package-level function.
 func (Color) Method() {}
+
+// Wrapper reaches Method only by embedding Color.
+type Wrapper struct{ Color }
+
+// Shade declares a Method of its own.
+type Shade int
+
+// Method is Shade's own.
+func (*Shade) Method() {}

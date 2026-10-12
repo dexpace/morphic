@@ -2,7 +2,6 @@ package ir_test
 
 import (
 	"encoding/json/v2"
-	"go/types"
 	"reflect"
 	"slices"
 	"testing"
@@ -206,27 +205,10 @@ func declaredTypeKinds(t *testing.T) []typeKindConst {
 }
 
 // sealedTypeDefImpls returns, sorted, the name of every ir type that declares
-// the unexported typeDef() marker itself. A marker reached only by embedding is
-// not counted: the sum's members are the types that declare it.
+// the unexported typeDef() marker itself.
 func sealedTypeDefImpls(t *testing.T) []string {
 	t.Helper()
-	scope := irDecls(t).Types.Scope()
-	var out []string
-	for _, name := range scope.Names() {
-		tn, isType := scope.Lookup(name).(*types.TypeName)
-		if !isType {
-			continue
-		}
-		named, isNamed := tn.Type().(*types.Named)
-		if !isNamed {
-			continue
-		}
-		for m := range named.Methods() {
-			if m.Name() == "typeDef" {
-				out = append(out, name)
-			}
-		}
-	}
+	out := irDecls(t).TypesDeclaring("typeDef")
 	require.NotEmpty(t, out, "the ir sources must declare typeDef() markers")
 	return out
 }

@@ -78,8 +78,8 @@ func declaredFields(t *testing.T) []declaredField {
 		if !isStruct {
 			continue
 		}
-		for i := range st.NumFields() {
-			out = append(out, declaredField{owner: name, field: st.Field(i)})
+		for field := range st.Fields() {
+			out = append(out, declaredField{owner: name, field: field})
 		}
 	}
 	require.NotEmpty(t, out, "the ir package must declare struct fields")

@@ -1,7 +1,6 @@
 package pass_test
 
 import (
-	"go/types"
 	"reflect"
 	"slices"
 	"sync"
@@ -176,23 +175,7 @@ func irTypeKinds(t *testing.T) []ir.TypeKind {
 // a number.
 func irTypeDefImpls(t *testing.T) int {
 	t.Helper()
-	scope := irDecls(t).Types.Scope()
-	impls := 0
-	for _, name := range scope.Names() {
-		tn, isType := scope.Lookup(name).(*types.TypeName)
-		if !isType {
-			continue
-		}
-		named, isNamed := tn.Type().(*types.Named)
-		if !isNamed {
-			continue
-		}
-		for m := range named.Methods() {
-			if m.Name() == "typeDef" {
-				impls++
-			}
-		}
-	}
+	impls := len(irDecls(t).TypesDeclaring("typeDef"))
 	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
 	return impls
 }
