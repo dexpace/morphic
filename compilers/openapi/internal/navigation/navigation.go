@@ -198,11 +198,11 @@ func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
 // by value where the library takes its address.
 func embedsAnswer(v reflect.Value, key string) bool {
 	s := reflect.Indirect(v)
-	for field, value := range s.Fields() {
-		if !field.Anonymous {
+	for i := range s.NumField() {
+		if !s.Type().Field(i).Anonymous {
 			continue
 		}
-		if m, ok := embeddedMap(value); ok {
+		if m, ok := embeddedMap(s.Field(i)); ok {
 			if _, err := m.NavigateWithKey(key); err == nil {
 				return true
 			}
