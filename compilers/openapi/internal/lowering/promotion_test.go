@@ -3,11 +3,10 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -223,14 +222,10 @@ func TestPromoteDeprecation_PolicyMapIsCopiedIntoTheContext(t *testing.T) {
 // the check itself.
 func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	pkg, err := build.ImportDir(".", 0)
 	require.NoError(t, err)
 	var out []lowering.ExtensionTarget
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
+	for _, name := range pkg.GoFiles {
 		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
 		require.NoError(t, err)
 		for n := range ast.Preorder(file) {

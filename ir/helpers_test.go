@@ -8,9 +8,9 @@ package ir_test
 import (
 	"encoding/json/v2"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -35,18 +35,14 @@ func irSourceFiles(t *testing.T) []string {
 	require.True(t, ok, "runtime.Caller must report this file's path")
 
 	dir := filepath.Dir(thisFile)
-	entries, err := os.ReadDir(dir)
+	pkg, err := build.ImportDir(dir, 0)
 	require.NoError(t, err)
+	require.NotEmpty(t, pkg.GoFiles, "the ir package must have production sources")
 
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		out = append(out, filepath.Join(dir, name))
+	out := make([]string, len(pkg.GoFiles))
+	for i, name := range pkg.GoFiles {
+		out[i] = filepath.Join(dir, name)
 	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
 	return out
 }
 
