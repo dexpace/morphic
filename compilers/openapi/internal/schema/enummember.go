@@ -20,7 +20,7 @@ import (
 // number 1 are two members. A number is keyed by its canonical decimal
 // (numberKey), so 10 and 1e1 are one value.
 //
-// The key reads the value, never the name, so reordering renames nothing.
+// The key reads the value, never the name or the position.
 //
 // ok is false for a list, object, reference or constructor: no enum holds one.
 func enumMemberKey(v ir.Value) (key string, ok bool) {

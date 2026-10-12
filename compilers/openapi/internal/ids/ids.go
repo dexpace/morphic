@@ -151,11 +151,11 @@ func Prop(pointer jsontext.Pointer) ir.PropID {
 // to hold name in location in on the operation mounted at mount.
 //
 // The mount is the pointer the operation lowers at, so a path item $ref'd from
-// two paths gives each mount's parameters IDs of their own. The name is one
-// escaped token and in is the source's location, so a name and a location
-// cannot be confused and a reordered list renames nothing. A repeat's number
-// follows the location (numbered) and equals no other parameter's ID: that
-// would take an operation mounted at another's parameters list.
+// two paths gives each mount its own parameter IDs. The name is one escaped
+// token and in is the source's location, so a name and a location cannot be
+// confused, and reordering a list without repeats renames nothing. A repeat's
+// number follows the location (numbered) and equals no other parameter's ID:
+// that would take an operation mounted at another's parameters list.
 func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
 	return compile.ParamID(OpenAPISpace, string(numbered(mount+Ptr("parameters", name, in), occurrence)))
 }

@@ -267,12 +267,12 @@ apiece, and a path item reached from two paths gives each mount's parameters IDs
 mount. The mount rather than the declaration scopes it, which is the reason an operation is
 identified by its mount (#107), and for the same reason a parameter is exempt from the agreement
 below: its provenance records the declaration it was read from. No list index is used, so reordering
-a parameter list renames nothing. A name and location an operation holds twice, which OpenAPI
-forbids but a `$ref` gets past the bundled parser's check, keeps both parameters: the first in list
-order has the bare ID, each repeat appends its occurrence number as one more token (`…/<in>/2`), and
-the compiler reports it (`openapi/duplicate-parameter`). The path is injective and the only rule
-minting into kind `param`, so it takes the format's own namespace, `openapi`, with no space of its
-own.
+a parameter list renames nothing unless the list repeats a name and location. OpenAPI forbids a
+repeat, but one reached through a `$ref` gets past the bundled parser's check, and both parameters
+are kept: the first in list order has the bare ID, each repeat appends its occurrence number as one
+more token (`…/<in>/2`), and the compiler reports it (`openapi/duplicate-parameter`). The path is
+injective and the only rule minting into kind `param`, so it takes the format's own namespace,
+`openapi`, with no space of its own.
 
 Two things are left open. Nothing holds a parameter's ID beneath its own operation's: `irverify`
 checks it against the grammar, and the OpenAPI compiler roots both at one mount, but a parameter
