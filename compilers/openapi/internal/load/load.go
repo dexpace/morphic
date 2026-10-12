@@ -618,15 +618,15 @@ func numericLiteralArtifact(verr validation.Error) bool {
 // meta-schema and an unmarshal finding for one bad bound; both carry the keyword
 // in their parent path, so both are recognized and suppressed together.
 func isNumericBoundKeyword(verr validation.Error) bool {
-	var mismatch *validation.TypeMismatchError
-	if !errors.As(verr.UnderlyingError, &mismatch) {
+	mismatch, ok := errors.AsType[*validation.TypeMismatchError](verr.UnderlyingError)
+	if !ok {
 		return false
 	}
 	name := mismatch.ParentName
 	if _, after, ok := strings.CutLast(name, "."); ok {
 		name = after
 	}
-	_, ok := numericBoundKeywords[name]
+	_, ok = numericBoundKeywords[name]
 	return ok
 }
 

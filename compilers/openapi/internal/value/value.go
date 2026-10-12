@@ -7,6 +7,7 @@
 package value
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -119,7 +120,7 @@ func scalarValue(node *yaml.Node) (ir.Value, error) {
 // preserve; only its separators are dropped.
 func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 	if node == nil {
-		return "", fmt.Errorf("openapi: nil numeric node")
+		return "", errors.New("openapi: nil numeric node")
 	}
 	switch node.Tag {
 	case "!!int":
@@ -162,7 +163,7 @@ func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 // leading zero — the spellings whose value in base 10 is what they say, with no
 // YAML base prefix to reinterpret.
 func isPlainDecimal(s string) bool {
-	if len(s) > 0 && (s[0] == '+' || s[0] == '-') {
+	if s != "" && (s[0] == '+' || s[0] == '-') {
 		s = s[1:]
 	}
 	if s == "" || (s[0] == '0' && len(s) > 1) {

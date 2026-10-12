@@ -97,14 +97,13 @@ func declaredIDFields(t *testing.T) []string {
 	for _, path := range irSourceFiles(t) {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 		require.NoError(t, err)
-		ast.Inspect(f, func(node ast.Node) bool {
+		for node := range ast.Preorder(f) {
 			ts, ok := node.(*ast.TypeSpec)
 			if !ok {
-				return true
+				continue
 			}
 			names = append(names, idFieldsDeclaredOn(t, decls, classes, ts)...)
-			return true
-		})
+		}
 	}
 	return names
 }
@@ -162,14 +161,14 @@ func TestIDPositions_EveryShapeIsOneIdShapeOfReads(t *testing.T) {
 	for _, path := range irSourceFiles(t) {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
 		require.NoError(t, err)
-		ast.Inspect(f, func(node ast.Node) bool {
+		for node := range ast.Preorder(f) {
 			ts, ok := node.(*ast.TypeSpec)
 			if !ok {
-				return true
+				continue
 			}
 			st, isStruct := ts.Type.(*ast.StructType)
 			if !isStruct {
-				return true
+				continue
 			}
 			for _, field := range st.Fields.List {
 				if !mentionsIDClassAnywhere(t, decls, classes, field.Type, 0) {
@@ -183,8 +182,7 @@ func TestIDPositions_EveryShapeIsOneIdShapeOfReads(t *testing.T) {
 						"ir.%s maps an identity to an identity, and idShapeOf reads only the key", at)
 				}
 			}
-			return true
-		})
+		}
 	}
 }
 

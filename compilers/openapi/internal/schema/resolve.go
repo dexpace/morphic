@@ -380,6 +380,5 @@ var keyedSchemaMaps = map[string]bool{
 // across the reference (refNullVerdict), so the two cannot answer one schema
 // differently.
 func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	budget := maxNullConjuncts
-	return refNullVerdict(js, &budget) == nullAdmitted
+	return refNullVerdict(js, new(maxNullConjuncts)) == nullAdmitted
 }
