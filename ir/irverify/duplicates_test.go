@@ -1,7 +1,7 @@
 package irverify
 
 import (
-	"go/ast"
+	"go/types"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -254,16 +254,30 @@ func TestIdentityClasses_AreAllClassified(t *testing.T) {
 		"identityClasses classifies a type the ir package no longer declares")
 }
 
-// declaredStringTypes returns the name of every type the ir package declares as a
-// string, defined or aliased.
+// declaredStringTypes returns the name of every type the ir package declares
+// over a string, defined or aliased, including one defined over another string
+// type. An alias of a type declared elsewhere adds no type of its own and is not
+// listed.
 func declaredStringTypes(t *testing.T) []string {
 	t.Helper()
+	scope := irDecls(t).Types.Scope()
 	var names []string
-	for name, expr := range typeDecls(t) {
-		ident, isIdent := expr.(*ast.Ident)
-		if isIdent && ident.Name == "string" {
+	for _, name := range scope.Names() {
+		decl, isType := scope.Lookup(name).(*types.TypeName)
+		if isType && declaresStringType(decl) {
 			names = append(names, name)
 		}
 	}
 	return names
+}
+
+// declaresStringType reports whether decl declares a type whose underlying type
+// is a string.
+func declaresStringType(decl *types.TypeName) bool {
+	typ := types.Unalias(decl.Type())
+	if named, isNamed := typ.(*types.Named); isNamed && named.Obj() != decl {
+		return false // an alias of another declaration
+	}
+	basic, isBasic := typ.Underlying().(*types.Basic)
+	return isBasic && basic.Info()&types.IsString != 0
 }
