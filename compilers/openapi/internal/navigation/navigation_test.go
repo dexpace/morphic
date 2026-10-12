@@ -359,22 +359,47 @@ func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 	}
 }
 
-// TestIsIndex_ReadsAsciiDigitsWithNoLeadingZero pins which tokens the library
-// reads as an array index: a run of ASCII digits, with no leading zero unless
-// the token is "0" itself. A sign, a fraction, a space, the empty token and a
-// digit of another script are keys.
-func TestIsIndex_ReadsAsciiDigitsWithNoLeadingZero(t *testing.T) {
+// indexProbe is a struct the library reads by key or by index, and records
+// whether it was handed a token as an index.
+type indexProbe struct{ indexed *bool }
+
+func (p indexProbe) NavigateWithKey(string) (any, error) { return nil, errors.New("no such key") }
+
+func (p indexProbe) NavigateWithIndex(int) (any, error) {
+	*p.indexed = true
+	return nil, errors.New("no such index")
+}
+
+// libraryReadsAsIndex reports whether the library hands token to
+// NavigateWithIndex, which it does for the tokens it types as an index. The
+// empty token is followed by another, since "/" alone is the root.
+func libraryReadsAsIndex(t *testing.T, token string) bool {
+	t.Helper()
+	var indexed bool
+	_, err := jsonpointer.GetTarget(indexProbe{&indexed}, jsonpointer.JSONPointer("/"+token+"/"))
+	require.Error(t, err, "the probe holds nothing under %q", token)
+	return indexed
+}
+
+// TestIsIndex_MatchesTheLibrarysTokenTyping holds IsIndex to the library
+// itself: ASCII digits, no leading zero unless the token is "0", whatever their
+// number. A sign, a fraction, a space, a line end, the empty token and a digit
+// of another script are keys. The wanted column is checked against the library
+// too, so a release that retypes a token reddens the table, not only IsIndex.
+func TestIsIndex_MatchesTheLibrarysTokenTyping(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		token string
 		want  bool
 	}{
 		{"0", true}, {"7", true}, {"10", true}, {"9007199254740993", true},
+		{"18446744073709551616", true}, {"99999999999999999999999999", true},
 		{"", false}, {"00", false}, {"01", false}, {"-1", false}, {"+1", false},
-		{"1a", false}, {"1.0", false}, {" 1", false}, {"\u0661", false},
+		{"1a", false}, {"1.0", false}, {" 1", false}, {"1\n", false}, {"\u0661", false},
 	}
 	for _, tt := range tests {
-		assert.Equal(t, tt.want, navigation.IsIndex(tt.token), "%q", tt.token)
+		assert.Equal(t, tt.want, libraryReadsAsIndex(t, tt.token), "%q: the library", tt.token)
+		assert.Equal(t, tt.want, navigation.IsIndex(tt.token), "%q: IsIndex", tt.token)
 	}
 }
 
