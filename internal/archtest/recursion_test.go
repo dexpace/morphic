@@ -309,6 +309,47 @@ type T struct{}
 func (T) m() { use(nil) }
 func use(i I) { i.m() }`,
 			map[string]map[string]bool{"T.m": {"use": true}, "use": {}}},
+		{"a closure's body belongs to the function that holds it", `package p
+func a() { func() { b() }() }
+func b() {}`,
+			map[string]map[string]bool{"a": {"b": true}, "b": {}}},
+		{"a field named like a node is not an edge", `package p
+type T struct{ b int }
+func a(t T) int { return t.b }
+func b() {}`,
+			map[string]map[string]bool{"a": {}, "b": {}}},
+		{"a composite literal's key is not an edge", `package p
+type T struct{ b int }
+func a() T { return T{b: 1} }
+func b() {}`,
+			map[string]map[string]bool{"a": {}, "b": {}}},
+		{"a key and a value spelled the same are one edge", `package p
+type T struct{ b func() }
+func a() T { return T{b: b} }
+func b() {}`,
+			map[string]map[string]bool{"a": {"b": true}, "b": {}}},
+		{"a method handed on as a value is an edge", `package p
+type T struct{}
+func (T) m() {}
+func a(t T) { apply(t.m) }
+func apply(f func()) { f() }`,
+			map[string]map[string]bool{"T.m": {}, "a": {"T.m": true, "apply": true}, "apply": {}}},
+		{"a promoted method resolves to the embedded type's declaration", `package p
+type U struct{}
+func (U) m() {}
+type E struct{ U }
+func a(e E) { e.m() }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
+		{"a method on a range variable resolves", `package p
+type U struct{}
+func (U) m() {}
+func a(us []U) { for _, u := range us { u.m() } }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
+		{"a method on a type switch's binding resolves", `package p
+type U struct{}
+func (U) m() {}
+func a(x any) { switch v := x.(type) { case U: v.m() } }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
