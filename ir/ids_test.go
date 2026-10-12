@@ -2,9 +2,8 @@ package ir_test
 
 import (
 	"encoding/json/v2"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"go/constant"
+	"go/types"
 	"slices"
 	"strings"
 	"testing"
@@ -240,24 +239,16 @@ func TestIDPath_Extraction(t *testing.T) {
 // and not listed would make every document that declares its namespaces invalid.
 func TestIDKinds_ListsEveryKindConstant(t *testing.T) {
 	t.Parallel()
-	file, err := parser.ParseFile(token.NewFileSet(), "ids.go", nil, 0)
-	require.NoError(t, err)
+	scope := irDecls(t).Types.Scope()
 
 	var declared []string
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.CONST {
+	for _, name := range scope.Names() {
+		c, isConst := scope.Lookup(name).(*types.Const)
+		if !isConst || !strings.HasPrefix(name, "IDKind") {
 			continue
 		}
-		for _, spec := range gen.Specs {
-			value, ok := spec.(*ast.ValueSpec)
-			if !ok || len(value.Names) != 1 || !strings.HasPrefix(value.Names[0].Name, "IDKind") || len(value.Values) != 1 {
-				continue
-			}
-			lit, ok := value.Values[0].(*ast.BasicLit)
-			require.True(t, ok, "%s is not a string literal", value.Names[0].Name)
-			declared = append(declared, strings.Trim(lit.Value, `"`))
-		}
+		require.Equal(t, constant.String, c.Val().Kind(), "%s is not a string constant", name)
+		declared = append(declared, constant.StringVal(c.Val()))
 	}
 	require.NotEmpty(t, declared, "the ir sources must declare kind constants")
 	slices.Sort(declared)

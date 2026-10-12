@@ -396,8 +396,8 @@ func TestPrimKind_TiesToConstBlock(t *testing.T) {
 
 	values := make([]string, 0, len(declared))
 	for _, c := range declared {
-		values = append(values, c.value)
-		assert.True(t, ir.PrimKind(c.value).Valid(), "declared kind %q must be Valid", c.value)
+		values = append(values, c.Value)
+		assert.True(t, ir.PrimKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
 	}
 
 	spelled := make([]string, 0, len(primKindSpellings))

@@ -260,6 +260,9 @@ var rules = map[string][]string{
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
 	"internal/leakcheck": {},
+	// Test infrastructure too: tests that hold a hand-written list to what a
+	// package declares read it type-checked, through go/packages.
+	"internal/decls": {"golang.org/x/tools/go/packages"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

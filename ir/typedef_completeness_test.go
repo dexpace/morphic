@@ -2,7 +2,7 @@ package ir_test
 
 import (
 	"encoding/json/v2"
-	"go/ast"
+	"go/types"
 	"reflect"
 	"slices"
 	"testing"
@@ -200,39 +200,33 @@ func declaredTypeKinds(t *testing.T) []typeKindConst {
 	require.NotEmpty(t, declared, "the ir sources must declare TypeKind constants")
 	out := make([]typeKindConst, 0, len(declared))
 	for _, c := range declared {
-		out = append(out, typeKindConst{name: c.name, kind: ir.TypeKind(c.value)})
+		out = append(out, typeKindConst{name: c.Name, kind: ir.TypeKind(c.Value)})
 	}
 	return out
 }
 
-// sealedTypeDefImpls returns, sorted, the name of every ir type carrying the
-// unexported typeDef() marker.
+// sealedTypeDefImpls returns, sorted, the name of every ir type that declares
+// the unexported typeDef() marker itself. A marker reached only by embedding is
+// not counted: the sum's members are the types that declare it.
 func sealedTypeDefImpls(t *testing.T) []string {
 	t.Helper()
+	scope := irDecls(t).Types.Scope()
 	var out []string
-	for _, f := range parseIRSources(t) {
-		for _, decl := range f.Decls {
-			fd, isFunc := decl.(*ast.FuncDecl)
-			if !isFunc || fd.Recv == nil || fd.Name.Name != "typeDef" {
-				continue
+	for _, name := range scope.Names() {
+		tn, isType := scope.Lookup(name).(*types.TypeName)
+		if !isType {
+			continue
+		}
+		named, isNamed := tn.Type().(*types.Named)
+		if !isNamed {
+			continue
+		}
+		for m := range named.Methods() {
+			if m.Name() == "typeDef" {
+				out = append(out, name)
 			}
-			out = append(out, receiverTypeName(t, fd))
 		}
 	}
 	require.NotEmpty(t, out, "the ir sources must declare typeDef() markers")
-	slices.Sort(out)
 	return out
-}
-
-// receiverTypeName returns a method receiver's base type name, ignoring a pointer.
-func receiverTypeName(t *testing.T, fd *ast.FuncDecl) string {
-	t.Helper()
-	require.Len(t, fd.Recv.List, 1, "method %s must declare one receiver", fd.Name.Name)
-	expr := fd.Recv.List[0].Type
-	if star, isStar := expr.(*ast.StarExpr); isStar {
-		expr = star.X
-	}
-	id, isIdent := expr.(*ast.Ident)
-	require.True(t, isIdent, "receiver of %s must be a named type, got %#v", fd.Name.Name, expr)
-	return id.Name
 }
