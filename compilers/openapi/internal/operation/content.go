@@ -7,8 +7,8 @@
 // itself: the compiler assembles a Document from what LowerService returns.
 //
 // The recursion is callbacks, each a path item holding operations of its own,
-// which is why lowerOperation, lowerCallbacks and lowerCallbackOps cannot be
-// separated. internal/archtest pins that set.
+// which is why lowerOperation, lowerCallbacks, lowerCallbackOps and
+// mountPathItem cannot be separated. internal/archtest pins that set.
 package operation
 
 import (
