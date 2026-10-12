@@ -78,9 +78,10 @@ type coordinate struct {
 }
 
 // coordinatesBelow returns the coordinates strictly beneath pointer, in pointer
-// order. It is what makes a miss actionable: a schema that lowered to a shared
-// primitive owns no node at its own coordinate, and seeing what did intern below
-// it is the difference between "nothing happened here" and "the node moved".
+// order and, at one pointer, in ID order. It is what makes a miss actionable: a
+// schema that lowered to a shared primitive owns no node at its own coordinate,
+// and seeing what did intern below it is the difference between "nothing
+// happened here" and "the node moved".
 //
 // Beneath is RFC 6901 containment, so a coordinate sharing the query's text but
 // not its token boundary is not below it, and a trailing '/' is a token of its
