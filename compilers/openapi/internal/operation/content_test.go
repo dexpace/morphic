@@ -116,6 +116,48 @@ func TestContent_MixedCaseFormContentKeepsEncoding(t *testing.T) {
 	}
 }
 
+// TestContent_MixedCaseURLEncodedKeepsPartEncoding drives the form arm with
+// spellings of application/x-www-form-urlencoded that differ in case, in
+// parameters, or in both. The body declares no explicit encoding: document
+// validation refuses one beside a parameterized key (#623), so the part's
+// encoding is the one the lowering synthesizes for a repeated part.
+func TestContent_MixedCaseURLEncodedKeepsPartEncoding(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		mt   string
+	}{
+		{"mixed case", "Application/X-WWW-Form-Urlencoded"},
+		{"parameters", "application/x-www-form-urlencoded; charset=utf-8"},
+		{"mixed case with parameters", "Application/X-WWW-Form-Urlencoded; charset=utf-8"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /submit:
+    post:
+      operationId: submit
+      requestBody:
+        content:
+          "` + tc.mt + `":
+            schema:
+              type: object
+              properties:
+                tags: {type: array, items: {type: string}}
+      responses: {"200": {description: ok}}
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			assert.Equal(t, tc.mt, content.MediaType, "the declared spelling is what the IR records")
+			tagsProp := ir.PropID("p/openapi" + ids.Ptr("paths", "/submit", "post", "requestBody", "content", tc.mt, "schema", "properties", "tags"))
+			enc, ok := content.Encoding[tagsProp]
+			require.True(t, ok, "a repeated part carries a PartEncoding keyed by its PropID; got keys %v", content.Encoding)
+			assert.True(t, enc.Multi, "the structural flag comes from the part's own schema")
+		})
+	}
+}
+
 func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /raw:
