@@ -3,10 +3,12 @@ package ir
 import "slices"
 
 // Supertypes returns the immediate supertypes of the model id names: its Base,
-// then each Implements entry, every one read through the alias scalars standing
-// in for it. Mixins are absent on purpose. A mixin contributes members without
-// making the model a member of anything, so it belongs to [ExposedProps] and not
-// to subtype identity. An id naming no live model yields nil.
+// then each Implements entry, each read through the alias scalars standing in
+// for it, since a $ref carrying siblings composes the branch's own alias node,
+// not the schema it points at (ir-design §4.3). Mixins are absent on purpose: a
+// mixin contributes members without making the model a member of anything, so
+// it belongs to [ExposedProps], not to subtype identity. An id naming no live
+// model yields nil, and an unset reference is skipped.
 func Supertypes(doc *Document, id TypeID) []TypeID {
 	if doc == nil {
 		return nil
@@ -17,12 +19,21 @@ func Supertypes(doc *Document, id TypeID) []TypeID {
 	}
 	var supers []TypeID
 	if m.Base != nil {
-		supers = append(supers, aliasTarget(doc, m.Base.Target))
+		supers = appendSupertype(supers, doc, m.Base.Target)
 	}
 	for _, r := range m.Implements {
-		supers = append(supers, aliasTarget(doc, r.Target))
+		supers = appendSupertype(supers, doc, r.Target)
 	}
 	return supers
+}
+
+// appendSupertype appends the type target stands for, read through its alias
+// scalars, unless that is no type at all.
+func appendSupertype(dst []TypeID, doc *Document, target TypeID) []TypeID {
+	if t := aliasTarget(doc, target); t != "" {
+		return append(dst, t)
+	}
+	return dst
 }
 
 // aliasTarget follows a chain of alias scalars, each a Scalar whose Base names

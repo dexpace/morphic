@@ -18,7 +18,7 @@ func compDoc(defs ...ir.TypeDef) *ir.Document {
 }
 
 func compModel(id ir.TypeID, mutate func(*ir.Model)) *ir.Model {
-	m := &ir.Model{TypeCommon: ir.TypeCommon{ID: id}}
+	m := &ir.Model{ID: id}
 	if mutate != nil {
 		mutate(m)
 	}
@@ -26,7 +26,7 @@ func compModel(id ir.TypeID, mutate func(*ir.Model)) *ir.Model {
 }
 
 func compScalar(id, base ir.TypeID) *ir.Scalar {
-	s := &ir.Scalar{TypeCommon: ir.TypeCommon{ID: id}}
+	s := &ir.Scalar{ID: id}
 	if base != "" {
 		s.Base = &ir.TypeRef{Target: base}
 	}
@@ -75,6 +75,29 @@ func TestSupertypes_TypedNilAliasEndsTheChain(t *testing.T) {
 	)
 	doc.Types["z"] = nilScalar
 	assert.Equal(t, []ir.TypeID{"z"}, ir.Supertypes(doc, "m"))
+}
+
+func TestSupertypes_AnOpaqueScalarStandsForItself(t *testing.T) {
+	t.Parallel()
+	doc := compDoc(
+		compModel("m", func(m *ir.Model) { m.Implements = refs("opaque") }),
+		compScalar("opaque", ""),
+	)
+	assert.Equal(t, []ir.TypeID{"opaque"}, ir.Supertypes(doc, "m"))
+}
+
+func TestSupertypes_SkipsAReferenceNamingNoType(t *testing.T) {
+	t.Parallel()
+	holey := &ir.Scalar{ID: "holey", Base: &ir.TypeRef{}}
+	doc := compDoc(
+		compModel("m", func(m *ir.Model) {
+			m.Base = &ir.TypeRef{}
+			m.Implements = []ir.TypeRef{{}, {Target: "holey"}, {Target: "i"}}
+		}),
+		holey, compModel("i", nil),
+	)
+	assert.Equal(t, []ir.TypeID{"i"}, ir.Supertypes(doc, "m"))
+	assert.False(t, ir.IsSubtype(doc, "m", ""), "an unset reference makes no supertype to match")
 }
 
 func TestIsSubtype_Transitive(t *testing.T) {
@@ -169,6 +192,6 @@ func TestExposedProps_SkipsTypedNil(t *testing.T) {
 
 func TestExposedProps_OtherKindsExposeNothing(t *testing.T) {
 	t.Parallel()
-	doc := compDoc(&ir.Enum{TypeCommon: ir.TypeCommon{ID: "e"}})
+	doc := compDoc(&ir.Enum{ID: "e"})
 	assert.Empty(t, ir.ExposedProps(doc, "e"))
 }
