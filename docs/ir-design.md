@@ -758,8 +758,8 @@ is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value 
 symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
 and the number `1` are two members. A number's payload is its canonical decimal: the leading
 significant digit, any others after a point, and the power of ten that digit carries, so `1500`,
-`1500.0` and `15e2` are all `1.5e3` and every zero is `0`. The member's `Value` keeps the spelling
-the source wrote. The payload has `%` written `%25` and `#` written `%23` first. A list, object,
+`1500.0` and `15e2` are all `1.5e3` and every zero is `0`. Only the key is canonical: the member's
+`Value` is unchanged. The payload has `%` written `%25` and `#` written `%23` first. A list, object,
 reference or constructor value has no key, and an enum holding one is not an `Enum`. A value held
 twice keeps every member: the first has the bare key, the repeats take `#2`, `#3`, and so on, and
 the OpenAPI compiler reports each repeat (`openapi/duplicate-enum-value`). Which repeat holds the
@@ -1374,8 +1374,9 @@ type Operation struct {
 }
 
 type Parameter struct {
-    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>; the
-                                   // bindings, pagination inputs and idempotency token name a
+    ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
+                                   // /<n> after it on the n-th holder of one name and location;
+                                   // the bindings, pagination inputs and idempotency token name a
                                    // parameter by it, not by Name, which two locations may share
     Name       Naming
     Type       TypeRef
