@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"iter"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
@@ -42,8 +43,9 @@ type sequencedMap interface {
 }
 
 // Tokens returns the tokens of pointer as the library's walk compares them,
-// each decoded, and none for "/", which it reads as the root. It reports false
-// for a pointer the library refuses before reading anything.
+// each decoded, and none for "/", which the library reads as the root where
+// jsontext reads one empty token. It reports false for a pointer the library
+// refuses before reading anything.
 func Tokens(pointer jsontext.Pointer) ([]string, bool) {
 	if jsonpointer.JSONPointer(pointer).Validate() != nil {
 		return nil, false
@@ -51,11 +53,7 @@ func Tokens(pointer jsontext.Pointer) ([]string, bool) {
 	if pointer == "/" {
 		return nil, true
 	}
-	tokens := strings.Split(string(pointer[1:]), "/")
-	for i, token := range tokens {
-		tokens[i] = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
-	}
-	return tokens, true
+	return slices.Collect(pointer.Tokens()), true
 }
 
 // Step returns what node holds under the one token, as the library's walk
@@ -265,8 +263,9 @@ func builtFrom(v reflect.Value) (Reading, *yaml.Node) {
 	return Leaving, root
 }
 
-// IsIndex reports whether the library reads token as an index: digits, with
-// no leading zero unless it is one.
+// IsIndex reports whether the library types token as an index: ASCII digits,
+// with no leading zero unless the token is "0". It reads a token alike escaped
+// or decoded, since no escape decodes to a digit.
 func IsIndex(token string) bool {
 	if token == "" || len(token) > 1 && token[0] == '0' {
 		return false

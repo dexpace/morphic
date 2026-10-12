@@ -336,7 +336,7 @@ func parsedUnresolved(t *testing.T) any {
 // TestTokens_DecodesAsTheLibraryReads pins how a pointer is split: "/" is the
 // root, each other token is decoded, an empty one is kept, and what the
 // library's validation refuses is no pointer, though it accepts a byte that is
-// no UTF-8.
+// no UTF-8. Each row is checked against the library's own decoding too.
 func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 	t.Parallel()
 	for pointer, want := range map[jsontext.Pointer][]string{
@@ -351,12 +351,55 @@ func TestTokens_DecodesAsTheLibraryReads(t *testing.T) {
 		require.True(t, ok, "%q", pointer)
 		assert.Equal(t, len(want), len(got), "%q", pointer)
 		assert.Equal(t, want, append([]string{}, got...), "%q", pointer)
+		lib, err := libraryTokens(pointer)
+		require.NoError(t, err, "%q", pointer)
+		assert.Equal(t, want, lib, "%q: the library", pointer)
 	}
 	for _, pointer := range []jsontext.Pointer{"", "a", "/~2", "/~", "/a~", "/\U0001F600"} {
 		_, ok := navigation.Tokens(pointer)
 		assert.False(t, ok, "%q", pointer)
-		assert.Error(t, jsonpointer.JSONPointer(pointer).Validate(), "%q: the library refuses it too", pointer)
+		_, err := libraryTokens(pointer)
+		assert.ErrorIs(t, err, jsonpointer.ErrValidation, "%q: the library refuses it too", pointer)
 	}
+}
+
+// keyProbe is a struct the library reads by key alone. It records each key it
+// is handed, decoded as the library decodes it, and reads on from itself, so
+// the library's read of any pointer it accepts hands it every token.
+type keyProbe struct{ keys *[]string }
+
+func (p keyProbe) NavigateWithKey(key string) (any, error) {
+	*p.keys = append(*p.keys, key)
+	return p, nil
+}
+
+// libraryTokens returns the tokens the library decodes pointer into, or its
+// error for a pointer it refuses.
+func libraryTokens(pointer jsontext.Pointer) ([]string, error) {
+	keys := []string{}
+	_, err := jsonpointer.GetTarget(keyProbe{&keys}, jsonpointer.JSONPointer(pointer))
+	return keys, err
+}
+
+// FuzzTokens_DecodesAsTheLibraryReads holds Tokens to the library on any
+// pointer: it refuses what the library refuses, a malformed escape included,
+// and decodes every other into the keys the library hands a struct it reads by
+// key, bytes that are no UTF-8 included.
+func FuzzTokens_DecodesAsTheLibraryReads(f *testing.F) {
+	for _, seed := range []string{
+		"/", "", "a", "//x", "/a~1b/~0c/", "/~01", "/~10", "/~2", "/a~", "/0/00",
+		"/a\xffb", "/\xc3", "/\U0001F600", "/\uFFFF",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, pointer string) {
+		got, ok := navigation.Tokens(jsontext.Pointer(pointer))
+		lib, err := libraryTokens(jsontext.Pointer(pointer))
+		require.Equal(t, err == nil, ok, "%q: %v", pointer, err)
+		if ok {
+			require.Equal(t, lib, append([]string{}, got...), "%q", pointer)
+		}
+	})
 }
 
 // indexProbe is a struct the library reads by key or by index, and records

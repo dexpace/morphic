@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"math"
 	"strconv"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	yaml "gopkg.in/yaml.v3"
@@ -40,7 +39,7 @@ type mappingKeys struct {
 	pairs  int
 }
 
-// part is one token of a pointer as the library reads it: still escaped, and
+// part is one token of a pointer as the library reads it: decoded, and
 // whether it reads as an index.
 type part struct {
 	value string
@@ -147,26 +146,19 @@ func joinTokens(tokens []string) string {
 	return string(jsonpointer.PartsToJSONPointer(tokens))
 }
 
-// partsOf returns the tokens of pointer as the library's navigation stack
-// holds them, or false for a pointer it refuses before reading anything.
+// partsOf returns the tokens of pointer as the library's walk reads them
+// (navigation.Tokens), each typed as its navigation stack types it, or false
+// for a pointer it refuses before reading anything.
 func partsOf(pointer string) ([]part, bool) {
-	if jsonpointer.JSONPointer(pointer).Validate() != nil {
+	tokens, ok := navigation.Tokens(jsontext.Pointer(pointer))
+	if !ok {
 		return nil, false
 	}
-	if pointer == "/" {
-		return nil, true
-	}
-	tokens := strings.Split(strings.TrimPrefix(pointer, "/"), "/")
 	parts := make([]part, len(tokens))
 	for i, token := range tokens {
 		parts[i] = part{value: token, index: navigation.IsIndex(token)}
 	}
 	return parts, true
-}
-
-// unescaped returns the key token names, decoded as the library decodes it.
-func unescaped(token string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
 }
 
 // tally is one counted read: the steps taken, and the limit past which it
@@ -307,7 +299,7 @@ func element(n *yaml.Node, p part) *yaml.Node {
 // and is pushed, for the read to go on through its `<<` keys.
 func (s *tally) lookup(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
 	k := s.reads.index(n)
-	pos, ok := k.first[unescaped(parts[at].value)]
+	pos, ok := k.first[parts[at].value]
 	if !ok {
 		s.steps += s.compared(k.pairs)
 		s.push(n, k, at)
