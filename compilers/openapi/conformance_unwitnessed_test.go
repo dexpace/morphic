@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -215,29 +214,7 @@ func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
 	out := make([]ir.TypeKind, 0, len(consts))
 	for _, c := range consts {
-		out = append(out, ir.TypeKind(c.value))
+		out = append(out, ir.TypeKind(c.Value))
 	}
-	return out
-}
-
-// irSourceFiles lists the ir package's non-test Go files, located relative to
-// this test's own path so the result does not depend on the working directory.
-func irSourceFiles(t *testing.T) []string {
-	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this test's path")
-	dir := filepath.Join(filepath.Dir(self), "..", "..", "ir")
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		out = append(out, filepath.Join(dir, name))
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
 	return out
 }

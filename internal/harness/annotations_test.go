@@ -1,30 +1,30 @@
 package harness_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"path/filepath"
-	"runtime"
-	"strconv"
+	"go/types"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/harness"
 )
 
-// annotationTypeName and siteKindTypeName are the only two type spellings a
-// const in annotations.go's two blocks may declare. collectConstSpecs checks
-// each spec's type identifier against these literally, rather than bucketing
-// by whatever identifier appears, precisely so that a same-file alias of
-// either type cannot bucket a constant under a key
-// TestConstBlock_TiesToAnnotationsAndSiteKinds never inspects.
+// annotationTypeName and siteKindTypeName are the two types whose constants
+// make up the annotation vocabulary.
 const (
 	annotationTypeName = "Annotation"
 	siteKindTypeName   = "SiteKind"
 )
+
+// harnessPackage is the harness package type-checked, loaded once per test
+// binary.
+var harnessPackage = sync.OnceValues(func() (*decls.Package, error) {
+	return decls.Load("github.com/dexpace/morphic/internal/harness")
+})
 
 func TestCells_IsFullCrossProduct(t *testing.T) {
 	t.Parallel()
@@ -83,76 +83,69 @@ func TestMissingCells_UnknownCellsDoNotAppearInResult(t *testing.T) {
 }
 
 // TestConstBlock_TiesToAnnotationsAndSiteKinds requires every Annotation and
-// SiteKind constant declared in annotations.go to appear in
+// SiteKind constant the harness package declares to appear in
 // Annotations()/SiteKinds(), the functions Cells() builds the retention grid
 // from. Without it a constant could be added and never wired into Cells(),
-// leaving the grid short of the slot it names. It parses annotations.go with
-// go/ast, so a constant of either type declared in another file goes unseen.
+// leaving the grid short of the slot it names. The constants are read
+// type-checked, so one in another file, typed through an alias or written as
+// an expression is seen as the compiler sees it.
 func TestConstBlock_TiesToAnnotationsAndSiteKinds(t *testing.T) {
 	t.Parallel()
-	declared := parseDeclaredConsts(t)
-
-	assert.ElementsMatch(t, declared[annotationTypeName], stringsOf(harness.Annotations()))
-	assert.ElementsMatch(t, declared[siteKindTypeName], stringsOf(harness.SiteKinds()))
+	assert.ElementsMatch(t, declaredValues(t, annotationTypeName), stringsOf(harness.Annotations()))
+	assert.ElementsMatch(t, declaredValues(t, siteKindTypeName), stringsOf(harness.SiteKinds()))
 }
 
-// parseDeclaredConsts parses annotations.go — found relative to this test
-// file, since both live in internal/harness — and returns, per declared Go
-// type name, the literal string value of every const declared with that
-// type.
-func parseDeclaredConsts(t *testing.T) map[string][]string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed")
-	src := filepath.Join(filepath.Dir(thisFile), "annotations.go")
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, src, nil, 0)
+// TestConstBlock_VocabularyFilesHoldNothingElse requires every constant in a
+// file that declares Annotation or SiteKind to have one of the two types. An
+// untyped constant written there is not skipped: it would sit beside the
+// vocabulary without ever being compared against Annotations()/SiteKinds().
+func TestConstBlock_VocabularyFilesHoldNothingElse(t *testing.T) {
+	t.Parallel()
+	p, err := harnessPackage()
 	require.NoError(t, err)
 
-	out := make(map[string][]string)
-	for _, decl := range f.Decls {
-		if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.CONST {
-			collectConstSpecs(t, gd, out)
+	vocabulary := make([]*types.Named, 0, 2)
+	homes := make(map[string]bool, 2)
+	for _, name := range []string{annotationTypeName, siteKindTypeName} {
+		named, namedErr := p.Named(name)
+		require.NoError(t, namedErr)
+		vocabulary = append(vocabulary, named)
+		homes[p.Fset.Position(named.Obj().Pos()).Filename] = true
+	}
+
+	scope := p.Types.Scope()
+	for _, name := range scope.Names() {
+		c, isConst := scope.Lookup(name).(*types.Const)
+		if !isConst || !homes[p.Fset.Position(c.Pos()).Filename] {
+			continue
 		}
+		ofVocabulary := slices.ContainsFunc(vocabulary, func(named *types.Named) bool {
+			return types.Identical(types.Unalias(c.Type()), named)
+		})
+		assert.True(t, ofVocabulary,
+			"%s is a %s, not an Annotation or SiteKind; the file holds nothing else", name, c.Type())
+	}
+}
+
+// declaredValues returns the value of every constant the harness package
+// declares with the named type, in declaration order.
+func declaredValues(t *testing.T, typeName string) []string {
+	t.Helper()
+	p, err := harnessPackage()
+	require.NoError(t, err)
+	consts, err := p.StringConsts(typeName)
+	require.NoError(t, err)
+	require.NotEmpty(t, consts, "the harness package must declare %s constants", typeName)
+
+	out := make([]string, len(consts))
+	for i, c := range consts {
+		out[i] = c.Value
 	}
 	return out
 }
 
-// collectConstSpecs appends each ValueSpec's declared type name and literal
-// string value from gd into out. Every spec must have the form
-// `Name Type = "literal"` with Type spelled Annotation or SiteKind, never an
-// alias, which would bucket under a key the test never compares. This file
-// holds only annotation vocabulary, so an untyped, valueless, aliased or
-// expression-valued const fails loudly rather than being skipped and joining
-// the taxonomy unrecorded.
-func collectConstSpecs(t *testing.T, gd *ast.GenDecl, out map[string][]string) {
-	t.Helper()
-	for _, spec := range gd.Specs {
-		vs, ok := spec.(*ast.ValueSpec)
-		require.True(t, ok, "const decl spec is not a ValueSpec: %#v", spec)
-
-		typeIdent, hasType := vs.Type.(*ast.Ident)
-		require.True(t, hasType, "%s: const must declare its type explicitly "+
-			"(Annotation or SiteKind); this file holds nothing else", vs.Names)
-		require.True(t, typeIdent.Name == annotationTypeName || typeIdent.Name == siteKindTypeName,
-			"%s: const's declared type is %q, not literally Annotation or SiteKind; a "+
-				"same-file alias of either would bucket here under the alias's name and "+
-				"never be compared against Annotations()/SiteKinds()", vs.Names, typeIdent.Name)
-
-		require.Len(t, vs.Values, 1, "%s: expected exactly one literal value", vs.Names)
-		lit, isLit := vs.Values[0].(*ast.BasicLit)
-		require.True(t, isLit && lit.Kind == token.STRING,
-			"%s: value must be a string literal, not a conversion or expression", vs.Names)
-
-		value, err := strconv.Unquote(lit.Value)
-		require.NoError(t, err)
-		out[typeIdent.Name] = append(out[typeIdent.Name], value)
-	}
-}
-
 // stringsOf converts a slice of a defined string type to plain strings so it
-// can be compared against parseDeclaredConsts' output.
+// can be compared against declaredValues' output.
 func stringsOf[T ~string](vs []T) []string {
 	out := make([]string, len(vs))
 	for i, v := range vs {

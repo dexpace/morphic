@@ -3,10 +3,8 @@ package diag_test
 import (
 	"encoding/json/v2"
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
+	"go/constant"
+	"go/types"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -15,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -179,68 +178,28 @@ func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 }
 
 // declaredCodeCount returns how many exported string constants the package
-// declares, read from its own source. The kind is read off the declaration, not
-// the name, so MaxQuotedErrorBytes is not counted and a new code is counted
-// whatever it is called.
+// declares. The kind is read off the type checker, not the name, so
+// MaxQuotedErrorBytes is not counted and a new code is counted whatever it is
+// called or however its value is written.
 //
-// It is parsed rather than written down because a maintained count rots
+// It is derived rather than written down because a maintained count rots
 // silently: a code added without touching this file would leave the number
 // right by accident until it was not.
 func declaredCodeCount(t *testing.T) int {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
 	require.NoError(t, err)
 
-	fset := token.NewFileSet()
-	var n, parsed int
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, parseErr := parser.ParseFile(fset, name, nil, 0)
-		require.NoError(t, parseErr)
-		parsed++
-		for _, decl := range file.Decls {
-			n += constNamesIn(decl)
+	scope := p.Types.Scope()
+	var n int
+	for _, name := range scope.Names() {
+		c, isConst := scope.Lookup(name).(*types.Const)
+		if isConst && c.Exported() && c.Val().Kind() == constant.String {
+			n++
 		}
 	}
-	require.Positive(t, parsed, "found no non-test source to read the codes from")
 	require.Positive(t, n, "found no declared codes to count")
 	return n
-}
-
-// constNamesIn returns how many exported names decl declares as string
-// constants.
-func constNamesIn(decl ast.Decl) int {
-	gen, ok := decl.(*ast.GenDecl)
-	if !ok || gen.Tok != token.CONST {
-		return 0
-	}
-	var n int
-	for _, spec := range gen.Specs {
-		vs, ok := spec.(*ast.ValueSpec)
-		if !ok {
-			continue
-		}
-		for i, name := range vs.Names {
-			if name.IsExported() && isStringLiteral(vs, i) {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-// isStringLiteral reports whether the i'th name of vs is bound to a string
-// literal. A ValueSpec with no values at position i is an iota-style or repeated
-// declaration, which no code in this package uses and which names no string.
-func isStringLiteral(vs *ast.ValueSpec, i int) bool {
-	if i >= len(vs.Values) {
-		return false
-	}
-	lit, ok := vs.Values[i].(*ast.BasicLit)
-	return ok && lit.Kind == token.STRING
 }
 
 // TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for
