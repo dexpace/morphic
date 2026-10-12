@@ -76,15 +76,17 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
+	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(new(ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}), src, written(`{"type":"integer"}`))
+	g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]
 	assert.Equal(t, diag.ConflictingRedecl, d.Code)
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
+	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the property already merged keeps its type")
 }
 
 // TestMerger_MergeConstraintsKeepsBothSidesBounds covers the merge half rather
