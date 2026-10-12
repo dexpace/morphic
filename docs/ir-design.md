@@ -1365,6 +1365,8 @@ type Operation struct {
     LongRunning *LongRunning
     Idempotency Idempotency       // unknown | safe | idempotent | idempotency_token(param)
                                   // safe = no side effects (Smithy @readonly, HTTP GET semantics)
+                                  // TokenParam is set exactly for idempotency_token; validate
+                                  // rejects either half alone (pass/idempotency-token-mismatch)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
     Tags       []string
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
