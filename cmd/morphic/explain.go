@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json/jsontext"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 
@@ -125,15 +126,11 @@ func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 }
 
 // sortedTypeIDs returns the registry's keys in sorted order so explain output is
-// deterministic (invariant 7).
+// deterministic (invariant 7). A compile that produced no document passes nil,
+// which has none.
 func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
 	if doc == nil {
 		return nil
 	}
-	ids := make([]ir.TypeID, 0, len(doc.Types))
-	for id := range doc.Types {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
+	return slices.Sorted(maps.Keys(doc.Types))
 }

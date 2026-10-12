@@ -6,8 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -157,11 +159,7 @@ func recordGoroutineState(dirs map[string]*dirGoroutineState, p, rel string) err
 // unguardedDirs returns one message per directory in dirs that started a
 // goroutine with no call recorded against it, sorted for a stable report.
 func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
-	names := make([]string, 0, len(dirs))
-	for dir := range dirs {
-		names = append(names, dir)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(dirs))
 
 	var violations []string
 	for _, dir := range names {

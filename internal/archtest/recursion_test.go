@@ -5,7 +5,9 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -650,11 +652,7 @@ func stronglyConnected(graph map[string]map[string]bool) [][]string {
 			comps = append(comps, comp)
 		}
 	}
-	names := make([]string, 0, len(graph))
-	for n := range graph {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(graph))
 	for _, n := range names {
 		if !visited(index, n) {
 			visit(n)
@@ -943,16 +941,7 @@ func plantedCallees(t *testing.T, src string, outside map[string]bool) []string 
 		known[d.name] = true
 	}
 
-	got := calleesOf(decls[len(decls)-1], known)
-	names := make([]string, 0, len(got))
-	for n := range got {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	if len(names) == 0 {
-		return nil
-	}
-	return names
+	return slices.Sorted(maps.Keys(calleesOf(decls[len(decls)-1], known)))
 }
 
 // TestDeclOf_NamesAMethodByItsReceiverType pins the key a method gets, over
@@ -1162,11 +1151,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, found, "no package declares a lowering; the walk or the context type moved")
 
-	derived := make([]string, 0, len(found))
-	for pkg := range found {
-		derived = append(derived, pkg)
-	}
-	sort.Strings(derived)
+	derived := slices.Sorted(maps.Keys(found))
 	listed := append([]string(nil), loweringPackages...)
 	sort.Strings(listed)
 

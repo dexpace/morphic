@@ -4,6 +4,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -4582,15 +4584,7 @@ func assertKeptVerbatim(t *testing.T, p ir.Unmodeled, key, raw string) {
 // expected key set assertable as a whole: a census that keeps too much fails the
 // same test as one that keeps too little.
 func unmodeledKeys(p ir.Unmodeled) []string {
-	if len(p) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(p))
-	for key := range p {
-		out = append(out, key)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(p))
 }
 
 // TestRefSiteKeywords_KeptAtEveryPosition covers the census the $ref path never

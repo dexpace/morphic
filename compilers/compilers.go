@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -301,17 +302,12 @@ func isNilCompiler(c Compiler) bool {
 // is read, never compared against, and a version comparator guessing at every
 // format's scheme is a larger thing to get wrong.
 func (r *Registry) Formats() []SourceFormat {
-	formats := make([]SourceFormat, 0, len(r.byFormat))
-	for format := range r.byFormat {
-		formats = append(formats, format)
-	}
-	slices.SortFunc(formats, func(a, b SourceFormat) int {
+	return slices.SortedFunc(maps.Keys(r.byFormat), func(a, b SourceFormat) int {
 		if byName := strings.Compare(a.Name, b.Name); byName != 0 {
 			return byName
 		}
 		return strings.Compare(a.Version, b.Version)
 	})
-	return formats
 }
 
 // Lookup returns the compiler registered for format.
