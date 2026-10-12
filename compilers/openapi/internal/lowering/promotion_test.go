@@ -363,8 +363,7 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
-	enum := ir.Enum{Closed: true}
-	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, &enum, &ir.Provenance{})
+	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, new(ir.Enum{Closed: true}), &ir.Provenance{})
 
 	entry, kept := unmodeled["openapi:x-extensible-enum"]
 	require.True(t, kept, "the entry survives its own promotion")

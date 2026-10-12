@@ -76,11 +76,10 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
-	dst := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 	src := ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/int"},
 		Provenance: ptrAt("/components/schemas/S/properties/id")}
 
-	g.reconcileProperty(&dst, src, written(`{"type":"integer"}`))
+	g.reconcileProperty(new(ir.Property{Name: ir.Naming{Source: "id"}, WireName: "id", Type: ir.TypeRef{Target: "t/str"}}), src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "one disagreement, one diagnostic")
 	d := (*recorded)[0]
@@ -92,11 +91,9 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 // than the conflict half: constraints that do not disagree combine.
 func TestMerger_MergeConstraintsKeepsBothSidesBounds(t *testing.T) {
 	t.Parallel()
-	maxLen := int64(10)
-	minLen := int64(2)
 	got := mergeConstraints(
-		&ir.Constraints{MaxLength: &maxLen},
-		&ir.Constraints{MinLength: &minLen},
+		&ir.Constraints{MaxLength: new(int64(10))},
+		&ir.Constraints{MinLength: new(int64(2))},
 	)
 	require.NotNil(t, got)
 	require.NotNil(t, got.MaxLength)

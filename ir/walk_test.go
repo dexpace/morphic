@@ -41,12 +41,11 @@ func nestedListValue(depth int) ir.Value {
 // ".TypeCommon" step that neither JSON nor Go has.
 func TestWalkValues_PathsSpellFieldsIndicesAndKeys(t *testing.T) {
 	t.Parallel()
-	value := ir.Value{Kind: ir.ValueNull}
 	doc := &ir.Document{
 		Name: "api",
 		Types: ir.TypeRegistry{"t/x/M": &ir.Model{
 			ID:       "t/x/M",
-			Examples: []ir.Example{{Value: &value}},
+			Examples: []ir.Example{{Value: new(ir.Value{Kind: ir.ValueNull})}},
 		}},
 	}
 

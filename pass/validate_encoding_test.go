@@ -94,8 +94,7 @@ func TestValidate_PayloadRequiredOutsideARequest(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			payload := multipartPayload(nil)
-			required := false
-			payload.Required = &required
+			payload.Required = new(false)
 			tc.plant(doc, payload)
 
 			found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")

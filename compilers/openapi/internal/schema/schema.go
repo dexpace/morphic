@@ -2008,8 +2008,7 @@ const maxNullConjuncts = 256
 // goes through — a definition site, a union, an allOf conjunct and a $ref use
 // site must never disagree about the same schema.
 func schemaAdmitsNull(s *oas3.Schema) bool {
-	budget := maxNullConjuncts
-	return schemaNullVerdict(s, &budget) == nullAdmitted
+	return schemaNullVerdict(s, new(maxNullConjuncts)) == nullAdmitted
 }
 
 // schemaNullVerdict reads what a whole schema says about null, by conjoining

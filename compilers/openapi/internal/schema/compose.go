@@ -974,8 +974,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 	if !branch.Nullable {
 		return false
 	}
-	budget := maxNullConjuncts
-	return schemaNullVerdict(body, &budget) != nullForbidden
+	return schemaNullVerdict(body, new(maxNullConjuncts)) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
