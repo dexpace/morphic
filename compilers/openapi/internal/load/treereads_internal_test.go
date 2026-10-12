@@ -283,7 +283,7 @@ func (g *treeGen) token(n *yaml.Node) string {
 		if key == nil || key.Kind != yaml.ScalarNode {
 			return "a"
 		}
-		return strings.ReplaceAll(strings.ReplaceAll(key.Value, "~", "~0"), "/", "~1")
+		return jsonpointer.EscapeString(key.Value)
 	case n != nil && n.Kind == yaml.SequenceNode && len(n.Content) > 0:
 		return strconv.Itoa(g.rng.IntN(len(n.Content)))
 	default:

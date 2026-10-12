@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -135,17 +136,11 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 		// A scalar or an alias holds no path below it.
 	}
 	for i, c := range children {
-		p := jsontext.Pointer(string(at) + "/" + escape(tokens[i]))
+		p := jsontext.Pointer(string(at) + "/" + jsonpointer.EscapeString(tokens[i]))
 		*out = append(*out, p)
 		if !treePaths(t, c, p, out, refs, depth+1) {
 			return false
 		}
 	}
 	return true
-}
-
-// escape spells token as a pointer token, byte for byte: jsontext would spell a
-// byte that is no UTF-8 as U+FFFD, a key the library never compares.
-func escape(token string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1")
 }
