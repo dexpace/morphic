@@ -58,3 +58,20 @@ func TestForEachOperation_OneBeyondTheCap(t *testing.T) {
 	require.True(t, truncated, "an operation past the cap goes unvisited, and the walk says so")
 	assert.Empty(t, got)
 }
+
+// TestForEachOperation_TruncationSkipsOnlyTheDeepGroups declares the truncated
+// group first, among its siblings and among services, so a clean one after it
+// would lose the report if its result overwrote it, or go unvisited if the cut
+// ended the walk.
+func TestForEachOperation_TruncationSkipsOnlyTheDeepGroups(t *testing.T) {
+	t.Parallel()
+	deep := groupChain(ir.MaxGroupDepth + 1).Services[0].Groups
+	doc := &ir.Document{Services: []ir.Service{
+		{Groups: append(deep, ir.OperationGroup{Operations: []ir.Operation{{ID: "sibling"}}})},
+		{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "later"}}}}},
+	}}
+	var got []ir.OpID
+	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
+	assert.True(t, truncated, "a clean group or service after the cut keeps the report")
+	assert.Equal(t, []ir.OpID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
+}

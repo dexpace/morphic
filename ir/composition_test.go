@@ -49,7 +49,7 @@ func TestSupertypes_BaseThenImplementsThroughAliases(t *testing.T) {
 			m.Implements = refs("i1", "i2")
 			m.Mixins = refs("mix")
 		}),
-		compScalar("alias", "b"),
+		compScalar("alias", "alias2"), compScalar("alias2", "b"),
 		compModel("b", nil), compModel("i1", nil), compModel("i2", nil), compModel("mix", nil),
 	)
 	assert.Equal(t, []ir.TypeID{"b", "i1", "i2"}, ir.Supertypes(doc, "m"))
