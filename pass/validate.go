@@ -38,8 +38,7 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
 	diags = append(diags, checkDuplicateMemberIDs(doc)...)
-	diags = append(diags, checkParamBindings(doc)...)
-	diags = append(diags, checkParamReferences(doc)...)
+	diags = append(diags, checkParams(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
@@ -662,10 +661,18 @@ func effectiveWireName(p ir.Property) string {
 	return p.Name.Source
 }
 
+// checkParams holds every reference an operation makes to a parameter — its
+// HTTP bindings, its pagination inputs and its idempotency token — to the
+// parameters it declares, reading the document's declared IDs once for both
+// checks.
+func checkParams(doc *ir.Document) []ir.Diagnostic {
+	declared := declaredParamIDs(doc)
+	return append(checkParamBindings(doc, declared), checkParamReferences(doc, declared)...)
+}
+
 // checkParamBindings validates each HTTP binding's parameter bindings against
 // the operation's logical parameters.
-func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
-	declared := declaredParamIDs(doc)
+func checkParamBindings(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {
 		for i := range op.Bindings.HTTP {
@@ -776,8 +783,7 @@ func operationParamRefs(op ir.Operation) []paramRef {
 // has nothing to say about it, while an emitter reads the pagination cursor off
 // the wrong operation's parameter. An ID no operation declares is the dangling
 // walk's, reported once there; an empty one is irverify's.
-func checkParamReferences(doc *ir.Document) []ir.Diagnostic {
-	declared := declaredParamIDs(doc)
+func checkParamReferences(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachOperation(doc, func(op ir.Operation) {
 		own := make(map[ir.ParamID]bool, len(op.Params))
