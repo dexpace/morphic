@@ -487,7 +487,7 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	var violations []string
 	for _, imp := range f.Imports {
 		ip := strings.Trim(imp.Path.Value, `"`)
-		if !strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
+		if first, _, _ := strings.Cut(ip, "/"); !strings.Contains(first, ".") {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.

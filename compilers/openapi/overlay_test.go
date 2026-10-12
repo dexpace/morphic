@@ -643,11 +643,13 @@ actions:
 // what keeps the table below honest about which map an entry actually landed
 // on instead of merely one it could have.
 func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
-	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
 	out := map[string]ir.UnmodeledEntry{}
 	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() == entryType && v.CanInterface() {
-			out[path] = v.Interface().(ir.UnmodeledEntry)
+		if !v.CanInterface() {
+			return true
+		}
+		if entry, ok := reflect.TypeAssert[ir.UnmodeledEntry](v); ok {
+			out[path] = entry
 		}
 		return true
 	})
