@@ -1104,9 +1104,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	}
 	tgt := resolve.TargetSchema(js, ref)
 	def, diags := DefaultOf(c, ref, tgt, pointer)
-	if def != nil {
-		p.Default = def
-	}
+	p.Default = def
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}

@@ -163,9 +163,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// off an intermediate reference instead of the schema that declares them.
 	tgt := resolve.TargetSchema(js, s)
 	def, diags := schema.DefaultOf(c, s, tgt, pointer)
-	if def != nil {
-		param.Default = def
-	}
+	param.Default = def
 
 	// The co-declared bound keyword ir.Constraints has no field for is kept on
 	// the parameter, the carrier at this position, exactly as a property keeps
