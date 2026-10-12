@@ -214,8 +214,8 @@ func keyOfURI(uri string) uriKey {
 func lastSegment(uri string) string {
 	uri, _, _ = strings.Cut(uri, "#")
 	uri, _, _ = strings.Cut(uri, "?")
-	if i := strings.LastIndexByte(uri, '/'); i >= 0 {
-		return uri[i+1:]
+	if _, last, ok := strings.CutLast(uri, "/"); ok {
+		return last
 	}
 	return uri
 }
