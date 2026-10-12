@@ -133,39 +133,15 @@ func pairMap(pairs []Pair) map[string]string {
 	return out
 }
 
-func TestIsMergeKey_MatchesResolver(t *testing.T) {
-	t.Parallel()
-	tagged := func(tag string) *yaml.Node {
-		return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: tag}
-	}
-	tests := []struct {
-		name string
-		in   *yaml.Node
-		want bool
-	}{
-		{"resolved merge tag", tagged(ynode.MergeTag), true},
-		{"quoted string tag", tagged("!!str"), false},
-		{"untagged scalar", ynode.Scalar("<<"), false},
-		{"non-specific tag", tagged("!"), false},
-		{"long-form merge tag", tagged("tag:yaml.org,2002:merge"), false},
-		{"other value", ynode.Scalar("$ref"), false},
-		{"alias key", ynode.Alias(ynode.Merge()), false},
-		{"mapping key", ynode.Map(), false},
-		{"nil", nil, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, IsMergeKey(tc.in))
-		})
-	}
-}
-
-func TestIsMergeKey_AgreesWithParsedTags(t *testing.T) {
+// TestMappingPairs_ExpandsOnlyAParsedMergeKey reads each spelling of `<<` the
+// parser produces through the view. Plain, non-specific and explicitly tagged
+// keys all resolve to the merge tag and merge; a quoted one resolves to a
+// string and is an ordinary key named "<<".
+func TestMappingPairs_ExpandsOnlyAParsedMergeKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, src string
-		want      bool
+		merges    bool
 	}{
 		{"plain", "b: &b {k: v}\nA:\n  <<: *b\n", true},
 		{"non-specific tag", "b: &b {k: v}\nA:\n  ! <<: *b\n", true},
@@ -177,22 +153,26 @@ func TestIsMergeKey_AgreesWithParsedTags(t *testing.T) {
 			t.Parallel()
 			var root yaml.Node
 			require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root))
-			key := findScalar(&root, "<<")
-			require.NotNil(t, key, "no '<<' scalar in the parsed tree")
-			assert.Equal(t, tc.want, IsMergeKey(key), "parsed tag was %q", key.Tag)
+			v := New()
+			a := pairNamed(t, v.MappingPairs(DocumentRoot(&root)), "A")
+
+			got := pairMap(v.MappingPairs(a))
+
+			_, merged := got["k"]
+			assert.Equal(t, tc.merges, merged, "pairs %v", got)
 		})
 	}
 }
 
-func findScalar(n *yaml.Node, value string) *yaml.Node {
-	if n.Kind == yaml.ScalarNode && n.Value == value {
-		return n
-	}
-	for _, c := range n.Content {
-		if found := findScalar(c, value); found != nil {
-			return found
+// pairNamed returns the value of the pair keyed name.
+func pairNamed(t *testing.T, pairs []Pair, name string) *yaml.Node {
+	t.Helper()
+	for _, p := range pairs {
+		if p.Key == name {
+			return p.Val
 		}
 	}
+	require.Failf(t, "no pair", "no pair keyed %q", name)
 	return nil
 }
 

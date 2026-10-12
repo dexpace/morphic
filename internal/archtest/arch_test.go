@@ -64,10 +64,11 @@ var rules = map[string][]string{
 	// internal test file cannot import a package that imports its own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
-	// through aliases and `<<` merge keys. It reaches ynode for the merge tag its
-	// key predicate tests against, and is below both the scans that first wanted
-	// it and the schema lowering that wants the same view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// through aliases and `<<` merge keys. It reaches the library's yml package
+	// for the merge-key predicate the unmarshaller itself uses, and is below both
+	// the scans that first wanted it and the schema lowering that wants the same
+	// view.
+	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
