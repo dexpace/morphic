@@ -89,7 +89,7 @@ var idOwners = []string{"compilers/compile"}
 
 // idTypes are ir's ID types. A compiler converting a string into one of them is
 // deriving an identifier.
-var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ChannelID", "MessageID"}
+var idTypes = []string{"TypeID", "OpID", "PropID", "AuthID", "ServiceID", "GroupID", "ParamID", "EnumMemberID", "ChannelID", "MessageID"}
 
 // TestIDGrammar_CompilersDeriveIDsThroughTheFramework asserts that no compiler
 // but the framework builds an ir ID out of a string, or a namespace out of
@@ -119,21 +119,25 @@ func TestIDDerivations_LocalGrammarIsCaught(t *testing.T) {
 
 const anyTypeID ir.TypeID = "t/graphql/any"
 
-func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID) {
+func ids(pointer string, existing ir.OpID) (ir.TypeID, ir.OpID, ir.PropID, ir.ParamID, ir.EnumMemberID) {
 	named := ir.TypeID("t/graphql" + pointer)
 	op := compile.OpID(graphqlSpace, pointer)
 	var copied ir.OpID = existing
 	prop := ir.PropID("p/graphql" + pointer)
-	return named, op, prop
+	param := ir.ParamID("param/graphql" + pointer)
+	member := ir.EnumMemberID("e/graphql" + pointer)
+	return named, op, prop, param, member
 }
 `
 	offenders, err := idDerivations("planted.go", "compilers/graphql/ids.go", src)
 	require.NoError(t, err)
-	require.Len(t, offenders, 3,
-		"the constant and the two conversions, not the framework call or the copy: %v", offenders)
+	require.Len(t, offenders, 5,
+		"the constant and the four conversions, not the framework call or the copy: %v", offenders)
 	assert.Contains(t, offenders[0], "declares a literal as an ir.TypeID")
 	assert.Contains(t, offenders[1], "converts a string to an ir.TypeID")
 	assert.Contains(t, offenders[2], "converts a string to an ir.PropID")
+	assert.Contains(t, offenders[3], "converts a string to an ir.ParamID")
+	assert.Contains(t, offenders[4], "converts a string to an ir.EnumMemberID")
 }
 
 // TestIDDerivations_SpaceBuiltFromDataIsCaught plants a compiler assembling a
@@ -225,7 +229,7 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 		found = append(found, fmt.Sprintf("%s:%d: %s an ir.%s rather than deriving it through the framework",
 			rel, fset.Position(pos).Line, how, idType))
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
+	for n := range ast.Preorder(file) {
 		switch node := n.(type) {
 		case *ast.CallExpr:
 			if idType, ok := idTypeName(node.Fun, names.ir); ok {
@@ -244,8 +248,7 @@ func idDerivations(path, rel string, src any) ([]string, error) {
 			found = append(found, fmt.Sprintf("%s:%d: %s; a compile.Space is a literal, or the path glued onto it loses its separator",
 				rel, fset.Position(n.Pos()).Line, how))
 		}
-		return true
-	})
+	}
 	return found, nil
 }
 
@@ -378,7 +381,7 @@ func nameChannelViolations(path, rel string, src any) ([]string, error) {
 		found = append(found, fmt.Sprintf("%s:%d: %s is filled by %s rather than by the framework",
 			rel, fset.Position(expr.Pos()).Line, field, exprText(fset, expr)))
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
+	for n := range ast.Preorder(file) {
 		switch node := n.(type) {
 		case *ast.CompositeLit:
 			reportNameChannelField(node, report)
@@ -386,8 +389,7 @@ func nameChannelViolations(path, rel string, src any) ([]string, error) {
 			reportNameChannelAssign(node, report)
 		default:
 		}
-		return true
-	})
+	}
 	return found, nil
 }
 

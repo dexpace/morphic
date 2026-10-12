@@ -166,14 +166,13 @@ func resultTypes(fn *ast.FuncDecl) []string {
 // callsWalkValues reports whether fn's body calls ir.WalkValues.
 func callsWalkValues(fn *ast.FuncDecl) bool {
 	var found bool
-	ast.Inspect(fn, func(node ast.Node) bool {
+	for node := range ast.Preorder(fn) {
 		sel, isSelector := node.(*ast.SelectorExpr)
 		if !isSelector || sel.Sel.Name != "WalkValues" {
-			return true
+			continue
 		}
 		pkg, isIdent := sel.X.(*ast.Ident)
 		found = found || (isIdent && pkg.Name == "ir")
-		return true
-	})
+	}
 	return found
 }

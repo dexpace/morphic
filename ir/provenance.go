@@ -2,6 +2,7 @@ package ir
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 )
 
@@ -99,12 +100,11 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 // from advisory warnings that must be carried forward, and to report the
 // offending diagnostic once a refusal is confirmed.
 func FirstError(diags []Diagnostic) (Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Severity == SeverityError {
-			return d, true
-		}
+	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return d.Severity == SeverityError })
+	if i < 0 {
+		return Diagnostic{}, false
 	}
-	return Diagnostic{}, false
+	return diags[i], true
 }
 
 // HasError reports whether diags contains at least one error-severity

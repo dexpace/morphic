@@ -56,6 +56,41 @@ webhooks:
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
 }
 
+// TestWebhooks_CallbacksLandInTheWebhooksGroup pins that a webhook operation's
+// callbacks are lowered, as a path operation's are, and that their operations
+// join it in the webhooks group.
+func TestWebhooks_CallbacksLandInTheWebhooksGroup(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  newPet:
+    post:
+      operationId: onNewPet
+      callbacks:
+        ack:
+          '{$request.body#/ack}':
+            post:
+              operationId: ackPost
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+`
+	svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	group := svc.Groups[0]
+	assert.Equal(t, "webhooks", group.Name.Hint)
+	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	hook, ok := byName["onNewPet"]
+	require.True(t, ok)
+	ack, ok := byName["ackPost"]
+	require.True(t, ok, "the callback operation joins the webhook in its group")
+	require.Len(t, hook.Bindings.HTTP, 1)
+	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
+}
+
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /subscribe:

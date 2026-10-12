@@ -224,7 +224,7 @@ policy fills in where the spec is silent, never the reverse.
 
 ```
 morphic/
-├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
+├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -255,7 +255,8 @@ morphic/
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
-└── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+└── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
 ```
 
 Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
@@ -288,6 +289,11 @@ Two caps guard the shape rather than the graph, both in `internal/archtest` and 
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
 `micro-compiler-design.md` is about grew to 159 methods without ever writing a long function.
+
+`ir` also owns the traversals the layers above it share: the reflection walk, and the typed walks
+over operations, type edges and composition. A pass or emitter calls them rather than writing its
+own. That is a convention review holds, not a rule a test checks, since no test can tell a
+hand-written walker from any other loop.
 
 ## 4. Diagnostics & provenance
 

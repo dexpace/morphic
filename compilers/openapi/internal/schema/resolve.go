@@ -255,10 +255,8 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if owned, ok := ts.Lookup(string(pointer)); ok {
 		return owned, true, diags
 	}
-	var kept ir.Unmodeled
-	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
-	diags = append(diags, consDiags...)
-	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
+	id, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)
+	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
@@ -380,6 +378,5 @@ var keyedSchemaMaps = map[string]bool{
 // across the reference (refNullVerdict), so the two cannot answer one schema
 // differently.
 func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	budget := maxNullConjuncts
-	return refNullVerdict(js, &budget) == nullAdmitted
+	return refNullVerdict(js, new(maxNullConjuncts)) == nullAdmitted
 }

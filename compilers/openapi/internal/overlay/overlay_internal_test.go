@@ -217,8 +217,7 @@ func TestRepairGrafts_ReportsWalkingAndSubstitutingApart(t *testing.T) {
 // refuses rather than writing an empty node into the document.
 func TestExpandAlias_DeclinesAnAliasNamingNothing(t *testing.T) {
 	t.Parallel()
-	budget := maxNodes
-	got, ok := expandAlias(&yaml.Node{Kind: yaml.AliasNode}, &budget)
+	got, ok := expandAlias(&yaml.Node{Kind: yaml.AliasNode}, new(maxNodes))
 	assert.False(t, ok)
 	assert.Nil(t, got)
 }
@@ -241,8 +240,7 @@ func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
 	withNil := ynode.Map(ynode.Scalar("a"), nil)
 	reachable, ok = reachableNodes(withNil, maxNodes)
 	require.True(t, ok, "a nil child is skipped, not dereferenced")
-	budget := maxNodes
-	assert.True(t, substituteGrafts(withNil, reachable, &budget), "and skipped again on the way back")
+	assert.True(t, substituteGrafts(withNil, reachable, new(maxNodes)), "and skipped again on the way back")
 }
 
 // TestSubstituteGrafts_StopsAtItsOwnBudget pins the bound on the walk that
