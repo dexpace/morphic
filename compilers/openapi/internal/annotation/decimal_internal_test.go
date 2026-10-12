@@ -184,3 +184,66 @@ func TestBigValGrammarStaysWithinTheDecimalReading(t *testing.T) {
 	// exactly what a widened rejection in ir would look like from here.
 	require.NotZero(t, accepted, "the corpus reached NewBigVal")
 }
+
+// canonicalLiterals are spellings of a handful of values, several of each, and
+// values a rounding reading would merge.
+var canonicalLiterals = []string{
+	"0", "-0.0", "0e9", "1", "1.0", "1e0", "10e-1", "10", "1e1", "10.0", "1500", "1500.0", "15e2", "1.5e3",
+	"0.001", "1e-3", "5", "-5", "-5.00", "-0.5e1", "1e1000001", "10e1000000", "1e-1000001",
+	"9007199254740993", "9007199254740992", "1.0000000000000001", "1.0000000000000002",
+}
+
+func TestCanonicalDecimal_SpellsEachValueOnce(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ literal, want string }{
+		{"1", "1e0"}, {"1.0", "1e0"}, {"10", "1e1"}, {"10.0", "1e1"}, {"1500", "1.5e3"}, {"15e2", "1.5e3"},
+		{"0.001", "1e-3"}, {"-5.00", "-5e0"}, {"-0.0", "0"}, {"0e9", "0"},
+		{"10e1000000", "1e1000001"}, {"1.0000000000000001", "1.0000000000000001e0"},
+	}
+	for _, tc := range tests {
+		got, ok := CanonicalDecimal(ir.BigVal(tc.literal))
+		require.True(t, ok, tc.literal)
+		assert.Equal(t, tc.want, got, tc.literal)
+	}
+}
+
+// TestCanonicalDecimal_AgreesWithBigValEqual holds the two readings to one
+// answer over every pair of canonicalLiterals: a shared spelling for a pair that
+// is one value, and distinct spellings for a pair that is two.
+func TestCanonicalDecimal_AgreesWithBigValEqual(t *testing.T) {
+	t.Parallel()
+	for _, a := range canonicalLiterals {
+		for _, b := range canonicalLiterals {
+			ca, okA := CanonicalDecimal(ir.BigVal(a))
+			cb, okB := CanonicalDecimal(ir.BigVal(b))
+			require.True(t, okA && okB, "%s, %s", a, b)
+			assert.Equal(t, BigValEqual(ir.BigVal(a), ir.BigVal(b)), ca == cb, "%s and %s", a, b)
+		}
+	}
+}
+
+func TestCanonicalDecimal_DeclinesWhatIsNotADecimalLiteral(t *testing.T) {
+	t.Parallel()
+	_, ok := CanonicalDecimal("1p4")
+	assert.False(t, ok)
+}
+
+// FuzzCanonicalDecimal_AgreesWithBigValEqual searches for two values that share
+// a canonical spelling, or one value spelled two ways that does not. A member
+// ID keys a number by it, so the first would merge two enum members.
+func FuzzCanonicalDecimal_AgreesWithBigValEqual(f *testing.F) {
+	for i, a := range canonicalLiterals {
+		f.Add(a, canonicalLiterals[(i+1)%len(canonicalLiterals)])
+	}
+	f.Fuzz(func(t *testing.T, a, b string) {
+		va, errA := ir.NewBigVal(a)
+		vb, errB := ir.NewBigVal(b)
+		if errA != nil || errB != nil {
+			return
+		}
+		ca, okA := CanonicalDecimal(va)
+		cb, okB := CanonicalDecimal(vb)
+		require.True(t, okA && okB, "every BigVal is in the decimal grammar: %q, %q", va, vb)
+		require.Equal(t, BigValEqual(va, vb), ca == cb, "%q (%s) and %q (%s)", va, ca, vb, cb)
+	})
+}

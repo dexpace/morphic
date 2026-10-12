@@ -266,7 +266,7 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/openapi/components/schemas/N/n:-1",
+          "id": "e/openapi/components/schemas/N/n:-1e0",
           "name": {
             "source": "-1",
             "canonical": "1"
@@ -278,7 +278,7 @@
           "docs": {}
         },
         {
-          "id": "e/openapi/components/schemas/N/n:1",
+          "id": "e/openapi/components/schemas/N/n:1e0",
           "name": {
             "source": "1",
             "canonical": "1"

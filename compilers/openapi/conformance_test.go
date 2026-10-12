@@ -1935,8 +1935,8 @@ func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"e/openapi/components/schemas/E/s:a-b#2",
 	}, memberIDs("t/openapi/components/schemas/E"))
 	assert.Equal(t, []ir.EnumMemberID{
-		"e/openapi/components/schemas/N/n:-1",
-		"e/openapi/components/schemas/N/n:1",
+		"e/openapi/components/schemas/N/n:-1e0",
+		"e/openapi/components/schemas/N/n:1e0",
 		"e/openapi/components/schemas/N/n:0",
 	}, memberIDs("t/openapi/components/schemas/N"))
 	assert.Equal(t, []ir.EnumMemberID{

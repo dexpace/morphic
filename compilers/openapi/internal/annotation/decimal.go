@@ -31,6 +31,33 @@ func BigValEqual(a, b ir.BigVal) bool {
 	return compareDecimalBounds(aDec, bDec) == 0
 }
 
+// CanonicalDecimal returns one spelling of the value a numeric literal denotes:
+// its leading significant digit, any others after a point, and the power of ten
+// the leading digit carries, so 1500, 1500.0 and 15e2 are all "1.5e3". Every
+// zero is "0".
+//
+// It reads the literal as BigValEqual does, so two literals share a spelling
+// exactly when BigValEqual calls them equal, and it is as total: the exponent is
+// carried as text, never materialized. ok is false outside the decimal grammar.
+func CanonicalDecimal(v ir.BigVal) (string, bool) {
+	d, ok := parseDecimalBound(v)
+	if !ok {
+		return "", false
+	}
+	if d.digits == "" {
+		return "0", true
+	}
+	digits := strings.TrimRight(d.digits, "0")
+	mantissa := digits[:1]
+	if len(digits) > 1 {
+		mantissa += "." + digits[1:]
+	}
+	if d.neg {
+		mantissa = "-" + mantissa
+	}
+	return mantissa + "e" + d.msdExp.String(), true
+}
+
 // decimalBound is a numeric literal split into the pieces an exact comparison
 // needs: its sign, its significant digits with the point removed and leading
 // zeros stripped, and the power of ten the first of those digits carries.

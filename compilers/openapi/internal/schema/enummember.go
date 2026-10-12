@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -14,7 +15,8 @@ import (
 
 // enumMemberKey returns the key an enum member is identified by: a one-letter
 // tag for the kind of value and the value itself, so the string "1" and the
-// number 1 are two members.
+// number 1 are two members. A number is keyed by its canonical decimal
+// (numberKey), so 10 and 1e1 are one value.
 //
 // The key reads the value, never the name, so reordering renames nothing. The
 // payload has % and # escaped, in that order, so the # that starts a repeat's
@@ -29,7 +31,7 @@ func enumMemberKey(v ir.Value) (key string, ok bool) {
 	case ir.ValueSymbol:
 		tag, payload = "y", v.Str
 	case ir.ValueNumber:
-		tag, payload = "n", string(v.Num)
+		tag, payload = "n", numberKey(v.Num)
 	case ir.ValueBool:
 		tag, payload = "b", strconv.FormatBool(v.Bool)
 	case ir.ValueBytes:
@@ -43,6 +45,15 @@ func enumMemberKey(v ir.Value) (key string, ok bool) {
 	}
 	payload = strings.ReplaceAll(strings.ReplaceAll(payload, "%", "%25"), "#", "%23")
 	return tag + ":" + payload, true
+}
+
+// numberKey returns n's canonical decimal, or n as spelled outside that grammar.
+// No canonical decimal is outside it, so the two never meet as one key.
+func numberKey(n ir.BigVal) string {
+	if canonical, ok := annotation.CanonicalDecimal(n); ok {
+		return canonical
+	}
+	return string(n)
 }
 
 // memberID returns the ID of the occurrence-th member of the enum at pointer

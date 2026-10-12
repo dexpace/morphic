@@ -746,16 +746,18 @@ Duplicate member values are legal (protobuf `allow_alias`); slice order preserve
 canonical for serialization, and the validate pass must not reject them.
 
 A member's `ID` is keyed by the value it holds, never by its name or its position: `a-b` and `a_b`
-render from the same words and are still two members, and reordering the list renames none. The
-key is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string,
-`y` symbol, `n` the canonical decimal, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null —
-so the string `1` and the number `1` are two members. The payload has `%` written `%25` and `#`
-written `%23` first. A list, object, reference or constructor value has no key, and an enum holding
-one is not an `Enum`. A value held twice keeps every member: the first has the bare key, the
-repeats take `#2`, `#3`, and so on, and the OpenAPI compiler reports each repeat
-(`openapi/duplicate-enum-value`). Which repeat holds the bare ID follows source order, so a reorder
-keeps the set of IDs and may move that one. `pass.Validate` reports an ID repeated within one enum
-as `pass/duplicate-enum-member-id`.
+render from the same words and are still two members, and reordering the list renames none. The key
+is one RFC 6901 token, `<tag>:<payload>`, where the tag names the kind of value — `s` string, `y`
+symbol, `n` number, `b` bool, `x` bytes as unpadded URL-safe base64, `z` null — so the string `1`
+and the number `1` are two members. A number's payload is its canonical decimal: the leading
+significant digit, any others after a point, and the power of ten that digit carries, so `1500`,
+`1500.0` and `15e2` are all `1.5e3` and every zero is `0`. The member's `Value` keeps the spelling
+the source wrote. The payload has `%` written `%25` and `#` written `%23` first. A list, object,
+reference or constructor value has no key, and an enum holding one is not an `Enum`. A value held
+twice keeps every member: the first has the bare key, the repeats take `#2`, `#3`, and so on, and
+the OpenAPI compiler reports each repeat (`openapi/duplicate-enum-value`). Which repeat holds the
+bare ID follows source order, so a reorder keeps the set of IDs and may move that one.
+`pass.Validate` reports an ID repeated within one enum as `pass/duplicate-enum-member-id`.
 
 A **closed** Enum with **no members** is the empty value space — it admits its members and has
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's

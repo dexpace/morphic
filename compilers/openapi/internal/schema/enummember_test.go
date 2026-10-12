@@ -49,7 +49,26 @@ func TestEnumMemberIDs_SignedNumbersAreThreeIDs(t *testing.T) {
       type: integer
       enum: [-1, 1, 0]
 `))
-	assert.Equal(t, []string{"n:-1", "n:1", "n:0"}, memberKeys(enumOf(t, doc, componentID("N"))))
+	assert.Equal(t, []string{"n:-1e0", "n:1e0", "n:0"}, memberKeys(enumOf(t, doc, componentID("N"))))
+}
+
+// TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat holds a number's key to its
+// value: 10, 10.0 and 1e1 are one number, so the second and third are repeats,
+// each keeping the spelling it was written with.
+func TestEnumMemberIDs_OneNumberSpelledTwiceIsARepeat(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    N:
+      type: number
+      enum: [10, 10.0, 1e1, 100]
+`))
+	members := enumOf(t, doc, componentID("N"))
+	assert.Equal(t, []string{"n:1e1", "n:1e1#2", "n:1e1#3", "n:1e2"}, memberKeys(members))
+	var spelled []ir.BigVal
+	for _, m := range members {
+		spelled = append(spelled, m.Value.Num)
+	}
+	assert.Equal(t, []ir.BigVal{"10", "10.0", "1e1", "100"}, spelled, "the value is kept as written")
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DuplicateEnumValue, ir.SeverityWarning))
 }
 
 func TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs(t *testing.T) {
@@ -85,7 +104,7 @@ func TestEnumMemberIDs_StringAndNumberOfEqualTextDiffer(t *testing.T) {
 	for _, name := range []string{"S", "N", "B", "T"} {
 		keys[memberKeys(enumOf(t, doc, componentID(name)))[0]] = true
 	}
-	assert.Equal(t, map[string]bool{"s:1": true, "n:1": true, "s:true": true, "b:true": true}, keys)
+	assert.Equal(t, map[string]bool{"s:1": true, "n:1e0": true, "s:true": true, "b:true": true}, keys)
 }
 
 func TestEnumMemberIDs_ReorderKeepsTheIDSet(t *testing.T) {

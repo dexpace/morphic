@@ -65,7 +65,7 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/anon/components/schemas/S/properties/choice/n:1",
+          "id": "e/anon/components/schemas/S/properties/choice/n:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
@@ -77,7 +77,7 @@
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/S/properties/choice/n:123456789012345678901234567890",
+          "id": "e/anon/components/schemas/S/properties/choice/n:1.2345678901234567890123456789e29",
           "name": {
             "source": "123456789012345678901234567890",
             "canonical": "123456789012345678901234567890"
@@ -108,7 +108,7 @@
       "valueType": "integer",
       "members": [
         {
-          "id": "e/anon/components/schemas/S/properties/mode/n:420",
+          "id": "e/anon/components/schemas/S/properties/mode/n:4.2e2",
           "name": {
             "source": "420",
             "canonical": "420"
@@ -120,7 +120,7 @@
           "docs": {}
         },
         {
-          "id": "e/anon/components/schemas/S/properties/mode/n:493",
+          "id": "e/anon/components/schemas/S/properties/mode/n:4.93e2",
           "name": {
             "source": "493",
             "canonical": "493"
