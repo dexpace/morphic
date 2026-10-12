@@ -11,16 +11,15 @@ import (
 // holds this set to identityClasses, which classifies every named string type
 // the ir sources declare.
 var idTypes = map[reflect.Type]bool{
-	reflect.TypeFor[ir.TypeID]():    true,
-	reflect.TypeFor[ir.OpID]():      true,
-	reflect.TypeFor[ir.ChannelID](): true,
-	reflect.TypeFor[ir.MessageID](): true,
-	reflect.TypeFor[ir.AuthID]():    true,
-	reflect.TypeFor[ir.ServiceID](): true,
-	reflect.TypeFor[ir.GroupID]():   true,
-	reflect.TypeFor[ir.PropID]():    true,
-	reflect.TypeFor[ir.ParamID]():   true,
-
+	reflect.TypeFor[ir.TypeID]():       true,
+	reflect.TypeFor[ir.OpID]():         true,
+	reflect.TypeFor[ir.ChannelID]():    true,
+	reflect.TypeFor[ir.MessageID]():    true,
+	reflect.TypeFor[ir.AuthID]():       true,
+	reflect.TypeFor[ir.ServiceID]():    true,
+	reflect.TypeFor[ir.GroupID]():      true,
+	reflect.TypeFor[ir.PropID]():       true,
+	reflect.TypeFor[ir.ParamID]():      true,
 	reflect.TypeFor[ir.EnumMemberID](): true,
 }
 

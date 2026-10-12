@@ -31,14 +31,13 @@ type Space string
 // checker drift apart, which is the divergence GitHub #163 fixed for the
 // neighbouring naming grammar.
 const (
-	typeKind    = ir.IDKindType
-	opKind      = ir.IDKindOp
-	propKind    = ir.IDKindProp
-	authKind    = ir.IDKindAuth
-	serviceKind = ir.IDKindService
-	groupKind   = ir.IDKindGroup
-	paramKind   = ir.IDKindParam
-
+	typeKind       = ir.IDKindType
+	opKind         = ir.IDKindOp
+	propKind       = ir.IDKindProp
+	authKind       = ir.IDKindAuth
+	serviceKind    = ir.IDKindService
+	groupKind      = ir.IDKindGroup
+	paramKind      = ir.IDKindParam
 	enumMemberKind = ir.IDKindEnumMember
 )
 

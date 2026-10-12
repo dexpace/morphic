@@ -866,8 +866,8 @@ func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Di
 		diagsAt(diags, "openapi/degraded-construct", "/paths/~1x/get/responses/200/headers/X-H/schema"))
 }
 
-// indexByParam indexes HTTP parameter bindings by wire name, the name of the logical parameter they
-// bind.
+// indexByParam indexes HTTP parameter bindings by wire name, the name of the
+// logical parameter each one binds.
 func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
 	out := make(map[string]ir.HTTPParamBinding, len(bindings))
 	for _, b := range bindings {

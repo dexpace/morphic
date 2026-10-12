@@ -2014,12 +2014,12 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
-// paramID is a parameter's identity. OpenAPI keys the Parameter object on
-// (name, in), so two parameters may legally share a name at different
-// locations; a map keyed on the name alone silently keeps one of such a pair and
-// compares the other against nothing. The compiler itself is keyed on both.
-type paramID struct {
-	Param    string
+// paramSlot is what OpenAPI identifies a parameter by: its name and location.
+// Two parameters may legally share a name at different locations, so a map
+// keyed on the name alone silently keeps one of such a pair and compares the
+// other against nothing.
+type paramSlot struct {
+	Name     string
 	Location ir.HTTPLocation
 }
 
@@ -2107,8 +2107,8 @@ func paramStyleExplodeDefault(style string) bool {
 // Generating moves the question up: the table and the fixture can still shrink
 // together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
-func paramStyleMatrixWant() map[paramID]paramWire {
-	want := map[paramID]paramWire{}
+func paramStyleMatrixWant() map[paramSlot]paramWire {
+	want := map[paramSlot]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
@@ -2118,11 +2118,11 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 			{"NoExplode", false},
 			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
 		} {
-			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
 		}
 	}
 	for _, d := range paramStyleDefaultStyles() {
-		want[paramID{string(d.location) + "Defaulted", d.location}] =
+		want[paramSlot{string(d.location) + "Defaulted", d.location}] =
 			paramWire{d.style, paramStyleExplodeDefault(d.style)}
 	}
 	return want
@@ -2179,12 +2179,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 
-	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
 		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.WireName)
-		id := paramID{Param: pb.WireName, Location: pb.Location}
-		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
-		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
+		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
+		got[slot] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
 		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)

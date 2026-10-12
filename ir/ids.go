@@ -39,8 +39,8 @@ type PropID string
 type ParamID string
 
 // EnumMemberID identifies an EnumMember. It is unique across the whole
-// document, and lives under the TypeID of the Enum that declares the member, so
-// a member is keyed by the value it holds in that enum and by nothing else.
+// document: it sits in the namespace and beneath the path of its Enum's TypeID,
+// keyed there by the value the member holds.
 type EnumMemberID string
 
 // The kind prefix that opens every synthetic ID. An ID is
@@ -54,15 +54,13 @@ type EnumMemberID string
 // shape fixed here (GitHub #141). Channels and messages have no prefix yet: no
 // compiler mints one.
 const (
-	IDKindType    = "t"
-	IDKindOp      = "op"
-	IDKindProp    = "p"
-	IDKindAuth    = "auth"
-	IDKindService = "s"
-	IDKindGroup   = "g"
-	IDKindParam   = "param"
-
-	// IDKindEnumMember is the kind of an EnumMemberID.
+	IDKindType       = "t"
+	IDKindOp         = "op"
+	IDKindProp       = "p"
+	IDKindAuth       = "auth"
+	IDKindService    = "s"
+	IDKindGroup      = "g"
+	IDKindParam      = "param"
 	IDKindEnumMember = "e"
 )
 

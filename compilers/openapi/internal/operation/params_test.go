@@ -1068,38 +1068,28 @@ func TestParams_SameNameInTwoLocationsGetsDistinctIDs(t *testing.T) {
 
 func TestParams_IDsFollowNameNotPosition(t *testing.T) {
 	t.Parallel()
-	const reordered = `openapi: 3.1.0
+	byName := func(first, second string) map[string]ir.ParamID {
+		doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /items:
     get:
       operationId: getItem
       parameters:
-        - {name: b, in: query, schema: {type: string}}
-        - {name: a, in: query, schema: {type: string}}
-      responses: {"200": {description: ok}}
-`
-	doc, _ := parseFull(t, reordered)
-	swapped, _ := parseFull(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /items:
-    get:
-      operationId: getItem
-      parameters:
-        - {name: a, in: query, schema: {type: string}}
-        - {name: b, in: query, schema: {type: string}}
+        - {name: `+first+`, in: query, schema: {type: string}}
+        - {name: `+second+`, in: query, schema: {type: string}}
       responses: {"200": {description: ok}}
 `)
-	byName := func(d *ir.Document) map[string]ir.ParamID {
+		openapitest.RequireNoErrorDiags(t, diags)
 		out := map[string]ir.ParamID{}
-		for _, p := range openapitest.FindOp(t, d, "getItem").Params {
+		for _, p := range openapitest.FindOp(t, doc, "getItem").Params {
 			out[p.Name.Source] = p.ID
 		}
 		return out
 	}
-	assert.Equal(t, byName(doc), byName(swapped), "reordering a parameter list renames nothing")
-	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items/get/parameters/a/query"), byName(doc)["a"])
+	ba, ab := byName("b", "a"), byName("a", "b")
+	assert.Equal(t, ab, ba, "reordering a parameter list renames nothing")
+	assert.Equal(t, ir.ParamID("param/openapi/paths/~1items/get/parameters/a/query"), ba["a"])
 }
 
 func TestParams_PathItemParamIsScopedPerOperation(t *testing.T) {

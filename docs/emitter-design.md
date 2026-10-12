@@ -789,7 +789,7 @@ collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-c
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
 in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
 `EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
-alike are two entries to disambiguate and reordering the members renames none.
+alike are two entries to disambiguate, and reordering members of distinct values renames none.
 
 ### 4.13 Interface extraction & request shaping
 

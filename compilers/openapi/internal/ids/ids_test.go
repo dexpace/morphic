@@ -390,14 +390,13 @@ func stringsOver(alphabet []string, maxLen int) []string {
 func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
-		ir.IDKindType:    {"anon", "composed", "openapi"},
-		ir.IDKindOp:      {"openapi"},
-		ir.IDKindProp:    {"openapi"},
-		ir.IDKindAuth:    {"openapi"},
-		ir.IDKindService: {"openapi"},
-		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
-		ir.IDKindParam:   {"openapi"},
-
+		ir.IDKindType:       {"anon", "composed", "openapi"},
+		ir.IDKindOp:         {"openapi"},
+		ir.IDKindProp:       {"openapi"},
+		ir.IDKindAuth:       {"openapi"},
+		ir.IDKindService:    {"openapi"},
+		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:      {"openapi"},
 		ir.IDKindEnumMember: {"anon", "openapi"},
 	}, ids.Namespaces().Declaration())
 }
