@@ -270,7 +270,10 @@ func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
 func ForPointer(pointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(schemaSpace(pointer), string(pointer))
+	if schemaSpace(pointer) == OpenAPISpace {
+		return NamedType(pointer)
+	}
+	return AnonType(pointer)
 }
 
 // schemaSpace returns the namespace of the type a schema at pointer lowers to:
