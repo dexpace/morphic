@@ -27,7 +27,10 @@ spec — field names and shapes here are normative, receiver methods and helpers
    name, a wire name, and (where the format has one) a numeric wire ID. Language casing is never
    stored.
 5. **Serializable.** The whole document round-trips through JSON deterministically (maps are
-   emitted in sorted-key order; slices preserve source order).
+   emitted in sorted-key order; slices preserve source order). In memory it reads as the tree its
+   JSON encodes: a pointer, slice or map may be shared, and is then written once per place that
+   holds it, but none may hold itself, which has no encoding. `irverify` reports one that does
+   (`ir/cyclic-structure`).
 6. **Provenance everywhere.** Every node records where it came from and whether it was declared
    or inferred.
 
