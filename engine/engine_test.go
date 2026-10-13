@@ -466,12 +466,7 @@ func (danglingCompiler) Compile(_ context.Context, _ []compilers.Source, _ compi
 }
 
 func hasDiagCode(diags []ir.Diagnostic, code string) bool {
-	for _, d := range diags {
-		if d.Code == code {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == code })
 }
 
 func TestEngine_ValidateRuns(t *testing.T) {

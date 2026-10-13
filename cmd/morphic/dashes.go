@@ -83,10 +83,10 @@ const (
 func readAlone(probe *pflag.FlagSet, tok string) reading {
 	err := probe.ParseAll([]string{tok}, func(*pflag.Flag, string) error { return nil })
 
-	var needsValue *pflag.ValueRequiredError
-	switch {
-	case errors.As(err, &needsValue):
+	if _, ok := errors.AsType[*pflag.ValueRequiredError](err); ok {
 		return wantsValue
+	}
+	switch {
 	case err != nil:
 		return refused
 	case probe.ArgsLenAtDash() >= 0:

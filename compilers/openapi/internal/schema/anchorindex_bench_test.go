@@ -1,8 +1,8 @@
 package schema
 
 import (
+	"bytes"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/marshaller"
@@ -29,13 +29,13 @@ func BenchmarkAnchorWalk(b *testing.B) {
 		b.Fatalf("corpus fixture unavailable: %v", err)
 	}
 	var doc soa.OpenAPI
-	if _, err := marshaller.Unmarshal(b.Context(), strings.NewReader(string(data)), &doc); err != nil {
+	if _, err := marshaller.Unmarshal(b.Context(), bytes.NewReader(data), &doc); err != nil {
 		b.Fatalf("fixture does not parse: %v", err)
 	}
 	root := doc.GetRootNode()
 
 	b.ReportAllocs()
-	for range b.N {
+	for b.Loop() {
 		if _, complete := dynamicAnchors(root); !complete {
 			b.Fatal("the fixture should not exhaust the walk bounds")
 		}

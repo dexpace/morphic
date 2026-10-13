@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -57,17 +58,18 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
-	// The yaml.v3 node vocabulary: the tag a resolved `<<` merge key carries and
-	// the constructors for the node kinds a parse produces. It reaches yaml and
-	// nothing else, which is what lets the view below import it rather than the
-	// other way round — nodeview's own internal tests build these nodes, and an
-	// internal test file cannot import a package that imports its own.
+	// The yaml.v3 nodes tests build trees from: the constructors for the node
+	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
+	// nothing else, so any package's internal tests can import it, nodeview's
+	// included: an internal test file cannot import a package that imports its
+	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
-	// through aliases and `<<` merge keys. It reaches ynode for the merge tag its
-	// key predicate tests against, and is below both the scans that first wanted
-	// it and the schema lowering that wants the same view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// through aliases and `<<` merge keys. It reaches the library's yml package
+	// for the merge-key predicate the unmarshaller itself uses, and is below both
+	// the scans that first wanted it and the schema lowering that wants the same
+	// view.
+	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
@@ -82,6 +84,7 @@ var rules = map[string][]string{
 	// resolver its answer and the lowering that names the target can both reach
 	// the one rule.
 	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/navigation",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
@@ -237,6 +240,7 @@ var rules = map[string][]string{
 	// it reached. Widening this entry is how that becomes true silently.
 	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
@@ -255,7 +259,10 @@ var rules = map[string][]string{
 	"cmd/morphic": {module + "/ir", module + "/engine",
 		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
-	"internal/testspec":   {},
+	// The coverage gate's judge: tooling outside the pipeline, like the harness
+	// command above. x/tools/cover parses and merges the profile it judges.
+	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
+	"internal/testspec":     {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
@@ -284,7 +291,7 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			if _, err := os.Stat(base); os.IsNotExist(err) {
+			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
 			violations, err := walkImports(dir, base, allowed)
@@ -486,7 +493,7 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	var violations []string
 	for _, imp := range f.Imports {
 		ip := strings.Trim(imp.Path.Value, `"`)
-		if !strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
+		if first, _, _ := strings.Cut(ip, "/"); !strings.Contains(first, ".") {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.
