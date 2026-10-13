@@ -76,6 +76,10 @@ stamped at it — instead of writing the document. The coordinate is a JSON
 Pointer, so '' is the whole document. It writes no file, so it cannot be
 combined with --output.
 
+--disable-pass turns off one IR pass by name, and may be repeated. A name no
+pass carries is refused (exit 2) with the names that exist. --skip-validate is
+--disable-pass validate under its older name.
+
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
@@ -133,7 +137,19 @@ func newCompileCmd() *cobra.Command {
 type specOptions struct {
 	failOn       string
 	skipValidate bool
+	disable      passFlag
 	settings     settingFlag
+}
+
+// disabledPasses is the pass names the flags turn off: --disable-pass's, and
+// validate when --skip-validate, its alias, was given. Names pass through as
+// typed, repeats included: which exist is the engine's to say, and it reads a
+// repeat as one.
+func (o specOptions) disabledPasses() []string {
+	if !o.skipValidate {
+		return o.disable
+	}
+	return slices.Concat(o.disable, []string{engine.ValidatePass})
 }
 
 // compileOptions holds the values compile's flags parse into.
@@ -153,7 +169,9 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	fs.StringVar(&opts.failOn, "fail-on", string(ir.SeverityError),
 		"exit 1 on diagnostics at or above this severity: error or warning")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
-		"skip the referential-integrity validate pass")
+		"alias for --disable-pass validate")
+	fs.Var(&opts.disable, "disable-pass",
+		"turn off the IR pass with this name (repeatable)")
 	fs.Var(opts.settings, "opt",
 		"set one key=value option on the compiler the spec selects (repeatable)")
 }
@@ -217,7 +235,7 @@ func runPipeline(
 
 	res, err = eng.Run(ctx, specPath, engine.RunOptions{
 		CompilerOptions: opts.settings,
-		SkipValidate:    opts.skipValidate,
+		DisablePasses:   opts.disabledPasses(),
 	})
 	if err != nil {
 		return nil, 0, err
