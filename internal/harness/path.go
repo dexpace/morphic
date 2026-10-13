@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -19,10 +20,10 @@ import (
 // Go error, so one broken spec never aborts the sweep of its siblings.
 func CheckPath(ctx context.Context, path string) ([]Result, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("harness: nil context")
+		return nil, errors.New("harness: nil context")
 	}
 	if path == "" {
-		return nil, fmt.Errorf("harness: empty path")
+		return nil, errors.New("harness: empty path")
 	}
 
 	info, err := os.Stat(path)

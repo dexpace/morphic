@@ -97,6 +97,7 @@ func TestRun_ValidateAgreesWithCompile(t *testing.T) {
 		{"error diagnostics", errSpec, nil},
 		{"--fail-on warning", warnSpec, []string{"--fail-on", "warning"}},
 		{"--skip-validate", warnSpec, []string{"--skip-validate"}},
+		{"--disable-pass validate", warnSpec, []string{"--disable-pass", "validate"}},
 	}
 
 	for _, tt := range tests {
@@ -159,11 +160,11 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 		{"bad fail-on", []string{"validate", spec, "--fail-on", "hint"},
 			`invalid --fail-on "hint"`},
 		{"unknown flag", []string{"validate", spec, "--bogus"},
-			"flag provided but not defined: -bogus"},
+			"unknown flag: --bogus"},
 		{"compile's -o is not validate's", []string{"validate", spec, "-o", "ir.json"},
-			"flag provided but not defined: -o"},
+			"unknown shorthand flag: 'o' in -o"},
 		{"compile's --explain is not validate's", []string{"validate", spec, "--explain", "/"},
-			"flag provided but not defined: -explain"},
+			"unknown flag: --explain"},
 	}
 
 	for _, tt := range tests {
@@ -174,8 +175,8 @@ func TestRun_ValidateUsageErrors(t *testing.T) {
 			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
-			assert.Contains(t, stderr.String(), "morphic validate <spec-file> [flags]",
-				"a misuse of validate must point at validate's own usage")
+			assert.Contains(t, stderr.String(), `Try "morphic validate --help" for usage.`,
+				"a misuse of validate must point at validate's own help")
 		})
 	}
 }
@@ -332,4 +333,21 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), want, "the overlay's own file, not the spec's")
 	assert.NotContains(t, stderr.String(), spec+":", "the spec is clean; the overlay is what refused")
+}
+
+// TestRun_UnknownPassIsMisuse pins that a --disable-pass name no pass carries
+// is refused with exit 2 by both commands rather than ignored, and that the
+// refusal names the passes there are.
+func TestRun_UnknownPassIsMisuse(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	for _, cmd := range []string{"compile", "validate"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{cmd, spec, "--disable-pass", "no-such-pass"}, &stdout, &stderr)
+
+		assert.Equal(t, exitFailure, code, cmd)
+		assert.Contains(t, stderr.String(), `"no-such-pass" (known: validate)`, cmd)
+		assert.Empty(t, stdout.String(), cmd)
+	}
 }

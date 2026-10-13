@@ -102,7 +102,7 @@ in the docs.
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
-  irtest/    Layer 0 — golden-file helper (`-update` rewrites). Imports ir + go-cmp.
+  irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
@@ -116,9 +116,11 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-covergate/
+             Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
 ```
 
@@ -141,6 +143,10 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 (`.golangci.yml`, tests excluded). The method cap is the one that matters: the god object this
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
+
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
+`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
+as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -271,7 +277,7 @@ pins, so the local command and the job are the same commands in the same order. 
 for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
 rest are individually runnable while iterating.
 
-**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+**Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
 statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 

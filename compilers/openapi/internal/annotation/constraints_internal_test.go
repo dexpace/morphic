@@ -19,8 +19,7 @@ func TestConstraints_NilSchema(t *testing.T) {
 }
 func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	t.Parallel()
-	f := 5.0
-	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: &f}}
+	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: new(5.0)}}
 	c := &ir.Constraints{}
 	residue := boundResidue{pointer: "/p"}
 	diags := applyExclusive(c, s, minBound, &residue, false)

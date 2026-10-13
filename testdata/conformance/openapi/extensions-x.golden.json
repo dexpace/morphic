@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.8.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "ExtensionsX",
   "version": "1.0.0",
   "docs": {
@@ -25,6 +57,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/tags/t1",
           "name": {
             "source": "t1",
             "canonical": "t_1"
@@ -52,6 +85,7 @@
               },
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets/get/parameters/shape/query",
                   "name": {
                     "source": "shape",
                     "canonical": "shape"
@@ -211,7 +245,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "shape",
+                        "param": "param/openapi/paths/~1widgets/get/parameters/shape/query",
                         "location": "query",
                         "wireName": "shape",
                         "style": "form",
@@ -327,6 +361,7 @@
           ]
         },
         {
+          "id": "g/default",
           "name": {
             "hint": "default"
           },
@@ -341,6 +376,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets/post/parameters/shape/query",
                   "name": {
                     "source": "shape",
                     "canonical": "shape"
@@ -471,7 +507,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "shape",
+                        "param": "param/openapi/paths/~1widgets/post/parameters/shape/query",
                         "location": "query",
                         "wireName": "shape",
                         "style": "form",

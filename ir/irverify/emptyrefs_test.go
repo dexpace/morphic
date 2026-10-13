@@ -17,7 +17,7 @@ import (
 // checkTypeRefs, so each case below only has to build the one shape it names.
 func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	var out []irverify.Violation
-	for _, v := range irverify.Verify(doc) {
+	for _, v := range verifyDeclared(doc) {
 		if strings.HasPrefix(v.Code, "ir/empty-") && strings.HasSuffix(v.Code, "-ref") {
 			out = append(out, v)
 		}
@@ -31,7 +31,7 @@ func opDoc(op ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "s/x/S",
 		Name:   named("s"),
-		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
+		Groups: []ir.OperationGroup{{ID: "g/x/S/g", Operations: []ir.Operation{op}}},
 	}}}
 }
 
@@ -163,6 +163,7 @@ func TestVerify_EmptyRequiredReferenceIsAViolation(t *testing.T) {
 				ID:   "s/x/S",
 				Name: named("s"),
 				Groups: []ir.OperationGroup{{
+					ID:       "g/x/S/g",
 					Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{"read": ""}},
 				}},
 			}}},
@@ -268,6 +269,7 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 					Name:    named("s"),
 					Renames: map[ir.TypeID]ir.Naming{},
 					Groups: []ir.OperationGroup{{
+						ID:       "g/x/S/g",
 						Resource: &ir.ResourceInfo{Lifecycle: map[string]ir.OpID{}},
 					}},
 				}},
@@ -287,6 +289,10 @@ func TestVerify_AllowedEmptyReferencesAreClean(t *testing.T) {
 // ir/empty-<noun>-ref beside it. Each case asserts the owner's code too, so a
 // fixture that stopped reaching the empty position could not pass here by
 // reporting nothing at all.
+//
+// Every class that declares its own ID has a case, because the classification
+// is per field: reading one class right says nothing about the next, and the
+// other cases here would not notice a wrong entry for it.
 func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -309,6 +315,27 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 			owner: "ir/empty-op-id",
 		},
 		{
+			name: "OperationGroup.ID, held by checkDeclaredIDs",
+			doc: &ir.Document{Services: []ir.Service{{
+				ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{Name: named("g")}},
+			}}},
+			owner: "ir/empty-group-id",
+		},
+		{
+			name:  "Service.ID, held by checkDeclaredIDs",
+			doc:   &ir.Document{Services: []ir.Service{{Name: named("s")}}},
+			owner: "ir/empty-service-id",
+		},
+		{
+			name: "Property.ID, held by checkDeclaredIDs",
+			doc: closedDoc(&ir.Model{
+				ID:         "t/x/M",
+				Name:       named("m"),
+				Properties: []ir.Property{{Name: named("f"), Type: ir.TypeRef{Target: "t/x/M"}}},
+			}),
+			owner: "ir/empty-prop-id",
+		},
+		{
 			name:  "a Document.Types key, held by checkRegistryKeys",
 			doc:   &ir.Document{Types: ir.TypeRegistry{"": &ir.Model{Name: named("m")}}},
 			owner: "ir/empty-type-id",
@@ -316,13 +343,56 @@ func TestVerify_EmptyIDsAnotherCheckOwnsAreNotReportedTwice(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			vs := irverify.Verify(tc.doc)
+			vs := verifyDeclared(tc.doc)
 			codes := make([]string, 0, len(vs))
 			for _, v := range vs {
 				codes = append(codes, v.Code)
 			}
 			require.Contains(t, codes, tc.owner, "the owning check must report the empty position")
 			assert.Empty(t, emptyRefViolations(tc.doc), "and it must be the only one that does")
+		})
+	}
+}
+
+// TestVerify_ParamIDClassIsReached drives checkEmptyRefs across every position
+// that holds a ParamID: both references that must name a parameter, and the
+// idempotency token, which may be empty when the operation is not token-keyed.
+// The two halves are asserted together so a position that stopped being reached
+// cannot pass by reporting nothing.
+func TestVerify_ParamIDClassIsReached(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		op   ir.Operation
+		want []string
+	}{
+		{
+			name: "an empty binding reference",
+			op: ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Param: ""}},
+			}}}},
+			want: []string{"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].ParamBindings[0].Param"},
+		},
+		{
+			name: "an empty pagination input",
+			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.ParamPath{Param: ""}}},
+			want: []string{"doc.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
+		},
+		{
+			name: "an empty token with no token kind",
+			op:   ir.Operation{Idempotency: ir.Idempotency{Kind: ir.IdempotencySafe}},
+			want: []string{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.op.ID = "op/x/S/op"
+			paths := make([]string, 0, 1)
+			for _, v := range emptyRefViolations(opDoc(tc.op)) {
+				assert.Equal(t, "ir/empty-param-ref", v.Code)
+				paths = append(paths, v.Path)
+			}
+			assert.Equal(t, tc.want, paths)
 		})
 	}
 }

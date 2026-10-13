@@ -29,7 +29,6 @@ func TestOperation_ZeroValueShape(t *testing.T) {
 // round-trips.
 func TestOperation_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
-	overloadOf := ir.OpID("op/base")
 	want := ir.Operation{
 		ID:           "op/openapi/paths/~1users/get",
 		Name:         populatedNaming(),
@@ -72,7 +71,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		},
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
-			InputCursor: &ir.ParamPath{Param: "cursor"},
+			InputCursor: &ir.ParamPath{Param: "param/x/cursor"},
 			Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 			NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		},
@@ -80,14 +79,14 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			FinalStateVia: "operation-location",
 			ResultPath:    &ir.PropPath{Segments: []ir.PropID{"p/result"}},
 		},
-		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "idempotency-key"},
+		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "param/x/idempotency-key"},
 		Auth: []ir.AuthRequirement{
 			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
 		},
 		Tags:                 []string{"users", "public"},
 		ParameterVisibility:  []ir.Lifecycle{ir.LifecycleCreate},
 		ReturnTypeVisibility: []ir.Lifecycle{ir.LifecycleRead},
-		OverloadOf:           &overloadOf,
+		OverloadOf:           new(ir.OpID("op/base")),
 		Bindings:             ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "GET", URITemplate: "/users"}}},
 		Examples: []ir.Example{
 			{Name: "ex1", Input: &ir.Value{Kind: ir.ValueString, Str: "in"}, Output: &ir.Value{Kind: ir.ValueString, Str: "out"}},
@@ -136,17 +135,18 @@ func TestPageStrategy_Constants(t *testing.T) {
 	}, "unspecified")
 }
 
-// TestParameter_JSONContract pins Parameter's omitempty contract — Name,
+// TestParameter_JSONContract pins Parameter's omitempty contract — ID, Name,
 // Type, Required, Docs, and Provenance carry no omitempty since every parameter
-// has a naming, a type, a required flag, a docs object, and a declaring
+// has an identity, a naming, a type, a required flag, a docs object, and a declaring
 // position; everything else is optional — and that a fully populated Parameter
 // round-trips.
 func TestParameter_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Parameter{},
-		`{"name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
+		`{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,"docs":{},`+
 			`"provenance":{"source":0}}`,
 		ir.Parameter{
+			ID:           "param/openapi/paths/~1items/get/parameters/id/query",
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
 			Required:     true,
@@ -170,13 +170,12 @@ func TestParameter_JSONContract(t *testing.T) {
 // all kept per the "no primary-response selection" invariant.
 func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
-	required := true
 	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
 		Contents: []ir.Content{
 			{MediaType: "application/json", Type: populatedTypeRef()},
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
-		Required:  &required,
+		Required:  new(true),
 		Unmodeled: populatedUnmodeled(),
 	})
 }
@@ -269,14 +268,13 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 // PartEncoding round-trips.
 func TestPartEncoding_JSONContract(t *testing.T) {
 	t.Parallel()
-	explode := false
 	assertJSONContract(t, ir.PartEncoding{}, `{"multi":false,"filename":false}`, ir.PartEncoding{
 		ContentTypes: []string{"image/png", "image/jpeg"},
 		Headers:      []ir.Property{populatedProperty()},
 		Multi:        true,
 		Filename:     true,
 		Style:        "form",
-		Explode:      &explode,
+		Explode:      new(false),
 	})
 }
 
@@ -357,8 +355,6 @@ func TestStatusRange_PopulatedRoundTrip(t *testing.T) {
 // pointers — round-trips.
 func TestErrorCase_JSONContract(t *testing.T) {
 	t.Parallel()
-	retryable := true
-	throttling := false
 	assertJSONContract(t, ir.ErrorCase{},
 		`{"name":{},"conditions":{},"docs":{}}`,
 		ir.ErrorCase{
@@ -370,8 +366,8 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			}},
 			Headers:    []ir.Property{{ID: "p/retry-after", Name: ir.Naming{Source: "Retry-After"}, Type: populatedTypeRef()}},
 			Fault:      "client",
-			Retryable:  &retryable,
-			Throttling: &throttling,
+			Retryable:  new(true),
+			Throttling: new(false),
 			Docs:       populatedDocs(),
 			Unmodeled:  populatedUnmodeled(),
 		})
@@ -404,7 +400,7 @@ func TestIdempotency_PopulatedRoundTrip(t *testing.T) {
 	tests := map[string]ir.Idempotency{
 		"safe":       {Kind: ir.IdempotencySafe},
 		"idempotent": {Kind: ir.IdempotencyIdempotent},
-		"token":      {Kind: ir.IdempotencyToken, TokenParam: "idempotency-key"},
+		"token":      {Kind: ir.IdempotencyToken, TokenParam: "param/x/idempotency-key"},
 	}
 	for name, want := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -424,8 +420,8 @@ func TestPagination_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
-		InputCursor: &ir.ParamPath{Param: "cursor", Segments: []ir.PropID{"p/cursor"}},
-		InputLimit:  &ir.ParamPath{Param: "limit"},
+		InputCursor: &ir.ParamPath{Param: "param/x/cursor", Segments: []ir.PropID{"p/cursor"}},
+		InputLimit:  &ir.ParamPath{Param: "param/x/limit"},
 		Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 		NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		NextLink:    &ir.PropPath{Segments: []ir.PropID{"p/nextLink"}},
@@ -455,7 +451,7 @@ func TestPropPath_JSONContract(t *testing.T) {
 func TestParamPath_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ParamPath{}, `{}`,
-		ir.ParamPath{Param: "filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
+		ir.ParamPath{Param: "param/x/filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
 }
 
 // TestLongRunning_JSONContract pins LongRunning's omitempty contract (every
@@ -464,12 +460,10 @@ func TestParamPath_JSONContract(t *testing.T) {
 // round-trips.
 func TestLongRunning_JSONContract(t *testing.T) {
 	t.Parallel()
-	pollOp := ir.OpID("op/poll")
-	finalOp := ir.OpID("op/final")
 	assertJSONContract(t, ir.LongRunning{}, `{}`, ir.LongRunning{
 		FinalStateVia:    "operation-location",
-		PollingOperation: &pollOp,
-		FinalOperation:   &finalOp,
+		PollingOperation: new(ir.OpID("op/poll")),
+		FinalOperation:   new(ir.OpID("op/final")),
 		PollingType:      &ir.TypeRef{Target: "t/status-monitor"},
 		FinalType:        &ir.TypeRef{Target: "t/final-result"},
 		ResultPath:       &ir.PropPath{Segments: []ir.PropID{"p/result"}},

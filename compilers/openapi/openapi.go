@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
@@ -79,8 +81,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
-	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, withoutRereported(lowerDiags, diags)...)
+	// Load diagnostics precede lowering diagnostics.
+	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
 		return nil, all, err
 	}
@@ -193,6 +195,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
+	out.IDSpaces = ids.Namespaces().Declaration()
 	out.Sources = c.Sources()
 	// An entry the registry refused is a compiler bug no source can provoke, and
 	// a refusal nothing reports hides the bug rather than the symptom: the node is

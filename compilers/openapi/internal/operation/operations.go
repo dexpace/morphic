@@ -203,30 +203,14 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 // shared parameters and bodies lower from there, while each operation keeps
 // its mount pointer (under path) as its identity.
 func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	pathPtr := ids.Ptr("paths", path)
-	var mounted int
-	for _, po := range pathOperations(pi) {
-		key, name, docs, inferred := groupFor(c, po.src, path)
-		ptrs := opPointers{mount: pathPtr + po.seg, decl: declPtr + po.seg}
-		opCtx := opContext{
-			method:        po.method,
-			uriTemplate:   path,
-			withCallbacks: true,
-			inferred:      inferred,
-			ptrs:          ptrs,
-			params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
-		}
-		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
-		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-		grp := groups.group(key, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
-		grp.Operations = append(grp.Operations, op)
-		grp.Operations = append(grp.Operations, extra...)
-		mounted++
-	}
-	if mounted == 0 {
-		return append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, pathPtr), pi, pathPtr, declPtr)...)
+	at := opPointers{mount: ids.Ptr("paths", path), decl: declPtr}
+	route := opContext{uriTemplate: path, withCallbacks: true, inferred: groupingInferred(c)}
+	mounted, diags := mountPathItem(c, ts, anchors, claims, pi, at, route, &svc.Unmodeled)
+	for _, m := range mounted {
+		gid, name, docs := groupFor(c, m.src, path)
+		grp := groups.group(gid, func() ir.OperationGroup { return ir.OperationGroup{Name: name, Docs: docs} })
+		grp.Operations = append(grp.Operations, m.op)
+		grp.Operations = append(grp.Operations, m.extra...)
 	}
 	return diags
 }
@@ -251,52 +235,85 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			continue
 		}
 		c := lowering.Within[soa.PathItem](c, rp)
-		var mounted int
-		for _, po := range pathOperations(pi) {
-			ptrs := opPointers{mount: hookPtr + po.seg, decl: declPtr + po.seg}
-			opCtx := opContext{
-				method:        po.method,
-				uriTemplate:   name,
-				isWebhook:     true,
-				withCallbacks: true,
-				ptrs:          ptrs,
-				params:        mergeParameters(pi.GetParameters(), po.src.GetParameters(), declPtr, ptrs.decl),
-			}
-			op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
-			diags = append(diags, opDiags...)
-			diags = append(diags, applyPathItem(c, onOperation(&op), pi, declPtr)...)
-			grp := groups.group("webhook", func() ir.OperationGroup {
+		route := opContext{uriTemplate: name, isWebhook: true, withCallbacks: true}
+		mounted, hookDiags := mountPathItem(c, ts, anchors, claims, pi, opPointers{mount: hookPtr, decl: declPtr}, route, &svc.Unmodeled)
+		diags = append(diags, hookDiags...)
+		for _, m := range mounted {
+			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as it
 				// synthesizes the "default" group above, and Naming.Source is the
 				// spelling the source used (GitHub #184).
 				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
 			})
-			grp.Operations = append(grp.Operations, op)
-			grp.Operations = append(grp.Operations, extra...)
-			mounted++
-		}
-		if mounted == 0 {
-			diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(c, &svc.Unmodeled, hookPtr), pi, hookPtr, declPtr)...)
+			grp.Operations = append(grp.Operations, m.op)
+			grp.Operations = append(grp.Operations, m.extra...)
 		}
 	}
 	return diags
 }
 
-// groupFor resolves the group an operation belongs to under the active strategy.
-// lowering.GroupByPathPrefix is a heuristic, so it stamps the inferred marker; grouping by
-// declared tags is a declared fact and leaves it empty.
-func groupFor(c lowering.Ctx, src *soa.Operation, path string) (key string, name ir.Naming, docs ir.Docs, inferred string) {
+// mountedOp is one operation a path item mounts, the callback operations
+// lowered under it, and the source operation its route places it by.
+type mountedOp struct {
+	src   *soa.Operation
+	op    ir.Operation
+	extra []ir.Operation
+}
+
+// mountPathItem lowers every operation path item pi declares, mounted below
+// at.mount and declared below at.decl, the one way all three routes to a path
+// item (a path, a webhook, a callback expression) lower them: each takes pi's
+// parameters merged into its own and what pi declares (applyPathItem), and an
+// item mounting none keeps what it declares in residue instead. route holds
+// what the route sets on every operation; each brings its own method,
+// pointers and parameters.
+func mountPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, at opPointers, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
+	declared := pathOperations(pi)
+	mounted := make([]mountedOp, 0, len(declared))
+	var diags []ir.Diagnostic
+	for _, po := range declared {
+		opCtx := route
+		opCtx.method = po.method
+		opCtx.ptrs = opPointers{mount: at.mount + po.seg, decl: at.decl + po.seg}
+		opCtx.params = mergeParameters(pi.GetParameters(), po.src.GetParameters(), at.decl, opCtx.ptrs.decl)
+		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
+		diags = append(diags, opDiags...)
+		diags = append(diags, applyPathItem(c, onOperation(&op), pi, at.decl)...)
+		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
+	}
+	if len(mounted) == 0 {
+		diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(c, residue, at.mount), pi, at.mount, at.decl)...)
+	}
+	return mounted, diags
+}
+
+// groupFor resolves the group an operation belongs to under the active strategy,
+// by identity: the ID is both the group's key here and its ID in the IR, so two
+// operations share a group exactly when they share an ID. The untagged group's
+// hint stays "default" beside a tag of that name: the IDs differ, and the
+// emitter resolves name collisions by ID (emitter-design §4.12).
+func groupFor(c lowering.Ctx, src *soa.Operation, path string) (id ir.GroupID, name ir.Naming, docs ir.Docs) {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return "seg:" + seg, compile.NamingFor(seg), ir.Docs{}, "group-path-prefix"
+		return ids.PathPrefixGroup(seg), compile.NamingFor(seg), ir.Docs{}
 	}
 	tags := src.GetTags()
 	if len(tags) == 0 {
-		return "default", compile.NamingHint("default"), ir.Docs{}, ""
+		return ids.DefaultGroup(), compile.NamingHint("default"), ir.Docs{}
 	}
 	first := tags[0]
-	return "tag:" + first, compile.NamingFor(first), tagDocs(c, first), ""
+	return ids.TagGroup(first), compile.NamingFor(first), tagDocs(c, first)
+}
+
+// groupingInferred is the inferred marker groupFor's strategy stamps on a path
+// operation: lowering.GroupByPathPrefix is a heuristic, so it stamps one, and
+// grouping by declared tags is a declared fact, so it stamps none.
+func groupingInferred(c lowering.Ctx) string {
+	if c.Grouping == lowering.GroupByPathPrefix {
+		return "group-path-prefix"
+	}
+	return ""
 }
 
 // tagDocs returns the declared docs for a tag name, or empty when undeclared.
@@ -366,7 +383,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(c, ts, anchors, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(c, ts, anchors, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
 	responses, errs, responseDiags := lowerResponses(c, ts, anchors, src, decl)
@@ -943,36 +960,18 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 // (shared when the callback or its path item is $ref'd; issue #107).
 //
 // An expression whose item mounts no operation keeps what the item wrote on the
-// returned map, as the other two routes do, because applyPathItem runs once per
-// operation. The map goes where the Callback Object's own extensions go, the
+// returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
 func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
-	declared := pathOperations(pi)
-	opIDs := make([]ir.OpID, 0, len(declared))
-	ops := make([]ir.Operation, 0, len(declared))
-	var diags []ir.Diagnostic
-	for _, po := range declared {
-		ptrs := opPointers{mount: cb.mount + po.seg, decl: cb.decl + po.seg}
-		opCtx := opContext{
-			method:      po.method,
-			uriTemplate: expr,
-			inferred:    inferred,
-			ptrs:        ptrs,
-			params:      mergeParameters(pi.GetParameters(), po.src.GetParameters(), cb.decl, ptrs.decl),
-		}
-		op, _, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
-		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathItem(c, onOperation(&op), pi, cb.decl)...)
-		opIDs = append(opIDs, op.ID)
-		ops = append(ops, op)
+	var orphan ir.Unmodeled
+	mounted, diags := mountPathItem(c, ts, anchors, claims, pi, cb, opContext{uriTemplate: expr, inferred: inferred}, &orphan)
+	opIDs := make([]ir.OpID, 0, len(mounted))
+	ops := make([]ir.Operation, 0, len(mounted))
+	for _, m := range mounted {
+		opIDs = append(opIDs, m.op.ID)
+		ops = append(ops, m.op)
 	}
-	if len(ops) > 0 {
-		return opIDs, ops, nil, diags
-	}
-	orphan := ir.Unmodeled{}
-	orphanDiags := preserveUnmountedPathItem(c,
-		onNearestNode(c, &orphan, cb.mount), pi, cb.mount, cb.decl)
-	return opIDs, ops, orphan, append(diags, orphanDiags...)
+	return opIDs, ops, orphan, diags
 }
 
 // sourcedParam pairs a parameter with its declaring list entry's pointer,
@@ -1154,35 +1153,38 @@ func firstPathSegment(path string) string {
 	return ""
 }
 
-// serviceGroups accumulates operation groups keyed by a namespaced key while
-// preserving first-seen insertion order, so a group's operations gather across
-// paths without reordering the groups themselves.
+// serviceGroups accumulates operation groups by ID while preserving first-seen
+// insertion order, so a group's operations gather across paths without
+// reordering the groups themselves.
 type serviceGroups struct {
-	order []string
-	byKey map[string]*ir.OperationGroup
+	order []ir.GroupID
+	byID  map[ir.GroupID]*ir.OperationGroup
 }
 
 // newServiceGroups returns an empty group accumulator.
 func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byKey: make(map[string]*ir.OperationGroup)}
+	return &serviceGroups{byID: make(map[ir.GroupID]*ir.OperationGroup)}
 }
 
-// group returns the group for key, creating it via mk on first sight and
-// recording its insertion order.
-func (g *serviceGroups) group(key string, mk func() ir.OperationGroup) *ir.OperationGroup {
-	if existing, ok := g.byKey[key]; ok {
+// group returns the group with the given ID, creating it via mk on first sight
+// and recording its insertion order. It stamps the ID itself, so a group's ID is
+// its key by construction rather than by every caller repeating it.
+func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.OperationGroup {
+	if existing, ok := g.byID[id]; ok {
 		return existing
 	}
-	g.byKey[key] = new(mk())
-	g.order = append(g.order, key)
-	return g.byKey[key]
+	created := mk()
+	created.ID = id
+	g.byID[id] = &created
+	g.order = append(g.order, id)
+	return &created
 }
 
 // finalize returns the accumulated groups in insertion order.
 func (g *serviceGroups) finalize() []ir.OperationGroup {
 	out := make([]ir.OperationGroup, 0, len(g.order))
-	for _, k := range g.order {
-		out = append(out, *g.byKey[k])
+	for _, id := range g.order {
+		out = append(out, *g.byID[id])
 	}
 	return out
 }

@@ -16,6 +16,11 @@ type OpID string
 // ServiceID identifies a Service.
 type ServiceID string
 
+// GroupID identifies an OperationGroup. It is unique across the whole document,
+// nested groups and every service included, because a consumer keys a group by
+// it alone.
+type GroupID string
+
 // ChannelID identifies a Channel in Document.Channels.
 type ChannelID string
 
@@ -28,6 +33,16 @@ type AuthID string
 // PropID identifies a Property within the document.
 type PropID string
 
+// ParamID identifies a Parameter. It is unique across the whole document: an
+// operation's parameters are scoped by the operation they belong to, so two
+// operations that declare the same name never share one.
+type ParamID string
+
+// EnumMemberID identifies an EnumMember. It is unique across the whole
+// document: it sits in the namespace and beneath the path of its Enum's TypeID,
+// keyed there by the value the member holds.
+type EnumMemberID string
+
 // The kind prefix that opens every synthetic ID. An ID is
 // <kind>/<space>[/<path>]: the kind says what sort of entity it names, the space
 // says whose coordinates the path is in, and the path is the compiler's own
@@ -39,12 +54,21 @@ type PropID string
 // shape fixed here (GitHub #141). Channels and messages have no prefix yet: no
 // compiler mints one.
 const (
-	IDKindType    = "t"
-	IDKindOp      = "op"
-	IDKindProp    = "p"
-	IDKindAuth    = "auth"
-	IDKindService = "s"
+	IDKindType       = "t"
+	IDKindOp         = "op"
+	IDKindProp       = "p"
+	IDKindAuth       = "auth"
+	IDKindService    = "s"
+	IDKindGroup      = "g"
+	IDKindParam      = "param"
+	IDKindEnumMember = "e"
 )
+
+// IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
+// order. Document.IDSpaces is keyed by them.
+func IDKinds() []string {
+	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam, IDKindEnumMember}
+}
 
 // IDSeparator separates an ID's kind, space and path segments.
 const IDSeparator = "/"
@@ -79,9 +103,9 @@ func PrimTypeID(k PrimKind) TypeID {
 //
 // Shape alone cannot catch every malformed ID. One that lost the separator
 // between its space and its path ("t/anonaddr") reads as a space named
-// "anonaddr" and is indistinguishable from a legitimate one here; what catches
-// that is the path agreeing with the provenance pointer it was derived from,
-// which irverify checks alongside this.
+// "anonaddr" and is indistinguishable from a legitimate one here; irverify
+// catches it from the provenance pointer the path was derived from, or from an
+// undeclared space.
 func WellFormedID(kind, id string) bool {
 	rest, ok := strings.CutPrefix(id, kind+IDSeparator)
 	if !ok || rest == "" {

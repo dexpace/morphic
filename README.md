@@ -122,21 +122,28 @@ morphic compile openapi.yaml --explain /components/schemas/Pet
 ```
 
 `compile` lowers one spec into IR JSON and writes diagnostics to stderr. Stdout is indented for
-reading; a file written with `-o` is compact, about half the bytes, unless `--pretty` asks for the
-indented form. `validate` runs the same pipeline and drops the document, for a check that wants
-the diagnostics and the exit code and nothing else.
+reading; a file written with `-o`/`--output` is compact, about half the bytes, unless `--pretty`
+asks for the indented form. `validate` runs the same pipeline and drops the document, for a
+check that wants the diagnostics and the exit code and nothing else.
 
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
-prints a command's flags. Help always goes to stdout and exits `0`.
+prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
+Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones. A long
+flag typed with one dash is refused, with the two-dash spelling to use.
+
+`morphic --version` prints the build and the version of the IR schema its output follows.
+`morphic completion bash|zsh|fish|powershell` prints a completion script for that shell, which
+completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
-| `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
+| `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
+| `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
-| `-o <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
-| `--pretty` | `compile` | Indent the JSON `-o` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. |
+| `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
+| `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -191,8 +198,11 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 ### Library
 
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
-built-in compiler plus the `validate` pass. `Run` reads the spec, asks the registered compilers
-which one recognizes it, compiles, and runs the passes.
+built-in compiler and the default IR passes. `Run` reads the spec, asks the registered compilers
+which one recognizes it, compiles, and runs the passes in order, each over the document the one
+before it returned. `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass`
+names the referential-integrity check), and a name no pass carries fails the run with
+`engine.ErrUnknownPass`.
 
 ```go
 eng, err := engine.New()
@@ -231,15 +241,15 @@ entry in that test allows, and nothing from a layer above its own.
 | Package | Layer | Imports |
 |---|---|---|
 | `ir/` | 0: IR nodes, IDs, traversal, JSON round-trip | stdlib only |
-| `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot helper | `ir` (`irtest` also `go-cmp`) |
+| `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
 | `pass/` | 1: IR → IR passes | `ir` only |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `cmd/morphic/` | 4: CLI | `engine` + `ir` |
-| `cmd/morphic-harness/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
+| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,

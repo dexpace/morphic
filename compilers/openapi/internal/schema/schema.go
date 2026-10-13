@@ -70,10 +70,8 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if _, owned := ts.Lookup(string(pointer)); owned {
 		return diags
 	}
-	var kept ir.Unmodeled
-	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
-	diags = append(diags, consDiags...)
-	internAlias(c, ts, pointer, name, ref, cons, kept)
+	_, aliasDiags := internAlias(c, ts, s.Node, pointer, name, ref)
+	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
@@ -151,30 +149,27 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointe
 	return diags
 }
 
-// schemaConstraints reads the value constraints of a schema and stamps each
-// constraint diagnostic with pointer's provenance. It returns nil constraints
-// when the schema writes none. It is the shared path for every alias a body
-// reduces to, a named component (lowerComponentSchema) or a $ref-hoisted
-// sub-schema (hoistSubSchema), so a scalar aliasing a shared primitive keeps
-// its constraints, including a bound written beside a $ref.
+// ConstraintsOf returns the value constraints s writes, or nil where it writes
+// none, for the node or carrier at pointer to hold, so a node a position owns,
+// a property and a parameter read them alike.
 //
-// p is the Unmodeled map of the carrier the constraints land on. A co-declared
-// numeric bound with no field in ir.Constraints is kept there, beside the
-// constraints it did not reach (GitHub #286).
-func schemaConstraints(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// p is the Unmodeled map of the node or carrier the constraints land on. A
+// co-declared numeric bound with no field in ir.Constraints is kept there,
+// beside the constraints it did not reach (GitHub #286).
+func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
 	cons, kept, diags := annotation.Constraints(s, c.ExclusiveBoundIsBoolean(), pointer, c.ProvenanceAt)
 	*p = annotation.MergeUnmodeled(*p, kept)
-	return cons, StampConstraintDiags(c, diags, pointer)
+	return cons, stampConstraintDiags(c, diags, pointer)
 }
 
-// StampConstraintDiags gives every constraint diagnostic the provenance of the
+// stampConstraintDiags gives every constraint diagnostic the provenance of the
 // pointer that read the schema, which is what makes two reads of one sub-schema
 // — its owning property and a $ref that hoists it — identical and so deduped by
 // Diags.Append rather than reported twice.
-func StampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
+func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
 	for i := range diags {
 		diags[i].Provenance = c.ProvenanceAt(pointer)
 	}
@@ -183,18 +178,19 @@ func StampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 
 // internAlias interns a named Scalar at pointer whose Base is target, so a
 // component (or a sibling-carrying schema) whose body lowered to a shared or
-// referenced target still owns a resolvable node at its own TypeID. Any value
-// constraints the schema carried are attached so a scalar component never drops
-// them, and kept holds what those constraints had no field for — the co-declared
-// bound keyword schemaConstraints read alongside them.
-func internAlias(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, hint string,
-	target ir.TypeRef, constraints *ir.Constraints, kept ir.Unmodeled,
-) ir.TypeID {
-	return internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := target
+// referenced target still owns a resolvable node at its own TypeID. It carries
+// the value constraints s writes, and the co-declared bound keyword no
+// Constraints field holds, for the reason hoistScalar records.
+func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string,
+	target ir.TypeRef,
+) (ir.TypeID, []ir.Diagnostic) {
+	var kept ir.Unmodeled
+	cons, diags := ConstraintsOf(c, &kept, s, pointer)
+	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
-		return &ir.Scalar{TypeCommon: common, Base: &base, Constraints: constraints}
+		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
 	})
+	return id, diags
 }
 
 // schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
@@ -233,10 +229,10 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	if id, owned := ts.Lookup(string(pointer)); owned {
 		return ir.TypeRef{Target: id, Nullable: ref.Nullable}, nil
 	}
-	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(c, &kept, s, pointer)
-	diags = append(diags, preserveCollapsedDiscriminator(c, &kept, s, pointer)...)
-	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
+	id, diags := internAlias(c, ts, s, pointer, hint, ref)
+	if td, ok := ts.NodeAt(string(pointer)); ok {
+		diags = append(diags, preserveCollapsedDiscriminator(c, &td.Common().Unmodeled, s, pointer)...)
+	}
 	return ir.TypeRef{Target: id, Nullable: ref.Nullable}, diags
 }
 
@@ -414,15 +410,10 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	if got, _ := ts.Lookup(string(pointer)); got != inner {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
-		// shared primitive. The alias carries the position's value constraints for
-		// the reason hoistByteScalar records: owning the node is what stops
-		// hoistDeclarationHome hoisting the alias that would otherwise carry them.
-		// kept travels with them, so the co-declared bound keyword that reaches no
-		// Constraints field lands on the same node as the bounds it lost to.
-		var kept ir.Unmodeled
-		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
-		diags = append(diags, consDiags...)
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner}, cons, kept)
+		// shared primitive.
+		var aliasDiags []ir.Diagnostic
+		owner, aliasDiags = internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner})
+		diags = append(diags, aliasDiags...)
 	}
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
@@ -890,12 +881,9 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	owner := id
 	if owns != id {
-		// Once the alias owns the pointer, hoistDeclarationHome attaches no
-		// constraints later, so the alias carries the position's.
-		var kept ir.Unmodeled
-		cons, consDiags := schemaConstraints(c, &kept, s, pointer)
-		diags = append(diags, consDiags...)
-		owner = internAlias(c, ts, pointer, hint, ir.TypeRef{Target: id}, cons, kept)
+		var aliasDiags []ir.Diagnostic
+		owner, aliasDiags = internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: id})
+		diags = append(diags, aliasDiags...)
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
@@ -1041,7 +1029,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, s, pointer)...)
@@ -1120,7 +1108,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 		return nil
 	}
 	tgt := resolve.TargetSchema(js, ref)
-	diags := fillPropertyDefault(c, p, ref, tgt, pointer)
+	def, diags := DefaultOf(c, ref, tgt, pointer)
+	p.Default = def
 	if ref.GetFormat() == "password" {
 		p.Secret = true
 	}
@@ -1201,23 +1190,24 @@ func LoweredToOwnNode(ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef)
 	return owned && id == t.Target
 }
 
-// fillPropertyDefault sets the property default, preferring the use-site node
-// over the $ref target's; an unconvertible node yields a diagnostic.
-func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	node := ref.GetDefault()
+// DefaultOf returns the default s writes, or else the one its $ref target tgt
+// writes, for the carrier at pointer to keep: a property or a parameter. A
+// schema writing none yields nothing; an unconvertible node yields a
+// diagnostic and no value.
+func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*ir.Value, []ir.Diagnostic) {
+	node := s.GetDefault()
 	if node == nil && tgt != nil {
 		node = tgt.GetDefault()
 	}
 	if node == nil {
-		return nil
+		return nil, nil
 	}
 	v, err := value.FromNode(node)
 	if err != nil {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
 			"default: %s", err.Error())}
 	}
-	p.Default = &v
-	return nil
+	return &v, nil
 }
 
 // fillPropertyConstraints attaches the property's scalar constraints, and the
@@ -1230,10 +1220,8 @@ func fillPropertyDefault(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, 
 // use-site precedence would publish the wider of the two as the whole truth. It
 // stays on the node the reference points at instead (ir-design §12.2).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := schemaConstraints(c, &p.Unmodeled, ref, pointer)
-	if cons != nil {
-		p.Constraints = cons
-	}
+	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, pointer)
+	p.Constraints = cons
 	return diags
 }
 
@@ -1363,7 +1351,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
-		return hoistByteScalar(c, ts, anchors, depth, s, pointer, hint)
+		return hoistScalar(c, ts, anchors, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -1371,76 +1359,38 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	}
 	prim, known := formatTable[key]
 	if !known {
-		return hoistFormatScalar(c, ts, anchors, depth, s, baseForType(st), format, pointer, hint)
+		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
 	}
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
-	return hoistContentScalar(c, ts, anchors, depth, s, prim, pointer, hint)
+	return hoistScalar(c, ts, anchors, depth, s, prim, "", nil, pointer, hint)
 }
 
-// hoistByteScalar hoists a base64-encoded byte scalar (string+byte).
+// hoistScalar hoists a scalar over base, giving what the position wrote a node
+// of its own to sit on: the encoding scalarEncoding builds from formatName and,
+// when wire is non-nil, the primitive the encoded value travels as.
 //
-// Every hoister here carries the position's value constraints itself, because
-// owning a node is what stops hoistDeclarationHome hoisting the alias that would
+// The node carries the position's value constraints itself, because owning a
+// node is what stops hoistDeclarationHome hoisting the alias that would
 // otherwise carry them: that fallback resolves to whatever node the pointer
 // already owns and returns early. A scalar that hoisted because it wrote a
 // format must not lose the bounds it wrote beside it (invariant 2).
-func hoistByteScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := ts.PrimRef(ir.PrimBytes)
-		wire := ts.PrimRef(ir.PrimString)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "base64", &common, pointer, hint)
-		diags = append(diags, encDiags...)
-		enc.WireType = &wire
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &base,
-			Encoding:    enc,
-			Constraints: cons,
-		}
-	})
-	return id, diags
-}
-
-// hoistFormatScalar hoists a scalar over base carrying an unknown format as its
-// encoding name, preserving the format losslessly.
-func hoistFormatScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, format string, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
+func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, base ir.PrimKind, formatName string, wire *ir.PrimKind, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, format, &common, pointer, hint)
+		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, formatName, &common, pointer, hint)
 		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		if wire != nil {
+			wireRef := ts.PrimRef(*wire)
+			enc.WireType = &wireRef
+		}
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
 			Base:        &baseRef,
-			Encoding:    enc,
-			Constraints: cons,
-		}
-	})
-	return id, diags
-}
-
-// hoistContentScalar hoists a scalar over the shared primitive a known
-// (type, format) pair maps to, giving the content vocabulary written here a node
-// of its own to sit on. It carries the position's value constraints for the
-// reason hoistByteScalar records.
-func hoistContentScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, prim ir.PrimKind, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
-	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		base := ts.PrimRef(prim)
-		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, "", &common, pointer, hint)
-		diags = append(diags, encDiags...)
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &base,
 			Encoding:    enc,
 			Constraints: cons,
 		}
@@ -1768,12 +1718,7 @@ func declaresResourceIDAbove(c lowering.Ctx, pointer jsontext.Pointer) bool {
 	// An incomplete walk needs no arm: path holds the nodes reached, and an $id
 	// above a pointer that falls off the tree still binds.
 	path, _ := view.DocumentPath(root, pointer)
-	for _, n := range path {
-		if view.ChildByToken(n, "$id") != nil {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(path, func(n *yaml.Node) bool { return view.ChildByToken(n, "$id") != nil })
 }
 
 // dynamicFragment returns the anchor name a $dynamicRef addresses, or the
@@ -2029,8 +1974,7 @@ const maxNullConjuncts = 256
 // goes through — a definition site, a union, an allOf conjunct and a $ref use
 // site must never disagree about the same schema.
 func schemaAdmitsNull(s *oas3.Schema) bool {
-	budget := maxNullConjuncts
-	return schemaNullVerdict(s, &budget) == nullAdmitted
+	return schemaNullVerdict(s, new(maxNullConjuncts)) == nullAdmitted
 }
 
 // schemaNullVerdict reads what a whole schema says about null, by conjoining
