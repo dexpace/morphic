@@ -12,3 +12,10 @@ func ValueCarriers(t *testing.T) []string {
 	t.Helper()
 	return valueCarriers(t)
 }
+
+// SelfReachableReferences exposes selfReachableReferences to this package's
+// external tests, for the reason ValueCarriers is exported.
+func SelfReachableReferences(t *testing.T) []string {
+	t.Helper()
+	return selfReachableReferences(t)
+}

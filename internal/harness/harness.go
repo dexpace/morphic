@@ -109,8 +109,7 @@ var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
 // roundTrips for the same reason compile is one. A test swaps it to drive
 // Check's OutcomeRoundtrip classification directly, so that test does not
-// depend on which documents Verify lets through to this oracle — a pointer
-// cycle, for one, verifies clean and cannot be encoded (GitHub #573).
+// depend on which documents Verify lets through to this oracle.
 var roundTrip = roundTrips
 
 // roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and

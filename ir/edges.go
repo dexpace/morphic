@@ -14,8 +14,8 @@ import (
 //
 // A value nested past [MaxWalkDepth] levels is not entered; the reflection
 // walk is cut sooner, and pass.Validate reports that. A pointer two fields
-// share is followed from each, though WalkValues enters it once, so aliasing
-// costs the unfolded size (#736).
+// share is followed from each, unlike in WalkValues, so aliasing costs the
+// unfolded size (#859); a cycle is cut.
 func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 	return func(yield func(TypeID) bool) {
 		if IsNilTypeDef(td) {
@@ -26,8 +26,8 @@ func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 	}
 }
 
-// edgeWalk is one TypeEdges call: the consumer's yield and whether it has
-// declined more. Every edge leaves through id, so the rule that yield is never
+// edgeWalk is one TypeEdges call: the consumer's yield, whether it has
+// declined more, and the values it is inside. Every edge leaves through id, so the rule that yield is never
 // called again after it returns false is kept in one place. Once stopped, the
 // walk finishes its pass over the type definition without yielding.
 //
@@ -36,6 +36,7 @@ func TypeEdges(td TypeDef) iter.Seq[TypeID] {
 type edgeWalk struct {
 	yield   func(TypeID) bool
 	stopped bool
+	path    descent
 }
 
 // id yields id unless it is empty or the consumer has stopped.
@@ -100,29 +101,44 @@ func (w *edgeWalk) common(c *TypeCommon) {
 // value yields the types v refers to, through every nested list, object member
 // and constructor argument. depth counts one level per step down; the
 // reflection walk charges each of those steps at least twice, so it is cut
-// first.
+// first. A list, object or constructor met again from inside itself is not
+// entered again.
 func (w *edgeWalk) value(v *Value, depth int) {
 	if v == nil || depth > MaxWalkDepth {
 		return
 	}
 	w.values(v.List, depth+1)
-	for i := range v.Object {
-		w.value(&v.Object[i].Value, depth+1)
-	}
+	w.members(v.Object, depth+1)
 	if v.Ref != nil {
 		w.id(v.Ref.Type)
 	}
-	if c := v.Ctor; c != nil {
+	if c := v.Ctor; c != nil && w.path.enter(c, 0) {
 		w.id(c.Scalar)
 		w.values(c.Args, depth+1)
+		w.path.leave()
 	}
 }
 
 // values yields the edges of each value in vs, all at depth.
 func (w *edgeWalk) values(vs []Value, depth int) {
+	if len(vs) == 0 || !w.path.enter(&vs[0], len(vs)) {
+		return
+	}
 	for i := range vs {
 		w.value(&vs[i], depth)
 	}
+	w.path.leave()
+}
+
+// members yields the edges of each member of an object, all at depth.
+func (w *edgeWalk) members(fs []Field, depth int) {
+	if len(fs) == 0 || !w.path.enter(&fs[0], len(fs)) {
+		return
+	}
+	for i := range fs {
+		w.value(&fs[i].Value, depth)
+	}
+	w.path.leave()
 }
 
 // examples yields the types each example's values and error refer to.
