@@ -5,10 +5,12 @@ import (
 	"errors"
 	"go/constant"
 	"go/types"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -167,39 +169,34 @@ func TestCodes_AreNamespacedAndDistinct(t *testing.T) {
 	}
 }
 
-// TestCodes_MatchTheDeclaredSet guards the fixture above against rot. It counts
-// the exported string constants the package declares and requires codes() to
-// list exactly that many, so a code added to the package but not to the fixture
-// fails here instead of going unchecked by the two tests that read it.
+// TestCodes_MatchTheDeclaredSet guards the fixture above against rot. It
+// requires codes() to list exactly the exported string constants the package
+// declares, so a code added to the package but not to the fixture fails here,
+// by name, instead of going unchecked by the two tests that read it.
 func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, codes(), declaredCodeCount(t),
-		"codes() must list every code the package declares")
+	assert.Empty(t, cmp.Diff(declaredCodes(t), slices.Sorted(slices.Values(codes()))),
+		"codes() must list every code the package declares, once each (-declared +listed)")
 }
 
-// declaredCodeCount returns how many exported string constants the package
-// declares. The kind is read off the type checker, not the name, so
-// MaxQuotedErrorBytes is not counted and a new code is counted whatever it is
-// called or however its value is written.
-//
-// It is derived rather than written down because a maintained count rots
-// silently: a code added without touching this file would leave the number
-// right by accident until it was not.
-func declaredCodeCount(t *testing.T) int {
+// declaredCodes returns, sorted, the value of every exported string constant
+// the package declares. The kind is read off the type checker, not the name, so
+// MaxQuotedErrorBytes is not one and a new code is one whatever it is called or
+// however its value is written.
+func declaredCodes(t *testing.T) []string {
 	t.Helper()
 	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
 	require.NoError(t, err)
 
-	scope := p.Types.Scope()
-	var n int
-	for _, name := range scope.Names() {
-		c, isConst := scope.Lookup(name).(*types.Const)
-		if isConst && c.Exported() && c.Val().Kind() == constant.String {
-			n++
+	var out []string
+	for c := range p.Objects[*types.Const]() {
+		if c.Exported() && c.Val().Kind() == constant.String {
+			out = append(out, constant.StringVal(c.Val()))
 		}
 	}
-	require.Positive(t, n, "found no declared codes to count")
-	return n
+	require.NotEmpty(t, out, "found no declared codes")
+	slices.Sort(out)
+	return out
 }
 
 // TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for
