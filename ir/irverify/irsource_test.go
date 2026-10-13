@@ -70,11 +70,9 @@ func (f declaredField) key() string {
 // function-local type is not a package-level declaration and so is not listed.
 func declaredFields(t *testing.T) []declaredField {
 	t.Helper()
-	scope := irDecls(t).Types.Scope()
 	var out []declaredField
-	for _, name := range scope.Names() {
-		decl, isType := scope.Lookup(name).(*types.TypeName)
-		if !isType || decl.IsAlias() {
+	for decl := range irDecls(t).Objects[*types.TypeName]() {
+		if decl.IsAlias() {
 			continue
 		}
 		st, isStruct := decl.Type().Underlying().(*types.Struct)
@@ -82,7 +80,7 @@ func declaredFields(t *testing.T) []declaredField {
 			continue
 		}
 		for field := range st.Fields() {
-			out = append(out, declaredField{owner: name, field: field})
+			out = append(out, declaredField{owner: decl.Name(), field: field})
 		}
 	}
 	require.NotEmpty(t, out, "the ir package must declare struct fields")

@@ -2,6 +2,7 @@ package decls_test
 
 import (
 	"go/types"
+	"iter"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -214,6 +215,37 @@ func TestStringConsts_Refusals(t *testing.T) {
 		assert.Nil(t, got)
 		assert.Contains(t, err.Error(), tc.want)
 	}
+}
+
+// TestObjects_YieldsOneKindInNameOrder holds Objects to its kind and to name
+// order, and to stopping when the loop over it does.
+func TestObjects_YieldsOneKindInNameOrder(t *testing.T) {
+	t.Parallel()
+	p := fixture(t)
+
+	assert.Equal(t, []string{"Blue", "Green", "One", "Plain", "Red"}, names(p.Objects[*types.Const]()))
+	assert.Equal(t, []string{"Alias", "Bytes", "Color", "Count", "Shade", "Wrapper"},
+		names(p.Objects[*types.TypeName]()))
+	assert.Equal(t, []string{"Hello"}, names(p.Objects[*types.Func]()))
+	assert.Equal(t, []string{
+		"Alias", "Blue", "Bytes", "Color", "Count", "Green", "Hello", "One", "Plain", "Red", "Shade", "Wrapper",
+	}, names(p.Objects[types.Object]()))
+
+	var first []string
+	for c := range p.Objects[*types.Const]() {
+		first = append(first, c.Name())
+		break
+	}
+	assert.Equal(t, []string{"Blue"}, first)
+}
+
+// names collects the names of the objects seq yields.
+func names[T types.Object](seq iter.Seq[T]) []string {
+	var out []string
+	for obj := range seq {
+		out = append(out, obj.Name())
+	}
+	return out
 }
 
 // TestTypesDeclaring_CountsOnlyOwnMethods holds the reader to what a sealed

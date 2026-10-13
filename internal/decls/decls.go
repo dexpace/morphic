@@ -8,6 +8,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"iter"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -134,6 +135,20 @@ func unread(p *packages.Package) []error {
 	return errs
 }
 
+// Objects returns the package-level objects of kind T the package declares, in
+// name order: Objects[*types.Const] its constants, Objects[types.Object] all.
+func (p *Package) Objects[T types.Object]() iter.Seq[T] {
+	scope := p.Types.Scope()
+	return func(yield func(T) bool) {
+		for _, name := range scope.Names() {
+			obj, isT := scope.Lookup(name).(T)
+			if isT && !yield(obj) {
+				return
+			}
+		}
+	}
+}
+
 // Named returns the named type the package declares as name, through an alias
 // if name is one.
 func (p *Package) Named(name string) (*types.Named, error) {
@@ -157,15 +172,13 @@ func (p *Package) StringConsts(typeName string) ([]Const, error) {
 	if err != nil {
 		return nil, err
 	}
-	scope := p.Types.Scope()
 	var found []*types.Const
-	for _, name := range scope.Names() {
-		c, isConst := scope.Lookup(name).(*types.Const)
-		if !isConst || !types.Identical(types.Unalias(c.Type()), named) {
+	for c := range p.Objects[*types.Const]() {
+		if !types.Identical(c.Type(), named) {
 			continue
 		}
 		if c.Val().Kind() != constant.String {
-			return nil, fmt.Errorf("%s.%s has kind %s, not String", p.Types.Path(), name, c.Val().Kind())
+			return nil, fmt.Errorf("%s.%s has kind %s, not String", p.Types.Path(), c.Name(), c.Val().Kind())
 		}
 		found = append(found, c)
 	}
@@ -191,16 +204,11 @@ func (p *Package) declarationOrder(a, b *types.Const) int {
 // declare the method name themselves. A type reaching it only by embedding is
 // not one: a sealed sum's members are the types that declare its marker.
 func (p *Package) TypesDeclaring(method string) []string {
-	scope := p.Types.Scope()
 	var out []string
-	for _, name := range scope.Names() {
-		tn, isType := scope.Lookup(name).(*types.TypeName)
-		if !isType {
-			continue
-		}
+	for tn := range p.Objects[*types.TypeName]() {
 		named, isNamed := tn.Type().(*types.Named)
 		if isNamed && declares(named, method) {
-			out = append(out, name)
+			out = append(out, tn.Name())
 		}
 	}
 	return out

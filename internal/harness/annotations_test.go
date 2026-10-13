@@ -113,17 +113,15 @@ func TestConstBlock_VocabularyFilesHoldNothingElse(t *testing.T) {
 		homes[p.Fset.Position(named.Obj().Pos()).Filename] = true
 	}
 
-	scope := p.Types.Scope()
-	for _, name := range scope.Names() {
-		c, isConst := scope.Lookup(name).(*types.Const)
-		if !isConst || !homes[p.Fset.Position(c.Pos()).Filename] {
+	for c := range p.Objects[*types.Const]() {
+		if !homes[p.Fset.Position(c.Pos()).Filename] {
 			continue
 		}
 		ofVocabulary := slices.ContainsFunc(vocabulary, func(named *types.Named) bool {
-			return types.Identical(types.Unalias(c.Type()), named)
+			return types.Identical(c.Type(), named)
 		})
 		assert.True(t, ofVocabulary,
-			"%s has type %s, not Annotation or SiteKind; the file holds nothing else", name, c.Type())
+			"%s has type %s, not Annotation or SiteKind; the file holds nothing else", c.Name(), c.Type())
 	}
 }
 

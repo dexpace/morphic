@@ -235,13 +235,9 @@ func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 	named, err := p.Named("ExtensionTarget")
 	require.NoError(t, err)
 
-	scope := p.Types.Scope()
-	for _, name := range scope.Names() {
-		v, isVar := scope.Lookup(name).(*types.Var)
-		if isVar {
-			assert.False(t, types.Identical(types.Unalias(v.Type()), named),
-				"%s is a var of ExtensionTarget; a target must be a constant to be read here", name)
-		}
+	for v := range p.Objects[*types.Var]() {
+		assert.False(t, types.Identical(v.Type(), named),
+			"%s is a var of ExtensionTarget; a target must be a constant to be read here", v.Name())
 	}
 
 	consts, err := p.StringConsts("ExtensionTarget")

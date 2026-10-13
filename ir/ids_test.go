@@ -241,15 +241,12 @@ func TestIDPath_Extraction(t *testing.T) {
 // and not listed would make every document that declares its namespaces invalid.
 func TestIDKinds_ListsEveryKindConstant(t *testing.T) {
 	t.Parallel()
-	scope := irDecls(t).Types.Scope()
-
 	var declared []string
-	for _, name := range scope.Names() {
-		c, isConst := scope.Lookup(name).(*types.Const)
-		if !isConst || !strings.HasPrefix(name, "IDKind") {
+	for c := range irDecls(t).Objects[*types.Const]() {
+		if !strings.HasPrefix(c.Name(), "IDKind") {
 			continue
 		}
-		require.Equal(t, constant.String, c.Val().Kind(), "%s is not a string constant", name)
+		require.Equal(t, constant.String, c.Val().Kind(), "%s is not a string constant", c.Name())
 		declared = append(declared, constant.StringVal(c.Val()))
 	}
 	require.NotEmpty(t, declared, "the ir sources must declare kind constants")

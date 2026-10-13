@@ -104,17 +104,15 @@ func declaredReasons(t *testing.T) []string {
 	require.NoError(t, err)
 	home := p.Fset.Position(named.Obj().Pos()).Filename
 
-	scope := p.Types.Scope()
-	for _, name := range scope.Names() {
-		obj := scope.Lookup(name)
-		ofType := types.Identical(types.Unalias(obj.Type()), named)
+	for obj := range p.Objects[types.Object]() {
+		ofType := types.Identical(obj.Type(), named)
 		switch obj.(type) {
 		case *types.Var:
-			assert.False(t, ofType, "%s is a var of %s; a reason must be a constant", name, reasonTypeName)
+			assert.False(t, ofType, "%s is a var of %s; a reason must be a constant", obj.Name(), reasonTypeName)
 		case *types.Const:
 			if p.Fset.Position(obj.Pos()).Filename == home {
 				assert.True(t, ofType, "%s in %s does not have type %s; every constant in the reason type's file must have it",
-					name, filepath.Base(home), reasonTypeName)
+					obj.Name(), filepath.Base(home), reasonTypeName)
 			}
 		default:
 			// A type or a function declares no reason.

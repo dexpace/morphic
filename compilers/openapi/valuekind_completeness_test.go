@@ -142,7 +142,7 @@ func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
 		for _, file := range p.Syntax {
 			for n := range ast.Preorder(file) {
 				sw, isSwitch := n.(*ast.SwitchStmt)
-				if !isSwitch || sw.Tag == nil || !types.Identical(types.Unalias(p.Info.TypeOf(sw.Tag)), valueKind) {
+				if !isSwitch || sw.Tag == nil || !types.Identical(p.Info.TypeOf(sw.Tag), valueKind) {
 					continue
 				}
 				out = append(out, valueKindSwitch{at: position(p, sw), values: caseValues(t, p.Info, sw)})

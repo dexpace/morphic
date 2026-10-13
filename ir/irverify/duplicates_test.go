@@ -262,12 +262,10 @@ func TestIdentityClasses_AreAllClassified(t *testing.T) {
 // listed.
 func declaredStringTypes(t *testing.T) []string {
 	t.Helper()
-	scope := irDecls(t).Types.Scope()
 	var names []string
-	for _, name := range scope.Names() {
-		decl, isType := scope.Lookup(name).(*types.TypeName)
-		if isType && declaresStringType(decl) {
-			names = append(names, name)
+	for decl := range irDecls(t).Objects[*types.TypeName]() {
+		if declaresStringType(decl) {
+			names = append(names, decl.Name())
 		}
 	}
 	return names
