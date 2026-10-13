@@ -48,7 +48,8 @@ func suppressionOf(text string) (string, bool) {
 // TestSuppressions_NoDirectiveStandsInTheSource reads every comment of every Go
 // file the go tool would build, tests included, and fails on one that spells a
 // suppression directive. It reads comments rather than text, so a string
-// literal or a sentence that names a directive is not one.
+// literal, or a sentence that mentions a directive without opening a comment
+// with it, is not one.
 func TestSuppressions_NoDirectiveStandsInTheSource(t *testing.T) {
 	t.Parallel()
 	violations, files, err := suppressionViolations(repoRoot(t))
@@ -170,7 +171,7 @@ func suppressionViolations(root string) ([]string, int, error) {
 			for _, c := range group.List {
 				if name, ok := suppressionOf(c.Text); ok {
 					violations = append(violations, fmt.Sprintf(
-						"%s:%d: %s directive: add an exclusion to .golangci.yml instead",
+						"%s:%d: %s directive: move it to an exclusion in .golangci.yml, or reword the comment if it is prose",
 						rel, fset.Position(c.Pos()).Line, name))
 				}
 			}
