@@ -343,8 +343,8 @@ type MapT struct {
 // Tuple is a positional sequence: a type for each leading position, then the
 // type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
 // tuples) (ir-design §4.6). Elems types positions without requiring them: how
-// many elements an instance must hold is Constraints.MinItems, which is where a
-// tuple of fixed length states it.
+// many elements an instance must hold is Constraints.MinItems, so a tuple of
+// fixed length sets it to len(Elems) and has no Rest.
 type Tuple struct {
 	TypeCommon
 	// Elems are the element types in position order.
