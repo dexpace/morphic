@@ -1,6 +1,9 @@
 package irverify
 
-import "testing"
+import (
+	"maps"
+	"testing"
+)
 
 // ValueCarriers exposes valueCarriers to this package's external tests.
 //
@@ -18,4 +21,17 @@ func ValueCarriers(t *testing.T) []string {
 func SelfReachableReferences(t *testing.T) []string {
 	t.Helper()
 	return selfReachableReferences(t)
+}
+
+// HeldLists exposes, for each field stringLists holds to a rule, whether that
+// rule is listSet rather than listPath, so the external tests' fixtures can be
+// held to reaching every one with the right expectation.
+func HeldLists() map[string]bool {
+	held := map[string]bool{}
+	for key, rule := range maps.All(stringLists) {
+		if rule == listPath || rule == listSet {
+			held[key] = rule == listSet
+		}
+	}
+	return held
 }

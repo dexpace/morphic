@@ -417,9 +417,10 @@ is not, so a single ill-formed name, ID or description fails the whole artifact.
 every string to it under one code, `ir/invalid-utf8`, at the path of the string that broke it.
 
 **`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
-matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,
-and resolution compares it verbatim against the writer schema's full name — so the separators and
-the casing are what the match is made of rather than a spelling the IR gets to decide.
+matched against a name *another* schema wrote — an Avro type alias is a full name such as
+`com.example.User`, or one relative to its type's namespace, and resolution compares it against the
+writer schema's full name — so the separators and the casing are what the match is made of rather
+than a spelling the IR gets to decide.
 Neutralizing one would throw away precisely that, which is the lossy direction
 lossless-by-default rules out. `Source` is the internal precedent: it carries `UserID` today and
 no content rule touches it, because it records what the spec said rather than deciding a spelling.
@@ -443,6 +444,20 @@ What is left is decidable without any grammar, and `irverify` holds an alias to 
 That such an entry is inert is also why a *source* declaring one is recorded once with a diagnostic
 rather than carried through: dropping it is not the lossy direction, since the same set of names
 resolves to the entity either way.
+
+An alias can also collide with *another* entity's name, and that is not a rule of the list:
+
+- **Within a record** it is a problem in the spec. An alias that another property of the same model
+  answers to — by its wire name or by an alias of its own — leaves a reader resolving that name two
+  fields to choose from, which is why Avro holds an alias to the same uniqueness as a name. A source
+  can write one, and no lowering can drop either claim without choosing between them, so
+  `pass/validate` reports it (`pass/ambiguous-alias`) beside the duplicate wire names of the same
+  scope, and `irverify` does not.
+- **Across the type registry** nothing reports it, because nothing in the IR decides it. A relative
+  alias is qualified by its type's namespace under the format's grammar, so one string on two types
+  in two namespaces is two names; and one document can hold several independent schemas — each
+  message payload of an AsyncAPI document is one — that may each declare the same type and alias.
+  A collision between named types is the compiler's to report, within the schema it parsed.
 
 ### 3.3 Type references
 
@@ -519,6 +534,12 @@ type TemplateArg struct {
     Value *Value            // TypeSpec `valueof` template parameters
 }
 ```
+
+`Namespace` is a path, one segment per level, as `Service.Namespace` and `GraphQLBinding.FieldPath`
+(§8.4) are. **No segment is blank** (`ir/path-segment-blank`): no namespace or field grammar has an
+empty level, so a source that spells one has written an invalid name, which its compiler reports
+rather than carries. A null or global namespace is the empty list, not one blank segment. A segment
+may repeat — `com.acme.acme` has three levels — so a path is not held to unique entries.
 
 ### 4.1 Primitives
 
@@ -1214,6 +1235,10 @@ type Visibility struct {
                        // (TypeSpec @invisible) — distinct from the zero value
 }
 ```
+
+`Only`, like an operation's `ParameterVisibility` and `ReturnTypeVisibility` (§7.2), is a set: no
+entry is blank and none repeats (`ir/set-entry-blank`, `ir/set-entry-duplicate`), since a blank
+names no class and a repeat admits nothing more.
 
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to
 `Only: [create, update]`; GraphQL input-vs-output types to `create/update` vs `read`; TypeSpec

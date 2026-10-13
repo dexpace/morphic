@@ -13,6 +13,7 @@ type Service struct {
 	// document-level Version remains the API title's version.
 	Version string `json:"version,omitempty"`
 	// Namespace is the source namespace path (TypeSpec/Smithy/proto package).
+	// No segment is blank, and one may repeat (ir-design §4).
 	Namespace []string `json:"namespace,omitempty"`
 	// Extends lists client-visible service inheritance (Thrift service extends,
 	// WSDL 2.0 interface extension, Cap'n Proto interface inheritance); inherited

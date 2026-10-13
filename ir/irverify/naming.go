@@ -103,11 +103,11 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 // An entry is reported if it is blank (isBlankName) or repeats an earlier entry
 // or the entity's own Source; a repeat is reported at its later occurrence,
 // naming the earlier. An entry that does not decode is checkUTF8's and skipped,
-// since later rules would quote it. Canonical and Hint are never compared: the
-// IR derived them, and no writer schema spelled them.
+// since until then it names nothing to compare. Canonical and Hint are never
+// compared: the IR derived them, and no writer schema spelled them.
 //
-// Out of scope: repeats across Namings (GitHub #398, pinned unreported by
-// TestVerify_AliasSharedByTwoNamings) and other []string fields (GitHub #399).
+// Collisions with other entities' names are no rule of the list (ir-design
+// §3.2).
 func appendAliasViolations(vs []Violation, source string, aliases []string, path string) []Violation {
 	seen := make(map[string]int, len(aliases))
 	for i, alias := range aliases {
@@ -125,13 +125,13 @@ func appendAliasViolations(vs []Violation, source string, aliases []string, path
 		case repeated:
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-duplicate",
-				Message: "alias " + alias + " is listed here and at index " + strconv.Itoa(first),
+				Message: "alias " + strconv.Quote(alias) + " is listed here and at index " + strconv.Itoa(first),
 				Path:    aliasPath(path, i),
 			})
 		case alias == source:
 			vs = append(vs, Violation{
 				Code:    "ir/naming-alias-redundant",
-				Message: "alias " + alias + " is the entity's own source name, so it matches nothing more",
+				Message: "alias " + strconv.Quote(alias) + " is the entity's own source name, so it matches nothing more",
 				Path:    aliasPath(path, i),
 			})
 		default:
@@ -188,21 +188,21 @@ func appendContentViolations(vs []Violation, channel, name, path string) []Viola
 	if isCased(name) {
 		vs = append(vs, Violation{
 			Code:    "ir/naming-cased",
-			Message: channel + " " + name + " carries casing; store neutral words",
+			Message: channel + " " + strconv.Quote(name) + " carries casing; store neutral words",
 			Path:    path,
 		})
 	}
 	if !isWordSequence(name) {
 		vs = append(vs, Violation{
 			Code:    "ir/naming-not-words",
-			Message: channel + " " + name + " is not a word sequence; split it on every non-word character",
+			Message: channel + " " + strconv.Quote(name) + " is not a word sequence; split it on every non-word character",
 			Path:    path,
 		})
 	}
 	if !isSegmented(name) {
 		vs = append(vs, Violation{
 			Code: "ir/naming-unsegmented",
-			Message: channel + " " + name +
+			Message: channel + " " + strconv.Quote(name) +
 				" runs a letter and a digit together in one word; the grammar splits that boundary",
 			Path: path,
 		})
@@ -231,8 +231,8 @@ func appendGrammarViolation(vs []Violation, source, canon, path string) []Violat
 	}
 	return append(vs, Violation{
 		Code: "ir/naming-not-derived",
-		Message: "canonical name " + canon + " is not what the grammar derives from source " +
-			source + " (" + want + "); emitters cannot tell which grammar produced it",
+		Message: "canonical name " + strconv.Quote(canon) + " is not what the grammar derives from source " +
+			strconv.Quote(source) + " (" + strconv.Quote(want) + "); emitters cannot tell which grammar produced it",
 		Path: path,
 	})
 }

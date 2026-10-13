@@ -3,6 +3,7 @@ package irverify
 import (
 	"cmp"
 	"slices"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -13,7 +14,9 @@ import (
 type Violation struct {
 	// Code is a stable, slash-namespaced identifier for the defect class.
 	Code string
-	// Message is a human-readable description of the specific defect.
+	// Message is a human-readable description of the specific defect. Text it
+	// takes from the document is strconv.Quote'd, so it is valid UTF-8 whatever
+	// the document holds (GitHub #400); Path is not yet (GitHub #739).
 	Message string
 	// Path locates the offending node within the document.
 	Path string
@@ -82,6 +85,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkDeclaredIDs,
 		checkIDSpaces,
 		checkNaming,
+		checkStringLists,
 		checkRawPayloads,
 		checkProvenance,
 		checkIndices,
@@ -171,7 +175,7 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 	if key != nodeID {
 		return append(vs, Violation{
 			Code:    "ir/" + noun + "-id-mismatch",
-			Message: "registry key " + key + " disagrees with node ID " + nodeID,
+			Message: "registry key " + strconv.Quote(key) + " disagrees with node ID " + strconv.Quote(nodeID),
 			Path:    reg + "[" + key + "]",
 		})
 	}
