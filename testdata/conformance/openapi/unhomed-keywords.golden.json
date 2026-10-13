@@ -336,6 +336,10 @@
           "nullable": false
         }
       ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
       "constraints": {
         "maxItems": 2,
         "uniqueItems": false
@@ -1192,7 +1196,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "97e1df090f83c0e38cfe6ceec9106e362f93d499319342896292c19365656dbe"
+      "hash": "da88532835f0bcaa41f444259d4ef6bdcf295f20078b9f689af53669c5033ead"
     }
   ]
 }

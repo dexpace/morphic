@@ -49,6 +49,52 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/PairWithRest/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/PairWithRest/items",
+      "name": {
+        "hint": "pair_with_rest_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PairWithRest/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/PairWithRest/items/properties/flag",
+          "name": {
+            "source": "flag",
+            "canonical": "flag"
+          },
+          "wireName": "flag",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PairWithRest/items/properties/flag"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/BoundedClosedPair": {
       "kind": "tuple",
       "id": "t/openapi/components/schemas/BoundedClosedPair",
@@ -143,16 +189,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:items-after-prefix": {
-          "reason": "degraded_lowering",
-          "value": true,
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Pair"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pair"
@@ -166,40 +202,60 @@
           "target": "t/prim/integer",
           "nullable": false
         }
-      ]
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
     },
-    "t/openapi/components/schemas/PairWithTail": {
+    "t/openapi/components/schemas/PairWithRest": {
       "kind": "tuple",
-      "id": "t/openapi/components/schemas/PairWithTail",
+      "id": "t/openapi/components/schemas/PairWithRest",
       "name": {
-        "source": "PairWithTail",
-        "canonical": "pair_with_tail"
+        "source": "PairWithRest",
+        "canonical": "pair_with_rest"
       },
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:items-after-prefix": {
-          "reason": "degraded_lowering",
-          "value": {
-            "type": "boolean"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/PairWithTail/items"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/PairWithTail"
+        "pointer": "/components/schemas/PairWithRest"
       },
       "elems": [
         {
           "target": "t/prim/string",
           "nullable": false
         }
-      ]
+      ],
+      "rest": {
+        "target": "t/anon/components/schemas/PairWithRest/items",
+        "nullable": false
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
     },
     "t/prim/integer": {
       "kind": "primitive",
@@ -235,31 +291,11 @@
       "description": {}
     }
   ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "the tail past prefixItems is an open tuple; lowered as a positional head of fixed length with the tail kept under Unmodeled[\"openapi:items-after-prefix\"]",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Pair"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "the tail past prefixItems is an open tuple; lowered as a positional head of fixed length with the tail kept under Unmodeled[\"openapi:items-after-prefix\"]",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/PairWithTail"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "tuples-prefixitems.yaml",
-      "hash": "b4579ac5ff809db525d13307f26d2a8eeda09c584099a91652bf6f2e628ba483"
+      "hash": "2f307b45f7d2da9336f587c1a9d054cb3818ee6a69bb778d6b33ba4762c99db8"
     }
   ]
 }

@@ -3,29 +3,31 @@ info: {title: TuplesPrefixItems, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # Closed `items: false` first, so the closed states are read before the open
-    # ones. Closed says nothing may follow the positional head, which is exactly
-    # what the Tuple's head states, so the schema keeps no tail entry and is
-    # reported for nothing. The positions past a declared MinItems stay
-    # unrequired all the same (ir-design §4.8).
+    # Closed first, so a lowering that read a closed tuple as open, or the
+    # reverse, shows in the single-order golden too. `items: false` lets no
+    # element follow the two positions, and no minItems requires either.
     ClosedPair:
       type: array
       prefixItems:
         - {type: string}
         - {type: integer}
       items: false
-    # Open, with no `items` written at all: 2020-12 reads an absent `items` as the
-    # empty schema `true`, so the effective tail is open and the entry says so as
-    # the literal `true`, at the tuple schema's own pointer — no /items node
-    # exists for it to be located at, and that pointer is also what tells this
-    # apart from a written `items: true`.
+    # No items at all: 2020-12 reads that as `true`, so anything may follow.
     Pair:
       type: array
       prefixItems:
         - {type: string}
         - {type: integer}
-    # Closed above and pinned from below: `items: false` bounds the tail to
-    # nothing, and minItems: 2 is the lower bound the head itself does not state.
+    # A typed rest, inline, so its own type graph has to reach the IR.
+    PairWithRest:
+      type: array
+      prefixItems:
+        - {type: string}
+      items:
+        type: object
+        properties:
+          flag: {type: boolean}
+    # Exactly two: closed, and both positions required.
     ExactPair:
       type: array
       prefixItems:
@@ -33,14 +35,7 @@ components:
         - {type: integer}
       items: false
       minItems: 2
-    # Open with a typed tail, kept verbatim at its own /items pointer.
-    PairWithTail:
-      type: array
-      prefixItems:
-        - {type: string}
-      items: {type: boolean}
-    # Closed, with every collection bound the whole instance declares reaching
-    # Tuple.Constraints rather than Unmodeled.
+    # Every collection bound reaches the tuple.
     BoundedClosedPair:
       type: array
       prefixItems:

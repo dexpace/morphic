@@ -681,12 +681,9 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "maxItems", "minItems", "uniqueItems":
-		// Either collection node. Both carry the bounds through
-		// collectionConstraints, which is still why valueConstraintKeywords leaves
-		// them out, and that is what puts them in this census rather than in
-		// declaredConstraints. Until the Tuple gained a Constraints field they
-		// were List-owned, so a collection bound beside prefixItems reached as
-		// little as one written on an object did.
+		// Either collection node, since collectionConstraints fills both. That is
+		// also why valueConstraintKeywords leaves them out, which puts them in this
+		// census rather than in declaredConstraints.
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
@@ -813,11 +810,9 @@ func constraintsHome(td ir.TypeDef) bool {
 	case *ir.Model:
 		return n.Constraints != nil
 	default:
-		// An Enum, Literal, Union or Primitive has no Constraints field at all,
-		// so a bound written beside one was read by nothing. A List and a Tuple
-		// have one, but it is filled only from the collection bounds — which
-		// valueConstraintKeywords excludes — so a value constraint written
-		// beside either reaches no field of theirs.
+		// Every other kind has no Constraints field, or holds only collection
+		// bounds in it as a List and a Tuple do, so a value bound written beside
+		// one was read by nothing.
 		return false
 	}
 }
@@ -1354,15 +1349,14 @@ func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	return out, diags
 }
 
-// buildTuple lowers prefixItems into a Tuple. The positional head is the
-// prefixItems list and the tail past it is open, closed, or typed, which
-// keepTupleTail decides and reports.
+// buildTuple lowers prefixItems into a Tuple's Elems, the items beside them
+// into its Rest, and the collection bounds into its Constraints.
 //
-// The IR has no node for an open tuple (a fixed head plus a homogeneous tail),
-// so the head lowers to a Tuple, the documented weaker shape, and an open tail
-// is kept beside it (ir-design §4.8). The bounds the whole instance declared
-// reach Tuple.Constraints whatever the tail is; Elems is never trimmed to
-// MaxItems and `items: false` is never folded into a bound.
+// 2020-12 applies items to every element past prefixItems, so `items: false`
+// leaves no Rest, and any other lowers as a List's items does: an absent one to
+// the top type, and under the same hint, since positionHint names /items alike
+// whichever node holds it. No field is derived from another: Elems is never
+// trimmed to maxItems, and a closed tuple gains no maxItems.
 func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
@@ -1372,41 +1366,12 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(s)}
-	kept, keptDiags := keepTupleTail(c, &t.Unmodeled, s, pointer)
-	diags = append(diags, keptDiags...)
-	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-			"the tail past prefixItems is an open tuple; lowered as a positional head of fixed length with the tail kept under Unmodeled[\"openapi:items-after-prefix\"]"))
+	if items := s.GetItems(); !annotation.IsFalseSchema(items) {
+		rest, restDiags := Ref(c, ts, anchors, depth, items, pointer+ids.Ptr("items"), compile.SubHint(hint, "item"))
+		diags = append(diags, restDiags...)
+		t.Rest = &rest
 	}
 	return t, diags
-}
-
-// keepTupleTail keeps the tail a prefixItems tuple declares past its positional
-// head under openapi:items-after-prefix, whatever its source, and reports
-// whether it kept one:
-//
-//   - `items: false` is closed, as the head already says: nothing is kept.
-//   - `items` absent beside `unevaluatedItems`: the §4.7 keeper already holds
-//     that keyword, and it is the tail. An entry here would call open a tuple
-//     `unevaluatedItems: false` closed.
-//   - `items` absent alone is open, since 2020-12 reads it as `true`. The literal
-//     `true` is kept at the tuple's own pointer, as no /items node exists, which
-//     also tells it from a written `items: true`.
-func keepTupleTail(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (bool, []ir.Diagnostic) {
-	items := s.GetItems()
-	switch {
-	case annotation.IsFalseSchema(items):
-		return false, nil
-	case items == nil && s.GetUnevaluatedItems() != nil:
-		return false, nil
-	case items == nil:
-		annotation.PreserveInto(p, "openapi:items-after-prefix", ir.RawValue("true"),
-			ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
-		return true, nil
-	default:
-		return PreserveNode(c, p, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"),
-			ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
-	}
 }
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
@@ -2271,10 +2236,10 @@ func allNullUnion(s *oas3.Schema) bool {
 	return true
 }
 
-// collectionConstraints reads a collection schema's collection constraints — a
-// List's element count, or a Tuple's instance length over Elems and its tail.
-// Only the safe integer/bool bounds are read here; numeric-value bounds go
-// through raw nodes elsewhere to avoid the float64 trap.
+// collectionConstraints reads an array schema's collection bounds, which bound
+// the whole instance whether it lowers to a List or a Tuple. Only the safe
+// integer/bool bounds are read here; numeric-value bounds go through raw nodes
+// elsewhere to avoid the float64 trap.
 func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
 		return nil

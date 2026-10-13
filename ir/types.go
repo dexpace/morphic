@@ -340,22 +340,19 @@ type MapT struct {
 	Value TypeRef `json:"value"`
 }
 
-// Tuple is a positional head of fixed length whose positions are not
-// individually required (prefixItems, TypeSpec tuples, Erlang tuples)
-// (ir-design §4.6). An instance's length is bounded by Constraints
-// (minItems/maxItems), and a tail past the head is the
-// openapi:items-after-prefix entry when the source is open and absent when the
-// source is closed.
+// Tuple is a positional sequence: a type for each leading position, then the
+// type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
+// tuples) (ir-design §4.6). Elems types positions without requiring them: how
+// many elements an instance must hold is Constraints.MinItems, which is where a
+// tuple of fixed length states it.
 type Tuple struct {
 	TypeCommon
 	// Elems are the element types in position order.
 	Elems []TypeRef `json:"elems,omitempty"`
-	// Constraints holds the source's collection bounds over the whole instance
-	// (minItems/maxItems/uniqueItems). It is position-scoped like every other
-	// Constraints, so an absent one means this position declared no bound rather
-	// than that the length is unconstrained (ir-design §12.2). The arity is the
-	// head, Elems — which the bounds do not restate — and the bounds are how a
-	// consumer sees that the length may not be the whole story.
+	// Rest types every element past Elems; nil = no element may follow them.
+	Rest *TypeRef `json:"rest,omitzero"`
+	// Constraints bounds the whole instance, Elems and Rest together
+	// (minItems/maxItems/uniqueItems).
 	Constraints *Constraints `json:"constraints,omitzero"`
 }
 

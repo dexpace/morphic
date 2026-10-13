@@ -285,97 +285,64 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
-// tupleTail is one expected Unmodeled entry: the raw payload, the reason and the
-// pointer locating the construct.
-type tupleTail struct {
-	raw     string
-	reason  ir.UnmodeledReason
-	pointer jsontext.Pointer
-}
-
-// TestLower_TupleTail pins the three states a prefixItems tuple's tail can be in,
-// the entry each writes, and the collection bounds beside them.
-//
-//   - Open with no `items`: 2020-12 reads it as `true`, kept as that literal at
-//     the tuple's own pointer, which tells it from a written `items: true`.
-//   - Open with `items: true` or a schema: kept verbatim at its /items pointer.
-//   - Closed with `items: false`: nothing is kept or reported.
-//
-// A tail `unevaluatedItems` alone decides is left to the §4.7 keeper, so no
-// entry or info is synthesized beside it (ir-design §4.8). Whatever the tail,
-// the instance's bounds reach Tuple.Constraints.
-func TestLower_TupleTail(t *testing.T) {
+// TestLower_TupleRest pins what a prefixItems tuple admits past its elements and
+// the bounds beside them. 2020-12 applies items to every element past
+// prefixItems and reads an absent one as `true`, so only `items: false` closes
+// the tuple. The rest is modeled, so nothing is kept beside it and nothing is
+// reported as degraded; an unevaluatedItems stays the §4.7 keeper's whatever
+// the rest is.
+func TestLower_TupleRest(t *testing.T) {
 	t.Parallel()
+	const head = "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n"
 	i64 := func(v int64) *int64 { return &v }
 	for _, tc := range []struct {
-		name    string
-		body    string
-		elems   int
-		consts  *ir.Constraints
-		tail    map[string]tupleTail
-		wantMsg bool
+		name   string
+		body   string
+		rest   ir.TypeID // "" = no rest
+		consts *ir.Constraints
+		kept   []string
 	}{
+		{name: "absent items admits anything after", body: head, rest: "t/prim/any"},
+		{name: "items true admits anything after", body: head + "      items: true\n", rest: "t/prim/any"},
+		{name: "items false admits nothing after", body: head + "      items: false\n"},
+		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "t/prim/bool"},
 		{
-			name:    "absent items is open and states the effective tail",
-			body:    "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n",
-			elems:   2,
-			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
-			wantMsg: true,
+			name: "a referenced rest",
+			body: head + "      items: {$ref: '#/components/schemas/B'}\n    B: {type: object}\n",
+			rest: componentID("B"),
 		},
 		{
-			name:    "items true is open at its own node",
-			body:    "      type: array\n      prefixItems: [{type: string}]\n      items: true\n",
-			elems:   1,
-			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup/items"}},
-			wantMsg: true,
+			name: "an inline rest hoists at its own pointer",
+			body: head + "      items: {type: object, properties: {f: {type: string}}}\n",
+			rest: "t/anon/components/schemas/Tup/items",
 		},
 		{
-			name:  "items false is closed, and the head already says so",
-			body:  "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n      items: false\n",
-			elems: 2,
-		},
-		{
-			name:    "a typed tail is kept verbatim where it stands",
-			body:    "      type: array\n      prefixItems: [{type: string}]\n      items: {type: boolean}\n",
-			elems:   1,
-			tail:    map[string]tupleTail{tailKey: {`{"type":"boolean"}`, ir.ReasonDegradedLowering, "/components/schemas/Tup/items"}},
-			wantMsg: true,
-		},
-		{
-			name:   "closed with the head pinned from below",
-			body:   "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n      items: false\n      minItems: 2\n",
-			elems:  2,
+			name:   "closed and pinned from below",
+			body:   head + "      items: false\n      minItems: 2\n",
 			consts: &ir.Constraints{MinItems: i64(2)},
 		},
 		{
-			name:    "an upper bound alone leaves the tail open",
-			body:    "      type: array\n      prefixItems: [{type: string}]\n      maxItems: 1\n",
-			elems:   1,
-			consts:  &ir.Constraints{MaxItems: i64(1)},
-			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
-			wantMsg: true,
+			name:   "an upper bound leaves the rest open",
+			body:   head + "      maxItems: 1\n",
+			rest:   "t/prim/any",
+			consts: &ir.Constraints{MaxItems: i64(1)},
 		},
 		{
-			name:    "a lower bound alone leaves the tail open",
-			body:    "      type: array\n      prefixItems: [{type: string}]\n      minItems: 3\n",
-			elems:   1,
-			consts:  &ir.Constraints{MinItems: i64(3)},
-			tail:    map[string]tupleTail{tailKey: {"true", ir.ReasonDegradedLowering, "/components/schemas/Tup"}},
-			wantMsg: true,
+			name:   "a lower bound past the elements requires a rest",
+			body:   head + "      items: {type: boolean}\n      minItems: 3\n",
+			rest:   "t/prim/bool",
+			consts: &ir.Constraints{MinItems: i64(3)},
 		},
 		{
-			name:   "closed with every bound",
-			body:   "      type: array\n      prefixItems: [{type: string}]\n      items: false\n      minItems: 3\n      maxItems: 1\n      uniqueItems: true\n",
-			elems:  1,
+			name:   "every bound is kept as written, satisfiable or not",
+			body:   head + "      items: false\n      minItems: 3\n      maxItems: 1\n      uniqueItems: true\n",
 			consts: &ir.Constraints{MinItems: i64(3), MaxItems: i64(1), UniqueItems: true},
 		},
 		{
-			name:  "unevaluatedItems alone holds the tail, so nothing is synthesized",
-			body:  "      type: array\n      prefixItems: [{type: string}]\n      unevaluatedItems: false\n",
-			elems: 1,
-			tail: map[string]tupleTail{
-				"openapi:unevaluated": {`{"unevaluatedItems":false}`, ir.ReasonValidationOnly, "/components/schemas/Tup"},
-			},
+			name: "unevaluatedItems is kept and the rest read from items alone",
+			body: head + "      unevaluatedItems: false\n",
+			rest: "t/prim/any",
+			kept: []string{"openapi:unevaluated"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -385,53 +352,19 @@ func TestLower_TupleTail(t *testing.T) {
 
 			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
 			require.True(t, ok, "prefixItems hoists a Tuple")
-			assert.Len(t, tup.Elems, tc.elems, "the positional head is the prefixItems list")
+			assert.Equal(t, []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}, tup.Elems)
+			if tc.rest == "" {
+				assert.Nil(t, tup.Rest, "no element may follow the head")
+			} else if assert.NotNil(t, tup.Rest) {
+				assert.Equal(t, tc.rest, tup.Rest.Target)
+				assert.Contains(t, doc.Types, tup.Rest.Target, "the rest is lowered into the registry")
+			}
 			assert.Equal(t, tc.consts, tup.Constraints, "the instance's bounds reach Tuple.Constraints")
-
-			assert.Equal(t, len(tc.tail), len(tup.Unmodeled), "kept exactly: %v", unmodeledKeys(tup.Unmodeled))
-			for key, want := range tc.tail {
-				entry := unmodeledEntry(t, tup.Unmodeled, key)
-				assert.Equal(t, want.reason, entry.Reason)
-				assert.JSONEq(t, want.raw, string(entry.Value))
-				assert.Equal(t, want.pointer, entry.Provenance.Pointer)
-			}
-
-			wantInfo := 0
-			if tc.wantMsg {
-				wantInfo = 1
-			}
-			atTuple := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Tup")
-			assert.Len(t, atTuple, wantInfo,
-				"the open tuple is announced exactly when a tail entry was kept; got %+v", diags)
-			for _, d := range atTuple {
-				assert.Equal(t, ir.SeverityInfo, d.Severity, "the degradation is info, not a warning")
-			}
-			if tc.wantMsg {
-				assert.True(t, hasDegradedDiag(diags, "open tuple"),
-					"the degradation says the tuple is open; got %+v", diags)
-			}
+			assert.Equal(t, tc.kept, unmodeledKeys(tup.Unmodeled))
+			assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Tup"),
+				"a modeled rest is no degradation")
 		})
 	}
-}
-
-// tailKey is the Unmodeled key every open prefixItems tuple keeps its tail under,
-// whatever the tail came from.
-const tailKey = "openapi:items-after-prefix"
-
-// unmodeledEntry returns the Unmodeled entry at key, failing when absent.
-func unmodeledEntry(t *testing.T, p ir.Unmodeled, key string) ir.UnmodeledEntry {
-	t.Helper()
-	entry, ok := p[key]
-	require.True(t, ok, "%q kept verbatim; kept instead: %v", key, unmodeledKeys(p))
-	return entry
-}
-
-// hasDegradedDiag reports whether diags carries a degraded-construct info
-// diagnostic whose message contains want.
-func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want)
-	})
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -2295,6 +2228,8 @@ func stolenPositions() []stolenPosition {
 			"t/anon/components/schemas/A/additionalProperties"},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0"},
+		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items"},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/patternProperties/^x"},
 		{"oneOf-branch", "    A: {oneOf: [" + openapitest.InlineProbeBody + ", {type: integer}]}\n",
@@ -2329,6 +2264,8 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
+		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items", "a_item", ""},
 		// Nested, because the derivation replays the whole chain rather than one
 		// step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
@@ -2349,6 +2286,12 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
+		// Aimed at a tuple's rest for the same reason: a rest named by a role of
+		// its own would part from the /items a reference replays.
+		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
+			openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/items/items", "a_item_item",
+			"t/anon/components/schemas/A/items"},
 		// Aimed at additionalProperties for the same reason.
 		{"items under additionalProperties", "    A: {type: object, additionalProperties: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
@@ -4906,16 +4849,12 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindLiteral, []string{"openapi:type"}},
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
 			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
-		// A collection bound is homed by ir.List.Constraints and
-		// ir.Tuple.Constraints and by nothing else. collectionConstraints is its
-		// only reader, called by lowerArray and buildTuple, so an object keeps it
-		// here — while a Tuple does not. The tuple row is its control, closed with
-		// `items: false` so that nothing but the bound's home can make it keep
-		// anything: the bound reached Tuple.Constraints, so the census records
-		// nothing and reports nothing.
+		// A collection bound is homed by the Constraints of a List or a Tuple and
+		// by nothing else, so an object keeps it here and the tuple, its control,
+		// keeps nothing.
 		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
 			ir.KindModel, []string{"openapi:minItems"}},
-		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], items: false, maxItems: 2}",
+		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
 			ir.KindTuple, nil},
 		// A Scalar rather than the shared Primitive the type alone would reach:
 		// the entry needs a node this pointer owns, so the census hoists the alias

@@ -104,9 +104,7 @@ func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValu
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
-// a List over its item schema. Both carry the collection bounds
-// collectionConstraints reads: a Tuple's over its positional head and the tail
-// past it, a List's over its elements.
+// a List over its item schema, each with the collection bounds it declares.
 func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
