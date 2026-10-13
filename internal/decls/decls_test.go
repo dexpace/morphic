@@ -164,19 +164,3 @@ func TestTypesDeclaring_CountsOnlyOwnMethods(t *testing.T) {
 	assert.Equal(t, []string{"Color", "Shade"}, p.TypesDeclaring("Method"))
 	assert.Empty(t, p.TypesDeclaring("Missing"))
 }
-
-func TestFuncDecl(t *testing.T) {
-	t.Parallel()
-	p := fixture(t)
-
-	fd, err := p.FuncDecl("Hello")
-	require.NoError(t, err)
-	assert.Equal(t, "Hello", fd.Name.Name)
-
-	for _, name := range []string{"Missing", "Color", "Method"} {
-		fd, err := p.FuncDecl(name)
-		require.Error(t, err, name)
-		assert.Nil(t, fd)
-		assert.Contains(t, err.Error(), "declares no function "+name)
-	}
-}

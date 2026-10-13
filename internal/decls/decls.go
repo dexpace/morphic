@@ -165,16 +165,3 @@ func declares(named *types.Named, method string) bool {
 	}
 	return false
 }
-
-// FuncDecl returns the declaration of the package-level function name.
-func (p *Package) FuncDecl(name string) (*ast.FuncDecl, error) {
-	for _, f := range p.Syntax {
-		for _, d := range f.Decls {
-			fd, isDecl := d.(*ast.FuncDecl)
-			if isDecl && fd.Recv == nil && fd.Name.Name == name {
-				return fd, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("%s declares no function %s", p.Types.Path(), name)
-}

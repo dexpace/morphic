@@ -26,10 +26,10 @@ const One Count = 1
 // Plain is an untyped string constant, of no named type.
 const Plain = "plain"
 
-// Hello is a function with a declaration.
+// Hello is a function, which declares no type.
 func Hello() {}
 
-// Method is a method, so it is no package-level function.
+// Method is Color's own.
 func (Color) Method() {}
 
 // Wrapper reaches Method only by embedding Color.
