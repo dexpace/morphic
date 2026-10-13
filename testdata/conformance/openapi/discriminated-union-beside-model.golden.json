@@ -49,6 +49,52 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Vehicle/type/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Vehicle/type/0",
+      "name": {
+        "hint": "vehicle"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Vehicle/type/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Vehicle/type/0/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Vehicle/type/0/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/Bird/oneOf/0": {
       "kind": "model",
       "id": "t/composed/components/schemas/Bird/oneOf/0",
@@ -188,6 +234,53 @@
       ],
       "exclusive": true,
       "wireTagged": false
+    },
+    "t/openapi/components/schemas/Car": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Car",
+      "name": {
+        "source": "Car",
+        "canonical": "car"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Car"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Car/properties/wheels",
+          "name": {
+            "source": "wheels",
+            "canonical": "wheels"
+          },
+          "wireName": "wheels",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Car/properties/wheels"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Cat": {
       "kind": "model",
@@ -625,6 +718,72 @@
       "discriminatorValue": "Square",
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Vehicle": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Vehicle",
+      "name": {
+        "source": "Vehicle",
+        "canonical": "vehicle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "mapping": {
+              "car": "#/components/schemas/Car"
+            },
+            "propertyName": "kind"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Vehicle/discriminator"
+          }
+        },
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Car"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Vehicle/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Vehicle"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "object"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Vehicle/type/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
     "t/prim/bool": {
       "kind": "primitive",
       "id": "t/prim/bool",
@@ -636,6 +795,18 @@
         "source": -1
       },
       "prim": "bool"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
     },
     "t/prim/number": {
       "kind": "primitive",
@@ -711,7 +882,16 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the discriminator routes to a type that is not a subtype of this model, so it cannot stay on the model; kept verbatim under Unmodeled beside the union it was written for",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Vehicle"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the discriminator routes to a type that is not a subtype of the model holding it, so it cannot stay there; kept verbatim under Unmodeled beside the union it was written for",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/discriminator"
@@ -720,10 +900,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the discriminator routes to a type that is not a subtype of this model, so it cannot stay on the model; kept verbatim under Unmodeled beside the union it was written for",
+      "message": "the discriminator routes to a type that is not a subtype of the model holding it, so it cannot stay there; kept verbatim under Unmodeled beside the union it was written for",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Animal/discriminator"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the discriminator routes to a type that is not a subtype of the model holding it, so it cannot stay there; kept verbatim under Unmodeled beside the union it was written for",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Vehicle/discriminator"
       }
     }
   ],
@@ -731,7 +920,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminated-union-beside-model.yaml",
-      "hash": "c9d514bca7e855ca2b36608c9510dc2f404fdd3e4ac643e32d73e50f519d5f96"
+      "hash": "8c05073b0a8e6b6b0228065b686a7597f365d83e0dc21692dbfbd73f55732408"
     }
   ]
 }

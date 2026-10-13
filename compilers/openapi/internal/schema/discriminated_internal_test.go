@@ -11,18 +11,20 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestBesideUnionDiscriminator_ReportsWhatIsNoModel pins that a settlement
-// whose model is missing, or is no model, is announced rather than skipped:
-// the discriminator it was deferred for would otherwise vanish unremarked.
-func TestBesideUnionDiscriminator_ReportsWhatIsNoModel(t *testing.T) {
+// TestBesideUnionDiscriminator_ReportsWhatItCannotSettle pins that a settlement
+// whose model is missing or is no model, or whose union's node is missing, is
+// announced rather than skipped: the discriminator it was deferred for would
+// otherwise be settled nowhere, unremarked.
+func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"missing":  {},
-		"no model": {"t/ghost": &ir.Scalar{ID: "t/ghost"}},
+		"model missing": {"t/owner": &ir.Union{ID: "t/owner"}},
+		"no model":      {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
+		"owner missing": {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Ghost", model: "t/ghost"}
+			d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
 
 			diags := d.Settle(reg)
 

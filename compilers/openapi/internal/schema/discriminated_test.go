@@ -211,7 +211,7 @@ func TestDiscriminatorBesideUnion_ReportsTheMoveOnce(t *testing.T) {
 	for _, src := range []string{pet + cat + dog, cat + dog + pet} {
 		_, diags := parseFull(t, openapitest.ComponentSpec(src))
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, movedPointer),
-			"not a subtype of this model")
+			"not a subtype of the model holding it")
 	}
 	_, diags := parseFull(t, openapitest.ComponentSpec(pet+subtypes))
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, movedPointer))
@@ -261,6 +261,50 @@ func TestDiscriminatorBesideUnion_AllOfBodyIsSettled(t *testing.T) {
 		"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" + petBranches
 	for _, doc := range discriminatedOrders(t, "3.1.0", pet, cat+dog+"    Base: {type: object}\n") {
 		assertMoved(t, doc, `"mapping"`)
+	}
+}
+
+// TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled pins the other model a
+// discriminator beside a kept union can sit on: a multi-typed body lowers to a
+// union whose object variant lowerUnion builds from the same schema, so the
+// variant holds it. Routed to a non-subtype, it moves to the node keeping the
+// union; with no route at all, it stays on the variant.
+func TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled(t *testing.T) {
+	t.Parallel()
+	const variant = ir.TypeID("t/anon/components/schemas/Pet/type/0")
+	multi := func(discriminator, branches string) string {
+		return "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: " + discriminator + "\n" + branches
+	}
+	cases := []struct {
+		name, pet string
+		moves     bool
+	}{
+		{"mapped to a non-subtype", multi("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}", petBranches), true},
+		{"no route", multi("{propertyName: kind}", "      oneOf: [{type: object, properties: {kind: {type: string}}}, {type: string}]\n"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range discriminatedOrders(t, "3.1.0", c.pet, cat+dog) {
+				owner, ok := doc.Types[componentID("Pet")].(*ir.Union)
+				require.True(t, ok, "a multi-typed body lowers to a union")
+				assert.Contains(t, owner.Unmodeled, "openapi:oneOf", "the union is kept on it")
+				held, ok := doc.Types[variant].(*ir.Model)
+				require.True(t, ok, "its object variant is a model")
+				assert.NotContains(t, held.Unmodeled, "openapi:discriminator", "the variant never keeps it verbatim")
+				if !c.moves {
+					assert.NotNil(t, held.Discriminator, "nothing routes anywhere, so it stays")
+					assert.NotContains(t, owner.Unmodeled, "openapi:discriminator")
+					continue
+				}
+				assert.Nil(t, held.Discriminator)
+				entry, ok := owner.Unmodeled["openapi:discriminator"]
+				require.True(t, ok, "it is kept beside the union it was written for")
+				assert.Equal(t, ir.Provenance{Pointer: movedPointer}, entry.Provenance)
+				assert.Contains(t, string(entry.Value), `"mapping"`)
+			}
+		})
 	}
 }
 

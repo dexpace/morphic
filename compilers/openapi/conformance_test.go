@@ -1026,8 +1026,9 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 // assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
 // union is kept verbatim beside a model. Pet's and Animal's routes are not
 // subtypes of them, so pass.Validate would reject the discriminator on the
-// model; it moves whole to Unmodeled beside the union. Shape's routes are true
-// allOf subtypes, so the model keeps it, and the document validates clean.
+// model; it moves whole to Unmodeled beside the union. Vehicle's object
+// variant holds one the same way. Shape's routes are true allOf subtypes, so
+// the model keeps it, and the document validates clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, pass.Validate(doc))
 
@@ -1043,6 +1044,13 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	}
 	_, isUnion := doc.Types[namedID("Bird")].(*ir.Union)
 	assert.True(t, isUnion, "Bird writes allOf to Animal but lowers to a union, which is no subtype")
+
+	vehicle, ok := doc.Types[namedID("Vehicle")].(*ir.Union)
+	require.True(t, ok, "a multi-typed body lowers to a union")
+	assert.Contains(t, vehicle.Unmodeled, "openapi:discriminator", "kept beside the union it was written for")
+	variant, ok := doc.Types["t/anon/components/schemas/Vehicle/type/0"].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, variant.Discriminator, "the object variant does not carry it")
 
 	shape, ok := doc.Types[namedID("Shape")].(*ir.Model)
 	require.True(t, ok)

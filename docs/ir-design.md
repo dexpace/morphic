@@ -955,14 +955,16 @@ from it is exact and nothing is reported.
   `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no
   component, is no route unless the `mapping` names it. Otherwise the whole object
   (`propertyName`, `mapping`, `defaultMapping`) is kept verbatim in
-  `Unmodeled["openapi:discriminator"]` beside the union, with an `info` diagnostic at the
-  discriminator; a subtype keeps the `DiscriminatorValue` its mapping key gives it, since that is
-  still the tag its instances carry. A union whose branches declare no shape (`validation_only`)
-  is held to the same rule. The compiler decides once every node is interned
-  (`compile.Settlement`), because neither the walk nor the source schemas can answer it: a
-  subtype declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose
-  `allOf` names the `Model` may still lower to no subtype — an `enum`, a `const`, an alias over a
-  `$ref` beside it, or a union its `allOf` is distributed across.
+  `Unmodeled["openapi:discriminator"]` on the node keeping the union, with an `info` diagnostic at
+  the discriminator; a subtype keeps the `DiscriminatorValue` its mapping key gives it, since that
+  is still the tag its instances carry. A union whose branches declare no shape
+  (`validation_only`) is held to the same rule, and so is a multi-typed body, which lowers to a
+  `Union` whose object variant, built from the same schema, holds the discriminator. The compiler
+  decides once every node is interned (`compile.Settlement`), because neither the walk nor the
+  source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
+  `Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
+  `enum`, a `const`, an alias over a `$ref` beside it, or a union its `allOf` is distributed
+  across.
 
   In all five, whatever structural body the schema declares is lowered — `properties` or a
   declared `type` yields a Model or typed node — and the union branches are kept verbatim in

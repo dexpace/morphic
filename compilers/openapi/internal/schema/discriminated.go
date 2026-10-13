@@ -14,16 +14,37 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// deferDiscriminatorBesideUnion queues the settlement of whatever discriminator
-// the model at id holds beside the union lowerBesideUnmodeledUnion kept
-// verbatim. A body that lowered to anything else holds none: the census kept
-// its discriminator where it kept the rest.
-func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
-	td, _ := ts.Node(id)
-	if _, isModel := td.(*ir.Model); !isModel {
-		return
+// deferDiscriminatorBesideUnion queues a settlement for each model that holds
+// the discriminator written beside the union lowerBesideUnmodeledUnion kept
+// verbatim on owner (discriminatorModels). A body that lowered to anything else
+// holds none: the census kept its discriminator where it kept the rest.
+func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
+	named := namedBranches(c, s)
+	for _, model := range discriminatorModels(ts, owner) {
+		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, owner: owner, model: model, named: named})
 	}
-	ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: id, named: namedBranches(c, s)})
+}
+
+// discriminatorModels returns the models holding the discriminator of the body
+// lowered to owner: owner itself when it is a model, and otherwise each model
+// variant of the union a multi-typed body lowers to, which lowerUnion builds
+// from the same schema. lowerDiscriminator fills no other node a body yields.
+func discriminatorModels(ts *compile.Types, owner ir.TypeID) []ir.TypeID {
+	td, _ := ts.Node(owner)
+	switch n := td.(type) {
+	case *ir.Model:
+		return []ir.TypeID{owner}
+	case *ir.Union:
+		var models []ir.TypeID
+		for _, v := range n.Variants {
+			if vt, _ := ts.Node(v.Type.Target); isKind(vt, ir.KindModel) {
+				models = append(models, v.Type.Target)
+			}
+		}
+		return models
+	default:
+		return nil
+	}
 }
 
 // namedBranches returns the components s's union branches name by $ref, in
@@ -51,7 +72,7 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 // union kept verbatim. A model discriminator says the model is a hierarchy's
 // base, so it stays only where every type it routes to is a subtype, the rule
 // pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to
-// Unmodeled beside the union it was written for.
+// Unmodeled on the node keeping the union it was written for.
 //
 // It is a settlement because only a lowered node says whether its type is a
 // subtype, and a subtype lowered after the model has no Base yet when the
@@ -60,7 +81,8 @@ type besideUnionDiscriminator struct {
 	c       lowering.Ctx
 	s       *oas3.Schema
 	pointer jsontext.Pointer
-	model   ir.TypeID
+	owner   ir.TypeID   // keeps the union verbatim
+	model   ir.TypeID   // holds the discriminator: owner, or a variant of it
 	named   []ir.TypeID // namedBranches
 }
 
@@ -69,19 +91,21 @@ type besideUnionDiscriminator struct {
 // reference deferred when it built the model before its declaration did.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	m, isModel := reg[d.model].(*ir.Model)
-	if !isModel || m == nil {
+	owner := reg[d.owner]
+	if !isModel || m == nil || ir.IsNilTypeDef(owner) {
 		return []ir.Diagnostic{d.c.DiagAt(ir.SeverityError, diag.InternalInvariant, d.pointer,
-			"internal: %q is no model, so the discriminator deferred for it is dropped", d.model)}
+			"internal: %q is no model or %q is not registered, so the discriminator settlement deferred for them is not taken",
+			d.model, d.owner)}
 	}
 	if m.Discriminator == nil || routesToSubtypes(reg, m, d.named) {
 		return nil
 	}
 	m.Discriminator = nil
 	at := d.pointer + ids.Ptr("discriminator")
-	_, diags := PreserveSchemaKeyword(d.c, &m.Unmodeled, d.s, "discriminator", ir.ReasonDegradedLowering, at)
+	_, diags := PreserveSchemaKeyword(d.c, &owner.Common().Unmodeled, d.s, "discriminator", ir.ReasonDegradedLowering, at)
 	return append(diags, d.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-		"the discriminator routes to a type that is not a subtype of this model, so it cannot stay on "+
-			"the model; kept verbatim under Unmodeled beside the union it was written for"))
+		"the discriminator routes to a type that is not a subtype of the model holding it, so it cannot "+
+			"stay there; kept verbatim under Unmodeled beside the union it was written for"))
 }
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a
