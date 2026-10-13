@@ -14,13 +14,14 @@ const MaxGroupDepth = 128
 // reports whether any were skipped, so a caller deciding something from what
 // it saw can tell an absent operation from an unvisited one. A group slice two
 // groups share is walked from each, so aliasing costs the unfolded size
-// (#736).
+// (#859); one that contains itself is not walked again from inside itself.
 func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 	if doc == nil {
 		return false
 	}
+	var path descent
 	for _, svc := range doc.Services {
-		if forEachGroupOperation(svc.Groups, 0, fn) {
+		if forEachGroupOperation(svc.Groups, 0, &path, fn) {
 			truncated = true
 		}
 	}
@@ -29,21 +30,28 @@ func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
 
 // forEachGroupOperation walks groups depth-first, calling fn per operation, and
 // reports whether the bound cut the descent short.
-func forEachGroupOperation(groups []OperationGroup, depth int, fn func(Operation)) bool {
+func forEachGroupOperation(groups []OperationGroup, depth int, path *descent, fn func(Operation)) bool {
+	// Every leaf recurses once into its own empty Groups, which has nothing to
+	// skip. Checking for it first keeps the cap from claiming truncation for a
+	// walk that reached everything.
+	if len(groups) == 0 {
+		return false
+	}
 	if depth > MaxGroupDepth {
-		// Only a non-empty slice is being skipped. Every leaf recurses once into
-		// its own empty Groups, so reporting the cap unconditionally would claim
-		// truncation for a walk that reached everything.
-		return len(groups) > 0
+		return true
+	}
+	if !path.enter(&groups[0], len(groups)) {
+		return false
 	}
 	truncated := false
 	for _, g := range groups {
 		for _, op := range g.Operations {
 			fn(op)
 		}
-		if forEachGroupOperation(g.Groups, depth+1, fn) {
+		if forEachGroupOperation(g.Groups, depth+1, path, fn) {
 			truncated = true
 		}
 	}
+	path.leave()
 	return truncated
 }

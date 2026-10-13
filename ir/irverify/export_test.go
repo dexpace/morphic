@@ -16,6 +16,13 @@ func ValueCarriers(t *testing.T) []string {
 	return valueCarriers(t)
 }
 
+// SelfReachableReferences exposes selfReachableReferences to this package's
+// external tests, for the reason ValueCarriers is exported.
+func SelfReachableReferences(t *testing.T) []string {
+	t.Helper()
+	return selfReachableReferences(t)
+}
+
 // HeldLists exposes, for each field stringLists holds to a rule, whether that
 // rule is listSet rather than listPath, so the external tests' fixtures can be
 // held to reaching every one with the right expectation.

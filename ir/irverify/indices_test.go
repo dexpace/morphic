@@ -177,7 +177,9 @@ var integerFields = map[string]string{
 	// The ir package's own traversal machinery, which is not IR data at all: the
 	// scan reaches every integer field the package declares, and classifying one
 	// costs less than a filter that could hide a real index behind it.
-	"valueWalk.seen": "pointer identities the walk has already followed, not positions",
+	"refKey.ptr":   "address that identifies a reference the walk has met, not a position",
+	"refKey.n":     "slice length that identifies a reference the walk has met, not a position",
+	"descentRef.n": "slice length that identifies a reference a traversal is inside, not a position",
 
 	"TypeCommon.Usage":      "bitset of usage sites (UsageFlags), not a position",
 	"Property.WireID":       "protobuf field number / thrift id, not a position",

@@ -337,6 +337,26 @@ func TestValidate_GroupWalkTruncationIsReported(t *testing.T) {
 	}
 }
 
+// TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation holds
+// Validate to what a group that is its own subgroup costs an unguarded walk. It
+// follows the cycle to the cap, so the operation's defect is reported once for
+// every lap and the document is called too deeply nested, though nothing was
+// skipped.
+func TestValidate_ASelfContainingGroupIsReachedOnceAndIsNotATruncation(t *testing.T) {
+	t.Parallel()
+	groups := []ir.OperationGroup{{Operations: []ir.Operation{
+		{ID: "loop", OneWay: true, Responses: []ir.Response{{}}},
+	}}}
+	groups[0].Groups = groups
+	doc := validDoc()
+	doc.Services = []ir.Service{{ID: "s", Groups: groups}}
+
+	diags := pass.Validate(doc)
+	assert.NotContains(t, codes(diags), "ir/walk-truncated", "nothing was skipped")
+	assert.Equal(t, 1, countCode(t, diags, "pass/oneway-with-responses"),
+		"the operation is reached once, not once per lap")
+}
+
 // TestValidate_ArgsCheckFailsOpenWhenWalkTruncated covers the polarity flip: the
 // legality of Property.Args is decided from a reachability set built by the same
 // bounded walk, so past the cap a GraphQL operation goes unseen and the types it
