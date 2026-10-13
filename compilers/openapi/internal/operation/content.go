@@ -590,12 +590,7 @@ func lowerHeader(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex,
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
 	diags = append(diags, schema.FillPropertyDetail(c, ts, anchors, &p, elected.js, elected.pointer)...)
-	// The media type object's own examples are more specific than the schema's,
-	// which FillPropertyDetail has just recorded, so they are applied after it.
-	if len(elected.examples) > 0 {
-		p.Examples = elected.examples
-	}
-	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl)...)
+	diags = append(diags, applyHeaderAnnotations(c, &p, h, hdecl, elected.examples)...)
 	return p, append(diags, preserveHeaderSerialization(c, &p, h, hdecl)...)
 }
 
@@ -624,14 +619,37 @@ func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, 
 	return diags
 }
 
-// contentOnlyFields are the Media Type Object fields the IR models at a body's
-// content position and gives a parameter or header no home for: the 3.2
-// sequential-media fields, and the multipart per-part encoding block. The
-// position lowers to one ir.Parameter or ir.Property holding one type and no
-// item or encoding fields, so each of these is kept verbatim instead of dropped
-// — the same one-field read electTypeSpelling used to make, widened from the
-// media type's schema to the whole object (GitHub #611).
-var contentOnlyFields = []string{"itemSchema", "itemEncoding", "prefixEncoding", "encoding"}
+// positionExamples returns the examples a parameter or header writes for
+// itself: its own, then those of the media type its content spelling elected.
+// Together they replace the schema's, as OpenAPI says a position's example
+// overrides its schema's, but neither replaces the other: OpenAPI orders them
+// nowhere, and keeping one would drop the other in silence (GitHub #611).
+func positionExamples(own, media []ir.Example) []ir.Example {
+	return slices.Concat(own, media)
+}
+
+// writtenField is one field an object writes, with the parser's own reading of
+// the node it was written at: for a value merged in through `<<`, the merged
+// node, which a read of the raw mapping does not find.
+type writtenField struct {
+	keyword string
+	node    *yaml.Node
+}
+
+// contentOnlyFields returns the Media Type Object fields the IR models at a
+// body's content position and gives a parameter or header no home for: the 3.2
+// sequential-media fields and the multipart per-part encodings. Such a position
+// lowers to one ir.Parameter or ir.Property holding one type, so each is kept
+// verbatim instead (GitHub #611).
+func contentOnlyFields(media *soa.MediaType) []writtenField {
+	core := media.GetCore()
+	return []writtenField{
+		{"itemSchema", core.ItemSchema.ValueNode},
+		{"itemEncoding", core.ItemEncoding.ValueNode},
+		{"prefixEncoding", core.PrefixEncoding.ValueNode},
+		{"encoding", core.Encoding.ValueNode},
+	}
+}
 
 // contentEntryFields returns everything a Media Type Object declares at a
 // parameter's or header's elected `content` position beyond the one type that
@@ -650,18 +668,17 @@ func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.
 	ext, extDiags := schema.ExtensionsIn(c, media.GetExtensions(), mediaPtr, scope)
 	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
 	diags = append(diags, extDiags...)
-	for _, keyword := range contentOnlyFields {
-		at := mediaPtr + ids.Ptr(keyword)
+	for _, field := range contentOnlyFields(media) {
+		at := mediaPtr + ids.Ptr(field.keyword)
 		kept, keptDiags := schema.PreserveNode(c, &unmodeled,
-			"openapi:"+scope+"/"+ids.Scope(keyword),
-			annotation.RawChildNode(media.GetRootNode(), keyword), ir.ReasonNoIRHome, at)
+			"openapi:"+scope+"/"+ids.Scope(field.keyword), field.node, ir.ReasonNoIRHome, at)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
-			carrier, keyword, home))
+			carrier, field.keyword, home))
 	}
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
@@ -784,16 +801,16 @@ func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.M
 // applyHeaderAnnotations overlays the annotations the header object writes on
 // itself onto p, after its schema's. A header carries both, and the header's
 // own are the more specific of the two — they describe this header rather than
-// the type it happens to be.
-func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl jsontext.Pointer) []ir.Diagnostic {
+// the type it happens to be. media is what its elected content entry wrote.
+func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl jsontext.Pointer, media []ir.Example) []ir.Diagnostic {
 	if d := h.GetDescription(); d != "" {
 		p.Docs.Description = d
 	}
 	if h.GetDeprecated() {
 		p.Deprecation = &ir.Deprecation{}
 	}
-	ex, diags := exampleList(c, h.GetExample(), h.GetExamples(), hdecl)
-	if len(ex) > 0 {
+	own, diags := exampleList(c, h.GetExample(), h.GetExamples(), hdecl)
+	if ex := positionExamples(own, media); len(ex) > 0 {
 		p.Examples = ex
 	}
 	hExt, extDiags := schema.ExtensionsOf(c, h.GetExtensions(), hdecl)

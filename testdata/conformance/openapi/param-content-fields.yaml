@@ -26,7 +26,9 @@ paths:
         "200":
           description: ok
           headers:
+            # The header's own example and its media type's are both kept.
             X-Search:
+              example: {hits: 0}
               content:
                 application/json:
                   schema: {type: object, properties: {hits: {type: integer}}}

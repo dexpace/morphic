@@ -172,6 +172,20 @@
                       "secret": false,
                       "examples": [
                         {
+                          "value": {
+                            "kind": "object",
+                            "object": [
+                              {
+                                "name": "hits",
+                                "value": {
+                                  "kind": "number",
+                                  "num": "0"
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
                           "name": "hit",
                           "summary": "One hit",
                           "value": {
@@ -397,7 +411,7 @@
     {
       "format": "openapi@3.2",
       "path": "param-content-fields.yaml",
-      "hash": "cdbaec86d358a9611dfe3a87d88981d5495aea6d46b683f6ee9e4e47aec84c2c"
+      "hash": "ee704f2e34af65c5d46fd9b52e151328197ea38578657bffe1bd284332b7edf5"
     }
   ]
 }

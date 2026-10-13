@@ -2193,6 +2193,79 @@ components:
 	assert.Equal(t, "the use site", op.Request.Docs.Description)
 }
 
+// TestParamContent_OwnAndMediaExamplesAreBothKept pins how a parameter's or a
+// header's examples combine (GitHub #611): those the object writes itself and
+// those its elected media type writes are both kept, its own first, and
+// together they replace the schema's — neither drops the other.
+func TestParamContent_OwnAndMediaExamplesAreBothKept(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          example: 1
+          content:
+            application/json:
+              schema: {type: integer, examples: [9]}
+              examples: {m: {value: 2}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H:
+              examples: {h: {value: 3}}
+              content:
+                text/plain:
+                  schema: {type: integer, examples: [9]}
+                  example: 4
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	nums := func(examples []ir.Example) []ir.BigVal {
+		out := make([]ir.BigVal, 0, len(examples))
+		for _, e := range examples {
+			require.NotNil(t, e.Value)
+			out = append(out, e.Value.Num)
+		}
+		return out
+	}
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, []ir.BigVal{"1", "2"}, nums(op.Params[0].Examples),
+		"the parameter's own example, then its media type's; the schema's is replaced")
+	require.Len(t, op.Responses[0].Headers, 1)
+	assert.Equal(t, []ir.BigVal{"3", "4"}, nums(op.Responses[0].Headers[0].Examples),
+		"the same at a header")
+}
+
+// TestParamContent_MergedFieldIsKept pins that a content-only field merged into
+// the media type through `<<` is kept like one written directly: the parser
+// models the field, so nothing else would report it.
+func TestParamContent_MergedFieldIsKept(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json:
+              <<: {itemSchema: {type: string}}
+              schema: {type: integer}
+      responses: {"200": {description: ok}}
+`)
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/itemSchema"]
+	require.True(t, ok, "got %v", slices.Sorted(maps.Keys(op.Params[0].Unmodeled)))
+	assert.JSONEq(t, `{"type":"string"}`, string(kept.Value))
+}
+
 // TestParamContent_MediaTypeFieldsReachTheParameter pins GitHub #611 at the
 // parameter position: electing a `content` entry used to read only the media
 // type's schema, so the object's example/examples, its x-*, its undeclared keys

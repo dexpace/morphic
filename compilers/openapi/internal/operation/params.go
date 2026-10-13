@@ -73,10 +73,10 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		Explode:       explode,
 		AllowReserved: p.GetAllowReserved(),
 	}
-	diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
+	media, diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
-	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr)...)
+	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
 }
 
 // querystringKeywordDiags reports explode and allowReserved when they are
@@ -135,7 +135,7 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (§14).
-func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) []ir.Diagnostic {
+func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
 	paramType, typeDiags := schema.CarriedRef(c, ts, anchors, schema.TopLevelDepth, elected.js, elected.pointer, name)
@@ -143,13 +143,7 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	param.Type = paramType
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
 	binding.ContentType = elected.mediaType
-	diags = append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
-	// After fillParamSchema, whose schema-derived examples describe the type rather
-	// than the position: the media type object's own examples are more specific.
-	if len(elected.examples) > 0 {
-		param.Examples = elected.examples
-	}
-	return diags
+	return elected.examples, append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
@@ -292,15 +286,15 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: PromoteDeprecation reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
+func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, media []ir.Example) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
 	if p.GetDeprecated() {
 		param.Deprecation = &ir.Deprecation{}
 	}
-	ex, diags := exampleList(c, p.GetExample(), p.GetExamples(), pptr)
-	if len(ex) > 0 {
+	own, diags := exampleList(c, p.GetExample(), p.GetExamples(), pptr)
+	if ex := positionExamples(own, media); len(ex) > 0 {
 		param.Examples = ex
 	}
 	pExt, extDiags := schema.ExtensionsOf(c, p.GetExtensions(), pptr)

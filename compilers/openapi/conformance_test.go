@@ -3257,8 +3257,9 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.Len(t, op.Responses, 1)
 	require.Len(t, op.Responses[0].Headers, 1)
 	header := op.Responses[0].Headers[0]
-	require.Len(t, header.Examples, 1, "the header's content media type contributes its examples too")
-	assert.Equal(t, "hit", header.Examples[0].Name)
+	require.Len(t, header.Examples, 2, "the header's own example and its media type's are both kept")
+	assert.Empty(t, header.Examples[0].Name, "its own singular example comes first")
+	assert.Equal(t, "hit", header.Examples[1].Name)
 	assert.Equal(t, ir.ReasonVendorExtension, header.Unmodeled[scope+"x-hdr"].Reason)
 
 	openapitest.AssertInfoDiagAt(t, diags,
