@@ -925,9 +925,8 @@ func multipartEncoding(t *testing.T, op ir.Operation) map[ir.PropID]ir.PartEncod
 	return nil
 }
 
-// opByPath finds an operation by HTTP method and URI template. Every caller
-// passes a path operation; a webhook carries no URI template and is found by
-// WebhookName instead.
+// opByPath finds an operation by HTTP method and URI template. A webhook
+// binding has no URI template, so no webhook is found.
 func opByPath(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")

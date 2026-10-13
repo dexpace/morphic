@@ -58,65 +58,60 @@ webhooks:
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 }
 
-// TestWebhooks_BraceKeyIsTheEventName pins the shape the issue is about: a
-// webhooks-map key that looks like an RFC 6570 template is an event name, so it
-// lowers to WebhookName while URITemplate stays empty. Identity does not move —
-// the operation is still mounted and identified by its pointer — and neither
-// does the synthesized hint.
-//
-// The hint is the half a field rename could break in silence. The naming token
-// for a webhook is the map key; reading the (empty) uriTemplate instead would
-// drop the event name and redden the assertion below to "post".
-func TestWebhooks_BraceKeyIsTheEventName(t *testing.T) {
+// TestWebhooks_KeyIsTheEventName lowers a webhooks-map key as the event's name
+// however it is spelled: braces in it are not template variables, and pointer
+// escaping is the ID's business, not the name's. The binding carries no URI
+// template, and an operation with no operationId takes its hint from the method
+// and the key, which the empty template would have dropped.
+func TestWebhooks_KeyIsTheEventName(t *testing.T) {
 	t.Parallel()
-	const spec = `openapi: 3.1.0
+	for _, tc := range []struct {
+		name, key, operationID string
+		wantID                 ir.OpID
+		wantName               ir.Naming
+	}{
+		{"braces, with an operationId", "{tenant}.created", "tenantCreated",
+			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
+		{"braces, named by the key", "{tenant}.created", "",
+			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
+		{"pointer escapes, named by the key", "a/b~c", "",
+			"op/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
+		{"the empty key", "", "", "op/openapi/webhooks//post", ir.Naming{Hint: "post"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			operationID := ""
+			if tc.operationID != "" {
+				operationID = "\n      operationId: " + tc.operationID
+			}
+			spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 webhooks:
-  "{tenant}.created":
-    post:
-      operationId: tenantCreated
+  ` + strconv.Quote(tc.key) + `:
+    post:` + operationID + `
       responses: {"200": {description: ok}}
 `
-	svc, diags := lowerServiceSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	op := webhookOperation(t, svc)
-	assert.Equal(t, ir.OpID("op/openapi/webhooks/{tenant}.created/post"), op.ID,
-		"the mount pointer, not the event name, identifies the operation")
-	assert.Equal(t, "tenantCreated", op.Name.Source)
-	require.Len(t, op.Bindings.HTTP, 1)
-	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
-	assert.Equal(t, "{tenant}.created", op.Bindings.HTTP[0].WebhookName)
-	assert.Empty(t, op.Bindings.HTTP[0].URITemplate)
-
-	// The same document without the operationId, where the naming hint is the
-	// only name the operation has.
-	specNoID := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-webhooks:
-  "{tenant}.created":
-    post:
-      responses: {"200": {description: ok}}
-`
-	svcNoID, diags := lowerServiceSpec(t, specNoID)
-	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, "post_tenant_created", webhookOperation(t, svcNoID).Name.Hint,
-		"the hint is method + webhook name, not method + the empty URI template")
+			svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := webhookOperation(t, svc)
+			assert.Equal(t, tc.wantID, op.ID, "the mount pointer, not the event name, identifies the operation")
+			assert.Equal(t, tc.wantName, op.Name)
+			require.Len(t, op.Bindings.HTTP, 1)
+			assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+			assert.Equal(t, tc.key, op.Bindings.HTTP[0].WebhookName, "the key, verbatim")
+			assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
+		})
+	}
 }
 
-// webhookOperation returns the one operation of svc's synthesized "webhooks"
-// group.
+// webhookOperation returns the one operation of svc's webhooks group.
 func webhookOperation(t *testing.T, svc ir.Service) ir.Operation {
 	t.Helper()
-	var ops []ir.Operation
-	for _, g := range svc.Groups {
-		if g.Name.Hint == "webhooks" {
-			ops = append(ops, g.Operations...)
-		}
-	}
-	require.Len(t, ops, 1, "the service has exactly one webhook operation")
-	return ops[0]
+	i := slices.IndexFunc(svc.Groups, func(g ir.OperationGroup) bool { return g.ID == ids.WebhookGroup() })
+	require.GreaterOrEqual(t, i, 0, "the service has a webhooks group")
+	require.Len(t, svc.Groups[i].Operations, 1, "the webhooks group holds exactly one operation")
+	return svc.Groups[i].Operations[0]
 }
 
 // TestWebhooks_CallbacksLandInTheWebhooksGroup pins that a webhook operation's
@@ -152,6 +147,10 @@ webhooks:
 	require.Len(t, hook.Bindings.HTTP, 1)
 	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
 	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
+	require.Len(t, ack.Bindings.HTTP, 1)
+	assert.False(t, ack.Bindings.HTTP[0].IsWebhook, "a callback is not a webhook, though a webhook declares it")
+	assert.Empty(t, ack.Bindings.HTTP[0].WebhookName, "the webhook's name stays on the webhook")
+	assert.Equal(t, "{$request.body#/ack}", ack.Bindings.HTTP[0].URITemplate)
 }
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {

@@ -716,9 +716,8 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // operationAt finds the operation bound to one HTTP method and URI template.
 // Operations reached through a shared path item have no distinguishing name of
-// their own, so their binding is what tells them apart. Every caller passes a
-// path operation; a webhook carries no URI template and is found by
-// WebhookName instead.
+// their own, so their binding is what tells them apart. A webhook binding has
+// no URI template, so no webhook is found.
 func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	for _, op := range allOperations(doc) {
