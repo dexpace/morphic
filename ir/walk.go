@@ -40,20 +40,67 @@ const DocumentPath = "doc"
 // the first path reached. Interface() panics behind an unexported field, so a
 // visitor reads fields instead.
 func WalkValues(root any, path string, visit func(v reflect.Value, path string) bool) bool {
-	w := valueWalk{seen: map[uintptr]bool{}, visit: visit}
+	w := valueWalk{seen: map[refKey]struct{}{}, visit: visit}
 	w.walk(reflect.ValueOf(root), path, 0)
 	return w.truncated
 }
 
-// valueWalk is one walk's state: the pointers already followed, the visitor, and
-// whether the depth cap cut the walk short.
+// ValueCycle is a place a walk met a pointer, slice or map it was already
+// inside, so that the value contains itself and has no finite encoding.
+type ValueCycle struct {
+	// Path is where the walk met the reference the second time.
+	Path string
+	// Entered is where the walk first entered it: an ancestor of Path.
+	Entered string
+	// Type is the reference's Go type, such as *ir.CtorValue or []ir.Value.
+	Type string
+}
+
+// ValueCycles walks root as [WalkValues] does and returns every [ValueCycle] it
+// meets, in walk order, with whether the depth cap truncated the walk.
+//
+// Neither walk enters a pointer, slice or map from inside itself. A reference
+// two places share without either holding the other is not a cycle: it encodes
+// twice without trouble, and a slice or map so shared is walked from each place,
+// so a cycle inside it is reported once per way in.
+func ValueCycles(root any, path string) (cycles []ValueCycle, truncated bool) {
+	w := valueWalk{
+		seen:  map[refKey]struct{}{},
+		visit: func(reflect.Value, string) bool { return true },
+		cycle: func(c ValueCycle) { cycles = append(cycles, c) },
+	}
+	w.walk(reflect.ValueOf(root), path, 0)
+	return cycles, w.truncated
+}
+
+// refKey identifies a reference the way the JSON encoder does, so that what a
+// walk calls a cycle is what the encoder refuses. A pointer to a struct and a
+// pointer to its first field share an address and differ in type; a prefix of a
+// slice shares a backing array and differs in length.
+type refKey struct {
+	typ reflect.Type
+	ptr uintptr
+	n   int // a slice's length; zero for a pointer or a map
+}
+
+// insideRef is a reference the walk is inside, and the path it entered it at.
+type insideRef struct {
+	key     refKey
+	entered string
+}
+
+// valueWalk is one walk's state: the pointers already entered, the references
+// the walk is inside right now, the visitor, the cycle callback if the caller
+// wants cycles, and whether the depth cap cut the walk short.
 //
 // It is a value being walked rather than a walker being configured, so it is
 // built at the entry point and discarded with it. Nothing here is reentrant and
 // nothing outside this file holds one.
 type valueWalk struct {
-	seen      map[uintptr]bool
+	seen      map[refKey]struct{}
+	inside    []insideRef
 	visit     func(v reflect.Value, path string) bool
+	cycle     func(ValueCycle)
 	truncated bool
 }
 
@@ -101,17 +148,14 @@ func (w *valueWalk) children(v reflect.Value, path string, depth int) {
 	case reflect.Slice, reflect.Array:
 		w.sequence(v, path, depth)
 	case reflect.Map:
-		for _, e := range orderedEntries(v) {
-			w.descend(e.key, fmt.Sprintf("%s[%s]%s", path, e.label, MapKeySuffix), depth+1)
-			w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
-		}
+		w.mapping(v, path, depth)
 	}
 }
 
-// pointer descends through a non-nil pointer once. The seen set terminates
-// cyclic graphs — normal input for schema languages, not an edge case — and
-// means a value reached through a shared pointer is visited once rather than
-// once per reference to it.
+// pointer descends through a non-nil pointer once, so a value reached through
+// a shared pointer is visited once rather than once per reference to it. One
+// met again while the walk is still inside it closes a cycle, which
+// closesCycle reports.
 //
 // Which of an aliased pointer's referrers wins that single visit is decided by
 // traversal order, so the walk's order has to be fixed rather than incidental;
@@ -120,12 +164,42 @@ func (w *valueWalk) pointer(v reflect.Value, path string, depth int) {
 	if v.IsNil() {
 		return
 	}
-	p := v.Pointer()
-	if w.seen[p] {
+	key := refKey{typ: v.Type(), ptr: v.Pointer()}
+	if _, met := w.seen[key]; met {
+		w.closesCycle(key, path)
 		return
 	}
-	w.seen[p] = true
+	w.seen[key] = struct{}{}
+	w.enter(key, path)
 	w.descend(v.Elem(), path, depth+1)
+	w.leave()
+}
+
+// enter records that the walk is inside key, entered at path.
+func (w *valueWalk) enter(key refKey, path string) {
+	w.inside = append(w.inside, insideRef{key: key, entered: path})
+}
+
+// leave records that the walk has left the reference it entered last.
+func (w *valueWalk) leave() {
+	w.inside = w.inside[:len(w.inside)-1]
+}
+
+// closesCycle reports whether the walk is already inside key, which makes
+// meeting it at path a cycle, and reports the cycle to the caller if it asked for
+// them. The scan is as long as the references enclosing path — a handful in a
+// compiled document and at most [MaxWalkDepth] in any.
+func (w *valueWalk) closesCycle(key refKey, path string) bool {
+	for _, ref := range w.inside {
+		if ref.key != key {
+			continue
+		}
+		if w.cycle != nil {
+			w.cycle(ValueCycle{Path: path, Entered: ref.entered, Type: key.typ.String()})
+		}
+		return true
+	}
+	return false
 }
 
 // sequence descends into slice and array elements, skipping byte sequences.
@@ -134,12 +208,51 @@ func (w *valueWalk) pointer(v reflect.Value, path string, depth int) {
 // descending costs a reflect.Value and a formatted path per byte: 88ms against
 // 22µs for one 256 KB payload. The result is the same either way, so only a
 // test counting what the walk reaches can notice the skip going missing.
+//
+// A slice is a reference; an array is a value, with no address of its own.
 func (w *valueWalk) sequence(v reflect.Value, path string, depth int) {
-	if v.Type().Elem().Kind() == reflect.Uint8 {
+	if v.Type().Elem().Kind() == reflect.Uint8 || v.Len() == 0 {
 		return
 	}
+	if v.Kind() != reflect.Slice {
+		w.elements(v, path, depth)
+		return
+	}
+	key := refKey{typ: v.Type(), ptr: v.Pointer(), n: v.Len()}
+	if w.closesCycle(key, path) {
+		return
+	}
+	w.enter(key, path)
+	w.elements(v, path, depth)
+	w.leave()
+}
+
+// elements descends into each element of a slice or array.
+func (w *valueWalk) elements(v reflect.Value, path string, depth int) {
 	for i := range v.Len() {
 		w.descend(v.Index(i), fmt.Sprintf("%s[%d]", path, i), depth+1)
+	}
+}
+
+// mapping descends into a map's keys and values. A map is a reference.
+func (w *valueWalk) mapping(v reflect.Value, path string, depth int) {
+	if v.Len() == 0 {
+		return
+	}
+	key := refKey{typ: v.Type(), ptr: v.Pointer()}
+	if w.closesCycle(key, path) {
+		return
+	}
+	w.enter(key, path)
+	w.entries(v, path, depth)
+	w.leave()
+}
+
+// entries descends into each key and value of a map, in rendered-key order.
+func (w *valueWalk) entries(v reflect.Value, path string, depth int) {
+	for _, e := range orderedEntries(v) {
+		w.descend(e.key, fmt.Sprintf("%s[%s]%s", path, e.label, MapKeySuffix), depth+1)
+		w.descend(e.value, fmt.Sprintf("%s[%s]", path, e.label), depth+1)
 	}
 }
 

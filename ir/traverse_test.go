@@ -75,3 +75,62 @@ func TestForEachOperation_TruncationSkipsOnlyTheDeepGroups(t *testing.T) {
 	assert.True(t, truncated, "a clean group or service after the cut keeps the report")
 	assert.Equal(t, []ir.OpID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
 }
+
+// opIDs collects the operations ForEachOperation visits, in order, and whether
+// it reported a cut.
+func opIDs(doc *ir.Document) ([]ir.OpID, bool) {
+	var got []ir.OpID
+	truncated := ir.ForEachOperation(doc, func(op ir.Operation) { got = append(got, op.ID) })
+	return got, truncated
+}
+
+// TestForEachOperation_ASelfContainingGroupSliceIsWalkedOnce holds the walk to
+// ending on groups that contain themselves. An unguarded walk follows them to
+// the cap, which takes for ever in practice once there are two. Each operation
+// is visited once and nothing is reported cut, since nothing was skipped that
+// had not been seen.
+func TestForEachOperation_ASelfContainingGroupSliceIsWalkedOnce(t *testing.T) {
+	t.Parallel()
+	one := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "a"}}}}
+	one[0].Groups = one
+
+	outer := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "x"}}}}
+	inner := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "y"}}, Groups: outer}}
+	outer[0].Groups = inner
+
+	for _, tt := range []struct {
+		name   string
+		groups []ir.OperationGroup
+		want   []ir.OpID
+	}{
+		{"a group that is its own subgroup", one, []ir.OpID{"a"}},
+		{"two slices that hold each other", outer, []ir.OpID{"x", "y"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, truncated := opIDs(&ir.Document{Services: []ir.Service{{Groups: tt.groups}}})
+			assert.False(t, truncated)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestForEachOperation_SharingWithoutACycleStillCostsTheUnfoldedSize pins what
+// stays as it was. A group slice two places hold is walked from each, and so is
+// a prefix of a slice from inside it, which is another reference: only the
+// way back into a slice already being walked is cut.
+func TestForEachOperation_SharingWithoutACycleStillCostsTheUnfoldedSize(t *testing.T) {
+	t.Parallel()
+	shared := []ir.OperationGroup{{Operations: []ir.Operation{{ID: "s"}}}}
+	prefix := []ir.OperationGroup{
+		{Operations: []ir.Operation{{ID: "p"}}},
+		{Operations: []ir.Operation{{ID: "q"}}},
+	}
+	prefix[1].Groups = prefix[:1]
+
+	got, truncated := opIDs(&ir.Document{Services: []ir.Service{
+		{Groups: shared}, {Groups: shared}, {Groups: prefix},
+	}})
+	assert.False(t, truncated)
+	assert.Equal(t, []ir.OpID{"s", "s", "p", "q", "p"}, got)
+}

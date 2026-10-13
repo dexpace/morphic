@@ -309,3 +309,68 @@ func TestTypeEdges_ArgumentWithoutValueFromYieldsItsType(t *testing.T) {
 	}}}
 	assert.Equal(t, []ir.TypeID{"t/arg"}, slices.Collect(ir.TypeEdges(m)))
 }
+
+// edgeLiteral returns a literal holding v, and the edges TypeEdges yields from it.
+func edgeLiteral(v ir.Value) []ir.TypeID {
+	return slices.Collect(ir.TypeEdges(&ir.Literal{Value: v}))
+}
+
+// TestTypeEdges_ASelfContainingValueIsFollowedOnce holds TypeEdges to ending on a
+// value that contains itself, for each of the three ways a value can: a
+// constructor that is its own argument, a list that is its own element, an
+// object that is its own member. Without the guard each is followed to the
+// bound, yielding the edge beside the cycle once per level; with it, once.
+func TestTypeEdges_ASelfContainingValueIsFollowedOnce(t *testing.T) {
+	t.Parallel()
+	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/leaf"}}
+
+	ctor := &ir.CtorValue{Scalar: "t/scalar"}
+	ctor.Args = []ir.Value{leaf, {Kind: ir.ValueCtor, Ctor: ctor}}
+
+	list := []ir.Value{leaf, {}}
+	list[1] = ir.Value{Kind: ir.ValueList, List: list}
+
+	object := []ir.Field{{Name: "a", Value: leaf}, {}}
+	object[1].Value = ir.Value{Kind: ir.ValueObject, Object: object}
+
+	for _, tt := range []struct {
+		name string
+		v    ir.Value
+		want []ir.TypeID
+	}{
+		{"a constructor", ir.Value{Kind: ir.ValueCtor, Ctor: ctor}, []ir.TypeID{"t/scalar", "t/leaf"}},
+		{"a list", ir.Value{Kind: ir.ValueList, List: list}, []ir.TypeID{"t/leaf"}},
+		{"an object", ir.Value{Kind: ir.ValueObject, Object: object}, []ir.TypeID{"t/leaf"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, edgeLiteral(tt.v))
+		})
+	}
+}
+
+// TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace is the other side:
+// a constructor, a list or an object met twice, never from inside itself, is
+// followed both times, as is a prefix of a list or an object from inside it.
+func TestTypeEdges_SharingWithoutACycleIsFollowedFromEachPlace(t *testing.T) {
+	t.Parallel()
+	leaf := ir.Value{Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: "t/leaf"}}
+	twice := func(v ir.Value) ir.Value {
+		return ir.Value{Kind: ir.ValueList, List: []ir.Value{v, v}}
+	}
+
+	ctor := ir.Value{Kind: ir.ValueCtor, Ctor: &ir.CtorValue{Scalar: "t/scalar"}}
+	list := ir.Value{Kind: ir.ValueList, List: []ir.Value{leaf}}
+	object := ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "a", Value: leaf}}}
+
+	prefix := []ir.Value{leaf, {}}
+	prefix[1] = ir.Value{Kind: ir.ValueList, List: prefix[:1]}
+	members := []ir.Field{{Name: "a", Value: leaf}, {Name: "b"}}
+	members[1].Value = ir.Value{Kind: ir.ValueObject, Object: members[:1]}
+
+	assert.Equal(t, []ir.TypeID{"t/scalar", "t/scalar"}, edgeLiteral(twice(ctor)))
+	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(twice(list)))
+	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(twice(object)))
+	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueList, List: prefix}))
+	assert.Equal(t, []ir.TypeID{"t/leaf", "t/leaf"}, edgeLiteral(ir.Value{Kind: ir.ValueObject, Object: members}))
+}
