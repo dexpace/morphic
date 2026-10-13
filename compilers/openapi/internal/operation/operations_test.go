@@ -3190,11 +3190,11 @@ paths:
 	assert.Equal(t, "books", svc.Groups[0].Name.Source)
 }
 
-// TestGrouping_ParentCycleStaysFlat pins that a cycle among the declared parents
-// terminates and keeps every operation reachable: neither member of the cycle
-// nests under the other, while a tag declaring a member as its parent still
-// nests under it.
-func TestGrouping_ParentCycleStaysFlat(t *testing.T) {
+// TestGrouping_ParentCycleNestsNoMemberUnderAnother pins that a cycle among the
+// declared parents terminates and keeps every operation reachable: neither
+// member of the cycle nests under the other, while a tag declaring a member as
+// its parent still nests under it.
+func TestGrouping_ParentCycleNestsNoMemberUnderAnother(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -3455,7 +3455,7 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags32)
 	model, ok := doc32.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
 	require.True(t, ok)
-	prop, ok := propByWireTest(model, "n")
+	prop, ok := openapitest.PropsByWire(model.Properties)["n"]
 	require.True(t, ok)
 	require.NotNil(t, prop.XML)
 	assert.Equal(t, "text", prop.XML.NodeType)
@@ -3471,20 +3471,10 @@ components:
 		"below 3.2 the XML object defines no nodeType and the warning is owed")
 	model31, ok := doc31.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
 	require.True(t, ok)
-	prop31, ok := propByWireTest(model31, "n")
+	prop31, ok := openapitest.PropsByWire(model31.Properties)["n"]
 	require.True(t, ok)
 	require.NotNil(t, prop31.XML)
 	assert.Empty(t, prop31.XML.NodeType)
-}
-
-// propByWireTest returns the property of m with the given wire name.
-func propByWireTest(m *ir.Model, wire string) (ir.Property, bool) {
-	for _, p := range m.Properties {
-		if p.WireName == wire {
-			return p, true
-		}
-	}
-	return ir.Property{}, false
 }
 
 // TestContent_UnkeepableMediaTypeRefIsReported pins the media type $ref that

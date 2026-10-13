@@ -2380,10 +2380,8 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
 		assert.NotContains(t, key, "openapi:content/")
 	}
 	assert.Empty(t, op.Responses[0].Headers[0].Examples)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "content media type",
-			"nothing was passed over, so nothing is announced")
-	}
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"nothing was passed over, so nothing is announced")
 }
 
 // TestExamples_EverySpellingReachesTheIR pins GitHub #612: a 3.2 dataValue
