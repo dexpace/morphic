@@ -53,8 +53,9 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 // pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to
 // Unmodeled beside the union it was written for.
 //
-// It is a settlement because a subtype lowered after the model has no Base yet
-// when the model lowers.
+// It is a settlement because only a lowered node says whether its type is a
+// subtype, and a subtype lowered after the model has no Base yet when the
+// model lowers.
 type besideUnionDiscriminator struct {
 	c       lowering.Ctx
 	s       *oas3.Schema
@@ -84,7 +85,9 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 }
 
 // routesToSubtypes reports whether every type m's discriminator routes to is a
-// subtype of m: each mapping target, the default, and each of named.
+// subtype of m: each mapping target, the default, and each of named. Each is
+// one ir.IsSubtype walk, as pass/validate spends on a mapping target; no walk
+// is shared yet (GitHub #850).
 func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool {
 	doc := &ir.Document{Types: reg}
 	routes := slices.AppendSeq(slices.Clone(named), maps.Values(m.Discriminator.Mapping))

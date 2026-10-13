@@ -713,7 +713,9 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 
 // discriminatorHome reports whether td holds the discriminator its position
 // declared. Only a Model and a Union have the field, and having it is not
-// filling it: the Union a mixed-type enum lowers to carries none.
+// filling it: the Union a mixed-type enum lowers to carries none. One kept for
+// want of a home keeps its extensions a second time, under
+// openapi:discriminator/x-* (GitHub #849).
 func discriminatorHome(td ir.TypeDef) bool {
 	switch n := td.(type) {
 	case *ir.Model:

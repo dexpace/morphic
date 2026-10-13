@@ -186,10 +186,10 @@ func TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype(t *testing.T) {
 	}
 }
 
-// TestDiscriminatorBesideUnion_AnySubtypeDepthStays pins that no depth bound
+// TestDiscriminatorBesideUnion_StaysForASubtypeAtAnyDepth pins that no depth bound
 // stands between a route and Pet: pass.Validate follows a hierarchy to any
 // depth, so a bound here would move a discriminator it accepts.
-func TestDiscriminatorBesideUnion_AnySubtypeDepthStays(t *testing.T) {
+func TestDiscriminatorBesideUnion_StaysForASubtypeAtAnyDepth(t *testing.T) {
 	t.Parallel()
 	var chain strings.Builder
 	for i := range 300 {

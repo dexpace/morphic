@@ -951,8 +951,9 @@ from it is exact and nothing is reported.
   A `discriminator` beside any of the five whose body lowers to a `Model` stays on that `Model`
   only when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
   `pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`,
-  and each component a `$ref` branch names, which it routes to by name. An inline branch, or one
-  naming no component, is no route unless the `mapping` names it. Otherwise the whole object
+  and each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where
+  `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no
+  component, is no route unless the `mapping` names it. Otherwise the whole object
   (`propertyName`, `mapping`, `defaultMapping`) is kept verbatim in
   `Unmodeled["openapi:discriminator"]` beside the union, with an `info` diagnostic at the
   discriminator; a subtype keeps the `DiscriminatorValue` its mapping key gives it, since that is
@@ -977,13 +978,11 @@ from it is exact and nothing is reported.
 
   Where a union's lowering leaves no `Model` or `Union` to route by it — a union beside a
   `const`, `enum` or scalar body, a null-only branch set, a `$ref` site (alias or carrier), or a
-  `{X, null}` union collapsed to a nullable reference (§3.3) — a `discriminator` beside it is one
-  more keyword the census below keeps: the whole object goes to
+  `{X, null}` union collapsed to a nullable reference (§3.3) — a `discriminator` beside it is kept
+  as any keyword its node cannot carry is: the whole object goes to
   `Unmodeled["openapi:discriminator"]` on the node or carrier that owns the position, with an
-  `info` diagnostic. The collapse takes a `$ref` site's census, since it too lowers to a
-  reference, so a `format` or collection bound beside it is kept the same way. When `oneOf` and
-  `anyOf` both sit beside a discriminator, `oneOf` wins: its branches are the ones it routes to
-  by name.
+  `info` diagnostic. The collapse is held to a `$ref` site's rule (§4.3), since it too lowers to a
+  reference, so a `format` or collection bound beside it is kept the same way.
 
   A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`)
   is not a degradation and is not listed here: it narrows the body without reshaping it, which
@@ -1082,8 +1081,8 @@ from it is exact and nothing is reported.
   re-derived from the dispatch that produced it. A position that reduced to a shared node gets an
   alias of its own first: a shared primitive must never carry one declaration's keywords. The
   `format` keyword joins the list only where no `type` is declared, since it is homed by pairing
-  with a type rather than by a node kind. A `discriminator` is held the same way, by a `Model` or
-  `Union` that routes by it and by nothing else. Two limits are deliberate: a multi-typed schema
+  with a type rather than by a node kind. `discriminator` joins the list too, homed by a `Model`
+  or `Union` that routes by it and by nothing else. Two limits are deliberate: a multi-typed schema
   (`type: [string, object]`) is exempt, because it lowers one variant per declared type from the
   same schema and the homes are the variants'; and a `$ref` position is not covered, since its
   siblings bind the position rather than the referent and are handled at §4.3's use-site rule.
