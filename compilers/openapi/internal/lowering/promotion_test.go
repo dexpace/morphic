@@ -3,11 +3,10 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -223,20 +222,16 @@ func TestPromoteDeprecation_PolicyMapIsCopiedIntoTheContext(t *testing.T) {
 // the check itself.
 func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	pkg, err := build.ImportDir(".", 0)
 	require.NoError(t, err)
 	var out []lowering.ExtensionTarget
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
+	for _, name := range pkg.GoFiles {
 		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
 		require.NoError(t, err)
-		ast.Inspect(file, func(n ast.Node) bool {
+		for n := range ast.Preorder(file) {
 			spec, ok := n.(*ast.ValueSpec)
 			if !ok {
-				return true
+				continue
 			}
 			// Two spellings declare a target: the declared type carries it
 			// ("X ExtensionTarget = ..."), or a conversion does ("X = Extension-
@@ -250,8 +245,7 @@ func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 					out = append(out, lowering.ExtensionTarget(unquoted))
 				}
 			}
-			return true
-		})
+		}
 	}
 	require.NotEmpty(t, out, "no targets found; the check below would pass vacuously")
 	return out
@@ -369,8 +363,7 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
-	enum := ir.Enum{Closed: true}
-	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, &enum, &ir.Provenance{})
+	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, new(ir.Enum{Closed: true}), &ir.Provenance{})
 
 	entry, kept := unmodeled["openapi:x-extensible-enum"]
 	require.True(t, kept, "the entry survives its own promotion")

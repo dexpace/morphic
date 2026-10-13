@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -52,6 +59,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -136,7 +144,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1widgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -162,6 +170,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                   "name": {
                     "source": "sort",
                     "canonical": "sort"
@@ -246,7 +255,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "sort",
+                        "param": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
                         "location": "query",
                         "wireName": "sort",
                         "style": "form",
@@ -467,6 +476,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/headers/RateUnit/schema/s:second",
           "name": {
             "source": "second",
             "canonical": "second"
@@ -478,6 +488,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/headers/RateUnit/schema/s:minute",
           "name": {
             "source": "minute",
             "canonical": "minute"
@@ -508,6 +519,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/anon/components/parameters/Sort/schema/s:asc",
           "name": {
             "source": "asc",
             "canonical": "asc"
@@ -519,6 +531,7 @@
           "docs": {}
         },
         {
+          "id": "e/anon/components/parameters/Sort/schema/s:desc",
           "name": {
             "source": "desc",
             "canonical": "desc"

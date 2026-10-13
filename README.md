@@ -138,7 +138,8 @@ completes commands, flags, and spec files by extension.
 | Flag | Commands | Meaning |
 |---|---|---|
 | `--fail-on error\|warning` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). |
-| `--skip-validate` | both | Skip the referential-integrity `validate` pass. |
+| `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
+| `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
@@ -197,8 +198,11 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 ### Library
 
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
-built-in compiler plus the `validate` pass. `Run` reads the spec, asks the registered compilers
-which one recognizes it, compiles, and runs the passes.
+built-in compiler and the default IR passes. `Run` reads the spec, asks the registered compilers
+which one recognizes it, compiles, and runs the passes in order, each over the document the one
+before it returned. `RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass`
+names the referential-integrity check), and a name no pass carries fails the run with
+`engine.ErrUnknownPass`.
 
 ```go
 eng, err := engine.New()
@@ -245,7 +249,7 @@ entry in that test allows, and nothing from a layer above its own.
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
 | `cmd/morphic/` | 4: CLI | `engine` + `ir` + its command framework (`cobra`, `pflag`) |
-| `cmd/morphic-harness/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
+| `cmd/morphic-harness/`, `cmd/morphic-covergate/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the coverage gate's judge, the architecture rules, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry
 their own entry rather than inheriting the compiler's, so the order among them is enforced too,

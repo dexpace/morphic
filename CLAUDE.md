@@ -119,6 +119,8 @@ engine/      Layer 3 — orchestration; imports everything below.
 cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
+cmd/morphic-covergate/
+             Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
 ```
 
@@ -141,6 +143,10 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 (`.golangci.yml`, tests excluded). The method cap is the one that matters: the god object this
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
+
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
+`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
+as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -271,7 +277,7 @@ pins, so the local command and the job are the same commands in the same order. 
 for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
 rest are individually runnable while iterating.
 
-**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+**Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
 statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 

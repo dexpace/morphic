@@ -15,9 +15,10 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
  AsyncAPI                          │
  Protobuf                          ▼
  Erlang/OTP
-                        ┌── IR passes (IR → IR) ──┐
-                        │  validate · link · dedup │
-                        │  filter · version-slice  │
+                        ┌── IR passes (IR → IR) ───┐
+                        │  link · dedup · filter   │
+                        │  version-slice · overlay │
+                        │  validate                │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -89,9 +90,13 @@ What a compiler does *not* own is in `compilers/compile`: the state and the gram
 must agree on. That is the type registry with the source-coordinate map behind stable IDs (and the
 rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
 the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
-it, with the declaration of the namespaces a compiler mints in. What stays with the compiler is what
-only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path
-and a protobuf fully-qualified name are different things.
+it, with the declaration of the namespaces a compiler mints in. The registry also holds the
+decisions about a node that read nodes other lowerings intern (`compile.Settlement`), deferred until
+the walk ends: a walk lowers one declaration at a time, so taken mid-walk they would follow
+declaration order. They live on the registry, though only OpenAPI defers one yet, because the
+registry is the one handle a lowering holds (micro-compiler-design §4). What stays with the
+compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
+structural path and a protobuf fully-qualified name are different things.
 
 The split is enforced rather than documented: architecture tests fail a package outside the
 framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
@@ -107,9 +112,9 @@ parsed-node budget and an alias budget for one source document and a member budg
 each with a documented default and each settable — zero takes the default, negative turns the
 budget off. Crossing one is a spec problem like any other, so it
 is an `openapi/budget-exceeded` diagnostic rather than a Go error. Time is bounded by the caller
-instead of by a constant: the two walks that do work proportional to the document honour the
-`context.Context` a compile is given, so a deadline or a cancellation stops one between items and
-the error reaches the caller unwrapped.
+instead of by a constant: the walks that do work proportional to the document, and the settling
+after them, honour the `context.Context` a compile is given, so a deadline or a cancellation stops
+one between items and the error reaches the caller unwrapped.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
@@ -122,14 +127,55 @@ all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
-Small, composable, order-explicit transformations that both the engine and users (via config)
-can enable:
+Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
+`Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A transform
+returns a new document, which may share whatever it left unchanged; an analysis such as `validate`
+returns its input beside its diagnostics. `Run` has no error result, for the reason an emitter's
+`Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document is a
+diagnostic, and anything else is a bug in the pass. It takes no context either: a pass works on a
+document already in memory, and the engine checks for cancellation before each one.
+
+A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
+value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
+`RunOptions`, and the CLI through flags of the pass's own, both added with the pass. Where the
+settings have no neutral default, as those three's have none, supplying them is what turns the pass
+on. The compilers' textual option map is the wrong model here: it serves a set of formats the engine
+knows nothing about, while the passes are a closed set the engine composes, so each setting can be
+typed, checked and documented where it is declared.
+
+The order lives in the `engine` package's default list, not in `pass/`: composing passes is
+orchestration, which only the engine does. The engine runs the list after any compile that produced
+a document, errors reported or not, and threads each pass's output into the next. An analysis that
+judges the document runs after every transform, so `validate` comes last. It then checks what the
+run returns, every transform's output included, and its findings, whose `Provenance.Node` is spelled
+against the document it was handed, locate in that document. Running it first would give the
+transforms no guarantee, since a caller can turn it off: each pass must cope with a document that
+fails it whatever the order.
+
+The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
+document it returns, so a transform that builds a fresh document cannot lose any. Those findings
+index `Document.Sources`, as the IR's own provenance does, so a pass may append to that table but
+never move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
+naming it.
+
+A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
+carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
+spec. A pass whose output a consumer relies on, such as one filling `TypeCommon.Usage` (ir-design.md
+§16, question 4), is not a caller's to turn off: from the first such pass, the engine refuses its
+name as it refuses an unknown one. Turning a pass *on* by name is for one that has no settings and
+is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be, and
+it lands with the first of them.
+
+Built, and in the default list:
 
 - **validate** — referential integrity (every typed-ID reference resolves to something the document
   declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
   service tree declares, and so on for every ID class), discriminator mappings point at actual
   variants, wire-name uniqueness within a model, binding completeness (every operation parameter
   is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
+
+Designed, not yet built:
+
 - **link** — resolve cross-document references when multiple specs are parsed into one document
   (multi-service, spec-stitching).
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID
@@ -224,7 +270,7 @@ policy fills in where the spec is silent, never the reverse.
 
 ```
 morphic/
-├── ir/                     # Layer 0 — IR node types, IDs, traversal, JSON round-trip.
+├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, JSON round-trip.
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -255,7 +301,8 @@ morphic/
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
-└── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
+└── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
 ```
 
 Swagger 2.0 gets no directory of its own: the lift normalizes it to the OpenAPI 3.x shape and
@@ -288,6 +335,11 @@ Two caps guard the shape rather than the graph, both in `internal/archtest` and 
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
 `micro-compiler-design.md` is about grew to 159 methods without ever writing a long function.
+
+`ir` also owns the traversals the layers above it share: the reflection walk, and the typed walks
+over operations, type edges and composition. A pass or emitter calls them rather than writing its
+own. That is a convention review holds, not a rule a test checks, since no test can tell a
+hand-written walker from any other loop.
 
 ## 4. Diagnostics & provenance
 

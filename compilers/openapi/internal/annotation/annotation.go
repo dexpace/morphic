@@ -13,6 +13,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -956,10 +957,5 @@ func (k Kind) String() string {
 // predicate consulting a different source could disagree with them in either
 // direction.
 func DeclaresAny(s *oas3.Schema, keywords []string) bool {
-	for _, keyword := range keywords {
-		if RawPropertyNode(s, keyword) != nil {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
 }

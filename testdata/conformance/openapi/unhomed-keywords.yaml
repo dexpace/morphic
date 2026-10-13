@@ -17,6 +17,9 @@ components:
     # format pairs with a declared type to select a primitive or hoist a scalar.
     # With no type beside it, nothing reads it.
     UntypedFormat: {format: uuid}
+    # A discriminator is held by a Model or a Union that routes by it. The top
+    # type routes nothing, so the discriminator is kept rather than dropped.
+    UntypedDiscriminator: {discriminator: {propertyName: kind}}
     # A contradictory schema: an instance cannot be both a two-member string
     # enum and an object. The enum is taken and the property set kept beside it,
     # so which half the IR describes stays recoverable (ir-design §4.8).
@@ -56,6 +59,7 @@ components:
     RefConst: {$ref: '#/components/schemas/RefTargetStr', const: a}
     RefRequired: {$ref: '#/components/schemas/RefTargetObj', required: [a]}
     RefAdditionalProperties: {$ref: '#/components/schemas/RefTargetObj', additionalProperties: false}
+    RefDiscriminator: {$ref: '#/components/schemas/RefTargetObj', discriminator: {propertyName: a}}
     # The control: a bound and a description at the identical position always
     # reached the alias's own fields, so neither may acquire an entry now.
     RefConstrained: {$ref: '#/components/schemas/RefTargetStr', minLength: 3, description: kept}

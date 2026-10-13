@@ -25,8 +25,7 @@ func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 	t.Parallel()
 	want := map[reflect.Type]bool{reflect.TypeFor[*schemaRef](): true}
 	matcher := reflect.TypeFor[soa.Matcher]()
-	for i := range matcher.NumField() {
-		field := matcher.Field(i)
+	for field := range matcher.Fields() {
 		if strings.HasPrefix(field.Name, "Referenced") {
 			want[field.Type.In(0)] = true
 		}

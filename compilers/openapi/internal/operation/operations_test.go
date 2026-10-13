@@ -498,12 +498,21 @@ func TestResponses_LinksPreserved(t *testing.T) {
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 }
 
+// TestGrouping_ByPathPrefixInferred pins that grouping by path prefix marks
+// every operation it places as inferred, a callback's operation included,
+// since it is placed with the operation that declares it.
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /users/{id}:
     get: {operationId: getUser, responses: {"200": {description: ok}}}
   /orders:
-    get: {operationId: listOrders, responses: {"200": {description: ok}}}
+    get:
+      operationId: listOrders
+      callbacks:
+        done:
+          '{$request.query.cb}':
+            post: {operationId: ordersDone, responses: {"200": {description: ok}}}
+      responses: {"200": {description: ok}}
 `)
 	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -512,6 +521,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
 	assert.True(t, hasOrders)
+	require.Len(t, byName["orders"].Operations, 2, "the callback operation is placed beside its parent")
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
 			assert.Equal(t, "group-path-prefix", op.Provenance.Inferred, "op %s must be marked inferred", op.ID)

@@ -1,13 +1,13 @@
 package load
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
 	"iter"
 	"maps"
 	"reflect"
 	"slices"
-	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -210,7 +210,7 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 	targets map[targetKey]reachedTarget,
 ) (diags []ir.Diagnostic) {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
-		return strings.Compare(string(a.site), string(b.site))
+		return cmp.Compare(a.site, b.site)
 	})
 	var site jsontext.Pointer
 	defer func() {

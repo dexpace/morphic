@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -201,6 +208,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/EnumWithProperties/s:a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -212,6 +220,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/EnumWithProperties/s:b",
           "name": {
             "source": "b",
             "canonical": "b"
@@ -537,6 +546,37 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/RefDiscriminator": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RefDiscriminator",
+      "name": {
+        "source": "RefDiscriminator",
+        "canonical": "ref_discriminator"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "propertyName": "a"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefDiscriminator/discriminator"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefDiscriminator"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RefTargetObj",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/RefEnum": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/RefEnum",
@@ -774,6 +814,37 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/UntypedDiscriminator": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/UntypedDiscriminator",
+      "name": {
+        "source": "UntypedDiscriminator",
+        "canonical": "untyped_discriminator"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "propertyName": "kind"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedDiscriminator/discriminator"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedDiscriminator"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/UntypedFormat": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/UntypedFormat",
@@ -972,6 +1043,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"primitive\", which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedDiscriminator"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "this position lowered to a node of kind \"enum\", which has no home for properties declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
@@ -1062,6 +1142,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefDiscriminator"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "this position lowered to an alias over its $ref target, which has no home for format declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
@@ -1118,7 +1207,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "dcbdf05a564f1d173b5c0105508e731cc458e932a8307fd75912b092e72d949d"
+      "hash": "917a0e0a8513e512369d8994c12852b2ee27026035f81297fcec9e0dad7793ac"
     }
   ]
 }

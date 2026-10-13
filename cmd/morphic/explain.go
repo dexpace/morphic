@@ -1,10 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"io"
+	"maps"
 	"slices"
-	"sort"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -77,9 +78,10 @@ type coordinate struct {
 }
 
 // coordinatesBelow returns the coordinates strictly beneath pointer, in pointer
-// order. It is what makes a miss actionable: a schema that lowered to a shared
-// primitive owns no node at its own coordinate, and seeing what did intern below
-// it is the difference between "nothing happened here" and "the node moved".
+// order and, at one pointer, in ID order. It is what makes a miss actionable: a
+// schema that lowered to a shared primitive owns no node at its own coordinate,
+// and seeing what did intern below it is the difference between "nothing
+// happened here" and "the node moved".
 //
 // Beneath is RFC 6901 containment, so a coordinate sharing the query's text but
 // not its token boundary is not below it, and a trailing '/' is a token of its
@@ -97,7 +99,7 @@ func coordinatesBelow(doc *ir.Document, pointer jsontext.Pointer) []coordinate {
 			out = append(out, coordinate{pointer: p, id: id, kind: td.Kind()})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].pointer < out[j].pointer })
+	slices.SortStableFunc(out, func(a, b coordinate) int { return cmp.Compare(a.pointer, b.pointer) })
 	return out
 }
 
@@ -125,15 +127,12 @@ func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 }
 
 // sortedTypeIDs returns the registry's keys in sorted order so explain output is
-// deterministic (invariant 7).
+// deterministic (invariant 7): nodeAtPointer names the first node at a pointer,
+// and several can share one. A nil document, which a compile that produced none
+// passes, has no types.
 func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
 	if doc == nil {
 		return nil
 	}
-	ids := make([]ir.TypeID, 0, len(doc.Types))
-	for id := range doc.Types {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
+	return slices.Sorted(maps.Keys(doc.Types))
 }

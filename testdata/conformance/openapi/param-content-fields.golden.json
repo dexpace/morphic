@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +60,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/filter/query",
                   "name": {
                     "source": "filter",
                     "canonical": "filter"
@@ -107,6 +115,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1search/get/parameters/plain/query",
                   "name": {
                     "source": "plain",
                     "canonical": "plain"
@@ -211,7 +220,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "filter",
+                        "param": "param/openapi/paths/~1search/get/parameters/filter/query",
                         "location": "query",
                         "wireName": "filter",
                         "style": "form",
@@ -220,7 +229,7 @@
                         "contentType": "application/json"
                       },
                       {
-                        "param": "plain",
+                        "param": "param/openapi/paths/~1search/get/parameters/plain/query",
                         "location": "query",
                         "wireName": "plain",
                         "style": "form",

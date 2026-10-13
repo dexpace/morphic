@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -48,9 +49,10 @@ func TestAlias_ResolvesToItsTarget(t *testing.T) {
 	assert.Same(t, target, n.Alias, "yaml.v3 resolves an alias to the node its anchor names")
 }
 
-// TestMerge_MatchesTheParsedMergeKey pins MergeTag against yaml.v3 rather than
-// against itself: the constant is only worth anything if a `<<` key the parser
-// produced carries exactly it.
+// TestMerge_MatchesTheParsedMergeKey pins the built key against yaml.v3 and the
+// library rather than against itself. It is only worth anything if it is the
+// node a parse produces, and if the library merges it while reading the same
+// scalar untagged as an ordinary key.
 func TestMerge_MatchesTheParsedMergeKey(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
@@ -62,7 +64,8 @@ func TestMerge_MatchesTheParsedMergeKey(t *testing.T) {
 	assert.Equal(t, parsed.Kind, built.Kind)
 	assert.Equal(t, parsed.Value, built.Value)
 	assert.Equal(t, parsed.Tag, built.Tag, "the built key carries the tag the parser resolved")
-	assert.Equal(t, ynode.MergeTag, built.Tag)
+	assert.True(t, yml.IsMergeKey(built), "the library merges the built key")
+	assert.False(t, yml.IsMergeKey(ynode.Scalar(built.Value)), "and reads it untagged as an ordinary key")
 }
 
 func findScalar(n *yaml.Node, value string) *yaml.Node {
@@ -85,7 +88,7 @@ func TestMergeChain_NestsOneMergePerLevelOverALeaf(t *testing.T) {
 	for i := range levels {
 		require.Equal(t, yaml.MappingNode, n.Kind, "level %d is a mapping", i)
 		require.Len(t, n.Content, 2, "level %d holds one merge pair", i)
-		assert.Equal(t, ynode.MergeTag, n.Content[0].Tag, "level %d merges rather than naming a key", i)
+		assert.True(t, yml.IsMergeKey(n.Content[0]), "level %d merges rather than naming a key", i)
 		require.Equal(t, yaml.AliasNode, n.Content[1].Kind, "level %d merges through an alias", i)
 		n = n.Content[1].Alias
 	}

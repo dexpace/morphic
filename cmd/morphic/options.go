@@ -74,3 +74,22 @@ func (f *pointerFlag) Set(raw string) error {
 	f.pointer, f.set = jsontext.Pointer(raw), true
 	return nil
 }
+
+// passFlag collects the repeated `--disable-pass name` values, verbatim and in
+// order. Which names exist, and what a repeated or empty one means, is the
+// engine's to say: checking them here as well would keep a second copy of a
+// list the CLI cannot see change.
+type passFlag []string
+
+// String renders the names as typed. A flag never given renders as the empty
+// string, which pflag reads as having no default.
+func (p *passFlag) String() string { return strings.Join(*p, " ") }
+
+// Type names the value in flag documentation.
+func (p *passFlag) Type() string { return "name" }
+
+// Set records one pass name.
+func (p *passFlag) Set(raw string) error {
+	*p = append(*p, raw)
+	return nil
+}

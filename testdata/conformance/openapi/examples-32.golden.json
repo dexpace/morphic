@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -53,6 +60,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1a/get/parameters/limit/query",
                   "name": {
                     "source": "limit",
                     "canonical": "limit"
@@ -195,7 +203,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "limit",
+                        "param": "param/openapi/paths/~1a/get/parameters/limit/query",
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",

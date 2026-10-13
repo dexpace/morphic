@@ -1,12 +1,10 @@
-// Package ynode spells yaml.v3 nodes: the tag a resolved `<<` merge key
-// carries, the constructors for the node kinds a parse produces, and the merge
-// chain the compiler's depth bounds are measured against.
+// Package ynode spells yaml.v3 nodes for tests: the constructors for the node
+// kinds a parse produces, the `<<` merge key among them, and the merge chain the
+// compiler's depth bounds are measured against.
 //
-// It sits below nodeview, which reads MergeTag back for its merge-key
-// predicate. Both nodeview and the cycle scan build these nodes in their
-// internal test files, and an internal test file cannot import a package that
-// imports its own, so a home above nodeview could not be imported by the view's
-// tests. Holding the tag here lets one definition of Merge serve both.
+// It imports nothing of the compiler, so any package's internal tests can build
+// trees with it. That includes nodeview's, which a home above nodeview could not
+// serve: an internal test file cannot import a package that imports its own.
 package ynode
 
 import (
@@ -15,10 +13,6 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 )
-
-// MergeTag is the tag yaml.v3 resolves every `<<` merge key to, and the exact
-// tag speakeasy's yml.IsMergeKey requires before treating one as a merge.
-const MergeTag = "!!merge"
 
 // Scalar builds an untagged plain scalar holding v.
 func Scalar(v string) *yaml.Node {
@@ -43,9 +37,9 @@ func Alias(target *yaml.Node) *yaml.Node {
 }
 
 // Merge builds the `<<` merge key a parse produces, tag included: the same
-// scalar without MergeTag is an ordinary key.
+// scalar without its tag is an ordinary key.
 func Merge() *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: MergeTag}
+	return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: "!!merge"}
 }
 
 // MergeChain builds levels mappings, each merging the next through `<<` and an

@@ -319,7 +319,7 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 		return nil
 	}
 	names := make(map[string]bool, schemas.Len())
-	for name := range schemas.All() {
+	for name := range schemas.Keys() {
 		names[name] = true
 	}
 	return names

@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -134,6 +141,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
                   "name": {
                     "source": "id",
                     "canonical": "id"
@@ -216,7 +224,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "id",
+                        "param": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",

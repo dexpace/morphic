@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,4 +220,19 @@ func TestPositions_Boundaries(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/a"), indexPositions(doc).pointerOf(leaf), "a document node is its content")
 	assert.Equal(t, jsontext.Pointer(""), indexPositions(&yaml.Node{Kind: yaml.DocumentNode}).pointerOf(leaf), "an empty document holds nothing")
 	assert.Equal(t, jsontext.Pointer(""), indexPositions(nil).pointerOf(leaf), "no tree holds nothing")
+}
+
+// TestPositions_SpellAKeyByteForByte pins that a position is spelled with the
+// bytes of its keys, as the library's search spells it, a byte that is no
+// UTF-8 included: jsontext would spell it U+FFFD, a key the library never
+// compares.
+func TestPositions_SpellAKeyByteForByte(t *testing.T) {
+	t.Parallel()
+	leaf := &yaml.Node{Kind: yaml.MappingNode}
+	root := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode, Value: "a/\xff~b"}, leaf}}
+
+	got := indexPositions(root).pointerOf(leaf)
+	assert.Equal(t, jsontext.Pointer("/a~1\xff~0b"), got)
+	core := marshaller.CoreModel{RootNode: leaf}
+	assert.Equal(t, core.GetJSONPointer(root), string(got), "as the library's search spells it")
 }

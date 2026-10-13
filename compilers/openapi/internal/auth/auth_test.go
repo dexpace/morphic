@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -760,12 +761,7 @@ components:
 // unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
 // than probing for the ones it happened to think of.
 func unmodeledKeys(u ir.Unmodeled) []string {
-	out := make([]string, 0, len(u))
-	for k := range u {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-	return out
+	return slices.Sorted(maps.Keys(u))
 }
 
 // TestSecurityRequirement_OneUndeclaredMemberDropsTheWholeOption pins the
