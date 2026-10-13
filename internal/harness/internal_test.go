@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,27 @@ func dupKeyDoc() *ir.Document {
 		ir.TypeID("t/x/\xff"): &ir.Any{ID: "t/x/\xff", Name: named},
 		ir.TypeID("t/x/\xfe"): &ir.Any{ID: "t/x/\xfe", Name: named},
 	}}
+}
+
+// cyclicDoc returns soundDoc's model carrying one example that holds itself: a
+// list whose only element is that list. The JSON encoder refuses it, and Verify
+// reports it as ir/cyclic-structure, so Check classifies the document as
+// violations before the round-trip oracle runs
+// (TestCheck_CyclicStructureIsAViolationNotARoundTrip).
+func cyclicDoc() *ir.Document {
+	list := make([]ir.Value, 1)
+	list[0] = ir.Value{Kind: ir.ValueList, List: list}
+	example := ir.Value{Kind: ir.ValueList, List: list}
+	m := &ir.Model{
+		ID:       "t/x/Model",
+		Name:     ir.Naming{Source: "Model", Canonical: "model"},
+		Examples: []ir.Example{{Value: &example}},
+	}
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+		Types:     ir.TypeRegistry{m.ID: m},
+	}
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
@@ -271,6 +293,28 @@ func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
 	}
 	assert.Equal(t, []string{"ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8", "ir/invalid-utf8"}, codes,
 		"each ill-formed ID, as registry key and as node ID, is all Verify reports")
+}
+
+// TestCheck_CyclicStructureIsAViolationNotARoundTrip pins where a document that
+// contains itself is classified. The encoder refuses it, so roundTrips alone
+// reports only a failed marshal; Verify names the defect, as
+// ir/cyclic-structure, and runs first, so Check reports the cause rather than
+// its consequence (GitHub #573).
+func TestCheck_CyclicStructureIsAViolationNotARoundTrip(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	compile = func(context.Context, string, []byte) (*ir.Document, []ir.Diagnostic, error) {
+		return cyclicDoc(), nil, nil
+	}
+
+	r := Check(context.Background(), "spec", []byte("x"))
+	assert.Equal(t, OutcomeViolations, r.Outcome)
+	assert.Contains(t, r.Detail, "ir/cyclic-structure")
+
+	detail, ok := roundTrips(cyclicDoc())
+	assert.False(t, ok)
+	assert.True(t, strings.HasPrefix(detail, "marshal: "), "the first marshal refuses it: %s", detail)
+	assert.Contains(t, detail, "cycle")
 }
 
 func TestCheck_NondeterministicOutcome(t *testing.T) {
