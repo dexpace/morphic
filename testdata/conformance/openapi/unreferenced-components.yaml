@@ -10,7 +10,11 @@ paths:
         "200": {$ref: '#/components/responses/Used'}
 components:
   responses:
-    Used: {description: reached from the paths}
+    Used:
+      description: reached from the paths
+      # Kept as written, links and all: nothing follows this reference, so the
+      # link it names is kept on the document too.
+      links: {next: {$ref: '#/components/links/Next'}}
     Unused: {description: nothing names this one}
   parameters:
     Unused: {name: unused, in: query, schema: {type: string}}
@@ -22,6 +26,7 @@ components:
     Unused: {schema: {type: string}}
   links:
     Unused: {operationId: getA}
+    Next: {operationId: getA}
   callbacks:
     Unused:
       '{$request.body#/url}':

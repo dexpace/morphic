@@ -3359,7 +3359,7 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	catalog := svc.Groups[0]
 	assert.Equal(t, "catalog", catalog.Name.Source)
 	assert.Equal(t, "Everything the library holds", catalog.Docs.Description,
-		"an ancestor no operation reaches still carries its declared docs")
+		"an ancestor created first on its child's behalf still carries its declared docs")
 	require.Len(t, catalog.Operations, 1)
 	assert.Equal(t, "showCatalog", catalog.Operations[0].Name.Source)
 
@@ -3450,9 +3450,10 @@ func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 }
 
 // assertUnreferencedComponents pins GitHub #616: every component entry no
-// reference reaches is kept verbatim on the document, under the section and name
-// it was declared with, while the one entry the paths do name lowers as it
-// always did. No matrix row: the case is a preservation claim.
+// lowering followed a reference to is kept verbatim on the document, under the
+// section and name it was declared with, a link a lowered response names among
+// them, while the entry the paths do name lowers as it always did. No matrix
+// row: the case is a preservation claim.
 func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, section := range []string{
 		"responses", "parameters", "examples", "requestBodies",
@@ -3467,6 +3468,8 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	}
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/Used",
 		"an entry a reference reaches is lowered, not also kept verbatim")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/links/Next",
+		"a link the lowered response's links map names is kept: nothing follows that reference")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/mediaTypes",
 		"3.2's mediaTypes is kept whole until a reference into it is followed (GitHub #856)")
 

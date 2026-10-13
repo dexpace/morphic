@@ -73,6 +73,20 @@
                   },
                   "docs": {
                     "description": "reached from the paths"
+                  },
+                  "unmodeled": {
+                    "openapi:links": {
+                      "reason": "no_ir_home",
+                      "value": {
+                        "next": {
+                          "$ref": "#/components/links/Next"
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/responses/Used/links"
+                      }
+                    }
                   }
                 }
               ],
@@ -151,6 +165,16 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/headers/Unused"
+      }
+    },
+    "openapi:components/links/Next": {
+      "reason": "no_ir_home",
+      "value": {
+        "operationId": "getA"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/links/Next"
       }
     },
     "openapi:components/links/Unused": {
@@ -249,7 +273,7 @@
     {
       "format": "openapi@3.2",
       "path": "unreferenced-components.yaml",
-      "hash": "1535bb473a125d15a6ef62549b20deae6aa2ad857a3816ff4e02a5d0d32b9ca3"
+      "hash": "701e5bf3b25a7ce164defa4523e17ee46cca28b70d1edb26e96bcc5b951f17ea"
     }
   ]
 }
