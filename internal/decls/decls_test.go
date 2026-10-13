@@ -143,7 +143,7 @@ func TestStringConsts_FollowsDeclarationOrderAcrossFiles(t *testing.T) {
 func TestStringConsts_Refusals(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ typeName, want string }{
-		{"Count", "One is a Int constant, not a string"},
+		{"Count", "One has kind Int, not String"},
 		{"Missing", "declares no type Missing"},
 		{"Bytes", "Bytes is not a named type"},
 		{"Hello", "declares no type Hello"},

@@ -24,11 +24,11 @@ import (
 	"github.com/dexpace/morphic/internal/decls"
 )
 
-// irImportPath and modulePath locate the ir package and the module that holds
-// both it and the compiler.
+// modulePrefix is the import path every package of the module starts with, and
+// irImportPath is the ir package's.
 const (
-	irImportPath = "github.com/dexpace/morphic/ir"
-	modulePath   = "github.com/dexpace/morphic/"
+	modulePrefix = "github.com/dexpace/morphic/"
+	irImportPath = modulePrefix + "ir"
 )
 
 // loadedTree is the ir package and every package of the compiler's tree,
@@ -156,7 +156,7 @@ func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
 // position spells where sw is, as a path from the module root.
 func position(p *decls.Package, sw *ast.SwitchStmt) string {
 	pos := p.Fset.Position(sw.Pos())
-	dir := strings.TrimPrefix(p.Types.Path(), modulePath)
+	dir := strings.TrimPrefix(p.Types.Path(), modulePrefix)
 	return fmt.Sprintf("%s:%d", path.Join(dir, filepath.Base(pos.Filename)), pos.Line)
 }
 

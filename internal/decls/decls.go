@@ -115,7 +115,7 @@ func (p *Package) StringConsts(typeName string) ([]Const, error) {
 			continue
 		}
 		if c.Val().Kind() != constant.String {
-			return nil, fmt.Errorf("%s.%s is a %s constant, not a string", p.Types.Path(), name, c.Val().Kind())
+			return nil, fmt.Errorf("%s.%s has kind %s, not String", p.Types.Path(), name, c.Val().Kind())
 		}
 		found = append(found, c)
 	}

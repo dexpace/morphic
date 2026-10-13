@@ -113,7 +113,7 @@ func declaredReasons(t *testing.T) []string {
 			assert.False(t, ofType, "%s is a var of %s; a reason must be a constant", name, reasonTypeName)
 		case *types.Const:
 			if p.Fset.Position(obj.Pos()).Filename == home {
-				assert.True(t, ofType, "%s in %s is not a %s; every constant in the reason type's file must be one",
+				assert.True(t, ofType, "%s in %s does not have type %s; every constant in the reason type's file must have it",
 					name, filepath.Base(home), reasonTypeName)
 			}
 		default:
