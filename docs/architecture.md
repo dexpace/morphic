@@ -131,15 +131,18 @@ document is a diagnostic, and anything else is a bug in the pass. A pass that ta
 `filter`, `version-slice` and `overlay` will, holds them on its own value, so `Run` keeps one
 signature for every pass; how a caller supplies them is decided with the first of them.
 
-The order is written once, in the `engine` package's default list, not in `pass/`: composing
-passes is orchestration, which only the engine does. The engine runs the list after a successful
-compile and threads each pass's output into the next. It owns `Document.Diagnostics`, writing the
-compiler's findings and every pass's onto the document it returns, so a transform that builds a
-fresh document cannot lose any. A caller turns a pass off by name (`RunOptions.DisablePasses`,
-`--disable-pass`); a name no pass carries is a Go error (`engine.ErrUnknownPass`), not a
-diagnostic, because it names no defect in the spec. Turning a pass *on* by name is the other half
-of that option, and it lands with the first pass that is off by default, as the convenience
-simplifications of reference-learnings.md §B0 are to be.
+The order is written once, in the `engine` package's default list, not in `pass/`: composing passes
+is orchestration, which only the engine does. The engine runs the list after any compile that
+produced a document, errors reported or not, and threads each pass's output into the next. It owns
+`Document.Diagnostics`, writing the compiler's findings and every pass's onto the document it
+returns, so a transform that builds a fresh document cannot lose any. Those findings index
+`Document.Sources`, as the IR's own provenance does, so a pass may append to that table but never
+move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
+naming it. A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name
+no pass carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no
+defect in the spec. Turning a pass *on* by name is the other half of that option, and it lands with
+the first pass that is off by default, as the convenience simplifications of reference-learnings.md
+§B0 are to be.
 
 Built, and in the default list:
 

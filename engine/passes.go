@@ -23,6 +23,12 @@ var ErrUnknownPass = errors.New("unknown pass")
 // one would report the spec as refused.
 var errNoDocument = errors.New("returned no document")
 
+// errSourcesMoved reports a pass that broke its contract by dropping, moving or
+// replacing an entry of Document.Sources. The findings the engine carries over,
+// and the IR's own provenance, index that table, so the Result would send them
+// to the wrong file.
+var errSourcesMoved = errors.New("moved, replaced or dropped an entry of Document.Sources")
+
 // defaultPasses returns the passes every engine runs, in the order it runs
 // them. This is the one place that order is written down.
 func defaultPasses() []pass.Pass {
@@ -58,7 +64,16 @@ func runPasses(doc *ir.Document, passes []pass.Pass) (*ir.Document, []ir.Diagnos
 		if next == nil {
 			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errNoDocument)
 		}
+		if !keepsSources(doc.Sources, next.Sources) {
+			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errSourcesMoved)
+		}
 		doc, found = next, append(found, diags...)
 	}
 	return doc, found, nil
+}
+
+// keepsSources reports whether next holds every entry of prev at the index prev
+// gives it, which is all a Provenance.Source already made needs.
+func keepsSources(prev, next []ir.SourceInfo) bool {
+	return len(next) >= len(prev) && slices.Equal(prev, next[:len(prev)])
 }

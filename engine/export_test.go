@@ -10,6 +10,10 @@ import (
 // ErrNoDocument exposes the error a pass returning no document fails a run with.
 var ErrNoDocument = errNoDocument
 
+// ErrSourcesMoved exposes the error a pass that does not keep each source at its
+// index fails a run with.
+var ErrSourcesMoved = errSourcesMoved
+
 // DefaultPasses exposes the default pass list to this package's external tests,
 // which pin its order without a production caller needing to read it.
 func DefaultPasses() []pass.Pass { return defaultPasses() }

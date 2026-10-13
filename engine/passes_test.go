@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
@@ -48,14 +50,28 @@ func (danglePass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 }
 
 // rebuildPass is a transform that builds its result afresh, carrying over the
-// types and nothing else, Document.Diagnostics included.
+// types and the source table and nothing else, Document.Diagnostics included.
 type rebuildPass struct{}
 
 func (rebuildPass) Name() string { return "rebuild" }
 
 func (rebuildPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
-	return &ir.Document{IRVersion: doc.IRVersion, Types: doc.Types},
+	return &ir.Document{IRVersion: doc.IRVersion, Sources: doc.Sources, Types: doc.Types},
 		[]ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "test/rebuild"}}
+}
+
+// sourcesPass is a transform that hands its document's source table to edit
+// and returns a document carrying whatever edit makes of it.
+type sourcesPass struct {
+	edit func([]ir.SourceInfo) []ir.SourceInfo
+}
+
+func (sourcesPass) Name() string { return "sources" }
+
+func (p sourcesPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	next := *doc
+	next.Sources = p.edit(slices.Clone(doc.Sources))
+	return &next, nil
 }
 
 // nilPass breaks the Pass contract by returning no document.
@@ -243,6 +259,75 @@ func TestEngine_RunKeepsTheCompilersDiagnosticsThroughATransform(t *testing.T) {
 			t.Parallel()
 			_, got := runWith(t, tt.front, []pass.Pass{rebuildPass{}, notePass("after")})
 			assert.Empty(t, cmp.Diff([]string{want.Code, "test/rebuild", "test/after"}, got))
+		})
+	}
+}
+
+// TestEngine_RunKeepsOneCopyOfAFindingAPassRepeats pins that a pass reporting
+// what the compiler already reported, on either channel, leaves one copy of it:
+// identity is the whole value, as it is where compilers/compile dedupes.
+func TestEngine_RunKeepsOneCopyOfAFindingAPassRepeats(t *testing.T) {
+	t.Parallel()
+	echo := ir.Diagnostic{Severity: ir.SeverityInfo, Code: "test/echo"}
+	fronts := []struct {
+		name  string
+		front splitDiagCompiler
+	}{
+		{"mirrored", splitDiagCompiler{stored: []ir.Diagnostic{echo}, returned: []ir.Diagnostic{echo}}},
+		{"returned only", splitDiagCompiler{returned: []ir.Diagnostic{echo}}},
+		{"stored only", splitDiagCompiler{stored: []ir.Diagnostic{echo}}},
+	}
+	for _, tt := range fronts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, got := runWith(t, tt.front, []pass.Pass{notePass("echo")})
+			assert.Empty(t, cmp.Diff([]string{echo.Code}, got))
+		})
+	}
+}
+
+// TestEngine_RunHoldsPassesToTheSourceTable pins that a pass may append to
+// Document.Sources but not drop, replace or move an entry, because what the
+// compiler reported indexes the table by position. A refusal names the pass
+// that broke the rule, not a later one.
+func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
+	t.Parallel()
+	path := writeSpec(t, testspec.Tiny)
+	plain, err := engine.NewWithPasses(nil, openapi.New())
+	require.NoError(t, err)
+	compiled, err := plain.Run(t.Context(), path, engine.RunOptions{})
+	require.NoError(t, err)
+	require.Len(t, compiled.Sources, 1, "the edits below assume one source")
+
+	added := ir.SourceInfo{Format: "openapi", Path: "added.yaml"}
+	tests := []struct {
+		name    string
+		edit    func([]ir.SourceInfo) []ir.SourceInfo
+		refused bool
+	}{
+		{"kept", func(s []ir.SourceInfo) []ir.SourceInfo { return s }, false},
+		{"appended to", func(s []ir.SourceInfo) []ir.SourceInfo { return append(s, added) }, false},
+		{"dropped", func([]ir.SourceInfo) []ir.SourceInfo { return nil }, true},
+		{"replaced", func([]ir.SourceInfo) []ir.SourceInfo { return []ir.SourceInfo{added} }, true},
+		{"moved", func(s []ir.SourceInfo) []ir.SourceInfo { return append([]ir.SourceInfo{added}, s...) }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			eng, err := engine.NewWithPasses(
+				[]pass.Pass{notePass("before"), sourcesPass{tt.edit}, notePass("after")}, openapi.New())
+			require.NoError(t, err)
+
+			res, err := eng.Run(t.Context(), path, engine.RunOptions{})
+
+			if tt.refused {
+				require.ErrorIs(t, err, engine.ErrSourcesMoved)
+				assert.Contains(t, err.Error(), `"sources"`)
+				assert.Nil(t, res)
+				return
+			}
+			require.NoError(t, err)
+			assert.Empty(t, cmp.Diff(tt.edit(slices.Clone(compiled.Sources)), res.Sources))
 		})
 	}
 }
