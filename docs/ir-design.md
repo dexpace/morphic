@@ -868,7 +868,8 @@ The OpenAPI compiler reads `Rest` from the `items` beside `prefixItems`, which 2
 every element past them: `items: false` leaves no `Rest`, an absent `items` reads as `true`, and
 either of those or a schema lowers exactly as a `List`'s `items` would, at the same pointer and
 under the same hint. An `unevaluatedItems` beside them stays the §4.7 keeper's verbatim entry, as it
-does beside a `List`.
+does beside a `List`. As there, `items: true` and an absent `items` lower alike, though only the
+first makes that `unevaluatedItems` inert; recording the difference is #862.
 
 ### 4.7 Validation-only schema constructs — a documented boundary
 

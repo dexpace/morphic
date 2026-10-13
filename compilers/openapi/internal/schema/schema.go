@@ -1353,10 +1353,11 @@ func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 // into its Rest, and the collection bounds into its Constraints.
 //
 // 2020-12 applies items to every element past prefixItems, so `items: false`
-// leaves no Rest, and any other lowers as a List's items does: an absent one to
-// the top type, and under the same hint, since positionHint names /items alike
-// whichever node holds it. No field is derived from another: Elems is never
-// trimmed to maxItems, and a closed tuple gains no maxItems.
+// leaves no Rest. Any other lowers as a List's items does, under the same hint,
+// since positionHint names /items alike whichever node holds it. An absent one
+// lowers to the top type as `items: true` does, though only the latter makes an
+// unevaluatedItems beside it inert (#862). No field is derived from another:
+// Elems is never trimmed to maxItems, and a closed tuple gains no maxItems.
 func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
