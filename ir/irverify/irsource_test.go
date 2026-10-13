@@ -20,10 +20,10 @@ const irPath = "github.com/dexpace/morphic/ir"
 const maxTypeChain = 16
 
 // loadedPackages are the ir package and this package's own production sources,
-// type-checked together, once, so that what this package refers to in ir is the
-// object ir declares. Index 0 is ir: LoadAll sorts by import path.
+// each type-checked on its own, once. Index 0 is ir: LoadEach sorts by import
+// path.
 var loadedPackages = sync.OnceValues(func() ([]*decls.Package, error) {
-	pkgs, err := decls.LoadAll(irPath, irPath+"/irverify")
+	pkgs, err := decls.LoadEach(irPath, irPath+"/irverify")
 	if err != nil {
 		return nil, err
 	}

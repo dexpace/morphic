@@ -18,6 +18,9 @@ import (
 // type-check.
 const goodDir = "./testdata/good"
 
+// goodPath is the import path goodDir's packages share as a prefix.
+const goodPath = "github.com/dexpace/morphic/internal/decls/testdata/good/"
+
 // noPackages is a wildcard under the module that matches nothing, which the go
 // command reports as a warning rather than an error.
 const noPackages = "github.com/dexpace/morphic/internal/decls/testdata/nowhere/..."
@@ -38,7 +41,7 @@ func TestLoad_Refusals(t *testing.T) {
 		{"a package that does not type-check", "./testdata/broken", "broken.go:4"},
 		{"a package with no production file", "./testdata/testonly", "testonly has no production Go file"},
 		{"a package the build thins", "./testdata/constrained", "the current build leaves out left_out.go"},
-		{"a pattern matching several", goodDir + "/...", "matched 3 packages, want 1"},
+		{"a pattern matching several", goodDir + "/...", "matched 4 packages, want 1"},
 		{"a pattern matching none", noPackages, "matched no packages"},
 		{"a pattern the go command refuses", "-notaflag", "load -notaflag: "},
 	} {
@@ -53,8 +56,8 @@ func TestLoad_Refusals(t *testing.T) {
 }
 
 // TestLoad_ReportsAMissingPackageOnce holds a refusal to its cause: a package
-// the go command cannot find has no file either, and saying so too would only
-// bury the reason.
+// the go command cannot find is refused when the pattern is listed, before a
+// load could add that it has no file and bury the reason.
 func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
 	t.Parallel()
 	p, err := decls.Load("./testdata/nowhere")
@@ -95,15 +98,15 @@ func fileNames(p *decls.Package) []string {
 
 // TestLoad_ReportsTheGoCommandFailing covers the error packages.Load returns
 // itself, as opposed to one it records on a package: the go command refusing
-// to run, for the load and for the question LoadAll asks of each of several
-// patterns. It sets the environment, so it cannot run in parallel.
+// to run when the patterns are listed, for one pattern and for several. It
+// sets the environment, so it cannot run in parallel.
 func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
 	t.Setenv("GOFLAGS", "-mod=bogus")
 	for _, patterns := range [][]string{
 		{goodDir + "/fixture"},
 		{goodDir + "/fixture", goodDir + "/uses"},
 	} {
-		pkgs, err := decls.LoadAll(patterns...)
+		pkgs, err := decls.LoadEach(patterns...)
 
 		require.Error(t, err, patterns)
 		assert.Nil(t, pkgs)
@@ -113,64 +116,64 @@ func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
 }
 
 // TestLoad_IgnoresAnExternalDriver holds the load to the go command, whatever
-// driver the environment names: one that cannot run must not fail it, for the
-// load or for the question LoadAll asks of each of several patterns. It sets
-// the environment, so it cannot run in parallel.
+// driver the environment names: one that cannot run must fail neither the
+// listing nor the load, for one pattern or for several. It sets the
+// environment, so it cannot run in parallel.
 func TestLoad_IgnoresAnExternalDriver(t *testing.T) {
 	t.Setenv("GOPACKAGESDRIVER", filepath.Join(t.TempDir(), "gopackagesdriver"))
 	for _, patterns := range [][]string{
 		{goodDir + "/fixture"},
 		{goodDir + "/fixture", goodDir + "/uses"},
 	} {
-		pkgs, err := decls.LoadAll(patterns...)
+		pkgs, err := decls.LoadEach(patterns...)
 
 		require.NoError(t, err, patterns)
 		assert.Len(t, pkgs, len(patterns))
 	}
 }
 
-func TestLoadAll_RefusesNoPattern(t *testing.T) {
+func TestLoadEach_RefusesNoPattern(t *testing.T) {
 	t.Parallel()
-	pkgs, err := decls.LoadAll()
+	pkgs, err := decls.LoadEach()
 
 	require.Error(t, err)
 	assert.Nil(t, pkgs)
 	assert.Contains(t, err.Error(), "no pattern")
 }
 
-// TestLoadAll_RefusesAPatternMatchingNothing holds each of several patterns to
+// TestLoadEach_RefusesAPatternMatchingNothing holds each of several patterns to
 // naming a package. The go command only warns about one that names none, so
 // the load would otherwise come back with less than was asked for.
-func TestLoadAll_RefusesAPatternMatchingNothing(t *testing.T) {
+func TestLoadEach_RefusesAPatternMatchingNothing(t *testing.T) {
 	t.Parallel()
-	pkgs, err := decls.LoadAll(goodDir+"/fixture", noPackages)
+	pkgs, err := decls.LoadEach(goodDir+"/fixture", noPackages)
 
 	require.Error(t, err)
 	assert.Nil(t, pkgs)
 	assert.Contains(t, err.Error(), noPackages+" matched no packages")
 }
 
-// TestLoadAll_ReturnsPackagesSortedByPath holds the order to the import paths
-// rather than to the order the patterns were given or the loader finished.
-func TestLoadAll_ReturnsPackagesSortedByPath(t *testing.T) {
+// TestLoadEach_ReturnsEachPackageOnceSortedByPath holds the order to the import
+// paths rather than to the order the patterns were given, and a package two
+// patterns name to one copy.
+func TestLoadEach_ReturnsEachPackageOnceSortedByPath(t *testing.T) {
 	t.Parallel()
-	pkgs, err := decls.LoadAll(goodDir+"/uses", goodDir+"/split", goodDir+"/fixture")
+	pkgs, err := decls.LoadEach(goodDir+"/uses", goodDir+"/...", goodDir+"/fixture")
 	require.NoError(t, err)
 
 	paths := make([]string, len(pkgs))
 	for i, p := range pkgs {
 		paths[i] = p.Types.Path()
 	}
-	prefix := "github.com/dexpace/morphic/internal/decls/testdata/good/"
-	assert.Equal(t, []string{prefix + "fixture", prefix + "split", prefix + "uses"}, paths)
+	assert.Equal(t, []string{goodPath + "fixture", goodPath + "further", goodPath + "split", goodPath + "uses"}, paths)
 }
 
-// TestLoadAll_SharesOneTypeUniverse holds what separate Load calls cannot give:
-// the type a package declares is the type its importer sees, so identity is a
-// types.Identical call and not a comparison of import path and name.
-func TestLoadAll_SharesOneTypeUniverse(t *testing.T) {
+// TestLoadEach_LoadsEachPackageAlone holds every package to a load of its own,
+// which is what keeps go/types from checking two at once: the type fixture
+// declares is not the copy uses imports, and only Imported reaches that copy.
+func TestLoadEach_LoadsEachPackageAlone(t *testing.T) {
 	t.Parallel()
-	pkgs, err := decls.LoadAll(goodDir+"/uses", goodDir+"/fixture")
+	pkgs, err := decls.LoadEach(goodDir+"/uses", goodDir+"/fixture")
 	require.NoError(t, err)
 	require.Len(t, pkgs, 2)
 	declaring, importing := pkgs[0], pkgs[1]
@@ -181,12 +184,32 @@ func TestLoadAll_SharesOneTypeUniverse(t *testing.T) {
 	require.NoError(t, err)
 	favourite := importing.Types.Scope().Lookup("Favourite")
 	require.NotNil(t, favourite)
-	assert.True(t, types.Identical(color, favourite.Type()), "the importer sees the declaring package's own Color")
+	assert.False(t, types.Identical(color, favourite.Type()), "each package has a universe of its own")
+}
 
-	separate := fixture(t)
-	other, err := separate.Named("Color")
+// TestImported_ReachesTheCopyThePackageSees holds Imported to the package as
+// the importer's own types use it, whether imported directly or only through
+// another package, and to reporting a package it does not reach.
+func TestImported_ReachesTheCopyThePackageSees(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ importer, varName string }{
+		{"uses", "Favourite"}, // imports fixture itself
+		{"further", "Again"},  // reaches fixture only through uses
+	} {
+		p, err := decls.Load(goodDir + "/" + tc.importer)
+		require.NoError(t, err)
+
+		fixture, reaches := p.Imported(goodPath + "fixture")
+		require.True(t, reaches, tc.importer)
+		color := fixture.Scope().Lookup("Color")
+		require.NotNil(t, color, tc.importer)
+		assert.True(t, types.Identical(color.Type(), p.Types.Scope().Lookup(tc.varName).Type()), tc.importer)
+	}
+
+	split, err := decls.Load(goodDir + "/split")
 	require.NoError(t, err)
-	assert.False(t, types.Identical(color, other), "a separate load builds a universe of its own")
+	_, reaches := split.Imported(goodPath + "fixture")
+	assert.False(t, reaches, "split imports nothing of fixture's")
 }
 
 // TestStringConsts_ReadsEverySpelling holds the reader to the compiler: a

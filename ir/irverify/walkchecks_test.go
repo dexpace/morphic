@@ -124,7 +124,9 @@ type packageFunc struct {
 func packageFuncs(t *testing.T) []packageFunc {
 	t.Helper()
 	p := verifyDecls(t)
-	walkValues := irDecls(t).Types.Scope().Lookup("WalkValues")
+	irAsSeen, reaches := p.Imported(irPath)
+	require.True(t, reaches, "this package must import ir")
+	walkValues := irAsSeen.Scope().Lookup("WalkValues")
 	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
 	var out []packageFunc
 	for _, f := range p.Syntax {
@@ -162,9 +164,8 @@ func isCheckShaped(sig *types.Signature, violations types.Type) bool {
 }
 
 // refersTo reports whether fn's body names target, resolved through info so an
-// import renamed or dotted still counts. target is compared as an object: the ir
-// package and this one are type-checked together, so what this package's body
-// refers to is the object ir declares.
+// import renamed or dotted still counts. target is compared as an object, so it
+// must be the one info's package sees, as Imported reaches it.
 func refersTo(info *types.Info, fn *ast.FuncDecl, target types.Object) bool {
 	for node := range ast.Preorder(fn) {
 		ident, isIdent := node.(*ast.Ident)

@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 	"iter"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,7 +32,8 @@ func goList(mode packages.LoadMode) *packages.Config {
 	return &packages.Config{Mode: mode, Env: append(os.Environ(), "GOPACKAGESDRIVER=off")}
 }
 
-// Package is one package's production sources, type-checked.
+// Package is one package's production sources, type-checked in a load of its
+// own: what it imports is its own copy, which Imported reaches.
 type Package struct {
 	// Types holds what the package declares.
 	Types *types.Package
@@ -51,10 +53,10 @@ type Const struct {
 }
 
 // Load type-checks the one package pattern names, resolved from the working
-// directory, without its test files. It refuses what LoadAll refuses, and a
+// directory, without its test files. It refuses what LoadEach refuses, and a
 // pattern matching several packages.
 func Load(pattern string) (*Package, error) {
-	pkgs, err := LoadAll(pattern)
+	pkgs, err := LoadEach(pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -64,64 +66,85 @@ func Load(pattern string) (*Package, error) {
 	return pkgs[0], nil
 }
 
-// LoadAll type-checks every package the patterns name, together, without their
-// test files, and returns them sorted by import path.
+// LoadEach type-checks every package the patterns name, without their test
+// files, and returns each once, sorted by import path.
 //
-// Together is the point: a type one of them declares is identical to the type
-// another sees through its import, which two Load calls cannot give, since each
-// builds a universe of its own.
+// Each is loaded alone, in a type universe of its own; Imported reaches the
+// copy of a package another one imports. go/types can race when one
+// go/packages load checks several packages sharing an import (golang/go#81122).
 //
 // It refuses to read less than asked: a pattern matching no package, a package
 // that does not type-check or has no production Go file, and a production Go
-// file the current build configuration leaves out, since what that file
-// declares would go unread.
-func LoadAll(patterns ...string) ([]*Package, error) {
+// file the build leaves out, since what it declares would go unread.
+func LoadEach(patterns ...string) ([]*Package, error) {
 	if len(patterns) == 0 {
 		return nil, errors.New("load: no pattern")
 	}
 	what := strings.Join(patterns, " ")
-	if err := eachMatches(patterns); err != nil {
-		return nil, fmt.Errorf("load %s: %w", what, err)
-	}
-
-	loaded, err := packages.Load(goList(loadMode), patterns...)
+	paths, err := list(patterns)
 	if err != nil {
 		return nil, fmt.Errorf("load %s: %w", what, err)
 	}
-	if len(loaded) == 0 {
-		return nil, fmt.Errorf("load %s: matched no packages", what)
-	}
 
 	var errs []error
-	out := make([]*Package, 0, len(loaded))
-	for _, p := range loaded {
-		errs = append(errs, unread(p)...)
-		out = append(out, &Package{Types: p.Types, Info: p.TypesInfo, Syntax: p.Syntax, Fset: p.Fset})
+	out := make([]*Package, 0, len(paths))
+	for _, path := range paths {
+		p, err := loadAlone(path)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		out = append(out, p)
 	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("load %s: %w", what, errors.Join(errs...))
 	}
-	slices.SortFunc(out, func(a, b *Package) int { return cmp.Compare(a.Types.Path(), b.Types.Path()) })
 	return out, nil
 }
 
-// eachMatches fails for a pattern of several that names no package. The go
-// command only warns about one, so the load would quietly read less than its
-// caller asked for. A lone pattern is not asked twice: an empty load says it.
-func eachMatches(patterns []string) error {
-	if len(patterns) == 1 {
-		return nil
-	}
+// list returns, sorted and once each, the import paths of the packages the
+// patterns name. It asks the go command about each pattern on its own, since
+// the go command only warns about one that names nothing, and what that
+// pattern was meant to name would go unread.
+func list(patterns []string) ([]string, error) {
+	paths := map[string]bool{}
+	var errs []error
 	for _, pattern := range patterns {
-		pkgs, err := packages.Load(goList(packages.NeedName), pattern)
+		listed, err := packages.Load(goList(packages.NeedName), pattern)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if len(pkgs) == 0 {
-			return fmt.Errorf("%s matched no packages", pattern)
+		if len(listed) == 0 {
+			errs = append(errs, fmt.Errorf("%s matched no packages", pattern))
+		}
+		for _, p := range listed {
+			for _, e := range p.Errors {
+				errs = append(errs, e)
+			}
+			paths[p.PkgPath] = true
 		}
 	}
-	return nil
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return slices.Sorted(maps.Keys(paths)), nil
+}
+
+// loadAlone type-checks the one package at path, as the only package of its
+// go/packages load.
+func loadAlone(path string) (*Package, error) {
+	loaded, err := packages.Load(goList(loadMode), path)
+	if err != nil {
+		return nil, err
+	}
+	if len(loaded) != 1 {
+		return nil, fmt.Errorf("%s loaded as %d packages, want 1", path, len(loaded))
+	}
+	p := loaded[0]
+	if errs := unread(p); len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return &Package{Types: p.Types, Info: p.TypesInfo, Syntax: p.Syntax, Fset: p.Fset}, nil
 }
 
 // unread returns what keeps p from being read whole: the errors the load
@@ -140,7 +163,7 @@ func unread(p *packages.Package) []error {
 		}
 		errs = append(errs, fmt.Errorf("%s: the current build leaves out %s", p.PkgPath, filepath.Base(file)))
 	}
-	if len(errs) == 0 && len(p.Syntax) == 0 {
+	if len(p.Syntax) == 0 {
 		errs = append(errs, fmt.Errorf("%s has no production Go file", p.PkgPath))
 	}
 	return errs
@@ -158,6 +181,29 @@ func (p *Package) Objects[T types.Object]() iter.Seq[T] {
 			}
 		}
 	}
+}
+
+// Imported returns the package p's types use for the import path path, whether
+// p imports it itself or reaches it through another import. Since every
+// Package is loaded on its own, a type in p is identical only to the copy of
+// that package's types reached this way.
+func (p *Package) Imported(path string) (*types.Package, bool) {
+	seen := map[*types.Package]bool{p.Types: true}
+	queue := []*types.Package{p.Types}
+	for len(queue) > 0 {
+		pkg := queue[0]
+		queue = queue[1:]
+		if pkg.Path() == path {
+			return pkg, true
+		}
+		for _, imp := range pkg.Imports() {
+			if !seen[imp] {
+				seen[imp] = true
+				queue = append(queue, imp)
+			}
+		}
+	}
+	return nil, false
 }
 
 // Named returns the named type the package declares as name, through an alias

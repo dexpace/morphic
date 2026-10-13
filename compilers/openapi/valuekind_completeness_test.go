@@ -31,8 +31,7 @@ const (
 )
 
 // loadedTree is the ir package and every package of the compiler's tree,
-// production sources only, type-checked together so that ir.ValueKind is one
-// type to all of them.
+// production sources only, each type-checked on its own.
 type loadedTree struct {
 	ir       *decls.Package
 	compiler []*decls.Package
@@ -41,7 +40,7 @@ type loadedTree struct {
 // compilerTree loads the tree once per test binary. The pattern is relative to
 // this package's directory, which is where the test runs.
 var compilerTree = sync.OnceValues(func() (loadedTree, error) {
-	pkgs, err := decls.LoadAll(irImportPath, "./...")
+	pkgs, err := decls.LoadEach(irImportPath, "./...")
 	if err != nil {
 		return loadedTree{}, err
 	}
@@ -96,10 +95,8 @@ func TestValueKindSwitches_NameEveryValueKind(t *testing.T) {
 	t.Parallel()
 	declared := irConstsOfType(t, "ValueKind")
 	require.NotEmpty(t, declared, "the ir sources must declare ValueKind constants")
-	valueKind, err := irDecls(t).Named("ValueKind")
-	require.NoError(t, err)
 
-	switches := valueKindSwitches(t, valueKind)
+	switches := valueKindSwitches(t)
 	require.NotEmpty(t, switches, "found no switch over ir.ValueKind in the compiler's sources")
 	for _, sw := range switches {
 		sw.assertNamesEvery(t, declared)
@@ -134,10 +131,14 @@ func (sw valueKindSwitch) assertNamesEvery(t *testing.T, declared []decls.Const)
 // valueKindSwitches returns every switch in the compiler's tree whose tag is an
 // ir.ValueKind, by package, file and source order. Test files are not the
 // compiler, and the loader reads none.
-func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
+func valueKindSwitches(t *testing.T) []valueKindSwitch {
 	t.Helper()
 	var out []valueKindSwitch
 	for _, p := range loadTree(t).compiler {
+		valueKind, reaches := valueKindIn(t, p)
+		if !reaches {
+			continue // a package that reaches no ir cannot switch over its ValueKind
+		}
 		for _, file := range p.Syntax {
 			for n := range ast.Preorder(file) {
 				sw, isSwitch := n.(*ast.SwitchStmt)
@@ -149,6 +150,20 @@ func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
 		}
 	}
 	return out
+}
+
+// valueKindIn returns ir.ValueKind as p's own types use it, and whether p
+// reaches the ir package at all. Each package is loaded on its own, so the
+// type p's switches have is identical only to this copy.
+func valueKindIn(t *testing.T, p *decls.Package) (types.Type, bool) {
+	t.Helper()
+	irAsSeen, reaches := p.Imported(irImportPath)
+	if !reaches {
+		return nil, false
+	}
+	valueKind, isType := irAsSeen.Scope().Lookup("ValueKind").(*types.TypeName)
+	require.True(t, isType, "%s sees no ir.ValueKind type", p.Types.Path())
+	return valueKind.Type(), true
 }
 
 // position spells where sw is, as a path from the module root.

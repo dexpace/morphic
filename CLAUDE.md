@@ -174,8 +174,9 @@ These all exist already — extend them rather than building a parallel mechanis
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
   readers each rebuilt const-group carry-forward, aliases and import names their own way and were
-  blind to spellings the compiler accepts (#409). `decls.LoadAll` loads several packages in one
-  type universe, so a type one declares is `types.Identical` to the type another imports.
+  blind to spellings the compiler accepts (#409). Each package is loaded on its own, because
+  `go/types` can race when one load checks several at once (golang/go#81122), so a type another
+  package declares is compared through `Package.Imported`, the copy the package itself sees.
 - **Goroutine leak check**: `internal/leakcheck` wraps `TestMain` around Go 1.27's `goroutineleak`
   profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
   `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine

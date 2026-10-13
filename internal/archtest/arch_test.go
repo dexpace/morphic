@@ -268,10 +268,14 @@ var rules = map[string][]string{
 	// its tests call it without pulling anything else in.
 	"internal/leakcheck": {},
 	// Test infrastructure too: tests that hold a hand-written list to what a
-	// package declares read it type-checked, through go/packages. The fixture
-	// is the one package of its testdata another imports, which is how a test
-	// shows two packages loaded together share a type.
-	"internal/decls": {"golang.org/x/tools/go/packages", module + "/internal/decls/testdata/good/fixture"},
+	// package declares read it type-checked, through go/packages. Two of its
+	// testdata packages are imported by others, which is how a test shows a
+	// package reaching a type directly and through another import.
+	"internal/decls": {
+		"golang.org/x/tools/go/packages",
+		module + "/internal/decls/testdata/good/fixture",
+		module + "/internal/decls/testdata/good/uses",
+	},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
