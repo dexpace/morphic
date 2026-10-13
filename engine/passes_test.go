@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"testing"
@@ -80,6 +81,43 @@ type nilPass struct{}
 func (nilPass) Name() string { return "nil" }
 
 func (nilPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }
+
+// cancelPass is an analysis that cancels the run it is part of.
+type cancelPass struct{ cancel context.CancelFunc }
+
+func (cancelPass) Name() string { return "cancel" }
+
+func (p cancelPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	p.cancel()
+	return doc, nil
+}
+
+// unreachedPass fails its test if it runs at all.
+type unreachedPass struct {
+	t    *testing.T
+	name string
+}
+
+func (p unreachedPass) Name() string { return p.name }
+
+func (p unreachedPass) Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	p.t.Errorf("pass %q ran in a cancelled run", p.name)
+	return doc, nil
+}
+
+// cancelCompiler compiles as splitDiagCompiler does, cancelling the run on its
+// way out.
+type cancelCompiler struct {
+	splitDiagCompiler
+	cancel context.CancelFunc
+}
+
+func (c cancelCompiler) Compile(
+	ctx context.Context, sources []compilers.Source, opts compilers.Options,
+) (*ir.Document, []ir.Diagnostic, error) {
+	c.cancel()
+	return c.splitDiagCompiler.Compile(ctx, sources, opts)
+}
 
 // runWith compiles the tiny spec with front, runs each of passes that disabled
 // does not name, and returns the result with its diagnostics' codes in order.
@@ -328,6 +366,42 @@ func TestEngine_RunHoldsPassesToTheSourceTable(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Empty(t, cmp.Diff(tt.edit(slices.Clone(compiled.Sources)), res.Sources))
+		})
+	}
+}
+
+// TestEngine_RunStopsBeforeTheNextPassOnceCancelled pins that ctx is checked
+// before every pass, the first included: a run cancelled during the compile or
+// during a pass runs no further pass and names the one it stopped before.
+func TestEngine_RunStopsBeforeTheNextPassOnceCancelled(t *testing.T) {
+	t.Parallel()
+	type setup func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass)
+	tests := []struct {
+		name  string
+		setup setup
+		next  string
+	}{
+		{"during the compile", func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
+			return cancelCompiler{cancel: cancel}, []pass.Pass{unreachedPass{t, "first"}}
+		}, "first"},
+		{"during a pass", func(t *testing.T, cancel context.CancelFunc) (compilers.Compiler, []pass.Pass) {
+			return splitDiagCompiler{}, []pass.Pass{cancelPass{cancel}, unreachedPass{t, "after"}}
+		}, "after"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			front, passes := tt.setup(t, cancel)
+			eng, err := engine.NewWithPasses(passes, front)
+			require.NoError(t, err)
+
+			res, err := eng.Run(ctx, writeSpec(t, testspec.Tiny), engine.RunOptions{})
+
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Contains(t, err.Error(), fmt.Sprintf("stop before pass %q", tt.next))
+			assert.Nil(t, res)
 		})
 	}
 }

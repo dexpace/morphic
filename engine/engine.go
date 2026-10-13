@@ -105,11 +105,12 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 // the compiler that recognizes it, then run the passes not named in
 // opts.DisablePasses, in order.
 //
-// A Go error is reserved for I/O and programmer errors: an unreadable file, a
-// compiler or pass breaking its contract, or a name ErrUnknownPass refuses.
-// Everything wrong with the spec itself, a source no compiler can lower
-// included, is a diagnostic in the Result, so a caller can treat a Go error as
-// misuse, as the CLI does. Calls may overlap; each owns the document it returns.
+// A Go error is reserved for I/O, cancellation and programmer errors: an
+// unreadable file, a cancelled ctx, a compiler or pass breaking its contract,
+// or a name ErrUnknownPass refuses. Everything wrong with the spec itself, a
+// source no compiler can lower included, is a diagnostic in the Result, so a
+// caller can treat a Go error as misuse, as the CLI does. Calls may overlap;
+// each owns the document it returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting
@@ -177,7 +178,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	// leaves Document.Diagnostics to the engine: a transform that builds a
 	// fresh document cannot lose what the compiler stored on the old one.
 	compiled := mergeDiagnostics(doc.Diagnostics, diags)
-	doc, found, err := runPasses(doc, passes)
+	doc, found, err := runPasses(ctx, doc, passes)
 	if err != nil {
 		return nil, err
 	}

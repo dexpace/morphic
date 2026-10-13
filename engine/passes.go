@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -30,7 +31,9 @@ var errNoDocument = errors.New("returned no document")
 var errSourcesMoved = errors.New("moved, replaced or dropped an entry of Document.Sources")
 
 // defaultPasses returns the passes every engine runs, in the order it runs
-// them. This is the one place that order is written down.
+// them; no other code holds that order. An analysis that judges the document,
+// validate among them, goes after every transform, so it checks what the run
+// returns. architecture.md §2.2 gives the reasons.
 func defaultPasses() []pass.Pass {
 	return []pass.Pass{pass.Validator{}}
 }
@@ -57,9 +60,14 @@ func (e *Engine) enabledPasses(disabled []string) ([]pass.Pass, error) {
 
 // runPasses runs passes in order, each over the document the one before it
 // returned, and returns the last document with every diagnostic they reported.
-func runPasses(doc *ir.Document, passes []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+// A pass takes no context, so ctx is checked before each one: a cancelled run
+// stops at the next pass rather than running the rest.
+func runPasses(ctx context.Context, doc *ir.Document, passes []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 	var found []ir.Diagnostic
 	for _, p := range passes {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, fmt.Errorf("engine: stop before pass %q: %w", p.Name(), err)
+		}
 		next, diags := p.Run(doc)
 		if next == nil {
 			return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.Name(), errNoDocument)

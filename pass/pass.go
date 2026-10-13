@@ -12,7 +12,7 @@ import "github.com/dexpace/morphic/ir"
 // Document.Diagnostics. A Pass holds no mutable state, so one value serves
 // concurrent runs.
 //
-// architecture.md §2.2 says why Run has no error result.
+// architecture.md §2.2 says why Run has no context or error.
 type Pass interface {
 	Name() string
 	Run(doc *ir.Document) (*ir.Document, []ir.Diagnostic)
