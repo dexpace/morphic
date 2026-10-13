@@ -17,7 +17,8 @@ import (
 // deferDiscriminatorBesideUnion queues a settlement for each model that holds
 // the discriminator written beside the union lowerBesideUnmodeledUnion kept
 // verbatim on owner (discriminatorModels). A body that lowered to anything else
-// holds none: the census kept its discriminator where it kept the rest.
+// holds none: the census kept its discriminator where it kept the rest, except
+// on a multi-typed body with no object variant, which runs none (GitHub #852).
 func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
 	named := namedBranches(c, s)
 	for _, model := range discriminatorModels(ts, owner) {
