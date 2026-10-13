@@ -168,6 +168,17 @@ func messageCases() []messageCase {
 				Default: &ir.Value{Kind: ir.ValueNumber}}}
 			return typesDoc(m)
 		}, "ir/value-missing-payload", `value of kind "number" leaves Num empty, which is no value of that kind`},
+		{"cyclic structure", func() *ir.Document {
+			c := &ir.CtorValue{Scalar: "t/x/S", Name: "from"}
+			c.Args = []ir.Value{ctorValue(c)}
+			m := namedModel(ir.TypeID("t/x/" + illFormed))
+			m.Examples = []ir.Example{{Value: new(ctorValue(c))}}
+			return typesDoc(m,
+				&ir.Scalar{ID: "t/x/S", Name: named("s"), Base: &ir.TypeRef{Target: "t/prim/string"}},
+				&ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString})
+		}, "ir/cyclic-structure", fmt.Sprintf(
+			"document reaches the *ir.CtorValue it is already inside (entered at %q), so it cannot be encoded",
+			"doc.Types[t/x/"+illFormed+"].Examples[0].Value.Ctor")},
 		{"irVersion", func() *ir.Document {
 			doc := typesDoc(namedModel("t/x/A"))
 			doc.IRVersion = illFormed
