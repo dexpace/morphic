@@ -1086,8 +1086,9 @@ from it is exact and nothing is reported.
   with a type rather than by a node kind. `discriminator` joins the list too, homed by a `Model`
   or `Union` that routes by it and by nothing else. Two limits are deliberate: a multi-typed schema
   (`type: [string, object]`) is exempt, because it lowers one variant per declared type from the
-  same schema and the homes are the variants'; and a `$ref` position is not covered, since its
-  siblings bind the position rather than the referent and are handled at §4.3's use-site rule.
+  same schema and the homes are the variants' — though a keyword no variant holds is then dropped
+  (#852); and a `$ref` position is not covered, since its siblings bind the position rather than
+  the referent and are handled at §4.3's use-site rule.
 - **JSON Schema open tuples** (`prefixItems` with a trailing `items`) — a fixed positional head
   plus a homogeneous tail of unbounded length. **The IR** has `Tuple` (fixed arity) and `List`
   (homogeneous, one element type) and no node that is both; target languages are not the

@@ -35,10 +35,12 @@ func (t *Types) Defer(s Settlement) {
 
 // Settle takes every deferred Settlement once, in the order deferred, and
 // returns their diagnostics. A compiler calls it after its last lowering
-// returns. Like the walks, it stops between two settlements once ctx is done,
-// leaving a registry the caller must not assemble. A settlement that adds or
-// removes a node is refused, and what it did is left standing: the refusal
-// names a compiler bug, not a recovery.
+// returns. Like the walks, it checks ctx before each settlement and stops once
+// it is done, leaving a registry the caller must not assemble. A settlement
+// that changes how many nodes the registry holds is refused, and what it did is
+// left standing: the refusal names a compiler bug, not a recovery. A swap of
+// one node for another keeps the count, so the references it leaves dangling
+// are left to pass.Validate and irverify.
 func (t *Types) Settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := t.pending

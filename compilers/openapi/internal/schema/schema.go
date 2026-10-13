@@ -223,7 +223,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // body's target would make annotations depend on declaration order (ir-design
 // §4.3).
 //
-// unhomed is the caller's census verdict for a $ref site's keywords, which
+// unhomed is the census verdict of a $ref site or a collapsed union, which
 // declaresPositionScoped cannot judge.
 func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil {
@@ -634,7 +634,9 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 		// this same schema, so an applicator with no home in one variant has one
 		// in another: `{type: [string, object], properties: {...}}` puts the
 		// property set on the object variant. The homes here are the variants',
-		// not the Union's, so the applicator check does not apply.
+		// not the Union's, so the applicator check does not apply. A keyword no
+		// declared type's variant holds, such as a discriminator with no object
+		// variant, is dropped (GitHub #852).
 		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
@@ -666,11 +668,12 @@ var censusKeywords = []string{
 // rather than re-deriving lower()'s dispatch, so the two cannot drift apart
 // (see recordUnplacedContent).
 //
-// A nil td is a $ref site, whose declaration becomes an alias over the target.
-// The alias carries only the position's constraints and annotations, and the
-// target's fields belong to the referent's declaration, so a `format` beside a
-// $ref must not read the referent's Encoding as its home. So every keyword is
-// homeless at a $ref site except a null-only `type`.
+// A nil td is a position lowered to a reference: a $ref site, or a collapsed
+// union (collapsedUnhomedKeywords). Its alias carries only the position's
+// constraints and annotations, and the target's fields belong to the
+// referent's declaration, so a `format` beside a $ref must not read the
+// referent's Encoding as its home. So every keyword is homeless there except
+// a null-only `type`.
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties", "required":
@@ -771,7 +774,7 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 // exactly that type set. A Literal carries only its value, so a `type` written
 // beside a const reached no field at all — including the case where the two
 // agree, since the IR then holds the value and nothing about what was declared
-// about it. Any, External and the $ref site's nil carry no shape.
+// about it. Any, External and keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model:

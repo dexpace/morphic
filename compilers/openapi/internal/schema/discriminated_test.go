@@ -217,9 +217,9 @@ func TestDiscriminatorBesideUnion_ReportsTheMoveOnce(t *testing.T) {
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, movedPointer))
 }
 
-// degradedShapes are the model-bodied unions kept verbatim beside a
-// discriminator other than the discriminated one, each with the branch text
-// that makes it that shape. Each goes through lowerBesideUnmodeledUnion.
+// degradedShapes are the cases besides the discriminator itself that keep a
+// union verbatim beside a model, each with the branch text that makes the
+// union that case. Each goes through lowerBesideUnmodeledUnion.
 var degradedShapes = []struct {
 	name     string
 	branches string
@@ -229,14 +229,16 @@ var degradedShapes = []struct {
 	{"validation-only branches", "      oneOf: [{required: [kind]}, {required: [x]}]\n"},
 }
 
+// degradedPet declares Pet, a model whose discriminator maps cat to Cat,
+// beside the branches given.
 func degradedPet(branches string) string {
 	return "    Pet:\n      type: object\n" +
 		"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" + branches
 }
 
 // TestDiscriminatorBesideUnion_EveryDegradedShapeIsSettled pins that the rule
-// holds on every union kept verbatim beside a model, not only the
-// discriminated one, both ways.
+// holds on every union kept verbatim beside a model, not only one its
+// discriminator alone degrades, both ways.
 func TestDiscriminatorBesideUnion_EveryDegradedShapeIsSettled(t *testing.T) {
 	t.Parallel()
 	for _, shape := range degradedShapes {
@@ -341,6 +343,7 @@ func TestDiscriminatorBesideUnion_UnreachableBranchesAreNoRoute(t *testing.T) {
 				assertMoved(t, doc, `"mapping"`)
 			}
 			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...))
+			assert.Equal(t, reported(docs[0].Diagnostics), reported(docs[1].Diagnostics))
 		})
 	}
 }
@@ -418,7 +421,7 @@ func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceBuiltFirst(t *testin
 		require.True(t, ok)
 		assert.Nil(t, pet.Discriminator)
 		assert.Contains(t, pet.Unmodeled, "openapi:discriminator")
-		assert.Equal(t, 1, strings.Count(fmt.Sprint(reported(doc.Diagnostics)), at+"/discriminator"),
-			"one move, reported once")
+		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
+			"not a subtype", "one move, reported once")
 	}
 }

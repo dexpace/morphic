@@ -817,7 +817,8 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 // TestDiscriminatorHome_AsksWhetherTheFieldWasFilled pins what homes a
 // discriminator: a Model or Union whose lowering filled the field. Having the
 // field is not enough, since the Union a mixed-type enum lowers to holds none,
-// and no other kind, nor a $ref site's nil node, has the field at all.
+// and no other kind, nor the nil td of a position lowered to a reference, has
+// the field at all.
 func TestDiscriminatorHome_AsksWhetherTheFieldWasFilled(t *testing.T) {
 	t.Parallel()
 	filled := &ir.Discriminator{PropertyName: "kind"}
@@ -832,7 +833,7 @@ func TestDiscriminatorHome_AsksWhetherTheFieldWasFilled(t *testing.T) {
 		{"union holding none", &ir.Union{}, false},
 		{"scalar", &ir.Scalar{}, false},
 		{"enum", &ir.Enum{}, false},
-		{"ref site", nil, false},
+		{"reference", nil, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
