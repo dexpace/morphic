@@ -75,6 +75,17 @@ func messageCases() []messageCase {
 		}, "ir/idempotency-token", fmt.Sprintf(
 			"idempotency kind %q with token parameter %q: a token is named exactly when the kind is %q",
 			illFormed, illFormed, ir.IdempotencyToken)},
+		{"webhook template", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{IsWebhook: true, URITemplate: illFormed}}}})
+		}, "ir/webhook-route", fmt.Sprintf(
+			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
+			illFormed)},
+		{"webhook name", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
+		}, "ir/webhook-route", fmt.Sprintf(
+			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
 		{"prim not derived", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.TypeID("t/x/" + illFormed), Prim: ir.PrimString})
 		}, "ir/prim-id-not-derived", fmt.Sprintf(

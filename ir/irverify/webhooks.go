@@ -2,38 +2,56 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
 
 var httpBindingType = reflect.TypeFor[ir.HTTPBinding]()
 
-// checkWebhookBindings asserts an ir.HTTPBinding marked IsWebhook carries no
-// URITemplate: a webhook's event name belongs in WebhookName, and populating the
-// field a webhook does not select leaves a consumer two answers, the discipline
-// checkValues holds for ir.Value.
+// checkWebhookRoutes asserts every ir.HTTPBinding names its route in the field
+// IsWebhook selects: a webhook its event in WebhookName, any other binding its
+// template in URITemplate. A binding filling the other field gives a consumer
+// two answers to whether it is a webhook, as a stray Value payload does to what
+// the value is.
 //
-// Only that negative half is a contract. An empty webhooks-map key is legal, so
-// requiring a non-empty WebhookName would fire on a document the compiler itself
-// produces; the converse is left to the corpus goldens.
+// Neither field is required. An empty webhooks-map key is legal and lowers to
+// no name, so requiring one would report a document the compiler produces.
 //
 // The walk reaches bindings rather than the fields that carry them, so a new
 // carrier is held at once.
-func checkWebhookBindings(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkWebhookRoutes(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
 		if v.Type() != httpBindingType {
 			return true
 		}
-		if v.FieldByName("IsWebhook").Bool() && v.FieldByName("URITemplate").String() != "" {
-			vs = append(vs, Violation{
-				Code: "ir/webhook-uri-template",
-				Message: "webhook binding carries a URI template, a field a webhook does not " +
-					"select; a webhook's event name belongs in WebhookName",
-				Path: path + ".URITemplate",
-			})
+		if b, ok := reflect.TypeAssert[ir.HTTPBinding](v); ok {
+			vs = appendStrayRoute(vs, b, path)
 		}
 		return true
 	})
 	return vs, truncated
+}
+
+// appendStrayRoute reports the route field b fills that its IsWebhook does not
+// select. The two cases exclude each other, so a binding draws one at most.
+func appendStrayRoute(vs []Violation, b ir.HTTPBinding, path string) []Violation {
+	switch {
+	case b.IsWebhook && b.URITemplate != "":
+		return append(vs, Violation{
+			Code: "ir/webhook-route",
+			Message: "webhook binding carries URI template " + strconv.Quote(b.URITemplate) +
+				"; a webhook names its event in WebhookName and has no template",
+			Path: path + ".URITemplate",
+		})
+	case !b.IsWebhook && b.WebhookName != "":
+		return append(vs, Violation{
+			Code: "ir/webhook-route",
+			Message: "binding that is not a webhook carries webhook name " + strconv.Quote(b.WebhookName) +
+				"; only a webhook binding names an event",
+			Path: path + ".WebhookName",
+		})
+	}
+	return vs
 }
