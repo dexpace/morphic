@@ -20,7 +20,7 @@ import (
 // their syntax and their type information. Dependencies come from export data,
 // not source.
 const loadMode = packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
-	packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports
+	packages.NeedTypes | packages.NeedTypesInfo
 
 // Package is one package's production sources, type-checked.
 type Package struct {
