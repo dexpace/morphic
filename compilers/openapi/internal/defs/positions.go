@@ -2,9 +2,10 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
-	"strings"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -33,9 +34,6 @@ type frame struct {
 	node *yaml.Node
 	next int
 }
-
-// pointerEscaper escapes a token as RFC 6901 does.
-var pointerEscaper = strings.NewReplacer("~", "~0", "/", "~1")
 
 // indexPositions walks the tree under root once. Aliases are followed, as the
 // library's search follows them, and a container met a second time, through an
@@ -101,7 +99,9 @@ func (f *frame) nextChild() (child *yaml.Node, token string, ok bool) {
 
 // pointerOf returns the pointer to node, "/" for the root, or "" when the tree
 // holds no such container. Each step leads to the container met before this one,
-// which bounds the walk.
+// which bounds the walk. The pointer is spelled byte for byte as the library's
+// search spells it: jsontext would spell a byte that is no UTF-8 as U+FFFD, a
+// key the library never compares.
 func (p *positions) pointerOf(node *yaml.Node) jsontext.Pointer {
 	node = resolveAlias(node)
 	if node == nil || p.root == nil {
@@ -116,15 +116,11 @@ func (p *positions) pointerOf(node *yaml.Node) jsontext.Pointer {
 		if !ok {
 			return ""
 		}
-		tokens = append(tokens, pointerEscaper.Replace(o.token))
+		tokens = append(tokens, o.token)
 		at = o.parent
 	}
-	var sb strings.Builder
-	for i := len(tokens) - 1; i >= 0; i-- {
-		sb.WriteByte('/')
-		sb.WriteString(tokens[i])
-	}
-	return jsontext.Pointer(sb.String())
+	slices.Reverse(tokens)
+	return jsontext.Pointer(jsonpointer.PartsToJSONPointer(tokens))
 }
 
 // documentContent returns what a document node holds, or nil when it is empty.
@@ -150,7 +146,9 @@ func keyString(key *yaml.Node) string {
 	return key.Value
 }
 
-// resolveAlias follows an alias to the node it stands for.
+// resolveAlias follows an alias to the node it stands for, as the library's
+// search does (marshaller resolveAlias): an alias naming nothing stands for
+// itself there, where nodeview.Deref, the pointer walk's reading, answers nil.
 func resolveAlias(n *yaml.Node) *yaml.Node {
 	for n != nil && n.Kind == yaml.AliasNode && n.Alias != nil {
 		n = n.Alias

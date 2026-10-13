@@ -375,7 +375,7 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 			baselined++
 		}
 		rewritten, ok := reverseMappings(data)
-		if ok && string(rewritten) != string(baseline) {
+		if ok && !bytes.Equal(rewritten, baseline) {
 			permuted++
 		}
 	}

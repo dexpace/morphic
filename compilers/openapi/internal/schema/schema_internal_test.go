@@ -173,11 +173,11 @@ func TestPreserveKeyword_NilRaw(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestSchemaConstraints_NonSchemaInputs covers annotation.SchemaOf's nil and
+// TestConstraintsOf_NonSchemaInputs covers annotation.SchemaOf's nil and
 // boolean early return, plus a well-formed reference besides: none of the three
-// leaves a body with constraint keywords on it, so schemaConstraints reports
-// none either way.
-func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
+// leaves a body with constraint keywords on it, so ConstraintsOf reports none
+// either way.
+func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	for _, js := range []*oas3.Schema{
@@ -186,28 +186,49 @@ func TestSchemaConstraints_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
 		var kept ir.Unmodeled
-		cons, diags := schemaConstraints(l.ctx, &kept, js, "/p")
+		cons, diags := ConstraintsOf(l.ctx, &kept, js, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
 	}
 }
 
-// TestSchemaConstraints_EmptyRefSchema covers a $ref pointer that is present
-// but empty: IsReference is false for it, so annotation.SchemaOf has no early
-// return here — the Schema body reaches schemaConstraints, which finds no
+// TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
+// empty: IsReference is false for it, so annotation.SchemaOf has no early
+// return here — the Schema body reaches ConstraintsOf, which finds no
 // constraint keywords on a body that carries only Ref. The parser never emits
 // this shape, so it is built by hand.
-func TestSchemaConstraints_EmptyRefSchema(t *testing.T) {
+func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
-	emptyRef := references.Reference("")
-	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: &emptyRef})
+	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(l.ctx, &kept, annotation.SchemaOf(js), "/p")
+	cons, diags := ConstraintsOf(l.ctx, &kept, annotation.SchemaOf(js), "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
+}
+
+// TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
+// makes two reads of one sub-schema dedup rather than report twice: the
+// diagnostics a constraint read produces are located at the position that read
+// it, not at the position that declared it.
+func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	in := []ir.Diagnostic{
+		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
+		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
+	}
+
+	got := stampConstraintDiags(l.ctx, in, "/components/schemas/S")
+
+	require.Len(t, got, 2)
+	for _, d := range got {
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
+			"every diagnostic is relocated, not just the first")
+	}
+	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
 }
 
 func TestResolveSchemaRef_ReusesInternedSubSchema(t *testing.T) {
@@ -618,12 +639,10 @@ func TestSchemaNullVerdict_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	budget := 1
-	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, &budget),
+	require.Equal(t, nullAdmitted, schemaNullVerdict(nullable, new(1)),
 		"the fixture admits null while there is budget to read it")
 
-	spent := 0
-	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, &spent),
+	assert.Equal(t, nullSilent, schemaNullVerdict(nullable, new(0)),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
@@ -781,7 +800,8 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 	// `type` on anything at all.
 	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
 	nodes := []ir.TypeDef{
-		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{}, &ir.Union{},
+		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{},
+		&ir.Union{Discriminator: &ir.Discriminator{}},
 		&ir.Scalar{Encoding: &ir.Encoding{}}, &ir.Primitive{},
 	}
 	require.NotEmpty(t, censusKeywords, "an empty census would make this pass vacuously")
@@ -791,5 +811,34 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 			homed = homed || keywordHome(td, s, keyword)
 		}
 		assert.True(t, homed, "%q is in the census with no node kind that carries it", keyword)
+	}
+}
+
+// TestDiscriminatorHome_AsksWhetherTheFieldWasFilled pins what homes a
+// discriminator: a Model or Union whose lowering filled the field. Having the
+// field is not enough, since the Union a mixed-type enum lowers to holds none,
+// and no other kind, nor the nil td of a position lowered to a reference, has
+// the field at all.
+func TestDiscriminatorHome_AsksWhetherTheFieldWasFilled(t *testing.T) {
+	t.Parallel()
+	filled := &ir.Discriminator{PropertyName: "kind"}
+	cases := []struct {
+		name string
+		td   ir.TypeDef
+		want bool
+	}{
+		{"model holding one", &ir.Model{Discriminator: filled}, true},
+		{"union holding one", &ir.Union{Discriminator: filled}, true},
+		{"model holding none", &ir.Model{}, false},
+		{"union holding none", &ir.Union{}, false},
+		{"scalar", &ir.Scalar{}, false},
+		{"enum", &ir.Enum{}, false},
+		{"reference", nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, c.want, keywordHome(c.td, &oas3.Schema{}, "discriminator"))
+		})
 	}
 }

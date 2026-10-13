@@ -65,7 +65,7 @@ type rawConv struct {
 // node renders any YAML node as canonical JSON.
 func (c *rawConv) node(n *yaml.Node, depth int) (jsontext.Value, error) {
 	if n == nil {
-		return nil, fmt.Errorf("nil yaml node")
+		return nil, errors.New("nil yaml node")
 	}
 	if depth > maxRawDepth {
 		return nil, fmt.Errorf("nesting exceeds %d", maxRawDepth)

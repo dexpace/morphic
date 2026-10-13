@@ -105,8 +105,8 @@ type RequestCompression struct {
 // HTTPParamBinding assigns one logical parameter its HTTP wire location
 // (ir-design §8.1).
 type HTTPParamBinding struct {
-	// Param is the Operation.Params name it binds.
-	Param string `json:"param,omitempty"`
+	// Param is the ID of the Operation.Params entry it binds.
+	Param ParamID `json:"param,omitempty"`
 	// ParamPath is the nested source field within the logical param, when the
 	// binding targets a sub-field of a message-typed param (gRPC transcoding
 	// {book.name}, dotted query params); empty = the whole param. No entry is
@@ -225,7 +225,8 @@ type Reply struct {
 type GraphQLBinding struct {
 	// Kind is "query" | "mutation" | "subscription".
 	Kind string `json:"kind,omitempty"`
-	// FieldPath is the entry-point field (nesting for namespaced schemas).
+	// FieldPath is the entry-point field (nesting for namespaced schemas). It is
+	// a path: no segment is blank, and one may repeat (ir-design §4).
 	FieldPath []string `json:"fieldPath,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`

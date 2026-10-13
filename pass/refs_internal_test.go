@@ -26,7 +26,7 @@ func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
 	_, truncated := collectTypeIDs(doc, "doc")
 	assert.True(t, truncated, "a tree nested past the cap must report truncation")
 
-	diags := checkDanglingRefs(doc)
+	diags := danglingRefs(doc)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -55,7 +55,7 @@ func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	t.Parallel()
 	deep, target := opDocNested(ir.MaxWalkDepth)
-	diags := checkDanglingRefs(deep)
+	diags := danglingRefs(deep)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	for _, d := range diags {
@@ -66,7 +66,7 @@ func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	// The other half: the same shape within the cap resolves, so the case above
 	// is not passing on a walk that collects no reference at all.
 	shallow, _ := opDocNested(0)
-	assert.Empty(t, checkDanglingRefs(shallow))
+	assert.Empty(t, danglingRefs(shallow))
 }
 
 // opDocNested returns a document whose first group holds an operation overloading
@@ -94,5 +94,12 @@ func opDocNested(depth int) (*ir.Document, ir.OpID) {
 func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/nil": nil}}
-	assert.Empty(t, checkDanglingRefs(doc))
+	assert.Empty(t, danglingRefs(doc))
+}
+
+// danglingRefs runs checkDanglingRefs over the declarations of doc, as Validate
+// does.
+func danglingRefs(doc *ir.Document) []ir.Diagnostic {
+	decls, truncated := ir.DeclaredIDs(doc)
+	return checkDanglingRefs(doc, decls, truncated)
 }

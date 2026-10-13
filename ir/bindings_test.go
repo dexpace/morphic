@@ -37,7 +37,6 @@ func TestOpBindings_JSONContract(t *testing.T) {
 // round-trips.
 func TestHTTPBinding_JSONContract(t *testing.T) {
 	t.Parallel()
-	patchOpt := false
 	assertJSONContract(t, ir.HTTPBinding{},
 		`{"sharedRoute":false,"checksumRequired":false,"isWebhook":false}`,
 		ir.HTTPBinding{
@@ -54,7 +53,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			SuccessStatus:            map[int]int{0: 200, 1: 202},
 			Compression:              &ir.RequestCompression{Encodings: []string{"gzip", "br"}},
 			ChecksumRequired:         true,
-			PatchImplicitOptionality: &patchOpt,
+			PatchImplicitOptionality: new(false),
 			IsWebhook:                true,
 			WebhookName:              "newPet",
 			Callbacks: []ir.Callback{
@@ -109,14 +108,13 @@ func TestRequestCompression_JSONContract(t *testing.T) {
 // param path and body path — round-trips.
 func TestHTTPParamBinding_JSONContract(t *testing.T) {
 	t.Parallel()
-	explode := true
 	assertJSONContract(t, ir.HTTPParamBinding{}, `{"allowReserved":false}`, ir.HTTPParamBinding{
 		Param:         "book",
 		ParamPath:     []ir.PropID{"p/book", "p/name"},
 		Location:      ir.HTTPLocationQuery,
 		WireName:      "book.name",
 		Style:         "deepObject",
-		Explode:       &explode,
+		Explode:       new(true),
 		AllowReserved: true,
 		PathPattern:   "shelves/*/books/*",
 		Prefix:        "x-",
@@ -154,13 +152,12 @@ func TestRPCBinding_JSONContract(t *testing.T) {
 // semantics and protocol-scoped bindings — round-trips.
 func TestMessageBinding_JSONContract(t *testing.T) {
 	t.Parallel()
-	replyChannel := ir.ChannelID("c/reply")
 	assertJSONContract(t, ir.MessageBinding{}, `{}`, ir.MessageBinding{
 		Channel:   "c/orders",
 		Direction: ir.MsgDirectionReceive,
 		Messages:  []ir.MessageID{"m/OrderPlaced", "m/OrderCancelled"},
 		Reply: &ir.Reply{
-			Channel:  &replyChannel,
+			Channel:  new(ir.ChannelID("c/reply")),
 			Address:  &ir.PropPath{In: "header", Segments: []ir.PropID{"p/replyTo"}},
 			Messages: []ir.MessageID{"m/OrderConfirmed"},
 			Docs:     populatedDocs(),
@@ -199,9 +196,8 @@ func TestMsgDirection_Constants(t *testing.T) {
 // round-trips.
 func TestReply_JSONContract(t *testing.T) {
 	t.Parallel()
-	channel := ir.ChannelID("c/reply")
 	assertJSONContract(t, ir.Reply{}, `{"docs":{}}`, ir.Reply{
-		Channel:  &channel,
+		Channel:  new(ir.ChannelID("c/reply")),
 		Address:  &ir.PropPath{In: "header", Segments: []ir.PropID{"p/replyTo"}},
 		Messages: []ir.MessageID{"m/Reply1", "m/Reply2"},
 		Docs:     populatedDocs(),

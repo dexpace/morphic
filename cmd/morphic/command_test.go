@@ -13,8 +13,8 @@ import (
 // asserted from the command that declares them so the documented set and the
 // parsed set cannot drift. help is cobra's and is added when a command runs.
 var (
-	compileFlagNames  = []string{"output", "fail-on", "skip-validate", "explain", "pretty", "opt"}
-	validateFlagNames = []string{"fail-on", "skip-validate", "opt"}
+	compileFlagNames  = []string{"output", "fail-on", "skip-validate", "disable-pass", "explain", "pretty", "opt"}
+	validateFlagNames = []string{"fail-on", "skip-validate", "disable-pass", "opt"}
 )
 
 func flagNames(cmd *cobra.Command) []string {

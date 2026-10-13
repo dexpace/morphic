@@ -529,12 +529,11 @@ func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
-	maxLen := int64(10)
 	src := ir.Property{
 		WireName:    "id",
 		Type:        ir.TypeRef{Target: "t/str"},
 		Default:     &ir.Value{Kind: ir.ValueString, Str: "abc"},
-		Constraints: &ir.Constraints{MaxLength: &maxLen},
+		Constraints: &ir.Constraints{MaxLength: new(int64(10))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
 	}
 
@@ -642,12 +641,11 @@ func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing
 		"t/B": &ir.Model{ID: "t/B"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
-	one := int64(1)
 	src := ir.Property{
 		WireName:    "x",
 		Type:        ir.TypeRef{Target: "t/B"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
-		Constraints: &ir.Constraints{MinProps: &one},
+		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
 		Provenance:  ptrAt("/allOf/1/properties/x"),
 	}

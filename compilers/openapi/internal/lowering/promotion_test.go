@@ -2,12 +2,8 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
-	"strconv"
-	"strings"
+	"go/types"
+	"sync"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -16,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -216,69 +213,42 @@ func TestPromoteDeprecation_PolicyMapIsCopiedIntoTheContext(t *testing.T) {
 	assert.Equal(t, "why", dep.Message, "the policy the context read is the one it was given")
 }
 
+// loweringPackage is the lowering package type-checked, loaded once per test
+// binary.
+var loweringPackage = sync.OnceValues(func() (*decls.Package, error) {
+	return decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/lowering")
+})
+
 // declaredTargets returns every ExtensionTarget constant the package declares,
-// parsed rather than matched: a regex over one file misses a target declared in
-// another file of the package, or spelled with different spacing, and misses it
-// silently — which is the failure this check exists to prevent, reproduced in
-// the check itself.
+// read type-checked rather than matched: a regex over one file misses a target
+// declared in another file of the package, or spelled with different spacing,
+// and misses it silently — which is the failure this check exists to prevent,
+// reproduced in the check itself. A declaration typed, converted, aliased or
+// computed is read the way the compiler reads it.
+//
+// A package-level var of the type fails: it is assignable wherever a target is
+// but holds no value this check can read, so it would escape the applier check.
 func declaredTargets(t *testing.T) []lowering.ExtensionTarget {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	p, err := loweringPackage()
 	require.NoError(t, err)
-	var out []lowering.ExtensionTarget
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
-		require.NoError(t, err)
-		ast.Inspect(file, func(n ast.Node) bool {
-			spec, ok := n.(*ast.ValueSpec)
-			if !ok {
-				return true
-			}
-			// Two spellings declare a target: the declared type carries it
-			// ("X ExtensionTarget = ..."), or a conversion does ("X = Extension-
-			// Target(...)"). Reading only the first missed the second silently,
-			// which is the defect this whole check is about.
-			typed := isTargetIdent(spec.Type)
-			for _, value := range spec.Values {
-				if lit, ok := stringLiteral(value, typed); ok {
-					unquoted, err := strconv.Unquote(lit)
-					require.NoError(t, err)
-					out = append(out, lowering.ExtensionTarget(unquoted))
-				}
-			}
-			return true
-		})
+	named, err := p.Named("ExtensionTarget")
+	require.NoError(t, err)
+
+	for v := range p.Objects[*types.Var]() {
+		assert.False(t, types.Identical(v.Type(), named),
+			"%s is a var of ExtensionTarget; a target must be a constant to be read here", v.Name())
 	}
-	require.NotEmpty(t, out, "no targets found; the check below would pass vacuously")
+
+	consts, err := p.StringConsts("ExtensionTarget")
+	require.NoError(t, err)
+	require.NotEmpty(t, consts, "no targets found; the check below would pass vacuously")
+
+	out := make([]lowering.ExtensionTarget, len(consts))
+	for i, c := range consts {
+		out[i] = lowering.ExtensionTarget(c.Value)
+	}
 	return out
-}
-
-// isTargetIdent reports whether a declared type names ExtensionTarget.
-func isTargetIdent(expr ast.Expr) bool {
-	ident, ok := expr.(*ast.Ident)
-	return ok && ident.Name == "ExtensionTarget"
-}
-
-// stringLiteral returns the quoted string a target declaration carries, from
-// either spelling: the bare literal when the spec declared the type, or the
-// argument of an ExtensionTarget conversion when it did not.
-func stringLiteral(value ast.Expr, typed bool) (string, bool) {
-	if lit, ok := value.(*ast.BasicLit); ok && typed && lit.Kind == token.STRING {
-		return lit.Value, true
-	}
-	call, ok := value.(*ast.CallExpr)
-	if !ok || !isTargetIdent(call.Fun) || len(call.Args) != 1 {
-		return "", false
-	}
-	lit, ok := call.Args[0].(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
-	return lit.Value, true
 }
 
 // appliers is one closure per promote function the package exports. Each runs
@@ -369,8 +339,7 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
-	enum := ir.Enum{Closed: true}
-	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, &enum, &ir.Provenance{})
+	promotionCtx(lowering.ExtensionPromotions{}).PromoteEnumOpenness(unmodeled, new(ir.Enum{Closed: true}), &ir.Provenance{})
 
 	entry, kept := unmodeled["openapi:x-extensible-enum"]
 	require.True(t, kept, "the entry survives its own promotion")

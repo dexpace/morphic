@@ -407,7 +407,7 @@ func TestMappings_APositionIsResolvedOnce(t *testing.T) {
 	next := "#/x-lib/L/properties/c/properties/c/properties/c"
 	for depth := 3; depth > 0; depth-- {
 		chain = fmt.Sprintf(level, chain, next)
-		next = next[:strings.LastIndex(next, "/properties/c")]
+		next, _, _ = strings.CutLast(next, "/properties/c")
 	}
 	spec := mappingSpec(pet+"    Z: {type: object, discriminator: {propertyName: k, mapping: {z: '#/x-lib/L'}}}\n",
 		"x-lib:\n  Cat: {description: cat, type: object}\n  L: "+chain+"\n")
