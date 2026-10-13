@@ -144,7 +144,8 @@ func runWith(
 // TestDefaultPasses_Order pins the passes a default engine runs and their
 // order, which a change to either has to restate here on purpose. The names are
 // literals because callers type them, and they must be distinct, since
-// disabling one would otherwise disable both.
+// disabling one would otherwise disable both. validate stays last whatever the
+// list becomes: it judges the document the run returns.
 func TestDefaultPasses_Order(t *testing.T) {
 	t.Parallel()
 
@@ -158,6 +159,8 @@ func TestDefaultPasses_Order(t *testing.T) {
 
 	assert.Empty(t, cmp.Diff([]string{"validate"}, order))
 	assert.Len(t, distinct, len(order), "pass names must be distinct: %v", order)
+	require.NotEmpty(t, order)
+	assert.Equal(t, "validate", order[len(order)-1], "validate runs after every transform")
 	assert.Equal(t, pass.ValidateName, engine.ValidatePass)
 }
 
