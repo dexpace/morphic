@@ -1024,21 +1024,25 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 }
 
 // assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
-// union is kept verbatim beside a model. Pet's targets are not subtypes of it,
-// so pass.Validate would reject the discriminator on the model; it moves whole
-// to Unmodeled beside the union. Shape's targets are true allOf subtypes, so
-// the model keeps it, and the document carries no validation error.
+// union is kept verbatim beside a model. Pet's and Animal's routes are not
+// subtypes of them, so pass.Validate would reject the discriminator on the
+// model; it moves whole to Unmodeled beside the union. Shape's routes are true
+// allOf subtypes, so the model keeps it, and the document validates clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, pass.Validate(doc))
 
-	pet, ok := doc.Types[namedID("Pet")].(*ir.Model)
-	require.True(t, ok)
-	assert.Nil(t, pet.Discriminator, "its targets are not subtypes, so the model does not carry it")
-	entry, ok := pet.Unmodeled["openapi:discriminator"]
-	require.True(t, ok, "it is kept verbatim instead")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.Contains(t, pet.Unmodeled, "openapi:oneOf", "beside the union it routes")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
+	for _, name := range []string{"Pet", "Animal"} {
+		m, ok := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, ok, name)
+		assert.Nil(t, m.Discriminator, "%s routes to a non-subtype, so the model does not carry it", name)
+		entry, ok := m.Unmodeled["openapi:discriminator"]
+		require.True(t, ok, "%s keeps it verbatim instead", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.Contains(t, m.Unmodeled, "openapi:oneOf", "beside the union it routes through")
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
+	}
+	_, isUnion := doc.Types[namedID("Bird")].(*ir.Union)
+	assert.True(t, isUnion, "Bird writes allOf to Animal but lowers to a union, which is no subtype")
 
 	shape, ok := doc.Types[namedID("Shape")].(*ir.Model)
 	require.True(t, ok)

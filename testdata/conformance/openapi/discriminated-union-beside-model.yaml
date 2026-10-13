@@ -26,7 +26,9 @@ components:
       properties:
         kind: {type: string}
         bark: {type: boolean}
-    # Here every target is a true subtype of Shape, so the model keeps it.
+    # Here every target is a true subtype of Shape, so the model keeps it. Shape
+    # is declared first, so a decision taken while Shape lowers would find
+    # neither subtype interned yet.
     Shape:
       type: object
       discriminator:
@@ -48,3 +50,28 @@ components:
         - type: object
           properties:
             side: {type: number}
+    # Bird writes allOf to Animal, but also a oneOf the allOf is distributed
+    # across, so Bird lowers to a union and is no subtype of Animal. Only the
+    # lowered document can tell, so the discriminator is kept beside the union.
+    Animal:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          bird: '#/components/schemas/Bird'
+      oneOf:
+        - $ref: '#/components/schemas/Bird'
+    Bird:
+      allOf:
+        - $ref: '#/components/schemas/Animal'
+      oneOf:
+        - $ref: '#/components/schemas/Finch'
+        - $ref: '#/components/schemas/Crow'
+    Finch:
+      type: object
+      properties:
+        song: {type: string}
+    Crow:
+      type: object
+      properties:
+        caw: {type: string}

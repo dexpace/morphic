@@ -138,8 +138,8 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then document
-// metadata.
+// requirements reference registered IDs; then the service walk; then the
+// deferred settlements; then document metadata.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. The document is dropped with it,
@@ -182,6 +182,9 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
+	// Every lowering has returned, so what was deferred until the registry is
+	// whole can be decided now (compile.Settlement).
+	acc.AppendAll(ts.Settle())
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version

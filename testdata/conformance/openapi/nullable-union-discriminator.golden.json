@@ -215,7 +215,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "a discriminator beside a oneOf/anyOf that collapses to a nullable reference routes through no union; kept verbatim under Unmodeled",
+      "message": "this position lowered to a nullable reference to its one non-null branch, which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MaybeCat"
@@ -224,7 +224,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "a discriminator beside a oneOf/anyOf that collapses to a nullable reference routes through no union; kept verbatim under Unmodeled",
+      "message": "this position lowered to a nullable reference to its one non-null branch, which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Owner/properties/pet"
