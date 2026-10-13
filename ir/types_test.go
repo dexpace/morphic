@@ -386,7 +386,7 @@ func TestPrimKind_Constants(t *testing.T) {
 // TestPrimKind_TiesToConstBlock keeps PrimKind.Valid tied to the const block.
 // Nothing rejects an invented kind on deserialization and ir.PrimTypeID derives
 // an ID from any string, so irverify has Valid and nothing else to test
-// against. The tie is made by parsing the ir sources, as
+// against. The tie is made by reading the ir package's declarations, as
 // typedef_completeness_test.go does for TypeKind. primKindSpellings and the
 // declared constants must name the same set, and every declared kind must be
 // Valid. The converse, a case added to Valid for a kind no constant declares,
@@ -398,8 +398,8 @@ func TestPrimKind_TiesToConstBlock(t *testing.T) {
 
 	values := make([]string, 0, len(declared))
 	for _, c := range declared {
-		values = append(values, c.value)
-		assert.True(t, ir.PrimKind(c.value).Valid(), "declared kind %q must be Valid", c.value)
+		values = append(values, c.Value)
+		assert.True(t, ir.PrimKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
 	}
 
 	spelled := slices.Collect(maps.Values(primKindSpellings))

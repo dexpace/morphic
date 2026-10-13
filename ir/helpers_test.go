@@ -7,130 +7,47 @@ package ir_test
 
 import (
 	"encoding/json/v2"
-	"go/ast"
-	"go/build"
-	"go/parser"
-	"go/token"
-	"path/filepath"
-	"runtime"
 	"slices"
-	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
-// irSourceFiles lists the ir package's production Go files, located relative to
-// this file's own path so the result does not depend on the working directory.
-// Every test that reads the package's own source starts here, so a file the
-// listing misses is missed by all of them at once rather than by one.
-func irSourceFiles(t *testing.T) []string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this file's path")
+// irPackage is the ir package type-checked, loaded once for every test here
+// that reads its declarations.
+var irPackage = sync.OnceValues(func() (*decls.Package, error) {
+	return decls.Load("github.com/dexpace/morphic/ir")
+})
 
-	dir := filepath.Dir(thisFile)
-	pkg, err := build.ImportDir(dir, 0)
+// irDecls returns the ir package, type-checked.
+func irDecls(t *testing.T) *decls.Package {
+	t.Helper()
+	p, err := irPackage()
 	require.NoError(t, err)
-	require.NotEmpty(t, pkg.GoFiles, "the ir package must have production sources")
-
-	out := make([]string, len(pkg.GoFiles))
-	for i, name := range pkg.GoFiles {
-		out[i] = filepath.Join(dir, name)
-	}
-	return out
+	return p
 }
 
-// parseIRSources parses every file irSourceFiles lists, under one FileSet.
-func parseIRSources(t *testing.T) []*ast.File {
-	t.Helper()
-	paths := irSourceFiles(t)
-	fset := token.NewFileSet()
-	out := make([]*ast.File, 0, len(paths))
-	for _, path := range paths {
-		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		out = append(out, f)
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
-	return out
-}
-
-// namedConst is one string constant as the ir sources declare it: the Go
-// identifier and the wire value it spells.
-type namedConst struct {
-	name  string
-	value string
-}
-
-// declaredConstsOfType returns every constant of the named type the ir package's
-// production sources declare, sorted by identifier.
+// declaredConstsOfType returns every constant of the named type the ir package
+// declares, sorted by identifier.
 //
 // Deriving the set from the source is the point: any list of an enum's members
 // written by hand is one commit away from disagreeing with the enum, and
 // disagreeing silently. A bare string enum has no other guard — nothing rejects
 // an undeclared value on the wire — so the tests that tie one to its Valid
 // method all start here.
-func declaredConstsOfType(t *testing.T, typeName string) []namedConst {
+func declaredConstsOfType(t *testing.T, typeName string) []decls.Const {
 	t.Helper()
-	var out []namedConst
-	for _, f := range parseIRSources(t) {
-		for _, decl := range f.Decls {
-			gd, isGen := decl.(*ast.GenDecl)
-			if !isGen || gd.Tok != token.CONST {
-				continue
-			}
-			out = append(out, constsOfType(t, gd, typeName)...)
-		}
-	}
-	slices.SortFunc(out, func(a, b namedConst) int { return strings.Compare(a.name, b.name) })
-	return out
-}
-
-// constsOfType returns the constants of the named type in one const group. A
-// spec declaring neither type nor value repeats the previous spec, so the
-// group's last explicit type carries forward; a spec with its own value declares
-// its own type.
-func constsOfType(t *testing.T, gd *ast.GenDecl, typeName string) []namedConst {
-	t.Helper()
-	var out []namedConst
-	isWanted := false
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
-		switch {
-		case vs.Type != nil:
-			id, isIdent := vs.Type.(*ast.Ident)
-			isWanted = isIdent && id.Name == typeName
-		case len(vs.Values) > 0:
-			isWanted = false
-		}
-		if !isWanted {
-			continue
-		}
-		for i, name := range vs.Names {
-			require.Less(t, i, len(vs.Values),
-				"%s constant %s must declare its own value", typeName, name.Name)
-			out = append(out, namedConst{name: name.Name, value: stringLit(t, name.Name, vs.Values[i])})
-		}
-	}
-	return out
-}
-
-// stringLit returns the string a constant's value expression spells out.
-func stringLit(t *testing.T, constName string, expr ast.Expr) string {
-	t.Helper()
-	lit, isLit := expr.(*ast.BasicLit)
-	require.True(t, isLit, "constant %s must be declared as a string literal", constName)
-	require.Equal(t, token.STRING, lit.Kind, "constant %s must be declared as a string literal", constName)
-	unquoted, err := strconv.Unquote(lit.Value)
-	require.NoError(t, err, "unquoting the value of %s", constName)
-	return unquoted
+	consts, err := irDecls(t).StringConsts(typeName)
+	require.NoError(t, err)
+	slices.SortFunc(consts, func(a, b decls.Const) int { return strings.Compare(a.Name, b.Name) })
+	return consts
 }
 
 // assertRoundTrip marshals want, unmarshals into a fresh T, and asserts the
