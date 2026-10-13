@@ -109,7 +109,8 @@ const maxRefChain = 32
 // #107). usePtr — the entry's own position — stands whenever the chain has no
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
-// returned on its own, since a one-key $ref object has no children to hoist.
+// returned on its own, since a one-key $ref object has no children to hoist,
+// but it is recorded in scope.Reached with every other hop in the source.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -135,6 +136,7 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
+		scope.Reached.note(target)
 		// The resolver reads the next hop against the document this one
 		// resolved against, the source, even where this one was written in
 		// another document's content or its pointer passed a $ref into one.

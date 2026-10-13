@@ -3540,4 +3540,3 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 		})
 	}
 }
-

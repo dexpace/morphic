@@ -224,6 +224,21 @@ func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
 	}
 }
 
+// TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
+// references lives: a context and the scope it builds hold the same one, so a
+// resolution through any copy is visible to the compiler, and a zero context,
+// which holds none, has reached nothing.
+func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	require.NotNil(t, c.RefScope().Reached)
+	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
+	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
+	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
+}
+
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
 // reads, and that both come from the context rather than from a copy beside it:
 // the document's own path decides internal from external, and the declared set

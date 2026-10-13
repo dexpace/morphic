@@ -134,6 +134,12 @@ type Ctx struct {
 	// targets, which no lowering changes, so what one copy remembers is what
 	// another would read. Nil in a zero context.
 	typePositions map[typePositionKey]typePositionAt
+
+	// reached records where each reference a lowering resolved landed in the
+	// source. Copies share it on purpose: no lowering reads it, so it cannot
+	// change any lowering's answer, and the compiler reads it once the last one
+	// has returned (Reached). Nil in a zero context, which records nothing.
+	reached *resolve.Reached
 }
 
 // typePositionKey is a position a discriminator mapping target names, and the
@@ -179,7 +185,15 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		defsReader: reader,
 
 		typePositions: map[typePositionKey]typePositionAt{},
+		reached:       resolve.NewReached(),
 	}
+}
+
+// Reached reports whether a lowering run under this context, or any copy of it,
+// resolved a reference to pointer in the source. It is meant to be asked once
+// every lowering has returned: before that it answers for those that have.
+func (c Ctx) Reached(pointer jsontext.Pointer) bool {
+	return c.reached.Has(pointer)
 }
 
 // Sources is the document's input files, in the order Provenance.Source indexes
@@ -374,7 +388,8 @@ func (c Ctx) Since32() bool {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
-		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Holds: c.targets.Holds}
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Holds: c.targets.Holds,
+		Reached: c.reached}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

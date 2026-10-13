@@ -58,13 +58,6 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
-	// What a document's `$ref` strings reach, over the raw tree. It reads yaml
-	// nodes and nothing else — no IR, no diagnostic, no model — because the
-	// question is about the source alone: which component entries a reference
-	// written outside them names, transitively. A package that could reach the
-	// lowering could decide reachability by what the lowering happened to
-	// resolve, which is the answer this exists not to depend on.
-	"compilers/openapi/internal/componentreach": {"gopkg.in/yaml.v3"},
 	// The yaml.v3 nodes tests build trees from: the constructors for the node
 	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
 	// nothing else, so any package's internal tests can import it, nodeview's

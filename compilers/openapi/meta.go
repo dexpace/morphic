@@ -8,10 +8,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/componentreach"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -40,51 +40,42 @@ type docMeta struct {
 	Unmodeled      ir.Unmodeled
 }
 
-// retainedComponentSections returns the components sections nothing lowers
-// unless a `$ref` reaches them. None of them has a registry: components/schemas
-// is walked by the schema lowering and components/securitySchemes by the auth
-// lowering, both unconditionally, while these eight are reached only where a
-// reference finds an entry — so an entry no reference names would reach no node,
-// no Unmodeled entry and no diagnostic at all (GitHub #616).
-func retainedComponentSections(lowering.Ctx) []string {
-	return []string{
-		"responses", "parameters", "examples", "requestBodies",
-		"headers", "links", "callbacks", "pathItems",
-	}
+// retainedSections are the components sections with no registry. Schemas and
+// security schemes are lowered whole and unconditionally; an entry of one of
+// these reaches the IR only where a lowering follows a reference to it.
+// components/mediaTypes is kept whole instead until a reference into it is
+// followed (GitHub #856).
+func retainedSections() []string {
+	return []string{"responses", "parameters", "examples", "requestBodies", "headers", "links", "callbacks", "pathItems"}
 }
 
-// retainUnreferencedComponents keeps every component entry no reference reaches
-// verbatim on the document, under openapi:components/<section>/<name> with
-// ReasonNoIRHome and no diagnostic.
-//
-// Keeping rather than dropping is invariant 2's default and the only lossless
-// answer: the entry is a declaration the document makes, and nothing about this
-// compiler's lowering says a consumer may not want it. The rule is the one
-// already recorded for a response's links map, generalized to every section with
-// no registry. ReasonNoIRHome rather than a boundary, because each of these is a
-// promotion candidate: a later reader that finds a use for one lowers it where it
-// stands.
+// retainUnreferencedComponents keeps every entry of a retainedSections section
+// that no lowering resolved a reference to verbatim on the document, under
+// openapi:components/<section>/<name> with ReasonNoIRHome and no diagnostic
+// (GitHub #616). It must run after every other lowering: only they know what
+// they followed (lowering.Ctx.Reached), and a $ref string they never follow,
+// in a links map, an x- extension or an example's value, carries nothing of
+// its target into the IR. A section is read as the parser reads it, through
+// `<<` merge keys, so a merged-in entry is kept under its own name.
 func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
-	entries := componentreach.Unreferenced(c.Doc.GetRootNode(), retainedComponentSections(c))
-	if len(entries) == 0 {
-		return nil, nil
-	}
+	view := nodeview.New()
+	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
-	for _, entry := range entries {
-		kind, name, ok := ids.ComponentEntry(entry.Pointer)
-		if !ok {
-			// The name is empty. OpenAPI's component-name rule
-			// (^[a-zA-Z0-9._-]+$) makes such a key invalid, so
-			// ids.ComponentEntry refuses it, and an Unmodeled key with an
-			// empty name segment names no entry of that document. This is
-			// the one unreferenced entry the rule above does not retain.
-			continue
+	for _, section := range retainedSections() {
+		for _, entry := range view.MappingPairs(view.ChildByToken(nodeview.Deref(components), section)) {
+			pointer := ids.Ptr("components", section, entry.Key)
+			if c.Reached(pointer) {
+				continue
+			}
+			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),
+				entry.Val, ir.ReasonNoIRHome, c.ProvenanceAt(pointer))
+			diags = append(diags, keptDiags...)
 		}
-		_, keptDiags := annotation.PreserveNodeInto(&out,
-			"openapi:components/"+ids.Scope(kind, name), entry.Node, ir.ReasonNoIRHome,
-			c.ProvenanceAt(entry.Pointer))
-		diags = append(diags, keptDiags...)
+	}
+	if view.Exhausted() {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, ids.Ptr("components"),
+			"components merges through `<<` deeper than %d levels; entries past that are not kept", nodeview.MergeDepthLimit))
 	}
 	return out, diags
 }

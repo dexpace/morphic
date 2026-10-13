@@ -975,14 +975,15 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
-// on the node it lowered to: its links map, its own x-* extensions, and the
-// keys the specification does not define. One helper serves ir.Response and
+// on its node: its links map, its x-* extensions, and the undefined keys other
+// than taken (responseSummary's). One helper serves ir.Response and
 // ir.ErrorCase, so neither keeps a construct the other drops (GitHub #275).
 //
-// The links entry carries ReasonNoIRHome and no diagnostic. A Link Object
-// inside it gets no entry or census, since this compiler lowers none; an
-// unreferenced components/links entry is kept by retainUnreferencedComponents
-// (GitHub #616). taken names the keys responseSummary read.
+// The links entry carries ReasonNoIRHome and no diagnostic, since nothing is
+// degraded and the IR could add a links field. A Link Object inside it gets no
+// entry or census: this compiler lowers none, and a keyed entry would duplicate
+// the node above. A components/links entry it names is kept on the document
+// (GitHub #616).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
