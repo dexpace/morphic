@@ -210,7 +210,8 @@ func TestUnreferencedComponents_MergeDepthBoundIsReported(t *testing.T) {
 // TestComponentMediaTypes_KeptWholeAndNamedFor32 pins the components/mediaTypes
 // section while this compiler resolves nothing into it (GitHub #856): on 3.2,
 // which defines it, the map is kept whole with an info rather than called
-// undefined; below 3.2 the census keeps it and warns, as for any undefined key.
+// undefined, merged in through `<<` or not; below 3.2 the census keeps it and
+// warns, as for any undefined key.
 func TestComponentMediaTypes_KeptWholeAndNamedFor32(t *testing.T) {
 	t.Parallel()
 	const body = `paths: {}
@@ -218,18 +219,23 @@ components:
   mediaTypes:
     Event: {schema: {type: string}}
 `
+	const merged = `paths: {}
+components:
+  <<: {mediaTypes: {Event: {schema: {type: string}}}}
+`
 	for _, tc := range []struct {
-		version string
-		reason  ir.UnmodeledReason
-		code    string
-		sev     ir.Severity
+		name, version, body string
+		reason              ir.UnmodeledReason
+		code                string
+		sev                 ir.Severity
 	}{
-		{"3.2.0", ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
-		{"3.1.0", ir.ReasonOutOfScope, diag.UnknownObjectKey, ir.SeverityWarning},
+		{"3.2", "3.2.0", body, ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
+		{"3.2 merged in", "3.2.0", merged, ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
+		{"3.1", "3.1.0", body, ir.ReasonOutOfScope, diag.UnknownObjectKey, ir.SeverityWarning},
 	} {
-		t.Run(tc.version, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\n"+body)
+			doc, diags := parseFull(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\n"+tc.body)
 			kept, ok := doc.Unmodeled["openapi:components/mediaTypes"]
 			require.True(t, ok, "the section is kept whole")
 			assert.Equal(t, tc.reason, kept.Reason)
