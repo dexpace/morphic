@@ -29,8 +29,8 @@ var suppressionDirectives = []struct {
 	// revive's own directive, which golangci-lint passes through and nolintlint
 	// never saw.
 	{"revive", regexp.MustCompile(`^//\s*revive:(?:enable|disable)`)},
-	// staticcheck's own directive. golangci-lint ignores it (v2.14.0), which
-	// makes it the inert kind: a constraint that suppresses nothing.
+	// staticcheck's own directive. Its unused analyzer honours it for U1000, and
+	// golangci-lint did not for SA1012 (v2.14.0), so it may suppress or stand inert.
 	{"lint:ignore", regexp.MustCompile(`^//\s*lint:(?:file-)?ignore`)},
 }
 
@@ -78,11 +78,13 @@ func TestSuppressionViolations_PlantedSpellingsAreCaught(t *testing.T) {
 		{"nolint in a block comment", "/*nolint:errcheck*/", "nolint"},
 		{"bare nolint in a block comment", "/*nolint*/", "nolint"},
 		{"nolint then a tab", "//nolint\t// reason", "nolint"},
+		{"prose that begins with the word", "// nolint is a word that begins this line.", "nolint"},
 		{"revive disable-next-line", "//revive:disable-next-line:exported", "revive"},
 		{"revive disable-line", "//revive:disable-line:exported", "revive"},
 		{"revive disable after a space", "// revive:disable:exported", "revive"},
 		{"revive enable", "//revive:enable:exported", "revive"},
 		{"staticcheck ignore", "//lint:ignore SA1012 reason", "lint:ignore"},
+		{"staticcheck ignore of unused", "//lint:ignore U1000 reason", "lint:ignore"},
 		{"staticcheck file-ignore", "//lint:file-ignore SA1012 reason", "lint:ignore"},
 	}
 	for _, tc := range tests {
