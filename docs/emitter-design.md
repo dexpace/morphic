@@ -228,8 +228,8 @@ type Capabilities struct {
 - **Full document under scope.** Scope gates *emission*, not the plan or naming; global decisions
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
-- **Snapshots only.** The engine runs `version-slice` first; the emitter receives a single version
-  snapshot and never interprets `Availability`.
+- **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
+  single version snapshot and never interprets `Availability`.
 
 ---
 

@@ -108,9 +108,9 @@ func NewWith(fronts ...compilers.Compiler) (*Engine, error) {
 // A Go error is reserved for I/O, cancellation and programmer errors: an
 // unreadable file, a cancelled ctx, a compiler or pass breaking its contract,
 // or a name ErrUnknownPass refuses. Everything wrong with the spec itself, a
-// source no compiler can lower included, is a diagnostic in the Result, so a
-// caller can treat a Go error as misuse, as the CLI does. Calls may overlap;
-// each owns the document it returns.
+// source no compiler can lower included, is a diagnostic in the Result, so a Go
+// error never blames the spec. Calls may overlap; each owns the document it
+// returns.
 func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Result, error) {
 	// Ahead of the read, because an engine that never went through a constructor
 	// is the caller's mistake whatever the path turns out to say, and reporting

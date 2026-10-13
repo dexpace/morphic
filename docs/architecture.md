@@ -133,10 +133,11 @@ document already in memory, and the engine checks for cancellation before each o
 
 A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
-`RunOptions`, and the CLI through flags of the pass's own, both added with the pass, and supplying
-them is what turns the pass on. The compilers' textual option map is the wrong model here: it serves
-a set of formats the engine knows nothing about, while the passes are a closed set the engine
-composes, so each setting can be typed, checked and documented where it is declared.
+`RunOptions`, and the CLI through flags of the pass's own, both added with the pass. Where the
+settings have no neutral default, as those three's have none, supplying them is what turns the pass
+on. The compilers' textual option map is the wrong model here: it serves a set of formats the engine
+knows nothing about, while the passes are a closed set the engine composes, so each setting can be
+typed, checked and documented where it is declared.
 
 The order lives in the `engine` package's default list, not in `pass/`: composing passes is
 orchestration, which only the engine does. The engine runs the list after any compile that produced
