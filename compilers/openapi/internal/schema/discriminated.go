@@ -89,6 +89,10 @@ type besideUnionDiscriminator struct {
 // Settle keeps the model's discriminator or moves it. A model holding none is
 // left alone: it declared none, or it was settled already, by the settlement a
 // reference deferred when it built the model before its declaration did.
+//
+// It moves only what it could copy (GitHub #144). One with no raw node to copy,
+// merged in through a `<<` the raw readers miss (GitHub #395), stays on the
+// model rather than vanish, where pass/validate reports the routes it fails.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	m, isModel := reg[d.model].(*ir.Model)
 	owner := reg[d.owner]
@@ -100,9 +104,12 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	if m.Discriminator == nil || routesToSubtypes(reg, m, d.named) {
 		return nil
 	}
-	m.Discriminator = nil
 	at := d.pointer + ids.Ptr("discriminator")
-	_, diags := PreserveSchemaKeyword(d.c, &owner.Common().Unmodeled, d.s, "discriminator", ir.ReasonDegradedLowering, at)
+	kept, diags := PreserveSchemaKeyword(d.c, &owner.Common().Unmodeled, d.s, "discriminator", ir.ReasonDegradedLowering, at)
+	if !kept {
+		return diags
+	}
+	m.Discriminator = nil
 	return append(diags, d.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"the discriminator routes to a type that is not a subtype of the model holding it, so it cannot "+
 			"stay there; kept verbatim under Unmodeled beside the union it was written for"))

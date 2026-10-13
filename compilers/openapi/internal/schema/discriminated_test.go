@@ -310,6 +310,25 @@ func TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled(t *testing.T) {
 	}
 }
 
+// TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied pins that the move never
+// loses a discriminator it could not keep verbatim: one merged in through a
+// `<<`, which the model reads but the raw readers miss (GitHub #395), stays on
+// the model, and nothing claims a copy that was never made.
+func TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(cat + dog +
+		"    Shared: &shared\n      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
+		"    Pet:\n      <<: *shared\n      type: object\n" + petBranches)
+	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	pet := petModel(t, doc)
+	require.NotNil(t, pet.Discriminator, "the model read it, so it is not lost")
+	assert.Equal(t, "kind", pet.Discriminator.PropertyName)
+	assert.NotContains(t, pet.Unmodeled, "openapi:discriminator")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, movedPointer), "no move is announced")
+}
+
 // TestDiscriminatorBesideUnion_UnreachableBranchesAreNoRoute pins that a
 // branch the discriminator cannot route to by name decides nothing, whichever
 // way it is unreachable: a $ref to an undeclared component, or one into
