@@ -35,7 +35,7 @@ func TestLoad_Refusals(t *testing.T) {
 	for _, tc := range []struct {
 		name, pattern, want string
 	}{
-		{"a package that does not type-check", "./testdata/broken", "load ./testdata/broken: "},
+		{"a package that does not type-check", "./testdata/broken", "broken.go:4"},
 		{"a package with no production file", "./testdata/testonly", "testonly has no production Go file"},
 		{"a package the build thins", "./testdata/constrained", "the current build leaves out left_out.go"},
 		{"a pattern matching several", goodDir + "/...", "matched 3 packages, want 1"},
@@ -65,10 +65,12 @@ func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
 	assert.NotContains(t, err.Error(), "no production Go file")
 }
 
-// TestLoad_ReadsNoTestFile holds the load to production sources: the fixture
-// holds a test file no build includes, which is no file left out, since no test
-// file is read in any build.
-func TestLoad_ReadsNoTestFile(t *testing.T) {
+// TestLoad_ReadsOnlyProductionGoFiles holds the load to production Go sources.
+// Beside fixture.go, the fixture holds a test file, a test file no build
+// includes and an assembly file no build includes. None is read, and none is
+// refused as left out: no build reads a test file, and assembly declares
+// nothing the type checker sees.
+func TestLoad_ReadsOnlyProductionGoFiles(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []string{"fixture.go"}, fileNames(fixture(t)))
 }

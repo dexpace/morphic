@@ -63,9 +63,9 @@ func Load(pattern string) (*Package, error) {
 // builds a universe of its own.
 //
 // It refuses to read less than asked: a pattern matching no package, a package
-// that does not type-check or has no production file, and a production file the
-// current build configuration leaves out, since what that file declares would
-// go unread.
+// that does not type-check or has no production Go file, and a production Go
+// file the current build configuration leaves out, since what that file
+// declares would go unread.
 func LoadAll(patterns ...string) ([]*Package, error) {
 	if len(patterns) == 0 {
 		return nil, errors.New("load: no pattern")
@@ -116,16 +116,18 @@ func eachMatches(patterns []string) error {
 }
 
 // unread returns what keeps p from being read whole: the errors the load
-// recorded on it, a production file the build leaves out, or no production
-// file at all.
+// recorded on it, a production Go file the build leaves out, or no production
+// Go file at all.
 func unread(p *packages.Package) []error {
 	errs := make([]error, 0, len(p.Errors)+len(p.IgnoredFiles))
 	for _, e := range p.Errors {
 		errs = append(errs, e)
 	}
 	for _, file := range p.IgnoredFiles {
-		if strings.HasSuffix(file, "_test.go") {
-			continue // no test file is read, whatever the build
+		// No build reads a test file, and a file in another language, such as
+		// assembly, declares nothing the type checker sees.
+		if filepath.Ext(file) != ".go" || strings.HasSuffix(file, "_test.go") {
+			continue
 		}
 		errs = append(errs, fmt.Errorf("%s: the current build leaves out %s", p.PkgPath, filepath.Base(file)))
 	}
