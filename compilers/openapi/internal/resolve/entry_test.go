@@ -329,13 +329,12 @@ func TestObject_NilEntryIsNotDereferenced(t *testing.T) {
 	assert.Nil(t, resolve.Object[int, brittleEntry](ref))
 }
 
-// TestRefDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold every
-// reference-site docs lowering calls: a summary or description written beside a
-// $ref wins field by field over the declaration's, and an entry that writes
-// neither leaves both values standing. A hand-built Reference is enough here —
-// the fold reads only the two getters, and the fixture proves which one wins
-// rather than that the parser presents one.
-func TestRefDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
+// TestUseDocs_UseSiteSiblingsOverrideTheDeclaration pins the fold at one hop: a
+// summary or description written beside a $ref wins field by field over the
+// declaration's, and one the entry omits leaves the declaration's standing. A
+// hand-built Reference resolves nothing, so it is a chain of one; the parser's
+// longer chains are pinned where a document builds them.
+func TestUseDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
 	t.Parallel()
 	summary, description := "use-site summary", "use-site description"
 	declared := ir.Docs{Summary: "declared summary", Description: "declared description"}
@@ -370,7 +369,7 @@ func TestRefDocs_UseSiteSiblingsOverrideTheDeclaration(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, cmp.Diff(tc.want, resolve.RefDocs(tc.ref, declared)))
+			assert.Empty(t, cmp.Diff(tc.want, resolve.UseDocs[soa.Parameter](tc.ref, declared)))
 		})
 	}
 }

@@ -2236,7 +2236,10 @@ that writes a `$ref` carry `summary` and `description` beside it, and the pair d
 of the referenced object rather than the object. Where the IR has a docs field at the position — a
 parameter, a response or error case, a header, an example, a request body, a security scheme — both
 are read off the entry and folded over the declaration's docs field by field, a sibling the entry
-writes winning and one it omits leaving the declaration's value standing. The fold applies at every
+writes winning and one it omits leaving the declaration's value standing. A component that is itself
+a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
+declaration outward: an alias's siblings override the declaration's, and a use site's override the
+alias's. The fold applies at every
 version whose parser presents the siblings, which is all of them: the Reference Object's wrapper is
 version-independent, and dropping a declared sibling in silence is the defect the rule fixes. It is
 a documented departure from OpenAPI's clause that such a sibling has "no effect" where the

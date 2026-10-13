@@ -528,10 +528,9 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 		p, headerDiags := lowerHeader(lowering.Within[soa.Header](c, rh), ts, anchors, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
-		// A header entry written as a Reference Object keeps its own summary and
-		// description: they describe this entry rather than the header declaration
-		// it names (GitHub #610).
-		p.Docs = resolve.RefDocs(rh, p.Docs)
+		// A summary or description beside a $ref of the entry's chain documents
+		// this header rather than the declaration it names (GitHub #610).
+		p.Docs = resolve.UseDocs[soa.Header](rh, p.Docs)
 		out = append(out, p)
 	}
 	return out, diags
@@ -862,10 +861,9 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	}
 	ext, diags := schema.ExtensionsOf(c, ex.GetExtensions(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, c.ProvenanceAt, decl)...)
-	// An entry written as a Reference Object carries its summary and description
-	// beside the $ref, and they override the declaration's; the fold reads the two
-	// through the same helper the other positions use (GitHub #610).
-	docs := resolve.RefDocs(re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
+	// A summary or description beside a $ref of the entry's chain documents this
+	// use of the example (GitHub #610).
+	docs := resolve.UseDocs[soa.Example](re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
 		Summary:     docs.Summary,
@@ -969,8 +967,8 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	}
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
-	// $ref to the body documents this use of it (GitHub #610).
-	payload.Docs = resolve.RefDocs(src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	// $ref of its chain documents this use of it (GitHub #610).
+	payload.Docs = resolve.UseDocs[soa.RequestBody](src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own. Both reads sit

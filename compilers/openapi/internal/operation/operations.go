@@ -915,7 +915,7 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 // no status (see statusConditions). ref is the entry the document wrote there,
 // which carries the summary and description a Reference Object may put beside
 // its $ref.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref resolve.SiblingDocs) (ir.Response, []ir.Diagnostic) {
+func lowerResponse(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
@@ -948,7 +948,7 @@ type responseParts struct {
 // error interns its body once, so two naming fallbacks would rename it when
 // paths are reordered. The use-site docs fold over ref, the entry written here,
 // must agree across classes for the same reason (GitHub #610).
-func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer, ref resolve.SiblingDocs) (responseParts, []ir.Diagnostic) {
+func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
 	diags = append(diags, payloadDiags...)
@@ -956,7 +956,7 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 		name:    responseName(code),
 		payload: payload,
 		headers: headers,
-		docs:    resolve.RefDocs(ref, responseDocs(c, r)),
+		docs:    resolve.UseDocs[soa.Response](ref, responseDocs(c, r)),
 	}
 	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr)...)
 }
@@ -967,9 +967,8 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 // raw node, at the declaration, so the census must be told the key was taken
 // (preserveResponseExtras).
 //
-// The use-site fold in resolve.RefDocs is applied by the caller, last, so a
-// summary or description written beside a `$ref` still wins over the
-// declaration's own — 3.2's field is no different from the version's others.
+// The caller folds the siblings of the entry's $ref chain over these
+// (resolve.UseDocs), so a summary written beside a `$ref` still wins.
 func responseDocs(c lowering.Ctx, r *soa.Response) ir.Docs {
 	docs := ir.Docs{Description: r.GetDescription()}
 	if !c.Is32() {
@@ -1034,7 +1033,7 @@ func responseName(code string) ir.Naming {
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX" or "default"); ref is the
 // entry written here.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref resolve.SiblingDocs) (ir.ErrorCase, []ir.Diagnostic) {
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, anchors, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,

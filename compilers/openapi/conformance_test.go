@@ -3218,8 +3218,9 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "The widget to create.", widgets.Request.Docs.Description)
 
 	// security schemes — the aliasing entry takes its own description, and the
-	// declaration it names keeps its own.
-	require.Len(t, doc.Auth, 2)
+	// declaration it names keeps its own; an alias of the alias writes none, so
+	// it takes the description of the hop beneath it.
+	require.Len(t, doc.Auth, 3)
 	byName := map[string]string{}
 	for _, scheme := range doc.Auth {
 		byName[scheme.Name.Source] = scheme.Docs.Description
@@ -3227,6 +3228,32 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "The key this API expects.", byName["ApiKey"])
 	assert.Equal(t, "The declaration's own scheme description.", byName["BaseKey"],
 		"the aliasing entry's siblings do not reach the declaration")
+	assert.Equal(t, "The key this API expects.", byName["KeyAlias"])
+
+	assertAliasHopDocs(t, doc)
+}
+
+// assertAliasHopDocs pins the siblings of an alias, a component that is itself a
+// $ref: they override the declaration it names at every position, and a use
+// site's own override them in turn.
+func assertAliasHopDocs(t *testing.T, doc *ir.Document) {
+	sprocket, ok := opByName(doc, "makeSprocket")
+	require.True(t, ok)
+	limit, ok := paramByName(sprocket, "limit")
+	require.True(t, ok)
+	assert.Equal(t, ir.Docs{Summary: "Sprocket page size", Description: "The alias's own description."}, limit.Docs,
+		"the use site's summary over the alias's description over the declaration's")
+	require.NotNil(t, sprocket.Request)
+	assert.Equal(t, "The alias's own body description.", sprocket.Request.Docs.Description)
+	require.Len(t, sprocket.Responses, 1)
+	require.Len(t, sprocket.Responses[0].Headers, 1)
+	assert.Equal(t, "The alias's own header description.", sprocket.Responses[0].Headers[0].Docs.Description)
+	require.Len(t, sprocket.Responses[0].Payload.Contents[0].Examples, 1)
+	example := sprocket.Responses[0].Payload.Contents[0].Examples[0]
+	assert.Equal(t, "The alias's own summary", example.Summary)
+	assert.Equal(t, "Declared description", example.Description, "the field the alias omits stands")
+	require.Len(t, sprocket.Errors, 1)
+	assert.Equal(t, "The alias's own response description.", sprocket.Errors[0].Docs.Description)
 }
 
 // assertParamContentFields pins GitHub #611: electing a parameter's or header's

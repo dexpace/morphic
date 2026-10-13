@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -47,45 +48,56 @@ func Object[T, S any, R interface {
 	return ref.GetResolvedObject()
 }
 
-// SiblingDocs is the method set a speakeasy Reference wrapper exposes for the
-// summary and description a document may write beside a `$ref`: every
-// Referenced* alias is Reference[T, V, C], whose Populate reads these two only
-// when the entry actually holds a reference, so an inline entry reports both
-// empty whatever the object itself declares.
-//
-// It is exported because the sites that fold the pair over a declaration's docs
-// are a layer up, and one of them passes the wrapper into a shared lowering
-// rather than applying the fold itself.
-type SiblingDocs interface {
+// siblingDocs is what a speakeasy Reference wrapper exposes of the summary and
+// description written beside its `$ref`. Populate reads the two only for an
+// entry that holds a reference, so an inline entry reports both empty.
+type siblingDocs interface {
 	GetSummary() string
 	GetDescription() string
 }
 
-// RefDocs folds the summary and description written beside a `$ref` over the
-// docs the resolved declaration carries, field by field: a sibling the entry
-// writes wins because it describes *this* use, and one it omits leaves the
-// declaration's value. OpenAPI gives such a sibling "no effect" where the type
-// disallows one, but the IR has a docs field at every position this applies
-// to, and dropping it silently is the defect fixed here (ir-design §12.2).
-//
-// The getters are nil-receiver tolerant, so an inline entry needs no guard.
-func RefDocs(ref SiblingDocs, docs ir.Docs) ir.Docs {
-	if summary := ref.GetSummary(); summary != "" {
-		docs.Summary = summary
+// UseDocs folds the summary and description written beside each `$ref` of ref's
+// chain over docs, those of the declaration the chain ends at. It folds from the
+// declaration outward, field by field, so the use site's own siblings win, an
+// alias's beat what it names, and a field a hop omits leaves the one beneath it
+// standing (GitHub #610). OpenAPI gives such a sibling "no effect" where the
+// object type allows none, but the IR has a docs field at each position this
+// serves, so it is kept rather than dropped (ir-design §12.2).
+func UseDocs[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	siblingDocs
+}](ref R, docs ir.Docs) ir.Docs {
+	hops := make([]R, 0, 1)
+	for range maxRefChain {
+		if ref == nil {
+			break
+		}
+		hops = append(hops, ref)
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil {
+			break
+		}
+		ref = R(info.Object)
 	}
-	if description := ref.GetDescription(); description != "" {
-		docs.Description = description
+	for _, hop := range slices.Backward(hops) {
+		if summary := hop.GetSummary(); summary != "" {
+			docs.Summary = summary
+		}
+		if description := hop.GetDescription(); description != "" {
+			docs.Description = description
+		}
 	}
 	return docs
 }
 
-// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration, and
-// how many a chain's end (endOf) and a pointer's scope (Scope.reached) are
-// followed through. A $ref cycle among the non-schema components it walks is
-// refused before lowering by speakeasy's resolver, not by internal/scan, and a
-// refused chain resolves to nothing, so the bound only fires on an absurd alias
-// chain. Past it, ObjectAt keeps the use site, and what the chain reaches is
-// read in no document's scope.
+// maxRefChain bounds how many $ref hops ObjectAt and UseDocs follow, and how
+// many a chain's end (endOf) and a pointer's scope (Scope.reached) are followed
+// through. A $ref cycle among the non-schema components is refused before
+// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
+// resolves to nothing, so the bound only fires on an absurd alias chain. Past
+// it, ObjectAt keeps the use site, and what the chain reaches is read in no
+// document's scope.
 //
 // It stays unexported: only the test that holds the walk to the bound needs it,
 // and reaches it through export_test.go.
