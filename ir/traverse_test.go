@@ -134,3 +134,19 @@ func TestForEachOperation_SharingWithoutACycleStillCostsTheUnfoldedSize(t *testi
 	assert.False(t, truncated)
 	assert.Equal(t, []ir.OpID{"s", "s", "p", "q", "p"}, got)
 }
+
+// TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered holds the walk to
+// leaving every group slice it entered, on the way back from a cut as from
+// anywhere else. Two services share one chain that runs past the cap, so the
+// second walks the slices the first did: one the first left marked as entered
+// would read to the second as a cycle, and the operation at its top would go
+// unvisited.
+func TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered(t *testing.T) {
+	t.Parallel()
+	chain := groupChain(ir.MaxGroupDepth + 1).Services[0].Groups
+	chain[0].Operations = []ir.Operation{{ID: "top"}}
+
+	got, truncated := opIDs(&ir.Document{Services: []ir.Service{{Groups: chain}, {Groups: chain}}})
+	assert.True(t, truncated)
+	assert.Equal(t, []ir.OpID{"top", "top"}, got, "the second service walks the chain as the first did")
+}
