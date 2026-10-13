@@ -57,7 +57,7 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 
 // TestUnmodeledReason_TiesToConstBlock keeps UnmodeledReason.Valid tied to the
 // const block, since nothing rejects an undeclared value on deserialization. It
-// parses the ir package with go/ast and requires the declared reasons and
+// reads the ir package's declarations and requires the declared reasons and
 // unmodeledReasonWire to name the same set, and every declared reason to be
 // Valid: declared is the bar, not written, since the wire can carry a reason
 // the moment a compiler first writes it.
@@ -67,7 +67,7 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 // TestUnmodeledReason_UnknownIsInvalid pins only the two values it names.
 func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
-	declared := parseDeclaredReasons(t)
+	declared := declaredReasons(t)
 
 	want := slices.Collect(maps.Values(unmodeledReasonWire))
 	require.ElementsMatch(t, want, declared)
@@ -89,7 +89,7 @@ func TestUnmodeledReason_UnknownIsInvalid(t *testing.T) {
 // reasonTypeName names the reason type, whose constants are the taxonomy.
 const reasonTypeName = "UnmodeledReason"
 
-// parseDeclaredReasons returns the value of every UnmodeledReason constant the
+// declaredReasons returns the value of every UnmodeledReason constant the
 // ir package declares, read type-checked: one typed through an alias, built by a
 // conversion or written as an expression is recorded as the compiler sees it.
 //
@@ -97,7 +97,7 @@ const reasonTypeName = "UnmodeledReason"
 // var may have the type, since one is assignable to UnmodeledEntry.Reason without
 // still holding what this test read. Every constant in the type's own file must
 // have it, so an untyped one written there fails rather than passing as a string.
-func parseDeclaredReasons(t *testing.T) []string {
+func declaredReasons(t *testing.T) []string {
 	t.Helper()
 	p := irDecls(t)
 	named, err := p.Named(reasonTypeName)

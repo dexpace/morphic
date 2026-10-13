@@ -123,7 +123,7 @@ func TestConstBlock_VocabularyFilesHoldNothingElse(t *testing.T) {
 			return types.Identical(types.Unalias(c.Type()), named)
 		})
 		assert.True(t, ofVocabulary,
-			"%s is a %s, not an Annotation or SiteKind; the file holds nothing else", name, c.Type())
+			"%s has type %s, not Annotation or SiteKind; the file holds nothing else", name, c.Type())
 	}
 }
 

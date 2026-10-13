@@ -252,6 +252,7 @@ morphic/
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
+├── internal/decls/         #           Type-checked reads of declarations, for tests pinning a hand-written list (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.

@@ -90,10 +90,9 @@ func irConstsOfType(t *testing.T, typeName string) []decls.Const {
 // A switch ending in a guessing default absorbs a new kind as whatever the
 // default asserts, and ValueKind is a bare string enum with no marker method to
 // enforce completeness. Deriving both sets from the declarations makes the next
-// kind, or the next switch, a red test. A switch is over ir.ValueKind by the
-// type of its tag, and a case counts by the constant value it evaluates to,
-// however it is spelled. An arm may still classify a kind wrongly; it may no
-// longer omit it.
+// kind, or the next switch, a red test. A switch is over ir.ValueKind by its
+// tag's type; a case counts by the value it evaluates to, however spelled. An
+// arm may still misclassify a kind; it may no longer omit it.
 func TestValueKindSwitches_NameEveryValueKind(t *testing.T) {
 	t.Parallel()
 	declared := irConstsOfType(t, "ValueKind")

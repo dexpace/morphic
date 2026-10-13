@@ -75,8 +75,8 @@ func TestAuthKind_Constants(t *testing.T) {
 // nothing rejects an empty or misspelled mechanism on deserialization, and no
 // structural check can tell one from oauth2 by reading a scheme's key and its
 // ID, so irverify has Valid and nothing else to test against. Valid therefore
-// has to stay tied to the const block, and it is tied here by parsing the ir
-// sources rather than by a list.
+// has to stay tied to the const block, and it is tied here by reading the ir
+// package's declarations rather than by a list.
 //
 // Adding a mechanism without teaching Valid about it fails here rather than
 // surfacing later as a spurious ir/unknown-auth-kind on a document that names

@@ -386,7 +386,7 @@ func TestPrimKind_Constants(t *testing.T) {
 // TestPrimKind_TiesToConstBlock keeps PrimKind.Valid tied to the const block.
 // Nothing rejects an invented kind on deserialization and ir.PrimTypeID derives
 // an ID from any string, so irverify has Valid and nothing else to test
-// against. The tie is made by parsing the ir sources, as
+// against. The tie is made by reading the ir package's declarations, as
 // typedef_completeness_test.go does for TypeKind. primKindSpellings and the
 // declared constants must name the same set, and every declared kind must be
 // Valid. The converse, a case added to Valid for a kind no constant declares,
