@@ -49,11 +49,14 @@ func singleDashLongFlags(root *cobra.Command, args []string) error {
 }
 
 // findCommand returns the command cobra will run for args and the arguments
-// left for it, or false when cobra finds none. Cobra reports that itself when it
-// runs, so only whether a command was found matters here.
+// left for it, or false and nothing when cobra finds none. Cobra reports that
+// itself when it runs, so only whether a command was found matters here.
 func findCommand(root *cobra.Command, args []string) (*cobra.Command, []string, bool) {
 	target, rest, err := root.Find(args)
-	return target, rest, err == nil
+	if err != nil {
+		return nil, nil, false
+	}
+	return target, rest, true
 }
 
 // oneDashName returns the name tok spells after a single dash, up to any "=",
