@@ -274,10 +274,9 @@ func declaredStringTypes(t *testing.T) []string {
 // declaresStringType reports whether decl declares a type whose underlying type
 // is a string.
 func declaresStringType(decl *types.TypeName) bool {
-	typ := types.Unalias(decl.Type())
-	if named, isNamed := typ.(*types.Named); isNamed && named.Obj() != decl {
-		return false // an alias of another declaration
+	if aliasesAnother(decl) {
+		return false
 	}
-	basic, isBasic := typ.Underlying().(*types.Basic)
+	basic, isBasic := decl.Type().Underlying().(*types.Basic)
 	return isBasic && basic.Info()&types.IsString != 0
 }

@@ -65,14 +65,16 @@ func (f declaredField) key() string {
 // declares at package level, unexported ones and embedded ones included, in
 // declaration-name order.
 //
-// A type declared as an alias of another declaration adds no fields of its own,
-// but a defined type over a struct does, so it is listed under its own name. A
-// function-local type is not a package-level declaration and so is not listed.
+// An alias of another declaration adds no fields of its own. An alias of a
+// struct literal and a defined type over a struct do, so each is listed under
+// its own name. A function-local type is not a package-level declaration and so
+// is not listed. Nor, yet, are the fields of an anonymous struct a field is
+// typed with (#851); ir declares none.
 func declaredFields(t *testing.T) []declaredField {
 	t.Helper()
 	var out []declaredField
 	for decl := range irDecls(t).Objects[*types.TypeName]() {
-		if decl.IsAlias() {
+		if aliasesAnother(decl) {
 			continue
 		}
 		st, isStruct := decl.Type().Underlying().(*types.Struct)
@@ -85,4 +87,12 @@ func declaredFields(t *testing.T) []declaredField {
 	}
 	require.NotEmpty(t, out, "the ir package must declare struct fields")
 	return out
+}
+
+// aliasesAnother reports whether decl is an alias of a defined type declared
+// elsewhere, which adds no type of its own. An alias of a type literal, such as
+// struct{ Index int }, is not one: no other declaration lists what it holds.
+func aliasesAnother(decl *types.TypeName) bool {
+	named, isNamed := types.Unalias(decl.Type()).(*types.Named)
+	return isNamed && named.Obj() != decl
 }
