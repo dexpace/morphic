@@ -49,8 +49,9 @@ func memberScopeViolation(enumID ir.TypeID, member ir.EnumMemberID, i int) (Viol
 	}
 	return Violation{
 		Code: "ir/member-id-scope",
-		Message: "member id " + string(member) + " is not in the namespace " + enumSpace +
-			" and beneath the path " + enumPath + " of its enum " + string(enumID),
+		Message: "member id " + strconv.Quote(string(member)) + " is not in the namespace " +
+			strconv.Quote(enumSpace) + " and beneath the path " + strconv.Quote(enumPath) +
+			" of its enum " + strconv.Quote(string(enumID)),
 		Path: ir.DocumentPath + ".Types[" + string(enumID) + "].Members[" + strconv.Itoa(i) + "]",
 	}, true
 }

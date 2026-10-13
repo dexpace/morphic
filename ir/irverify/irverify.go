@@ -14,7 +14,9 @@ import (
 type Violation struct {
 	// Code is a stable, slash-namespaced identifier for the defect class.
 	Code string
-	// Message is a human-readable description of the specific defect.
+	// Message is a human-readable description of the specific defect. Text it
+	// takes from the document is strconv.Quote'd, so it is valid UTF-8 whatever
+	// the document holds (GitHub #400); Path is not yet (GitHub #739).
 	Message string
 	// Path locates the offending node within the document.
 	Path string
