@@ -683,9 +683,9 @@ func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer,
 }
 
 // applyNodeType places the nodeType a 3.2 XML object writes on hints, and
-// returns the keys it read for the census to leave alone. A value outside the
-// five the specification defines is kept verbatim on p instead, as nothing
-// else may fill XMLHints.NodeType. An attribute flag the nodeType contradicts,
+// returns the keys it read for the census to leave alone. A non-empty value
+// outside the five the specification defines is kept verbatim on p instead, as
+// nothing else may fill XMLHints.NodeType. An attribute flag the nodeType contradicts,
 // which 3.2 forbids writing beside it, is kept verbatim on p rather than
 // overwritten in silence.
 func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Locator, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
