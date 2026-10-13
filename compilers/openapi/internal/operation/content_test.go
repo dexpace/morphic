@@ -474,10 +474,7 @@ func TestContent_ResponsePayloadStatesNoOptionality(t *testing.T) {
 }
 
 // TestContent_RequestBodyDocsReachThePayload pins GitHub #609: a Request Body
-// Object's `description` describe the body, and ir.Payload is the node the
-// body's own facts land on, so it reaches Payload.Docs rather than no field at
-// all. The response's identical field is asserted here too, since #615 fills
-// that one from the raw node — the two must not be confused.
+// Object's description documents the body, so it reaches Payload.Docs.
 func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /bodies:
@@ -493,33 +490,12 @@ func TestContent_RequestBodyDocsReachThePayload(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
-	require.NotNil(t, op.Request.Docs, "a declared body description has a home on the payload")
-	assert.Equal(t, "The thing to create.", op.Request.Docs.Description)
+	assert.Equal(t, "The thing to create.", op.Request.Docs.Description,
+		"a declared body description has a home on the payload")
 }
 
-// TestContent_RequestBodyWithoutDocsLeavesItUnstated is the second arm: a body
-// that writes no description leaves Payload.Docs nil rather than an empty Docs,
-// which is what keeps every existing payload golden byte-identical.
-func TestContent_RequestBodyWithoutDocsLeavesItUnstated(t *testing.T) {
-	t.Parallel()
-	spec := openapitest.PathsSpec(`  /bare:
-    post:
-      operationId: bare
-      requestBody:
-        content:
-          application/json: {schema: {type: object, properties: {n: {type: string}}}}
-      responses: {"200": {description: ok}}
-`)
-	_, svc, diags := lowerServiceSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.NotNil(t, op.Request)
-	assert.Nil(t, op.Request.Docs, "an unstated body description is absent, not empty")
-}
-
-// TestContent_ResponsePayloadStatesNoDocs pins the third state: a response
-// payload is not a request body, and Payload.Docs is left for the request-body
-// lowering, so a consumer reading a response body finds no docs invented for it.
+// TestContent_ResponsePayloadStatesNoDocs pins the other side: a response's
+// description documents the response, so its payload is given none.
 func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /read:
@@ -536,8 +512,8 @@ func TestContent_ResponsePayloadStatesNoDocs(t *testing.T) {
 	op := openapitest.FirstOp(t, svc)
 	require.Len(t, op.Responses, 1)
 	require.NotNil(t, op.Responses[0].Payload)
-	assert.Nil(t, op.Responses[0].Payload.Docs,
-		"only the request-body lowering writes payload docs")
+	assert.Zero(t, op.Responses[0].Payload.Docs, "only the request-body lowering writes payload docs")
+	assert.Equal(t, "ok", op.Responses[0].Docs.Description)
 }
 
 // TestContent_RequestBodyDocsAreOrderIndependent is the hand-rolled two-order
@@ -583,7 +559,6 @@ paths:
 		for _, name := range []string{"createOrder", "replaceOrder"} {
 			op := openapitest.FindOp(t, doc, name)
 			require.NotNil(t, op.Request, "%s: the body lowers", name)
-			require.NotNil(t, op.Request.Docs, "%s: the component's description reaches the payload", name)
 			out[name] = op.Request.Docs.Description + " " + string(openapitest.BodyTarget(t, op.Request))
 		}
 		return out
@@ -2216,7 +2191,6 @@ components:
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
-	require.NotNil(t, op.Request.Docs)
 	assert.Equal(t, "the use site", op.Request.Docs.Description)
 }
 

@@ -948,18 +948,10 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	if payload == nil {
 		return diags
 	}
-	// The body's own documentation describes the body rather than any media type
-	// inside it, and ir.Payload is where a request body's facts land. The parser
-	// models the field, so the unknown-key census never saw it either: a
-	// `description` here reached no field, no Unmodeled entry and no diagnostic
-	// (GitHub #609). A summary or description written beside a `$ref` to the body
-	// overrides the declaration's, through the same fold every other position uses
-	// (GitHub #610). Written only when something landed, so a body stating neither
-	// keeps Docs nil — the same three-state reading Required takes.
-	bodyDocs := resolve.RefDocs(src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
-	if bodyDocs.Summary != "" || bodyDocs.Description != "" {
-		payload.Docs = &bodyDocs
-	}
+	// A Request Body Object's description documents the body rather than any
+	// one media type in it (GitHub #609), and a summary or description beside a
+	// $ref to the body documents this use of it (GitHub #610).
+	payload.Docs = resolve.RefDocs(src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as XMLHints already reads its own. Both reads sit

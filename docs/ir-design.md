@@ -209,6 +209,14 @@ it sees. Changes made together in one bump are listed together under it.
     by a name that two members can render alike (`a-b` and `a_b` are the same words) or by its
     position, which reordering changes. A consumer pinned to 0.7.0 finds no `id` on a member and
     has nothing else to key it by. The `e` kind joined `IDSpaces`.
+- **0.9.0** — three additions, and one member that started being filled:
+  - `Payload` gained `Docs`, a body's own documentation as against any one media type's. A consumer
+    pinned to 0.8.0 finds no `docs` on a request body and drops its description.
+  - `TagDef` gained `Parent` and `Kind`, OpenAPI 3.2's tag hierarchy and tag role, as declared. A
+    consumer pinned to 0.8.0 reads every tag as top-level and of no kind.
+  - The OpenAPI compiler now nests a tag's group under its declared parent's in
+    `OperationGroup.Groups`, which no OpenAPI document filled before. The shape is unchanged, but a
+    consumer that read only the top level misses every operation of a nested group.
 
 ---
 
@@ -1475,13 +1483,9 @@ type Payload struct {
                                   // Response and message payloads leave it nil — only a request
                                   // body can be omitted — and pass/validate reports one set
                                   // anywhere else (ir/payload-required-outside-request)
-                                  // Docs is the payload's own documentation (a Request Body Object's
-                                  // summary and description describe the body, not any media type
-                                  // inside it). Pointer like Required, so nil is a third state: this
-                                  // position states no docs. A request body sets it today; a message
-                                  // payload may later, which is why no pass rule forbids it outside a
-                                  // request
-    Docs      *Docs
+    Docs     Docs                 // the body's own documentation, as against any one media type's:
+                                  // an OpenAPI Request Body Object's description, a TypeSpec @doc on
+                                  // a @body parameter. Omitted when empty, unlike a named node's
     Unmodeled  Unmodeled
 }
 

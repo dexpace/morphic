@@ -3143,14 +3143,14 @@ func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	created, ok := opByName(doc, "createOrder")
 	require.True(t, ok)
 	require.NotNil(t, created.Request)
-	require.NotNil(t, created.Request.Docs, "a $ref'd body keeps the component's description")
-	assert.Equal(t, "A shared order body.", created.Request.Docs.Description)
+	assert.Equal(t, "A shared order body.", created.Request.Docs.Description,
+		"a $ref'd body keeps the component's description")
 
 	replaced, ok := opByName(doc, "replaceOrder")
 	require.True(t, ok)
 	require.NotNil(t, replaced.Request)
-	require.NotNil(t, replaced.Request.Docs, "the second mount reads the same declaration's docs")
-	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description)
+	assert.Equal(t, "A shared order body.", replaced.Request.Docs.Description,
+		"the second mount reads the same declaration's docs")
 
 	shared := ir.TypeID("t/anon/components/requestBodies/OrderBody/content/application~1json/schema")
 	assert.Equal(t, shared, openapitest.BodyTarget(t, created.Request),
@@ -3161,8 +3161,8 @@ func assertRequestBodyDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	draft, ok := opByName(doc, "saveDraft")
 	require.True(t, ok)
 	require.NotNil(t, draft.Request)
-	require.NotNil(t, draft.Request.Docs, "an inline body's own description reaches the payload too")
-	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description)
+	assert.Equal(t, "A draft saved inline.", draft.Request.Docs.Description,
+		"an inline body's own description reaches the payload too")
 }
 
 // assertRefSiteDocs pins GitHub #610 across every site the fold reaches, in one
@@ -3215,7 +3215,6 @@ func assertRefSiteDocs(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	// request bodies
 	require.NotNil(t, widgets.Request)
-	require.NotNil(t, widgets.Request.Docs)
 	assert.Equal(t, "The widget to create.", widgets.Request.Docs.Description)
 
 	// security schemes — the aliasing entry takes its own description, and the

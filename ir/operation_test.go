@@ -206,21 +206,17 @@ func TestPayload_RequiredIsTriState(t *testing.T) {
 	}
 }
 
-// TestPayload_DocsIsTriState pins Payload.Docs' three states, which is why it
-// is a pointer rather than a value: nil is "this position states no docs" and
-// must stay an absent key, so a response or message payload golden does not gain
-// a docs:{} the source never declared. omitzero, not omitempty, keeps the
-// distinct present-but-empty state on the wire.
-func TestPayload_DocsIsTriState(t *testing.T) {
+// TestPayload_DocsIsOmittedWhenEmpty pins Payload.Docs' shape: a value, as
+// every other Docs member is, but omitted when it says nothing.
+func TestPayload_DocsIsOmittedWhenEmpty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
-		in   *ir.Docs
+		in   ir.Docs
 		want string
 	}{
-		{"unstated", nil, `{}`},
-		{"documented", &ir.Docs{Description: "the body"}, `{"docs":{"description":"the body"}}`},
-		{"present but empty", &ir.Docs{}, `{"docs":{}}`},
+		{"undocumented", ir.Docs{}, `{}`},
+		{"documented", ir.Docs{Description: "the body"}, `{"docs":{"description":"the body"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
