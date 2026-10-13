@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 	"iter"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -21,6 +22,14 @@ import (
 // not source.
 const loadMode = packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 	packages.NeedTypes | packages.NeedTypesInfo
+
+// goList configures a load for mode to run the go command. go/packages would
+// otherwise hand it to the driver GOPACKAGESDRIVER names, or to one found on
+// PATH, and a driver need not report what the refusals here read, such as the
+// files a build leaves out.
+func goList(mode packages.LoadMode) *packages.Config {
+	return &packages.Config{Mode: mode, Env: append(os.Environ(), "GOPACKAGESDRIVER=off")}
+}
 
 // Package is one package's production sources, type-checked.
 type Package struct {
@@ -75,7 +84,7 @@ func LoadAll(patterns ...string) ([]*Package, error) {
 		return nil, fmt.Errorf("load %s: %w", what, err)
 	}
 
-	loaded, err := packages.Load(&packages.Config{Mode: loadMode}, patterns...)
+	loaded, err := packages.Load(goList(loadMode), patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load %s: %w", what, err)
 	}
@@ -104,7 +113,7 @@ func eachMatches(patterns []string) error {
 		return nil
 	}
 	for _, pattern := range patterns {
-		pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedName}, pattern)
+		pkgs, err := packages.Load(goList(packages.NeedName), pattern)
 		if err != nil {
 			return err
 		}

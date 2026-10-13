@@ -112,6 +112,23 @@ func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
 	}
 }
 
+// TestLoad_IgnoresAnExternalDriver holds the load to the go command, whatever
+// driver the environment names: one that cannot run must not fail it, for the
+// load or for the question LoadAll asks of each of several patterns. It sets
+// the environment, so it cannot run in parallel.
+func TestLoad_IgnoresAnExternalDriver(t *testing.T) {
+	t.Setenv("GOPACKAGESDRIVER", filepath.Join(t.TempDir(), "gopackagesdriver"))
+	for _, patterns := range [][]string{
+		{goodDir + "/fixture"},
+		{goodDir + "/fixture", goodDir + "/uses"},
+	} {
+		pkgs, err := decls.LoadAll(patterns...)
+
+		require.NoError(t, err, patterns)
+		assert.Len(t, pkgs, len(patterns))
+	}
+}
+
 func TestLoadAll_RefusesNoPattern(t *testing.T) {
 	t.Parallel()
 	pkgs, err := decls.LoadAll()
