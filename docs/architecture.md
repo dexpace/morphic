@@ -90,7 +90,11 @@ What a compiler does *not* own is in `compilers/compile`: the state and the gram
 must agree on. That is the type registry with the source-coordinate map behind stable IDs (and the
 rule that a minted node takes a namespace no source coordinate addresses), diagnostic accumulation,
 the canonical naming grammar, and the identifier grammar — the kind prefix and the namespace after
-it, with the declaration of the namespaces a compiler mints in. What stays with the compiler is what
+it, with the declaration of the namespaces a compiler mints in. The registry also holds the
+decisions about a node that read nodes other lowerings intern (`compile.Settlement`), deferred until
+the walk ends: a walk lowers one declaration at a time, so taken mid-walk they would follow
+declaration order. They live on the registry, though only OpenAPI defers one yet, because the
+registry is the one handle a lowering holds (micro-compiler-design §4). What stays with the compiler is what
 only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path
 and a protobuf fully-qualified name are different things.
 
