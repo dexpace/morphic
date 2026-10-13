@@ -272,6 +272,8 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		code     string // the diagnostic expected at the key, "" for none
 	}{
 		{"defined", "{nodeType: cdata}", "cdata", "", ""},
+		{"null", "{nodeType: ~}", "", "", ""},
+		{"null beside attribute", "{attribute: true, nodeType: ~}", "attribute", "", ""},
 		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
 		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
 		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},

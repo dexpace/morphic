@@ -142,15 +142,16 @@ func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	})
 }
 
-// TakeString reads a string field the parser's model names no member for, one a
-// later revision of the specification added, directly under key on root, the
-// mapping the census reads (GitHub #615). It reports whether it read the key,
-// which the caller then passes to the census as taken.
+// TakeString reads a string field the parser's model names no member for,
+// written directly under key on root, the mapping the census reads (GitHub
+// #615). It reports whether it read the key, for the caller to pass to the
+// census as taken.
 //
-// A scalar the parser would decode into a string field is returned, unless valid
-// refuses it. Any other value is kept verbatim on p at the census's own entry,
-// with a warning. A key root does not present directly, absent or merged in
-// through `<<`, is not read; the census reports the second.
+// A scalar the parser decodes as a string is returned, unless valid refuses a
+// non-empty one; empty or null is read as unset. Any other value is kept
+// verbatim on p at the census's own entry, with a warning. A key root does not
+// present directly, absent or merged in through `<<`, is not read; the census
+// reports the second.
 func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
 	locate Locator, owner jsontext.Pointer, scope string,
 ) (string, bool, []ir.Diagnostic) {
@@ -159,7 +160,7 @@ func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string)
 		return "", false, nil
 	}
 	value, ok := stringValue(node)
-	if ok && (valid == nil || valid(value)) {
+	if ok && (value == "" || valid == nil || valid(value)) {
 		return value, true, nil
 	}
 	at := locate(owner + ids.Ptr(key))

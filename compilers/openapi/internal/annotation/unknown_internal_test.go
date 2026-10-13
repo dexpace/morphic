@@ -357,8 +357,8 @@ func TestTakeString_UnkeepableValueIsReportedAndRead(t *testing.T) {
 // TestTakeString_DecodesAsTheParserDoes pins TakeString to the parser's own
 // reading of a string field: every scalar tag it accepts there, null as empty,
 // an alias followed. Anything else is kept verbatim at the census's own entry
-// with a warning, a value valid refuses likewise, and a key the mapping does not
-// present directly is left unread for the census.
+// with a warning, a non-empty value valid refuses likewise, and a key the
+// mapping does not present directly is left unread for the census.
 func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
 	t.Parallel()
 	only := func(v string) bool { return v == "ok" }
@@ -380,6 +380,8 @@ func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
 		{"a timestamp", "k: 2001-12-14", nil, "", true, `"2001-12-14"`},
 		{"a value valid accepts", "k: ok", only, "ok", true, ""},
 		{"a value valid refuses", "k: no", only, "", true, `"no"`},
+		{"an empty string valid would refuse", `k: ""`, only, "", true, ""},
+		{"a null valid would refuse", "k: ~", only, "", true, ""},
 		{"absent", "j: x", nil, "", false, ""},
 		{"merged in", "<<: {k: m}", nil, "", false, ""},
 	} {
