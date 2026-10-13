@@ -112,9 +112,9 @@ parsed-node budget and an alias budget for one source document and a member budg
 each with a documented default and each settable — zero takes the default, negative turns the
 budget off. Crossing one is a spec problem like any other, so it
 is an `openapi/budget-exceeded` diagnostic rather than a Go error. Time is bounded by the caller
-instead of by a constant: the two walks that do work proportional to the document honour the
-`context.Context` a compile is given, so a deadline or a cancellation stops one between items and
-the error reaches the caller unwrapped.
+instead of by a constant: the walks that do work proportional to the document, and the settling
+after them, honour the `context.Context` a compile is given, so a deadline or a cancellation stops
+one between items and the error reaches the caller unwrapped.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and

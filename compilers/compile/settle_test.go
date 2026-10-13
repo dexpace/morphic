@@ -1,6 +1,7 @@
 package compile_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 		}))
 	}
 
-	diags := types.Settle()
+	diags := types.Settle(t.Context())
 
 	assert.Equal(t, []string{"first", "second"}, runs, "each runs once, in the order deferred")
 	require.Len(t, diags, 2)
@@ -40,8 +41,34 @@ func TestTypes_SettleTakesEachDeferredSettlementOnceInOrder(t *testing.T) {
 	td, ok := types.Node("t/x")
 	require.True(t, ok)
 	assert.Equal(t, "firstsecond", td.Common().Docs.Description, "a settlement rewrites the registry the document holds")
-	assert.Empty(t, types.Settle(), "a settlement taken is not taken again")
+	assert.Empty(t, types.Settle(t.Context()), "a settlement taken is not taken again")
 	assert.Empty(t, types.Violations())
+}
+
+// TestTypes_SettleStopsBetweenSettlementsOnCancellation pins that Settle
+// honours ctx as the walks do: once it is done, no further settlement is
+// taken, and what the ones before it reported is returned.
+func TestTypes_SettleStopsBetweenSettlementsOnCancellation(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	types := compile.NewTypes()
+	var runs []string
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
+		runs = append(runs, "first")
+		cancel()
+		return []ir.Diagnostic{{Code: "first"}}
+	}))
+	types.Defer(settleFunc(func(ir.TypeRegistry) []ir.Diagnostic {
+		runs = append(runs, "second")
+		return nil
+	}))
+
+	diags := types.Settle(ctx)
+
+	assert.Equal(t, []string{"first"}, runs, "the settlement after the cancellation is not taken")
+	require.Len(t, diags, 1)
+	assert.Equal(t, "first", diags[0].Code)
+	assert.Empty(t, types.Violations(), "a stop is the caller's to act on, not a breach")
 }
 
 // TestTypes_SettleWithNothingDeferredReturnsNothing pins the common case: a
@@ -50,7 +77,7 @@ func TestTypes_SettleWithNothingDeferredReturnsNothing(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()
 
-	assert.Empty(t, types.Settle())
+	assert.Empty(t, types.Settle(t.Context()))
 	assert.Empty(t, types.Violations())
 }
 
@@ -64,7 +91,7 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 		queue func(types *compile.Types, s compile.Settlement)
 	}{
 		{"after settling", func(types *compile.Types, s compile.Settlement) {
-			types.Settle()
+			types.Settle(t.Context())
 			types.Defer(s)
 		}},
 		{"nil", func(types *compile.Types, _ compile.Settlement) { types.Defer(nil) }},
@@ -76,28 +103,48 @@ func TestTypes_DeferRefusesWhatSettleWouldNeverTake(t *testing.T) {
 			runs := 0
 			c.queue(types, settleFunc(func(ir.TypeRegistry) []ir.Diagnostic { runs++; return nil }))
 
-			assert.Empty(t, types.Settle())
+			assert.Empty(t, types.Settle(t.Context()))
 			assert.Zero(t, runs)
 			assert.Len(t, types.Violations(), 1, "the refusal is recorded, not dropped")
 		})
 	}
 }
 
-// TestTypes_SettlementThatAddsANodeIsRefused pins the one write a settlement
-// may not make. Nothing lowers after Settle, so a node one added would be the
-// only node no lowering produced; the registry keeps it and reports the breach.
-func TestTypes_SettlementThatAddsANodeIsRefused(t *testing.T) {
+// TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
+// settlement may not make. Nothing lowers after Settle, so an added node is
+// the only one no lowering produced, and a removed one leaves its references
+// dangling. Either is reported as a breach, and left standing.
+func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 	t.Parallel()
-	types := compile.NewTypes()
-	types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
-		reg["t/added"] = &ir.Model{ID: "t/added"}
-		return nil
-	}))
+	cases := []struct {
+		name    string
+		seeded  bool // t/other is registered before the settlement runs
+		write   func(reg ir.TypeRegistry)
+		want    string
+		present bool // t/other is registered after it ran
+	}{
+		{"adds", false, func(reg ir.TypeRegistry) { reg["t/other"] = &ir.Model{ID: "t/other"} }, "from 1 to 2 nodes", true},
+		{"removes", true, func(reg ir.TypeRegistry) { delete(reg, "t/other") }, "from 2 to 1 nodes", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			types := compile.NewTypes()
+			types.Intern("/p", "t/x", func() ir.TypeDef { return &ir.Model{ID: "t/x"} })
+			if c.seeded {
+				types.Register("t/other", &ir.Model{ID: "t/other"})
+			}
+			types.Defer(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+				c.write(reg)
+				return nil
+			}))
 
-	types.Settle()
+			types.Settle(t.Context())
 
-	require.Len(t, types.Violations(), 1)
-	assert.Contains(t, types.Violations()[0], "added 1 node")
-	_, kept := types.Node("t/added")
-	assert.True(t, kept, "the node stays, since something may already reference it")
+			require.Len(t, types.Violations(), 1)
+			assert.Contains(t, types.Violations()[0], c.want)
+			_, present := types.Node("t/other")
+			assert.Equal(t, c.present, present, "what the settlement did is left standing")
+		})
+	}
 }

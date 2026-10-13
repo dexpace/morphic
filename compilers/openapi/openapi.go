@@ -143,9 +143,9 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. The document is dropped with it,
-// since the two walks that honour ctx stop mid-registry and what is left
-// references types never interned, but the diagnostics gathered before the stop
-// are returned.
+// since the phases that honour ctx stop mid-registry and what is left
+// references types never interned or settled, but the diagnostics gathered
+// before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
@@ -159,11 +159,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// whole stream to do it.
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
-	// The two checks in this function sit after the two phases that honour ctx.
-	// Each stops between items and returns what it had, so a non-nil ctx.Err()
-	// here is the only way to tell a phase that finished from one that was cut
-	// short — and the cut-short one leaves a registry nothing may be assembled
-	// from.
+	// The checks in this function sit after the phases that honour ctx. Each
+	// stops between items and returns what it had, so a non-nil ctx.Err() here
+	// is the only way to tell a phase that finished from one that was cut short —
+	// and the cut-short one leaves a registry nothing may be assembled from.
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
@@ -179,12 +178,13 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
+	// Every lowering has returned, so what was deferred until the registry is
+	// whole is decided now (compile.Settlement), before the check that refuses
+	// a registry either phase left cut short.
+	acc.AppendAll(ts.Settle(ctx))
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
-	// Every lowering has returned, so what was deferred until the registry is
-	// whole can be decided now (compile.Settlement).
-	acc.AppendAll(ts.Settle())
 
 	m, metaDiags := lowerMeta(c)
 	out.Name, out.Version = m.Name, m.Version
