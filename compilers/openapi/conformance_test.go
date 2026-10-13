@@ -196,7 +196,7 @@ func conformanceCases() []conformanceCase {
 		{"readonly-writeonly", assertReadOnlyWriteOnly, []string{"visibility"}},
 		{"recursive", assertRecursive, []string{"recursive-types"}},
 		{"maps", assertMaps, []string{"maps"}},
-		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
+		{"tuples-prefixitems", assertTuples, []string{"tuples", "tuple-rest", "positional-encoding"}},
 		{"literal-const", assertLiteralConst, []string{"literal-types"}},
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
 		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
@@ -489,8 +489,8 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // composedHints is every node in the corpus spec whose hint is built out of an
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
-// pattern group, a tuple slot, an enum branch, a composed union variant. A slice
-// rather than a map so a failure names them in a fixed order.
+// pattern group, a tuple slot or rest, an enum branch, a composed union
+// variant. A slice rather than a map so a failure names them in a fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -499,6 +499,7 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Maps/properties//additionalProperties", "empty_value"},
 	{"t/anon/components/schemas/Patterns/properties//patternProperties/^x", "empty_pattern"},
 	{"t/anon/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
+	{"t/anon/components/schemas/Tuple/properties//items", "empty_item"},
 	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
@@ -1882,12 +1883,46 @@ func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.AdditionalClosedAfterComposition, ca.Additional)
 }
 
-func assertTuples(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	p, ok := doc.Types[namedID("Pair")].(*ir.Tuple)
-	require.True(t, ok, "prefixItems hoists a Tuple")
-	require.Len(t, p.Elems, 2)
-	assert.Equal(t, ir.TypeID("t/prim/string"), p.Elems[0].Target)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), p.Elems[1].Target)
+// assertTuples pins what each prefixItems tuple admits past its elements and
+// the bounds beside them (GitHub #597). Only `items: false` closes a tuple, and
+// a typed rest is lowered into the type graph as a List's items is, at the same
+// pointer and under the same hint. All of it is modeled, so no tuple keeps
+// anything beside itself or reports a degradation.
+func assertTuples(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	i64 := func(v int64) *int64 { return &v }
+	pair := []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}
+	restID := ir.TypeID("t/anon/components/schemas/PairWithRest/items")
+	for _, tc := range []struct {
+		name   string
+		elems  []ir.TypeRef
+		rest   ir.TypeID // "" = no element may follow
+		bounds *ir.Constraints
+	}{
+		{"ClosedPair", pair, "", nil},
+		{"Pair", pair, "t/prim/any", nil},
+		{"PairWithRest", pair[:1], restID, nil},
+		{"ExactPair", pair, "", &ir.Constraints{MinItems: i64(2)}},
+		{"BoundedClosedPair", pair, "", &ir.Constraints{MinItems: i64(1), MaxItems: i64(2), UniqueItems: true}},
+	} {
+		tup, ok := doc.Types[namedID(tc.name)].(*ir.Tuple)
+		require.True(t, ok, "%s: prefixItems hoists a Tuple; got %T", tc.name, doc.Types[namedID(tc.name)])
+		assert.Equal(t, tc.elems, tup.Elems, tc.name)
+		if tc.rest == "" {
+			assert.Nil(t, tup.Rest, "%s: no element may follow the head", tc.name)
+		} else if assert.NotNil(t, tup.Rest, tc.name) {
+			assert.Equal(t, tc.rest, tup.Rest.Target, tc.name)
+		}
+		assert.Equal(t, tc.bounds, tup.Constraints, tc.name)
+		assert.Empty(t, tup.Unmodeled, "%s: a modeled rest keeps nothing beside it", tc.name)
+		assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+tc.name), tc.name)
+	}
+
+	rest, ok := doc.Types[restID].(*ir.Model)
+	require.True(t, ok, "the inline rest is hoisted at its own pointer; got %T", doc.Types[restID])
+	assert.Equal(t, "pair_with_rest_item", rest.Name.Hint, "named as a List's items would be")
+	_, ok = propByWire(rest, "flag")
+	assert.True(t, ok, "the rest's own properties reach the IR")
 }
 
 func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {

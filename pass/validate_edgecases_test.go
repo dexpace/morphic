@@ -34,9 +34,9 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
 }
 
-// TestValidate_DanglingRefsAcrossContainerKinds drives every container TypeDef
-// walker branch (Scalar base/encoding, List elem, MapT key+value, Tuple elems)
-// with a dangling target so each visit fires.
+// TestValidate_DanglingRefsAcrossContainerKinds gives every reference a
+// container TypeDef carries (Scalar base/encoding, List elem, MapT key+value,
+// Tuple elems and rest) a dangling target, so each must be reported once.
 func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -58,10 +58,11 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	doc.Types["t/tuple"] = &ir.Tuple{
 		ID:    "t/tuple",
 		Elems: []ir.TypeRef{{Target: "t/ghost-e0"}},
+		Rest:  &ir.TypeRef{Target: "t/ghost-rest"},
 	}
 	diags := pass.Validate(doc)
 	// Each dangling target above yields exactly one dangling-type-ref diagnostic.
-	assert.Equal(t, 7, countCode(t, diags, "ir/dangling-type-ref"))
+	assert.Equal(t, 8, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_ModelImplementsAndAdditionalPropsWalked covers a model's

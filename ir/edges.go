@@ -83,6 +83,7 @@ func (w *edgeWalk) def(td TypeDef) {
 		w.ref(&t.Value)
 	case *Tuple:
 		w.refs(t.Elems)
+		w.ref(t.Rest)
 	case *Literal:
 		w.value(&t.Value, 0)
 	default:

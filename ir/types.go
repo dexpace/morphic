@@ -340,12 +340,20 @@ type MapT struct {
 	Value TypeRef `json:"value"`
 }
 
-// Tuple is a positional, fixed-arity sequence (prefixItems, TypeSpec tuples,
-// Erlang tuples) (ir-design §4.6).
+// Tuple is a positional sequence: a type for each leading position, then the
+// type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
+// tuples) (ir-design §4.6). Elems types positions without requiring them: how
+// many elements an instance must hold is Constraints.MinItems, so a tuple of
+// fixed length sets it to len(Elems) and has no Rest.
 type Tuple struct {
 	TypeCommon
 	// Elems are the element types in position order.
 	Elems []TypeRef `json:"elems,omitempty"`
+	// Rest types every element past Elems; nil = no element may follow them.
+	Rest *TypeRef `json:"rest,omitzero"`
+	// Constraints bounds the whole instance, Elems and Rest together
+	// (minItems/maxItems/uniqueItems).
+	Constraints *Constraints `json:"constraints,omitzero"`
 }
 
 // Literal is a single constant value used as a type (const, single-value enum,

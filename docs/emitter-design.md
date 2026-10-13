@@ -551,7 +551,7 @@ snapshot pins the whole lowering deterministically.
 | Step | Reads (un-lowered IR fact) | Lowers to (Go example) | IR ref |
 |---|---|---|---|
 | `ResolveScalarChains` | `Scalar.Base` chain, `Constraints`, `Encoding` | nearest representable base + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
-| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct; non-string map key → custom-key map or diagnostic | §4.6 |
+| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; non-string map key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
@@ -732,7 +732,9 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists keep their bounds; `List.Encoding` (packed/expanded) reaches
-  the serializer; non-string map keys are handled or diagnosed; tuples become fixed-arity structs.
+  the serializer; non-string map keys are handled or diagnosed; tuples become positional structs
+  whose positions past `Constraints.MinItems` are optional and whose `Rest`, when present, is a
+  trailing slice.
 - **Scalars**: `ResolveScalarChains` walks `Base` transitively, accumulating
   `Constraints`/`Encoding`; nil-base scalars (GraphQL custom) go to the opaque-scalar strategy
   (a Go newtype), never a fabricated chain.
@@ -1170,7 +1172,7 @@ degrade; a missing row is an IR bug (INV9), not a compiler change.
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | pattern channel |
 | `Union` (4 tag modes) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | `WireName`/`WireID` per variant |
 | `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/struct; `List.Encoding`→serializer mode | packed/expanded |
+| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | — |
 | `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | — |
 | `Any` | `any` (distinct from a diagnosed unknown) | — |

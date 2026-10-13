@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.10.0",
+  "irVersion": "0.11.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -326,16 +326,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:maxItems": {
-          "reason": "degraded_lowering",
-          "value": 2,
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/ItemsBoundOnTuple/maxItems"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/ItemsBoundOnTuple"
@@ -345,7 +335,15 @@
           "target": "t/prim/string",
           "nullable": false
         }
-      ]
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 2,
+        "uniqueItems": false
+      }
     },
     "t/openapi/components/schemas/ObjectWithItems": {
       "kind": "model",
@@ -1192,22 +1190,13 @@
         "source": 0,
         "pointer": "/components/schemas/ItemsBoundOnObject"
       }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"tuple\", which has no home for maxItems declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/ItemsBoundOnTuple"
-      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "917a0e0a8513e512369d8994c12852b2ee27026035f81297fcec9e0dad7793ac"
+      "hash": "da88532835f0bcaa41f444259d4ef6bdcf295f20078b9f689af53669c5033ead"
     }
   ]
 }
