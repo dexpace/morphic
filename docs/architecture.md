@@ -138,11 +138,13 @@ produced a document, errors reported or not, and threads each pass's output into
 returns, so a transform that builds a fresh document cannot lose any. Those findings index
 `Document.Sources`, as the IR's own provenance does, so a pass may append to that table but never
 move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
-naming it. A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name
-no pass carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no
-defect in the spec. Turning a pass *on* by name is the other half of that option, and it lands with
-the first pass that is off by default, as the convenience simplifications of reference-learnings.md
-§B0 are to be.
+naming it. A finding's `Provenance.Node` is spelled against the document its pass was handed, which
+a later transform may rearrange, so an analysis belongs after the transforms whose output it judges.
+
+A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
+carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
+spec. Turning a pass *on* by name is the other half of that option, and it lands with the first pass
+that is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be.
 
 Built, and in the default list:
 
