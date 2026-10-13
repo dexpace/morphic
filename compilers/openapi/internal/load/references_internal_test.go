@@ -722,8 +722,8 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
-			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s\nthe library's resolution reported %d failure(s) and: %v",
-				path, d, len(failures), resolveErr)
+			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s\n"+
+				"the library's resolution returned %d failure(s), error: %v", path, d, len(failures), resolveErr)
 		}
 	}
 	assert.GreaterOrEqual(t, checked, 10,
