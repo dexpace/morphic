@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -37,22 +38,50 @@ type Const struct {
 // directory, without its test files. A pattern matching no package or several,
 // or a package that does not type-check, is an error.
 func Load(pattern string) (*Package, error) {
-	loaded, err := packages.Load(&packages.Config{Mode: loadMode}, pattern)
+	pkgs, err := LoadAll(pattern)
 	if err != nil {
-		return nil, fmt.Errorf("load %s: %w", pattern, err)
+		return nil, err
 	}
-	if len(loaded) != 1 {
-		return nil, fmt.Errorf("load %s: matched %d packages, want 1", pattern, len(loaded))
+	if len(pkgs) != 1 {
+		return nil, fmt.Errorf("load %s: matched %d packages, want 1", pattern, len(pkgs))
 	}
-	p := loaded[0]
-	if len(p.Errors) > 0 {
-		errs := make([]error, len(p.Errors))
-		for i, e := range p.Errors {
-			errs[i] = e
+	return pkgs[0], nil
+}
+
+// LoadAll type-checks every package the patterns name, together, without their
+// test files, and returns them sorted by import path.
+//
+// Together is the point: a type one of them declares is identical to the type
+// another sees through its import, which two Load calls cannot give, since each
+// builds a universe of its own. A pattern matching no package, or a package
+// that does not type-check, is an error.
+func LoadAll(patterns ...string) ([]*Package, error) {
+	if len(patterns) == 0 {
+		return nil, errors.New("load: no pattern")
+	}
+	what := strings.Join(patterns, " ")
+
+	loaded, err := packages.Load(&packages.Config{Mode: loadMode}, patterns...)
+	if err != nil {
+		return nil, fmt.Errorf("load %s: %w", what, err)
+	}
+	if len(loaded) == 0 {
+		return nil, fmt.Errorf("load %s: matched no packages", what)
+	}
+
+	var errs []error
+	out := make([]*Package, 0, len(loaded))
+	for _, p := range loaded {
+		for _, e := range p.Errors {
+			errs = append(errs, e)
 		}
-		return nil, fmt.Errorf("load %s: %w", pattern, errors.Join(errs...))
+		out = append(out, &Package{Types: p.Types, Info: p.TypesInfo, Syntax: p.Syntax, Fset: p.Fset})
 	}
-	return &Package{Types: p.Types, Info: p.TypesInfo, Syntax: p.Syntax, Fset: p.Fset}, nil
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("load %s: %w", what, errors.Join(errs...))
+	}
+	slices.SortFunc(out, func(a, b *Package) int { return cmp.Compare(a.Types.Path(), b.Types.Path()) })
+	return out, nil
 }
 
 // Named returns the named type the package declares as name, through an alias
@@ -70,8 +99,9 @@ func (p *Package) Named(name string) (*types.Named, error) {
 }
 
 // StringConsts returns the package-level constants of the named type typeName,
-// in declaration order. It fails if the package declares no such type, or if
-// one of its constants is not a string.
+// in declaration order: file by file in name order, each in source order. It
+// fails if the package declares no such type, or if one of its constants is not
+// a string.
 func (p *Package) StringConsts(typeName string) ([]Const, error) {
 	named, err := p.Named(typeName)
 	if err != nil {
@@ -89,13 +119,22 @@ func (p *Package) StringConsts(typeName string) ([]Const, error) {
 		}
 		found = append(found, c)
 	}
-	slices.SortFunc(found, func(a, b *types.Const) int { return cmp.Compare(a.Pos(), b.Pos()) })
+	slices.SortFunc(found, p.declarationOrder)
 
 	out := make([]Const, len(found))
 	for i, c := range found {
 		out[i] = Const{Name: c.Name(), Value: constant.StringVal(c.Val())}
 	}
 	return out, nil
+}
+
+// declarationOrder compares two constants by where the package declares them: by
+// file name, then by offset in the file. A token.Pos would not do, because the
+// loader parses files concurrently and a position orders files by whichever
+// finished parsing first.
+func (p *Package) declarationOrder(a, b *types.Const) int {
+	pa, pb := p.Fset.Position(a.Pos()), p.Fset.Position(b.Pos())
+	return cmp.Or(cmp.Compare(pa.Filename, pb.Filename), cmp.Compare(pa.Offset, pb.Offset))
 }
 
 // TypesDeclaring returns, sorted, the names of the package's types that
