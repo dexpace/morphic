@@ -800,7 +800,8 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 	// `type` on anything at all.
 	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
 	nodes := []ir.TypeDef{
-		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{}, &ir.Union{},
+		&ir.Model{}, &ir.List{}, &ir.Tuple{}, &ir.Literal{}, &ir.Enum{},
+		&ir.Union{Discriminator: &ir.Discriminator{}},
 		&ir.Scalar{Encoding: &ir.Encoding{}}, &ir.Primitive{},
 	}
 	require.NotEmpty(t, censusKeywords, "an empty census would make this pass vacuously")
@@ -810,5 +811,34 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 			homed = homed || keywordHome(td, s, keyword)
 		}
 		assert.True(t, homed, "%q is in the census with no node kind that carries it", keyword)
+	}
+}
+
+// TestDiscriminatorHome_AsksWhetherTheFieldWasFilled pins what homes a
+// discriminator: a Model or Union whose lowering filled the field. Having the
+// field is not enough, since the Union a mixed-type enum lowers to holds none,
+// and no other kind, nor the nil td of a position lowered to a reference, has
+// the field at all.
+func TestDiscriminatorHome_AsksWhetherTheFieldWasFilled(t *testing.T) {
+	t.Parallel()
+	filled := &ir.Discriminator{PropertyName: "kind"}
+	cases := []struct {
+		name string
+		td   ir.TypeDef
+		want bool
+	}{
+		{"model holding one", &ir.Model{Discriminator: filled}, true},
+		{"union holding one", &ir.Union{Discriminator: filled}, true},
+		{"model holding none", &ir.Model{}, false},
+		{"union holding none", &ir.Union{}, false},
+		{"scalar", &ir.Scalar{}, false},
+		{"enum", &ir.Enum{}, false},
+		{"reference", nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, c.want, keywordHome(c.td, &oas3.Schema{}, "discriminator"))
+		})
 	}
 }

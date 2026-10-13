@@ -200,10 +200,16 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 // leading $ref.
 func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
-	// No census verdict: a body's census ran inside lower(), against the node the
-	// walk actually built, which is the only thing that can answer it.
-	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home, false)
-	return ref, append(diags, homeDiags...)
+	// A body's census ran inside lower(), against the node the walk actually
+	// built, which is the only thing that can answer it. A collapsed union built
+	// none, so it takes a $ref site's census, and its verdict homes an alias.
+	unhomed := collapsedUnhomedKeywords(schema)
+	ref, homeDiags := homeDeclaration(c, ts, anchors, schema, target, pointer, hint, home, len(unhomed) > 0)
+	diags = append(diags, homeDiags...)
+	if home != annotation.HomeOwnNode {
+		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
+	}
+	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, schema, unhomed, collapsedShape, pointer)...)
 }
 
 // hoistDeclarationHome gives a declaration a node of its own when its lowering
@@ -217,7 +223,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // body's target would make annotations depend on declaration order (ir-design
 // §4.3).
 //
-// unhomed is the caller's census verdict for a $ref site's keywords, which
+// unhomed is the census verdict of a $ref site or a collapsed union, which
 // declaresPositionScoped cannot judge.
 func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, hint string, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil {
@@ -399,7 +405,8 @@ func declaresShape(s *oas3.Schema) bool {
 // co-declares oneOf/anyOf and keeps the union verbatim beside it, so neither the
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; classifyUnionSiblings
-// picks both.
+// picks both. A discriminator the body's model holds is settled once every node
+// is interned (deferDiscriminatorBesideUnion).
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, anchors, depth, s, pointer, hint)
 	owner := inner
@@ -411,6 +418,7 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 		owner, aliasDiags = internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner})
 		diags = append(diags, aliasDiags...)
 	}
+	deferDiscriminatorBesideUnion(c, ts, owner, s, pointer)
 	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
 }
 
@@ -626,7 +634,9 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 		// this same schema, so an applicator with no home in one variant has one
 		// in another: `{type: [string, object], properties: {...}}` puts the
 		// property set on the object variant. The homes here are the variants',
-		// not the Union's, so the applicator check does not apply.
+		// not the Union's, so the applicator check does not apply. A keyword no
+		// declared type's variant holds, such as a discriminator with no object
+		// variant, is dropped (GitHub #852).
 		return lowerUnion(c, ts, anchors, depth, s, pointer, hint, types)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, anchors, depth, s, pointer, hint, types[0]))
@@ -636,21 +646,21 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 }
 
 // censusKeywords are the keywords whose IR home depends on what the position
-// lowered to: a Model carries properties, a List an element type and the
-// collection bounds, a Literal a value, an Enum a member set. keywordHome asks
-// the built node which a position kept.
+// lowered to: a Model carries properties, a List an element type and
+// collection bounds, a Literal a value, an Enum a member set, a Model or Union
+// a discriminator. keywordHome asks the built node which a position kept.
 //
-// Annotations, validation-only keywords, content vocabulary, use-site keywords
-// and value constraints have their own keepers.
+// Annotations, validation-only and use-site keywords, content vocabulary and
+// value constraints have their own keepers.
 //
-// The list and keywordHome's switch must name the same set. A keyword listed
-// without an arm is reported homeless and preserved everywhere, noisy but
-// lossless; one in neither is dropped in silence (GitHub #268, #283).
+// The list and keywordHome's switch must agree. A keyword listed without an
+// arm is homeless and preserved everywhere, noisy but lossless; one in neither
+// is dropped in silence (GitHub #268, #283).
 // oneOf/anyOf/allOf stay out; see refSiteUnhomedKeywords (GitHub #406).
 var censusKeywords = []string{
-	"additionalProperties", "const", "enum", "format", "items", "maxItems",
-	"minItems", "patternProperties", "prefixItems", "properties", "required",
-	"type", "uniqueItems",
+	"additionalProperties", "const", "discriminator", "enum", "format", "items",
+	"maxItems", "minItems", "patternProperties", "prefixItems", "properties",
+	"required", "type", "uniqueItems",
 }
 
 // keywordHome reports whether td, the node this position's own declaration
@@ -658,11 +668,12 @@ var censusKeywords = []string{
 // rather than re-deriving lower()'s dispatch, so the two cannot drift apart
 // (see recordUnplacedContent).
 //
-// A nil td is a $ref site, whose declaration becomes an alias over the target.
-// The alias carries only the position's constraints and annotations, and the
-// target's fields belong to the referent's declaration, so a `format` beside a
-// $ref must not read the referent's Encoding as its home. So every keyword is
-// homeless at a $ref site except a null-only `type`.
+// A nil td is a position lowered to a reference: a $ref site, or a collapsed
+// union (collapsedUnhomedKeywords). Its alias carries only the position's
+// constraints and annotations, and the target's fields belong to the
+// referent's declaration, so a `format` beside a $ref must not read the
+// referent's Encoding as its home. So every keyword is homeless there except
+// a null-only `type`.
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties", "required":
@@ -696,6 +707,24 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		return formatHome(td, s)
 	case "type":
 		return typeHome(td, s)
+	case "discriminator":
+		return discriminatorHome(td)
+	default:
+		return false
+	}
+}
+
+// discriminatorHome reports whether td holds the discriminator its position
+// declared. Only a Model and a Union have the field, and having it is not
+// filling it: the Union a mixed-type enum lowers to carries none. One kept for
+// want of a home keeps its extensions a second time, under
+// openapi:discriminator/x-* (GitHub #849).
+func discriminatorHome(td ir.TypeDef) bool {
+	switch n := td.(type) {
+	case *ir.Model:
+		return n.Discriminator != nil
+	case *ir.Union:
+		return n.Discriminator != nil
 	default:
 		return false
 	}
@@ -745,7 +774,7 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 // exactly that type set. A Literal carries only its value, so a `type` written
 // beside a const reached no field at all — including the case where the two
 // agree, since the IR then holds the value and nothing about what was declared
-// about it. Any, External and the $ref site's nil carry no shape.
+// about it. Any, External and keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model:
@@ -831,6 +860,29 @@ func refSiteUnhomedKeywords(s *oas3.Schema, handled []string) []string {
 		unhomed = append(unhomed, "allOf")
 	}
 	return unhomed
+}
+
+// collapsedShape describes what a collapsed union lowers to, for the diagnostic
+// recordUnhomedAt reports.
+const collapsedShape = "a nullable reference to its one non-null branch"
+
+// collapsedUnhomedKeywords returns the census keywords s writes when its
+// oneOf/anyOf collapses to a nullable reference (lowerOneOfAnyOf), or nil when
+// it does not. Every one is homeless: the position lowers to a reference to its
+// branch's node, which belongs to the branch, as a $ref site's target belongs
+// to the referent (keywordHome's nil td). The census keywords such a schema can
+// write are the few neither declaresShape nor narrowsInstance counts, the
+// discriminator among them (GitHub #595). lowerSchemaBody's other outcomes
+// that skip lower(), a Union and an expanded $dynamicRef, run no census yet
+// (GitHub #848).
+func collapsedUnhomedKeywords(s *oas3.Schema) []string {
+	if hasUnionSiblings(s) {
+		return nil
+	}
+	if _, _, _, collapses := nullUnionCollapse(s, ""); !collapses {
+		return nil
+	}
+	return unhomedKeywords(s, nil, nil)
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value

@@ -100,8 +100,9 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
-// $ref position declared that the alias it resolves to cannot hold. It is
-// refSiteRef's other half: the same census, recorded where an
+// $ref position declared that the alias it resolves to cannot hold, and those a
+// collapsed union declared, which resolves to a reference the same way. It is
+// refSiteRef's and schemaBody's other half: the same census, recorded where an
 // annotation.HomeCarrier position keeps everything else its schema declared —
 // oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
 // (GitHub #406).
@@ -115,8 +116,12 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
 	s := js.GetSchema()
-	if s == nil || !resolve.IsRefSite(js, s) || LoweredToOwnNode(ts, pointer, t) {
+	if s == nil || LoweredToOwnNode(ts, pointer, t) {
 		return nil
+	}
+	if !resolve.IsRefSite(js, s) {
+		// A collapsed union lowers to a reference just as a $ref site does.
+		return recordUnhomedAt(c, p, s, collapsedUnhomedKeywords(s), collapsedShape, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {

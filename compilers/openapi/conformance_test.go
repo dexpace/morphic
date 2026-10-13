@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/pass"
 )
 
 // conformanceDir is the corpus of one minimal spec per capability row of
@@ -163,6 +164,8 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
+		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel, []string{"tagged-unions", "inheritance"}},
+		{"nullable-union-discriminator", assertNullableUnionDiscriminator, []string{"tagged-unions", "optionality-vs-nullability"}},
 		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"union-beside-ref", assertUnionBesideRef, []string{"untagged-unions"}},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
@@ -1018,6 +1021,59 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"defaultMapping names the variant an unrecognized tag falls back to")
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"],
 		"and it is read separately from the mapping")
+}
+
+// assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
+// union is kept verbatim beside a model. Pet's and Animal's routes are not
+// subtypes of them, so pass.Validate would reject the discriminator on the
+// model; it moves whole to Unmodeled beside the union. Vehicle's object
+// variant holds one the same way. Shape's routes are true allOf subtypes, so
+// the model keeps it, and the document validates clean.
+func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, pass.Validate(doc))
+
+	for _, name := range []string{"Pet", "Animal"} {
+		m, ok := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, ok, name)
+		assert.Nil(t, m.Discriminator, "%s routes to a non-subtype, so the model does not carry it", name)
+		entry, ok := m.Unmodeled["openapi:discriminator"]
+		require.True(t, ok, "%s keeps it verbatim instead", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.Contains(t, m.Unmodeled, "openapi:oneOf", "beside the union it routes through")
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
+	}
+	_, isUnion := doc.Types[namedID("Bird")].(*ir.Union)
+	assert.True(t, isUnion, "Bird writes allOf to Animal but lowers to a union, which is no subtype")
+
+	vehicle, ok := doc.Types[namedID("Vehicle")].(*ir.Union)
+	require.True(t, ok, "a multi-typed body lowers to a union")
+	assert.Contains(t, vehicle.Unmodeled, "openapi:discriminator", "kept beside the union it was written for")
+	variant, ok := doc.Types["t/anon/components/schemas/Vehicle/type/0"].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, variant.Discriminator, "the object variant does not carry it")
+
+	shape, ok := doc.Types[namedID("Shape")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, shape.Discriminator, "every target is a subtype, so it stays")
+	assert.Equal(t, namedID("Circle"), shape.Discriminator.Mapping["circle"])
+	assert.NotContains(t, shape.Unmodeled, "openapi:discriminator")
+}
+
+// assertNullableUnionDiscriminator pins that a discriminator beside a oneOf or
+// anyOf that collapses to nullable X is kept verbatim, with a diagnostic,
+// where the collapse leaves no node with a field for it.
+func assertNullableUnionDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	maybe, ok := doc.Types[namedID("MaybeCat")].(*ir.Scalar)
+	require.True(t, ok, "the component is an alias over the nullable reference")
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, *maybe.Base)
+	assert.Contains(t, maybe.Unmodeled, "openapi:discriminator")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/MaybeCat"))
+
+	owner, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, owner.Properties, 1)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, owner.Properties[0].Type)
+	assert.Contains(t, owner.Properties[0].Unmodeled, "openapi:discriminator", "the property carries it")
 }
 
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
