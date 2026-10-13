@@ -29,8 +29,8 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the compiler, then the passes (`validate · link · dedup · filter ·
-version-slice · overlay`), then — **once per document** — the shared plan, and finally each
+The engine (Layer 3) runs the compiler, then the passes (`link · dedup · filter · version-slice ·
+overlay · validate`), then — **once per document** — the shared plan, and finally each
 requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
 (INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
 from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,

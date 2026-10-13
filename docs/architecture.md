@@ -15,9 +15,10 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
  AsyncAPI                          │
  Protobuf                          ▼
  Erlang/OTP
-                        ┌── IR passes (IR → IR) ──┐
-                        │  validate · link · dedup │
-                        │  filter · version-slice  │
+                        ┌── IR passes (IR → IR) ───┐
+                        │  link · dedup · filter   │
+                        │  version-slice · overlay │
+                        │  validate                │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -122,31 +123,43 @@ all eight from day one.
 
 ### 2.2 IR passes (IR → IR)
 
-Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()`
-and a `Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A
-transform returns a new document, which may share whatever it left unchanged; an analysis such as
-`validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
-emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the
-document is a diagnostic, and anything else is a bug in the pass. A pass that takes settings, as
-`filter`, `version-slice` and `overlay` will, holds them on its own value, so `Run` keeps one
-signature for every pass; how a caller supplies them is decided with the first of them.
+Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
+`Run(*ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A transform
+returns a new document, which may share whatever it left unchanged; an analysis such as `validate`
+returns its input beside its diagnostics. `Run` has no error result, for the reason an emitter's
+`Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document is a
+diagnostic, and anything else is a bug in the pass. It takes no context either: a pass works on a
+document already in memory, and the engine checks for cancellation before each one.
 
-The order is written once, in the `engine` package's default list, not in `pass/`: composing passes
-is orchestration, which only the engine does. The engine runs the list after any compile that
-produced a document, errors reported or not, and threads each pass's output into the next. It owns
-`Document.Diagnostics`, writing the compiler's findings and every pass's onto the document it
-returns, so a transform that builds a fresh document cannot lose any. Those findings index
-`Document.Sources`, as the IR's own provenance does, so a pass may append to that table but never
-move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
-naming it. A finding's `Provenance.Node` is spelled against the document its pass was handed, and in
-the order emitter-design.md §2 gives, `validate` runs before every transform: one that moves what a
-`validate` path names leaves that finding describing the compiled document, not the returned one.
-The first such transform decides whether `validate` keeps to stable IDs or also runs after it.
+A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
+value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
+`RunOptions`, and the CLI through flags of the pass's own, both added with the pass, and supplying
+them is what turns the pass on. The compilers' textual option map is the wrong model here: it serves
+a set of formats the engine knows nothing about, while the passes are a closed set the engine
+composes, so each setting can be typed, checked and documented where it is declared.
+
+The order lives in the `engine` package's default list, not in `pass/`: composing passes is
+orchestration, which only the engine does. The engine runs the list after any compile that produced
+a document, errors reported or not, and threads each pass's output into the next. An analysis that
+judges the document runs after every transform, so `validate` comes last. It then checks what the
+run returns, every transform's output included, and its findings, whose `Provenance.Node` is spelled
+against the document it was handed, locate in that document. Running it first would give the
+transforms no guarantee, since a caller can turn it off: each pass must cope with a document that
+fails it whatever the order.
+
+The engine owns `Document.Diagnostics`, writing the compiler's findings and every pass's onto the
+document it returns, so a transform that builds a fresh document cannot lose any. Those findings
+index `Document.Sources`, as the IR's own provenance does, so a pass may append to that table but
+never move or drop an entry. A pass that does, or returns no document, fails the run with a Go error
+naming it.
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
-spec. Turning a pass *on* by name is the other half of that option, and it lands with the first pass
-that is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be.
+spec. A pass whose output a consumer relies on, such as one filling `TypeCommon.Usage` (ir-design.md
+§16, question 4), is not a caller's to turn off: from the first such pass, the engine refuses its
+name as it refuses an unknown one. Turning a pass *on* by name is for one that has no settings and
+is off by default, as the convenience simplifications of reference-learnings.md §B0 are to be, and
+it lands with the first of them.
 
 Built, and in the default list:
 
