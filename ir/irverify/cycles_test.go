@@ -38,7 +38,8 @@ func listValue(l []ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List
 
 // cyclePaths returns where Verify reports ir/cyclic-structure, and requires that
 // it reports nothing else: a fixture built for one defect that draws another has
-// stopped testing what its name says.
+// stopped testing what its name says. Nothing else includes ir/walk-truncated,
+// which is all an unguarded walk reports for a list that holds itself (#736).
 func cyclePaths(t *testing.T, doc *ir.Document) []string {
 	t.Helper()
 	got := verifyDeclared(doc)
@@ -201,19 +202,6 @@ func TestVerify_CyclicStructureNamesWhereItWasEntered(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Contains(t, got[0].Message, "*ir.CtorValue")
 	assert.Contains(t, got[0].Message, strconv.Quote("doc.Types[t/x/M].Examples[0].Value.Ctor"))
-}
-
-// TestVerify_CyclicStructureIsNotATruncation holds the other half of #736's
-// report. Without the guard a self-containing list runs the walk to its depth
-// cap, and the only finding is that the document nested too deep, which is true
-// of the walk and says nothing of the defect.
-func TestVerify_CyclicStructureIsNotATruncation(t *testing.T) {
-	t.Parallel()
-	for _, c := range cyclicDocs {
-		for _, v := range verifyDeclared(c.doc()) {
-			assert.NotEqual(t, "ir/walk-truncated", v.Code, c.name)
-		}
-	}
 }
 
 // sharedDocs are documents that hold a reference in two places without either
