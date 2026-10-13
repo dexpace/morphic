@@ -4,7 +4,6 @@
 package openapi_test // external test package — the check reads declarations, not behaviour
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -133,8 +132,8 @@ func (sw valueKindSwitch) assertNamesEvery(t *testing.T, declared []decls.Const)
 }
 
 // valueKindSwitches returns every switch in the compiler's tree whose tag is an
-// ir.ValueKind, ordered by position. Test files are not the compiler, and the
-// loader reads none.
+// ir.ValueKind, by package, file and source order. Test files are not the
+// compiler, and the loader reads none.
 func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
 	t.Helper()
 	var out []valueKindSwitch
@@ -149,7 +148,6 @@ func valueKindSwitches(t *testing.T, valueKind *types.Named) []valueKindSwitch {
 			}
 		}
 	}
-	slices.SortFunc(out, func(a, b valueKindSwitch) int { return cmp.Compare(a.at, b.at) })
 	return out
 }
 

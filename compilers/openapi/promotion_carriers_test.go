@@ -147,7 +147,7 @@ func deprecationCarrierTypes(t *testing.T) []reflect.Type {
 	}
 
 	walk(reflect.TypeFor[ir.Document](), 0)
-	for _, kind := range irTypeKinds(t) {
+	for _, kind := range sealedTypeKinds(t) {
 		td, ok := ir.NewTypeDef(kind)
 		require.True(t, ok, "no concrete type is registered for kind %q", kind)
 		rt := reflect.TypeOf(td)
@@ -156,25 +156,4 @@ func deprecationCarrierTypes(t *testing.T) []reflect.Type {
 	}
 	slices.SortFunc(found, func(a, b reflect.Type) int { return strings.Compare(a.Name(), b.Name()) })
 	return found
-}
-
-// irTypeKinds returns every TypeKind constant the ir sources declare, read
-// type-checked so that the list cannot go stale. The count is held to the types
-// declaring the typeDef() marker that seals the sum: a walk seeded from the kinds
-// skips a variant that has none, in silence.
-func irTypeKinds(t *testing.T) []ir.TypeKind {
-	t.Helper()
-	kinds := sealedTypeKinds(t)
-	require.Len(t, kinds, irTypeDefImpls(t), "the sum holds one concrete type per kind, so a "+
-		"count that disagrees means a variant is sealed without a TypeKind or a kind has no variant")
-	return kinds
-}
-
-// irTypeDefImpls counts the concrete types the ir package seals into the
-// TypeDef sum, by the typeDef() marker each declares itself.
-func irTypeDefImpls(t *testing.T) int {
-	t.Helper()
-	impls := len(irDecls(t).TypesDeclaring("typeDef"))
-	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
-	return impls
 }

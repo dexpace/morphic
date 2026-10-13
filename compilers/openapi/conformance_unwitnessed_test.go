@@ -206,10 +206,17 @@ func corpusSpecs(t *testing.T) []string {
 // sealedTypeKinds returns every ir.TypeKind constant the ir package's production
 // sources declare — the sealed sum's full membership, since ir.TypeDef admits no
 // implementation from outside that package.
+//
+// A walk seeded from the kinds skips a variant that has none, in silence, so
+// their count is held to the types declaring the typeDef() marker that seals
+// the sum.
 func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
 	consts := irConstsOfType(t, "TypeKind")
 	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
+	require.Len(t, consts, len(irDecls(t).TypesDeclaring("typeDef")), "the sum holds one concrete "+
+		"type per kind, so a count that disagrees means a variant is sealed without a TypeKind or a "+
+		"kind has no variant")
 	out := make([]ir.TypeKind, 0, len(consts))
 	for _, c := range consts {
 		out = append(out, ir.TypeKind(c.Value))
