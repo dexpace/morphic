@@ -144,6 +144,10 @@ methods (`internal/archtest`), and no function may exceed 70 lines or a cognitiv
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
 
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
+`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
+as the finding it excuses, with its reason beside it.
+
 ## Testing strategy
 
 These all exist already — extend them rather than building a parallel mechanism:

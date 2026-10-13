@@ -39,12 +39,12 @@ linters:
         # call to that package below it. compilers/openapi had one live instance.
         - name: import-shadowing
   exclusions:
-    # A suppression is a rule here, with its reason beside it, and never a //nolint
-    # comment: `make nolint` refuses those. A directive naming a linter this file
-    # leaves off is read by nothing, so it would stand in the source as a live
-    # constraint while suppressing nothing, and the tree would stay green. A rule
-    # that no longer matches anything is not reported either, so each one names
-    # the single path and message it is for, and goes when that code does.
+    # A suppression is a rule here, with its reason beside it, and never a comment
+    # in the source: internal/archtest refuses those. Keep each rule as narrow as
+    # the finding it excuses, which is a path and, where the linter says more than
+    # one thing there, the message; delete it with the code it excuses.
+    # golangci-lint warns about a rule that skipped nothing but does not fail on it.
+    warn-unused: true
     rules:
       # A table-driven test is long because its table is long, and the table is
       # data. Splitting one to satisfy a size cap moves cases away from the
