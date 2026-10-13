@@ -1,9 +1,7 @@
 package irverify
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"go/types"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// idClassNames names idTypes' identity classes by their Go type name, so an
-// AST walk over field declarations can compare against the same set
+// idClassNames names idTypes' identity classes by their Go type name, so the
+// type-checked ir declarations can be compared against the same set
 // checkEmptyRefs classifies by reflect.Type.
 func idClassNames() map[string]bool {
 	names := make(map[string]bool, len(idTypes))
@@ -25,104 +23,63 @@ func idClassNames() map[string]bool {
 	return names
 }
 
-// followDecls follows expr through decls until it reaches a shape other than
-// an identifier: a pointer, slice, map, struct, or a name decls does not
-// declare (a builtin, or a type from outside the ir package). An identifier
-// naming one of classes also stops the walk: idTypes compares a reflect.Type by
-// identity, so resolving "TypeID" to "string" would defeat the check this
-// mirrors.
-//
-// depth bounds the walk, as in mentionsInteger: Go forbids a cycle among type
-// declarations except through a pointer, slice or map, so exceeding it means
-// the parse went wrong.
-func followDecls(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, expr ast.Expr, depth int) ast.Expr {
+// idClassTypes resolves idClassNames to the types the ir package declares. A
+// class is compared by identity, as idTypes compares a reflect.Type: resolving
+// TypeID to string would defeat the check this mirrors.
+func idClassTypes(t *testing.T) map[*types.TypeName]bool {
 	t.Helper()
-	require.Less(t, depth, maxTypeChain, "resolving a field type exceeded %d steps", maxTypeChain)
-	ident, isIdent := expr.(*ast.Ident)
-	if !isIdent || classes[ident.Name] {
-		return expr
+	p := irDecls(t)
+	classes := map[*types.TypeName]bool{}
+	for name := range idClassNames() {
+		named, err := p.Named(name)
+		require.NoError(t, err, "idTypes names %s, which the ir package must declare", name)
+		classes[named.Obj()] = true
 	}
-	declared, isDeclared := decls[ident.Name]
-	if !isDeclared {
-		return expr
-	}
-	return followDecls(t, decls, classes, declared, depth+1)
+	return classes
 }
 
-// isIDClassIdent reports whether expr, once resolved, names one of classes
-// directly — the check applied to what a pointer, slice element, map key or
-// map value resolves to, after unwrapping exactly one level (see
-// mentionsIDClass).
-func isIDClassIdent(classes map[string]bool, expr ast.Expr) bool {
-	ident, isIdent := expr.(*ast.Ident)
-	return isIdent && classes[ident.Name]
+// isIDClass reports whether typ is one of classes. A defined type over a class
+// is a type of its own, as it is to reflection, and is not one.
+func isIDClass(classes map[*types.TypeName]bool, typ types.Type) bool {
+	named, isNamed := types.Unalias(typ).(*types.Named)
+	return isNamed && classes[named.Obj()]
 }
 
-// mentionsIDClass reports whether a field's type expression is, or is a
-// pointer/slice/map (key or value) of, one of classes — the shapes idShapeOf
-// recognizes once reflection has already collapsed a named type to its
-// identity. Only one level of pointer/slice/map is examined, because
-// idShapeOf looks no deeper either: its idTypes[t.Elem()] lookup is a direct
-// map lookup, not a recursive shape check, so a slice of a pointer to an ID
-// class (which nothing in the ir package declares) would not be classified by
-// the production code and must not be demanded here.
+// mentionsIDClass reports whether a field's type is, or is a pointer/slice/map
+// (key or value) of, one of classes: the shapes idShapeOf recognizes. Only one
+// level of pointer/slice/map is examined, because idShapeOf looks no deeper
+// either: its idTypes[t.Elem()] lookup is a direct map lookup, not a recursive
+// shape check, so a slice of a pointer to an ID class (which nothing in the ir
+// package declares) would not be classified by the production code and must not
+// be demanded here. An array is no shape idShapeOf reads, so it is not one here.
 // TestIDPositions_EveryShapeIsOneIdShapeOfReads fails instead if one is ever
 // declared.
-func mentionsIDClass(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, expr ast.Expr, depth int) bool {
-	t.Helper()
-	switch e := followDecls(t, decls, classes, expr, depth).(type) {
-	case *ast.Ident:
-		return classes[e.Name]
-	case *ast.StarExpr:
-		return isIDClassIdent(classes, followDecls(t, decls, classes, e.X, depth+1))
-	case *ast.ArrayType:
-		return isIDClassIdent(classes, followDecls(t, decls, classes, e.Elt, depth+1))
-	case *ast.MapType:
-		return isIDClassIdent(classes, followDecls(t, decls, classes, e.Key, depth+1)) ||
-			isIDClassIdent(classes, followDecls(t, decls, classes, e.Value, depth+1))
+func mentionsIDClass(classes map[*types.TypeName]bool, typ types.Type) bool {
+	if isIDClass(classes, typ) {
+		return true
+	}
+	switch u := typ.Underlying().(type) {
+	case *types.Pointer:
+		return isIDClass(classes, u.Elem())
+	case *types.Slice:
+		return isIDClass(classes, u.Elem())
+	case *types.Map:
+		return isIDClass(classes, u.Key()) || isIDClass(classes, u.Elem())
 	default:
-		return false // a struct, selector, interface, func: no identity of its own
+		return false // a struct, interface, func: no identity of its own
 	}
 }
 
-// declaredIDFields returns "Type.Field" for every struct field in the ir
-// package's production sources whose type is, or is a pointer/slice/map (key
-// or value) of, one of idTypes' identity classes. Modeled on
-// declaredIntegerFields in indices_test.go.
+// declaredIDFields returns "Type.Field" for every struct field in the ir package
+// whose type is, or is a pointer/slice/map (key or value) of, one of idTypes'
+// identity classes. Modeled on declaredIntegerFields in indices_test.go.
 func declaredIDFields(t *testing.T) []string {
 	t.Helper()
-	decls := typeDecls(t)
-	classes := idClassNames()
+	classes := idClassTypes(t)
 	var names []string
-	for _, path := range irSourceFiles(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err)
-		for node := range ast.Preorder(f) {
-			ts, ok := node.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-			names = append(names, idFieldsDeclaredOn(t, decls, classes, ts)...)
-		}
-	}
-	return names
-}
-
-// idFieldsDeclaredOn returns the identity-bearing fields of one struct
-// declaration.
-func idFieldsDeclaredOn(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, ts *ast.TypeSpec) []string {
-	t.Helper()
-	st, ok := ts.Type.(*ast.StructType)
-	if !ok {
-		return nil
-	}
-	var names []string
-	for _, field := range st.Fields.List {
-		if !mentionsIDClass(t, decls, classes, field.Type, 0) {
-			continue
-		}
-		for _, name := range field.Names {
-			names = append(names, ts.Name.Name+"."+name.Name)
+	for _, f := range declaredFields(t) {
+		if mentionsIDClass(classes, f.field.Type()) {
+			names = append(names, f.key())
 		}
 	}
 	return names
@@ -156,66 +113,49 @@ func TestIDPositions_AreAllClassified(t *testing.T) {
 // never checked.
 func TestIDPositions_EveryShapeIsOneIdShapeOfReads(t *testing.T) {
 	t.Parallel()
-	decls := typeDecls(t)
-	classes := idClassNames()
-	for _, path := range irSourceFiles(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err)
-		for node := range ast.Preorder(f) {
-			ts, ok := node.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-			st, isStruct := ts.Type.(*ast.StructType)
-			if !isStruct {
-				continue
-			}
-			for _, field := range st.Fields.List {
-				if !mentionsIDClassAnywhere(t, decls, classes, field.Type, 0) {
-					continue
-				}
-				for _, name := range field.Names {
-					at := ts.Name.Name + "." + name.Name
-					assert.True(t, mentionsIDClass(t, decls, classes, field.Type, 0),
-						"ir.%s holds an identity nested deeper than idShapeOf reads", at)
-					assert.False(t, identityOnBothSides(t, decls, classes, field.Type),
-						"ir.%s maps an identity to an identity, and idShapeOf reads only the key", at)
-				}
-			}
+	classes := idClassTypes(t)
+	for _, f := range declaredFields(t) {
+		typ := f.field.Type()
+		if !mentionsIDClassAnywhere(t, classes, typ, 0) {
+			continue
 		}
+		assert.True(t, mentionsIDClass(classes, typ),
+			"ir.%s holds an identity nested deeper than idShapeOf reads", f.key())
+		assert.False(t, identityOnBothSides(classes, typ),
+			"ir.%s maps an identity to an identity, and idShapeOf reads only the key", f.key())
 	}
 }
 
 // mentionsIDClassAnywhere reports whether a field's type holds one of classes
 // at any depth: through pointers, slices and arrays, both halves of a map, and
-// the ir package's own declarations, as mentionsInteger does. A struct is not
-// followed, because the ID fields it declares are positions of their own.
-func mentionsIDClassAnywhere(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, expr ast.Expr, depth int) bool {
+// every named type, as mentionsInteger does. A struct is not followed, because
+// the ID fields it declares are positions of their own.
+func mentionsIDClassAnywhere(t *testing.T, classes map[*types.TypeName]bool, typ types.Type, depth int) bool {
 	t.Helper()
 	require.Less(t, depth, maxTypeChain, "resolving a field type exceeded %d steps", maxTypeChain)
-	switch e := followDecls(t, decls, classes, expr, depth).(type) {
-	case *ast.Ident:
-		return classes[e.Name]
-	case *ast.StarExpr:
-		return mentionsIDClassAnywhere(t, decls, classes, e.X, depth+1)
-	case *ast.ArrayType:
-		return mentionsIDClassAnywhere(t, decls, classes, e.Elt, depth+1)
-	case *ast.MapType:
-		return mentionsIDClassAnywhere(t, decls, classes, e.Key, depth+1) ||
-			mentionsIDClassAnywhere(t, decls, classes, e.Value, depth+1)
+	if isIDClass(classes, typ) {
+		return true
+	}
+	switch u := typ.Underlying().(type) {
+	case *types.Pointer:
+		return mentionsIDClassAnywhere(t, classes, u.Elem(), depth+1)
+	case *types.Slice:
+		return mentionsIDClassAnywhere(t, classes, u.Elem(), depth+1)
+	case *types.Array:
+		return mentionsIDClassAnywhere(t, classes, u.Elem(), depth+1)
+	case *types.Map:
+		return mentionsIDClassAnywhere(t, classes, u.Key(), depth+1) ||
+			mentionsIDClassAnywhere(t, classes, u.Elem(), depth+1)
 	default:
 		return false
 	}
 }
 
-// identityOnBothSides reports whether expr is a map whose key and value are
+// identityOnBothSides reports whether typ is a map whose key and value are
 // both one of classes.
-func identityOnBothSides(t *testing.T, decls map[string]ast.Expr, classes map[string]bool, expr ast.Expr) bool {
-	t.Helper()
-	m, isMap := followDecls(t, decls, classes, expr, 0).(*ast.MapType)
-	return isMap &&
-		isIDClassIdent(classes, followDecls(t, decls, classes, m.Key, 1)) &&
-		isIDClassIdent(classes, followDecls(t, decls, classes, m.Value, 1))
+func identityOnBothSides(classes map[*types.TypeName]bool, typ types.Type) bool {
+	m, isMap := typ.Underlying().(*types.Map)
+	return isMap && isIDClass(classes, m.Key()) && isIDClass(classes, m.Elem())
 }
 
 // TestIDTypes_MatchTheIdentityClasses holds idTypes to naming exactly the
