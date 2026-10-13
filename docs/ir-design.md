@@ -70,8 +70,9 @@ type Document struct {
                                        // referenced by identity from operations and replies (AsyncAPI 3)
     Auth        map[AuthID]AuthScheme  // auth scheme registry
     Servers     []Server               // endpoint templates
-    TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag *membership* stays
-                                       // []string on the tagged nodes (OpenAPI/AsyncAPI tag objects)
+    TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag
+                                       // *membership* stays []string on the tagged nodes
+                                       // (OpenAPI/AsyncAPI tag objects)
     Versions    []string               // ordered version labels when availability metadata is used
     Unmodeled   Unmodeled
     Diagnostics []Diagnostic           // accumulated by compiler + passes; not part of API meaning
@@ -83,9 +84,10 @@ type License struct { Name, Identifier, URL string }
 type TagDef  struct {
     Name   string
     Docs   Docs
-    Parent string                 // nested-tag parent (OpenAPI 3.2 tag parent), as declared; "" = top-level
-    Kind   string                 // tag role recorded verbatim (OpenAPI 3.2 tag kind); interpretation is
-                                  // grouping policy (§7.1), never read here
+    Parent string                 // nested-tag parent (OpenAPI 3.2 tag parent), as declared;
+                                  // "" = top-level
+    Kind   string                 // tag role recorded verbatim (OpenAPI 3.2 tag kind);
+                                  // interpretation is grouping policy (§7.1), never read here
 }
 ```
 
@@ -1385,24 +1387,24 @@ OpenAPI compilers build groups from tags (policy-controllable: tag-based vs path
 TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
 (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
 
-**How a tag builds a group.** Two facts decide it, and both are declared rather than inferred.
-The group comes from the operation's first *navigational* tag, not simply its first: OpenAPI 3.2
-gives a tag a `kind`, and the only kind that groups is the registry's navigational value (`nav`),
-with a tag that declares no kind — every 3.0 and 3.1 tag — navigational too. Any other declared
-kind is skipped, whether or not the registry names it; reading a section out of an unregistered
-string would be an inference (invariant 6), and no diagnostic is reported because the document
-loses nothing — `TagDef.Kind` records the kind verbatim and `Operation.Tags` keeps every
-membership. An operation whose every tag is non-navigational falls to the same default group an
-operation with no tags reaches, rather than being filed under a tag that does not group.
+**How a tag builds a group.** Two facts decide it, and both are declared rather than inferred. The
+group comes from the operation's first *navigational* tag, not simply its first: OpenAPI 3.2 gives a
+tag a `kind`, and the only kind that groups is the registry's navigational value (`nav`), with a tag
+that declares no kind — as a 3.0 or 3.1 tag does — navigational too. Any other declared kind is
+skipped, whether or not the registry names it; reading a section out of an unregistered string would
+be an inference (invariant 6), and no diagnostic is reported because the document loses nothing —
+`TagDef.Kind` records the kind verbatim and `Operation.Tags` keeps every membership. An operation
+whose every tag is non-navigational falls to the same default group an operation with no tags
+reaches, rather than being filed under a tag that does not group.
 
-A tag's declared `parent` (3.2) nests its group under the parent's, one level per declared
-ancestor, so `Service.Groups` reads as the section tree the document describes. A parent that is
-not itself a declared navigational tag ends the walk there, and the group stays top-level. Where
-declared parents form a cycle, the tags on it nest under none of one another while a tag declaring
-one of them as its parent still nests under it; the parser's own report of a missing or circular
-parent is left to stand. Group and sibling order stay
-first-seen from the operations, with a missing ancestor created immediately before its first
-descendant, so a document that declares no parents groups exactly as it did before.
+A tag's declared `parent` (3.2) nests its group under the parent's, one level per declared ancestor,
+so `Service.Groups` reads as the section tree the document describes. A parent that is not itself a
+declared navigational tag ends the walk there, and the group stays top-level. Where declared parents
+form a cycle, the tags on it nest under none of one another while a tag declaring one of them as its
+parent still nests under it; the parser's own report of a missing or circular parent is left to
+stand. Group and sibling order stay first-seen from the operations, with a missing ancestor created
+immediately before its first descendant, so a document that declares no parents groups exactly as it
+did before.
 
 ### 7.2 Operation — the protocol-neutral core
 
@@ -1485,9 +1487,10 @@ type Payload struct {
                                   // Response and message payloads leave it nil — only a request
                                   // body can be omitted — and pass/validate reports one set
                                   // anywhere else (ir/payload-required-outside-request)
-    Docs     Docs                 // the body's own documentation, as against any one media type's:
-                                  // an OpenAPI Request Body Object's description, a TypeSpec @doc on
-                                  // a @body parameter. Omitted when empty, unlike a named node's
+    Docs     Docs                 // the body's own documentation, as against any one media
+                                  // type's: an OpenAPI Request Body Object's description, a
+                                  // TypeSpec @doc on a @body parameter. Omitted when empty,
+                                  // unlike a named node's
     Unmodeled  Unmodeled
 }
 
@@ -2151,22 +2154,25 @@ left for a consumer that wants to.
 
 **A dialect's own field the parser does not model.** A source revision may add a field the bundled
 parser's model names no member for; OpenAPI 3.2's `Response.summary`, XML `nodeType`, the nested
-Encoding fields and `components/mediaTypes` are the live set. Such a field is read off the raw node by
-a reader of its own, and the object census is *told* which keys that reader took: the census grades a
-key by the parser's model, so left alone it reports a field the document defines as an undefined key.
-The reader runs only for a dialect that defines the field, so the same key on an older document keeps
-the `openapi/unknown-object-key` warning, where it is a misspelling rather than a field.
+Encoding fields and `components/mediaTypes` are the live set. Such a field is read off the raw node
+by a reader of its own, and the object census is *told* which keys that reader took: the census
+grades a key by the parser's model, so left alone it reports a field the document defines as an
+undefined key. The reader runs only for a dialect that defines the field, so the same key on an
+older document keeps the `openapi/unknown-object-key` warning, where it is a misspelling rather than
+a field.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
-`XMLHints.NodeType` — and is not also kept verbatim, because one declaration gets one structural home
-(§12.1). A value of another shape, or a `nodeType` outside the five the specification defines, is
-kept verbatim at the key and pointer the census itself uses, under `degraded_lowering` and with a
-warning, and the census finds the entry and adds nothing. A key the raw mapping does not present
-directly — merged in through `<<` — is not read at all, so the census's `unknown-key-unreachable`
-still reports it. A reading with no IR home is kept the same way under `ReasonNoIRHome`: the nested
-Encoding fields, and `components/mediaTypes` with any content entry written as a `$ref` into it,
-which this compiler does not follow yet (GitHub #856).
+`XMLHints.NodeType` — and is not also kept verbatim, because one declaration gets one structural
+home (§12.1). A value of another shape, or a non-empty `nodeType` outside the five the specification
+defines, is kept verbatim at the key and pointer the census itself uses, under `degraded_lowering`
+and with a warning, and the census finds the entry and adds nothing. A key the raw mapping does not
+present directly — merged in through `<<` — is not read at all, so the census's
+`unknown-key-unreachable` still reports it. An empty or null value is read as unset. A reading with
+no IR home is kept the same way under `ReasonNoIRHome`: the nested Encoding fields and the
+`components/mediaTypes` section, into which this compiler follows no reference yet (GitHub #856). A
+content entry written as such a `$ref` keeps it under `degraded_lowering` instead, since the entry
+lowers without what it names.
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no
@@ -2192,8 +2198,8 @@ target in silence and gives the second two homes. The record is written by lower
 it, so it cannot change their answers or depend on their order.
 
 `ReasonNoIRHome` rather than a boundary, and no diagnostic, are the links precedent generalized: the
-gap is one the IR can close by finding a use for the entry, so a promotion pass should read it, and a
-document that declares a component is not making a mistake a warning could name. `Reason` is where
+gap is one the IR can close by finding a use for the entry, so a promotion pass should read it, and
+a document that declares a component is not making a mistake a warning could name. `Reason` is where
 that decision lives (§12), which is what keeps a promotion pass from mistaking one for an oversight.
 
 ### 12.1 One structural home per declaration
@@ -2249,12 +2255,12 @@ are read off the entry and folded over the declaration's docs field by field, a 
 writes winning and one it omits leaving the declaration's value standing. A component that is itself
 a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
 declaration outward: an alias's siblings override the declaration's, and a use site's override the
-alias's. The fold applies at every
-version whose parser presents the siblings, which is all of them: the Reference Object's wrapper is
-version-independent, and dropping a declared sibling in silence is the defect the rule fixes. It is
-a documented departure from OpenAPI's clause that such a sibling has "no effect" where the
-referenced object type does not allow one: the IR has a docs field at each of these positions,
-keeping it loses nothing, and the alternative is the silent loss the clause permitted.
+alias's. The fold applies at every version whose parser presents the siblings, which is all of them:
+the Reference Object's wrapper is version-independent, and dropping a declared sibling in silence is
+the defect the rule fixes. It is a documented departure from OpenAPI's clause that such a sibling
+has "no effect" where the referenced object type does not allow one: the IR has a docs field at each
+of these positions, keeping it loses nothing, and the alternative is the silent loss the clause
+permitted.
 
 **Constraints do not merge, and are never copied to a use site.** Bounds *conjoin*: `maxLength: 64` on the
 referent and `maxLength: 100` beside the `$ref` are both in force, and the admitted value is the
