@@ -65,8 +65,8 @@ func (nilPass) Name() string { return "nil" }
 
 func (nilPass) Run(*ir.Document) (*ir.Document, []ir.Diagnostic) { return nil, nil }
 
-// runWith compiles the tiny spec with front, runs passes but those disabled
-// names, and returns the result with the codes of its diagnostics in order.
+// runWith compiles the tiny spec with front, runs each of passes that disabled
+// does not name, and returns the result with its diagnostics' codes in order.
 func runWith(
 	t *testing.T, front compilers.Compiler, passes []pass.Pass, disabled ...string,
 ) (*engine.Result, []string) {

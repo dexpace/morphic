@@ -363,7 +363,7 @@ func TestEngine_RunNilDocument(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.NewWith(nilDocCompiler{})
 	require.NoError(t, err)
-	// No pass is disabled, but a nil Document must still short-circuit the pass.
+	// No pass is disabled, but a nil Document must still short-circuit the passes.
 	res, err := eng.Run(t.Context(), writeSpec(t, testspec.Tiny), engine.RunOptions{})
 	require.NoError(t, err)
 	assert.Nil(t, res.Document)
