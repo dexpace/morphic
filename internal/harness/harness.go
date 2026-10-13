@@ -2,10 +2,11 @@ package harness
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -166,9 +167,8 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 // so that results named alike keep the order the caller gave them, not an
 // unspecified one.
 func Report(results []Result) string {
-	sorted := make([]Result, len(results))
-	copy(sorted, results)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+	sorted := slices.Clone(results)
+	slices.SortStableFunc(sorted, func(a, b Result) int { return cmp.Compare(a.Spec, b.Spec) })
 
 	specWidth, outcomeWidth := columnWidths(sorted)
 

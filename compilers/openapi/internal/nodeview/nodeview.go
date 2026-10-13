@@ -14,9 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an
@@ -228,7 +227,11 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		raw, val := n.Content[i], Deref(n.Content[i+1])
-		if IsMergeKey(raw) {
+		// The library's own predicate, so the view and the unmarshaller cannot
+		// disagree about which key merges. It is handed the key unresolved, as the
+		// library hands it: an alias standing in for `<<` is an ordinary key. Every
+		// `<<` merges, not only the last as in yaml.v3's decoder.
+		if yml.IsMergeKey(raw) {
 			got := v.mergeSource(val, depth+1)
 			merged = append(merged, got.pairs...)
 			e.complete = e.complete && got.complete
@@ -306,20 +309,6 @@ func (v *View) mergeSource(val *yaml.Node, depth int) expansion {
 	}
 	e.pairs = dedupeFirstWins(out)
 	return e
-}
-
-// IsMergeKey reports whether a raw mapping key node is a `<<` merge key, as
-// speakeasy's yml.IsMergeKey does. The key is checked undereferenced (an alias
-// standing in for it is not a scalar) and by resolved tag (a quoted '<<'
-// resolves to !!str); speakeasy treats both as ordinary keys, and expanding
-// them would invent pairs it never sees.
-//
-// yaml.v3's isMerge (decode.go) is the wrong model: it accepts an empty or
-// non-specific tag and honors only the last `<<`, where speakeasy merges every
-// one (hence expandContent accumulates them). Neither difference is reachable
-// from a parsed document today; re-check on a dependency bump.
-func IsMergeKey(n *yaml.Node) bool {
-	return n != nil && n.Kind == yaml.ScalarNode && n.Value == "<<" && n.Tag == ynode.MergeTag
 }
 
 // dedupeFirstWins keeps only the first pair for each key, preserving order — the

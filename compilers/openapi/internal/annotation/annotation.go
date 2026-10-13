@@ -13,6 +13,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -610,16 +611,15 @@ type Set struct {
 	Unmodeled  ir.Unmodeled
 }
 
-// Read reads every site-local annotation at st.
+// Read reads every site-local annotation at st. since32 reports a dialect of
+// OpenAPI 3.2 or later, whose XML object writes a `nodeType` the parser's model
+// has no field for (GitHub #615); a parameter, as this package may not import
+// the lowering that knows the dialect.
 //
-// This is the single call site the decomposition exists for. Not because it
-// merges duplicate readers — the docs readers are genuinely distinct and stay
-// distinct — but because the site-versus-referent choice is made here once
-// instead of at each position that attaches annotations. Three attachment points
-// previously made it separately and disagreed: one passed a referent, one passed
-// nil because a declaration has none, and one passed nil because it never
-// resolved the referent it had.
-func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnostic) {
+// This is the one place the site-versus-referent choice is made, rather than
+// at each position that attaches annotations: three attachment points used to
+// make it separately and disagreed.
+func Read(st Site, pointer jsontext.Pointer, locate Locator, since32 bool) (Set, []ir.Diagnostic) {
 	var out Set
 
 	referent := st.Referent
@@ -635,7 +635,7 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), locate, pointer)
-	sub, subDiags := subObjectKeys(st.Node, pointer, locate)
+	sub, subDiags := subObjectKeys(st.Node, out.XML, pointer, locate, since32)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, locate)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
@@ -650,36 +650,75 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 
 // subObjectKeys collects what a schema's xml, discriminator and externalDocs
 // declare that reaches no IR field: the x-* they carry and the keys the
-// specification defines for none of them.
-//
-// None of ir.XMLHints, ir.Discriminator or ir.Link holds an Unmodeled map, so
-// the entries ride on the node the schema lowers to, and the keyword each was
-// written under keeps the three objects' entries apart.
-//
-// The census is graded as an OpenAPI object's, not as a schema keyword's: JSON
-// Schema's rule that an unrecognized keyword is legal governs the schema
-// itself, and these three are OpenAPI objects its vocabulary says nothing
-// about.
-func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
+// specification defines for none of them. None of those IR types holds an
+// Unmodeled map, so the entries ride on the schema's node, keyed apart by the
+// keyword each was written under. The census is graded as an OpenAPI object's,
+// not a schema keyword's. Under since32 it first reads the XML object's
+// nodeType into hints (applyNodeType).
+func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, locate Locator, since32 bool) (ir.Unmodeled, []ir.Diagnostic) {
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	var xmlTaken []string
+	if since32 {
+		xmlTaken, diags = applyNodeType(&out, hints, s.GetXML(), locate, pointer+ids.Ptr("xml"))
+	}
 	subs := []struct {
 		keyword string
 		obj     any
 		ext     *extensions.Extensions
+		taken   []string
 	}{
-		{"xml", s.GetXML(), s.GetXML().GetExtensions()},
-		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions()},
-		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions()},
+		{"xml", s.GetXML(), s.GetXML().GetExtensions(), xmlTaken},
+		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions(), nil},
+		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions(), nil},
 	}
-	var out ir.Unmodeled
-	var diags []ir.Diagnostic
 	for _, sub := range subs {
 		owner := pointer + ids.Ptr(sub.keyword)
 		ext, extDiags := ExtensionsUnder(sub.ext, locate, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysUnder(&out, sub.obj, locate, owner, sub.keyword)...)
+		diags = append(diags, UnknownKeysUnder(&out, sub.obj, locate, owner, sub.keyword, sub.taken...)...)
 	}
 	return out, diags
+}
+
+// applyNodeType places the nodeType a 3.2 XML object writes on hints, and
+// returns the keys it read for the census to leave alone. A non-empty value
+// outside the five the specification defines is kept verbatim on p instead, as
+// nothing else may fill XMLHints.NodeType. An attribute flag the nodeType contradicts,
+// which 3.2 forbids writing beside it, is kept verbatim on p rather than
+// overwritten in silence.
+func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Locator, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	if x == nil {
+		return nil, nil
+	}
+	nodeType, read, diags := TakeString(p, x.GetRootNode(), "nodeType", definedNodeType, locate, owner, "xml")
+	if !read {
+		return nil, diags
+	}
+	if nodeType == "" {
+		return []string{"nodeType"}, diags
+	}
+	if x.Attribute != nil && *x.Attribute != (nodeType == "attribute") {
+		at := locate(owner + ids.Ptr("attribute"))
+		PreserveInto(p, "openapi:xml/attribute", ir.RawValue(strconv.FormatBool(*x.Attribute)),
+			ir.ReasonDegradedLowering, at)
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"attribute contradicts nodeType %q, which replaces it; nodeType is placed and attribute "+
+				"kept verbatim under Unmodeled", nodeType))
+	}
+	hints.NodeType = nodeType
+	return []string{"nodeType"}, diags
+}
+
+// definedNodeType reports whether v is a node type OpenAPI 3.2 defines, the
+// domain ir.XMLHints.NodeType holds.
+func definedNodeType(v string) bool {
+	switch v {
+	case "element", "attribute", "text", "cdata", "none":
+		return true
+	}
+	return false
 }
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim
@@ -928,10 +967,5 @@ func (k Kind) String() string {
 // predicate consulting a different source could disagree with them in either
 // direction.
 func DeclaresAny(s *oas3.Schema, keywords []string) bool {
-	for _, keyword := range keywords {
-		if RawPropertyNode(s, keyword) != nil {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
 }

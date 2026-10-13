@@ -2,9 +2,9 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,6 +54,41 @@ webhooks:
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+}
+
+// TestWebhooks_CallbacksLandInTheWebhooksGroup pins that a webhook operation's
+// callbacks are lowered, as a path operation's are, and that their operations
+// join it in the webhooks group.
+func TestWebhooks_CallbacksLandInTheWebhooksGroup(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  newPet:
+    post:
+      operationId: onNewPet
+      callbacks:
+        ack:
+          '{$request.body#/ack}':
+            post:
+              operationId: ackPost
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+`
+	svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	group := svc.Groups[0]
+	assert.Equal(t, "webhooks", group.Name.Hint)
+	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	hook, ok := byName["onNewPet"]
+	require.True(t, ok)
+	ack, ok := byName["ackPost"]
+	require.True(t, ok, "the callback operation joins the webhook in its group")
+	require.Len(t, hook.Bindings.HTTP, 1)
+	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
 }
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
@@ -375,11 +410,7 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 		seen[strings.ToUpper(c)] = true
 		seen[strings.ToLower(c)] = true
 	}
-	names := make([]string, 0, len(seen))
-	for n := range seen {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(seen))
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -657,4 +688,44 @@ func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
 	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
+}
+
+// TestIndexTags_SkipsANilEntry pins the guard on the tag list: a nil entry
+// indexes no name, so it can neither be read for a kind or a parent by the
+// grouping walk nor shadow a tag the document does declare. The parser produces
+// no such entry, which is why the guard is exercised at the list it guards.
+func TestIndexTags_SkipsANilEntry(t *testing.T) {
+	t.Parallel()
+	kept := &soa.Tag{Name: "kept"}
+
+	got := indexTags([]*soa.Tag{nil, kept})
+
+	require.Len(t, got, 1)
+	assert.Same(t, kept, got["kept"])
+}
+
+// TestTagIndex_ChainAgreesWithEveryAncestor pins what makes a group's parent
+// independent of which operation creates it: the chain of every tag a chain
+// passes through is that chain's own prefix. The tags hold a cycle (a and b), a
+// tag beneath it (c), one beneath that (d), and one whose parent is a badge (e).
+func TestTagIndex_ChainAgreesWithEveryAncestor(t *testing.T) {
+	t.Parallel()
+	tag := func(name, parent, kind string) *soa.Tag {
+		return &soa.Tag{Name: name, Parent: &parent, Kind: &kind}
+	}
+	x := indexTags([]*soa.Tag{
+		tag("a", "b", "nav"), tag("b", "a", "nav"), tag("c", "a", "nav"),
+		tag("d", "c", ""), tag("badge", "", "badge"), tag("e", "badge", "nav"),
+	})
+	want := map[string][]string{
+		"a": {"a"}, "b": {"b"}, "c": {"a", "c"}, "d": {"a", "c", "d"},
+		"e": {"e"}, "undeclared": {"undeclared"},
+	}
+	for name, chain := range want {
+		got := x.chain(name)
+		assert.Equal(t, chain, got, "chain of %s", name)
+		for i := range got {
+			assert.Equal(t, got[:i+1], x.chain(got[i]), "%s's ancestor %s agrees", name, got[i])
+		}
+	}
 }

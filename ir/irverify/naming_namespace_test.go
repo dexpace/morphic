@@ -171,9 +171,11 @@ func TestNamespaceOwners_CoverEveryNamespaceField(t *testing.T) {
 func reachableStructs(t *testing.T) []reflect.Type {
 	t.Helper()
 	queue := []reflect.Type{reflect.TypeFor[ir.Document]()}
-	for _, k := range declaredConstsOfType(t, "TypeKind") {
-		td, ok := ir.NewTypeDef(ir.TypeKind(k.value))
-		require.True(t, ok, "NewTypeDef(%s)", k.value)
+	kinds, err := irDecls(t).StringConsts("TypeKind")
+	require.NoError(t, err)
+	for _, k := range kinds {
+		td, ok := ir.NewTypeDef(ir.TypeKind(k.Value))
+		require.True(t, ok, "NewTypeDef(%s)", k.Value)
 		queue = append(queue, reflect.TypeOf(td))
 	}
 	seen := map[reflect.Type]bool{}

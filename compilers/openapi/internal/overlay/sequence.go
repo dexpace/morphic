@@ -191,7 +191,7 @@ func (s *sequence) file(i int, action soaoverlay.Action, warnings []string) {
 // matched nothing — the one error joining them all.
 func (s *sequence) finish(at ir.Provenance) ([]ir.Diagnostic, bool) {
 	var out []ir.Diagnostic
-	for _, w := range append(append([]string(nil), s.warnings...), s.notes...) {
+	for _, w := range slices.Concat(s.warnings, s.notes) {
 		out = append(out, diag.Newf(ir.SeverityWarning, diag.OverlayAction, at, "%s", w))
 	}
 	if len(s.missed) > 0 {
