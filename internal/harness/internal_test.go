@@ -50,7 +50,7 @@ func dupKeyDoc() *ir.Document {
 	}}
 }
 
-// cyclicDoc returns soundDoc's model carrying one example that holds itself: a
+// cyclicDoc returns soundDoc with one example on its model that holds itself: a
 // list whose only element is that list. The JSON encoder refuses it, and Verify
 // reports it as ir/cyclic-structure, so Check classifies the document as
 // violations before the round-trip oracle runs
@@ -59,16 +59,9 @@ func cyclicDoc() *ir.Document {
 	list := make([]ir.Value, 1)
 	list[0] = ir.Value{Kind: ir.ValueList, List: list}
 	example := ir.Value{Kind: ir.ValueList, List: list}
-	m := &ir.Model{
-		ID:       "t/x/Model",
-		Name:     ir.Naming{Source: "Model", Canonical: "model"},
-		Examples: []ir.Example{{Value: &example}},
-	}
-	return &ir.Document{
-		IRVersion: ir.IRVersion,
-		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
-		Types:     ir.TypeRegistry{m.ID: m},
-	}
+	doc := soundDoc()
+	doc.Types["t/x/Model"].Common().Examples = []ir.Example{{Value: &example}}
+	return doc
 }
 
 // soundDoc returns a minimal, structurally-sound document: one model keyed by its
