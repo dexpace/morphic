@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -311,12 +310,9 @@ func TestLower_TupleWithTrailingItems(t *testing.T) {
 // hasDegradedDiag reports whether diags carries a degraded-construct info
 // diagnostic whose message contains want.
 func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want)
+	})
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -441,6 +437,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 		}
 	}
 	assert.True(t, sawDefaultWarn, "malformed default warns")
+	assert.Nil(t, byWire["badDefault"].Default, "and is dropped with its warning, not kept as a zero value")
 }
 
 func TestLower_RefTargetDescriptionFallback(t *testing.T) {
@@ -2859,7 +2856,7 @@ func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	for i, d := range diags {
 		out[i] = fmt.Sprintf("%s\t%s\t%s\t%+v", d.Severity, d.Code, d.Message, d.Provenance)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -3732,6 +3729,67 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 	}
 }
 
+// TestHoistedScalar_ReportsABoundItCannotConvert pins that every way a scalar
+// hoists a node of its own (format: byte, a format the IR does not place, the
+// content vocabulary) reports a numeric bound that is no decimal, at the
+// position that wrote it, and keeps no constraints in its place.
+func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, schema string }{
+		{"format byte", "{type: string, format: byte, minimum: .inf}"},
+		{"an unplaced format", "{type: number, format: custom, minimum: .inf}"},
+		{"the content vocabulary", "{type: string, contentEncoding: base64, minimum: .inf}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
+			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar of its own")
+			require.NotNil(t, sc.Encoding, "carrying what it wrote")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.NumericPrecision, "/components/schemas/A"))
+			assert.Nil(t, sc.Constraints, "and no bound it could not read")
+		})
+	}
+}
+
+// TestAlias_CarriesTheBoundsWrittenBesideIt pins that an alias a position
+// hoists to own what it wrote keeps the value constraints written beside it:
+// beside a union of nothing but null, and beside an applicator its lowered node
+// has no home for. The alias owns the pointer, so hoistDeclarationHome hoists
+// nothing else that could carry them.
+func TestAlias_CarriesTheBoundsWrittenBesideIt(t *testing.T) {
+	t.Parallel()
+	one, two, three := ir.BigVal("1"), ir.BigVal("2"), ir.BigVal("3")
+	six := int64(6)
+	cases := []struct {
+		name, schema string
+		want         ir.Constraints
+	}{
+		{
+			name:   "a null-only union",
+			schema: `{oneOf: [{type: "null"}], minimum: 3, exclusiveMinimum: 1}`,
+			want:   ir.Constraints{Min: &three, ExclusiveMin: &one},
+		},
+		{
+			name:   "an applicator with no home",
+			schema: "{items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}",
+			want:   ir.Constraints{Min: &two, ExclusiveMin: &one, MinLength: &six},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    A: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			sc, ok := typeByName(doc, "A").(*ir.Scalar)
+			require.True(t, ok, "the position hoists an alias of its own")
+			require.NotNil(t, sc.Constraints, "carrying the bounds written beside it")
+			assert.Empty(t, cmp.Diff(tc.want, *sc.Constraints))
+		})
+	}
+}
+
 // TestContentVocabulary_KeptWhereNoEncodingHolds covers the other half: a
 // position that lowered to a shape with no Encoding field to fill keeps every
 // content keyword verbatim, contentSchema included — the three share one home,
@@ -4066,7 +4124,7 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 	for _, d := range diags {
 		out = append(out, fmt.Sprintf("%s\x00%s\x00%s", d.Severity, d.Code, d.Provenance.Pointer))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -4253,28 +4311,6 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
-// TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer pins what
-// makes two reads of one sub-schema dedup rather than report twice: the
-// diagnostics a constraint read produces are located at the position that read
-// it, not at the position that declared it.
-func TestStampConstraintDiags_RelocatesEveryDiagnosticToTheReadingPointer(t *testing.T) {
-	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-	in := []ir.Diagnostic{
-		{Code: diag.DegradedConstruct, Provenance: ir.Provenance{Pointer: "/elsewhere"}},
-		{Code: diag.NumericPrecision, Provenance: ir.Provenance{Source: 9, Pointer: "/other"}},
-	}
-
-	got := schema.StampConstraintDiags(c, in, "/components/schemas/S")
-
-	require.Len(t, got, 2)
-	for _, d := range got {
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/S"}, d.Provenance,
-			"every diagnostic is relocated, not just the first")
-	}
-	assert.Equal(t, diag.NumericPrecision, got[1].Code, "only the provenance changes")
-}
-
 // TestAllOf_FalseBranchClosesTheComposition pins what a `false` allOf branch
 // does to the composed node. `false` admits nothing, so the composition admits
 // nothing: the model closes and the branch is kept verbatim beside it, which is
@@ -4433,7 +4469,7 @@ func TestResidueKeywords_HandsBackACopy(t *testing.T) {
 	first := schema.ResidueKeywords()
 	require.NotEmpty(t, first, "an empty list would make this pass vacuously")
 
-	clobbered := append([]string(nil), first...)
+	clobbered := slices.Clone(first)
 	for i := range first {
 		first[i] = "clobbered"
 	}

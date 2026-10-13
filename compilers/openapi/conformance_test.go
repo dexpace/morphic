@@ -196,6 +196,8 @@ func conformanceCases() []conformanceCase {
 		{"literal-const", assertLiteralConst, []string{"literal-types"}},
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
 		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
+		{"param-identity", assertParamIdentity, []string{"http-binding"}},
+		{"enum-member-identity", assertEnumMemberIdentity, []string{"enums-string", "enums-numeric"}},
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
@@ -1870,6 +1872,89 @@ func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	}, got)
 }
 
+// assertParamIdentity pins what identifies a parameter: the operation it is
+// mounted under, its name as one escaped token, and its location. Two
+// parameters named id in one operation get two IDs; a path-item parameter is one
+// parameter per operation it is copied into; a path item reached from two paths
+// roots each mount's parameters at that mount. The IDs are written out rather
+// than derived, so the test cannot agree with a change to the derivation, and
+// every binding must name its own parameter's ID.
+func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	got := map[ir.OpID][]ir.ParamID{}
+	svc := doc.Services[0]
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			for _, p := range op.Params {
+				got[op.ID] = append(got[op.ID], p.ID)
+			}
+			require.Len(t, op.Bindings.HTTP, 1)
+			var bound []ir.ParamID
+			for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+				bound = append(bound, pb.Param)
+			}
+			assert.ElementsMatch(t, got[op.ID], bound, "%s: each binding names its own parameter", op.ID)
+		}
+	}
+	assert.Equal(t, map[ir.OpID][]ir.ParamID{
+		"op/openapi/paths/~1items~1{id}/get": {
+			"param/openapi/paths/~1items~1{id}/get/parameters/id/query",
+			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
+			"param/openapi/paths/~1items~1{id}/get/parameters/id/path",
+		},
+		"op/openapi/paths/~1items~1{id}/post": {
+			"param/openapi/paths/~1items~1{id}/post/parameters/id/path",
+		},
+		"op/openapi/paths/~1a/get": {"param/openapi/paths/~1a/get/parameters/limit/query"},
+		"op/openapi/paths/~1b/get": {"param/openapi/paths/~1b/get/parameters/limit/query"},
+	}, got)
+}
+
+// assertEnumMemberIdentity pins what identifies an enum member: the value it
+// holds, tagged by kind, under the enum that declares it. The list repeats a
+// value, includes names that spell one canonical word sequence, and carries the
+// characters a pointer token escapes, so a derivation from the name, the
+// position or the unescaped value changes an ID. The IDs are written out, not
+// derived. The repeat is kept, its ID ends in its occurrence number, and it is
+// reported once at its own entry; the string spelling that ID's tail is no
+// repeat.
+func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	memberIDs := func(id ir.TypeID) []ir.EnumMemberID {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		require.True(t, ok, "%s is an enum", id)
+		got := make([]ir.EnumMemberID, 0, len(enum.Members))
+		for _, m := range enum.Members {
+			got = append(got, m.ID)
+		}
+		return got
+	}
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/E/s:a-b",
+		"e/openapi/components/schemas/E/s:a_b",
+		"e/openapi/components/schemas/E/s:A B",
+		"e/openapi/components/schemas/E/s:a~0b",
+		"e/openapi/components/schemas/E/s:a-b/2",
+		"e/openapi/components/schemas/E/s:a-b~12",
+	}, memberIDs("t/openapi/components/schemas/E"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/N/n:-1e0",
+		"e/openapi/components/schemas/N/n:1e0",
+		"e/openapi/components/schemas/N/n:0",
+	}, memberIDs("t/openapi/components/schemas/N"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
+	}, memberIDs("t/anon/paths/~1status/get/responses/200/content/application~1json/schema"))
+
+	var repeats []string
+	for _, d := range diags {
+		if d.Code == "openapi/duplicate-enum-value" {
+			repeats = append(repeats, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/E/enum/4"}, repeats)
+}
+
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
@@ -1885,7 +1970,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	byParam := map[string]ir.HTTPParamBinding{}
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		byParam[pb.Param] = pb
+		byParam[pb.WireName] = pb
 	}
 	q := byParam["q"]
 	assert.Equal(t, "form", q.Style, "query default style is form")
@@ -1929,12 +2014,12 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
-// paramID is a parameter's identity. OpenAPI keys the Parameter object on
-// (name, in), so two parameters may legally share a name at different
-// locations; a map keyed on the name alone silently keeps one of such a pair and
-// compares the other against nothing. The compiler itself is keyed on both.
-type paramID struct {
-	Param    string
+// paramSlot is what OpenAPI identifies a parameter by: its name and location.
+// Two parameters may legally share a name at different locations, so a map
+// keyed on the name alone silently keeps one of such a pair and compares the
+// other against nothing.
+type paramSlot struct {
+	Name     string
 	Location ir.HTTPLocation
 }
 
@@ -2022,8 +2107,8 @@ func paramStyleExplodeDefault(style string) bool {
 // Generating moves the question up: the table and the fixture can still shrink
 // together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
-func paramStyleMatrixWant() map[paramID]paramWire {
-	want := map[paramID]paramWire{}
+func paramStyleMatrixWant() map[paramSlot]paramWire {
+	want := map[paramSlot]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
@@ -2033,11 +2118,11 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 			{"NoExplode", false},
 			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
 		} {
-			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
 		}
 	}
 	for _, d := range paramStyleDefaultStyles() {
-		want[paramID{string(d.location) + "Defaulted", d.location}] =
+		want[paramSlot{string(d.location) + "Defaulted", d.location}] =
 			paramWire{d.style, paramStyleExplodeDefault(d.style)}
 	}
 	return want
@@ -2094,12 +2179,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 
-	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
-		id := paramID{Param: pb.Param, Location: pb.Location}
-		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
-		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.WireName)
+		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
+		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
+		got[slot] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
 		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
@@ -2129,7 +2214,7 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
-	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
+	require.Equal(t, "querystringWhole", binding.WireName, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
 	assert.Empty(t, binding.Style, "style is not a legal keyword at in: querystring")
@@ -2428,10 +2513,8 @@ func propIDExists(doc *ir.Document, id ir.PropID) bool {
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.ID == id {
-				return true
-			}
+		if slices.ContainsFunc(m.Properties, func(p ir.Property) bool { return p.ID == id }) {
+			return true
 		}
 	}
 	return false
@@ -3076,7 +3159,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := v.Interface().(ir.Unmodeled)
+		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}

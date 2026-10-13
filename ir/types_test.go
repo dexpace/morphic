@@ -2,6 +2,8 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -400,10 +402,7 @@ func TestPrimKind_TiesToConstBlock(t *testing.T) {
 		assert.True(t, ir.PrimKind(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
 	}
 
-	spelled := make([]string, 0, len(primKindSpellings))
-	for _, s := range primKindSpellings {
-		spelled = append(spelled, s)
-	}
+	spelled := slices.Collect(maps.Values(primKindSpellings))
 	require.ElementsMatch(t, spelled, values)
 }
 
@@ -470,11 +469,10 @@ func TestPatternProps_JSONContract(t *testing.T) {
 // exercise every field — round-trips.
 func TestDiscriminator_JSONContract(t *testing.T) {
 	t.Parallel()
-	idx := 0
 	assertJSONContract(t, ir.Discriminator{}, `{"inferred":false}`, ir.Discriminator{
 		Property:          "p/kind",
 		PropertyName:      "kind",
-		Index:             &idx,
+		Index:             new(0),
 		Mapping:           map[string]ir.TypeID{"dog": "t/Dog", "cat": "t/Cat"},
 		Default:           "t/Unknown",
 		Envelope:          "object",
@@ -502,13 +500,12 @@ func TestDiscriminator_MappingDeterministic(t *testing.T) {
 // populated Variant round-trips.
 func TestVariant_JSONContract(t *testing.T) {
 	t.Parallel()
-	wireID := 3
 	assertJSONContract(t, ir.Variant{}, `{"name":{},"type":{"target":"","nullable":false},"docs":{}}`,
 		ir.Variant{
 			Name:         populatedNaming(),
 			Type:         populatedTypeRef(),
 			WireName:     "dog_variant",
-			WireID:       &wireID,
+			WireID:       new(3),
 			XML:          populatedXMLHints(),
 			Event:        &ir.EventInfo{ContentType: "application/json", Terminal: true},
 			Docs:         populatedDocs(),
@@ -529,14 +526,15 @@ func TestEventInfo_JSONContract(t *testing.T) {
 		ir.EventInfo{ContentType: "application/json", Terminal: true})
 }
 
-// TestEnumMember_JSONContract pins EnumMember's omitempty contract (Name,
+// TestEnumMember_JSONContract pins EnumMember's omitempty contract (ID, Name,
 // Value, and Docs carry no omitempty; every other field is optional) and that
 // a fully populated EnumMember round-trips.
 func TestEnumMember_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.EnumMember{},
-		`{"name":{},"value":{"kind":""},"docs":{}}`,
+		`{"id":"","name":{},"value":{"kind":""},"docs":{}}`,
 		ir.EnumMember{
+			ID:           "e/openapi/components/schemas/Status/s:active",
 			Name:         populatedNaming(),
 			Value:        ir.Value{Kind: ir.ValueString, Str: "active"},
 			WireName:     "ACTIVE",

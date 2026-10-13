@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"cmp"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -9,7 +10,6 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +45,11 @@ var loweringRecursions = [][]string{
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (ir-design §8.1), so the operation lowering
 	// reaches itself through them.
-	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation"},
+	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
+	// The key an enum entry is compared by when the enum repeats it. A list's or
+	// an object's key is built from its elements', each a value keyed the same
+	// way. Bounded by maxValueKeyDepth.
+	{"listKey", "objectKey", "valueKey"},
 	// The $dynamicAnchor index. walk hands a mapping to walkMapping, which walks
 	// each of that mapping's values back through walk. Bounded by charge, which
 	// refuses past maxDynamicAnchorDepth or a spent node budget and records the
@@ -77,12 +81,12 @@ var schemaRecursion = []string{
 	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
-	"fillModelProperties", "hoistByteScalar", "hoistContentScalar",
-	"hoistFormatScalar", "hoistSubSchema", "lower", "lowerAllOf", "lowerArray",
-	"lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion", "lowerDiscriminator",
-	"lowerDistributedUnion", "lowerModel", "lowerOneOfAnyOf", "lowerSchemaBody",
-	"lowerTyped", "lowerUnion", "lowerUntyped", "patternProps", "refSiteRef",
-	"refTypeRef", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"fillModelProperties", "hoistScalar", "hoistSubSchema", "lower", "lowerAllOf",
+	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
+	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef",
+	"resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -117,17 +121,14 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		if len(c) == 1 && !calls[c[0]][c[0]] {
 			continue
 		}
-		sort.Strings(c)
+		slices.Sort(c)
 		cycles = append(cycles, c)
 	}
 	// Ties are broken by first member because there is more than one pair now,
-	// and sort.Slice is not stable: length alone would leave the two pairs in
+	// and the sort is not stable: length alone would leave the two pairs in
 	// whichever order the sort happened to land them.
-	sort.Slice(cycles, func(i, j int) bool {
-		if len(cycles[i]) != len(cycles[j]) {
-			return len(cycles[i]) > len(cycles[j])
-		}
-		return cycles[i][0] < cycles[j][0]
+	slices.SortFunc(cycles, func(a, b []string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a[0], b[0]))
 	})
 	require.NotEmpty(t, cycles, "the schema walk is mutually recursive; finding none means the graph is wrong")
 
@@ -272,9 +273,10 @@ func plantedGraph(t *testing.T, src string) map[string]map[string]bool {
 	return callGraphOf(t, []typedPkg{{files: []*ast.File{f}, info: info}})
 }
 
-// TestLoweringCallGraph_ResolvesWhatSyntaxCannot plants the shapes a parser-only
-// resolver got wrong, and the references that must stay out of the graph.
-func TestLoweringCallGraph_ResolvesWhatSyntaxCannot(t *testing.T) {
+// TestLoweringCallGraph_FollowsWhatTheTypeCheckerResolves plants sources whose
+// edges are decided by what the checker resolves a name to: the references a
+// parser alone gets wrong, and the ones that must stay out of the graph.
+func TestLoweringCallGraph_FollowsWhatTheTypeCheckerResolves(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -312,6 +314,47 @@ type T struct{}
 func (T) m() { use(nil) }
 func use(i I) { i.m() }`,
 			map[string]map[string]bool{"T.m": {"use": true}, "use": {}}},
+		{"a closure's body belongs to the function that holds it", `package p
+func a() { func() { b() }() }
+func b() {}`,
+			map[string]map[string]bool{"a": {"b": true}, "b": {}}},
+		{"a field named like a node is not an edge", `package p
+type T struct{ b int }
+func a(t T) int { return t.b }
+func b() {}`,
+			map[string]map[string]bool{"a": {}, "b": {}}},
+		{"a composite literal's key is not an edge", `package p
+type T struct{ b int }
+func a() T { return T{b: 1} }
+func b() {}`,
+			map[string]map[string]bool{"a": {}, "b": {}}},
+		{"a key and a value spelled the same are one edge", `package p
+type T struct{ b func() }
+func a() T { return T{b: b} }
+func b() {}`,
+			map[string]map[string]bool{"a": {"b": true}, "b": {}}},
+		{"a method handed on as a value is an edge", `package p
+type T struct{}
+func (T) m() {}
+func a(t T) { apply(t.m) }
+func apply(f func()) { f() }`,
+			map[string]map[string]bool{"T.m": {}, "a": {"T.m": true, "apply": true}, "apply": {}}},
+		{"a promoted method resolves to the embedded type's declaration", `package p
+type U struct{}
+func (U) m() {}
+type E struct{ U }
+func a(e E) { e.m() }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
+		{"a method on a range variable resolves", `package p
+type U struct{}
+func (U) m() {}
+func a(us []U) { for _, u := range us { u.m() } }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
+		{"a method on a type switch's binding resolves", `package p
+type U struct{}
+func (U) m() {}
+func a(x any) { switch v := x.(type) { case U: v.m() } }`,
+			map[string]map[string]bool{"U.m": {}, "a": {"U.m": true}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -434,12 +477,12 @@ func TestLoweringCallGraph_RecordsAMethodEdge(t *testing.T) {
 // GitHub #323 on the tree. Each edge names a method and so decides which
 // lowering runs; a graph resolving only the declaring method's own receiver
 // described every one as absent. The bases cover the shapes these packages
-// write: a constructor's local, a pointer parameter, a composite literal.
+// write: a constructor's local, a pointer parameter, a composite literal, a
+// multi-result bind.
 //
-// Not every selector resolves: anchorWalk.walkMapping reads its pairs through
-// w.view.MappingPairs, whose field type nodeview declares and no package this
-// pin reads holds a node for. It resolves to nothing, not to whatever the flat
-// namespace holds under the same trailing name.
+// Not every selector reaches a node: anchorWalk.walkMapping reads its pairs
+// through w.view.MappingPairs, a method of a type nodeview declares, and no
+// package this pin reads holds a node for it. It adds no edge.
 func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 	t.Parallel()
 	graph := loweringCallGraph(t)

@@ -674,7 +674,7 @@ type weighFrame struct {
 // shared *yaml.Node an alias resolves to, so it builds a model subtree per path
 // reaching a node. The count is exact for aliases and an over-count, the safe
 // side, for `<<` merge keys, whose pairs are deduplicated. Re-check it on a
-// dependency bump, as nodeview.IsMergeKey does.
+// dependency bump.
 type aliasWeigher struct {
 	allowance int64
 	ceiling   int64

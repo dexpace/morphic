@@ -64,7 +64,7 @@ func TestMissingCells_IgnoresUnknownCells(t *testing.T) {
 	require.NotEmpty(t, all)
 
 	omitted := all[0]
-	covered := append([]harness.Cell{}, all[1:]...)
+	covered := slices.Clone(all[1:])
 	covered = append(covered, harness.Cell{Annotation: "invented", SiteKind: "nowhere"})
 
 	assert.Equal(t, []harness.Cell{omitted}, harness.MissingCells(covered))

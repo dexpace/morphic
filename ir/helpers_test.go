@@ -243,31 +243,23 @@ func populatedConstraints() *ir.Constraints {
 	if err != nil {
 		panic(err)
 	}
-	precision := int64(10)
-	scale := int64(2)
-	minLen := int64(1)
-	maxLen := int64(255)
-	minItems := int64(1)
-	maxItems := int64(10)
-	minProps := int64(1)
-	maxProps := int64(20)
 	return &ir.Constraints{
 		Min:            &minV,
 		Max:            &maxV,
 		ExclusiveMin:   &exclMinV,
 		ExclusiveMax:   &exclMaxV,
 		MultipleOf:     &multV,
-		Precision:      &precision,
-		Scale:          &scale,
-		MinLength:      &minLen,
-		MaxLength:      &maxLen,
+		Precision:      new(int64(10)),
+		Scale:          new(int64(2)),
+		MinLength:      new(int64(1)),
+		MaxLength:      new(int64(255)),
 		Pattern:        "^[a-z]+$",
 		PatternMessage: "lowercase letters only",
-		MinItems:       &minItems,
-		MaxItems:       &maxItems,
+		MinItems:       new(int64(1)),
+		MaxItems:       new(int64(10)),
 		UniqueItems:    true,
-		MinProps:       &minProps,
-		MaxProps:       &maxProps,
+		MinProps:       new(int64(1)),
+		MaxProps:       new(int64(20)),
 	}
 }
 
@@ -398,13 +390,12 @@ const sortedProtocolBindingsJSON = `"bindings":{"a-proto":{"k":3},"b-proto":{"k"
 // the shape ir-design §5.1 describes and the zero-value list in the test
 // specification.
 func populatedProperty() ir.Property {
-	wireID := 4
 	return ir.Property{
 		ID:               "p/openapi/components/schemas/User/properties/id",
 		Name:             populatedNaming(),
 		WireName:         "id",
 		WireNameByFormat: map[string]string{"xml": "Id", "json": "id"},
-		WireID:           &wireID,
+		WireID:           new(4),
 		ExtensionOf:      "pkg.ThirdParty",
 		Type:             populatedTypeRef(),
 		Required:         true,

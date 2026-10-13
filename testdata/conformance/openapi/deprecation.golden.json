@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.8.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -54,6 +61,7 @@
               "deprecation": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1old/get/parameters/legacy/query",
                   "name": {
                     "source": "legacy",
                     "canonical": "legacy"
@@ -99,7 +107,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "legacy",
+                        "param": "param/openapi/paths/~1old/get/parameters/legacy/query",
                         "location": "query",
                         "wireName": "legacy",
                         "style": "form",

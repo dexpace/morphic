@@ -20,9 +20,9 @@ import (
 // not found here is cobra's to resolve; help and completion join the tree only
 // as it executes.
 func singleDashLongFlags(root *cobra.Command, args []string) error {
-	target, rest, err := root.Find(args)
-	if err != nil {
-		return nil //nolint:nilerr // cobra resolves the command again, and reports what it cannot find
+	target, rest, found := findCommand(root, args)
+	if !found {
+		return nil // cobra resolves the command again, and reports what it cannot find
 	}
 	// cobra defines the help flag before it parses; defining it here first lets
 	// "-help" be read as the flag it names.
@@ -46,6 +46,17 @@ func singleDashLongFlags(root *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+// findCommand returns the command cobra will run for args and the arguments
+// left for it, or false and nothing when cobra finds none. Cobra reports that
+// itself when it runs, so only whether a command was found matters here.
+func findCommand(root *cobra.Command, args []string) (*cobra.Command, []string, bool) {
+	target, rest, err := root.Find(args)
+	if err != nil {
+		return nil, nil, false
+	}
+	return target, rest, true
 }
 
 // oneDashName returns the name tok spells after a single dash, up to any "=",
@@ -75,10 +86,10 @@ const (
 func readAlone(probe *pflag.FlagSet, tok string) reading {
 	err := probe.ParseAll([]string{tok}, func(*pflag.Flag, string) error { return nil })
 
-	var needsValue *pflag.ValueRequiredError
-	switch {
-	case errors.As(err, &needsValue):
+	if _, ok := errors.AsType[*pflag.ValueRequiredError](err); ok {
 		return wantsValue
+	}
+	switch {
 	case err != nil:
 		return refused
 	case probe.ArgsLenAtDash() >= 0:

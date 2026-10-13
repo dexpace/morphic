@@ -159,9 +159,9 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 			markWitnessed(t, out, v.Index(i), depth+1)
 		}
 	case reflect.Map:
-		for _, k := range v.MapKeys() {
+		for k, e := range v.Seq2() {
 			markWitnessed(t, out, k, depth+1)
-			markWitnessed(t, out, v.MapIndex(k), depth+1)
+			markWitnessed(t, out, e, depth+1)
 		}
 	case reflect.Struct:
 		markStructFields(t, out, v, depth)
@@ -172,12 +172,10 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 func markStructFields(t *testing.T, out map[string]bool, v reflect.Value, depth int) {
 	t.Helper()
 	rt := v.Type()
-	for i := range rt.NumField() {
-		f := rt.Field(i)
+	for f, field := range v.Fields() {
 		if f.PkgPath != "" {
 			continue
 		}
-		field := v.Field(i)
 		if !field.IsZero() {
 			out[rt.Name()+"."+f.Name] = true
 		}

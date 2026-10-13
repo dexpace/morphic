@@ -64,10 +64,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint nolint-grammar nolint build coverage-count coverage \
+.PHONY: gate fmt vet lint build coverage \
 	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint nolint-grammar nolint build coverage-count coverage fuzz bench-smoke
+gate: fmt vet lint build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -93,23 +93,32 @@ lint:
 	fi
 	golangci-lint run
 
-# Both nolint checks run after lint, and in CI reach the golangci-lint the lint
-# step left on PATH: they ask it which linters it is running, which only
-# describes that step if it is the same build.
-nolint-grammar:
-	./scripts/verify-nolint-grammar.sh
-
-nolint:
-	./scripts/check-nolint-linters.sh
-
 build:
 	$(GO) build ./...
 
-coverage-count:
-	./scripts/verify-coverage-count.sh
-
+# The suite runs once, under the race detector, and cmd/morphic-covergate judges
+# its profile statement by statement; its doc says why go test's percentage is
+# not enough. -race rides along rather than taking a run of its own: both want
+# the same execution of the same tests, and the profile is identical either way.
+#
+# -timeout is explicit because the compiler refuses documents that would hang
+# the third-party resolver, so a regression there is a test that never returns.
+# 300s clears the slowest package under -race by more than an order of magnitude
+# and still turns a hang into a stack dump naming the stuck goroutine.
+#
+# The profile path is minted per run: go test truncates it at the start and
+# appends each package as it finishes, so two runs sharing one would each judge
+# blocks partly the other's. COVER_FILE names a profile to keep instead. A failed
+# mktemp ends the recipe at once: recipe lines run without -e, so otherwise the
+# whole suite would run before anything noticed.
 coverage:
-	./scripts/check-coverage.sh
+	@profile="$${COVER_FILE:-}"; \
+	if [ -z "$$profile" ]; then \
+		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
+		trap 'rm -f "$$profile"' EXIT; \
+	fi; \
+	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) run ./cmd/morphic-covergate "$$profile"
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

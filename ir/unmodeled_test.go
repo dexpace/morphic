@@ -2,7 +2,9 @@ package ir_test
 
 import (
 	"go/types"
+	"maps"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,10 +69,7 @@ func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
 	declared := parseDeclaredReasons(t)
 
-	want := make([]string, 0, len(unmodeledReasonWire))
-	for _, s := range unmodeledReasonWire {
-		want = append(want, s)
-	}
+	want := slices.Collect(maps.Values(unmodeledReasonWire))
 	require.ElementsMatch(t, want, declared)
 
 	for _, d := range declared {
