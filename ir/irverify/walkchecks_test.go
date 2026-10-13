@@ -147,7 +147,7 @@ func packageFuncs(t *testing.T) []packageFunc {
 	return out
 }
 
-// endsInBool reports whether sig's last result is a bool, named or not.
+// endsInBool reports whether sig's last result, named or not, has type bool.
 func endsInBool(sig *types.Signature) bool {
 	results := sig.Results()
 	return results.Len() > 0 && types.Identical(results.At(results.Len()-1).Type(), types.Typ[types.Bool])
