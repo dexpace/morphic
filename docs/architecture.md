@@ -94,9 +94,9 @@ it, with the declaration of the namespaces a compiler mints in. The registry als
 decisions about a node that read nodes other lowerings intern (`compile.Settlement`), deferred until
 the walk ends: a walk lowers one declaration at a time, so taken mid-walk they would follow
 declaration order. They live on the registry, though only OpenAPI defers one yet, because the
-registry is the one handle a lowering holds (micro-compiler-design §4). What stays with the compiler is what
-only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL structural path
-and a protobuf fully-qualified name are different things.
+registry is the one handle a lowering holds (micro-compiler-design §4). What stays with the
+compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
+structural path and a protobuf fully-qualified name are different things.
 
 The split is enforced rather than documented: architecture tests fail a package outside the
 framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
