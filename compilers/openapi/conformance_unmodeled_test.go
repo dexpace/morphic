@@ -85,6 +85,16 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	_, ok = propByWire(m, "h")
 	assert.True(t, ok, "the half that did lower is untouched")
 
+	// The tuple's control beside the array's: a collection bound beside
+	// prefixItems is the Tuple's own, so the census keeps nothing.
+	boundTuple, ok := doc.Types[namedID("ItemsBoundOnTuple")].(*ir.Tuple)
+	require.True(t, ok)
+	assert.Empty(t, boundTuple.Unmodeled, "the bound reached Tuple.Constraints")
+	require.NotNil(t, boundTuple.Constraints)
+	require.NotNil(t, boundTuple.Constraints.MaxItems)
+	assert.Equal(t, int64(2), *boundTuple.Constraints.MaxItems)
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/ItemsBoundOnTuple"))
+
 	// The union case reaches this through hasUnionSiblings, which used to treat
 	// items as not-a-sibling and lower the union over it. Both halves survive:
 	// the applicator here, the branches under the union's own keys.

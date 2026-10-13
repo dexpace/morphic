@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.9.0",
+  "irVersion": "0.10.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -454,7 +454,57 @@
           "target": "t/anon/components/schemas/Tuple/properties//prefixItems/0",
           "nullable": false
         }
-      ]
+      ],
+      "rest": {
+        "target": "t/anon/components/schemas/Tuple/properties//items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Tuple/properties//items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Tuple/properties//items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tuple/properties//items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Tuple/properties//items/properties/e",
+          "name": {
+            "source": "e",
+            "canonical": "e"
+          },
+          "wireName": "e",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tuple/properties//items/properties/e"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Tuple/properties//prefixItems/0": {
       "kind": "model",
@@ -1110,7 +1160,7 @@
     {
       "format": "openapi@3.1",
       "path": "empty-names.yaml",
-      "hash": "647e61aa3074e2e4fbc37245ae5c25b7a68ab4b6d6f8b1c028241192b76cef92"
+      "hash": "d1cbb6bdd05b6b63d1bdc71071ed57691779751697643363ccee50971820c7df"
     }
   ]
 }

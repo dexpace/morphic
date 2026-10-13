@@ -286,8 +286,8 @@ func declaresAnnotations(s *oas3.Schema) bool {
 // One list, read by the predicate that hoists a node for them
 // (declaresValueConstraints) and by the recorder that keeps the ones no node can
 // hold (declaredConstraints), so the two can never disagree about what a schema
-// wrote. Collection bounds are absent because they are List-owned and read by
-// listConstraints, not here.
+// wrote. Collection bounds are absent because they belong to the collection
+// nodes and are read by collectionConstraints, not here.
 var valueConstraintKeywords = []string{
 	"exclusiveMaximum", "exclusiveMinimum", "maxLength", "maxProperties",
 	"maximum", "minLength", "minProperties", "minimum", "multipleOf", "pattern",
@@ -681,13 +681,10 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "maxItems", "minItems", "uniqueItems":
-		// Only a List. listConstraints is their sole reader and lowerArray its
-		// sole caller, while ir.Tuple has no Constraints field at all — so a
-		// collection bound beside prefixItems reaches as little as one written on
-		// an object does. Being List-owned is also why valueConstraintKeywords
-		// leaves them out, which is what puts them in this census rather than in
-		// declaredConstraints.
-		return isKind(td, ir.KindList)
+		// Either collection node, since collectionConstraints fills both. That is
+		// also why valueConstraintKeywords leaves them out, which puts them in this
+		// census rather than in declaredConstraints.
+		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -802,9 +799,10 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 //
 // Having the field is not filling it, so a Scalar or Model is asked whether it
 // is non-nil; lowerModel and lowerAllOf fill a Model's the same way (GitHub
-// #407). A List is absent because lowerArray fills its Constraints from
-// listConstraints, whose collection bounds valueConstraintKeywords excludes, so
-// no value constraint reaches it however full the field looks.
+// #407). A List or Tuple is absent because lowerArray and buildTuple fill their
+// Constraints from collectionConstraints, whose collection bounds
+// valueConstraintKeywords excludes, so no value constraint reaches either
+// however full the field looks.
 func constraintsHome(td ir.TypeDef) bool {
 	switch n := td.(type) {
 	case *ir.Scalar:
@@ -812,8 +810,9 @@ func constraintsHome(td ir.TypeDef) bool {
 	case *ir.Model:
 		return n.Constraints != nil
 	default:
-		// An Enum, Literal, Union, Tuple or Primitive has no Constraints field at
-		// all, so a bound written beside one was read by nothing.
+		// Every other kind has no Constraints field, or holds only collection
+		// bounds in it as a List and a Tuple do, so a value bound written beside
+		// one was read by nothing.
 		return false
 	}
 }
@@ -1350,12 +1349,15 @@ func patternProps(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 	return out, diags
 }
 
-// buildTuple lowers prefixItems into a Tuple. A trailing `items` schema makes
-// the source an *open* tuple — a fixed positional head plus a homogeneous tail
-// — and the IR has no combinator for that: Tuple is fixed-arity, List is
-// homogeneous, and there is no node that is both. The head lowers to a Tuple,
-// which is the documented weaker shape, and the tail is kept beside it so the
-// arity the Tuple now asserts falsely stays recoverable (ir-design §4.8).
+// buildTuple lowers prefixItems into a Tuple's Elems, the items beside them
+// into its Rest, and the collection bounds into its Constraints.
+//
+// 2020-12 applies items to every element past prefixItems, so `items: false`
+// leaves no Rest. Any other lowers as a List's items does, under the same hint,
+// since positionHint names /items alike whichever node holds it. An absent one
+// lowers to the top type as `items: true` does, though only the latter makes an
+// unevaluatedItems beside it inert (#862). No field is derived from another:
+// Elems is never trimmed to maxItems, and a closed tuple gains no maxItems.
 func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, hint string, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
@@ -1364,15 +1366,11 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems}
-	if s.GetItems() == nil {
-		return t, diags
-	}
-	kept, keptDiags := PreserveNode(c, &t.Unmodeled, "openapi:items-after-prefix", annotation.RawPropertyNode(s, "items"), ir.ReasonDegradedLowering, pointer+ids.Ptr("items"))
-	diags = append(diags, keptDiags...)
-	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-			"items after prefixItems is an open tuple; lowered as a fixed-arity Tuple with the tail kept under Unmodeled"))
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(s)}
+	if items := s.GetItems(); !annotation.IsFalseSchema(items) {
+		rest, restDiags := Ref(c, ts, anchors, depth, items, pointer+ids.Ptr("items"), compile.SubHint(hint, "item"))
+		diags = append(diags, restDiags...)
+		t.Rest = &rest
 	}
 	return t, diags
 }
@@ -2239,10 +2237,11 @@ func allNullUnion(s *oas3.Schema) bool {
 	return true
 }
 
-// listConstraints reads a list schema's collection constraints. Only the safe
+// collectionConstraints reads an array schema's collection bounds, which bound
+// the whole instance whether it lowers to a List or a Tuple. Only the safe
 // integer/bool bounds are read here; numeric-value bounds go through raw nodes
 // elsewhere to avoid the float64 trap.
-func listConstraints(s *oas3.Schema) *ir.Constraints {
+func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
 		return nil
 	}

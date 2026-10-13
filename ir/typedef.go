@@ -21,7 +21,7 @@ const (
 	KindList TypeKind = "list"
 	// KindMap is a keyed collection (MapT).
 	KindMap TypeKind = "map"
-	// KindTuple is a positional fixed-arity sequence (Tuple).
+	// KindTuple is a positional sequence with an optional rest (Tuple).
 	KindTuple TypeKind = "tuple"
 	// KindLiteral is a single constant value as a type (Literal).
 	KindLiteral TypeKind = "literal"

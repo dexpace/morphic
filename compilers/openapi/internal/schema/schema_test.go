@@ -285,34 +285,86 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
-func TestLower_TupleWithTrailingItems(t *testing.T) {
+// TestLower_TupleRest pins what a prefixItems tuple admits past its elements and
+// the bounds beside them. 2020-12 applies items to every element past
+// prefixItems and reads an absent one as `true`, so only `items: false` closes
+// the tuple. The rest is modeled, so nothing is kept beside it and nothing is
+// reported as degraded; an unevaluatedItems stays the §4.7 keeper's whatever
+// the rest is.
+func TestLower_TupleRest(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    Tup:
-      type: array
-      prefixItems: [{type: string}, {type: integer}]
-      items: {type: boolean}
-`)
-	doc, diags := lowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
-	require.True(t, ok)
-	require.Len(t, tup.Elems, 2)
-	residue, hasResidue := tup.Unmodeled["openapi:items-after-prefix"]
-	require.True(t, hasResidue, "trailing items preserved raw")
-	assert.JSONEq(t, `{"type":"boolean"}`, string(residue.Value))
-	assert.Equal(t, ir.ReasonDegradedLowering, residue.Reason,
-		"an open tuple is lowered to a weaker fixed-arity shape, not left homeless (ir-design §4.8)")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Tup/items"), residue.Provenance.Pointer)
-	assert.True(t, hasDegradedDiag(diags, "open tuple"),
-		"the degradation is reported, not silent; got %+v", diags)
-}
+	const head = "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n"
+	i64 := func(v int64) *int64 { return &v }
+	for _, tc := range []struct {
+		name   string
+		body   string
+		rest   ir.TypeID // "" = no rest
+		consts *ir.Constraints
+		kept   []string
+	}{
+		{name: "absent items admits anything after", body: head, rest: "t/prim/any"},
+		{name: "items true admits anything after", body: head + "      items: true\n", rest: "t/prim/any"},
+		{name: "items false admits nothing after", body: head + "      items: false\n"},
+		{name: "a typed rest", body: head + "      items: {type: boolean}\n", rest: "t/prim/bool"},
+		{
+			name: "a referenced rest",
+			body: head + "      items: {$ref: '#/components/schemas/B'}\n    B: {type: object}\n",
+			rest: componentID("B"),
+		},
+		{
+			name: "an inline rest hoists at its own pointer",
+			body: head + "      items: {type: object, properties: {f: {type: string}}}\n",
+			rest: "t/anon/components/schemas/Tup/items",
+		},
+		{
+			name:   "closed and pinned from below",
+			body:   head + "      items: false\n      minItems: 2\n",
+			consts: &ir.Constraints{MinItems: i64(2)},
+		},
+		{
+			name:   "an upper bound leaves the rest open",
+			body:   head + "      maxItems: 1\n",
+			rest:   "t/prim/any",
+			consts: &ir.Constraints{MaxItems: i64(1)},
+		},
+		{
+			name:   "a lower bound past the elements requires a rest",
+			body:   head + "      items: {type: boolean}\n      minItems: 3\n",
+			rest:   "t/prim/bool",
+			consts: &ir.Constraints{MinItems: i64(3)},
+		},
+		{
+			name:   "every bound is kept as written, satisfiable or not",
+			body:   head + "      items: false\n      minItems: 3\n      maxItems: 1\n      uniqueItems: true\n",
+			consts: &ir.Constraints{MinItems: i64(3), MaxItems: i64(1), UniqueItems: true},
+		},
+		{
+			name: "unevaluatedItems is kept and the rest read from items alone",
+			body: head + "      unevaluatedItems: false\n",
+			rest: "t/prim/any",
+			kept: []string{"openapi:unevaluated"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    Tup:\n"+tc.body))
+			openapitest.RequireNoErrorDiags(t, diags)
 
-// hasDegradedDiag reports whether diags carries a degraded-construct info
-// diagnostic whose message contains want.
-func hasDegradedDiag(diags []ir.Diagnostic, want string) bool {
-	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Code == diag.DegradedConstruct && strings.Contains(d.Message, want)
-	})
+			tup, ok := typeByName(doc, "Tup").(*ir.Tuple)
+			require.True(t, ok, "prefixItems hoists a Tuple")
+			assert.Equal(t, []ir.TypeRef{{Target: "t/prim/string"}, {Target: "t/prim/integer"}}, tup.Elems)
+			if tc.rest == "" {
+				assert.Nil(t, tup.Rest, "no element may follow the head")
+			} else if assert.NotNil(t, tup.Rest) {
+				assert.Equal(t, tc.rest, tup.Rest.Target)
+				assert.Contains(t, doc.Types, tup.Rest.Target, "the rest is lowered into the registry")
+			}
+			assert.Equal(t, tc.consts, tup.Constraints, "the instance's bounds reach Tuple.Constraints")
+			assert.Equal(t, tc.kept, unmodeledKeys(tup.Unmodeled))
+			assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Tup"),
+				"a modeled rest is no degradation")
+		})
+	}
 }
 
 func TestLower_ListConstraints(t *testing.T) {
@@ -2176,6 +2228,8 @@ func stolenPositions() []stolenPosition {
 			"t/anon/components/schemas/A/additionalProperties"},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0"},
+		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items"},
 		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/patternProperties/^x"},
 		{"oneOf-branch", "    A: {oneOf: [" + openapitest.InlineProbeBody + ", {type: integer}]}\n",
@@ -2210,6 +2264,8 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
 		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
+		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
+			"t/anon/components/schemas/A/items", "a_item", ""},
 		// Nested, because the derivation replays the whole chain rather than one
 		// step: the outside $ref used to name this "items", losing both levels.
 		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
@@ -2230,6 +2286,12 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
+		// Aimed at a tuple's rest for the same reason: a rest named by a role of
+		// its own would part from the /items a reference replays.
+		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
+			openapitest.InlineProbeBody + "}}\n",
+			"t/anon/components/schemas/A/items/items", "a_item_item",
+			"t/anon/components/schemas/A/items"},
 		// Aimed at additionalProperties for the same reason.
 		{"items under additionalProperties", "    A: {type: object, additionalProperties: {type: array, items: " +
 			openapitest.InlineProbeBody + "}}\n",
@@ -4787,14 +4849,13 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindLiteral, []string{"openapi:type"}},
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
 			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
-		// A collection bound is homed by ir.List.Constraints and by nothing else.
-		// listConstraints is its only reader and only lowerArray calls it, so an
-		// object keeps it here; so does a Tuple, which has no Constraints field at
-		// all. Both reached the IR in no form before they joined the census.
+		// A collection bound is homed by the Constraints of a List or a Tuple and
+		// by nothing else, so an object keeps it here and the tuple, its control,
+		// keeps nothing.
 		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
 			ir.KindModel, []string{"openapi:minItems"}},
 		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
-			ir.KindTuple, []string{"openapi:maxItems"}},
+			ir.KindTuple, nil},
 		// A Scalar rather than the shared Primitive the type alone would reach:
 		// the entry needs a node this pointer owns, so the census hoists the alias
 		// that carries it.
@@ -4986,12 +5047,12 @@ func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
 	}
 }
 
-// TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead pins the
-// reason the census asks what filled a Constraints field rather than which kinds
-// have one. An ir.List has the field, but lowerArray fills it from
-// listConstraints — collection bounds only — so a string bound written on an
-// array reaches nothing however full the field looks.
-func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testing.T) {
+// TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead pins
+// the reason the census asks what filled a Constraints field rather than which
+// kinds have one. An ir.List has the field, but lowerArray fills it from
+// collectionConstraints — collection bounds only — so a string bound written on
+// an array reaches nothing however full the field looks.
+func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
 	t.Parallel()
 	doc, diags := lowerSpec(t, keywordCensusSpec(
 		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
@@ -5002,7 +5063,7 @@ func TestUnhomedKeywords_ArrayBoundsKeepWhatListConstraintsDoesNotRead(t *testin
 	require.NotNil(t, l.Constraints)
 	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
 	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
-		"and only the bound listConstraints does not read is kept")
+		"and only the bound collectionConstraints does not read is kept")
 }
 
 // TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold runs the same
