@@ -121,7 +121,8 @@ cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, leakcheck,
+             testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —

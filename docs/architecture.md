@@ -296,6 +296,7 @@ morphic/
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
+├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
