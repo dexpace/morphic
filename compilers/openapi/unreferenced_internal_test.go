@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -85,24 +87,33 @@ components:
 		"a reached entry's own reference is a root in turn")
 }
 
-// TestUnreferencedComponents_MediaTypesIsPerEntryOnlyFrom32 pins the one version
-// gate in the retained set: components/mediaTypes is a section the dialect
-// defines from 3.2, so below it the key is undefined and the components census
-// keeps the whole map under its own key instead of one entry per name.
-func TestUnreferencedComponents_MediaTypesIsPerEntryOnlyFrom32(t *testing.T) {
+// TestComponentMediaTypes_KeptWholeAndNamedFor32 pins the components/mediaTypes
+// section while this compiler resolves nothing into it (GitHub #856): on 3.2,
+// which defines it, the map is kept whole with an info rather than called
+// undefined; below 3.2 the census keeps it and warns, as for any undefined key.
+func TestComponentMediaTypes_KeptWholeAndNamedFor32(t *testing.T) {
 	t.Parallel()
 	const body = `paths: {}
 components:
   mediaTypes:
     Event: {schema: {type: string}}
 `
-	doc32, _ := parseFull(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n"+body)
-	require.Contains(t, doc32.Unmodeled, "openapi:components/mediaTypes/Event")
-	assert.NotContains(t, doc32.Unmodeled, "openapi:components/mediaTypes",
-		"3.2 handles the section per entry, so the whole map is not also kept")
-
-	doc31, _ := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+body)
-	assert.Contains(t, doc31.Unmodeled, "openapi:components/mediaTypes",
-		"below 3.2 the section is an undefined key, kept whole and reported")
-	assert.NotContains(t, doc31.Unmodeled, "openapi:components/mediaTypes/Event")
+	for _, tc := range []struct {
+		version string
+		reason  ir.UnmodeledReason
+		code    string
+		sev     ir.Severity
+	}{
+		{"3.2.0", ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
+		{"3.1.0", ir.ReasonOutOfScope, diag.UnknownObjectKey, ir.SeverityWarning},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\n"+body)
+			kept, ok := doc.Unmodeled["openapi:components/mediaTypes"]
+			require.True(t, ok, "the section is kept whole")
+			assert.Equal(t, tc.reason, kept.Reason)
+			assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, tc.code, tc.sev, "/components/mediaTypes"))
+		})
+	}
 }

@@ -611,15 +611,15 @@ type Set struct {
 	Unmodeled  ir.Unmodeled
 }
 
-// Read reads every site-local annotation at st. reads32 reports that the
-// document speaks OpenAPI 3.2, whose XML object adds a `nodeType` the parser's
-// model has no field for, read here off the raw node (GitHub #615). It is a
-// parameter because this package may not import the lowering or the loader.
+// Read reads every site-local annotation at st. since32 reports a dialect of
+// OpenAPI 3.2 or later, whose XML object writes a `nodeType` the parser's model
+// has no field for (GitHub #615); a parameter, as this package may not import
+// the lowering that knows the dialect.
 //
 // This is the one place the site-versus-referent choice is made, rather than
 // at each position that attaches annotations: three attachment points used to
 // make it separately and disagreed.
-func Read(st Site, pointer jsontext.Pointer, locate Locator, reads32 bool) (Set, []ir.Diagnostic) {
+func Read(st Site, pointer jsontext.Pointer, locate Locator, since32 bool) (Set, []ir.Diagnostic) {
 	var out Set
 
 	referent := st.Referent
@@ -630,15 +630,12 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator, reads32 bool) (Set,
 	FillCarrierDocs(&out.Docs, st.Node, referent)
 	out.Deprecated = EffectiveDeprecated(st.Node, referent)
 	out.XML = XMLHints(st.Node.GetXML())
-	if reads32 {
-		applyNodeType(out.XML, st.Node)
-	}
 
 	examples, exDiags := schemaExamplesAt(st.Node, pointer, locate)
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), locate, pointer)
-	sub, subDiags := subObjectKeys(st.Node, pointer, locate, reads32)
+	sub, subDiags := subObjectKeys(st.Node, out.XML, pointer, locate, since32)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, locate)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
@@ -651,64 +648,77 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator, reads32 bool) (Set,
 	return out, diags
 }
 
-// applyNodeType fills the 3.2 nodeType an XML object declares, read off the raw
-// node because the parser's XML model has no field for it (GitHub #615).
-// ir.XMLHints.NodeType already exists and its GoDoc already names the version.
-//
-// A schema declaring no xml object has no XMLHints to fill — nodeType is written
-// inside the xml object, so there is no position it could have been declared at.
-// A declared nodeType wins over the attribute flag: 3.2 replaces `attribute:
-// true` with `nodeType: attribute`, so a document writing both has stated the
-// newer field, and the reader that took it last makes that the value.
-func applyNodeType(h *ir.XMLHints, s *oas3.Schema) {
-	if h == nil {
-		return
-	}
-	if node := RawChildNode(RawPropertyNode(s, "xml"), "nodeType"); node != nil {
-		h.NodeType = node.Value
-	}
-}
-
 // subObjectKeys collects what a schema's xml, discriminator and externalDocs
 // declare that reaches no IR field: the x-* they carry and the keys the
 // specification defines for none of them. None of those IR types holds an
 // Unmodeled map, so the entries ride on the schema's node, keyed apart by the
-// keyword each was written under.
-//
-// The census is graded as an OpenAPI object's, not a schema keyword's. reads32
-// names the key a 3.2 document defines that Read already takes raw, the XML
-// object's `nodeType`, so the census skips it there and still warns below 3.2.
-func subObjectKeys(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, reads32 bool) (ir.Unmodeled, []ir.Diagnostic) {
+// keyword each was written under. The census is graded as an OpenAPI object's,
+// not a schema keyword's. Under since32 it first reads the XML object's
+// nodeType into hints (applyNodeType).
+func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, locate Locator, since32 bool) (ir.Unmodeled, []ir.Diagnostic) {
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	var xmlTaken []string
+	if since32 {
+		xmlTaken, diags = applyNodeType(&out, hints, s.GetXML(), locate, pointer+ids.Ptr("xml"))
+	}
 	subs := []struct {
 		keyword string
 		obj     any
 		ext     *extensions.Extensions
-		decided []string
+		taken   []string
 	}{
-		{"xml", s.GetXML(), s.GetXML().GetExtensions(), nodeTypeKey(reads32)},
+		{"xml", s.GetXML(), s.GetXML().GetExtensions(), xmlTaken},
 		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions(), nil},
 		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions(), nil},
 	}
-	var out ir.Unmodeled
-	var diags []ir.Diagnostic
 	for _, sub := range subs {
 		owner := pointer + ids.Ptr(sub.keyword)
 		ext, extDiags := ExtensionsUnder(sub.ext, locate, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysDecided(&out, sub.obj, locate, owner, sub.keyword, sub.decided)...)
+		diags = append(diags, UnknownKeysUnder(&out, sub.obj, locate, owner, sub.keyword, sub.taken...)...)
 	}
 	return out, diags
 }
 
-// nodeTypeKey names the XML object's 3.2 `nodeType` for the census, and nothing
-// below 3.2: the key is a misspelling there rather than a field the dialect
-// added, and the warning is what says so.
-func nodeTypeKey(reads32 bool) []string {
-	if !reads32 {
-		return nil
+// applyNodeType places the nodeType a 3.2 XML object writes on hints, and
+// returns the keys it read for the census to leave alone. A value outside the
+// five the specification defines is kept verbatim on p instead, as nothing
+// else may fill XMLHints.NodeType. An attribute flag the nodeType contradicts,
+// which 3.2 forbids writing beside it, is kept verbatim on p rather than
+// overwritten in silence.
+func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Locator, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	if x == nil {
+		return nil, nil
 	}
-	return []string{"nodeType"}
+	nodeType, read, diags := TakeString(p, x.GetRootNode(), "nodeType", definedNodeType, locate, owner, "xml")
+	if !read {
+		return nil, diags
+	}
+	if nodeType == "" {
+		return []string{"nodeType"}, diags
+	}
+	if x.Attribute != nil && *x.Attribute != (nodeType == "attribute") {
+		at := locate(owner + ids.Ptr("attribute"))
+		PreserveInto(p, "openapi:xml/attribute", ir.RawValue(strconv.FormatBool(*x.Attribute)),
+			ir.ReasonDegradedLowering, at)
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"attribute contradicts nodeType %q, which replaces it; nodeType is placed and attribute "+
+				"kept verbatim under Unmodeled", nodeType))
+	}
+	hints.NodeType = nodeType
+	return []string{"nodeType"}, diags
+}
+
+// definedNodeType reports whether v is a node type OpenAPI 3.2 defines, the
+// domain ir.XMLHints.NodeType holds.
+func definedNodeType(v string) bool {
+	switch v {
+	case "element", "attribute", "text", "cdata", "none":
+		return true
+	}
+	return false
 }
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim

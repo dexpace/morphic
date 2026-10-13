@@ -199,13 +199,10 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	}
 }
 
-// TestIs32_FollowsTheDeclaredVersion pins the one answer every 3.2 raw-node
-// reader and every 3.2 census suppression asks for (GitHub #615). Asking once
-// here is what keeps the reader and the census from disagreeing about which
-// dialect they are reading, and a version nobody recognizes answers false — the
-// raw-node readers are refused rather than let to run on a dialect nothing has
-// said anything about.
-func TestIs32_FollowsTheDeclaredVersion(t *testing.T) {
+// TestSince32_FollowsTheDeclaredVersion pins the one answer every raw-node
+// reader of a 3.2 field and its census ask (GitHub #615). A version nobody
+// recognizes answers false, so no reader runs on a dialect nothing describes.
+func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
@@ -222,7 +219,7 @@ func TestIs32_FollowsTheDeclaredVersion(t *testing.T) {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.Is32())
+			assert.Equal(t, tc.want, c.Since32())
 		})
 	}
 }

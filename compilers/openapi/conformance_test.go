@@ -235,7 +235,7 @@ func conformanceCases() []conformanceCase {
 		{"examples-32", assertExamples32, []string{"examples"}},
 		{"tags-grouping-32", assertTagsGrouping32, []string{"operation-grouping"}},
 		{"response-summary-32", assertResponseSummary32, []string{"docs-summary-description"}},
-		{"component-media-types-32", assertComponentMediaTypes32, []string{"multi-content"}},
+		{"component-media-types-32", assertComponentMediaTypes32, nil},
 		{"xml-nodetype-32", assertXMLNodeType32, nil},
 		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
 		{"unreferenced-components", assertUnreferencedComponents, nil},
@@ -3392,28 +3392,22 @@ func assertResponseSummary32(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"a key 3.2 defines is not an undefined key")
 }
 
-// assertComponentMediaTypes32 pins GitHub #615's components/mediaTypes: a content
-// entry written as a `$ref` into that section lowers to what the component
-// declares — its schema, its examples and its extensions — rather than to the
-// top type with the reference kept beside it, and two operations referring to
-// one entry both get it.
+// assertComponentMediaTypes32 pins a 3.2 document using components/mediaTypes
+// while this compiler resolves no reference into it (GitHub #856): nothing is
+// lost, as the section is kept whole and each content entry keeps its $ref, and
+// nothing the dialect defines is called undefined.
 func assertComponentMediaTypes32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, name := range []string{"listEvents", "getEvent"} {
 		op, ok := opByName(doc, name)
 		require.True(t, ok)
 		content := op.Responses[0].Payload.Contents[0]
 		assert.Equal(t, "application/json", content.MediaType)
-		assert.Equal(t, namedID("Event"), content.Type.Target,
-			"%s: the referenced media type's schema is what lowers", name)
-		require.Len(t, content.Examples, 1, "%s: the component's own examples come with it", name)
-		assert.Equal(t, "one", content.Examples[0].Name)
-		assert.Contains(t, content.Unmodeled, "openapi:x-note",
-			"%s: and its extensions", name)
-		assert.NotContains(t, content.Unmodeled, "openapi:$ref",
-			"%s: a resolved reference is not also kept as an undefined key", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, content.Unmodeled["openapi:$ref"].Reason,
+			"%s: the reference is kept, not followed", name)
 	}
+	assert.Equal(t, ir.ReasonNoIRHome, doc.Unmodeled["openapi:components/mediaTypes"].Reason)
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-	assert.Empty(t, doc.Unmodeled, "the whole components/mediaTypes map is no longer kept as one entry")
+	openapitest.AssertInfoDiagAt(t, diags, "/components/mediaTypes")
 }
 
 // assertXMLNodeType32 pins GitHub #615's xml.nodeType: ir.XMLHints.NodeType
@@ -3461,7 +3455,7 @@ func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, section := range []string{
 		"responses", "parameters", "examples", "requestBodies",
-		"headers", "links", "callbacks", "pathItems", "mediaTypes",
+		"headers", "links", "callbacks", "pathItems",
 	} {
 		key := "openapi:components/" + section + "/Unused"
 		entry, ok := doc.Unmodeled[key]
@@ -3472,6 +3466,8 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	}
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/Used",
 		"an entry a reference reaches is lowered, not also kept verbatim")
+	assert.Contains(t, doc.Unmodeled, "openapi:components/mediaTypes",
+		"3.2's mediaTypes is kept whole until a reference into it is followed (GitHub #856)")
 
 	op, ok := opByName(doc, "getA")
 	require.True(t, ok)

@@ -9,6 +9,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/componentreach"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -45,20 +46,11 @@ type docMeta struct {
 // lowering, both unconditionally, while these eight are reached only where a
 // reference finds an entry — so an entry no reference names would reach no node,
 // no Unmodeled entry and no diagnostic at all (GitHub #616).
-//
-// components/mediaTypes joins them only from 3.2, the version that defines the
-// section. Below it the key is one the dialect does not define, and the
-// components census already keeps the whole map verbatim under
-// openapi:components/mediaTypes.
-func retainedComponentSections(c lowering.Ctx) []string {
-	sections := []string{
+func retainedComponentSections(lowering.Ctx) []string {
+	return []string{
 		"responses", "parameters", "examples", "requestBodies",
 		"headers", "links", "callbacks", "pathItems",
 	}
-	if c.Is32() {
-		sections = append(sections, ids.MediaTypesKind)
-	}
-	return sections
 }
 
 // retainUnreferencedComponents keeps every component entry no reference reaches
@@ -114,7 +106,29 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	m.Servers = servers
 	diags = append(diags, serverDiags...)
 
+	diags = append(diags, keepComponentMediaTypes(c, &m.Unmodeled)...)
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+}
+
+// keepComponentMediaTypes keeps the components/mediaTypes map OpenAPI 3.2 adds
+// verbatim on the document, at the entry and pointer the components census
+// would use, so the census leaves it alone. The parser models no such section
+// and this compiler does not resolve a reference into it yet (GitHub #856), so
+// the map has no IR home; below 3.2 the key is not the dialect's and the census
+// reports it as undefined.
+func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+	if !c.Since32() {
+		return nil
+	}
+	at := ids.Ptr("components", "mediaTypes")
+	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("components", "mediaTypes"),
+		annotation.RawChildNode(annotation.RawChildNode(c.Doc.GetRootNode(), "components"), "mediaTypes"),
+		ir.ReasonNoIRHome, c.ProvenanceAt(at))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled"))
 }
 
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
@@ -131,30 +145,17 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(sites))
 	for _, site := range sites {
 		diags = append(diags,
-			annotation.UnknownKeysDecided(p, site.model, c.ProvenanceAt, site.owner, site.scope, site.decided)...)
+			annotation.UnknownKeysUnder(p, site.model, c.ProvenanceAt, site.owner, site.scope)...)
 	}
 	return diags
 }
 
 // unknownSite is one object's census: what it keys under on the carrier holding
-// it, the object's own source pointer, the parsed object itself, and the keys a
-// reader has already taken raw for this document.
+// it, the object's own source pointer, and the parsed object itself.
 type unknownSite struct {
-	scope   string
-	owner   jsontext.Pointer
-	model   any
-	decided []string
-}
-
-// componentsDecidedKeys names the Components Object keys a reader takes raw for
-// this document: OpenAPI 3.2's `mediaTypes`, whose entries are resolved where a
-// content entry references one rather than kept as a whole map (GitHub #615).
-// Below 3.2 the key is undefined and the warning is owed.
-func componentsDecidedKeys(c lowering.Ctx) []string {
-	if !c.Is32() {
-		return nil
-	}
-	return []string{ids.MediaTypesKind}
+	scope string
+	owner jsontext.Pointer
+	model any
 }
 
 // rootUnknownSites returns the census sites a document has exactly one of. The
@@ -170,12 +171,12 @@ func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
 	return []unknownSite{
-		{"", "", c.Doc, nil},
-		{"info", infoPtr, info, nil},
-		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact(), nil},
-		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense(), nil},
-		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs(), nil},
-		{"components", ids.Ptr("components"), c.Doc.GetComponents(), componentsDecidedKeys(c)},
+		{"", "", c.Doc},
+		{"info", infoPtr, info},
+		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
+		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
+		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
+		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
 	}
 }
 
@@ -197,8 +198,8 @@ func tagUnknownSites(c lowering.Ctx) []unknownSite {
 		index := strconv.Itoa(i)
 		ptr := ids.Ptr("tags", index)
 		out = append(out,
-			unknownSite{"tags/" + index, ptr, t, nil},
-			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs(), nil})
+			unknownSite{"tags/" + index, ptr, t},
+			unknownSite{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
 	}
 	return out
 }

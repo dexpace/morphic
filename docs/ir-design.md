@@ -2148,19 +2148,23 @@ would be a compiler reading a member list out of an extension, not a promotion, 
 left for a consumer that wants to.
 
 **A dialect's own field the parser does not model.** A source revision may add a field the bundled
-parser's model names no member for; OpenAPI 3.2's `Response.summary`, `components/mediaTypes`, XML
-`nodeType` and the nested Encoding fields are the live set. Such a field is read off the raw node by
+parser's model names no member for; OpenAPI 3.2's `Response.summary`, XML `nodeType`, the nested
+Encoding fields and `components/mediaTypes` are the live set. Such a field is read off the raw node by
 a reader of its own, and the object census is *told* which keys that reader took: the census grades a
 key by the parser's model, so left alone it reports a field the document defines as an undefined key.
-The suppression is version-gated in both directions — it is passed only for a document whose dialect
-defines the key, so the same key on an older document keeps the `openapi/unknown-object-key` warning
-it has always drawn, where it is a misspelling rather than a field.
+The reader runs only for a dialect that defines the field, so the same key on an older document keeps
+the `openapi/unknown-object-key` warning, where it is a misspelling rather than a field.
 
-Where a reading still has no IR home, the key is preserved under `ReasonNoIRHome` at the key and
-pointer the census itself uses, which is what makes preservation and suppression one statement
-rather than two: the census answers only for what nothing read. A reading with an IR home — `summary`
-into `Docs.Summary`, `nodeType` into `XMLHints.NodeType` — is not also kept verbatim, because one
-declaration gets one structural home (§12.1).
+The census is told what the reader actually took, never a key list by version. A value the parser
+would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
+`XMLHints.NodeType` — and is not also kept verbatim, because one declaration gets one structural home
+(§12.1). A value of another shape, or a `nodeType` outside the five the specification defines, is
+kept verbatim at the key and pointer the census itself uses, under `degraded_lowering` and with a
+warning, and the census finds the entry and adds nothing. A key the raw mapping does not present
+directly — merged in through `<<` — is not read at all, so the census's `unknown-key-unreachable`
+still reports it. A reading with no IR home is kept the same way under `ReasonNoIRHome`: the nested
+Encoding fields, and `components/mediaTypes` with any content entry written as a `$ref` into it,
+which this compiler does not follow yet (GitHub #856).
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no

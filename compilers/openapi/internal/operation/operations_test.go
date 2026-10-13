@@ -3334,56 +3334,6 @@ tags:
 	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
 }
 
-// TestContent_MediaTypesRefIsOrderIndependent is the two-order diff for GitHub
-// #615. The entry a content `$ref` resolves through is read by pointer off the
-// raw tree, and the type registry it lowers into is not a diagnostic, so the
-// order-invariance oracle does not cover this pair: both documents below declare
-// the same components and the same path, and only the order of the two top-level
-// blocks differs. The contents, and the registry identity they carry, must be
-// identical.
-func TestContent_MediaTypesRefIsOrderIndependent(t *testing.T) {
-	t.Parallel()
-	const header = `openapi: 3.2.0
-info: {title: T, version: "1"}
-`
-	const paths = `paths:
-  /a:
-    get:
-      operationId: a
-      responses:
-        "200":
-          description: ok
-          content:
-            application/json: {$ref: '#/components/mediaTypes/Json'}
-`
-	const components = `components:
-  schemas:
-    N: {type: string}
-  mediaTypes:
-    Json:
-      schema: {$ref: '#/components/schemas/N'}
-      examples:
-        one: {value: {k: 1}}
-`
-	lower := func(spec string) ([]ir.Content, []ir.Diagnostic) {
-		t.Helper()
-		_, svc, diags := lowerServiceSpec(t, spec)
-		openapitest.RequireNoErrorDiags(t, diags)
-		op := openapitest.FirstOp(t, svc)
-		require.NotNil(t, op.Responses[0].Payload)
-		return op.Responses[0].Payload.Contents, diags
-	}
-	componentFirst, firstDiags := lower(header + components + paths)
-	componentLast, lastDiags := lower(header + paths + components)
-
-	assert.Empty(t, cmp.Diff(componentFirst, componentLast),
-		"where the media type is declared must not change what the content lowers to")
-	assert.Empty(t, cmp.Diff(firstDiags, lastDiags), "nor may the diagnostic list depend on it")
-	require.Len(t, componentFirst, 1)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), componentFirst[0].Type.Target,
-		"the reference resolved, so the two orders above compared a resolved content")
-}
-
 // TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
 // 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
 // dialect does not define, so it keeps warning rather than being silently
@@ -3420,6 +3370,33 @@ paths:
 	resp31 := openapitest.FindOp(t, doc31, "a").Responses[0]
 	assert.Empty(t, resp31.Docs.Summary, "nothing is invented for a version without the field")
 	assert.Contains(t, resp31.Unmodeled, "openapi:summary")
+}
+
+// TestResponses_SummaryNoReaderTakesIsStillReported pins the two summaries the
+// 3.2 reader does not place in Docs.Summary, which must not vanish because the
+// census was told the key is the dialect's: one that is not a string is kept
+// verbatim with a warning, and one merged in through `<<` keeps the census's
+// report that it reached the IR in no form.
+func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {description: ok, summary: [not, a, string]}
+        "201":
+          <<: {summary: Merged}
+          description: ok
+`))
+	responses := openapitest.FindOp(t, doc, "a").Responses
+	require.Len(t, responses, 2)
+	assert.Empty(t, responses[0].Docs.Summary)
+	kept, ok := responses[0].Unmodeled["openapi:summary"]
+	require.True(t, ok, "a summary that is not a string is kept verbatim")
+	assert.JSONEq(t, `["not","a","string"]`, string(kept.Value))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1a/get/responses/200/summary"))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyUnreachable, "/paths/~1a/get/responses/201/summary"),
+		"a merged-in summary is still reported; got %v", diags)
 }
 
 // TestResponses_SummaryUseSiteBeatsTheDeclaration holds the 3.2 field to the
@@ -3500,80 +3477,67 @@ func propByWireTest(m *ir.Model, wire string) (ir.Property, bool) {
 	return ir.Property{}, false
 }
 
-// TestContent_MediaTypesRefIsResolved pins the 3.2 components/mediaTypes path:
-// a content entry written as a `$ref` into that section is read off the raw node
-// and lowered through the ordinary media-type lowering, so the body is what the
-// component declares rather than the top type with the reference kept beside it.
-func TestContent_MediaTypesRefIsResolved(t *testing.T) {
+// TestContent_UnkeepableMediaTypeRefIsReported pins the media type $ref that
+// cannot be kept verbatim, a mapping writing one key twice: it is reported as
+// lost, and nothing claims it was kept.
+func TestContent_UnkeepableMediaTypeRefIsReported(t *testing.T) {
 	t.Parallel()
-	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-  /a:
+	_, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
       operationId: a
       responses:
         "200":
           description: ok
           content:
-            application/json: {$ref: '#/components/mediaTypes/Json'}
-components:
-  schemas:
-    N: {type: string}
-  mediaTypes:
-    Json:
-      schema: {$ref: '#/components/schemas/N'}
-`)
-	openapitest.RequireNoErrorDiags(t, diags)
-	content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/N"), content.Type.Target,
-		"the referenced media type's schema is what lowers, and its own $ref still resolves")
-	assert.NotContains(t, content.Unmodeled, "openapi:$ref",
-		"a reference this compiler resolved is not also kept as an undefined key")
-	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+            application/json: {$ref: {a: 1, a: 2}}
+`))
+	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
+		"/paths/~1a/get/responses/200/content/application~1json/$ref"), "nothing announces a keep it did not make")
 }
 
-// TestContent_MediaTypesRefFailuresLowerAsWritten covers every target the
-// resolver refuses: an entry the document does not declare, an external
-// document, a pointer naming another section, an entry that is not an object,
-// and an entry that is itself another `$ref` (the one-hop reading). Each keeps
-// the `$ref` verbatim and reports one unresolved-ref.
-func TestContent_MediaTypesRefFailuresLowerAsWritten(t *testing.T) {
+// TestContent_MediaTypeRefIsKeptNotFollowed pins a content entry written as a
+// Reference Object while this compiler does not follow one (GitHub #856). On
+// 3.2, which allows it, the $ref and the summary beside it are kept verbatim and
+// one warning says the entry lowered as written; below 3.2 the $ref is a key
+// the dialect does not define, and the census says so.
+func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 	t.Parallel()
-	refs := map[string]string{
-		"an undeclared entry":            "#/components/mediaTypes/Missing",
-		"another document":               "other.yaml#/components/mediaTypes/Json",
-		"another section":                "#/components/schemas/N",
-		"an entry that is not an object": "#/components/mediaTypes/Scalar",
-		"a chained $ref":                 "#/components/mediaTypes/Chained",
-	}
-	for name, ref := range refs {
-		t.Run(name, func(t *testing.T) {
+	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
+	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/$ref"
+	for _, tc := range []struct {
+		version string
+		reason  ir.UnmodeledReason
+		code    string
+	}{
+		{"3.2.0", ir.ReasonDegradedLowering, diag.DegradedConstruct},
+		{"3.1.0", ir.ReasonOutOfScope, diag.UnknownObjectKey},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-  /a:
+			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(tc.version, `  /a:
     get:
       operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
       responses:
         "200":
           description: ok
           content:
-            application/json: {$ref: '`+ref+`'}
-components:
-  schemas:
-    N: {type: string}
-  mediaTypes:
-    Scalar: hello
-    Chained: {$ref: '#/components/mediaTypes/Scalar'}
-`)
-			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
-			content := openapitest.FindOp(t, doc, "a").Responses[0].Payload.Contents[0]
-			assert.Equal(t, ir.TypeID("t/prim/any"), content.Type.Target,
-				"an unresolvable reference drops the position to the top type")
-			assert.Contains(t, content.Unmodeled, "openapi:$ref",
-				"...with the reference itself kept verbatim")
+            application/json: {$ref: '#/components/mediaTypes/Json', summary: S}
+`))
+			op := openapitest.FirstOp(t, svc)
+			content := op.Responses[0].Payload.Contents[0]
+			assert.Equal(t, tc.reason, content.Unmodeled["openapi:$ref"].Reason)
+			assert.Contains(t, content.Unmodeled, "openapi:summary", "nothing beside the $ref is dropped")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, at), "got %v", diags)
+			require.Len(t, op.Params, 1)
+			assert.Equal(t, tc.reason, op.Params[0].Unmodeled["openapi:content/application~1json/$ref"].Reason)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, paramAt))
 		})
 	}
 }
+

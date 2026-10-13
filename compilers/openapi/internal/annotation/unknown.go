@@ -2,10 +2,12 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"reflect"
 	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -101,8 +103,8 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer
 // closed key set and requires extensions to be prefixed x-, so such a key is
 // usually a misspelling. It is kept all the same, because the IR is lossless
 // even for invalid input, and a misspelt key is the one most worth finding.
-func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer) []ir.Diagnostic {
-	return UnknownKeysUnder(p, model, locate, owner, "")
+func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
+	return UnknownKeysUnder(p, model, locate, owner, "", taken...)
 }
 
 // UnknownKeysUnder is UnknownKeysIn with every entry keyed beneath scope, for
@@ -112,34 +114,10 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Po
 // scope says which object wrote them: the source path from the carrier down to
 // the object. Several objects reach one map, where "openapi:status" from two of
 // them would be a single key and the entry that survived would depend on which
-// lowering ran last.
-func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string) []ir.Diagnostic {
-	return UnknownKeysDecided(p, model, locate, owner, scope, nil)
-}
-
-// UnknownKeysDecided is UnknownKeysUnder for an object one of whose keys a
-// reader has already read raw: `decided` names those keys, and the census leaves
-// them alone rather than reporting a key the document does define as undefined.
-//
-// The parser's model has no field for the keys OpenAPI 3.2 added, such as a
-// Response Object's `summary`, so each is read off the raw node (GitHub #615).
-// `decided` must be empty below 3.2, where the same key is a misspelling and
-// the warning is owed.
-func UnknownKeysDecided(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string, decided []string) []ir.Diagnostic {
+// lowering ran last. taken lists keys a reader placed in a field (TakeString).
+func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string, taken ...string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return census(p, keys, root, locate, owner, scope, objectKeyClass(decided))
-}
-
-// objectKeyClass grades a key the OpenAPI object it is written on does not
-// define, with the keys a reader has already taken raw left out.
-func objectKeyClass(decided []string) keyClass {
-	return keyClass{
-		code:     diag.UnknownObjectKey,
-		severity: ir.SeverityWarning,
-		skip:     decided,
-		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
-			"x- extension; kept verbatim under Unmodeled",
-	}
+	return UnknownKeysNamed(p, keys, root, locate, owner, scope, taken...)
 }
 
 // UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no
@@ -153,9 +131,63 @@ func objectKeyClass(decided []string) keyClass {
 // leftovers are graded as any undeclared key is, because UnknownKeysUnder
 // delegates here.
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	locate Locator, owner jsontext.Pointer, scope string,
+	locate Locator, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, locate, owner, scope, objectKeyClass(nil))
+	return census(p, keys, root, locate, owner, scope, keyClass{
+		code:     diag.UnknownObjectKey,
+		severity: ir.SeverityWarning,
+		skip:     taken,
+		message: "key %q is not defined by the OpenAPI object it is written on and is not an " +
+			"x- extension; kept verbatim under Unmodeled",
+	})
+}
+
+// TakeString reads a string field the parser's model names no member for, one a
+// later revision of the specification added, directly under key on root, the
+// mapping the census reads (GitHub #615). It reports whether it read the key,
+// which the caller then passes to the census as taken.
+//
+// A scalar the parser would decode into a string field is returned, unless valid
+// refuses it. Any other value is kept verbatim on p at the census's own entry,
+// with a warning. A key root does not present directly, absent or merged in
+// through `<<`, is not read; the census reports the second.
+func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
+	locate Locator, owner jsontext.Pointer, scope string,
+) (string, bool, []ir.Diagnostic) {
+	node := RawChildNode(root, key)
+	if node == nil {
+		return "", false, nil
+	}
+	value, ok := stringValue(node)
+	if ok && (valid == nil || valid(value)) {
+		return value, true, nil
+	}
+	at := locate(owner + ids.Ptr(key))
+	kept, diags := PreserveNodeInto(p, EntryKey(scope, key), node, ir.ReasonDegradedLowering, at)
+	if !kept {
+		return "", true, diags
+	}
+	why := "is not a string"
+	if ok {
+		why = fmt.Sprintf("value %q is not one the specification defines", value)
+	}
+	return "", true, append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
+		"%s %s, so it reaches no IR field; kept verbatim under Unmodeled", key, why))
+}
+
+// stringValue decodes node as the parser decodes a string field it models: a
+// scalar of a tag the parser accepts there, an alias followed first, with null
+// read as the empty string. ok is false for any other node, which the parser
+// would report as a type mismatch.
+func stringValue(node *yaml.Node) (string, bool) {
+	n := yml.ResolveAlias(node)
+	if n == nil || n.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	if n.Tag == "!!null" {
+		return "", true
+	}
+	return n.Value, slices.Contains(yml.TypeToYamlTags(reflect.TypeFor[string]()), n.Tag)
 }
 
 // keyClass is how a key the model does not name is graded: which diagnostic
@@ -207,7 +239,7 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 // keep writes one key's value under its entry and announces it, or says why it
 // could not.
 func keep(p *ir.Unmodeled, root *yaml.Node, key string, locate Locator, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
-	entry, at := "openapi:"+scoped(scope, key), locate(owner+ids.Ptr(key))
+	entry, at := EntryKey(scope, key), locate(owner+ids.Ptr(key))
 	if taken, occupied := (*p)[entry]; occupied {
 		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}
@@ -236,13 +268,20 @@ func unrecorded(p *ir.Unmodeled, keys []string, owner jsontext.Pointer, scope st
 		if slices.Contains(skip, key) {
 			continue
 		}
-		if e, recorded := (*p)["openapi:"+scoped(scope, key)]; recorded &&
+		if e, recorded := (*p)[EntryKey(scope, key)]; recorded &&
 			e.Provenance.Pointer == owner+ids.Ptr(key) {
 			continue
 		}
 		out = append(out, key)
 	}
 	return out
+}
+
+// EntryKey is the Unmodeled key the census keeps key under, written on an object
+// at scope beneath its carrier. A reader that keeps a key itself spells it with
+// this, so the census finds the entry and leaves the key alone.
+func EntryKey(scope, key string) string {
+	return "openapi:" + scoped(scope, key)
 }
 
 // scoped spells one entry's key on the carrier holding it.

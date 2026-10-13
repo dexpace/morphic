@@ -952,42 +952,26 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 	headers, diags := lowerHeaders(c, ts, anchors, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, ts, anchors, r.GetContent(), rptr, ids.DeclarationHint(rptr, "response"))
 	diags = append(diags, payloadDiags...)
-	parts := responseParts{
-		name:    responseName(code),
-		payload: payload,
-		headers: headers,
-		docs:    resolve.UseDocs[soa.Response](ref, responseDocs(c, r)),
-	}
-	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr)...)
+	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
+	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
+	diags = append(diags, summaryDiags...)
+	parts.docs = resolve.UseDocs[soa.Response](ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr, taken...)...)
 }
 
-// responseDocs builds a Response Object's docs: its description, and — for
-// OpenAPI 3.2 — the `summary` the version added, which the bundled parser's
-// model names no field for and nothing read (GitHub #615). It is read off the
-// raw node, at the declaration, so the census must be told the key was taken
-// (preserveResponseExtras).
-//
-// The caller folds the siblings of the entry's $ref chain over these
-// (resolve.UseDocs), so a summary written beside a `$ref` still wins.
-func responseDocs(c lowering.Ctx, r *soa.Response) ir.Docs {
-	docs := ir.Docs{Description: r.GetDescription()}
-	if !c.Is32() {
-		return docs
+// responseSummary reads the summary OpenAPI 3.2 gives a Response Object, which
+// the parser's model names no member for (GitHub #615), and returns the keys it
+// read for the census to leave alone. Below 3.2 it reads nothing: the key is not
+// the dialect's there, and the census reports it as undefined.
+func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
+	if !c.Since32() {
+		return "", nil, nil
 	}
-	if node := annotation.RawChildNode(r.GetRootNode(), "summary"); node != nil {
-		docs.Summary = node.Value
+	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.ProvenanceAt, rptr, "")
+	if !read {
+		return "", nil, diags
 	}
-	return docs
-}
-
-// responseDecidedKeys names the Response Object keys a reader takes raw for this
-// document, which the census must leave alone. It is empty below 3.2, where
-// `summary` is a key the dialect does not define and the warning is owed.
-func responseDecidedKeys(c lowering.Ctx) []string {
-	if !c.Is32() {
-		return nil
-	}
-	return []string{"summary"}
+	return summary, []string{"summary"}, diags
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
@@ -998,15 +982,14 @@ func responseDecidedKeys(c lowering.Ctx) []string {
 // The links entry carries ReasonNoIRHome and no diagnostic. A Link Object
 // inside it gets no entry or census, since this compiler lowers none; an
 // unreferenced components/links entry is kept by retainUnreferencedComponents
-// (GitHub #616).
-func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) []ir.Diagnostic {
+// (GitHub #616). taken names the keys responseSummary read.
+func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	_, diags := schema.PreserveNode(c, p, "openapi:links",
 		annotation.RawChildNode(r.GetRootNode(), "links"), ir.ReasonNoIRHome, rptr+ids.Ptr("links"))
 	ext, extDiags := schema.ExtensionsOf(c, r.GetExtensions(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysDecided(p, r, c.ProvenanceAt, rptr, "",
-		responseDecidedKeys(c))...)
+	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr, taken...)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no

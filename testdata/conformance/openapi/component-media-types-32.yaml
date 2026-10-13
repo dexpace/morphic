@@ -8,9 +8,8 @@ paths:
         "200":
           description: ok
           content:
-            # A content entry may reference a reusable Media Type Object; the
-            # bundled parser has no model for components/mediaTypes, so the entry
-            # is resolved from the raw node.
+            # A content entry may reference a reusable Media Type Object. The
+            # reference is kept but not followed yet (GitHub #856).
             application/json: {$ref: '#/components/mediaTypes/Event'}
   /events/{id}:
     get:

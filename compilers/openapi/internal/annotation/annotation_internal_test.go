@@ -256,3 +256,46 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 	assert.Nil(t, got.XML)
 	assert.Empty(t, diags)
 }
+
+// TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
+// on 3.2: one of the five node types the specification defines. Anything else is
+// kept verbatim under the xml object's scope with a warning, an attribute flag
+// the nodeType contradicts is kept the same way rather than overwritten, and a
+// nodeType merged in through `<<` keeps the census's report.
+func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		xml      string
+		nodeType string
+		kept     string // the Unmodeled key expected, "" for none
+		code     string // the diagnostic expected at the key, "" for none
+	}{
+		{"defined", "{nodeType: cdata}", "cdata", "", ""},
+		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
+		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
+			"openapi:xml/attribute", diag.DegradedConstruct},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "", "", diag.UnknownKeyUnreachable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
+			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+			require.NotNil(t, got.XML)
+			assert.Equal(t, tc.nodeType, got.XML.NodeType)
+			if tc.kept == "" {
+				assert.Empty(t, got.Unmodeled)
+			} else {
+				assert.Equal(t, ir.ReasonDegradedLowering, got.Unmodeled[tc.kept].Reason)
+			}
+			if tc.code == "" {
+				assert.Empty(t, diags)
+				return
+			}
+			require.Len(t, diags, 1, "got %v", diags)
+			assert.Equal(t, tc.code, diags[0].Code)
+		})
+	}
+}

@@ -203,7 +203,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 		return diags
 	}
 	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt,
-		c.Is32())
+		c.Since32())
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
