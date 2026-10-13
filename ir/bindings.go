@@ -217,7 +217,8 @@ type Reply struct {
 type GraphQLBinding struct {
 	// Kind is "query" | "mutation" | "subscription".
 	Kind string `json:"kind,omitempty"`
-	// FieldPath is the entry-point field (nesting for namespaced schemas).
+	// FieldPath is the entry-point field (nesting for namespaced schemas). It is
+	// a path: no segment is blank, and one may repeat (ir-design §4).
 	FieldPath []string `json:"fieldPath,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`

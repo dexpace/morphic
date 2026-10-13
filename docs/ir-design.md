@@ -532,6 +532,12 @@ type TemplateArg struct {
 }
 ```
 
+`Namespace` is a path, one segment per level, as `Service.Namespace` and `GraphQLBinding.FieldPath`
+(§8.4) are. **No segment is blank** (`ir/path-segment-blank`): no namespace or field grammar has an
+empty level, so a source that spells one has written an invalid name, which its compiler reports
+rather than carries. A null or global namespace is the empty list, not one blank segment. A segment
+may repeat — `com.acme.acme` has three levels — so a path is not held to unique entries.
+
 ### 4.1 Primitives
 
 ```go
@@ -1226,6 +1232,10 @@ type Visibility struct {
                        // (TypeSpec @invisible) — distinct from the zero value
 }
 ```
+
+`Only`, like an operation's `ParameterVisibility` and `ReturnTypeVisibility` (§7.2), is a set: no
+entry is blank and none repeats (`ir/set-entry-blank`, `ir/set-entry-duplicate`), since a blank
+names no class and a repeat admits nothing more.
 
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to
 `Only: [create, update]`; GraphQL input-vs-output types to `create/update` vs `read`; TypeSpec

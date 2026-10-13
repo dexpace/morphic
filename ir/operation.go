@@ -48,10 +48,11 @@ type Operation struct {
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`
 	// ParameterVisibility overrides the visibility filter for the request view
-	// (TypeSpec @parameterVisibility); nil = protocol default.
+	// (TypeSpec @parameterVisibility); nil = protocol default. It is a set, as
+	// Visibility.Only is.
 	ParameterVisibility []Lifecycle `json:"parameterVisibility,omitempty"`
 	// ReturnTypeVisibility overrides the visibility filter for the response view;
-	// nil = protocol default.
+	// nil = protocol default. It is a set, as Visibility.Only is.
 	ReturnTypeVisibility []Lifecycle `json:"returnTypeVisibility,omitempty"`
 	// OverloadOf points at the operation this one overloads (TypeSpec @overload);
 	// when set, never empty.

@@ -37,29 +37,6 @@ var nameOptional = map[reflect.Type]bool{
 	reflect.TypeFor[ir.Primitive](): true,
 }
 
-// namespaceOwners are the nodes that carry a Namespace path — TypeCommon for a
-// type's declared namespace, Service for a service's — so the one list rule a
-// namespace has reaches each of them. It is keyed by node type rather than by
-// path for the reason nameOptional is: a node type added to the IR that declares
-// a namespace is held the moment it exists, and
-// TestNamespaceOwners_CoverEveryNamespaceField reddens if this map and the
-// []string Namespace fields the IR declares disagree.
-//
-// FieldPath is not here: it is a path, not a namespace, and it carries no list
-// rule at all (see appendListViolations).
-var namespaceOwners = map[reflect.Type]bool{
-	reflect.TypeFor[ir.TypeCommon](): true,
-	reflect.TypeFor[ir.Service]():    true,
-}
-
-// namespaceField is how an owner spells the namespace path the check reads, and
-// so the segment before the index of the path a violation about one segment is
-// reported at. It follows nameField: an owner renamed out of this spelling stops
-// matching rather than reddening, which is why
-// TestNamespaceOwners_CoverEveryNamespaceField holds the owner map and the field
-// name together.
-const namespaceField = ".Namespace"
-
 // checkNaming asserts every named entity has a name, and that the names it
 // carries are what invariant #4 promises: neutral lower_snake word sequences.
 // Bytes that do not decode are checkUTF8's. It reports whether the bounded walk
@@ -72,8 +49,7 @@ const namespaceField = ".Namespace"
 // and would carry its casing (GitHub #54). Only the grammar rule is
 // canonical-only: a hint has no source spelling to recompute from.
 //
-// Aliases and Namespace paths have list rules of their own
-// (appendListViolations).
+// Naming.Aliases has rules of its own: see appendAliasViolations.
 func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	optional := map[string]bool{}
@@ -85,13 +61,6 @@ func checkNaming(doc *ir.Document, _ declarations) ([]Violation, bool) {
 			// The walk visits a struct before its fields, so this is recorded
 			// before the Naming it exempts is reached.
 			optional[path+nameField] = true
-			return true
-		}
-		if namespaceOwners[v.Type()] {
-			// The owner is not a Naming, so the walk descends into it and still
-			// reaches the Naming it carries — that one's rules are checkNaming's
-			// own, below.
-			vs = appendNamespaceViolations(vs, v, path)
 			return true
 		}
 		if v.Type() != namingType {
@@ -128,112 +97,48 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 		aliases
 }
 
-// aliasField is how a Naming spells its alias list, and so the segment before
-// the index of the path a violation about one entry is reported at. It sits
-// beside nameField const for the same reason: a Naming renamed out of this
-// spelling stops matching, so the check reports a violation on a document that
-// has none rather than going silent, and
-// TestVerify_AliasPathIsSpelledAsTheWalkWould is what reddens.
-const aliasField = ".Aliases"
-
-// listRules is how appendListViolations spells and judges one []string field:
-// which list-intrinsic defects it admits, the Source for the redundancy rule,
-// and a violation's words. Only Aliases and Namespace have rules. A repeat in
-// Tags, Scopes or a server variable's Enum is the copying compiler's to report
-// (GitHub #399 follow-up), as is that Enum's legal ""; a repeat in
-// ContentTypes, RequestContentTypes or Encodings is undecided (GitHub #399);
-// Versions, Added/Removed and FieldPath may legitimately repeat.
-type listRules struct {
-	// noun is how a message names one entry: "alias", "namespace segment".
-	noun string
-	// blank reports whether an entry with nothing visible in it is a defect.
-	blank bool
-	// repeat reports whether an entry an earlier one already admitted is a
-	// defect.
-	repeat bool
-	// source is the entity's own name, so an entry equal to it is redundant.
-	// It is "" for a field with no such name beside it, which disables the rule
-	// rather than leaving it to fire on the empty string — a blank entry is the
-	// blank rule's and never reaches this comparison.
-	source string
-	// blankMessage is the violation a blank entry draws.
-	blankMessage string
-}
-
-// appendListViolations holds one []string field to the rules listRules selects.
+// appendAliasViolations holds one alias list to the rules ir.Naming.Aliases
+// states, which also says why the neutrality rules do not apply.
 //
 // An entry is reported if it is blank (isBlankName) or repeats an earlier entry
-// or rules.source; a repeat is reported at its later occurrence, naming the
-// earlier. An entry that does not decode is checkUTF8's and skipped, since
-// later rules would quote it. Canonical and Hint are never compared: the IR
-// derived them, and no writer schema spelled them.
-func appendListViolations(vs []Violation, list []string, listPath, codePrefix string, rules listRules) []Violation {
-	seen := make(map[string]int, len(list))
-	for i, entry := range list {
-		at := listPath + "[" + strconv.Itoa(i) + "]"
-		switch first, repeated := seen[entry]; {
-		case rules.blank && isBlankName(entry):
+// or the entity's own Source; a repeat is reported at its later occurrence,
+// naming the earlier. An entry that does not decode is checkUTF8's and skipped,
+// since until then it names nothing to compare. Canonical and Hint are never
+// compared: the IR derived them, and no writer schema spelled them.
+//
+// Collisions with other entities' names are no rule of the list (ir-design
+// §3.2).
+func appendAliasViolations(vs []Violation, source string, aliases []string, path string) []Violation {
+	seen := make(map[string]int, len(aliases))
+	for i, alias := range aliases {
+		switch first, repeated := seen[alias]; {
+		case isBlankName(alias):
 			// First, so a repeated blank is reported blank: the repair is to
 			// fill it in or drop it, not to tell it from the other blank.
 			vs = append(vs, Violation{
-				Code:    codePrefix + "-blank",
-				Message: rules.blankMessage,
-				Path:    at,
+				Code:    "ir/naming-alias-blank",
+				Message: "alias is blank, so it matches no name",
+				Path:    aliasPath(path, i),
 			})
-		case !utf8.ValidString(entry):
+		case !utf8.ValidString(alias):
 			// checkUTF8 reports it.
-		case rules.repeat && repeated:
+		case repeated:
 			vs = append(vs, Violation{
-				Code:    codePrefix + "-duplicate",
-				Message: rules.noun + " " + strconv.Quote(entry) + " is listed here and at index " + strconv.Itoa(first),
-				Path:    at,
+				Code:    "ir/naming-alias-duplicate",
+				Message: "alias " + strconv.Quote(alias) + " is listed here and at index " + strconv.Itoa(first),
+				Path:    aliasPath(path, i),
 			})
-		case entry == rules.source:
+		case alias == source:
 			vs = append(vs, Violation{
-				Code:    codePrefix + "-redundant",
-				Message: rules.noun + " " + strconv.Quote(entry) + " is the entity's own source name, so it matches nothing more",
-				Path:    at,
+				Code:    "ir/naming-alias-redundant",
+				Message: "alias " + strconv.Quote(alias) + " is the entity's own source name, so it matches nothing more",
+				Path:    aliasPath(path, i),
 			})
 		default:
-			seen[entry] = i
+			seen[alias] = i
 		}
 	}
 	return vs
-}
-
-// appendAliasViolations holds one alias list to the rules ir.Naming.Aliases
-// states — that comment is where the argument for them lives, and for why none
-// of the neutrality rules above apply — by calling appendListViolations with all
-// three: blank, repeat, and redundant with the entity's own Source.
-func appendAliasViolations(vs []Violation, source string, aliases []string, path string) []Violation {
-	return appendListViolations(vs, aliases, path+aliasField, "ir/naming-alias", listRules{
-		noun:         "alias",
-		blank:        true,
-		repeat:       true,
-		source:       source,
-		blankMessage: "alias is blank, so it matches no name",
-	})
-}
-
-// appendNamespaceViolations holds one namespace path to the rules a namespace
-// has: a blank segment names no package or module, and a repeat admits nothing
-// the earlier segment did. It reads the slice off the walked owner rather than
-// converting the value back to its Go type, for the reason namingChannels does —
-// a value reached through an unexported field cannot be — and hands the entries
-// to appendListViolations. A namespace has no Source beside it to be redundant
-// with, so the third rule is off.
-func appendNamespaceViolations(vs []Violation, owner reflect.Value, path string) []Violation {
-	list := owner.FieldByName("Namespace")
-	segments := make([]string, list.Len())
-	for i := range list.Len() {
-		segments[i] = list.Index(i).String()
-	}
-	return appendListViolations(vs, segments, path+namespaceField, "ir/namespace", listRules{
-		noun:         "namespace segment",
-		blank:        true,
-		repeat:       true,
-		blankMessage: "namespace segment is blank, so it names no package or module",
-	})
 }
 
 // aliasPath spells one alias entry the way ir.WalkValues would have reached it.
@@ -241,7 +146,7 @@ func appendNamespaceViolations(vs []Violation, owner reflect.Value, path string)
 // TestVerify_AliasPathIsSpelledAsTheWalkWould is what holds the two spellings
 // together.
 func aliasPath(path string, i int) string {
-	return path + aliasField + "[" + strconv.Itoa(i) + "]"
+	return path + ".Aliases[" + strconv.Itoa(i) + "]"
 }
 
 // appendAbsentViolation reports an entity that no channel names.
