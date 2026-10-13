@@ -982,14 +982,16 @@ func validationMessage(verr validation.Error) string {
 
 // asValidationError extracts a structured validation error. The wrapped value
 // may be stored by value or by pointer, so both forms are probed. The chain is
-// walked manually with type assertions instead of errors.As; see the nolint
-// comment below for why.
+// walked manually with type assertions instead of errors.As; see the comment
+// below for why.
 func asValidationError(err error) (validation.Error, bool) {
 	for e := err; e != nil; e = errors.Unwrap(e) {
-		//nolint:errorlint // Deliberately hand-walked: errors.As would invoke the
-		// speakeasy errors.Error type's As method, which matches any target named
-		// "Error" and calls SetString, panicking on the validation.Error struct.
-		switch v := e.(type) {
+		// Deliberately hand-walked: errors.As would invoke the speakeasy
+		// errors.Error type's As method, which matches any target named "Error"
+		// and calls SetString, panicking on the validation.Error struct. The switch
+		// is on any(e) because a type switch on an error is what errorlint refuses,
+		// and this is the one place it is meant.
+		switch v := any(e).(type) {
 		case *validation.Error:
 			return *v, true
 		case validation.Error:

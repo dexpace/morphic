@@ -12,7 +12,6 @@ linters:
     - misspell
     - modernize # the standard library and language forms go fix and the modernize analyzers propose
     - nilerr
-    - nolintlint # a suppression outliving what it suppressed is invisible without this
     - prealloc
     - revive
     - unconvert
@@ -27,20 +26,6 @@ linters:
       lines: 70
       statements: -1
       ignore-comments: true
-    nolintlint:
-      # A directive that suppresses nothing reads as a live constraint on the code
-      # under it, and nothing else in the gate can tell the two apart: the tree
-      # stays green whether the finding is real or long gone. Each of these makes
-      # one way of writing an inert directive fail instead.
-      #
-      # allow-unused only reaches directives naming an ENABLED linter. One naming a
-      # disabled or nonexistent linter is ignored by the nolint processor and
-      # reported by nothing — which is how //nolint:forcetypeassert stood here
-      # without ever suppressing anything. scripts/check-nolint-linters.sh closes
-      # that, cross-checking every name against the set this file leaves enabled.
-      allow-unused: false # it no longer suppresses anything — delete it
-      require-specific: true # bare //nolint hides findings nobody chose to accept
-      require-explanation: true # the rationale is what a later reader re-checks against
     gocognit:
       # Calibrated against the finished tree, whose worst function scores 21.
       # Raising this is how a function that should have been split stays whole,
@@ -54,6 +39,13 @@ linters:
         # call to that package below it. compilers/openapi had one live instance.
         - name: import-shadowing
   exclusions:
+    # A suppression is a rule here, with its reason beside it, and never a comment
+    # in the source: internal/archtest refuses those. Keep each rule as narrow as
+    # the finding it excuses, which is a path and, where the linter says more than
+    # one thing there, the message; delete it with the code it excuses.
+    # golangci-lint warns about a rule that skipped nothing but does not fail on it;
+    # a run narrowed to some packages warns about each rule it did not reach.
+    warn-unused: true
     rules:
       # A table-driven test is long because its table is long, and the table is
       # data. Splitting one to satisfy a size cap moves cases away from the

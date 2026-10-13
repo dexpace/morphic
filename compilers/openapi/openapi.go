@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
@@ -80,8 +81,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
-	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, withoutRereported(lowerDiags, diags)...)
+	// Load diagnostics precede lowering diagnostics.
+	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
 		return nil, all, err
 	}

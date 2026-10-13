@@ -64,10 +64,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint nolint-grammar nolint build coverage \
+.PHONY: gate fmt vet lint build coverage \
 	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint nolint-grammar nolint build coverage fuzz bench-smoke
+gate: fmt vet lint build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -92,15 +92,6 @@ lint:
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
 	golangci-lint run
-
-# Both nolint checks run after lint, and in CI reach the golangci-lint the lint
-# step left on PATH: they ask it which linters it is running, which only
-# describes that step if it is the same build.
-nolint-grammar:
-	./scripts/verify-nolint-grammar.sh
-
-nolint:
-	./scripts/check-nolint-linters.sh
 
 build:
 	$(GO) build ./...
