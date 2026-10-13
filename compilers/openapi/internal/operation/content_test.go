@@ -1002,8 +1002,7 @@ func TestContent_ExampleWithoutValueSkipped(t *testing.T) {
 	c := op.Responses[0].Payload.Contents[0]
 	assert.Empty(t, c.Examples, "an example carrying no example is skipped")
 
-	// Skipped, but not in silence: the entry declares neither a value nor the
-	// externalValue that would have given it a home.
+	// Skipped, but not in silence: the entry declares no value in any spelling.
 	d, ok := openapitest.FirstDegradedWarning(diags)
 	require.True(t, ok, "the skipped entry is reported")
 	assert.Equal(t, jsontext.Pointer("/paths/~1examples/get/responses/200/content/application~1json/examples/empty"),
@@ -2314,16 +2313,34 @@ func TestParamAndHeaderSchema_NeverRecordContentFields(t *testing.T) {
 	}
 }
 
-// TestExamples_DataValueReachesTheValue pins GitHub #612's first half: the 3.2
-// dataValue carries the example's data, and ir.Example.Value is its home, so it
-// lowers exactly as `value` does rather than being dropped with a warning that
-// claimed it declared neither value nor externalValue.
-func TestExamples_DataValueReachesTheValue(t *testing.T) {
+// TestExamples_EverySpellingReachesTheIR pins GitHub #612: a 3.2 dataValue
+// lowers into Value as `value` does, and a spelling ir.Example has no field for
+// is kept verbatim beside it rather than dropped — serializedValue alone or
+// beside a dataValue, one merged in through `<<`, and a dataValue written beside
+// `value`. None of them is announced as an entry declaring no value.
+func TestExamples_EverySpellingReachesTheIR(t *testing.T) {
 	t.Parallel()
-	spec := `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-  /a:
+	const at = "/paths/~1a/get/responses/200/content/application~1json/examples/e"
+	for _, tc := range []struct {
+		name      string
+		entry     string
+		value     ir.BigVal // "" when no value lowers
+		kept      string    // the Unmodeled key expected, "" for none
+		reason    ir.UnmodeledReason
+		keptValue string
+	}{
+		{"dataValue", `{dataValue: 5}`, "5", "", "", ""},
+		{"serializedValue", `{serializedValue: '"5"'}`, "", "openapi:serializedValue", ir.ReasonNoIRHome, `"\"5\""`},
+		{"both forms", `{dataValue: 5, serializedValue: '"5"'}`, "5",
+			"openapi:serializedValue", ir.ReasonNoIRHome, `"\"5\""`},
+		{"merged in", "\n                  <<: {serializedValue: '\"6\"'}\n                  summary: S", "",
+			"openapi:serializedValue", ir.ReasonNoIRHome, `"\"6\""`},
+		{"dataValue beside value", `{value: 1, dataValue: 2}`, "1",
+			"openapi:dataValue", ir.ReasonDegradedLowering, `2`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
       operationId: a
       responses:
@@ -2331,30 +2348,39 @@ paths:
           description: ok
           content:
             application/json:
-              schema: {type: object, properties: {n: {type: string}}}
+              schema: {type: integer}
               examples:
-                five: {summary: Five, dataValue: 5}
-`
-	_, svc, diags := lowerServiceSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
-	require.Len(t, examples, 1, "a dataValue example is kept, not dropped")
-	assert.Equal(t, "five", examples[0].Name)
-	assert.Equal(t, "Five", examples[0].Summary)
-	require.NotNil(t, examples[0].Value, "dataValue lands on Example.Value")
-	assert.Equal(t, ir.ValueNumber, examples[0].Value.Kind)
-	assert.Equal(t, ir.BigVal("5"), examples[0].Value.Num)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "neither value nor externalValue",
-			"a dataValue declares an example, so nothing is announced as empty")
+                e: `+tc.entry+`
+`)
+			_, svc, diags := lowerServiceSpec(t, spec)
+			examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
+			require.Len(t, examples, 1, "the entry is kept, not dropped")
+			if tc.value == "" {
+				assert.Nil(t, examples[0].Value)
+			} else {
+				require.NotNil(t, examples[0].Value)
+				assert.Equal(t, tc.value, examples[0].Value.Num)
+			}
+			if tc.kept == "" {
+				assert.Empty(t, examples[0].Unmodeled)
+			} else {
+				entry, ok := examples[0].Unmodeled[tc.kept]
+				require.True(t, ok, "%s is kept verbatim", tc.kept)
+				assert.Equal(t, tc.reason, entry.Reason)
+				assert.JSONEq(t, tc.keptValue, string(entry.Value))
+				assert.Equal(t, jsontext.Pointer(at+"/"+strings.TrimPrefix(tc.kept, "openapi:")),
+					entry.Provenance.Pointer)
+			}
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at),
+				"an entry with a value in any spelling is not announced as empty")
+		})
 	}
 }
 
-// TestExamples_SerializedValueIsKeptVerbatim pins GitHub #612's second half: a
-// 3.2 serializedValue is a single-format spelling ir.Example has no field for, so
-// the entry survives with the raw node under Unmodeled and one info — the entry
-// is not dropped, and it is not announced as empty either.
-func TestExamples_SerializedValueIsKeptVerbatim(t *testing.T) {
+// TestExamples_ReferencedSpellingIsKeptAtItsDeclaration pins where a $ref'd
+// example's serializedValue is kept: at the components/examples entry that
+// writes it, not beneath the reference site, which holds no such key.
+func TestExamples_ReferencedSpellingIsKeptAtItsDeclaration(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -2367,27 +2393,20 @@ paths:
           description: ok
           content:
             application/json:
-              schema: {type: object, properties: {n: {type: string}}}
+              schema: {type: integer}
               examples:
-                serial: {summary: Serial, serializedValue: '"5"'}
+                e: {$ref: '#/components/examples/Serial'}
+components:
+  examples:
+    Serial: {serializedValue: '"5"'}
 `
 	_, svc, diags := lowerServiceSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	examples := openapitest.FirstOp(t, svc).Responses[0].Payload.Contents[0].Examples
-	require.Len(t, examples, 1, "the entry is kept rather than dropped")
-	assert.Equal(t, "serial", examples[0].Name)
-	assert.Nil(t, examples[0].Value, "serializedValue is not read into Value")
-	raw, ok := examples[0].Unmodeled["openapi:serializedValue"]
-	require.True(t, ok, "the serialized spelling is kept verbatim")
-	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
-	assert.JSONEq(t, `"\"5\""`, string(raw.Value), "the source text is kept as written")
-
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "neither value nor externalValue",
-			"the entry declares a serializedValue, so it is not announced as empty")
-	}
-	openapitest.AssertInfoDiagAt(t, diags,
-		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+	require.Len(t, examples, 1)
+	const decl = "/components/examples/Serial/serializedValue"
+	assert.Equal(t, jsontext.Pointer(decl), examples[0].Unmodeled["openapi:serializedValue"].Provenance.Pointer)
+	openapitest.AssertInfoDiagAt(t, diags, decl)
 }
 
 // TestEncoding_NestedEncodingsAreKeptFor32Only pins GitHub #615's nested

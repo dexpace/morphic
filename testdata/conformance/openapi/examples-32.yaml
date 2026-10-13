@@ -25,6 +25,8 @@ paths:
               schema: {type: object, properties: {n: {type: string}}}
               examples:
                 five: {summary: Five, dataValue: 5}
+                # The data form and its serialized form, side by side: legal in 3.2.
+                both: {summary: Both, dataValue: 2, serializedValue: '"2"'}
                 one: {$ref: '#/components/examples/One'}
                 serial: {$ref: '#/components/examples/Serial'}
 components:

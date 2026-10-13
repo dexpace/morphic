@@ -3266,10 +3266,9 @@ func assertParamContentFields(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 // assertExamples32 pins GitHub #612 at every site the issue names: the 3.2
-// dataValue lowers like `value` — including through a components/examples $ref —
-// and the 3.2 serializedValue keeps the entry with the raw node under Unmodeled
-// rather than dropping it with a warning that claimed it declared neither value
-// nor externalValue.
+// dataValue lowers like `value`, including through a components/examples $ref,
+// and a serializedValue is kept verbatim under Unmodeled wherever it is written,
+// alone or beside a dataValue, rather than dropped.
 func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "list")
 	require.True(t, ok)
@@ -3291,7 +3290,7 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	// content, and through it components/examples
 	examples := op.Responses[0].Payload.Contents[0].Examples
-	require.Len(t, examples, 3)
+	require.Len(t, examples, 4)
 	byName := map[string]ir.Example{}
 	for _, e := range examples {
 		byName[e.Name] = e
@@ -3302,9 +3301,14 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("1"), byName["one"].Value.Num)
 	assert.Equal(t, ir.ReasonNoIRHome, byName["serial"].Unmodeled["openapi:serializedValue"].Reason)
 	assert.Nil(t, byName["serial"].Value)
+	require.NotNil(t, byName["both"].Value, "a dataValue beside a serializedValue still lowers")
+	assert.Equal(t, ir.BigVal("2"), byName["both"].Value.Num)
+	assert.JSONEq(t, `"\"2\""`, string(byName["both"].Unmodeled["openapi:serializedValue"].Value),
+		"...and the serialized form beside it is kept too")
 
 	openapitest.AssertInfoDiagAt(t, diags,
-		"/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue")
+		"/paths/~1a/get/responses/200/content/application~1json/examples/both/serializedValue")
+	openapitest.AssertInfoDiagAt(t, diags, "/components/examples/Serial/serializedValue")
 }
 
 // assertTagsGrouping32 is the 3.2 counterpart of assertTagsGrouping, and the

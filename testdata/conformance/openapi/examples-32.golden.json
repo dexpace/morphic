@@ -118,6 +118,24 @@
                             }
                           },
                           {
+                            "name": "both",
+                            "summary": "Both",
+                            "value": {
+                              "kind": "number",
+                              "num": "2"
+                            },
+                            "unmodeled": {
+                              "openapi:serializedValue": {
+                                "reason": "no_ir_home",
+                                "value": "\"2\"",
+                                "provenance": {
+                                  "source": 0,
+                                  "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/both/serializedValue"
+                                }
+                              }
+                            }
+                          },
+                          {
                             "name": "one",
                             "summary": "One",
                             "value": {
@@ -134,7 +152,7 @@
                                 "value": "\"5\"",
                                 "provenance": {
                                   "source": 0,
-                                  "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue"
+                                  "pointer": "/components/examples/Serial/serializedValue"
                                 }
                               }
                             }
@@ -326,7 +344,16 @@
       "message": "serializedValue has no ir.Example home; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/serial/serializedValue"
+        "pointer": "/paths/~1a/get/responses/200/content/application~1json/examples/both/serializedValue"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "serializedValue has no ir.Example home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/examples/Serial/serializedValue"
       }
     }
   ],
@@ -334,7 +361,7 @@
     {
       "format": "openapi@3.2",
       "path": "examples-32.yaml",
-      "hash": "4dad93a2a77ab678d5b7a6aa67123e3341a5fa5aef8540d1243c3ee03ca80c11"
+      "hash": "7b3514ad82c763e2c96cb9fb15242f25a81d99f4302f76e5e782822def907f8f"
     }
   ]
 }

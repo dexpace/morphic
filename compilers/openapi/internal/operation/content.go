@@ -856,32 +856,40 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 		ExternalURL: ex.GetExternalValue(),
 		Unmodeled:   ext,
 	}
-	out, exDiags := appendExampleValue(c, out, proto, ex, re, pointer, name)
+	out, exDiags := appendExampleValue(c, out, proto, ex, re, pointer, decl, name)
 	return out, append(diags, exDiags...)
 }
 
-// appendExampleValue appends the entry's value under the annotations proto
-// already carries, choosing the spelling the entry wrote it with: the 3.1
-// `value`, the 3.2 `dataValue` — the same example in data form, and the
-// parser's values.Value is a yaml node, so it lowers and is diagnosed exactly as
-// `value` is — the spec-legal `externalValue`, and last the 3.2 `serializedValue`
-// beside that.
+// appendExampleValue appends the entry under the annotations proto already
+// carries. Its data lowers into Value from the spelling it was written in,
+// `value` or 3.2's `dataValue` (GitHub #612). A spelling ir.Example has no field
+// for is kept verbatim at decl, the entry's declaration, rather than dropped:
+// 3.2's `serializedValue` whatever it is written beside, and a `dataValue`
+// written beside `value`, which the parser reports. An entry with no value in
+// any spelling is an empty stub, dropped with a warning.
 func appendExampleValue(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
-	re *soa.ReferencedExample, pointer jsontext.Pointer, name string,
+	re *soa.ReferencedExample, pointer, decl jsontext.Pointer, name string,
 ) ([]ir.Example, []ir.Diagnostic) {
-	if node := ex.GetValue(); node != nil {
-		return appendExampleData(c, out, proto, re, node, pointer, name, "value")
+	serialized, diags := keepExampleSpelling(c, &proto.Unmodeled, ex.GetCore().SerializedValue.ValueNode,
+		"serializedValue", ir.ReasonNoIRHome, decl, "serializedValue has no ir.Example home")
+	value, data := ex.GetValue(), ex.GetDataValue()
+	switch {
+	case value != nil:
+		if data != nil {
+			_, dataDiags := keepExampleSpelling(c, &proto.Unmodeled, data, "dataValue",
+				ir.ReasonDegradedLowering, decl, "dataValue is written beside value, which lowered")
+			diags = append(diags, dataDiags...)
+		}
+		out, valueDiags := appendExampleData(c, out, proto, re, value, pointer, name, "value")
+		return out, append(diags, valueDiags...)
+	case data != nil:
+		out, dataDiags := appendExampleData(c, out, proto, re, data, pointer, name, "dataValue")
+		return out, append(diags, dataDiags...)
+	case serialized || proto.ExternalURL != "":
+		return append(out, proto), diags
 	}
-	// dataValue is not dropped: it carries the example's data, ir.Example.Value is
-	// its home, and the parser models the field so the census never saw it either
-	// (GitHub #612).
-	if data := ex.GetDataValue(); data != nil {
-		return appendExampleData(c, out, proto, re, data, pointer, name, "dataValue")
-	}
-	if proto.ExternalURL != "" {
-		return append(out, proto), nil
-	}
-	return appendSerializedExample(c, out, proto, ex, pointer, name)
+	return out, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
+		pointer+ids.Ptr("examples", name), "example declares no value"))
 }
 
 // appendExampleData lowers one example node under keyword — the spelling it was
@@ -897,27 +905,21 @@ func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
 	return schema.AppendExample(c, out, proto, node, pointer, "examples", name, keyword)
 }
 
-// appendSerializedExample records an entry that declares no value, no dataValue
-// and no externalValue. The 3.2 `serializedValue` is one format's spelling of
-// the example, and ir.Example has no field for it: a neutral node should not
-// carry a format-specific form, so it is kept verbatim with ReasonNoIRHome and
-// announced (GitHub #612, ir-design §12).
-//
-// The raw node's presence decides, not the getter. An entry declaring none of
-// the four is an empty stub and keeps its warning; one merged in through `<<`
-// is reported by PreserveNode itself.
-func appendSerializedExample(c lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
-	pointer jsontext.Pointer, name string,
-) ([]ir.Example, []ir.Diagnostic) {
-	at := pointer + ids.Ptr("examples", name, "serializedValue")
-	kept, diags := schema.PreserveNode(c, &proto.Unmodeled, "openapi:serializedValue",
-		annotation.RawChildNode(ex.GetRootNode(), "serializedValue"), ir.ReasonNoIRHome, at)
+// keepExampleSpelling keeps the node an Example Object writes under keyword
+// verbatim on u, at the keyword's own pointer beneath decl, and announces it
+// with why. node is the parser's own reading of the field, so a value merged in
+// through `<<` is kept like one written directly. It reports whether anything
+// was kept.
+func keepExampleSpelling(c lowering.Ctx, u *ir.Unmodeled, node *yaml.Node, keyword string,
+	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
+) (bool, []ir.Diagnostic) {
+	at := decl + ids.Ptr(keyword)
+	kept, diags := schema.PreserveNode(c, u, "openapi:"+keyword, node, reason, at)
 	if !kept {
-		return out, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct,
-			pointer+ids.Ptr("examples", name), "example declares neither value nor externalValue"))
+		return false, diags
 	}
-	return append(out, proto), append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-		"serializedValue has no ir.Example home; kept verbatim under Unmodeled"))
+	return true, append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"%s; kept verbatim under Unmodeled", why))
 }
 
 // lowerRequestBody lowers an operation's request body onto op.Request and the
