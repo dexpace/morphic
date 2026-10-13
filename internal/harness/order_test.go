@@ -375,7 +375,7 @@ func TestOrderInvariant_ReachesTheCorpus(t *testing.T) {
 			baselined++
 		}
 		rewritten, ok := reverseMappings(data)
-		if ok && string(rewritten) != string(baseline) {
+		if ok && !bytes.Equal(rewritten, baseline) {
 			permuted++
 		}
 	}
@@ -522,7 +522,11 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			Name:       ir.Naming{Source: "M", Canonical: "m"},
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + path)},
 		}
-		return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{m.ID: m}}, nil, nil
+		return &ir.Document{
+			IRVersion: ir.IRVersion,
+			IDSpaces:  map[string][]string{ir.IDKindType: {"x"}},
+			Types:     ir.TypeRegistry{m.ID: m},
+		}, nil, nil
 	}
 
 	r := Check(context.Background(), "spec", []byte(src))

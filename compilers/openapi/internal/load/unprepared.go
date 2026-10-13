@@ -51,6 +51,9 @@ type externalReads struct {
 	// stood holds the source's reference object each stand-in stands for (see
 	// external.holdObject).
 	stood map[any]resolvable
+	// spelled holds what the source is held under besides its own keys, for a
+	// second resolution to hold again.
+	spelled *heldSpellings
 }
 
 // digest is the SHA-256 of a document's bytes.
@@ -77,6 +80,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		byDigest: map[digest]*yaml.Node{},
 		mended:   map[string]treeAnswer{},
 		stood:    map[any]resolvable{},
+		spelled:  newHeldSpellings(),
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
@@ -219,21 +223,6 @@ func (r *externalReads) stoodIn(c chain) bool {
 	}
 	_, ok := r.stoodFor(c.records[len(c.records)-1].object)
 	return ok
-}
-
-// sourceKeys returns, sorted, each key the source was recorded under: those it
-// is looked up by, and each a reader found a $ref spell it by.
-func (r *externalReads) sourceKeys() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var keys []string
-	for key, tree := range r.trees {
-		if tree == r.self.root && r.self.root != nil {
-			keys = append(keys, key)
-		}
-	}
-	slices.Sort(keys)
-	return keys
 }
 
 // emptyOf returns an empty object of obj's kind of reference object, or false
@@ -390,13 +379,11 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
 func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
-	for _, m := range missed {
+	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
-		if tree, ok := cached.(*yaml.Node); ok && hasAnchor(tree) {
-			return true
-		}
-	}
-	return false
+		tree, ok := cached.(*yaml.Node)
+		return ok && hasAnchor(tree)
+	})
 }
 
 // hasAnchor reports whether any node of the tree under root carries an anchor.

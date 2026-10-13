@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.8.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "Empty Names",
   "version": "1.0.0",
   "docs": {},
@@ -13,6 +45,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/tags",
           "name": {
             "hint": "empty"
           },
@@ -878,6 +911,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Rollout/s:",
           "name": {
             "hint": "empty"
           },
@@ -887,6 +921,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:empty",
           "name": {
             "source": "empty",
             "canonical": "empty"
@@ -898,6 +933,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Rollout/s:done",
           "name": {
             "source": "done",
             "canonical": "done"

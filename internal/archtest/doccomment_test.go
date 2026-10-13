@@ -255,7 +255,7 @@ func TestDocWords_CountsOnlyTokensWithALetter(t *testing.T) {
 // directives; numbers, punctuation and list markers are not words either.
 func docWords(text string) int {
 	n := 0
-	for _, tok := range strings.Fields(text) {
+	for tok := range strings.FieldsSeq(text) {
 		if strings.IndexFunc(tok, unicode.IsLetter) >= 0 {
 			n++
 		}

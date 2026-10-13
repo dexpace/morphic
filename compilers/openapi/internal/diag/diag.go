@@ -40,9 +40,12 @@ const (
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan or load's reach either aborted (a detector bug) or hit one of
-	// its bounds. It is a warning, never a refusal: the compile still
-	// proceeds, and every cycle the check did classify is still caught.
+	// pre-parse scan, load's reach, or load's reading of schema chains for one
+	// closing through the source's file name either aborted (a detector bug) or
+	// hit one of its bounds. It is a warning: the compile still proceeds, and
+	// every cycle the check did classify is still caught. Past the chain read's
+	// bound, a $ref it did not read is left unresolved where the source is held,
+	// since its chain could close through the held file and run the stack out.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
@@ -118,6 +121,16 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
+	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
+	// already holds, at the repeat's own position, whether the set lowers to an
+	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
+	// declaration; in an Enum each repeat's member ID ends in its occurrence
+	// number. Entries compare as JSON Schema compares instances: a number by its
+	// value, an object regardless of member order.
+	//
+	// Warning: the document is well-formed, and JSON Schema's own uniqueness
+	// requirement on enum is a SHOULD.
+	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
 	// diagnostic for the defect — see boundLiteralDiag).
@@ -139,6 +152,16 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateParameter reports a parameter list entry repeating the name and
+	// location of an earlier entry in the same list, its $refs resolved, which
+	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
+	// report, which saw only inline entries: every list the source writes is
+	// checked whether or not it lowers (load), and a list another document
+	// writes where it lowers (the parameter lowering). A lowered list keeps
+	// every occurrence, each repeat's ID ending in its occurrence number.
+	//
+	// Error, as the parser's report was.
+	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's
@@ -200,18 +223,17 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
-	// BudgetExceeded reports an input that crossed a cardinality budget: a source
-	// or overlay document past the byte budget, a source past the node budget (or
-	// an overlay action that would build it past that), aliases in either that add
-	// more nodes than the alias budget, or one enum past the member budget (GitHub
-	// #75).
+	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
+	// most: a document past the byte or node budget (or an overlay action that
+	// would build it past that), aliases adding more nodes than the alias budget,
+	// an enum past the member budget (GitHub #75). Load bounds two kinds of work
+	// itself: resolving the mapping targets, and resuming chains through other
+	// documents.
 	//
 	// Unlike AliasAmplification's bomb, these are documents legitimately that
-	// large, past the budget this compile was given; openapi.Limits raises them.
-	//
-	// Error at every site: load-phase budgets refuse the document, and the enum
-	// budget leaves the top type with every declared member gone, a losslessness
-	// failure (UnpreservableConstruct).
+	// large. Every site reports an error: the document is refused, its
+	// validation stops, an enum loses its members (UnpreservableConstruct), or
+	// what the work did not reach is left unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none

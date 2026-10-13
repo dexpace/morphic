@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -863,4 +864,63 @@ func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
 	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
+}
+
+// danglingDocCompiler lowers to a Document with a dangling type ref and no
+// compiler diagnostics, so the only thing that can report it is the validate
+// pass.
+type danglingDocCompiler struct{ nilDocCompiler }
+
+func (danglingDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		Name:  "Dangling",
+		Types: ir.TypeRegistry{},
+		Services: []ir.Service{{
+			ID: "s/x",
+			Groups: []ir.OperationGroup{{
+				Operations: []ir.Operation{{
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
+				}},
+			}},
+		}},
+	}, nil, nil
+}
+
+// TestRun_PassFlagsSilenceTheValidatePass pins that --skip-validate and
+// --disable-pass validate each turn the pass off end to end, on both commands:
+// the document's dangling ref fails the run by default and goes unreported
+// under either flag.
+func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	commands := [][]string{
+		{"compile", spec, "-o", filepath.Join(t.TempDir(), "ir.json")},
+		{"validate", spec},
+	}
+	tests := []struct {
+		flags []string
+		want  int
+	}{
+		{nil, exitFindings},
+		{[]string{"--skip-validate"}, 0},
+		{[]string{"--disable-pass", "validate"}, 0},
+	}
+	for _, command := range commands {
+		for _, tt := range tests {
+			var stdout, stderr bytes.Buffer
+			args := slices.Concat(command, tt.flags)
+
+			code := run(args, &stdout, &stderr)
+
+			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
+			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
+				"%v: stderr %q", args, stderr.String())
+		}
+	}
 }

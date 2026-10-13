@@ -1,7 +1,7 @@
 package irverify
 
 import (
-	"go/ast"
+	"go/types"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,7 @@ func duplicateViolations(doc *ir.Document) []Violation {
 func docWithOperations(ops ...ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "s/x",
-		Groups: []ir.OperationGroup{{Operations: ops}},
+		Groups: []ir.OperationGroup{{ID: "g/x", Operations: ops}},
 	}}}
 }
 
@@ -54,6 +54,32 @@ func TestCheckDuplicateIDs_TwoServicesOnOneID(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/duplicate-service-id", got[0].Code)
 	assert.Equal(t, "doc.Services[1]", got[0].Path)
+}
+
+// TestCheckDuplicateIDs_GroupIDsAreUniqueAcrossTheWholeDocument pins how far a
+// group ID's uniqueness reaches, which is as far as a consumer keys by it: the
+// second of two siblings, a group nested under another, and a group in another
+// service each collide with the first. A sibling-only check would report one.
+func TestCheckDuplicateIDs_GroupIDsAreUniqueAcrossTheWholeDocument(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{
+		{ID: "s/a", Groups: []ir.OperationGroup{
+			{ID: "g/x", Groups: []ir.OperationGroup{{ID: "g/x"}}},
+			{ID: "g/x"},
+		}},
+		{ID: "s/b", Groups: []ir.OperationGroup{{ID: "g/x"}}},
+	}}
+
+	got := duplicateViolations(doc)
+	paths := make([]string, 0, len(got))
+	for _, v := range got {
+		assert.Equal(t, "ir/duplicate-group-id", v.Code)
+		paths = append(paths, v.Path)
+	}
+	assert.Equal(t, []string{
+		"doc.Services[0].Groups[0].Groups[0]",
+		"doc.Services[0].Groups[1]",
+		"doc.Services[1].Groups[0]",
+	}, paths, "each later declaration is reported against the first")
 }
 
 // TestCheckDuplicateIDs_TwoRegistryEntriesOnOneNodeID drives a map-keyed class.
@@ -185,13 +211,16 @@ func TestVerify_ReportsDuplicateIDs(t *testing.T) {
 // one nobody has reached, and an enum looks like an identity. The test below
 // fails when ir grows a type this does not account for.
 var identityClasses = map[string]string{
-	"TypeID":    "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
-	"ChannelID": "identity: Document.Channels keys it; resolved and held as TypeID is",
-	"MessageID": "identity: Document.Messages keys it; resolved and held as TypeID is",
-	"AuthID":    "identity: Document.Auth keys it; resolved and held as TypeID is",
-	"OpID":      "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
-	"ServiceID": "identity, no map: resolved and held as OpID is, against the services the document declares",
-	"PropID":    "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
+	"TypeID":       "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
+	"ChannelID":    "identity: Document.Channels keys it; resolved and held as TypeID is",
+	"MessageID":    "identity: Document.Messages keys it; resolved and held as TypeID is",
+	"AuthID":       "identity: Document.Auth keys it; resolved and held as TypeID is",
+	"OpID":         "identity, no map: ir.Registries.WithDeclarations resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
+	"ServiceID":    "identity, no map: resolved and held as OpID is, against the services the document declares",
+	"GroupID":      "identity, no map: resolved and held as OpID is, against the groups the document declares, nested ones included",
+	"ParamID":      "identity, operation-scoped: pass.Validate resolves references through ir.Registries.WithDeclarations, and checkDuplicateIDs holds every parameter to one ID with no fingerprint exemption, since a path-item parameter is one parameter per operation it is copied into",
+	"EnumMemberID": "identity, enum-scoped: checkDuplicateIDs holds every member to one ID with no fingerprint exemption, checkMemberIDs holds it under its enum's path and pass.Validate rejects a repeat within one enum (checkDuplicateMemberIDs)",
+	"PropID":       "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",
 	"PrimKind":        "primitive leaf kind; ir.PrimTypeID derives an ID from it, but the kind is not one",
@@ -227,16 +256,27 @@ func TestIdentityClasses_AreAllClassified(t *testing.T) {
 		"identityClasses classifies a type the ir package no longer declares")
 }
 
-// declaredStringTypes returns the name of every type the ir package declares as a
-// string, defined or aliased.
+// declaredStringTypes returns the name of every type the ir package declares
+// over a string, defined or aliased, including one defined over another string
+// type. An alias of a type declared elsewhere adds no type of its own and is not
+// listed.
 func declaredStringTypes(t *testing.T) []string {
 	t.Helper()
 	var names []string
-	for name, expr := range typeDecls(t) {
-		ident, isIdent := expr.(*ast.Ident)
-		if isIdent && ident.Name == "string" {
-			names = append(names, name)
+	for decl := range irDecls(t).Objects[*types.TypeName]() {
+		if declaresStringType(decl) {
+			names = append(names, decl.Name())
 		}
 	}
 	return names
+}
+
+// declaresStringType reports whether decl declares a type whose underlying type
+// is a string.
+func declaresStringType(decl *types.TypeName) bool {
+	if aliasesAnother(decl) {
+		return false
+	}
+	basic, isBasic := decl.Type().Underlying().(*types.Basic)
+	return isBasic && basic.Info()&types.IsString != 0
 }

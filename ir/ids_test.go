@@ -2,6 +2,10 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"go/constant"
+	"go/types"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,6 +32,9 @@ func TestIDTypes_MarshalAsPlainJSONStrings(t *testing.T) {
 		{name: "TypeID", zero: ir.TypeID(""), full: ir.TypeID("t/openapi/components/schemas/User"), want: `"t/openapi/components/schemas/User"`},
 		{name: "OpID", zero: ir.OpID(""), full: ir.OpID("op/openapi/paths/~1users/get"), want: `"op/openapi/paths/~1users/get"`},
 		{name: "ServiceID", zero: ir.ServiceID(""), full: ir.ServiceID("s/openapi/petstore"), want: `"s/openapi/petstore"`},
+		{name: "GroupID", zero: ir.GroupID(""), full: ir.GroupID("g/tags/pets"), want: `"g/tags/pets"`},
+		{name: "ParamID", zero: ir.ParamID(""), full: ir.ParamID("param/openapi/paths/~1users/get/parameters/id/query"), want: `"param/openapi/paths/~1users/get/parameters/id/query"`},
+		{name: "EnumMemberID", zero: ir.EnumMemberID(""), full: ir.EnumMemberID("e/openapi/components/schemas/Status/s:active"), want: `"e/openapi/components/schemas/Status/s:active"`},
 		{name: "ChannelID", zero: ir.ChannelID(""), full: ir.ChannelID("c/asyncapi/user-signup"), want: `"c/asyncapi/user-signup"`},
 		{name: "MessageID", zero: ir.MessageID(""), full: ir.MessageID("m/asyncapi/UserSignedUp"), want: `"m/asyncapi/UserSignedUp"`},
 		{name: "AuthID", zero: ir.AuthID(""), full: ir.AuthID("auth/openapi/apiKey"), want: `"auth/openapi/apiKey"`},
@@ -226,4 +233,26 @@ func TestIDPath_Extraction(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIDKinds_ListsEveryKindConstant holds the one hand-written list of kind
+// prefixes to the constants this package declares. Document.IDSpaces is keyed by
+// the list and irverify rejects a key outside it, so a kind added as a constant
+// and not listed would make every document that declares its namespaces invalid.
+func TestIDKinds_ListsEveryKindConstant(t *testing.T) {
+	t.Parallel()
+	var declared []string
+	for c := range irDecls(t).Objects[*types.Const]() {
+		if !strings.HasPrefix(c.Name(), "IDKind") {
+			continue
+		}
+		require.Equal(t, constant.String, c.Val().Kind(), "%s is not a string constant", c.Name())
+		declared = append(declared, constant.StringVal(c.Val()))
+	}
+	require.NotEmpty(t, declared, "the ir sources must declare kind constants")
+	slices.Sort(declared)
+
+	listed := ir.IDKinds()
+	slices.Sort(listed)
+	assert.Equal(t, declared, listed, "IDKinds must name every IDKind constant, once each")
 }

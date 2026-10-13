@@ -97,8 +97,8 @@ type RequestCompression struct {
 // HTTPParamBinding assigns one logical parameter its HTTP wire location
 // (ir-design §8.1).
 type HTTPParamBinding struct {
-	// Param is the Operation.Params name it binds.
-	Param string `json:"param,omitempty"`
+	// Param is the ID of the Operation.Params entry it binds.
+	Param ParamID `json:"param,omitempty"`
 	// ParamPath is the nested source field within the logical param, when the
 	// binding targets a sub-field of a message-typed param (gRPC transcoding
 	// {book.name}, dotted query params); empty = the whole param. No entry is

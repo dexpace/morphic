@@ -658,7 +658,7 @@ legacy branch, and mixes monads with an actor model, an HTTP client and a worker
 
 Neither is adopted, for four reasons:
 
-1. **It would disarm the coverage gate.** `scripts/check-coverage.sh` runs `go test ./...
+1. **It would disarm the coverage gate.** `make coverage` runs `go test ./...
    -coverprofile` with no `-coverpkg`, so only module-local statements enter the profile —
    dependencies contribute none. Today an `if err != nil { return ... }` is a block that must be
    executed, which is why every error path here has a test that reaches it. `F.Pipe2(x, f,
@@ -675,7 +675,7 @@ Neither is adopted, for four reasons:
 
 `gods` is separately unsuitable: v1 is `interface{}`-based, and the generic v2 has been at
 `v2.0.0-alpha` since January 2024. The actual need is a few dozen set-shaped maps and a handful of
-sorts, which `maps.Keys` + `slices.Sorted` and the existing generic `sortedKeys` already cover.
+sorts, which `maps.Keys` + `slices.Sorted` already cover.
 
 ## 10. Deliberately out of scope
 

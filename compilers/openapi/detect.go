@@ -109,7 +109,7 @@ func recognized(name, version string, parsed *load.Parsed) compilers.Recognition
 // `openapi: [3.1.0`, is unrecognized rather than unreadable, and a README
 // quoting a spec in a code block is claimed like one.
 func declaresProbeKey(data []byte) bool {
-	data = trimBOM(data)
+	data = bytes.TrimPrefix(data, []byte(bomUTF8))
 	return declaresBlockKey(data, "openapi") || declaresBlockKey(data, "swagger") ||
 		declaresFlowKey(data)
 }
@@ -352,15 +352,6 @@ func isVersion(value string) bool {
 // itself, or a spec with one would be declined in silence when broken where a
 // spec without one is reported.
 const bomUTF8 = "\xef\xbb\xbf"
-
-// trimBOM returns data without a leading byte-order mark. Comparing through a
-// string conversion compiles to a comparison rather than a copy.
-func trimBOM(data []byte) []byte {
-	if len(data) >= len(bomUTF8) && string(data[:len(bomUTF8)]) == bomUTF8 {
-		return data[len(bomUTF8):]
-	}
-	return data
-}
 
 // decodeYAML reads the probe keys from a complete YAML (or JSON, its subset)
 // document.

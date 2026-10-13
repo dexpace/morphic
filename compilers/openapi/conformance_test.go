@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/pass"
 )
 
 // conformanceDir is the corpus of one minimal spec per capability row of
@@ -163,6 +164,8 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-default-mapping", assertDiscriminatorDefaultMapping, []string{"tagged-unions"}},
 		{"discriminator-transitive", assertDiscriminatorTransitive, []string{"tagged-unions", "inheritance"}},
 		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping, []string{"tagged-unions"}},
+		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel, []string{"tagged-unions", "inheritance"}},
+		{"nullable-union-discriminator", assertNullableUnionDiscriminator, []string{"tagged-unions", "optionality-vs-nullability"}},
 		{"unhomed-keywords", assertUnhomedKeywords, nil},
 		{"union-beside-ref", assertUnionBesideRef, []string{"untagged-unions"}},
 		{"codeclared-keywords", assertCoDeclaredKeywords, []string{"intersection", "literal-types", "enums-string"}},
@@ -195,6 +198,9 @@ func conformanceCases() []conformanceCase {
 		{"tuples-prefixitems", assertTuples, []string{"tuples", "positional-encoding"}},
 		{"literal-const", assertLiteralConst, []string{"literal-types"}},
 		{"tags-grouping", assertTagsGrouping, []string{"operation-grouping"}},
+		{"group-identity", assertGroupIdentity, []string{"operation-grouping"}},
+		{"param-identity", assertParamIdentity, []string{"http-binding"}},
+		{"enum-member-identity", assertEnumMemberIdentity, []string{"enums-string", "enums-numeric"}},
 		{"http-binding", assertHTTPBinding, []string{"http-binding"}},
 		{"param-styles", assertParamStyles, []string{"param-styles"}},
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
@@ -206,6 +212,7 @@ func conformanceCases() []conformanceCase {
 		{"multi-content", assertMultiContent, []string{"multi-content"}},
 		{"multipart-encoding", assertMultipartEncoding, []string{"multipart-encoding"}},
 		{"file-body", assertFileBody, nil},
+		{"media-type-spelling", assertMediaTypeSpelling, []string{"multipart-encoding"}},
 		{"sequential-media", assertSequentialMedia, []string{"streaming-server"}},
 		{"streaming-media-30", assertStreamingMedia30, []string{"streaming-server"}},
 		{"streaming-media-31", assertStreamingMedia31, []string{"streaming-server", "streaming-client"}},
@@ -1014,6 +1021,59 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 		"defaultMapping names the variant an unrecognized tag falls back to")
 	assert.Equal(t, namedID("Cat"), pet.Discriminator.Mapping["cat"],
 		"and it is read separately from the mapping")
+}
+
+// assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
+// union is kept verbatim beside a model. Pet's and Animal's routes are not
+// subtypes of them, so pass.Validate would reject the discriminator on the
+// model; it moves whole to Unmodeled beside the union. Vehicle's object
+// variant holds one the same way. Shape's routes are true allOf subtypes, so
+// the model keeps it, and the document validates clean.
+func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, pass.Validate(doc))
+
+	for _, name := range []string{"Pet", "Animal"} {
+		m, ok := doc.Types[namedID(name)].(*ir.Model)
+		require.True(t, ok, name)
+		assert.Nil(t, m.Discriminator, "%s routes to a non-subtype, so the model does not carry it", name)
+		entry, ok := m.Unmodeled["openapi:discriminator"]
+		require.True(t, ok, "%s keeps it verbatim instead", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+		assert.Contains(t, m.Unmodeled, "openapi:oneOf", "beside the union it routes through")
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
+	}
+	_, isUnion := doc.Types[namedID("Bird")].(*ir.Union)
+	assert.True(t, isUnion, "Bird writes allOf to Animal but lowers to a union, which is no subtype")
+
+	vehicle, ok := doc.Types[namedID("Vehicle")].(*ir.Union)
+	require.True(t, ok, "a multi-typed body lowers to a union")
+	assert.Contains(t, vehicle.Unmodeled, "openapi:discriminator", "kept beside the union it was written for")
+	variant, ok := doc.Types["t/anon/components/schemas/Vehicle/type/0"].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, variant.Discriminator, "the object variant does not carry it")
+
+	shape, ok := doc.Types[namedID("Shape")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, shape.Discriminator, "every target is a subtype, so it stays")
+	assert.Equal(t, namedID("Circle"), shape.Discriminator.Mapping["circle"])
+	assert.NotContains(t, shape.Unmodeled, "openapi:discriminator")
+}
+
+// assertNullableUnionDiscriminator pins that a discriminator beside a oneOf or
+// anyOf that collapses to nullable X is kept verbatim, with a diagnostic,
+// where the collapse leaves no node with a field for it.
+func assertNullableUnionDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	maybe, ok := doc.Types[namedID("MaybeCat")].(*ir.Scalar)
+	require.True(t, ok, "the component is an alias over the nullable reference")
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, *maybe.Base)
+	assert.Contains(t, maybe.Unmodeled, "openapi:discriminator")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/MaybeCat"))
+
+	owner, ok := doc.Types[namedID("Owner")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, owner.Properties, 1)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Cat"), Nullable: true}, owner.Properties[0].Type)
+	assert.Contains(t, owner.Properties[0].Unmodeled, "openapi:discriminator", "the property carries it")
 }
 
 func assertAnyOfUntagged(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -1841,6 +1901,116 @@ func assertTagsGrouping(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "pets", doc.TagDefs[0].Name)
 }
 
+// assertGroupIdentity pins what identifies a group: the rule that formed it and
+// the key that rule read, never its name. Two pairs among the seven render from
+// the same words — the declared tag "default" and the group untagged operations
+// fall into, the tag "webhooks" and the webhook group — and two tags differ only
+// by what RFC 6901 escapes. Each keeps an ID of its own. The IDs are written out
+// rather than derived, so the test cannot agree with a change to the derivation
+// (GitHub #673).
+func assertGroupIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	got := map[ir.GroupID][]string{}
+	for _, g := range doc.Services[0].Groups {
+		require.NotContains(t, got, g.ID, "two groups share an ID")
+		for _, op := range g.Operations {
+			got[g.ID] = append(got[g.ID], op.Name.Source)
+		}
+	}
+	assert.Equal(t, map[ir.GroupID][]string{
+		"g/tags/default":  {"declared"},
+		"g/default":       {"untagged"},
+		"g/tags/webhooks": {"namedLikeWebhooks"},
+		"g/tags/ghost":    {"undeclared"},
+		"g/tags/a~1b":     {"slash"},
+		"g/tags/a~01b":    {"tilde"},
+		"g/webhooks":      {"onEvent"},
+	}, got)
+}
+
+// assertParamIdentity pins what identifies a parameter: the operation it is
+// mounted under, its name as one escaped token, and its location. Two
+// parameters named id in one operation get two IDs; a path-item parameter is one
+// parameter per operation it is copied into; a path item reached from two paths
+// roots each mount's parameters at that mount. The IDs are written out rather
+// than derived, so the test cannot agree with a change to the derivation, and
+// every binding must name its own parameter's ID.
+func assertParamIdentity(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	got := map[ir.OpID][]ir.ParamID{}
+	svc := doc.Services[0]
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			for _, p := range op.Params {
+				got[op.ID] = append(got[op.ID], p.ID)
+			}
+			require.Len(t, op.Bindings.HTTP, 1)
+			var bound []ir.ParamID
+			for _, pb := range op.Bindings.HTTP[0].ParamBindings {
+				bound = append(bound, pb.Param)
+			}
+			assert.ElementsMatch(t, got[op.ID], bound, "%s: each binding names its own parameter", op.ID)
+		}
+	}
+	assert.Equal(t, map[ir.OpID][]ir.ParamID{
+		"op/openapi/paths/~1items~1{id}/get": {
+			"param/openapi/paths/~1items~1{id}/get/parameters/id/query",
+			"param/openapi/paths/~1items~1{id}/get/parameters/a~1b/header",
+			"param/openapi/paths/~1items~1{id}/get/parameters/id/path",
+		},
+		"op/openapi/paths/~1items~1{id}/post": {
+			"param/openapi/paths/~1items~1{id}/post/parameters/id/path",
+		},
+		"op/openapi/paths/~1a/get": {"param/openapi/paths/~1a/get/parameters/limit/query"},
+		"op/openapi/paths/~1b/get": {"param/openapi/paths/~1b/get/parameters/limit/query"},
+	}, got)
+}
+
+// assertEnumMemberIdentity pins what identifies an enum member: the value it
+// holds, tagged by kind, under the enum that declares it. The list repeats a
+// value, includes names that spell one canonical word sequence, and carries the
+// characters a pointer token escapes, so a derivation from the name, the
+// position or the unescaped value changes an ID. The IDs are written out, not
+// derived. The repeat is kept, its ID ends in its occurrence number, and it is
+// reported once at its own entry; the string spelling that ID's tail is no
+// repeat.
+func assertEnumMemberIdentity(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	memberIDs := func(id ir.TypeID) []ir.EnumMemberID {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		require.True(t, ok, "%s is an enum", id)
+		got := make([]ir.EnumMemberID, 0, len(enum.Members))
+		for _, m := range enum.Members {
+			got = append(got, m.ID)
+		}
+		return got
+	}
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/E/s:a-b",
+		"e/openapi/components/schemas/E/s:a_b",
+		"e/openapi/components/schemas/E/s:A B",
+		"e/openapi/components/schemas/E/s:a~0b",
+		"e/openapi/components/schemas/E/s:a-b/2",
+		"e/openapi/components/schemas/E/s:a-b~12",
+	}, memberIDs("t/openapi/components/schemas/E"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/openapi/components/schemas/N/n:-1e0",
+		"e/openapi/components/schemas/N/n:1e0",
+		"e/openapi/components/schemas/N/n:0",
+	}, memberIDs("t/openapi/components/schemas/N"))
+	assert.Equal(t, []ir.EnumMemberID{
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:open",
+		"e/anon/paths/~1status/get/responses/200/content/application~1json/schema/s:closed",
+	}, memberIDs("t/anon/paths/~1status/get/responses/200/content/application~1json/schema"))
+
+	var repeats []string
+	for _, d := range diags {
+		if d.Code == "openapi/duplicate-enum-value" {
+			repeats = append(repeats, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/E/enum/4"}, repeats)
+}
+
 func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "getItem")
 	require.True(t, ok)
@@ -1856,7 +2026,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, op.Bindings.HTTP, 1)
 	byParam := map[string]ir.HTTPParamBinding{}
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		byParam[pb.Param] = pb
+		byParam[pb.WireName] = pb
 	}
 	q := byParam["q"]
 	assert.Equal(t, "form", q.Style, "query default style is form")
@@ -1900,12 +2070,12 @@ func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
 	assert.JSONEq(t, `true`, string(entry.Value))
 }
 
-// paramID is a parameter's identity. OpenAPI keys the Parameter object on
-// (name, in), so two parameters may legally share a name at different
-// locations; a map keyed on the name alone silently keeps one of such a pair and
-// compares the other against nothing. The compiler itself is keyed on both.
-type paramID struct {
-	Param    string
+// paramSlot is what OpenAPI identifies a parameter by: its name and location.
+// Two parameters may legally share a name at different locations, so a map
+// keyed on the name alone silently keeps one of such a pair and compares the
+// other against nothing.
+type paramSlot struct {
+	Name     string
 	Location ir.HTTPLocation
 }
 
@@ -1993,8 +2163,8 @@ func paramStyleExplodeDefault(style string) bool {
 // Generating moves the question up: the table and the fixture can still shrink
 // together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
-func paramStyleMatrixWant() map[paramID]paramWire {
-	want := map[paramID]paramWire{}
+func paramStyleMatrixWant() map[paramSlot]paramWire {
+	want := map[paramSlot]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
@@ -2004,11 +2174,11 @@ func paramStyleMatrixWant() map[paramID]paramWire {
 			{"NoExplode", false},
 			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
 		} {
-			want[paramID{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
+			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
 		}
 	}
 	for _, d := range paramStyleDefaultStyles() {
-		want[paramID{string(d.location) + "Defaulted", d.location}] =
+		want[paramSlot{string(d.location) + "Defaulted", d.location}] =
 			paramWire{d.style, paramStyleExplodeDefault(d.style)}
 	}
 	return want
@@ -2065,12 +2235,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 
-	got := make(map[paramID]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
+	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.Param)
-		id := paramID{Param: pb.Param, Location: pb.Location}
-		require.NotContains(t, got, id, "two parameter bindings share the identity %+v", id)
-		got[id] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.WireName)
+		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
+		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
+		got[slot] = paramWire{Style: pb.Style, Explode: *pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
 		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
@@ -2100,7 +2270,7 @@ func assertQuerystringParam(t *testing.T, doc *ir.Document) {
 
 	binding := op.Bindings.HTTP[0].ParamBindings[0]
 	require.Equal(t, ir.HTTPLocationQuerystring, binding.Location)
-	require.Equal(t, "querystringWhole", binding.Param, "the querystring parameter binds")
+	require.Equal(t, "querystringWhole", binding.WireName, "the querystring parameter binds")
 	assert.Equal(t, "application/x-www-form-urlencoded", binding.ContentType,
 		"its media type is where its serialization is actually stated")
 	assert.Empty(t, binding.Style, "style is not a legal keyword at in: querystring")
@@ -2399,10 +2569,8 @@ func propIDExists(doc *ir.Document, id ir.PropID) bool {
 		if !ok {
 			continue
 		}
-		for _, p := range m.Properties {
-			if p.ID == id {
-				return true
-			}
+		if slices.ContainsFunc(m.Properties, func(p ir.Property) bool { return p.ID == id }) {
+			return true
 		}
 	}
 	return false
@@ -2451,6 +2619,43 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	resp := firstContent(t, op)
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+}
+
+// assertMediaTypeSpelling pins that a media type is classified by its type alone
+// while the IR keeps the key as written. One content per classification: a
+// multipart body, a form-urlencoded body and a file body with no schema, the
+// last on both sides of an operation.
+func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	upload, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	multipart := requestContent(t, upload)
+	assert.Equal(t, "Multipart/Form-Data", multipart.MediaType)
+	require.Len(t, multipart.Encoding, 1, "a mixed-case multipart key keeps its part encoding")
+	for _, pe := range multipart.Encoding {
+		assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
+		assert.True(t, pe.Filename)
+	}
+
+	submit, ok := opByName(doc, "submit")
+	require.True(t, ok)
+	form := requestContent(t, submit)
+	assert.Equal(t, "Application/X-WWW-Form-Urlencoded; charset=utf-8", form.MediaType)
+	require.Len(t, form.Encoding, 1, "a parameterized form-urlencoded key keeps its part encoding")
+	for _, pe := range form.Encoding {
+		assert.True(t, pe.Multi)
+	}
+
+	blob, ok := opByName(doc, "putBlob")
+	require.True(t, ok)
+	req := requestContent(t, blob)
+	require.NotNil(t, req.File, "a mixed-case octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"Application/Octet-Stream"}, req.File.ContentTypes)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), req.Type.Target)
+
+	resp := firstContent(t, blob)
+	require.NotNil(t, resp.File, "a parameterized octet-stream key with no schema is a file body")
+	assert.Equal(t, []string{"application/octet-stream; type=tar"}, resp.File.ContentTypes)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
 }
 
@@ -3010,7 +3215,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
-		u, ok := v.Interface().(ir.Unmodeled)
+		u, ok := reflect.TypeAssert[ir.Unmodeled](v)
 		if !ok {
 			return true
 		}
