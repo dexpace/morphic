@@ -8,23 +8,29 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
 
-// loadMode asks for what a reader of declarations needs: the package's syntax
-// and its type information. Dependencies come from export data, not source.
-const loadMode = packages.NeedName | packages.NeedSyntax | packages.NeedTypes |
-	packages.NeedTypesInfo | packages.NeedImports
+// loadMode asks for what a reader of declarations needs: the package's files,
+// their syntax and their type information. Dependencies come from export data,
+// not source.
+const loadMode = packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
+	packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports
 
 // Package is one package's production sources, type-checked.
 type Package struct {
-	Types  *types.Package
-	Info   *types.Info
+	// Types holds what the package declares.
+	Types *types.Package
+	// Info records what each identifier and expression in Syntax resolves to.
+	Info *types.Info
+	// Syntax holds the package's files, in the order of their names.
 	Syntax []*ast.File
-	Fset   *token.FileSet
+	// Fset positions Syntax and every object Types holds.
+	Fset *token.FileSet
 }
 
 // Const is one string constant: its identifier and the value the compiler
@@ -35,8 +41,8 @@ type Const struct {
 }
 
 // Load type-checks the one package pattern names, resolved from the working
-// directory, without its test files. A pattern matching no package or several,
-// or a package that does not type-check, is an error.
+// directory, without its test files. It refuses what LoadAll refuses, and a
+// pattern matching several packages.
 func Load(pattern string) (*Package, error) {
 	pkgs, err := LoadAll(pattern)
 	if err != nil {
@@ -53,13 +59,20 @@ func Load(pattern string) (*Package, error) {
 //
 // Together is the point: a type one of them declares is identical to the type
 // another sees through its import, which two Load calls cannot give, since each
-// builds a universe of its own. A pattern matching no package, or a package
-// that does not type-check, is an error.
+// builds a universe of its own.
+//
+// It refuses to read less than asked: a pattern matching no package, a package
+// that does not type-check or has no production file, and a production file the
+// current build configuration leaves out, since what that file declares would
+// go unread.
 func LoadAll(patterns ...string) ([]*Package, error) {
 	if len(patterns) == 0 {
 		return nil, errors.New("load: no pattern")
 	}
 	what := strings.Join(patterns, " ")
+	if err := eachMatches(patterns); err != nil {
+		return nil, fmt.Errorf("load %s: %w", what, err)
+	}
 
 	loaded, err := packages.Load(&packages.Config{Mode: loadMode}, patterns...)
 	if err != nil {
@@ -72,9 +85,7 @@ func LoadAll(patterns ...string) ([]*Package, error) {
 	var errs []error
 	out := make([]*Package, 0, len(loaded))
 	for _, p := range loaded {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
+		errs = append(errs, unread(p)...)
 		out = append(out, &Package{Types: p.Types, Info: p.TypesInfo, Syntax: p.Syntax, Fset: p.Fset})
 	}
 	if len(errs) > 0 {
@@ -82,6 +93,45 @@ func LoadAll(patterns ...string) ([]*Package, error) {
 	}
 	slices.SortFunc(out, func(a, b *Package) int { return cmp.Compare(a.Types.Path(), b.Types.Path()) })
 	return out, nil
+}
+
+// eachMatches fails for a pattern of several that names no package. The go
+// command only warns about one, so the load would quietly read less than its
+// caller asked for. A lone pattern is not asked twice: an empty load says it.
+func eachMatches(patterns []string) error {
+	if len(patterns) == 1 {
+		return nil
+	}
+	for _, pattern := range patterns {
+		pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedName}, pattern)
+		if err != nil {
+			return err
+		}
+		if len(pkgs) == 0 {
+			return fmt.Errorf("%s matched no packages", pattern)
+		}
+	}
+	return nil
+}
+
+// unread returns what keeps p from being read whole: the errors the load
+// recorded on it, a production file the build leaves out, or no production
+// file at all.
+func unread(p *packages.Package) []error {
+	errs := make([]error, 0, len(p.Errors)+len(p.IgnoredFiles))
+	for _, e := range p.Errors {
+		errs = append(errs, e)
+	}
+	for _, file := range p.IgnoredFiles {
+		if strings.HasSuffix(file, "_test.go") {
+			continue // no test file is read, whatever the build
+		}
+		errs = append(errs, fmt.Errorf("%s: the current build leaves out %s", p.PkgPath, filepath.Base(file)))
+	}
+	if len(errs) == 0 && len(p.Syntax) == 0 {
+		errs = append(errs, fmt.Errorf("%s has no production Go file", p.PkgPath))
+	}
+	return errs
 }
 
 // Named returns the named type the package declares as name, through an alias

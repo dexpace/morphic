@@ -2,6 +2,8 @@ package decls_test
 
 import (
 	"go/types"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,12 +29,14 @@ func fixture(t *testing.T) *decls.Package {
 	return p
 }
 
-func TestLoad_RefusesWhatIsNotOnePackage(t *testing.T) {
+func TestLoad_Refusals(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, pattern, want string
 	}{
 		{"a package that does not type-check", "./testdata/broken", "load ./testdata/broken: "},
+		{"a package with no production file", "./testdata/testonly", "testonly has no production Go file"},
+		{"a package the build thins", "./testdata/constrained", "the current build leaves out left_out.go"},
 		{"a pattern matching several", goodDir + "/...", "matched 3 packages, want 1"},
 		{"a pattern matching none", noPackages, "matched no packages"},
 		{"a pattern the go command refuses", "-notaflag", "load -notaflag: "},
@@ -47,18 +51,62 @@ func TestLoad_RefusesWhatIsNotOnePackage(t *testing.T) {
 	}
 }
 
-// TestLoad_ReportsTheGoCommandFailing covers the error packages.Load returns
-// itself, as opposed to one it records on a package: the go command refusing
-// to run. It sets the environment, so it cannot run in parallel.
-func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
-	t.Setenv("GOFLAGS", "-mod=bogus")
-
-	p, err := decls.Load(goodDir + "/fixture")
+// TestLoad_ReportsAMissingPackageOnce holds a refusal to its cause: a package
+// the go command cannot find has no file either, and saying so too would only
+// bury the reason.
+func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load("./testdata/nowhere")
 
 	require.Error(t, err)
 	assert.Nil(t, p)
-	assert.Contains(t, err.Error(), "load "+goodDir+"/fixture: ")
-	assert.Contains(t, err.Error(), "bogus", "the go command's own complaint is kept")
+	assert.Contains(t, err.Error(), "directory not found")
+	assert.NotContains(t, err.Error(), "no production Go file")
+}
+
+// TestLoad_ReadsNoTestFile holds the load to production sources: the fixture
+// holds a test file no build includes, which is no file left out, since no test
+// file is read in any build.
+func TestLoad_ReadsNoTestFile(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"fixture.go"}, fileNames(fixture(t)))
+}
+
+// TestLoad_KeepsFilesInNameOrder holds Syntax to the order its doc promises,
+// which the loader keeps although it parses the files concurrently.
+func TestLoad_KeepsFilesInNameOrder(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load(goodDir + "/split")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a.go", "b.go", "c.go", "d.go"}, fileNames(p))
+}
+
+// fileNames returns the base name of each file in p.Syntax, in its order.
+func fileNames(p *decls.Package) []string {
+	out := make([]string, len(p.Syntax))
+	for i, f := range p.Syntax {
+		out[i] = filepath.Base(p.Fset.Position(f.Pos()).Filename)
+	}
+	return out
+}
+
+// TestLoad_ReportsTheGoCommandFailing covers the error packages.Load returns
+// itself, as opposed to one it records on a package: the go command refusing
+// to run, for the load and for the question LoadAll asks of each of several
+// patterns. It sets the environment, so it cannot run in parallel.
+func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
+	t.Setenv("GOFLAGS", "-mod=bogus")
+	for _, patterns := range [][]string{
+		{goodDir + "/fixture"},
+		{goodDir + "/fixture", goodDir + "/uses"},
+	} {
+		pkgs, err := decls.LoadAll(patterns...)
+
+		require.Error(t, err, patterns)
+		assert.Nil(t, pkgs)
+		assert.Contains(t, err.Error(), "load "+strings.Join(patterns, " ")+": ")
+		assert.Contains(t, err.Error(), "bogus", "the go command's own complaint is kept")
+	}
 }
 
 func TestLoadAll_RefusesNoPattern(t *testing.T) {
@@ -68,6 +116,18 @@ func TestLoadAll_RefusesNoPattern(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, pkgs)
 	assert.Contains(t, err.Error(), "no pattern")
+}
+
+// TestLoadAll_RefusesAPatternMatchingNothing holds each of several patterns to
+// naming a package. The go command only warns about one that names none, so
+// the load would otherwise come back with less than was asked for.
+func TestLoadAll_RefusesAPatternMatchingNothing(t *testing.T) {
+	t.Parallel()
+	pkgs, err := decls.LoadAll(goodDir+"/fixture", noPackages)
+
+	require.Error(t, err)
+	assert.Nil(t, pkgs)
+	assert.Contains(t, err.Error(), noPackages+" matched no packages")
 }
 
 // TestLoadAll_ReturnsPackagesSortedByPath holds the order to the import paths
