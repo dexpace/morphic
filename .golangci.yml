@@ -43,7 +43,8 @@ linters:
     # in the source: internal/archtest refuses those. Keep each rule as narrow as
     # the finding it excuses, which is a path and, where the linter says more than
     # one thing there, the message; delete it with the code it excuses.
-    # golangci-lint warns about a rule that skipped nothing but does not fail on it.
+    # golangci-lint warns about a rule that skipped nothing but does not fail on it;
+    # a run narrowed to some packages warns about each rule it did not reach.
     warn-unused: true
     rules:
       # A table-driven test is long because its table is long, and the table is
