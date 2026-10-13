@@ -12,11 +12,6 @@ import (
 
 var namingType = reflect.TypeFor[ir.Naming]()
 
-// typeCommonType is the node whose Name the alias-claim check reads. A type
-// declares its aliases once, on the TypeCommon every kind embeds, so the walk
-// reaches it at the owner's path and the check asks it rather than each kind.
-var typeCommonType = reflect.TypeFor[ir.TypeCommon]()
-
 // nameField is how a node spells the ir.Naming that names it, and so the last
 // segment of the path the walk reaches that one by. A node in nameOptional
 // renamed out of this spelling stops matching, which reports a violation on a
@@ -141,11 +136,6 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 // TestVerify_AliasPathIsSpelledAsTheWalkWould is what reddens.
 const aliasField = ".Aliases"
 
-// sourceField is how a Naming spells the source name a claim's path ends with.
-// It follows nameField and aliasField for the same reason: the path is built by
-// hand and the field it names must keep its spelling for the two to agree.
-const sourceField = ".Source"
-
 // listRules is how appendListViolations spells and judges one []string field:
 // which list-intrinsic defects it admits, the Source for the redundancy rule,
 // and a violation's words. Only Aliases and Namespace have rules. A repeat in
@@ -252,111 +242,6 @@ func appendNamespaceViolations(vs []Violation, owner reflect.Value, path string)
 // together.
 func aliasPath(path string, i int) string {
 	return path + aliasField + "[" + strconv.Itoa(i) + "]"
-}
-
-// aliasClaim is one name a Naming claims: the name itself, the path it sits at,
-// the owner that claimed it, and whether it is the entity's Source rather than
-// an alias entry. The owner identifies the Naming for the same-Naming skip
-// below; the path is where a violation about the claim is reported.
-type aliasClaim struct {
-	owner  string
-	name   string
-	path   string
-	source bool
-}
-
-// checkAliasClaims asserts no two type-registry Namings claim one name: an alias
-// is what a reader resolves against exactly one entity, so two claiming it make
-// the match depend on which schema the reader was handed (GitHub #398).
-//
-// The scope is each Document.Types entry's TypeCommon.Name, not the whole
-// document: a source scopes an alias to its own record, so Property aliases are
-// not compared. A claim is a non-empty Source or a valid alias entry; matching
-// is exact, and the first claimant in sorted registry order stands. ir-design
-// §3.2 records the rule in full, including the collision it cannot reach.
-func checkAliasClaims(doc *ir.Document, _ declarations) ([]Violation, bool) {
-	first := map[string]aliasClaim{}
-	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct || v.Type() != typeCommonType {
-			return true
-		}
-		vs = appendClaimViolations(vs, first, typeCommonClaims(v, path))
-		return true // the check reads the owner and prunes nothing below it
-	})
-	return vs, truncated
-}
-
-// appendClaimViolations folds one Naming's claims into the document's, reporting
-// each that a different Naming already made. The map is the names claimed so
-// far, first claimant standing; a claim from the Naming that made one already is
-// left to the list rules, which report it at the entry with the repair that
-// belongs to one list.
-func appendClaimViolations(vs []Violation, first map[string]aliasClaim, claims []aliasClaim) []Violation {
-	for _, c := range claims {
-		held, taken := first[c.name]
-		switch {
-		case !taken:
-			first[c.name] = c
-		case held.owner == c.owner:
-			// One Naming claiming a name twice is -duplicate's or -redundant's.
-		case c.source && !held.source:
-			// A later Source meeting an earlier alias is reported at the alias:
-			// it is the entry the second entity's name collides with.
-			vs = append(vs, sharedAliasViolation(c.name, held.path, c.path))
-		case !c.source:
-			vs = append(vs, sharedAliasViolation(c.name, c.path, held.path))
-		default:
-			// Source against Source: the IR does not rank two declared names.
-		}
-	}
-	return vs
-}
-
-// typeCommonClaims returns the claims one TypeCommon's Name makes, Source before
-// Aliases, each with the path ir.WalkValues reaches it by — aliasPath for an
-// alias entry, and the hand-built Source path beside it. Reading the fields
-// rather than converting the value back to an ir.TypeCommon is namingChannels'
-// reason.
-func typeCommonClaims(common reflect.Value, owner string) []aliasClaim {
-	namingPath := owner + nameField
-	name := common.FieldByName("Name")
-	var claims []aliasClaim
-	if source := name.FieldByName("Source").String(); isClaim(source) {
-		claims = append(claims, aliasClaim{
-			owner: owner, name: source, path: namingPath + sourceField, source: true,
-		})
-	}
-	aliases := name.FieldByName("Aliases")
-	for i := range aliases.Len() {
-		alias := aliases.Index(i).String()
-		if !isClaim(alias) {
-			continue
-		}
-		claims = append(claims, aliasClaim{owner: owner, name: alias, path: aliasPath(namingPath, i)})
-	}
-	return claims
-}
-
-// isClaim reports whether one name channel entry is a name a reader could match,
-// and so something two Namings can collide on. A blank entry and one whose bytes
-// do not decode are both already reported — by the list rules and by checkUTF8,
-// respectively — so repeating them here as a shared claim would only report one
-// defect twice, under a name nothing can match.
-func isClaim(name string) bool {
-	return !isBlankName(name) && utf8.ValidString(name)
-}
-
-// sharedAliasViolation states the one code this check reports: the name, and the
-// path of the other claimant — the first claimant's for a later alias, the
-// Source's for a later Source that met an earlier alias. Both name and path are
-// quoted, because both are document-derived text (GitHub #400).
-func sharedAliasViolation(name, at, other string) Violation {
-	return Violation{
-		Code:    "ir/naming-alias-shared",
-		Message: "alias " + strconv.Quote(name) + " is also claimed by " + strconv.Quote(other),
-		Path:    at,
-	}
 }
 
 // appendAbsentViolation reports an entity that no channel names.

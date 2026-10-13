@@ -414,9 +414,10 @@ is not, so a single ill-formed name, ID or description fails the whole artifact.
 every string to it under one code, `ir/invalid-utf8`, at the path of the string that broke it.
 
 **`Aliases` is held to none of the shape rules, and to rules of its own instead.** An alias is
-matched against a name *another* schema wrote — an Avro alias is a full name, `com.example.User`,
-and resolution compares it verbatim against the writer schema's full name — so the separators and
-the casing are what the match is made of rather than a spelling the IR gets to decide.
+matched against a name *another* schema wrote — an Avro type alias is a full name such as
+`com.example.User`, or one relative to its type's namespace, and resolution compares it against the
+writer schema's full name — so the separators and the casing are what the match is made of rather
+than a spelling the IR gets to decide.
 Neutralizing one would throw away precisely that, which is the lossy direction
 lossless-by-default rules out. `Source` is the internal precedent: it carries `UserID` today and
 no content rule touches it, because it records what the spec said rather than deciding a spelling.
@@ -436,20 +437,24 @@ What is left is decidable without any grammar, and `irverify` holds an alias to 
   producer that wrote one built the list wrong. Only `Source` is compared against: `Canonical` and
   `Hint` are names the IR derived for an emitter to render, never names a writer schema could have
   spelled.
-- **No entry is claimed by another type in the registry** (`ir/naming-alias-shared`). An alias is
-  what a reader resolves against exactly one entity, so two types claiming one make the match depend
-  on which schema the reader was handed. The scope is the type registry — `TypeCommon.Name` of each
-  `Document.Types` entry — and not the whole document: an alias is a schema-resolution name and a
-  source that writes one scopes it to its own record, so two models may legitimately state the same
-  short alias, and a `Property`'s aliases are inside their own record and are not compared.
-  Matching is exact string equality; the first claimant in walk order stands, and a later one is
-  reported at the entry it claims, naming the earlier. One collision stays out of reach: an alias
-  equal to another type's namespace-qualified name is caught only when the `Source` holds that full
-  name, because a namespace is a path here and the comparison never joins it.
 
 That such an entry is inert is also why a *source* declaring one is recorded once with a diagnostic
 rather than carried through: dropping it is not the lossy direction, since the same set of names
 resolves to the entity either way.
+
+An alias can also collide with *another* entity's name, and that is not a rule of the list:
+
+- **Within a record** it is a problem in the spec. An alias that another property of the same model
+  answers to — by its wire name or by an alias of its own — leaves a reader resolving that name two
+  fields to choose from, which is why Avro holds an alias to the same uniqueness as a name. A source
+  can write one, and no lowering can drop either claim without choosing between them, so
+  `pass/validate` reports it (`pass/ambiguous-alias`) beside the duplicate wire names of the same
+  scope, and `irverify` does not.
+- **Across the type registry** nothing reports it, because nothing in the IR decides it. A relative
+  alias is qualified by its type's namespace under the format's grammar, so one string on two types
+  in two namespaces is two names; and one document can hold several independent schemas — each
+  message payload of an AsyncAPI document is one — that may each declare the same type and alias.
+  A collision between named types is the compiler's to report, within the schema it parsed.
 
 ### 3.3 Type references
 
