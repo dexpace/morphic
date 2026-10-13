@@ -581,13 +581,16 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 // alias over it, neither of which carries a branch set of its own to hold
 // them in. It also runs the census lower() runs for a body, which this arm
 // never reaches, so a discriminator written beside the branches is kept too.
+// Its report names the shared primitive as what the position lowered to, as
+// that census does for a bare `{type: null}`, not the alias keeping the
+// keywords.
 func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return diags
 	}
 	common := td.Common()
-	diags = append(diags, recordUnhomedAt(c, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(td.Kind()), pointer)...)
+	diags = append(diags, recordUnhomedAt(c, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(ir.KindPrimitive), pointer)...)
 	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
 	if len(kept) == 0 {

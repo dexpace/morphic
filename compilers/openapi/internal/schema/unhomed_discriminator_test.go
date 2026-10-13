@@ -235,6 +235,25 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 		"one entry per position, none duplicated")
 }
 
+// TestNullOnlyUnion_ReportsItsCensusAsABareNullSchemaDoes pins that a null-only
+// branch set, which lowers as a bare `{type: null}` schema does, names what a
+// keyword it cannot hold sits beside in the same words: the node the position
+// lowered to, not the alias holding the keyword.
+func TestNullOnlyUnion_ReportsItsCensusAsABareNullSchemaDoes(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpec(
+		"    NullOnly: {oneOf: [{type: 'null'}], format: uuid}\n    NullTyped: {type: 'null', format: uuid}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	census := func(name string) string {
+		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
+			return string(d.Provenance.Pointer) == "/components/schemas/"+name && strings.Contains(d.Message, "which has no home for")
+		})
+		require.GreaterOrEqual(t, i, 0, "%s reports what it kept", name)
+		return diags[i].Message
+	}
+	assert.Equal(t, census("NullTyped"), census("NullOnly"))
+}
+
 // homelessSpec declares a discriminator beside no union at all, at each kind
 // of position whose node has no field for it: a scalar, an enum, an array, a
 // bare schema, a $ref as a component, a property, a parameter and an allOf
