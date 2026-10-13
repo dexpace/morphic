@@ -22,3 +22,16 @@ webhooks:
       responses:
         "200":
           description: ok
+  # The key names an event, not a path: the braces are part of that name, so
+  # the binding carries the key as its webhook name and has no URI template.
+  "{tenant}.created":
+    post:
+      responses:
+        "200":
+          description: ok
+  # The empty key is legal. It names nothing, and the operation is still mounted.
+  "":
+    post:
+      responses:
+        "200":
+          description: ok
