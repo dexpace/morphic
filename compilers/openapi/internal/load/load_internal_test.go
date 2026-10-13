@@ -76,8 +76,8 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 // The fixture is the alias form, which the library reads as a repeat, and the
 // test first confirms the library does raise its finding for it. Without that,
 // a library that stopped raising it would leave this passing with nothing
-// dropped. TestLoad_DuplicateParameterStillReported is the control: without it,
-// this would pass just as well if findings dropped every finding.
+// dropped. TestLoad_UnownedRuleStillReported is the control: without it, this
+// would pass just as well if findings dropped every finding.
 func TestLoad_OperationIDUniquenessIsTheCompilers(t *testing.T) {
 	t.Parallel()
 	const aliasedOperationID = `openapi: 3.1.0
@@ -108,12 +108,13 @@ paths:
 		"the library's finding never reaches a diagnostic: %+v", diags)
 }
 
-// TestLoad_DuplicateParameterStillReported is the control for
-// TestLoad_OperationIDUniquenessIsTheCompilers: compilerOwned names one rule,
-// not every validation error the library raises inside an operation, so a
-// duplicated parameter, a defect the compiler has no rule of its own for, must
-// still surface.
-func TestLoad_DuplicateParameterStillReported(t *testing.T) {
+// TestLoad_ParameterUniquenessIsTheCompilers pins compilerOwned's second
+// member: the library's report of an inline repeat is dropped, and the
+// compiler's own (parameterRepeats) is the one report, at the repeat. As for
+// operationIds, the test first confirms the library raises its finding for the
+// fixture, or a library that stopped would leave this passing with nothing
+// dropped.
+func TestLoad_ParameterUniquenessIsTheCompilers(t *testing.T) {
 	t.Parallel()
 	const duplicateParameter = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -125,10 +126,43 @@ paths:
         - {name: q, in: query, schema: {type: integer}}
       responses: {"200": {description: ok}}
 `
+	root, _, err := decodeStream([]byte(duplicateParameter))
+	require.NoError(t, err)
+	releaseAnchors(root)
+	_, valErrs, err := unmarshal(t.Context(), []byte(duplicateParameter), root)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(valErrs, func(e error) bool {
+		verr, ok := asValidationError(e)
+		return ok && verr.Rule == validation.RuleValidationOperationParameters
+	}), "the library raises its own finding for the fixture: %v", valErrs)
+
 	src := compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}
 	_, diags, err := Load(t.Context(), 0, src, Options{})
 	require.NoError(t, err)
-	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+	assert.Zero(t, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+		"the library's finding never reaches a diagnostic: %+v", diags)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.DuplicateParameter), "%+v", diags)
+}
+
+// TestLoad_UnownedRuleStillReported is the control for the two tests above:
+// compilerOwned names two rules, not every validation error the library raises
+// inside an operation, so a path parameter not marked required, a defect the
+// compiler has no rule of its own for, must still surface.
+func TestLoad_UnownedRuleStillReported(t *testing.T) {
+	t.Parallel()
+	const optionalPathParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a/{id}:
+    get:
+      parameters:
+        - {name: id, in: path, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(optionalPathParameter)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationRequiredField),
 		"a rule the compiler does not own must still surface: %+v", diags)
 }
 

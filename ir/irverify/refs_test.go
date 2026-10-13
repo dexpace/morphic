@@ -3,6 +3,7 @@ package irverify
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -252,14 +253,24 @@ func TestCheckReferentialIntegrity_DanglingRenameKey(t *testing.T) {
 }
 
 // refIDInMessage extracts the reference ID from a dangling-ref message of the
-// form "reference <id> does not resolve in <registry>".
+// form `reference "<id>" does not resolve in <registry>`. The ID is quoted in
+// the message (GitHub #400) because it is document-derived text, so it is read
+// back the way strconv.Quote wrote it rather than split on the first space —
+// an ID or a registry key it embeds may itself hold one.
 func refIDInMessage(msg string) string {
 	const prefix = "reference "
 	rest, ok := strings.CutPrefix(msg, prefix)
 	if !ok {
 		return ""
 	}
-	id, _, _ := strings.Cut(rest, " ")
+	quoted, err := strconv.QuotedPrefix(rest)
+	if err != nil {
+		return ""
+	}
+	id, err := strconv.Unquote(quoted)
+	if err != nil {
+		return ""
+	}
 	return id
 }
 

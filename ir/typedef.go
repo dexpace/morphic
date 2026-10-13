@@ -82,6 +82,7 @@ type TypeCommon struct {
 	Name Naming `json:"name"`
 	// Namespace is the type's declared logical namespace (proto package, Avro
 	// namespace, Thrift/XSD/Cap'n Proto scopes); independent of Service.Namespace.
+	// It is a path: no segment is blank, and one may repeat (ir-design §4).
 	Namespace []string `json:"namespace,omitempty"`
 	// Anonymous reports that this is a hoisted inline type.
 	Anonymous bool `json:"anonymous"`

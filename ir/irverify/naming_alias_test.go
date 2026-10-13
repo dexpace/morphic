@@ -151,7 +151,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 	require.Len(t, got, 1, "the repeat is reported, not the first occurrence")
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[2]", got[0].Path)
-	assert.Equal(t, "alias dup is listed here and at index 0", got[0].Message)
+	assert.Equal(t, `alias "dup" is listed here and at index 0`, got[0].Message)
 }
 
 // TestVerify_AliasRepeatingItsOwnSourceIsAViolation covers the other way an
@@ -165,7 +165,7 @@ func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[0]", got[0].Path)
-	assert.Equal(t, "alias User is the entity's own source name, so it matches nothing more",
+	assert.Equal(t, `alias "User" is the entity's own source name, so it matches nothing more`,
 		got[0].Message)
 }
 
@@ -246,30 +246,48 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 	}, byCode)
 }
 
-// TestVerify_AliasSharedByTwoNamings pins the scope boundary
-// appendAliasViolations declares: a repeat across two Namings goes unreported
-// today, and closing GitHub #398 is what should change it.
+// TestVerify_AliasClaimedByAnotherEntityIsClean pins what irverify leaves to
+// others (ir-design §3.2). Across the type registry no rule decides a
+// collision: a relative alias resolves against its own namespace, and two
+// independent schemas may each declare one. Between sibling properties it is a
+// problem in the spec, which pass/validate reports.
 //
-// Without this, nothing holds seen to being per-Naming. Hoisting it into
-// checkNaming's closure — the one-line change anyone implementing #398 reaches
-// for first — makes this document report ir/naming-alias-duplicate, and every
-// other test in this file stays green, because each drives a document with one
-// Naming in it.
-func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
+// The first case puts one alias on two Namings, so hoisting seen into
+// checkNaming's closure, the first change a cross-Naming rule reaches for,
+// reddens it as ir/naming-alias-duplicate.
+func TestVerify_AliasClaimedByAnotherEntityIsClean(t *testing.T) {
 	t.Parallel()
 	const shared = "com.example.User"
-	a := &ir.Model{
-		ID:   "t/x/A",
-		Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{shared}},
+	aliased := func(source string) ir.Naming {
+		return ir.Naming{Source: source, Canonical: source, Aliases: []string{shared}}
 	}
-	b := &ir.Model{
-		ID:   "t/x/B",
-		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}},
+	declared := ir.Naming{Source: shared, Canonical: ir.CanonicalWords(shared)}
+	property := func(id ir.PropID, n ir.Naming) ir.Property {
+		return ir.Property{ID: id, Name: n, Type: ir.TypeRef{Target: "t/x/A"}}
 	}
 
-	got := verifyDeclared(&ir.Document{IRVersion: ir.IRVersion,
-		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
-	assert.Empty(t, got, "out of scope until GitHub #398; this is the fixture that says so")
+	for name, types := range map[string]ir.TypeRegistry{
+		"alias on two types": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
+			"t/x/B": &ir.Model{ID: "t/x/B", Name: aliased("b")},
+		},
+		"alias naming another type": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
+			"t/x/B": &ir.Model{ID: "t/x/B", Name: declared},
+		},
+		"alias naming a sibling property": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: ir.Naming{Source: "a", Canonical: "a"},
+				Properties: []ir.Property{
+					property("p/x/A/b", aliased("b")),
+					property("p/x/A/c", declared),
+				}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, verifyDeclared(&ir.Document{IRVersion: ir.IRVersion, Types: types}))
+		})
+	}
 }
 
 // TestVerify_AliasPathIsSpelledAsTheWalkWould ties the hand-assembled violation

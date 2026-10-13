@@ -1,6 +1,8 @@
 package pass_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,8 +94,7 @@ func TestValidate_PayloadRequiredOutsideARequest(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			payload := multipartPayload(nil)
-			required := false
-			payload.Required = &required
+			payload.Required = new(false)
 			tc.plant(doc, payload)
 
 			found := withCode(pass.Validate(doc), "ir/payload-required-outside-request")
@@ -287,6 +288,21 @@ func TestValidate_EncodingKeyOnTypeWithoutParts(t *testing.T) {
 	}
 }
 
+// TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef
+// holds the double report appendEncodingKeyDiags documents: the type is a
+// broken reference, and the key, a different claim, routes no part.
+func TestValidate_EncodingKeyOnAnUndeclaredTypeIsReportedBesideTheDanglingRef(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	c := requestContent(doc)
+	c.Type = ir.TypeRef{Target: "t/missing"}
+	c.Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Multi: true}}
+
+	got := codes(pass.Validate(doc))
+	assert.Contains(t, got, "ir/dangling-type-ref")
+	assert.Contains(t, got, "ir/encoding-key-unknown-property")
+}
+
 // aliasMultipartSpec is a multipart body written so the media schema lowers to an
 // alias over the model that declares the parts: a $ref carrying siblings has
 // nowhere but an alias to keep them, and a component that is a bare $ref is one.
@@ -354,11 +370,7 @@ func encodingKeys(t *testing.T, doc *ir.Document) []ir.PropID {
 	req := doc.Services[0].Groups[0].Operations[0].Request
 	require.NotNil(t, req)
 	require.Len(t, req.Contents, 1)
-	keys := make([]ir.PropID, 0, len(req.Contents[0].Encoding))
-	for key := range req.Contents[0].Encoding {
-		keys = append(keys, key)
-	}
-	return keys
+	return slices.Collect(maps.Keys(req.Contents[0].Encoding))
 }
 
 // TestValidate_EncodingKeyDiagnosticsAreDeterministic pins invariant 7 for the

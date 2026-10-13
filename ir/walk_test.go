@@ -41,12 +41,11 @@ func nestedListValue(depth int) ir.Value {
 // ".TypeCommon" step that neither JSON nor Go has.
 func TestWalkValues_PathsSpellFieldsIndicesAndKeys(t *testing.T) {
 	t.Parallel()
-	value := ir.Value{Kind: ir.ValueNull}
 	doc := &ir.Document{
 		Name: "api",
 		Types: ir.TypeRegistry{"t/x/M": &ir.Model{
 			ID:       "t/x/M",
-			Examples: []ir.Example{{Value: &value}},
+			Examples: []ir.Example{{Value: new(ir.Value{Kind: ir.ValueNull})}},
 		}},
 	}
 
@@ -221,4 +220,51 @@ func TestWalkValues_ArrayElementsAreReached(t *testing.T) {
 	paths, _ := walkPaths(holder)
 	assert.Contains(t, paths, "doc.IDs[0]")
 	assert.Contains(t, paths, "doc.IDs[1]")
+}
+
+// A chain of structs, each embedding the next and an empty map. Embedded fields
+// add no path segment, so walking the chain builds no string at all.
+type (
+	walkEmptyMap map[string]int
+	walkLevel4   struct{ walkEmptyMap }
+	walkLevel3   struct {
+		walkLevel4
+		walkEmptyMap
+	}
+	walkLevel2 struct {
+		walkLevel3
+		walkEmptyMap
+	}
+	walkLevel1 struct {
+		walkLevel2
+		walkEmptyMap
+	}
+)
+
+// TestWalkValues_StructsAndMapsCostNoAllocation holds the walk's cost per struct
+// and per map at nothing, since pass.Validate walks a whole document on every
+// compile. Ranging over reflect.Value.Fields or Seq2 instead of indexing puts
+// the loop body on the heap each time, which on Petstore adds more than half
+// again to Validate's allocations. The chain builds no path string, so any
+// growth with depth is the walk's own. It is not run in parallel: AllocsPerRun
+// measures the process.
+func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
+	var shallow, deep any = walkLevel4{walkEmptyMap: walkEmptyMap{}}, walkLevel1{
+		walkLevel2: walkLevel2{
+			walkLevel3: walkLevel3{
+				walkLevel4:   walkLevel4{walkEmptyMap: walkEmptyMap{}},
+				walkEmptyMap: walkEmptyMap{},
+			},
+			walkEmptyMap: walkEmptyMap{},
+		},
+		walkEmptyMap: walkEmptyMap{},
+	}
+	paths, _ := walkPaths(deep)
+	require.Len(t, paths, 8, "four structs and the four maps they embed are all reached")
+
+	visit := func(reflect.Value, string) bool { return true }
+	assert.Equal(t,
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(shallow, "doc", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(deep, "doc", visit) }),
+		"three more structs and maps must cost no more allocations")
 }

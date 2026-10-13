@@ -1,0 +1,16 @@
+openapi: 3.2.0
+info: {title: XMLNodeType32, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Report:
+      type: object
+      properties:
+        # 3.2 replaces `attribute: true` with nodeType; ir.XMLHints.NodeType
+        # names the field already, and the parser's XML model has no field for it.
+        id:
+          type: string
+          xml: {nodeType: attribute}
+        body:
+          type: string
+          xml: {nodeType: text, wrapped: true}

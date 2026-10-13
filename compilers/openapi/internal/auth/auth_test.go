@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -760,12 +761,7 @@ components:
 // unmodeledKeys returns u's keys sorted, so a caller pins the whole set rather
 // than probing for the ones it happened to think of.
 func unmodeledKeys(u ir.Unmodeled) []string {
-	out := make([]string, 0, len(u))
-	for k := range u {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-	return out
+	return slices.Sorted(maps.Keys(u))
 }
 
 // TestSecurityRequirement_OneUndeclaredMemberDropsTheWholeOption pins the
@@ -1191,4 +1187,35 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 		}
 	}
 	return out
+}
+
+// TestLowerSecuritySchemes_RefSiteDocsOverrideTheDeclaration pins the auth half
+// of GitHub #610: a securitySchemes entry written as a Reference Object keeps
+// the description written beside its $ref, and the declaration it names keeps
+// its own — the fold is per entry, never a mutation of the target.
+func TestLowerSecuritySchemes_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    BaseKey:
+      description: declared
+      type: apiKey
+      in: header
+      name: X-Key
+    ApiKey:
+      $ref: '#/components/securitySchemes/BaseKey'
+      description: the use site
+`)
+	require.Len(t, doc.Auth, 2)
+	byName := map[string]string{}
+	for _, scheme := range doc.Auth {
+		byName[scheme.Name.Source] = scheme.Docs.Description
+	}
+	assert.Equal(t, "the use site", byName["ApiKey"])
+	assert.Equal(t, "declared", byName["BaseKey"],
+		"the aliasing entry's siblings do not reach the declaration")
+	require.Empty(t, messagesAt(diags, diag.UnresolvedRef))
 }
