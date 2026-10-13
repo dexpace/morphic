@@ -292,6 +292,16 @@ that phrasing suggests — a memo caches a pure function of the document, where 
 interning table accumulates decisions — but it is shared and it is mutated, and
 the claim as written does not admit it.
 
+*Later:* a second shared record does accumulate decisions. `resolve.Reached`, held
+by `Ctx` and written by every reference resolution, records where each one landed,
+so the compiler can keep the component entries no lowering reached (GitHub #616).
+It is not a handle in the sense rejected above for diagnostics: no lowering reads
+it, so it cannot change a lowering's answer, and it is read once, after the last
+lowering returns, as a set whose contents do not depend on the order they were
+written in. Only the lowering knows what it followed, so the alternatives were a
+reading of the source that guesses — which dropped entries and gave others two
+homes — or threading a return value through every lowering.
+
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.
 

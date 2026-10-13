@@ -59,6 +59,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		if !ok {
 			continue
 		}
+		// A summary or description beside a $ref of the entry's chain documents
+		// this entry rather than the scheme it names (GitHub #610).
+		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](rs, scheme.Docs)
 		out[ids.Auth(name)] = scheme
 	}
 	if len(out) == 0 {
