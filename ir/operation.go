@@ -127,6 +127,11 @@ type Payload struct {
 	// request body can be omitted, and pass/validate reports one that is set
 	// anywhere else (ir/payload-required-outside-request).
 	Required *bool `json:"required,omitzero"`
+	// Docs is the body's own documentation, as against any one media type's:
+	// an OpenAPI Request Body Object's description, a TypeSpec @doc on a @body
+	// parameter. Unlike a named node's, it is omitted when empty, since a
+	// response or message usually documents itself rather than its body.
+	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

@@ -206,6 +206,27 @@ func TestPayload_RequiredIsTriState(t *testing.T) {
 	}
 }
 
+// TestPayload_DocsIsOmittedWhenEmpty pins Payload.Docs' shape: a value, as
+// every other Docs member is, but omitted when it says nothing.
+func TestPayload_DocsIsOmittedWhenEmpty(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		in   ir.Docs
+		want string
+	}{
+		{"undocumented", ir.Docs{}, `{}`},
+		{"documented", ir.Docs{Description: "the body"}, `{"docs":{"description":"the body"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := ir.Payload{Docs: tc.in}
+			assertZeroValueShape(t, payload, tc.want)
+			assertRoundTrip(t, payload)
+		})
+	}
+}
+
 // TestContent_JSONContract pins Content's omitempty contract — Type carries
 // no omitempty, every other field is optional — and that a fully populated
 // Content — item schema for sequential streaming, per-part encodings, and

@@ -104,13 +104,16 @@ var rules = map[string][]string{
 	// plus the validation-only keywords the IR keeps verbatim. It reads the
 	// parsed model and the raw nodes behind it, and holds no opinion about
 	// lowering — so it sits below the schema lowering that asks it questions and
-	// above nothing that asks it any.
+	// above nothing that asks it any. It reaches the library's yml package for
+	// the tags its decoder accepts as a string, so a field read off a raw node
+	// decodes as the parser decodes the fields it models.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
 	// reports through diag, reaching ids for the pointer that names a position and

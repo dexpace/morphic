@@ -199,6 +199,46 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 	}
 }
 
+// TestSince32_FollowsTheDeclaredVersion pins the one answer every raw-node
+// reader of a 3.2 field and its census ask (GitHub #615). A version nobody
+// recognizes answers false, so no reader runs on a dialect nothing describes.
+func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.3", want: false},
+		{version: "3.1.0", want: false},
+		{version: "3.2.0", want: true},
+		{version: "3.2.1", want: true},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.Since32())
+		})
+	}
+}
+
+// TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
+// references lives: a context and the scope it builds hold the same one, so a
+// resolution through any copy is visible to the compiler, and a zero context,
+// which holds none, has reached nothing.
+func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	require.NotNil(t, c.RefScope().Reached)
+	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
+	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
+	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
+}
+
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
 // reads, and that both come from the context rather than from a copy beside it:
 // the document's own path decides internal from external, and the declared set
