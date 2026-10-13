@@ -57,7 +57,8 @@ func TestLoad_ReportsTheGoCommandFailing(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, p)
-	assert.Contains(t, err.Error(), "-mod=bogus")
+	assert.Contains(t, err.Error(), "load "+goodDir+"/fixture: ")
+	assert.Contains(t, err.Error(), "bogus", "the go command's own complaint is kept")
 }
 
 func TestLoadAll_RefusesNoPattern(t *testing.T) {
