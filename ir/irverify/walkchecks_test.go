@@ -124,6 +124,8 @@ type packageFunc struct {
 func packageFuncs(t *testing.T) []packageFunc {
 	t.Helper()
 	p := verifyDecls(t)
+	walkValues := irDecls(t).Types.Scope().Lookup("WalkValues")
+	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
 	var out []packageFunc
 	for _, f := range p.Syntax {
 		for _, decl := range f.Decls {
@@ -138,7 +140,7 @@ func packageFuncs(t *testing.T) []packageFunc {
 			out = append(out, packageFunc{
 				name:            fn.Name.Name,
 				sig:             sig,
-				callsWalkValues: callsWalkValues(p.Info, fn),
+				callsWalkValues: refersTo(p.Info, fn, walkValues),
 			})
 		}
 	}
@@ -159,15 +161,14 @@ func isCheckShaped(sig *types.Signature, violations types.Type) bool {
 		types.Identical(results.At(0).Type(), violations)
 }
 
-// callsWalkValues reports whether fn's body refers to ir.WalkValues, resolved
-// through info so an import renamed or dotted still counts.
-func callsWalkValues(info *types.Info, fn *ast.FuncDecl) bool {
+// refersTo reports whether fn's body names target, resolved through info so an
+// import renamed or dotted still counts. target is compared as an object: the ir
+// package and this one are type-checked together, so what this package's body
+// refers to is the object ir declares.
+func refersTo(info *types.Info, fn *ast.FuncDecl, target types.Object) bool {
 	for node := range ast.Preorder(fn) {
 		ident, isIdent := node.(*ast.Ident)
-		if !isIdent {
-			continue
-		}
-		if walk, isFunc := info.Uses[ident].(*types.Func); isFunc && walk.FullName() == irPath+".WalkValues" {
+		if isIdent && info.Uses[ident] == target {
 			return true
 		}
 	}

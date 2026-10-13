@@ -1,6 +1,7 @@
 package irverify
 
 import (
+	"fmt"
 	"go/types"
 	"sync"
 	"testing"
@@ -18,32 +19,34 @@ const irPath = "github.com/dexpace/morphic/ir"
 // ended by then is following a cycle, not a deep IR.
 const maxTypeChain = 16
 
-// irPackage is the ir package type-checked, loaded once for every test here
-// that reads its declarations.
-var irPackage = sync.OnceValues(func() (*decls.Package, error) {
-	return decls.Load(irPath)
+// loadedPackages are the ir package and this package's own production sources,
+// type-checked together, once, so that what this package refers to in ir is the
+// object ir declares. Index 0 is ir: LoadAll sorts by import path.
+var loadedPackages = sync.OnceValues(func() ([]*decls.Package, error) {
+	pkgs, err := decls.LoadAll(irPath, irPath+"/irverify")
+	if err != nil {
+		return nil, err
+	}
+	if len(pkgs) != 2 || pkgs[0].Types.Path() != irPath {
+		return nil, fmt.Errorf("loaded %d packages, want ir then irverify", len(pkgs))
+	}
+	return pkgs, nil
 })
 
 // irDecls returns the ir package, type-checked.
 func irDecls(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := irPackage()
+	pkgs, err := loadedPackages()
 	require.NoError(t, err)
-	return p
+	return pkgs[0]
 }
-
-// verifyPackage is this package's own production sources, type-checked, loaded
-// once for the tests that read what the checks declare.
-var verifyPackage = sync.OnceValues(func() (*decls.Package, error) {
-	return decls.Load(irPath + "/irverify")
-})
 
 // verifyDecls returns this package's production sources, type-checked.
 func verifyDecls(t *testing.T) *decls.Package {
 	t.Helper()
-	p, err := verifyPackage()
+	pkgs, err := loadedPackages()
 	require.NoError(t, err)
-	return p
+	return pkgs[1]
 }
 
 // declaredField is one field of a struct type the ir package declares, with the
