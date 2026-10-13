@@ -3345,7 +3345,7 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // tag does not become the group it is filed under, and the declared 3.2 tag
 // metadata reaches the registry verbatim.
 func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	require.Len(t, doc.TagDefs, 3)
+	require.Len(t, doc.TagDefs, 4)
 	require.Equal(t, "books", doc.TagDefs[0].Name, "TagDefs keep the document's declaration order")
 	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
 	assert.Equal(t, "nav", doc.TagDefs[0].Kind)
@@ -3363,7 +3363,8 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, catalog.Operations, 1)
 	assert.Equal(t, "showCatalog", catalog.Operations[0].Name.Source)
 
-	require.Len(t, catalog.Groups, 1)
+	require.Len(t, catalog.Groups, 2, "both children nest, in the order operations first reach them")
+	assert.Equal(t, "magazines", catalog.Groups[1].Name.Source)
 	books := catalog.Groups[0]
 	assert.Equal(t, "books", books.Name.Source)
 	assert.Equal(t, "Book operations", books.Docs.Description)

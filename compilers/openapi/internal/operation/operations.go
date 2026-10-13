@@ -136,7 +136,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchor
 	pathsExt, pathsDiags := schema.ExtensionsIn(c, c.Doc.GetPaths().GetExtensions(), ids.Ptr("paths"), "paths")
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
-	groups := newServiceGroups()
+	groups := newServiceGroups(c.Doc.GetTags())
 	claims := newOperationIDClaims()
 	diags = append(diags, lowerPaths(ctx, c, ts, anchors, claims, groups, &svc)...)
 	diags = append(diags, lowerWebhooks(ctx, c, ts, anchors, claims, groups, &svc)...)
@@ -216,9 +216,7 @@ func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	route := opContext{uriTemplate: path, withCallbacks: true, inferred: groupingInferred(c)}
 	mounted, diags := mountPathItem(c, ts, anchors, claims, pi, at, route, &svc.Unmodeled)
 	for _, m := range mounted {
-		grp := groups.place(groupFor(c, m.src, path), func(tag string) ir.OperationGroup {
-			return ir.OperationGroup{Name: compile.NamingFor(tag), Docs: tagDocs(c, tag)}
-		})
+		grp := groups.place(groups.groupFor(c, m.src, path))
 		grp.Operations = append(grp.Operations, m.op)
 		grp.Operations = append(grp.Operations, m.extra...)
 	}
@@ -298,124 +296,109 @@ func mountPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInde
 	return mounted, diags
 }
 
-// groupFor resolves the group an operation belongs to under the active strategy,
-// by identity: the ID is both the group's key here and its ID in the IR, so two
-// operations share a group exactly when they share an ID. The untagged group's
-// hint stays "default" beside a tag of that name: the IDs differ, and the
-// emitter resolves name collisions by ID (emitter-design §4.12).
-//
-// It takes the first navigational tag, so an operation tagged only with badges
-// falls to the default group rather than one named for a badge (GitHub #613).
-func groupFor(c lowering.Ctx, src *soa.Operation, path string) groupTarget {
+// groupFor resolves the groups an operation is filed under by the active
+// strategy, outermost first, by identity: the ID is both the group's key here
+// and its ID in the IR, so two operations share a group exactly when they share
+// an ID. The untagged group's hint stays "default" beside a tag of that name:
+// the IDs differ, and the emitter resolves name collisions by ID
+// (emitter-design §4.12). By tags, the group is the first navigational tag's,
+// nested under the tags its declared parents name (GitHub #613).
+func (g *serviceGroups) groupFor(c lowering.Ctx, src *soa.Operation, path string) []groupLevel {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return groupTarget{id: ids.PathPrefixGroup(seg), name: compile.NamingFor(seg)}
+		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: compile.NamingFor(seg)}}
 	}
-	tags := src.GetTags()
-	if len(tags) == 0 {
-		return groupTarget{id: ids.DefaultGroup(), name: compile.NamingHint("default")}
-	}
-	declared := declaredTags(c.Doc.GetTags())
-	for _, name := range tags {
-		if t := declared[name]; t != nil && !navigational(t.GetKind()) {
-			continue
-		}
-		return groupTarget{
-			id:    ids.TagGroup(name),
-			chain: tagChain(declared, name),
-			name:  compile.NamingFor(name),
-			docs:  tagDocs(c, name),
+	for _, tag := range src.GetTags() {
+		if g.tags.navigational(tag) {
+			return g.tags.levels(tag)
 		}
 	}
-	return groupTarget{id: ids.DefaultGroup(), name: compile.NamingHint("default")}
+	return []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}
 }
 
-// groupTarget is where an operation's group comes from: the ID it is filed
-// under, the declared tag chain it nests under (root-first and ending with the
-// operation's own tag, empty for a group the compiler synthesizes), and the
-// naming and docs of the operation's own level.
-type groupTarget struct {
-	id    ir.GroupID
-	chain []string
-	name  ir.Naming
-	docs  ir.Docs
+// groupLevel is one group an operation is filed under: its ID, and the naming
+// and docs it is created with.
+type groupLevel struct {
+	id   ir.GroupID
+	name ir.Naming
+	docs ir.Docs
 }
 
-// navigationalKind is the OpenAPI 3.2 tag kind that groups operations into
-// sections. It is the registry's only navigational value; any other declared
-// kind is skipped.
+// navigationalKind is the tag kind OpenAPI 3.2's registry defines for a tag
+// that groups operations into sections.
 const navigationalKind = "nav"
 
-// navigational reports whether a declared tag kind groups operations into
-// sections. A tag that declares no kind is navigational — every 3.0 and 3.1 tag,
-// and every tag a document uses without declaring it at all.
-//
-// Any other declared kind is not, whether or not this compiler's registry names
-// it. Reading a section out of an unregistered string is exactly the inference
-// invariant 6 forbids, and the grouping is policy besides: no diagnostic is
-// reported, because the TagDef still records the kind verbatim and
-// Operation.Tags keeps every membership, so nothing about the document is lost.
-func navigational(kind string) bool {
-	return kind == "" || kind == navigationalKind
-}
+// tagIndex is a document's declared tags by name, the first declaration of a
+// name winning, so which one supplies a tag's kind, parent and docs does not
+// depend on the order operations are lowered in.
+type tagIndex map[string]*soa.Tag
 
-// declaredTags indexes a document's declared tags by name, first declaration
-// winning. Two tags sharing a name are one group however many times they are
-// declared, and which of them supplies the kind and parent must not depend on
-// the order operations are lowered in.
-func declaredTags(tags []*soa.Tag) map[string]*soa.Tag {
-	out := make(map[string]*soa.Tag, len(tags))
+// indexTags indexes tags by name.
+func indexTags(tags []*soa.Tag) tagIndex {
+	out := make(tagIndex, len(tags))
 	for _, t := range tags {
-		if t == nil {
-			continue
-		}
-		if _, seen := out[t.GetName()]; !seen {
+		if _, seen := out[t.GetName()]; t != nil && !seen {
 			out[t.GetName()] = t
 		}
 	}
 	return out
 }
 
-// tagChain returns the chain of declared tags an operation's tag nests under,
-// root-first and ending with tag itself. A parent that is not a declared
-// navigational tag ends the walk there, and so does a cycle among the declared
-// parents: the parser reports a missing parent and a circular one, and this
-// lowering takes no position on either — it only declines to build a tree the
-// document does not describe.
-//
-// The walk is bounded by the declared tag count, since no chain can be longer
-// than the tags that spell it; the seen set is what stops a cycle first.
-func tagChain(declared map[string]*soa.Tag, tag string) []string {
-	chain := []string{tag}
-	seen := map[string]bool{tag: true}
-	cur := tag
-	for range len(declared) + 1 {
-		t := declared[cur]
-		if t == nil {
-			break
-		}
-		parent := t.GetParent()
+// navigational reports whether tag groups operations into sections: one the
+// document does not declare, or one declaring no kind or the navigational one.
+// Any other kind is skipped, registered or not, as reading a section out of an
+// unregistered string would be an inference (invariant 6). Nothing is reported:
+// TagDef keeps the kind and Operation.Tags every membership.
+func (x tagIndex) navigational(tag string) bool {
+	kind := x[tag].GetKind()
+	return kind == "" || kind == navigationalKind
+}
+
+// parent returns the tag tag nests under: the parent it declares, when that is
+// itself a declared navigational tag, and "" otherwise.
+func (x tagIndex) parent(tag string) string {
+	parent := x[tag].GetParent()
+	if parent == "" || x[parent] == nil || !x.navigational(parent) {
+		return ""
+	}
+	return parent
+}
+
+// chain returns the tags tag nests under, outermost first and ending with tag,
+// following each declared parent. Where the walk meets a tag it already passed,
+// the parents form a cycle: the chain starts at the first tag of the cycle it
+// reached, so the tags on a cycle nest under none of one another while every
+// tag outside it keeps its parent. Any suffix of a walk is the walk from that
+// tag, so every tag's chain agrees with its descendants'. A walk passes each
+// declared tag at most once, which bounds it.
+func (x tagIndex) chain(tag string) []string {
+	walk := []string{tag}
+	at := map[string]int{tag: 0}
+	for range len(x) {
+		parent := x.parent(walk[len(walk)-1])
 		if parent == "" {
 			break
 		}
-		if seen[parent] {
-			// A cycle among the declared parents: the document does not describe a
-			// tree, so this tag stays where it is rather than nesting under one of
-			// its own descendants. Returning the tag alone is what keeps the
-			// recorded parent edges acyclic whichever tag the walk starts from —
-			// the other member of the cycle reaches the same answer from its side.
-			return []string{tag}
-		}
-		ancestor := declared[parent]
-		if ancestor == nil || !navigational(ancestor.GetKind()) {
+		if i, seen := at[parent]; seen {
+			walk = walk[:i+1]
 			break
 		}
-		seen[parent] = true
-		chain = append(chain, parent)
-		cur = parent
+		at[parent] = len(walk)
+		walk = append(walk, parent)
 	}
-	slices.Reverse(chain)
-	return chain
+	slices.Reverse(walk)
+	return walk
+}
+
+// levels returns the groups an operation filed under tag nests in, outermost
+// first.
+func (x tagIndex) levels(tag string) []groupLevel {
+	chain := x.chain(tag)
+	out := make([]groupLevel, 0, len(chain))
+	for _, t := range chain {
+		out = append(out, groupLevel{id: ids.TagGroup(t), name: compile.NamingFor(t), docs: tagDocsFrom(x[t])})
+	}
+	return out
 }
 
 // groupingInferred is the inferred marker groupFor's strategy stamps on a path
@@ -426,16 +409,6 @@ func groupingInferred(c lowering.Ctx) string {
 		return "group-path-prefix"
 	}
 	return ""
-}
-
-// tagDocs returns the declared docs for a tag name, or empty when undeclared.
-func tagDocs(c lowering.Ctx, name string) ir.Docs {
-	for _, t := range c.Doc.GetTags() {
-		if t != nil && t.GetName() == name {
-			return tagDocsFrom(t)
-		}
-	}
-	return ir.Docs{}
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
@@ -1279,18 +1252,22 @@ func firstPathSegment(path string) string {
 
 // serviceGroups accumulates operation groups by ID while preserving first-seen
 // insertion order, so a group's operations gather across paths without
-// reordering the groups themselves. A group a declared tag nests under (OpenAPI
-// 3.2 tag parent) is recorded in parentOf and attached to its parent by
-// finalize, so the accumulated groups read as the tree the document declares.
+// reordering the groups themselves. A group nested under another (an OpenAPI
+// 3.2 tag parent) is recorded in parentOf and attached to it by finalize.
 type serviceGroups struct {
+	tags     tagIndex
 	order    []ir.GroupID
 	byID     map[ir.GroupID]*ir.OperationGroup
 	parentOf map[ir.GroupID]ir.GroupID
 }
 
-// newServiceGroups returns an empty group accumulator.
-func newServiceGroups() *serviceGroups {
-	return &serviceGroups{byID: make(map[ir.GroupID]*ir.OperationGroup), parentOf: make(map[ir.GroupID]ir.GroupID)}
+// newServiceGroups returns an empty group accumulator over the declared tags.
+func newServiceGroups(tags []*soa.Tag) *serviceGroups {
+	return &serviceGroups{
+		tags:     indexTags(tags),
+		byID:     make(map[ir.GroupID]*ir.OperationGroup),
+		parentOf: make(map[ir.GroupID]ir.GroupID),
+	}
 }
 
 // group returns the group with the given ID, creating it via mk on first sight
@@ -1307,64 +1284,48 @@ func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.Op
 	return &created
 }
 
-// place returns the group an operation's target names, creating it on first
-// sight. A target naming a tag chain also creates every ancestor no operation
-// has reached yet, so a parent a document declares exists even when only its
-// children carry operations.
-func (g *serviceGroups) place(t groupTarget, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
-	if len(t.chain) == 0 {
-		return g.group(t.id, func() ir.OperationGroup { return ir.OperationGroup{Name: t.name, Docs: t.docs} })
-	}
-	return g.tagGroup(t.chain, mk)
-}
-
-// tagGroup returns the group for the innermost tag of chain, creating each level
-// via mk on first sight and recording what each nests under. chain is root-first,
-// so a missing ancestor is appended to the insertion order immediately before its
-// first descendant — which is what keeps every flat golden's group order exactly
-// as it was.
-func (g *serviceGroups) tagGroup(chain []string, mk func(tag string) ir.OperationGroup) *ir.OperationGroup {
+// place returns the innermost group of levels, creating each level on first
+// sight nested under the one before it. A level's parent is fixed when it is
+// created, which is sound because every operation reaching a group reaches it
+// through the same outer levels (tagIndex.chain), and it puts each parent
+// before its children in the insertion order.
+func (g *serviceGroups) place(levels []groupLevel) *ir.OperationGroup {
+	var grp *ir.OperationGroup
 	var parent ir.GroupID
-	var leaf *ir.OperationGroup
-	for _, tag := range chain {
-		id := ids.TagGroup(tag)
-		grp, ok := g.byID[id]
-		if !ok {
-			grp = g.group(id, func() ir.OperationGroup { return mk(tag) })
-			if parent != "" {
-				g.parentOf[id] = parent
-			}
+	for _, l := range levels {
+		if _, seen := g.byID[l.id]; !seen && parent != "" {
+			g.parentOf[l.id] = parent
 		}
-		parent, leaf = id, grp
+		grp = g.group(l.id, func() ir.OperationGroup { return ir.OperationGroup{Name: l.name, Docs: l.docs} })
+		parent = l.id
 	}
-	return leaf
+	return grp
 }
 
 // finalize returns the accumulated groups in insertion order, each carrying the
-// groups nested under it, and only a group with no parent at the top level.
-//
-// The tree is assembled in reverse insertion order and without recursion. A
-// parent always precedes its child in the order — tagGroup appends a missing
-// ancestor immediately before its first descendant, and an ancestor that already
-// exists was appended earlier — so one reverse pass attaches every child to a
-// parent that is not itself read until its own turn. Prepending a child to its
-// parent's slice is what makes siblings read in insertion order too.
+// groups nested under it in insertion order, and only those with no parent at
+// the top level. It builds from the end of the order, where a parent's children
+// are already built, so it needs no recursion.
 func (g *serviceGroups) finalize() []ir.OperationGroup {
-	for i := len(g.order) - 1; i >= 0; i-- {
-		id := g.order[i]
-		parent, nested := g.parentOf[id]
-		if !nested {
-			continue
+	children := make(map[ir.GroupID][]ir.GroupID, len(g.parentOf))
+	for _, id := range g.order {
+		if parent, nested := g.parentOf[id]; nested {
+			children[parent] = append(children[parent], id)
 		}
-		pg := g.byID[parent]
-		pg.Groups = append([]ir.OperationGroup{*g.byID[id]}, pg.Groups...)
+	}
+	built := make(map[ir.GroupID]ir.OperationGroup, len(g.order))
+	for _, id := range slices.Backward(g.order) {
+		grp := *g.byID[id]
+		for _, child := range children[id] {
+			grp.Groups = append(grp.Groups, built[child])
+		}
+		built[id] = grp
 	}
 	out := make([]ir.OperationGroup, 0, len(g.order))
 	for _, id := range g.order {
-		if _, nested := g.parentOf[id]; nested {
-			continue
+		if _, nested := g.parentOf[id]; !nested {
+			out = append(out, built[id])
 		}
-		out = append(out, *g.byID[id])
 	}
 	return out
 }

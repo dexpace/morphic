@@ -1397,8 +1397,10 @@ operation with no tags reaches, rather than being filed under a tag that does no
 
 A tag's declared `parent` (3.2) nests its group under the parent's, one level per declared
 ancestor, so `Service.Groups` reads as the section tree the document describes. A parent that is
-not itself a declared navigational tag ends the walk there — the group stays top-level, and the
-parser's own report of a missing or circular parent is left to stand. Group and sibling order stay
+not itself a declared navigational tag ends the walk there, and the group stays top-level. Where
+declared parents form a cycle, the tags on it nest under none of one another while a tag declaring
+one of them as its parent still nests under it; the parser's own report of a missing or circular
+parent is left to stand. Group and sibling order stay
 first-seen from the operations, with a missing ancestor created immediately before its first
 descendant, so a document that declares no parents groups exactly as it did before.
 

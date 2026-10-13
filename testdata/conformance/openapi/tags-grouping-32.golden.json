@@ -112,6 +112,62 @@
                   }
                 }
               ]
+            },
+            {
+              "id": "g/tags/magazines",
+              "name": {
+                "source": "magazines",
+                "canonical": "magazines"
+              },
+              "docs": {},
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1magazines/get",
+                  "name": {
+                    "source": "listMagazines",
+                    "canonical": "list_magazines"
+                  },
+                  "docs": {},
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "tags": [
+                    "magazines"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/magazines",
+                        "sharedRoute": false,
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1magazines/get"
+                  }
+                }
+              ]
             }
           ],
           "operations": [
@@ -198,13 +254,19 @@
       "name": "beta",
       "docs": {},
       "kind": "badge"
+    },
+    {
+      "name": "magazines",
+      "docs": {},
+      "parent": "catalog",
+      "kind": "nav"
     }
   ],
   "sources": [
     {
       "format": "openapi@3.2",
       "path": "tags-grouping-32.yaml",
-      "hash": "d7b49dca464a7224039a8ba79639d01fd137c71b64ae36de18b308bd455ee113"
+      "hash": "5eec6d006229fedb82970cd1b68e0d83f3f7d0b8d5b56e7ce51d5b83cde7836c"
     }
   ]
 }

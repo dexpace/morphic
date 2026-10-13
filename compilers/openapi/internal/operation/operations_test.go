@@ -3191,8 +3191,9 @@ paths:
 }
 
 // TestGrouping_ParentCycleStaysFlat pins that a cycle among the declared parents
-// terminates and keeps every operation reachable: the walk stops at the cycle,
-// and neither member of it nests under the other.
+// terminates and keeps every operation reachable: neither member of the cycle
+// nests under the other, while a tag declaring a member as its parent still
+// nests under it.
 func TestGrouping_ParentCycleStaysFlat(t *testing.T) {
 	t.Parallel()
 	spec := `openapi: 3.2.0
@@ -3200,6 +3201,7 @@ info: {title: T, version: "1"}
 tags:
   - {name: a, parent: b, kind: nav}
   - {name: b, parent: a, kind: nav}
+  - {name: c, parent: a, kind: nav}
 paths:
   /a:
     get:
@@ -3211,13 +3213,21 @@ paths:
       operationId: opB
       tags: [b]
       responses: {"200": {description: ok}}
+  /c:
+    get:
+      operationId: opC
+      tags: [c]
+      responses: {"200": {description: ok}}
 `
 	_, svc, diags := lowerServiceSpec(t, spec)
 	assert.True(t, openapitest.HasDiag(diags, "openapi/validation/validation-circular-reference"),
 		"the parser reports the cycle; the lowering only has to terminate")
-	require.Len(t, svc.Groups, 2, "both groups stay top-level rather than nesting on a cycle")
-	for _, g := range svc.Groups {
-		assert.Empty(t, g.Groups)
+	require.Len(t, svc.Groups, 2, "the cycle's members stay top-level")
+	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	assert.Empty(t, byName["b"].Groups)
+	require.Len(t, byName["a"].Groups, 1, "c nests under a, which is on the cycle but top-level")
+	assert.Equal(t, "c", byName["a"].Groups[0].Name.Source)
+	for _, g := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
 		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
 	}
 }

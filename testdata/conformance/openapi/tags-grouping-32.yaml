@@ -7,11 +7,18 @@ tags:
   - {name: books, parent: catalog, description: Book operations, kind: nav}
   - {name: catalog, description: Everything the library holds, kind: nav}
   - {name: beta, kind: badge}
+  - {name: magazines, parent: catalog, kind: nav}
 paths:
   /books:
     get:
       operationId: listBooks
       tags: [beta, books]
+      responses:
+        "200": {description: ok}
+  /magazines:
+    get:
+      operationId: listMagazines
+      tags: [magazines]
       responses:
         "200": {description: ok}
   /catalog:
