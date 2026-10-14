@@ -105,8 +105,8 @@ components:
 
 // TestPathItemRefSiblings_WebhookRoute holds the webhook route to the paths
 // route's reading: the same model and the same carriers, reached under webhooks
-// rather than paths. Every item-level construct the paths route asserts lands on every
-// operation mounted here, under the hook's own use site.
+// rather than paths. Every item-level construct the paths route asserts lands
+// on every operation mounted here, under the hook's own use site.
 func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefWebhookSpec)

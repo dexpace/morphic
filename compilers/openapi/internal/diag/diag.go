@@ -26,7 +26,10 @@ const (
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
-	// UnresolvedRef reports a $ref that could not be resolved.
+	// UnresolvedRef reports a $ref that could not be resolved, or a reference
+	// left unresolved because its pointer passes through the fields beside a path
+	// item $ref, which the resolver reads in the item that $ref names (GitHub
+	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// CyclicRef reports a degenerate reference cycle, caught before it can crash
 	// the parser with a stack overflow or deadlock the resolver on a lock its own

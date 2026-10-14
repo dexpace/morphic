@@ -279,9 +279,9 @@ func writtenKeys(fields *yaml.Node) map[string]bool {
 
 // withoutRef returns a copy of the mapping node less every pair keyed $ref,
 // spelled directly or through an alias as the library reads the key, and false
-// when node is no mapping or that leaves nothing. The copy keeps node's position and the document's
-// own key and value nodes, so every finding and raw read lands where the source
-// writes it.
+// when node is no mapping or that leaves nothing. The copy keeps node's
+// position and the document's own key and value nodes, so every finding and raw
+// read lands where the source writes it.
 func withoutRef(node *yaml.Node) (*yaml.Node, bool) {
 	if node == nil || node.Kind != yaml.MappingNode {
 		return nil, false
@@ -374,7 +374,8 @@ func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.
 // interleaved yields items and, after each $ref whose fields were modelled where
 // the walk meets it, that model's walk, interleaved alike. The open walks are a
 // stack rather than a recursion, and each model is entered once, at the one
-// position it was found at, so the stack never holds more walks than models.
+// position it was found at, so the stack holds at most one walk per model
+// beyond the walk of items itself.
 func (s Siblings) interleaved(ctx context.Context, items iter.Seq[soa.WalkItem]) iter.Seq[soa.WalkItem] {
 	return func(yield func(soa.WalkItem) bool) {
 		var open []func() (soa.WalkItem, bool)
