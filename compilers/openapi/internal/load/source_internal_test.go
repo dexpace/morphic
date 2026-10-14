@@ -457,7 +457,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
-	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
+	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
 }
 
 // TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
@@ -625,7 +625,7 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
 	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context())
+	reader.hold(t.Context(), Siblings{})
 
 	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
 	assert.True(t, ok, "held under the spelling the first resolution found")

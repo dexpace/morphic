@@ -35,7 +35,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*soa.OpenAPI, *resu
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	reader.work.limit = limit
-	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader).run(doc)
+	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader).run(doc)
 	return doc, reader.work, diags
 }
 

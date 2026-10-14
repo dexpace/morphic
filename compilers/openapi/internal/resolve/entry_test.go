@@ -182,6 +182,67 @@ func TestScopeOf_AChainPastTheBoundIsReadAsNoDocuments(t *testing.T) {
 	}
 }
 
+// TestHops_ListsTheReferencesAChainPassesThrough pins Hops over an alias
+// chain: each alias the chain passes after the entry's own $ref, nearest first
+// and read as this document's, none for the declaration it ends at or for an
+// inline entry, and no more than the bound reads.
+func TestHops_ListsTheReferencesAChainPassesThrough(t *testing.T) {
+	t.Parallel()
+	for hops, want := range map[int]int{0: 0, 3: 3, resolve.MaxRefChain + 4: resolve.MaxRefChain} {
+		doc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(chainedAliasSpec(hops)), load.Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		scope := resolve.Scope{Doc: doc.Doc, SelfPath: doc.Source.Path}
+		item, ok := doc.Doc.Paths.Get("/a")
+		require.True(t, ok)
+		assert.Empty(t, resolve.Hops[soa.PathItem](scope, item), "an inline entry has no hops")
+		param := item.GetObject().Get().GetParameters()[0]
+
+		got := resolve.Hops[soa.Parameter](scope, param)
+
+		require.Len(t, got, want, "%d hops", hops)
+		for i, hop := range got {
+			assert.Equal(t, "#/components/parameters/P"+strconv.Itoa(i+1), string(hop.Ref.GetReference()),
+				"hop %d is P%d, written as a $ref to the next", i, i)
+			assert.False(t, hop.Foreign, "hop %d is written in this document", i)
+		}
+	}
+}
+
+// TestHops_AHopAnotherDocumentHoldsIsForeign pins where Hops reads a hop: past
+// a $ref into another document, the hop written there is that document's, and
+// a $ref from it back into the source reads the next hop as the source's.
+func TestHops_AHopAnotherDocumentHoldsIsForeign(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.yaml")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(`openapi: 3.1.0
+info: {title: O, version: "1"}
+paths:
+  /x: {$ref: 'main.yaml#/paths/~1b'}
+`), 0o600))
+	src := compilers.Source{Path: mainPath, Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {$ref: './other.yaml#/paths/~1x'}
+  /b: {$ref: '#/paths/~1c'}
+  /c: {get: {responses: {"200": {description: OK}}}}
+`)}
+	doc, _, err := load.Load(t.Context(), 0, src, load.Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	item, ok := doc.Doc.Paths.Get("/a")
+	require.True(t, ok)
+
+	got := resolve.Hops[soa.PathItem](resolve.Scope{Doc: doc.Doc, SelfPath: mainPath}, item)
+
+	require.Len(t, got, 2, "other.yaml's /x, then the source's /b")
+	assert.Equal(t, "main.yaml#/paths/~1b", string(got[0].Ref.GetReference()))
+	assert.True(t, got[0].Foreign, "/x is written in other.yaml")
+	assert.Equal(t, "#/paths/~1c", string(got[1].Ref.GetReference()))
+	assert.False(t, got[1].Foreign, "/b is written in the source")
+}
+
 // chainedAliasSpec builds a spec whose operation $refs P0 at the head of an
 // alias chain P0 -> P1 -> ... -> P<hops>, where only P<hops> is a real
 // parameter declaration. The walk therefore takes hops+1 steps: one from the

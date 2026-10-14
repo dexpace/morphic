@@ -34,13 +34,17 @@ func lowerParameters(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIn
 	bindings := make([]ir.HTTPParamBinding, 0, len(params))
 	ledger := newParamLedger(mount)
 	for _, sp := range params {
-		p, pptr := resolve.ObjectAt[soa.Parameter](c.RefScope(), sp.ref, sp.pointer)
+		pc := c
+		if sp.in != nil {
+			pc = c.InScope(*sp.in)
+		}
+		p, pptr := resolve.ObjectAt[soa.Parameter](pc.RefScope(), sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
-		id, repeatDiags := ledger.next(c, p.GetName(), string(p.GetIn()), sp.pointer)
+		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
 		diags = append(diags, repeatDiags...)
-		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](c, sp.ref), ts, anchors, id, p, pptr)
+		param, binding, paramDiags := lowerParameter(lowering.Within[soa.Parameter](pc, sp.ref), ts, anchors, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).

@@ -66,11 +66,13 @@ var httpMethods = []struct {
 }
 
 // pathOperation is one operation a path item declares: the method as sent on the
-// wire, the operation's pointer relative to its path item, and its source node.
+// wire, the operation's pointer relative to its path item, its source node, and
+// whether additionalOperations declares it rather than a fixed method field.
 type pathOperation struct {
-	method string
-	seg    jsontext.Pointer
-	src    *soa.Operation
+	method     string
+	seg        jsontext.Pointer
+	src        *soa.Operation
+	additional bool
 }
 
 // pathOperations returns every operation a path item declares: the fixed method
@@ -100,9 +102,10 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 			continue
 		}
 		ops = append(ops, pathOperation{
-			method: method,
-			seg:    ids.Ptr(additionalOperationsField, method),
-			src:    src,
+			method:     method,
+			seg:        ids.Ptr(additionalOperationsField, method),
+			src:        src,
+			additional: true,
 		})
 	}
 	return ops
@@ -195,26 +198,23 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if ctx.Err() != nil {
 			return diags
 		}
-		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, ids.Ptr("paths", path))
-		if pi == nil {
+		layers, found := pathItemLayers(c, rp, ids.Ptr("paths", path))
+		if layers == nil {
 			continue
 		}
-		c := lowering.Within[soa.PathItem](c, rp)
-		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, pi, declPtr)...)
+		diags = append(diags, found...)
+		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, layers)...)
 	}
 	return diags
 }
 
-// lowerPathItem lowers each method operation on one path into its group,
-// carrying along any callback operations registered under the same group.
-// declPtr is pi's own declaration pointer: the path pointer for an inline
-// path item, or a referenced path item's component pointer (issue #107) —
-// shared parameters and bodies lower from there, while each operation keeps
-// its mount pointer (under path) as its identity.
-func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
-	at := opPointers{mount: ids.Ptr("paths", path), decl: declPtr}
+// lowerPathItem lowers each method operation the layers of one path declare
+// into its group, carrying along any callback operations registered under the
+// same group. Each operation keeps its mount pointer (under path) as its
+// identity, and lowers from where its layer declares it (see pathItemLayers).
+func lowerPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
 	route := opContext{key: path, withCallbacks: true, inferred: groupingInferred(c)}
-	mounted, diags := mountPathItem(c, ts, anchors, claims, pi, at, route, &svc.Unmodeled)
+	mounted, diags := mountPathItem(ts, anchors, claims, layers, ids.Ptr("paths", path), route, &svc.Unmodeled)
 	for _, m := range mounted {
 		grp := groups.place(groups.groupFor(c, m.src, path))
 		grp.Operations = append(grp.Operations, m.op)
@@ -239,13 +239,13 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			return diags
 		}
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, hookPtr)
-		if pi == nil {
+		layers, found := pathItemLayers(c, rp, hookPtr)
+		if layers == nil {
 			continue
 		}
-		c := lowering.Within[soa.PathItem](c, rp)
+		diags = append(diags, found...)
 		route := opContext{key: name, isWebhook: true, withCallbacks: true}
-		mounted, hookDiags := mountPathItem(c, ts, anchors, claims, pi, opPointers{mount: hookPtr, decl: declPtr}, route, &svc.Unmodeled)
+		mounted, hookDiags := mountPathItem(ts, anchors, claims, layers, hookPtr, route, &svc.Unmodeled)
 		diags = append(diags, hookDiags...)
 		for _, m := range mounted {
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
@@ -270,31 +270,39 @@ type mountedOp struct {
 	extra []ir.Operation
 }
 
-// mountPathItem lowers every operation path item pi declares, mounted below
-// at.mount and declared below at.decl, the one way all three routes to a path
-// item (a path, a webhook, a callback expression) lower them: each takes pi's
-// parameters merged into its own and what pi declares (applyPathItem), and an
-// item mounting none keeps what it declares in residue instead. route holds
-// what the route sets on every operation; each brings its own method,
+// mountPathItem lowers every operation a path item's layers declare, mounted
+// below mount, the one way all three routes to a path item (a path, a webhook,
+// a callback expression) lower them. Each operation is lowered from the
+// nearest layer declaring it, in that layer's context and below its
+// declaration pointer, in mountedOperations' order; it takes every layer's item
+// parameters merged into its own and what every layer keeps (applyLayers). A
+// mount lowering none keeps what its layers declare in residue instead. route
+// holds what the route sets on every operation; each brings its own method,
 // pointers and parameters.
-func mountPathItem(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, at opPointers, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
-	declared := pathOperations(pi)
-	mounted := make([]mountedOp, 0, len(declared))
-	var diags []ir.Diagnostic
-	for _, po := range declared {
+func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
+	ops := mountedOperations(layers)
+	owner, diags := precedence(layers, len(ops) > 0)
+	params := itemParams(layers)
+	mounted := make([]mountedOp, 0, len(ops))
+	for _, lo := range ops {
+		l, po := layers[lo.layer], lo.op
 		opCtx := route
 		opCtx.method = po.method
-		opCtx.ptrs = opPointers{mount: at.mount + po.seg, decl: at.decl + po.seg}
-		opCtx.params = mergeParameters(pi.GetParameters(), po.src.GetParameters(), at.decl, opCtx.ptrs.decl)
-		op, extra, opDiags := lowerOperation(c, ts, anchors, claims, po.src, opCtx)
+		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
+		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
+		op, extra, opDiags := lowerOperation(l.in, ts, anchors, claims, po.src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyPathItem(c, onOperation(&op), pi, at.decl)...)
+		diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
 	}
-	if len(mounted) == 0 {
-		diags = append(diags, preserveUnmountedPathItem(c, onNearestNode(c, residue, at.mount), pi, at.mount, at.decl)...)
+	if len(mounted) > 0 {
+		return mounted, diags
 	}
-	return mounted, diags
+	for i, l := range layers {
+		diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(l.in, residue, mount), l.item, mount, l.decl,
+			owner.cedes(i))...)
+	}
+	return nil, diags
 }
 
 // groupFor resolves the groups an operation is filed under by the active
@@ -598,24 +606,23 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 }
 
 // applyPathItem keeps what a path item declares that its operations have no
-// home for: its servers, documentation, x-* extensions and undeclared keys.
-// Each belongs to the path item, so each is written onto every operation the
-// item declares.
+// home for: its servers, documentation, x-* extensions and undeclared keys,
+// each written onto every operation the item declares, less what cedes says a
+// nearer layer of the mount keeps.
 //
 // They share one entry point because every route that lowers a path item (a
 // path, a webhook, a callback expression) must reach each, and a second call
 // beside the first is a chance to forget one on a route added later (GitHub
-// #39).
-//
-// The undeclared keys come from undeclaredPathItemKeys: the library's
+// #39). The undeclared keys come from undeclaredPathItemKeys: the library's
 // GetUnknownProperties is empty for this object.
-func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
-	diags := applyPathServers(c, into, pi, declPtr)
-	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr)...)
-	ext, extDiags := schema.ExtensionsIn(c, pi.GetExtensions(), declPtr, into.scope)
+func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
+) []ir.Diagnostic {
+	diags := applyPathServers(c, into, pi, declPtr, cedes)
+	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr, cedes)...)
+	ext, extDiags := schema.ExtensionsIn(c, keptExtensions(pi.GetExtensions(), cedes), declPtr, into.scope)
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, undeclaredPathItemKeys(pi),
+	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, keptKeys(undeclaredPathItemKeys(pi), cedes),
 		pi.GetRootNode(), c.ProvenanceAt, declPtr, into.scope)...)
 }
 
@@ -686,9 +693,11 @@ func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) c
 // The announcement follows what landed, not what the item wrote: a merge-key
 // construct is read by the model but not by RawChildNode, so a model predicate
 // would claim a preservation that did not happen (GitHub #384).
-func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer) []ir.Diagnostic {
+func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
+	cedes func(string) bool,
+) []ir.Diagnostic {
 	before := len(*into.unmodeled)
-	diags := applyPathItem(c, into, pi, declPtr)
+	diags := applyPathItem(c, into, pi, declPtr, cedes)
 	if len(*into.unmodeled) == before {
 		return diags // nothing landed, so there is no preservation to explain
 	}
@@ -777,13 +786,18 @@ var pathItemDocFields = []struct{ keyword, key string }{
 // Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;
 // GitHub #383) and a pair supplied through a merge key or alias, which
 // RawChildNode does not read (GitHub #384).
-func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
+func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
+	cedes func(string) bool,
+) []ir.Diagnostic {
 	if !into.keepsDocs || (pi.GetSummary() == "" && pi.GetDescription() == "") {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	var kept bool
 	for _, f := range pathItemDocFields {
+		if cedes(constructOf(constructDoc, f.keyword)) {
+			continue
+		}
 		wrote, fieldDiags := schema.PreserveNode(c, into.unmodeled, f.key,
 			annotation.RawChildNode(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
 			declPtr+ids.Ptr(f.keyword))
@@ -806,8 +820,10 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 //
 // This is the path-item half of the pair; applyOperationServers keeps the
 // operation's own list, which overrides this one, under its own key.
-func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer) []ir.Diagnostic {
-	if len(pi.GetServers()) == 0 {
+func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
+	cedes func(string) bool,
+) []ir.Diagnostic {
+	if len(pi.GetServers()) == 0 || cedes(constructOf(constructServers, "")) {
 		return nil
 	}
 	kept, diags := schema.PreserveNode(c, into.unmodeled, into.serversKey,
@@ -1049,13 +1065,13 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			pi, piDecl := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, cbDecl+ids.Ptr(exprStr))
-			if pi == nil {
+			layers, found := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
+			if layers == nil {
 				continue
 			}
-			c := lowering.Within[soa.PathItem](c, rp)
-			cbPtrs := opPointers{mount: parent.mount + ids.Ptr("callbacks", cbName, exprStr), decl: piDecl}
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(c, ts, anchors, claims, pi, cbPtrs, exprStr, inferred)
+			diags = append(diags, found...)
+			mount := parent.mount + ids.Ptr("callbacks", cbName, exprStr)
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(ts, anchors, claims, layers, mount, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
@@ -1065,18 +1081,19 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	return callbacks, ops, ext, diags
 }
 
-// lowerCallbackOps lowers a callback expression's path-item operations. They do
-// not recurse into their own callbacks (withCallbacks stays false), bounding
-// the lowering to the declared out-of-band set. cb pairs the expression's
-// identity base (distinct per parent operation) with its declaration base
-// (shared when the callback or its path item is $ref'd; issue #107).
+// lowerCallbackOps lowers the operations of a callback expression's path-item
+// layers. They do not recurse into their own callbacks (withCallbacks stays
+// false), bounding the lowering to the declared out-of-band set. mount is the
+// expression's identity base, distinct per parent operation, while each layer
+// keeps its declaration base, shared when the callback or its path item is
+// $ref'd (issue #107).
 //
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, pi *soa.PathItem, cb opPointers, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
-	mounted, diags := mountPathItem(c, ts, anchors, claims, pi, cb, opContext{key: expr, inferred: inferred}, &orphan)
+	mounted, diags := mountPathItem(ts, anchors, claims, layers, mount, opContext{key: expr, inferred: inferred}, &orphan)
 	opIDs := make([]ir.OpID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
 	for _, m := range mounted {
@@ -1093,34 +1110,48 @@ func lowerCallbackOps(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 type sourcedParam struct {
 	ref     *soa.ReferencedParameter
 	pointer jsontext.Pointer
+	// in is the scope a path-item entry is read in, its layer's (see
+	// itemParams), or nil for an operation's own entry, which is read in the
+	// operation's.
+	in *resolve.Scope
 }
 
-// mergeParameters merges path-item parameters with operation parameters using
-// use-site precedence: an operation parameter with the same (name, in) overrides
-// the path-item one; unshadowed path-item parameters follow in source order.
-// Each entry keeps the pointer of its own declaration site rather than a
-// position recomputed from the merged slice (issue #36). Both bases are
-// declaration pointers — a $ref'd path item's own component pointer, not the
-// path it is mounted at (issue #107).
-func mergeParameters(pathParams, opParams []*soa.ReferencedParameter, pathDeclPtr, opDeclPtr jsontext.Pointer) []sourcedParam {
+// mergeParameters merges a mount's path-item parameters with an operation's own
+// using use-site precedence: an operation parameter with the same (name, in)
+// overrides the path-item one; unshadowed path-item parameters follow in source
+// order. Each entry keeps the pointer of its own declaration site rather than a
+// position recomputed from the merged slice (issue #36), and a $ref'd path
+// item's are under its own declaration pointer, not the path it is mounted at
+// (issue #107).
+func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil)
+	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	return appendSourced(merged, pathParams, pathDeclPtr, shadowedKeys(opParams))
+	shadowed := shadowedKeys(opParams)
+	for _, p := range pathParams {
+		if key, ok := paramKey(p.ref); ok && shadowed[key] {
+			continue
+		}
+		merged = append(merged, p)
+	}
+	return merged
 }
 
 // appendSourced appends params to dst, pairing each with the pointer of its own
-// declaration position under base and skipping any whose (name, in) key is in
-// shadowed. A nil shadowed map reads as all-false, which is what the operation
-// side passes: operation parameters are never shadowed.
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer, shadowed map[string]bool) []sourcedParam {
+// declaration position under base and the scope in it is read in, and skipping
+// any whose (name, in) key is in shadowed. A nil shadowed map reads as
+// all-false, which is what the operation side passes: operation parameters are
+// never shadowed, and are read in the operation's own scope (a nil in).
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+	shadowed map[string]bool, in *resolve.Scope,
+) []sourcedParam {
 	for i, p := range params {
 		if key, ok := paramKey(p); ok && shadowed[key] {
 			continue
 		}
-		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i))})
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
 	}
 	return dst
 }

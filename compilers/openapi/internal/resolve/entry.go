@@ -110,7 +110,8 @@ const maxRefChain = 32
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
 // returned on its own, since a one-key $ref object has no children to hoist,
-// but it is recorded in scope.Reached with every other hop in the source.
+// but scope.Reached records every hop in the source. A hop scope.refuses leaves
+// the chain unresolved and unrecorded, as a failure does.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -123,6 +124,11 @@ func ObjectAt[T, S any, R interface {
 	// at a declaration written here, which is what keeps a chain that exits the
 	// document from returning the last alias it passed through.
 	pointer, cand := usePtr, usePtr
+	// hops are noted in scope.Reached only once no hop is refused: a refused
+	// chain lowers nothing, so a component only it passes through stays
+	// unreached, for the compiler to keep verbatim.
+	var hops [maxRefChain]jsontext.Pointer
+	n := 0
 	for range maxRefChain {
 		// GetReferenceResolutionInfo is nil once the chain reaches a
 		// non-reference entry — the terminator, and why an inline entry
@@ -136,7 +142,10 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
-		scope.Reached.note(target)
+		if scope.refuses(target, found(info.Object)) {
+			return nil, usePtr // the resolver read past a field written there; load reported it
+		}
+		hops[n], n = target, n+1
 		// The resolver reads the next hop against the document this one
 		// resolved against, the source, even where this one was written in
 		// another document's content or its pointer passed a $ref into one.
@@ -146,7 +155,64 @@ func ObjectAt[T, S any, R interface {
 		// the getters above are nil-receiver tolerant and end the walk.
 		ref = R(info.Object)
 	}
+	for _, hop := range hops[:n] {
+		scope.Reached.note(hop)
+	}
 	return obj, pointer
+}
+
+// found returns obj as the answer Scope.refuses reads, and nil for a nil one,
+// which as a typed nil would reach a getter that does not tolerate it.
+func found[S any](obj *S) any {
+	if obj == nil {
+		return nil
+	}
+	return obj
+}
+
+// Hop is one reference a chain passes through after its entry, and whether
+// another document holds it, as the hop before it found it.
+type Hop[R any] struct {
+	Ref     R
+	Foreign bool
+}
+
+// Chained reports whether the chain of ref passes through a reference after ref
+// itself, which Hops would then list. It reads no scope, so a caller can build
+// the one Hops reads only for a chain that has a hop.
+func Chained[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	IsReference() bool
+}](ref R) bool {
+	info := ref.GetReferenceResolutionInfo()
+	return info != nil && info.Object != nil && R(info.Object).IsReference()
+}
+
+// Hops returns the references the chain of ref passes through after ref itself,
+// nearest first: each entry its resolution recorded that is a reference too,
+// read from scope, the scope ref is read in, as ScopeOf reads a chain's end.
+// The entry the chain ends at is no hop, and neither an inline entry nor one
+// that resolved nothing has any. Past maxRefChain entries the rest are not read.
+func Hops[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	IsReference() bool
+}](scope Scope, ref R) []Hop[R] {
+	var hops []Hop[R]
+	// The entry the chain ends at is no hop, so its scope is not read.
+	for range maxRefChain {
+		if !Chained[T, S](ref) {
+			break
+		}
+		info := ref.GetReferenceResolutionInfo()
+		next := R(info.Object)
+		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
+			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
+		ref = next
+		hops = append(hops, Hop[R]{Ref: ref, Foreign: scope.Foreign})
+	}
+	return hops
 }
 
 // ScopeOf returns the scope what the entry ref resolves to is read in, which is

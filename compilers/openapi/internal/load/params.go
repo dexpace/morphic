@@ -18,17 +18,20 @@ import (
 // library read only entries written inline, so it missed a repeat through a
 // $ref.
 //
-// items is the source's walk, which visits each list once, where it is written
-// under paths, webhooks, callbacks or components, whether or not any operation
-// lowers it, and never through a $ref. A panic in the walk is reported at the
-// model it reached.
-func parameterRepeats(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem]) []ir.Diagnostic {
+// items is walkSource's walk, which visits each list once where it is written,
+// lowered or not, and never through a $ref. A list beside a path item's $ref is
+// sibs's model's, checked where that model is walked from. A panic in the walk
+// is reported at the model it reached.
+func parameterRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items iter.Seq[soa.WalkItem],
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "parameter check", func(site jsontext.Pointer, model any) error {
 		switch m := model.(type) {
 		case *soa.ReferencedPathItem:
 			if !m.IsReference() {
 				diags = append(diags, listRepeats(at, m.GetObject().GetParameters(), site)...)
+			} else if sib, ok := sibs.Of(m); ok && sib.Pointer == site {
+				diags = append(diags, listRepeats(at, sib.Item.GetParameters(), site)...)
 			}
 		case *soa.Operation:
 			diags = append(diags, listRepeats(at, m.GetParameters(), site)...)

@@ -14,6 +14,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -80,6 +81,67 @@ type Scope struct {
 	// Reached records each position in the source a reference ObjectAt follows
 	// resolves to; nil records nothing.
 	Reached *Reached
+	// Beside returns the path item use site, and the key written beside its
+	// $ref, that a pointer in the source passes through (load.Siblings.Beside).
+	// The resolver reads such a pointer through the $ref, so a reference landing
+	// there is refused rather than interning what it found at the pointer the
+	// field written there is declared at (GitHub #824). Nil refuses none.
+	Beside func(jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
+	// Writes reports whether obj is the field written beside a path item $ref
+	// at a pointer, held or copied (load.Siblings.Writes): an answer ObjectAt
+	// takes although Beside names its pointer. Nil writes none.
+	Writes func(pointer jsontext.Pointer, obj any) bool
+}
+
+// refuses reports whether ObjectAt refuses answer, the object the resolver
+// found at pointer: one Beside names, unless Writes says it is the field
+// written there.
+func (s Scope) refuses(pointer jsontext.Pointer, answer any) bool {
+	return s.beside(pointer) && (s.Writes == nil || !s.Writes(pointer, answer))
+}
+
+// beside reports whether pointer is one Beside refuses.
+func (s Scope) beside(pointer jsontext.Pointer) bool {
+	if s.Beside == nil {
+		return false
+	}
+	_, _, ok := s.Beside(pointer)
+	return ok
+}
+
+// BesideWhy returns the reason a reference written at site, naming pointer,
+// reports when Beside refuses it, and "" for any other. A "#/$defs/..." pointer
+// names a definition read from where it is written, so it is refused when site
+// is in the fields beside a $ref; any other pointer when it lands there itself.
+func (s Scope) BesideWhy(site, pointer jsontext.Pointer) string {
+	if s.Beside == nil {
+		return ""
+	}
+	if defs.IsPointer(pointer) {
+		if use, key, ok := s.Beside(site); ok {
+			return ": " + DefsBesideReason(use, key)
+		}
+		return ""
+	}
+	if use, key, ok := s.Beside(pointer); ok {
+		return ": it reaches " + string(pointer) + "; " + BesideReason(use, key)
+	}
+	return ""
+}
+
+// BesideReason says why a reference reaching the fields beside the path item
+// $ref at use, under key, is left unresolved, in one phrasing for every report.
+func BesideReason(use jsontext.Pointer, key string) string {
+	return fmt.Sprintf("the path item $ref at %s has %q written beside it, and the resolver reads a pointer "+
+		"through that $ref into the item it names, not into the field written there, so the reference is left "+
+		"unresolved (GitHub #824)", use, key)
+}
+
+// DefsBesideReason is BesideReason for a "#/$defs/..." pointer written in the
+// fields beside the path item $ref at use, which names a definition there too.
+func DefsBesideReason(use jsontext.Pointer, key string) string {
+	return "it is written in the fields beside a path item $ref, as is any definition it can name; " +
+		BesideReason(use, key)
 }
 
 // Reached records the positions in the source a lowering resolved a reference
@@ -312,11 +374,13 @@ func (s Scope) reader() *defs.Reader {
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
 // the document does not have (GitHub #557). ok is false for a reference into
-// another document and for a $defs pointer the rule finds nothing for.
+// another document, for a $defs pointer the rule finds nothing for, and for any
+// other pointer Beside refuses. A $defs pointer written beside a path item's
+// $ref is held unresolved by load, so no schema it could name reaches here.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(ref)); !held {
 		return "", false // left to the resolver, as load leaves it: see load.heldRefs
@@ -329,18 +393,18 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 // pointer it names, which for a "#/$defs/..." value is the definition read from
 // the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
 // the same schema reads one (GitHub #557). ok is false for a value into another
-// document, for a $defs value the rule finds nothing for, and for no
-// discriminator.
+// document, for a $defs value the rule finds nothing for, for no discriminator,
+// and for a pointer Beside refuses.
 func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(value)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(value)); !held {
 		return "", false
 	}
 	_, at, found := s.reader().MappingTarget(d, pointer)
-	return at, found
+	return at, found && !s.beside(at)
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the

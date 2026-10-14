@@ -171,7 +171,7 @@ func TestParameterRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
 	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
-	diags := parameterRepeats(at, panics)
+	diags := parameterRepeats(at, Siblings{}, panics)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, diag.Validation, diags[0].Code)

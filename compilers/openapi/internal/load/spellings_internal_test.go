@@ -189,7 +189,7 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 
 	again, _ := heldResolution(t, responsesSource(4), path)
 	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context())
+	reader.hold(t.Context(), Siblings{})
 
 	held := func(key, response string) bool {
 		_, ok := again.GetCachedReferencedObject(key + "#/components/responses/" + response)

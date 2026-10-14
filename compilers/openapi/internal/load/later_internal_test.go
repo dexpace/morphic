@@ -17,6 +17,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -429,6 +431,23 @@ components:
           responses: {"200": {description: ok}}
 `
 
+// besideOpsSpec writes additionalOperations beside a Path Item's $ref, where
+// the library meets them only in the model of the fields there.
+const besideOpsSpec = `info: {title: T, version: "1"}
+paths:
+  /z/{id}:
+    $ref: '#/paths/~1w'
+    additionalOperations:
+      PURGE:
+        parameters:
+          - {name: id, in: path, schema: {type: string}}
+        responses: {"200": {description: ok}}
+      GET:
+        responses: {"200": {description: ok}}
+  /w:
+    get: {responses: {"200": {description: ok}}}
+`
+
 // unreadOpsSpec writes an operation the parser cannot read whole, as it lacks
 // its responses, so the library raises no refusal of the field below 3.2 and
 // checks nothing inside it either.
@@ -479,6 +498,7 @@ func TestOwnAdditionalOperations_A31DocumentIsCheckedAs32Is(t *testing.T) {
 		{"read whole", additionalOpsSpec, 3},
 		{"not read whole", unreadOpsSpec, 2},
 		{"not a mapping", unmappedOpsSpec, 1},
+		{"beside a $ref", besideOpsSpec, 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -506,7 +526,7 @@ func TestOwnAdditionalOperations_A32DocumentIsLeftToTheLibrary(t *testing.T) {
 	t.Parallel()
 	doc, valErrs := parseSpec(t, "openapi: 3.2.0\n"+additionalOpsSpec)
 	panics := func(func(soa.WalkItem) bool) { panic("walk read") }
-	got := ownAdditionalOperations(t.Context(), doc, panics, valErrs)
+	got := ownAdditionalOperations(t.Context(), doc, Siblings{}, panics, valErrs)
 	assert.Equal(t, valErrs, got)
 }
 
@@ -516,9 +536,67 @@ func TestOwnAdditionalOperations_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	doc, valErrs := parseSpec(t, minimal31)
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
-	got := ownAdditionalOperations(t.Context(), doc, panics, valErrs)
+	got := ownAdditionalOperations(t.Context(), doc, Siblings{}, panics, valErrs)
 	require.Len(t, got, len(valErrs)+1)
 	assert.True(t, slices.ContainsFunc(got, func(err error) bool {
 		return strings.Contains(err.Error(), "additionalOperations check panicked: walk fault")
 	}))
+}
+
+// TestLaterConstructs_ReadsInsideTheFieldsBesideAPathItemRef pins that the
+// check reads what the fields beside a Path Item's $ref hold, as it reads an
+// inline item's: a 3.2 itemSchema in an operation written there is reported
+// where it is written, once. The library's walk of the document alone never
+// reaches that operation.
+func TestLaterConstructs_ReadsInsideTheFieldsBesideAPathItemRef(t *testing.T) {
+	t.Parallel()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put:
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {itemSchema: {type: string}}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)}, Options{})
+	require.NoError(t, err)
+
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.LaterVersionConstruct {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []jsontext.Pointer{"/paths/~1a/put/responses/200/content/application~1json/itemSchema"}, at)
+}
+
+// TestOwnAdditionalOperations_FieldsTheParserFaultedOnAreLeftAlone pins the
+// takeover's one way out when laterConstructs reported the field: the fields
+// beside a $ref that write it could not be modelled, so no model holds the
+// operations, nothing is checked or dropped, and the fault stands for them.
+func TestOwnAdditionalOperations_FieldsTheParserFaultedOnAreLeftAlone(t *testing.T) {
+	t.Parallel()
+	doc, valErrs := parseSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    servers: [null]
+    additionalOperations:
+      LINK: {responses: {"200": {description: ok}}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)
+	sibs, _, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
+	require.Len(t, faults, 1, "the fields beside the $ref are not modelled")
+	require.True(t, laterConstructs(pointerAt(0, overlay.Origin{}), walkSource(t.Context(), doc, sibs),
+		doc.OpenAPI).additionalOperations, "the field is reported off the $ref's own mapping")
+
+	got := ownAdditionalOperations(t.Context(), doc, sibs, walkSource(t.Context(), doc, sibs), valErrs)
+
+	assert.Equal(t, valErrs, got)
 }

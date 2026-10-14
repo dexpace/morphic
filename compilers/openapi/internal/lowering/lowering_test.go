@@ -257,7 +257,7 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 // TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
 // the load phase resolved reaches the scope through the context. The target is
 // an extension's value, a position the parsed model holds as raw YAML, so the
-// scope finds it only if WithMappingTargets handed it over (GitHub #757). The
+// scope finds it only if WithLoaded handed it over (GitHub #757). The
 // scope asks the targets, too, what a mapping a walk leaves the model for
 // holds (resolve.Scope.Holds).
 func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
@@ -281,7 +281,7 @@ x-lib:
 	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the model holds the target as raw YAML")
 
-	carrying := bare.WithMappingTargets(loaded.Targets)
+	carrying := bare.WithLoaded(loaded)
 	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
 
@@ -328,7 +328,7 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	require.True(t, foreign.RefScope().Foreign)
 	ask(foreign, "/x")
 	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
-	ask(c.WithMappingTargets(load.MappingTargets{}), "/x")
+	ask(c.WithLoaded(&load.Document{}), "/x")
 	assert.Equal(t, 4, reads, "a copy carrying other targets remembers nothing of c's")
 	ask(lowering.Ctx{}, "/x")
 	ask(lowering.Ctx{}, "/x")
@@ -485,6 +485,36 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
+}
+
+// TestWithLoaded_CarriesTheSiblingsOnACopy holds where a lowering reads the
+// fields beside a path item's $ref: from the load phase's model, carried on the
+// copy WithLoaded returns, while the context it was made from holds none.
+func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpec(`  /a:
+    $ref: '#/paths/~1b'
+    put: {responses: {"200": {description: ok}}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	carrying := base.WithLoaded(doc)
+	rp, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+
+	sib, ok := carrying.Siblings().Of(rp)
+	require.True(t, ok, "the copy reads the load phase's model")
+	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
+	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
+	assert.False(t, carrying.Siblings().Unread(rp), "a source use site is read")
+
+	_, ok = base.Siblings().Of(rp)
+	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
 // TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to

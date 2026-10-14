@@ -116,12 +116,12 @@ type laterReport struct {
 // The lowering reads each at every version; only this asks which minor added
 // one.
 //
-// items is the source's walk, visiting each object its model holds once,
-// where it is written, whether anything lowers it or not; or the walk over an
-// object a $ref reaches in the source outside the model (reached.later, GitHub
-// #872). Neither holds another document's (GitHub #839), or the fields beside
-// a Path Item's $ref (#577). A panic in the walk is reported at the model
-// reached.
+// items is walkSource's walk, visiting each object the source holds once,
+// where it is written, not through a $ref, whether anything lowers it or not,
+// the fields beside a Path Item's $ref included; or the walk over an object a
+// $ref reaches in the source outside the model (reached.later, GitHub #872).
+// Neither holds another document's (GitHub #839). A panic in the walk is
+// reported at the model reached.
 func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) laterReport {
 	pending := addedAfter(declared)
 	if len(pending) == 0 {
@@ -252,8 +252,9 @@ func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
 }
 
 // ownRoot is the mapping a $ref is written on, which the reference's core holds:
-// the model's own GetRootNode answers with the target's.
-func ownRoot(w referenceWrapper) *yaml.Node {
+// the model's own GetRootNode answers with the target's. Anything with no core
+// holding one has none.
+func ownRoot(w any) *yaml.Node {
 	holder, ok := w.(interface{ GetCoreAny() any })
 	if !ok {
 		return nil
@@ -315,26 +316,31 @@ func plainObject(model rootNoder) string {
 	}
 }
 
-// ownAdditionalOperations takes over what the library does with a Path Item's
-// additionalOperations in a document older than its model (modelMinor): it
-// refuses the field and checks nothing inside it. The compiler lowers the field
-// at every version and laterConstructs reports it, so where it did, the refusal
-// is dropped and the library's own checks are run on every path item whose
-// model holds such operations, whether or not the library refused the field: it
-// refuses only one it read whole. items is doc's walk; a panic in it or in a
-// check is returned as an error among the findings.
-func ownAdditionalOperations(ctx context.Context, doc *soa.OpenAPI, items iter.Seq[soa.WalkItem], valErrs []error) []error {
+// ownAdditionalOperations takes over the library's handling of a Path Item's
+// additionalOperations below the minor its model is current to (modelMinor),
+// where it refuses the field and checks nothing inside it. Where laterConstructs
+// reported the field, which the compiler lowers at every version, the refusal is
+// dropped and the library's own checks run on every path item whose model holds
+// such operations, refused or not. items is walkSource's walk, a model of the
+// fields beside a $ref read where it is walked from, or a reached object's,
+// which meets none. A panic in the walk or a check is a finding.
+func ownAdditionalOperations(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, items iter.Seq[soa.WalkItem],
+	valErrs []error,
+) []error {
 	if !before(doc.OpenAPI, modelMinor()) {
 		return valErrs // the library checked the field itself
 	}
 	held := map[*yaml.Node]bool{}
 	var skipped []error
 	_, err := eachModel(items, "additionalOperations check",
-		func(_ jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-			if rp.IsReference() {
-				return nil // checked where it is written
-			}
+		func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
 			pi := rp.GetObject()
+			if rp.IsReference() {
+				pi = nil // checked where it is written
+				if sib, ok := sibs.Of(rp); ok && sib.Pointer == site {
+					pi = sib.Item
+				}
+			}
 			if pi == nil || pi.AdditionalOperations == nil {
 				return nil
 			}

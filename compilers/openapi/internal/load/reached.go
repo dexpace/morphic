@@ -72,13 +72,14 @@ type targetKey struct {
 // that the source's own validation did not (see targetOf and dropDeclared), and
 // reports each finding once, where reachedFinding places it. A finding known,
 // the source's own validation's, is not reported again: a node a $ref reads as
-// another kind holds what the source declares inside it.
-func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
+// another kind holds what the source declares inside it. The source is walked
+// with the fields beside its path item $refs, which it validated as its own.
+func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	targets MappingTargets, opts Options, self sourceDocument,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree)
 	maps.Copy(checks.reported, self.found)
-	return checkReached(ctx, at, soa.Walk(ctx, doc), targets.resolved, checks)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets.resolved, checks)
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
@@ -242,7 +243,7 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 	later := v.later(ctx, at, t)
 	found := validateObject(ctx, t.obj, v.opts)
 	if later.additionalOperations {
-		found = ownAdditionalOperations(ctx, v.doc, reachedWalk(ctx, t.obj), found)
+		found = ownAdditionalOperations(ctx, v.doc, Siblings{}, reachedWalk(ctx, t.obj), found)
 	}
 	artifacts := v.artifacts(ctx, t.obj, later.inSchema)
 	var diags []ir.Diagnostic

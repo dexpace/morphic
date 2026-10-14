@@ -68,7 +68,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	doc, valErrs := parseSpec(t, sitedFailuresSpec)
 	require.Empty(t, valErrs, "the fixture is otherwise well-formed")
 
-	_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
+	_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -157,7 +157,7 @@ components:
 `)
 		require.Empty(t, valErrs)
 
-		_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
+		_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -696,7 +696,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if d, found := chainCycle(t.Context(), scan.InSource(0), root, doc1); found && d.Severity == ir.SeverityError {
+		if d, found := chainCycle(t.Context(), scan.InSource(0), root, doc1, Siblings{}); found && d.Severity == ir.SeverityError {
 			continue // a chain the resolver would recurse through forever
 		}
 
@@ -718,7 +718,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 			want[pointer] = true
 		}
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {

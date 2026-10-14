@@ -208,7 +208,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, op)
 	pathPtr := ids.Ptr("paths", "/users/{id}")
 	opPtr := pathPtr + ids.Ptr("get")
-	merged := mergeParameters(pi.GetParameters(), op.GetParameters(), pathPtr, opPtr)
+	merged := mergeParameters(appendSourced(nil, pi.GetParameters(), pathPtr, nil, nil), op.GetParameters(), opPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
 	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
 	assert.Equal(t, jsontext.Pointer("/paths/~1users~1{id}/get/parameters/0"), merged[0].pointer,
@@ -328,7 +328,7 @@ func TestApplyPathServers_WithoutRootNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
 	diags := applyPathServers(l.ctx, onOperation(op),
-		&soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a")
+		&soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a", owners{}.cedes(0))
 	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
 	assert.Empty(t, diags)
 }
@@ -406,7 +406,7 @@ func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	op := &ir.Operation{}
 
 	diags := applyPathItemDocs(l.ctx, onOperation(op),
-		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a")
+		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
 
 	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")
 	assert.Empty(t, diags)

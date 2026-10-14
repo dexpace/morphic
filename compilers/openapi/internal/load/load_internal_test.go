@@ -444,9 +444,9 @@ func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {
 		doc, _ := parseSpec(t, spec)
 		minor, ok := SupportedMinor(version)
 		require.True(t, ok)
-		assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, minor, false))
+		assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, minor, false))
 
-		dropped := metaSchemaVersionArtifacts(t.Context(), doc, minor, true)
+		dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, minor, true)
 		require.Len(t, dropped, 1, "the defaultMapping finding, and nothing else")
 		for site := range dropped {
 			assert.Equal(t, validation.RuleValidationInvalidSchema, site.rule)
