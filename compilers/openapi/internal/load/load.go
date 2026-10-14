@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"maps"
 	"slices"
 	"strings"
 
@@ -296,7 +297,7 @@ func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErr
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
-			(dropped(verr) || wrongMetaSchema[findingSite(verr)]) {
+			(dropped(verr) || wrongMetaSchema[siteOf(verr)]) {
 			continue
 		}
 		diags = append(diags, validationDiag(locate, ve))
@@ -512,33 +513,36 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 const metaSchemaReconciledMinor = "3.2"
 
 // metaSchemaVersionArtifacts returns the schema findings the library raised
-// only by checking against a meta-schema older than 3.2's, keyed by
-// findingSite, or nil when there is nothing to reconcile.
+// only by checking against a meta-schema older than 3.2's, or nil when there is
+// nothing to reconcile.
 //
 // JSONSchema[T].Validate discards its options (jsonschema/oas3/jsonschema.go),
-// so every schema is checked against the 3.1 meta-schema, which refuses the
-// keywords 3.2 added, such as discriminator.defaultMapping. In a 3.2 document
-// such a finding is false. In an older one, where later says laterConstructs
-// reported such a keyword, the compiler reports it itself.
-//
-// Validating every schema twice, at 3.2 and as the library does, isolates them:
-// a finding only the second run raises is about a keyword 3.2 admits.
-func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string, later bool) map[string]bool {
-	against := doc.OpenAPI
-	if minor != metaSchemaReconciledMinor {
-		if !later {
-			return nil
-		}
-		against = metaSchemaReconciledMinor + ".0"
+// so every schema is checked against the 3.1 meta-schema. Validating every
+// schema twice, at 3.2 and as the library does, isolates where the two
+// disagree, each a false finding in a 3.2 document. In an older one, where
+// later says laterConstructs reported a keyword 3.2 added, only the refusal of
+// a keyword is taken over: a propertyName 3.2 stopped requiring is a missing
+// field, and binds the declared version.
+func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string, later bool) map[findingSite]bool {
+	walk := func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }
+	if minor == metaSchemaReconciledMinor {
+		return schemaArtifacts(ctx, walk, doc.OpenAPI)
 	}
-	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }, against)
+	if !later {
+		return nil
+	}
+	artifacts := schemaArtifacts(ctx, walk, metaSchemaReconciledMinor+".0")
+	maps.DeleteFunc(artifacts, func(site findingSite, _ bool) bool {
+		return site.rule != validation.RuleValidationInvalidSchema
+	})
+	return artifacts
 }
 
 // schemaArtifacts returns the findings sites schema validation raises over the
 // walk as the library checks and not when checked at version (see
 // metaSchemaVersionArtifacts). walk is called once per run, so each run gets a
 // walk of its own.
-func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], version string) map[string]bool {
+func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], version string) map[findingSite]bool {
 	atVersion := schemaFindings(ctx, walk(),
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
 	asLibraryChecks := schemaFindings(ctx, walk())
@@ -550,12 +554,12 @@ func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], ve
 
 // schemaFindings validates every schema object items reaches under opts,
 // returning each finding's site.
-func schemaFindings(ctx context.Context, items iter.Seq[soa.WalkItem], opts ...validation.Option) map[string]bool {
-	out := map[string]bool{}
+func schemaFindings(ctx context.Context, items iter.Seq[soa.WalkItem], opts ...validation.Option) map[findingSite]bool {
+	out := map[findingSite]bool{}
 	matchSchemas(items, func(js *oas3.JSONSchema[oas3.Referenceable]) error {
 		for _, found := range oas3.Validate(ctx, js, opts...) {
 			if verr, ok := asValidationError(found); ok {
-				out[findingSite(verr)] = true
+				out[siteOf(verr)] = true
 			}
 		}
 		return nil
@@ -587,9 +591,15 @@ func matchSchemas(items iter.Seq[soa.WalkItem], collect func(*oas3.JSONSchema[oa
 // admissible type list 3.1 prints — so comparing messages would read a rewording
 // as a disappearance and drop a real finding. Rule and position are what both runs
 // agree on when they are describing the same thing.
-func findingSite(verr validation.Error) string {
-	return fmt.Sprintf("%s\x00%s\x00%d\x00%d",
-		verr.Rule, verr.GetDocumentLocation(), verr.GetLineNumber(), verr.GetColumnNumber())
+type findingSite struct {
+	rule, document string
+	line, column   int
+}
+
+// siteOf returns verr's findingSite.
+func siteOf(verr validation.Error) findingSite {
+	return findingSite{rule: verr.Rule, document: verr.GetDocumentLocation(),
+		line: verr.GetLineNumber(), column: verr.GetColumnNumber()}
 }
 
 // numericBoundKeywords are the schema keywords the library binds to *float64 and

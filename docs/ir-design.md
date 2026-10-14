@@ -2274,11 +2274,12 @@ Whether a construct is a later minor's is asked in one place: the load phase hol
 source writes to one table of what each minor added, and no lowering asks it, so no field's
 treatment can depend on whether the parser happens to model it. Where the parser refuses such a
 construct itself — a Path Item's `additionalOperations` below 3.2, a schema keyword the 3.1
-meta-schema forbids — the compiler takes the refusal over, and where refusing made the parser skip
-checking what the construct holds, as inside `additionalOperations`, runs those checks itself. The
-table and the takeover both cover the source document: in a document a reference reaches, the
-parser's own treatment stands, and the minor that governs such a document is GitHub #839's to
-settle. A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub #820's.
+meta-schema forbids — the compiler takes the refusal over, and only the refusal: what the 3.2
+meta-schema merely stopped requiring still binds the declared version. Where refusing made the
+parser skip checking what the construct holds, as inside `additionalOperations`, the compiler runs
+those checks itself. The table and the takeover both cover the source document: in a document a
+reference reaches, the parser's own treatment stands, and the minor that governs such a document is
+GitHub #839's to settle. A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub #820's.
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no
