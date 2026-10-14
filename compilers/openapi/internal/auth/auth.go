@@ -119,7 +119,11 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	if !named {
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	diags = preserveUnreadFields(c, &scheme, ss, decl)
+	if tokenless(scheme) && !flowsMissing(ss) {
+		// Reported rather than refused; see oauthNoFlowDiag.
+		diags = append(diags, oauthNoFlowDiag(c, decl))
+	}
+	diags = append(diags, preserveUnreadFields(c, &scheme, ss, decl)...)
 	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
 	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
 	// defines for a securityScheme which this entry's own mechanism gives no
@@ -190,6 +194,39 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
+}
+
+// tokenless reports whether scheme is an oauth2 scheme that states no way to
+// obtain a token: it lowered no flow, and names no metadata URL to discover its
+// authorization server from (RFC 8414).
+func tokenless(scheme ir.AuthScheme) bool {
+	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
+}
+
+// flowsMissing reports whether ss fails the parser library's REQUIRED-field
+// rule for flows, restating the library's own condition over the fields it
+// reads: absent, not an object, or holding a flow that does not decode, which
+// leaves the object not Present. The loader reports each object it validates
+// that fails the rule, so the lowering stands aside; an object it never
+// validates, one a $ref reaches under an x-* key, is GitHub #872. A library
+// release that moves the rule reddens
+// TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce.
+func flowsMissing(ss *soa.SecurityScheme) bool {
+	return !ss.GetCore().Flows.Present || ss.GetFlows() == nil
+}
+
+// oauthNoFlowDiag reports a flows object declaring no flow; the design record
+// is on diag.OAuth2NoFlow.
+//
+// decl places it, not entry: a flowless declaration is a fact about the text at
+// decl, and a $ref entry holds no flows either way. The message names no entry,
+// so the copies every alias of one declaration draws dedup to one report. A
+// declaration in another document has no pointer here, so each entry naming it
+// carries its own copy, as every finding placed at decl does (GitHub #874).
+func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
+		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
+			"so it states no way to obtain a token")
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).

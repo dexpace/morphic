@@ -268,6 +268,17 @@ const (
 	// there. The document is invalid either way, since OpenAPI requires both
 	// fields.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
+	// OAuth2NoFlow reports an oauth2 securitySchemes entry that states no way to
+	// obtain a token: its flows object declares no flow — `flows: {}`, or only
+	// x-* and keys that name no flow — and it has no oauth2MetadataUrl. Every
+	// flow is optional, so the loader accepts that shape; a `flows` its
+	// REQUIRED-field rule finds missing is that rule's to report (GitHub #646).
+	// Placed at the declaration, which its same-document aliases share (#874).
+	//
+	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
+	// what the document said, and refusing would drop the entry's text. A warning,
+	// like ReservedHeaderName, since the document lowers whole.
+	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//
