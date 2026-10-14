@@ -179,6 +179,7 @@ func conformanceCases() []conformanceCase {
 		{"enum-string", assertEnumString, []string{"enums-string"}},
 		{"enum-numeric", assertEnumNumeric, []string{"enums-numeric"}},
 		{"empty-enum", assertEmptyEnum, nil},
+		{"missing-array-items", assertMissingArrayItems, nil},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
 		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
 		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
@@ -1180,6 +1181,33 @@ func assertEmptyEnum(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimString, populated.ValueType)
 	assert.Empty(t, diagsAt(diags, "openapi/empty-enum", "/components/schemas/Holder/properties/colour"),
 		"and reports nothing")
+}
+
+// assertMissingArrayItems pins that a 3.0 schema writing type array and no
+// items is reported once, at its own pointer, wherever it sits and whatever it
+// lowers to: Choice is a union of literals (GitHub #650). Copy's $ref names
+// Holder's property coordinate and is declared first, so the property is
+// lowered twice. Holder's typed and empty arrays write items, so the list is
+// every report the document draws.
+func assertMissingArrayItems(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	var got []string
+	for _, d := range diags {
+		if d.Code == "openapi/missing-array-items" {
+			assert.Equal(t, ir.SeverityWarning, d.Severity, "at %s", d.Provenance.Pointer)
+			got = append(got, string(d.Provenance.Pointer))
+		}
+	}
+	slices.Sort(got)
+	assert.Equal(t, []string{
+		"/components/schemas/Bare",
+		"/components/schemas/Choice",
+		"/components/schemas/Holder/properties/tags",
+		"/paths/~1things/get/parameters/0/schema",
+	}, got)
+
+	bare, ok := doc.Types[namedID("Bare")].(*ir.List)
+	require.True(t, ok, "Bare still lowers to a List, got %T", doc.Types[namedID("Bare")])
+	assert.Equal(t, ir.TypeID("t/prim/any"), bare.Elem.Target, "over the top type")
 }
 
 func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
