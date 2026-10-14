@@ -1341,8 +1341,9 @@ paths:
 
 // TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes pins the order a
 // mount lists its layers' operations in: the order the same operations written
-// inline get, whichever layer declares each. A layer-by-layer order put /a's
-// PUT after /b's POST, and its LINK before /b's LOCK.
+// inline get, whichever layer declares each. Listing layer by layer put /a's PUT
+// after all of /b's, and taking the additional keys nearest layer first put /a's
+// LINK before /b's LOCK.
 func TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefOrderSpec)
