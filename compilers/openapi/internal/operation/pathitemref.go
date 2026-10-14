@@ -36,7 +36,7 @@ type layer struct {
 // dropped in silence (see unreadFields).
 func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
 ) ([]layer, []ir.Diagnostic) {
-	scope, sibs := use.RefScope(), use.Siblings()
+	sibs := use.Siblings()
 	var layers []layer
 	var diags []ir.Diagnostic
 	// visit reads one $ref of the chain: decl is where its fields are declared,
@@ -46,16 +46,22 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathIt
 			if decl == "" {
 				decl = sib.Pointer
 			}
-			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: use.InScope(scope.InSource())})
+			in := use.InScope(use.RefScope().InSource())
+			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: in})
 			return
 		}
 		if sibs.Unread(hop) {
 			diags = append(diags, unreadFields(use, usePtr, reached, foreign))
 		}
 	}
-	visit(rp, usePtr, string(usePtr), scope.Foreign) // an alias's own position, as for an inline item
+	visit(rp, usePtr, string(usePtr), use.RefScope().Foreign) // an alias's own position, as for an inline item
 	last := rp
-	for _, hop := range resolve.Hops[soa.PathItem](scope, rp) {
+	if !resolve.Chained[soa.PathItem](rp) {
+		return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
+	}
+	// A scope a layer or Hops keeps outlives the call, taking the context's
+	// closures with it, so each is read where it is kept, not for every mount.
+	for _, hop := range resolve.Hops[soa.PathItem](use.RefScope(), rp) {
 		visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
 		last = hop.Ref
 	}

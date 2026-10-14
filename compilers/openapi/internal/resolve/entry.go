@@ -177,6 +177,18 @@ type Hop[R any] struct {
 	Foreign bool
 }
 
+// Chained reports whether the chain of ref passes through a reference after ref
+// itself, which Hops would then list. It reads no scope, so a caller can build
+// the one Hops reads only for a chain that has a hop.
+func Chained[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	IsReference() bool
+}](ref R) bool {
+	info := ref.GetReferenceResolutionInfo()
+	return info != nil && info.Object != nil && R(info.Object).IsReference()
+}
+
 // Hops returns the references the chain of ref passes through after ref itself,
 // nearest first: each entry its resolution recorded that is a reference too,
 // read from scope, the scope ref is read in, as ScopeOf reads a chain's end.
@@ -188,15 +200,13 @@ func Hops[T, S any, R interface {
 	IsReference() bool
 }](scope Scope, ref R) []Hop[R] {
 	var hops []Hop[R]
+	// The entry the chain ends at is no hop, so its scope is not read.
 	for range maxRefChain {
-		info := ref.GetReferenceResolutionInfo()
-		if info == nil || info.Object == nil {
+		if !Chained[T, S](ref) {
 			break
 		}
+		info := ref.GetReferenceResolutionInfo()
 		next := R(info.Object)
-		if !next.IsReference() {
-			break // the entry the chain ends at, whose scope is no hop's to read
-		}
 		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
 			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
 		ref = next
