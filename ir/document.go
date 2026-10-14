@@ -7,7 +7,7 @@ package ir
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed.
-const IRVersion = "0.11.0"
+const IRVersion = "0.12.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing
@@ -80,7 +80,7 @@ type Document struct {
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	// Sources describes the input files: format, path, content hash.
+	// Sources describes the input files, one entry each.
 	Sources []SourceInfo `json:"sources,omitempty"`
 }
 
