@@ -36,27 +36,28 @@ type layer struct {
 // dropped in silence (see unreadFields).
 func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
 ) ([]layer, []ir.Diagnostic) {
-	source := use.InScope(use.RefScope().InSource())
+	scope, sibs := use.RefScope(), use.Siblings()
 	var layers []layer
 	var diags []ir.Diagnostic
-	reached, last := string(usePtr), rp
-	entry := resolve.Hop[*soa.ReferencedPathItem]{Ref: rp, Foreign: use.RefScope().Foreign}
-	for i, hop := range append([]resolve.Hop[*soa.ReferencedPathItem]{entry},
-		resolve.Hops[soa.PathItem](use.RefScope(), rp)...) {
-		if i > 0 {
-			reached, last = string(last.GetReference()), hop.Ref
-		}
-		if sib, ok := use.Siblings().Of(hop.Ref); ok {
-			decl := sib.Pointer
-			if i == 0 {
-				decl = usePtr // an alias's own position, as for an inline item
+	// visit reads one $ref of the chain: decl is where its fields are declared,
+	// or "" for where the walk first met them, and reached how a report names it.
+	visit := func(hop *soa.ReferencedPathItem, decl jsontext.Pointer, reached string, foreign bool) {
+		if sib, ok := sibs.Of(hop); ok {
+			if decl == "" {
+				decl = sib.Pointer
 			}
-			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: source})
-			continue
+			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: use.InScope(scope.InSource())})
+			return
 		}
-		if use.Siblings().Unread(hop.Ref) {
-			diags = append(diags, unreadFields(use, usePtr, reached, hop.Foreign))
+		if sibs.Unread(hop) {
+			diags = append(diags, unreadFields(use, usePtr, reached, foreign))
 		}
+	}
+	visit(rp, usePtr, string(usePtr), scope.Foreign) // an alias's own position, as for an inline item
+	last := rp
+	for _, hop := range resolve.Hops[soa.PathItem](scope, rp) {
+		visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
+		last = hop.Ref
 	}
 	return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
 }
@@ -197,7 +198,7 @@ func (o owners) cedes(i int) func(key string) bool {
 // constructs times the layers, which the reference chain bound caps.
 func precedence(layers []layer, docs bool) (owners, []ir.Diagnostic) {
 	if len(layers) == 1 {
-		return owners{}, nil
+		return nil, nil
 	}
 	decls := make([][]itemConstruct, len(layers))
 	first := make([]map[string]itemConstruct, len(layers))
@@ -243,6 +244,10 @@ func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
 // the pointer of its own declaration and the scope its layer is read in, since
 // one operation lowers every layer's.
 func itemParams(layers []layer) []sourcedParam {
+	if len(layers) == 1 {
+		// One layer's entries are read in its operations' own scope.
+		return appendSourced(nil, layers[0].item.GetParameters(), layers[0].decl, nil, nil)
+	}
 	var params []sourcedParam
 	shadowed := map[string]bool{}
 	for _, l := range layers {
@@ -271,6 +276,14 @@ type layerOp struct {
 // methods written beside a $ref where the same fields written inline would put
 // them.
 func mountedOperations(layers []layer) []layerOp {
+	if len(layers) == 1 {
+		declared := pathOperations(layers[0].item)
+		out := make([]layerOp, 0, len(declared))
+		for _, po := range declared {
+			out = append(out, layerOp{op: po})
+		}
+		return out
+	}
 	declared := make([]map[jsontext.Pointer]pathOperation, len(layers))
 	var extra []jsontext.Pointer
 	listed := map[jsontext.Pointer]bool{}
@@ -315,17 +328,18 @@ func applyLayers(layers []layer, owner owners, into carrier) []ir.Diagnostic {
 // keptExtensions returns the x-* entries of ext that cedes does not give up:
 // ext itself when it gives up none.
 func keptExtensions(ext *extensions.Extensions, cedes func(string) bool) *extensions.Extensions {
-	var kept []*extensions.Element
-	ceded := false
-	for name, node := range ext.All() {
-		if cedes(constructOf(constructExtension, name)) {
-			ceded = true
-			continue
-		}
-		kept = append(kept, extensions.NewElem(name, node))
+	cedesAny := false
+	for name := range ext.All() {
+		cedesAny = cedesAny || cedes(constructOf(constructExtension, name))
 	}
-	if !ceded {
+	if !cedesAny {
 		return ext
+	}
+	var kept []*extensions.Element
+	for name, node := range ext.All() {
+		if !cedes(constructOf(constructExtension, name)) {
+			kept = append(kept, extensions.NewElem(name, node))
+		}
 	}
 	return extensions.New(kept...)
 }

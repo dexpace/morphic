@@ -283,10 +283,9 @@ type mountedOp struct {
 // holds what the route sets on every operation; each brings its own method,
 // pointers and parameters.
 func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
-	docs := slices.ContainsFunc(layers, func(l layer) bool { return len(pathOperations(l.item)) > 0 })
-	owner, diags := precedence(layers, docs)
-	params := itemParams(layers)
 	ops := mountedOperations(layers)
+	owner, diags := precedence(layers, len(ops) > 0)
+	params := itemParams(layers)
 	mounted := make([]mountedOp, 0, len(ops))
 	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op

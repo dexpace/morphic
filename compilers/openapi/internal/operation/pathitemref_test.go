@@ -556,6 +556,7 @@ paths:
     description: ref description
     servers: [{url: https://ref.example}]
     x-shared: ref
+    x-refOnly: ref
     bogusBoth: {responses: {"200": {description: REF}}}
     parameters:
       - {name: dup, in: query, schema: {type: integer}}
@@ -609,6 +610,9 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	ext, ok := getA.Unmodeled["openapi:pathItem/x-shared"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use"`, string(ext.Value))
+	only, ok := getA.Unmodeled["openapi:pathItem/x-refOnly"]
+	require.True(t, ok, "an extension only the referent declares is kept beside the one it cedes")
+	assert.Equal(t, jsontext.Pointer("/paths/~1b/x-refOnly"), only.Provenance.Pointer)
 	bogus, ok := getA.Unmodeled["openapi:pathItem/bogusBoth"]
 	require.True(t, ok)
 	assert.JSONEq(t, `{"responses":{"200":{"description":"USE"}}}`, string(bogus.Value),
@@ -797,6 +801,7 @@ paths:
     description: ref description
     servers: [{url: https://ref.example}]
     x-shared: ref
+    x-refOnly: ref
     bogusBoth: {responses: {"200": {description: REF}}}
     parameters:
       - {name: dup, in: query, schema: {type: integer}}

@@ -257,6 +257,18 @@ s: scalar
 	assert.False(t, ok, "a pure reference has no fields")
 	_, ok = withoutRef(scalar)
 	assert.False(t, ok, "a scalar is no mapping")
+
+	// The two cheap readings agree with the copy: one asks whether a mapping
+	// writes anything beside its $ref, the other whether it is a use site at all.
+	for _, tc := range []struct {
+		node            *yaml.Node
+		beside, useSite bool
+	}{{m, true, true}, {only, false, false}, {scalar, false, false}, {nil, false, false}, {top, true, false}} {
+		assert.Equal(t, tc.beside, writesBeside(tc.node), "writesBeside")
+		if tc.node != nil {
+			assert.Equal(t, tc.useSite, refBeside(tc.node), "refBeside")
+		}
+	}
 }
 
 // TestLocationOf_RendersThePointer pins the round trip a sibling walk relies on

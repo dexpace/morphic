@@ -145,8 +145,35 @@ type siblingBuild func(ctx context.Context, node *yaml.Node) (*soa.PathItem, []e
 // reaches, and beside every one inside what it models, returning the findings
 // their model build and validation made, and an error diagnostic for each use
 // site the parser faulted on.
+//
+// A tree in which no mapping keys $ref beside another key holds no use site and
+// is not walked: that is nearly every document, and the walk is a pass over the
+// whole model.
 func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (Siblings, []error, []ir.Diagnostic) {
+	if !anyNode(doc.GetRootNode(), refBeside) {
+		return Siblings{}, nil, nil
+	}
 	return siblingsFrom(ctx, soa.Walk(ctx, doc), locate, siblingModel(doc))
+}
+
+// refBeside reports whether n is a mapping keying $ref beside another key, as
+// every use site holding fields beside its $ref is (see withoutRef).
+func refBeside(n *yaml.Node) bool {
+	if n.Kind != yaml.MappingNode {
+		return false
+	}
+	ref, other := false, false
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if isRefKey(n.Content[i]) {
+			ref = true
+		} else {
+			other = true
+		}
+		if ref && other {
+			return true
+		}
+	}
+	return false
 }
 
 // unreported returns the findings of errs that valErrs, the document's own
@@ -197,13 +224,9 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 		})
 		return err == nil
 	}
-	if !search(items) {
-		return s, errs, faults
-	}
-	for i := 0; i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
-		if !search(s.modelWalk(ctx, i)) {
-			break
-		}
+	// The document's walk, then each model's in turn, until one panics.
+	for walk, i := items, 0; search(walk) && i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
+		walk = s.modelWalk(ctx, i)
 	}
 	return s, errs, faults
 }
@@ -341,8 +364,12 @@ func (s Siblings) modelWalk(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
 // walkSource returns the walk of doc with the fields beside each path item $ref
 // walked right after the $ref, so every pass meets them in the order the source
 // writes them, as it meets an inline item's: which members of a failing chain
-// are reported follows that order (GitHub #767).
+// are reported follows that order (GitHub #767). A document with none, which is
+// nearly every one, is walked as the library walks it.
 func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.WalkItem] {
+	if len(s.list) == 0 {
+		return soa.Walk(ctx, doc)
+	}
 	return s.interleaved(ctx, soa.Walk(ctx, doc))
 }
 

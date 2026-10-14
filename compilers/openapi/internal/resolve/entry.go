@@ -176,12 +176,13 @@ func Hops[T, S any, R interface {
 		if info == nil || info.Object == nil {
 			break
 		}
+		next := R(info.Object)
+		if !next.IsReference() {
+			break // the entry the chain ends at, whose scope is no hop's to read
+		}
 		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
 			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
-		ref = R(info.Object)
-		if !ref.IsReference() {
-			break
-		}
+		ref = next
 		hops = append(hops, Hop[R]{Ref: ref, Foreign: scope.Foreign})
 	}
 	return hops

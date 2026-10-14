@@ -3,6 +3,7 @@ package load
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"iter"
 	"strings"
 	"testing"
 
@@ -215,4 +216,35 @@ x-shared:
 
 	require.True(t, sibs.Unread(hop))
 	assert.Zero(t, testing.AllocsPerRun(20, func() { sibs.Unread(hop) }))
+}
+
+// TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef pins the skip
+// that keeps the sibling search off nearly every document: a tree in which no
+// mapping keys $ref beside another holds no use site, so the model is not
+// walked, and the cost is a scan of the tree, whatever the document's size.
+func TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef(t *testing.T) {
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /r: {$ref: '#/paths/~1p0'}\n")
+	for i := range 200 {
+		fmt.Fprintf(&spec, "  /p%d:\n    get: {responses: {\"200\": {description: ok}}}\n", i)
+	}
+	doc := modelOf(t, spec.String())
+
+	allocs := testing.AllocsPerRun(10, func() { modelSiblings(t.Context(), doc, scan.InSource(0)) })
+	assert.Less(t, allocs, 50.0, "a scan, not a walk of 200 path items")
+}
+
+// TestWalkSource_WalksADocumentWithoutModelsAsTheLibraryDoes pins walkSource's
+// cost where there is nothing to interleave: every pass of this phase walks
+// the source through it, so it must cost what the library's own walk does.
+func TestWalkSource_WalksADocumentWithoutModelsAsTheLibraryDoes(t *testing.T) {
+	doc := modelOf(t, siblingSpec)
+	drain := func(items iter.Seq[soa.WalkItem]) {
+		for range items {
+			continue
+		}
+	}
+	library := testing.AllocsPerRun(10, func() { drain(soa.Walk(t.Context(), doc)) })
+	source := testing.AllocsPerRun(10, func() { drain(walkSource(t.Context(), doc, Siblings{})) })
+	assert.Equal(t, library, source)
 }

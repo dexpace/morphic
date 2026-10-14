@@ -119,3 +119,17 @@ func TestScope_BesideWhySaysWhyAReferenceIsRefused(t *testing.T) {
 		assert.Empty(t, why)
 	}
 }
+
+// TestHops_ReadsNoScopeForAChainOfOneHop pins Hops's cost on the common chain,
+// a use site naming an item that is no reference: there is no hop to read a
+// scope for, so it reads none. Reading one before asking cost every $ref'd path
+// item a pointer walk whose answer was thrown away.
+func TestHops_ReadsNoScopeForAChainOfOneHop(t *testing.T) {
+	doc, bare, _ := loadBeside(t)
+	c, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	require.True(t, c.IsReference())
+
+	assert.Empty(t, resolve.Hops[soa.PathItem](bare, c))
+	assert.Zero(t, testing.AllocsPerRun(10, func() { resolve.Hops[soa.PathItem](bare, c) }))
+}

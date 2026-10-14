@@ -65,9 +65,14 @@ func needsChainModel(root *yaml.Node) bool {
 }
 
 // anyScalar reports whether any scalar in the tree under root satisfies match.
-// It walks each node once, never through an alias, so its cost is the node
-// count the source budget already bounds.
 func anyScalar(root *yaml.Node, match func(string) bool) bool {
+	return anyNode(root, func(n *yaml.Node) bool { return n.Kind == yaml.ScalarNode && match(n.Value) })
+}
+
+// anyNode reports whether any node in the tree under root satisfies match. It
+// walks each node once, never through an alias, so its cost is the node count
+// the source budget already bounds; the loader refuses a tree past the bound.
+func anyNode(root *yaml.Node, match func(*yaml.Node) bool) bool {
 	stack := []*yaml.Node{root}
 	for visited := 0; len(stack) > 0 && visited < sourceindex.MaxIndexedNodes; visited++ {
 		n := stack[len(stack)-1]
@@ -75,7 +80,7 @@ func anyScalar(root *yaml.Node, match func(string) bool) bool {
 		if n == nil || n.Kind == yaml.AliasNode {
 			continue
 		}
-		if n.Kind == yaml.ScalarNode && match(n.Value) {
+		if match(n) {
 			return true
 		}
 		stack = append(stack, n.Content...)
