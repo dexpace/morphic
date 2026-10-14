@@ -2021,7 +2021,9 @@ type SchemeUse struct { Scheme AuthID; Scopes []string }
 **Scopes keep their order.** A flow's scopes are a list of name and description, in the order the
 source writes them, as a `Value.Object`'s members are (§6): documentation and consent screens show
 them as the author did, and a map would sort them. A scope with no description has an empty one;
-TypeSpec writes scope names alone.
+TypeSpec writes scope names alone. A name appears once per flow, as the map made it: two entries
+would give one scope two descriptions, so a compiler folds a source that repeats one, and `irverify`
+reports a repeat (`ir/oauth-scope-duplicate`).
 
 **How a client authenticates to the token endpoint** is `TokenEndpointAuthMethods`, spelled as the
 IANA registry RFC 8414's `token_endpoint_auth_methods_supported` draws on spells it
