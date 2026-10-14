@@ -314,7 +314,7 @@ func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, loc
 func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
-	diags := parameterRepeats(at, sibs, walkSource(ctx, doc, sibs))
+	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs))
 	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs), resolved)...)
 }
 
@@ -357,8 +357,8 @@ func dropped(verr validation.Error) bool {
 //
 // Parameter uniqueness: the library reads only inline entries, so a repeat
 // through a $ref went unreported, and beside the compiler's own report an
-// inline repeat drew two errors. parameterRepeats checks every list the source
-// writes, its $refs resolved (#634, #840).
+// inline repeat drew two errors. listRepeats checks every parameter list the
+// source writes, its $refs resolved (#634, #840).
 func compilerOwned(verr validation.Error) bool {
 	return verr.Rule == validation.RuleValidationOperationIdUnique ||
 		verr.Rule == validation.RuleValidationOperationParameters
