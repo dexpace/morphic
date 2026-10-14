@@ -249,6 +249,7 @@ func conformanceCases() []conformanceCase {
 		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
 		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
 		{"oauth-flow-fields", assertOAuthFlowFields, []string{"auth-schemes"}},
+		{"reached-outside-model", assertReachedOutsideModel, nil},
 		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
 	}
 }
@@ -3982,4 +3983,31 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "publicOp")
 	require.True(t, ok)
 	assert.Empty(t, op.Auth, "security: [] makes the operation explicitly public")
+}
+
+// assertReachedOutsideModel pins that an object written under an x- key is
+// checked as one the model declares when a $ref reaches it, a discriminator
+// mapping names it, or a $ref nested in such an object does (GitHub #872):
+// each construct OpenAPI 3.2 added draws its warning once, at the pointer it is
+// written at, and the parser's own finding about a scheme reached that way is
+// reported at the $ref that reaches it.
+func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	const later = "openapi/later-version-construct"
+	written := []string{
+		"/x-lib/Pet/xml/nodeType", "/x-lib/Owner/xml/nodeType", "/x-lib/Cat/xml/nodeType", "/x-responses/Listed/summary",
+	}
+	for _, at := range written {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, later, at), "%s", at)
+	}
+	n := 0
+	for _, d := range diags {
+		if d.Code == later {
+			n++
+		}
+	}
+	assert.Equal(t, len(written), n, "one warning per construct, none elsewhere: %+v", diags)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/validation/validation-allowed-values", "/components/securitySchemes/key"),
+		"the parser's finding on the reached scheme, at the $ref reaching it")
 }

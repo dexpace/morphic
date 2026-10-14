@@ -1,0 +1,538 @@
+{
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ReachedOutsideModel",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ReachedOutsideModel",
+        "canonical": "reached_outside_model"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1pets/get",
+              "name": {
+                "source": "listPets",
+                "canonical": "list_pets"
+              },
+              "docs": {},
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pets",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/x-paths/Pets/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/key"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/x-lib/Cat": {
+      "kind": "model",
+      "id": "t/anon/x-lib/Cat",
+      "name": {
+        "hint": "cat"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "nodeType": "element",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Cat"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Kennel",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "cat",
+      "inputOnly": false
+    },
+    "t/anon/x-lib/Owner": {
+      "kind": "model",
+      "id": "t/anon/x-lib/Owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "nodeType": "element",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/x-lib/Owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/x-lib/Owner/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/x-lib/Pet": {
+      "kind": "model",
+      "id": "t/anon/x-lib/Pet",
+      "name": {
+        "hint": "pet"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "nodeType": "element",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/x-lib/Pet/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/x-lib/Pet/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/x-lib/Pet/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/anon/x-lib/Owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/x-lib/Pet/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Kennel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Kennel",
+      "name": {
+        "source": "Kennel",
+        "canonical": "kennel"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kennel/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kennel/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Kennel/properties/kind",
+        "mapping": {
+          "cat": "t/anon/x-lib/Cat"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "base": {
+        "target": "t/anon/x-lib/Pet",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/key": {
+      "id": "auth/openapi/components/securitySchemes/key",
+      "name": {
+        "source": "key",
+        "canonical": "key"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-Key",
+      "unmodeled": {
+        "openapi:bearerFormat": {
+          "reason": "degraded_lowering",
+          "value": "JWT",
+          "provenance": {
+            "source": 0,
+            "pointer": "/x-schemes/key/bearerFormat"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/key"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "unmodeled": {
+    "openapi:components/responses/Listed": {
+      "reason": "no_ir_home",
+      "value": {
+        "$ref": "#/x-responses/Listed"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed"
+      }
+    },
+    "openapi:x-lib": {
+      "reason": "vendor_extension",
+      "value": {
+        "Cat": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/Kennel"
+            }
+          ],
+          "xml": {
+            "nodeType": "element"
+          }
+        },
+        "Owner": {
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "xml": {
+            "nodeType": "element"
+          }
+        },
+        "Pet": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "owner": {
+              "$ref": "#/x-lib/Owner"
+            }
+          },
+          "type": "object",
+          "xml": {
+            "nodeType": "element"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib"
+      }
+    },
+    "openapi:x-paths": {
+      "reason": "vendor_extension",
+      "value": {
+        "Pets": {
+          "get": {
+            "operationId": "listPets",
+            "responses": {
+              "200": {
+                "$ref": "#/components/responses/Listed"
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-paths"
+      }
+    },
+    "openapi:x-responses": {
+      "reason": "vendor_extension",
+      "value": {
+        "Listed": {
+          "description": "The pets",
+          "summary": "Pets"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-responses"
+      }
+    },
+    "openapi:x-schemes": {
+      "reason": "vendor_extension",
+      "value": {
+        "key": {
+          "bearerFormat": "JWT",
+          "in": "header",
+          "name": "X-Key",
+          "type": "apiKey"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-schemes"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Response Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-responses/Listed/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Cat/xml/nodeType"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Pet/xml/nodeType"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-allowed-values",
+      "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http), at 38:62 of reached-outside-model.yaml",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/key"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-lib/Owner/xml/nodeType"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme bearerFormat is not defined by type \"apiKey\"; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-schemes/key/bearerFormat"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "reached-outside-model.yaml",
+      "hash": "5ceee6aced1fbf2f9c9b0810b6a53b7deb04c0017a74cc4b023aac701e5f148d"
+    }
+  ]
+}

@@ -42,6 +42,25 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	assert.NotContains(t, out, `"irVersion"`, "--explain replaces the document, it does not add to it")
 }
 
+// TestRun_ExplainListsALoaderFindingAtItsDeclaration pins that a finding the
+// loader made on a raw node is stamped at that node's pointer, so explaining
+// the declaration lists it beside what the lowering reports there (GitHub
+// #803). Located by line and column alone, it stamped no coordinate at all.
+func TestRun_ExplainListsALoaderFindingAtItsDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"+
+		"components:\n  securitySchemes:\n    s: {type: oauth2}\n")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", "/components/securitySchemes/s"}, &stdout, &stderr)
+
+	require.Equal(t, 1, code, "an error diagnostic fails the run, explained or not: %s", stderr.String())
+	out := stdout.String()
+	assert.Contains(t, out, "diagnostics (1)")
+	assert.Contains(t, out, "error openapi/validation/validation-required-field: "+
+		"`securityScheme.flows` is required for type=oauth2")
+}
+
 // TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer pins that an empty
 // --explain is the root coordinate rather than an absent flag: the empty JSON
 // Pointer names the whole document, and it is the only query everything

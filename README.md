@@ -156,8 +156,10 @@ error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/
 `<location>` is the most precise form available:
 
 - `<path>#<pointer>` for a finding at a JSON Pointer in a spec file;
-- `<path>:<line>:<column>` for one found before the spec had pointers, or `<path>:<line>` when the
-  column is unknown;
+- `<path>:<line>:<column> (#<pointer>)` for one the loader made on a node of the parsed tree, which
+  has both: the position first, so a terminal or editor links it, and the pointer after;
+- `<path>:<line>:<column>` for one in a part of the file no pointer reaches, such as a later
+  document of a YAML stream, or `<path>:<line>` when the column is unknown;
 - `<path>` alone for one about the file as a whole, including a spec that was refused or that no
   compiler recognized;
 - the bare IR location for one an IR pass made about the document.
