@@ -454,7 +454,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	releaseAnchors(root)
 	doc, valErrs, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs, sourceTree{})
+	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)

@@ -423,7 +423,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, sourceTree{})
+	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, Options{}, nil)
 	pass.targets.limit = limit
 	_, diags := pass.run(doc)
@@ -1218,7 +1218,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 	}
 
 	resolved, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
-		newSourceDocument("root.yaml", data, root, nil, sourceTree{}), Options{AllowExternalRefs: true}, rebuild)
+		newSourceDocument("root.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root)), Options{AllowExternalRefs: true}, rebuild)
 
 	require.NoError(t, err)
 	require.True(t, rebuilt, "the fixture is resolved twice")
@@ -1316,7 +1316,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	require.NoError(t, err)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, sourceTree{})
+	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
