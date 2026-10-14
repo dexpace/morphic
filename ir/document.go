@@ -80,7 +80,7 @@ type Document struct {
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	// Sources describes the input files: format, path, content hash.
+	// Sources describes the input files, one entry each.
 	Sources []SourceInfo `json:"sources,omitempty"`
 }
 
