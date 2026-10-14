@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
@@ -30,14 +31,14 @@ func TestFirstDeclared_KeepsEachKeysFirstDeclaration(t *testing.T) {
 	assert.Empty(t, firstDeclared(nil))
 }
 
-// TestNewMount_NamesWhereTheUseSitesOwnUnreadFieldsAre pins the use site's own
+// TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre pins the use site's own
 // place in the report of fields no model holds: read in another document's
 // scope they are that document's, and read in the source's they are fields its
 // walk did not reach. A compile rarely gets here, since a $ref inside another
 // document's content is never resolved (GitHub #751) and a source use site goes
-// unmodelled only when a walk panic stops the search, so the context is built
-// without the load phase's models.
-func TestNewMount_NamesWhereTheUseSitesOwnUnreadFieldsAre(t *testing.T) {
+// unmodelled only when a walk panic stops the search, so the context is given an
+// empty load result in place of the load phase's models.
+func TestPathItemLayers_NamesWhereTheUseSitesOwnUnreadFieldsAre(t *testing.T) {
 	t.Parallel()
 	l, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -56,17 +57,17 @@ paths:
 	require.NotNil(t, pi)
 
 	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
-		use := l.ctx
+		use := l.ctx.WithLoaded(&load.Document{})
 		if foreign {
 			scope := use.RefScope()
 			scope.Foreign, scope.Holder = true, "other.yaml"
 			use = use.InScope(scope)
 		}
 
-		m := newMount(use, rp, pi, usePtr, declPtr)
+		_, found := pathItemLayers(use, rp, pi, usePtr, declPtr)
 
-		require.Len(t, m.found, 1, "foreign %t: the use site's fields, and no hop's", foreign)
-		assert.Equal(t, diag.DegradedConstruct, m.found[0].Code)
-		assert.Contains(t, m.found[0].Message, want, "foreign %t", foreign)
+		require.Len(t, found, 1, "foreign %t: the use site's fields, and no hop's", foreign)
+		assert.Equal(t, diag.DegradedConstruct, found[0].Code)
+		assert.Contains(t, found[0].Message, want, "foreign %t", foreign)
 	}
 }

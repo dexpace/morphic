@@ -23,7 +23,7 @@ Every task inherits these. They are not restated per issue.
 
 - **Golden output byte-identical**, except where an issue says otherwise. A golden diff is a
   stop-and-explain, never an `-update`.
-- **Coverage stays at exactly 100%.** `./scripts/check-coverage.sh` counts statements from the
+- **Coverage stays at exactly 100%.** `make coverage` counts statements from the
   profile; one uncovered statement fails the build.
 - **The gate is `make gate`**, which is what `.github/workflows/gate.yml` runs step by step. Read
   the `Makefile` for the steps; a list here would only be a copy that goes stale.

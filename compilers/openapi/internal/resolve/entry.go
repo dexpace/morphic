@@ -2,10 +2,13 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+
+	"github.com/dexpace/morphic/ir"
 )
 
 // Referenced is the method set every soa "Referenced*" alias exposes: it
@@ -45,13 +48,56 @@ func Object[T, S any, R interface {
 	return ref.GetResolvedObject()
 }
 
-// maxRefChain bounds how many $ref hops ObjectAt follows to a declaration, and
-// how many a chain's end (endOf) and a pointer's scope (Scope.reached) are
-// followed through. A $ref cycle among the non-schema components it walks is
-// refused before lowering by speakeasy's resolver, not by internal/scan, and a
-// refused chain resolves to nothing, so the bound only fires on an absurd alias
-// chain. Past it, ObjectAt keeps the use site, and what the chain reaches is
-// read in no document's scope.
+// siblingDocs is what a speakeasy Reference wrapper exposes of the summary and
+// description written beside its `$ref`. Populate reads the two only for an
+// entry that holds a reference, so an inline entry reports both empty.
+type siblingDocs interface {
+	GetSummary() string
+	GetDescription() string
+}
+
+// UseDocs folds the summary and description written beside each `$ref` of ref's
+// chain over docs, those of the declaration the chain ends at. It folds from the
+// declaration outward, field by field, so the use site's own siblings win, an
+// alias's beat what it names, and a field a hop omits leaves the one beneath it
+// standing (GitHub #610). OpenAPI gives such a sibling "no effect" where the
+// object type allows none, but the IR has a docs field at each position this
+// serves, so it is kept rather than dropped (ir-design §12.2).
+func UseDocs[T, S any, R interface {
+	*S
+	Referenced[T, S]
+	siblingDocs
+}](ref R, docs ir.Docs) ir.Docs {
+	hops := make([]R, 0, 1)
+	for range maxRefChain {
+		if ref == nil {
+			break
+		}
+		hops = append(hops, ref)
+		info := ref.GetReferenceResolutionInfo()
+		if info == nil {
+			break
+		}
+		ref = R(info.Object)
+	}
+	for _, hop := range slices.Backward(hops) {
+		if summary := hop.GetSummary(); summary != "" {
+			docs.Summary = summary
+		}
+		if description := hop.GetDescription(); description != "" {
+			docs.Description = description
+		}
+	}
+	return docs
+}
+
+// maxRefChain bounds how many $ref hops ObjectAt and UseDocs follow, and how
+// many a chain's end (endOf) and a pointer's scope (Scope.reached) are followed
+// through. A $ref cycle among the non-schema components is refused before
+// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
+// resolves to nothing, so the bound only fires on an absurd alias chain. Past
+// it, ObjectAt keeps the use site, and what the chain reaches is read in no
+// document's scope.
 //
 // It stays unexported: only the test that holds the walk to the bound needs it,
 // and reaches it through export_test.go.
@@ -63,7 +109,8 @@ const maxRefChain = 32
 // #107). usePtr — the entry's own position — stands whenever the chain has no
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
-// returned on its own, since a one-key $ref object has no children to hoist.
+// returned on its own, since a one-key $ref object has no children to hoist,
+// but it is recorded in scope.Reached with every other hop in the source.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -89,6 +136,7 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
+		scope.Reached.note(target)
 		// The resolver reads the next hop against the document this one
 		// resolved against, the source, even where this one was written in
 		// another document's content or its pointer passed a $ref into one.

@@ -707,9 +707,9 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		require.NoError(t, err, path)
 
 		checked++
-		//nolint:errcheck // the resolution failures themselves are not this test's
-		// concern; IsResolved, read back by referencePairs, is.
-		doc1.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{
+		// The resolution failures are not this test's concern; IsResolved, read
+		// back by referencePairs, is. They are reported only if the comparison fails.
+		failures, resolveErr := doc1.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{
 			OpenAPILocation: path, DisableExternalRefs: true,
 		})
 		want := referencePairs(t, doc1)
@@ -722,7 +722,8 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
-			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s", path, d)
+			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s\n"+
+				"the library's resolution returned %d failure(s), error: %v", path, d, len(failures), resolveErr)
 		}
 	}
 	assert.GreaterOrEqual(t, checked, 10,

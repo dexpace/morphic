@@ -161,23 +161,21 @@ func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
 	assert.False(t, c.DeclaresAuth(""))
 }
 
-// TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric completes the set the
-// two accessors above start: every reader on this type answers on a context with
-// nothing in it. This is the one that reaches through the document pointer, so
-// it is the one that would panic instead — and a test holding a Ctx literal is
-// not a hypothetical, it is how half this file drives the type.
-func TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric(t *testing.T) {
+// TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
+// answers false rather than panicking: the accessor reaches through the
+// document pointer, and half this file drives the type as a Ctx literal.
+func TestIs30_TheZeroContextReadsAs2020(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	assert.False(t, c.ExclusiveBoundIsBoolean(),
-		"no document names no dialect, which falls back to the 2020-12 numeric form")
+	assert.False(t, c.Is30(),
+		"no document names no dialect, which falls back to 2020-12")
 }
 
-// TestExclusiveBoundIsBoolean_FollowsTheDialect pins which spelling of
-// exclusiveMinimum/exclusiveMaximum the document uses. Reading a 3.0 boolean as
-// a 2020-12 numeric bound (or the reverse) silently changes what constraint the
-// IR records, and neither form fails to parse as the other.
-func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
+// TestIs30_FollowsTheDeclaredVersion pins which documents read as OpenAPI 3.0.
+// A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
+// turns a boolean exclusiveMinimum into a numeric bound and silences a missing
+// `items`, and the reverse warns on every 3.1 array that omits `items`.
+func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
@@ -194,9 +192,49 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
+			assert.Equal(t, tc.want, c.Is30())
 		})
 	}
+}
+
+// TestSince32_FollowsTheDeclaredVersion pins the one answer every raw-node
+// reader of a 3.2 field and its census ask (GitHub #615). A version nobody
+// recognizes answers false, so no reader runs on a dialect nothing describes.
+func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.3", want: false},
+		{version: "3.1.0", want: false},
+		{version: "3.2.0", want: true},
+		{version: "3.2.1", want: true},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.Since32())
+		})
+	}
+}
+
+// TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
+// references lives: a context and the scope it builds hold the same one, so a
+// resolution through any copy is visible to the compiler, and a zero context,
+// which holds none, has reached nothing.
+func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	require.NotNil(t, c.RefScope().Reached)
+	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
+	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
+	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
@@ -244,7 +282,7 @@ func TestRefScope_SharesTheContextsReader(t *testing.T) {
 // TestRefScope_CarriesTheMappingTargetsItWasGiven pins that a mapping target
 // the load phase resolved reaches the scope through the context. The target is
 // an extension's value, a position the parsed model holds as raw YAML, so the
-// scope finds it only if WithMappingTargets handed it over (GitHub #757). The
+// scope finds it only if WithLoaded handed it over (GitHub #757). The
 // scope asks the targets, too, what a mapping a walk leaves the model for
 // holds (resolve.Scope.Holds).
 func TestRefScope_CarriesTheMappingTargetsItWasGiven(t *testing.T) {
@@ -268,7 +306,7 @@ x-lib:
 	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, loaded.Overlay)
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the model holds the target as raw YAML")
 
-	carrying := bare.WithMappingTargets(loaded.Targets)
+	carrying := bare.WithLoaded(loaded)
 	assert.Same(t, loaded.Targets.At("/x-lib/Cat"), carrying.RefScope().DeclaredAt("/x-lib/Cat"))
 	assert.Nil(t, bare.RefScope().DeclaredAt("/x-lib/Cat"), "the context it was derived from still has none")
 
@@ -315,7 +353,7 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	require.True(t, foreign.RefScope().Foreign)
 	ask(foreign, "/x")
 	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
-	ask(c.WithMappingTargets(load.MappingTargets{}), "/x")
+	ask(c.WithLoaded(&load.Document{}), "/x")
 	assert.Equal(t, 4, reads, "a copy carrying other targets remembers nothing of c's")
 	ask(lowering.Ctx{}, "/x")
 	ask(lowering.Ctx{}, "/x")
@@ -474,10 +512,10 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"a diagnostic is stamped through the same question")
 }
 
-// TestCtx_SiblingsAreTheLoadPhasesOnACopy holds where a lowering reads the
+// TestWithLoaded_CarriesTheSiblingsOnACopy holds where a lowering reads the
 // fields beside a path item's $ref: from the load phase's model, carried on the
-// copy WithSiblings returns, while the context it was made from holds none.
-func TestCtx_SiblingsAreTheLoadPhasesOnACopy(t *testing.T) {
+// copy WithLoaded returns, while the context it was made from holds none.
+func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /a:
     $ref: '#/paths/~1b'
@@ -490,17 +528,17 @@ func TestCtx_SiblingsAreTheLoadPhasesOnACopy(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, overlay.Origin{})
-	carrying := base.WithSiblings(doc.Siblings)
+	carrying := base.WithLoaded(doc)
 	rp, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 
-	sib, ok := carrying.SiblingsOf(rp)
+	sib, ok := carrying.Siblings().Of(rp)
 	require.True(t, ok, "the copy reads the load phase's model")
 	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
-	assert.False(t, carrying.SiblingsUnread(rp), "a source use site is read")
+	assert.False(t, carrying.Siblings().Unread(rp), "a source use site is read")
 
-	_, ok = base.SiblingsOf(rp)
+	_, ok = base.Siblings().Of(rp)
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 

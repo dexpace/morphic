@@ -16,12 +16,11 @@ import (
 // messages, server indices, protocol bindings — round-trips.
 func TestChannel_JSONContract(t *testing.T) {
 	t.Parallel()
-	addr := "users/{userId}/signedup"
 	assertJSONContract(t, ir.Channel{}, `{"name":{},"docs":{},"provenance":{"source":0}}`,
 		ir.Channel{
 			ID:      "c/asyncapi/user-signup",
 			Name:    populatedNaming(),
-			Address: &addr,
+			Address: new("users/{userId}/signedup"),
 			Docs:    populatedDocs(),
 			Tags:    []string{"users", "events"},
 			Params: []ir.Parameter{

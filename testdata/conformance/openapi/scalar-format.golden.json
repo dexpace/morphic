@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.12.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -65,6 +72,27 @@
       },
       "encoding": {
         "name": "hex-color"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/whole": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/whole",
+      "name": {
+        "hint": "whole"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/whole"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "double"
       }
     },
     "t/openapi/components/schemas/Holder": {
@@ -139,11 +167,116 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/token"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/small",
+          "name": {
+            "source": "small",
+            "canonical": "small"
+          },
+          "wireName": "small",
+          "type": {
+            "target": "t/prim/int8",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/small"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/count",
+          "name": {
+            "source": "count",
+            "canonical": "count"
+          },
+          "wireName": "count",
+          "type": {
+            "target": "t/prim/uint32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/count"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/whole",
+          "name": {
+            "source": "whole",
+            "canonical": "whole"
+          },
+          "wireName": "whole",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/whole",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/whole"
+          }
         }
       ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/int8": {
+      "kind": "primitive",
+      "id": "t/prim/int8",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int8"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -156,6 +289,18 @@
         "source": -1
       },
       "prim": "string"
+    },
+    "t/prim/uint32": {
+      "kind": "primitive",
+      "id": "t/prim/uint32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint32"
     }
   },
   "servers": [
@@ -171,7 +316,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "29040493d9b854b2c89186c126d9d672f2e93e85bc9b008ace64891d2ae3f5ef"
+      "hash": "50d309e29bb799624840dcbd2c6b903f05923194ff65ab20d82dee150ea1c629"
     }
   ]
 }

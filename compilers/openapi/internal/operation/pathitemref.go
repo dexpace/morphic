@@ -1,7 +1,6 @@
 package operation
 
 import (
-	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
@@ -10,12 +9,10 @@ import (
 	"github.com/speakeasy-api/openapi/extensions"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,33 +22,20 @@ import (
 // every $ref of its chain, nearest the use site first, then the item.
 type layer struct {
 	item *soa.PathItem
-	// ptr is where the layer's constructs and operations are declared, and name
-	// how a finding names that position: the pointer itself, but for an item
-	// another document holds, which no pointer here addresses.
-	ptr  jsontext.Pointer
+	// decl is where the layer's constructs are declared, and name how a finding
+	// names that position: decl itself, but for an item another document holds,
+	// which no pointer here addresses.
+	decl jsontext.Pointer
 	name string
 	in   lowering.Ctx
 }
 
-// pathItemMount is one path item at one use site: its layers, nearest first,
-// what reading them found, the pointer its operations are mounted under, and
-// the binding facts every operation lowered there shares.
-type pathItemMount struct {
-	layers   []layer
-	found    []ir.Diagnostic
-	mountPtr jsontext.Pointer
-
-	uriTemplate   string
-	isWebhook     bool
-	withCallbacks bool
-}
-
-// newMount returns the mount of the path item rp names, written at usePtr and
-// read in use, whose chain ends at pi, declared at declPtr. The fields beside a
-// $ref of the chain that the load phase did not model are reported rather than
+// pathItemLayers returns the layers of the path item rp names at usePtr, read
+// in use, whose chain ends at pi, declared at declPtr. The fields beside a $ref
+// of the chain that the load phase did not model are reported rather than
 // dropped in silence (see unreadFields).
-func newMount(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
-) pathItemMount {
+func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
+) ([]layer, []ir.Diagnostic) {
 	source := use.InScope(use.RefScope().InSource())
 	var layers []layer
 	var diags []ir.Diagnostic
@@ -62,19 +46,19 @@ func newMount(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, us
 		if i > 0 {
 			reached, last = string(last.GetReference()), hop.Ref
 		}
-		if sib, ok := use.SiblingsOf(hop.Ref); ok {
-			ptr := sib.Pointer
+		if sib, ok := use.Siblings().Of(hop.Ref); ok {
+			decl := sib.Pointer
 			if i == 0 {
-				ptr = usePtr // an alias's own position, as for an inline item
+				decl = usePtr // an alias's own position, as for an inline item
 			}
-			layers = append(layers, layer{item: sib.Item, ptr: ptr, name: string(ptr), in: source})
+			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: source})
 			continue
 		}
-		if use.SiblingsUnread(hop.Ref) {
+		if use.Siblings().Unread(hop.Ref) {
 			diags = append(diags, unreadFields(use, usePtr, reached, hop.Foreign))
 		}
 	}
-	return pathItemMount{layers: append(layers, referent(use, rp, last, pi, declPtr, layers)), found: diags}
+	return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
 }
 
 // unreadFields reports, at the mount's use site, the fields written beside the
@@ -100,11 +84,11 @@ func unreadFields(use lowering.Ctx, usePtr jsontext.Pointer, reached string, for
 func referent(use lowering.Ctx, rp, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
 	nearer []layer,
 ) layer {
-	ref := layer{item: pi, ptr: declPtr, name: string(declPtr), in: lowering.Within[soa.PathItem](use, rp)}
-	if !slices.ContainsFunc(nearer, func(l layer) bool { return l.ptr == declPtr }) {
+	ref := layer{item: pi, decl: declPtr, name: string(declPtr), in: lowering.Within[soa.PathItem](use, rp)}
+	if !slices.ContainsFunc(nearer, func(l layer) bool { return l.decl == declPtr }) {
 		return ref
 	}
-	ref.ptr += ids.Ptr("$ref")
+	ref.decl += ids.Ptr("$ref")
 	ref.name = string(last.GetReference())
 	if !last.GetReference().HasJSONPointer() {
 		ref.name += "#"
@@ -133,9 +117,10 @@ type itemConstruct struct {
 	rel        jsontext.Pointer
 }
 
-// itemConstructs returns what l declares, in the order its findings are reported.
-// docs says whether the mount keeps an item's summary and description, which
-// only one mounting an operation does, so an unmounted pair collides with none.
+// itemConstructs returns what l declares, in the order its findings are
+// reported. docs says whether the mount keeps an item's summary and
+// description, which only one mounting an operation does, so an unmounted pair
+// collides with none.
 func itemConstructs(l layer, docs bool) []itemConstruct {
 	var out []itemConstruct
 	add := func(kind, name, label string, rel jsontext.Pointer) {
@@ -202,37 +187,38 @@ func (o owners) cedes(i int) func(key string) bool {
 	}
 }
 
-// precedence returns which layer keeps each construct, and one finding for each
-// declaration a nearer one takes over, sited at the keeper's and naming the
-// other's position, so neither is silent. One layer, every mount with nothing
-// beside a $ref, keeps all it declares.
+// precedence returns which of layers keeps each construct, and one finding for
+// each declaration a nearer layer takes over, sited at the keeper's and naming
+// the other's position, so neither is silent. docs says whether the mount keeps
+// summaries and descriptions (see itemConstructs). One layer, every mount with
+// nothing beside a $ref, keeps all it declares.
 //
 // A farther layer is looked up by key, never scanned, so the work is the
 // constructs times the layers, which the reference chain bound caps.
-func (m pathItemMount) precedence(docs bool) (owners, []ir.Diagnostic) {
-	if len(m.layers) == 1 {
+func precedence(layers []layer, docs bool) (owners, []ir.Diagnostic) {
+	if len(layers) == 1 {
 		return owners{}, nil
 	}
-	decls := make([][]itemConstruct, len(m.layers))
-	first := make([]map[string]itemConstruct, len(m.layers))
-	for i, l := range m.layers {
+	decls := make([][]itemConstruct, len(layers))
+	first := make([]map[string]itemConstruct, len(layers))
+	for i, l := range layers {
 		decls[i] = itemConstructs(l, docs)
 		first[i] = firstDeclared(decls[i])
 	}
 	owner := owners{}
 	var diags []ir.Diagnostic
-	for i, l := range m.layers {
+	for i, l := range layers {
 		for _, d := range decls[i] {
 			if _, kept := owner[d.key]; kept {
 				continue
 			}
 			owner[d.key] = i
-			for j := i + 1; j < len(m.layers); j++ {
+			for j := i + 1; j < len(layers); j++ {
 				if other, ok := first[j][d.key]; ok {
-					diags = append(diags, l.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, l.ptr+d.rel,
+					diags = append(diags, l.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, l.decl+d.rel,
 						"the field beside the path item's $ref declares %s here, which the path item it references "+
 							"also declares at %s; the declaration here is the one kept at this mount",
-						d.label, m.layers[j].name+string(other.rel)))
+						d.label, layers[j].name+string(other.rel)))
 				}
 			}
 		}
@@ -252,17 +238,22 @@ func firstDeclared(decls []itemConstruct) map[string]itemConstruct {
 	return first
 }
 
-// itemParams is the mount's path-item parameter list: each layer's entries,
+// itemParams is a mount's path-item parameter list: each layer's entries,
 // nearest first, less any (in, name) a nearer layer declares, each paired with
 // the pointer of its own declaration and the scope its layer is read in, since
 // one operation lowers every layer's.
-func (m pathItemMount) itemParams() []sourcedParam {
+func itemParams(layers []layer) []sourcedParam {
 	var params []sourcedParam
 	shadowed := map[string]bool{}
-	for _, l := range m.layers {
-		n := len(params)
-		params = appendSourced(params, l.item.GetParameters(), l.ptr, shadowed)
-		scoped(params[n:], l.in.RefScope())
+	for _, l := range layers {
+		scope := l.in.RefScope()
+		for i, rp := range l.item.GetParameters() {
+			if key, ok := paramKey(rp); ok && shadowed[key] {
+				continue
+			}
+			params = append(params, sourcedParam{ref: rp, pointer: l.decl + ids.Ptr("parameters", strconv.Itoa(i)),
+				in: &scope})
+		}
 		for key := range shadowedKeys(l.item.GetParameters()) {
 			shadowed[key] = true
 		}
@@ -270,90 +261,14 @@ func (m pathItemMount) itemParams() []sourcedParam {
 	return params
 }
 
-// scoped marks each of params, in place, as read in scope.
-func scoped(params []sourcedParam, scope resolve.Scope) {
-	for i := range params {
-		params[i].in = &scope
+// applyLayers keeps on into what every layer declares and keeps at the mount,
+// farthest first, as applyPathItem does for one item.
+func applyLayers(layers []layer, owner owners, into carrier) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for k, l := range slices.Backward(layers) {
+		diags = append(diags, applyPathItem(l.in, into, l.item, l.decl, owner.cedes(k))...)
 	}
-}
-
-// grouping is the group an operation lowered at a mount belongs to, and the
-// provenance its grouping choice stamps. Each route names its own: a path's
-// group is the operation's, a webhook's is synthesized, and a callback's
-// operations join their parent's group, so it names only the mark.
-type grouping struct {
-	id   ir.GroupID
-	name ir.Naming
-	docs ir.Docs
-	mark string
-}
-
-// mountedOp is one operation lowered at a mount, with the callback operations
-// registered beside it and the group all of them belong to.
-type mountedOp struct {
-	grouping
-	ops []ir.Operation
-}
-
-// lower lowers every operation the mount's layers declare, the referent's first,
-// each layer's but for a method a nearer layer declares too, and carries every
-// layer's item-level constructs onto each. group names an operation's group and
-// must not be nil. A mount lowering none keeps those constructs in orphan.
-//
-// It is the one place a path item's operations are lowered, so the three routes
-// and every layer of a $ref reach it alike.
-func (m pathItemMount) lower(ctx context.Context, ts *compile.Types, anchors *schema.AnchorIndex,
-	claims *operationIDClaims, group func(*soa.Operation) grouping, orphan *ir.Unmodeled,
-) ([]mountedOp, []ir.Diagnostic) {
-	mounted := slices.ContainsFunc(m.layers, func(l layer) bool { return len(pathOperations(l.item)) > 0 })
-	owner, collisions := m.precedence(mounted)
-	diags := append(slices.Clip(m.found), collisions...)
-	params := m.itemParams()
-	var mounts []mountedOp
-	for i := len(m.layers) - 1; i >= 0; i-- {
-		for _, po := range pathOperations(m.layers[i].item) {
-			if owner.cedes(i)(constructOf(constructOperation, string(po.seg))) {
-				continue
-			}
-			g := group(po.src)
-			op, extra, opDiags := m.mountOperation(ctx, ts, anchors, claims, owner, i, po, params, g.mark)
-			diags = append(diags, opDiags...)
-			mounts = append(mounts, mountedOp{grouping: g, ops: append([]ir.Operation{op}, extra...)})
-		}
-	}
-	if mounted {
-		return mounts, diags
-	}
-	for i, l := range m.layers {
-		diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(l.in, orphan, m.mountPtr), l.item,
-			m.mountPtr, l.ptr, owner.cedes(i))...)
-	}
-	return nil, diags
-}
-
-// mountOperation lowers one operation of the mount's i-th layer, mounted under
-// the mount and declared under its layer, and applies to it the item-level
-// constructs each layer keeps.
-func (m pathItemMount) mountOperation(ctx context.Context, ts *compile.Types, anchors *schema.AnchorIndex,
-	claims *operationIDClaims, owner owners, i int, po pathOperation, params []sourcedParam, inferred string,
-) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
-	l := m.layers[i]
-	ptrs := opPointers{mount: m.mountPtr + po.seg, decl: l.ptr + po.seg}
-	opCtx := opContext{
-		method:        po.method,
-		uriTemplate:   m.uriTemplate,
-		isWebhook:     m.isWebhook,
-		withCallbacks: m.withCallbacks,
-		inferred:      inferred,
-		ptrs:          ptrs,
-		params:        mergeRefParams(params, po.src.GetParameters(), ptrs.decl),
-	}
-	op, extra, diags := lowerOperation(ctx, l.in, ts, anchors, claims, po.src, opCtx)
-	for k := len(m.layers) - 1; k >= 0; k-- {
-		diags = append(diags, applyPathItem(m.layers[k].in, onOperation(&op), m.layers[k].item, m.layers[k].ptr,
-			owner.cedes(k))...)
-	}
-	return op, extra, diags
+	return diags
 }
 
 // keptExtensions returns the x-* entries of ext that cedes does not give up:
@@ -377,34 +292,4 @@ func keptExtensions(ext *extensions.Extensions, cedes func(string) bool) *extens
 // keptKeys returns the undeclared keys that cedes does not give up.
 func keptKeys(keys []string, cedes func(string) bool) []string {
 	return slices.DeleteFunc(keys, func(key string) bool { return cedes(constructOf(constructKey, key)) })
-}
-
-// webhookGrouping puts every webhook operation in the one group the compiler
-// synthesizes for them, and stamps no grouping provenance: a webhook is not
-// grouped by anything the document declares. The name is a hint, not a source
-// name, since no document declares the group (GitHub #184).
-func webhookGrouping(*soa.Operation) grouping {
-	return grouping{id: ids.WebhookGroup(), name: compile.NamingHint("webhooks")}
-}
-
-// mergeRefParams merges a mount's path-item parameters with an operation's own
-// using use-site precedence: an operation parameter with the same (name, in)
-// overrides the path-item one, and unshadowed path-item parameters follow in
-// source order. Each entry keeps the pointer of its own declaration site rather
-// than a position recomputed from the merged slice (issue #36), and a $ref'd
-// path item's base is its own component pointer, not the path it is mounted at
-// (issue #107).
-func mergeRefParams(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
-	merged := appendSourced(nil, opParams, opDeclPtr, nil)
-	if len(pathParams) == 0 {
-		return merged
-	}
-	shadowed := shadowedKeys(opParams)
-	for _, p := range pathParams {
-		if key, ok := paramKey(p.ref); ok && shadowed[key] {
-			continue
-		}
-		merged = append(merged, p)
-	}
-	return merged
 }

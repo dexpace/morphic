@@ -121,6 +121,16 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
+	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
+	// already holds, at the repeat's own position, whether the set lowers to an
+	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
+	// declaration; in an Enum each repeat's member ID ends in its occurrence
+	// number. Entries compare as JSON Schema compares instances: a number by its
+	// value, an object regardless of member order.
+	//
+	// Warning: the document is well-formed, and JSON Schema's own uniqueness
+	// requirement on enum is a SHOULD.
+	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
 	// diagnostic for the defect — see boundLiteralDiag).
@@ -142,6 +152,16 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateParameter reports a parameter list entry repeating the name and
+	// location of an earlier entry in the same list, its $refs resolved, which
+	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
+	// report, which saw only inline entries: every list the source writes is
+	// checked whether or not it lowers (load), and a list another document
+	// writes where it lowers (the parameter lowering). A lowered list keeps
+	// every occurrence, each repeat's ID ending in its occurrence number.
+	//
+	// Error, as the parser's report was.
+	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's
@@ -344,6 +364,14 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
+	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
+	// lowers as it would in 3.1, where `items` is optional: a List's element is
+	// the top type. A warning rather than an error: nothing the document
+	// declared is dropped, and harness.Check stops at the first error
+	// diagnostic. A code of its own rather than DegradedConstruct, because
+	// nothing is kept in a weaker shape.
+	MissingArrayItems = "openapi/missing-array-items"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

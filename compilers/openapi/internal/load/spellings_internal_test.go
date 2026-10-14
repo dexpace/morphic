@@ -2,7 +2,9 @@ package load
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -59,11 +61,7 @@ func holdBackRefs(t *testing.T, objects int, refs []backRef) (*soa.OpenAPI, []st
 
 	pass.reader.holdSpellings(tree, filepath.Join(dir, "sub", "doc.yaml"))
 
-	used := make([]string, 0, len(spellings))
-	for _, s := range spellings {
-		used = append(used, s)
-	}
-	return doc, used
+	return doc, slices.Collect(maps.Values(spellings))
 }
 
 // heldEntries counts the pairs of a spelling and a response the source's

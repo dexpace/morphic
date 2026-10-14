@@ -245,7 +245,7 @@ func (r *reach) intern(raw string) int {
 // applied once and each node marked once, so the worklist is bounded by the
 // tree.
 func (r *reach) drift(defsRefs []*yaml.Node) {
-	work := append([]*yaml.Node(nil), defsRefs...)
+	work := slices.Clone(defsRefs)
 	seen, done := map[refClass]bool{}, map[*posSet]bool{}
 	for len(work) > 0 && r.budget.spend(1) {
 		n := work[len(work)-1]
@@ -348,7 +348,7 @@ func (r *reach) parentScopes(m *yaml.Node) []*yaml.Node {
 }
 
 func (r *reach) markSearched(defsRefs []*yaml.Node) {
-	stack := append([]*yaml.Node(nil), defsRefs...)
+	stack := slices.Clone(defsRefs)
 	for len(stack) > 0 && r.budget.spend(1) {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]

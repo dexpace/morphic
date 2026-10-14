@@ -34,6 +34,10 @@ type Types struct {
 	// byReference holds the coordinates whose node a reference built and the
 	// declaration that owns them has not rebuilt yet. See InternDeclared.
 	byReference map[string]bool
+	// pending holds the settlements Defer queued for Settle, and settled
+	// records that Settle has run. See Settlement.
+	pending []Settlement
+	settled bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it

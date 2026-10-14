@@ -2,6 +2,7 @@ package irverify_test // external test package — importing across layers is le
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,12 +85,12 @@ func TestVerify_Corpus(t *testing.T) {
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
-// reaches: path-item servers, an error response's own x-* extension, and an
-// `items` tail after `prefixItems`. The parameter's xml hints are reached by
-// the corpus too; they are here so the spec covers every field unmodeledKeys
-// reads (the operation, its parameters, its errors and the type registry), so a
-// collector that stops reading one fails the precondition below rather than
-// narrowing what is verified.
+// reaches: path-item servers and an error response's own x-* extension. The
+// parameter's xml hints and the `items` an object schema cannot hold are
+// reached by the corpus too; they are here so the spec covers every field
+// unmodeledKeys reads (the operation, its parameters, its errors and the type
+// registry), so a collector that stops reading one fails the precondition below
+// rather than narrowing what is verified.
 //
 // The 404's headers and two media types write no Unmodeled entries, as both
 // lower structurally onto ir.ErrorCase (GitHub #422).
@@ -111,8 +112,8 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                prefixItems: [{type: string}]
+                type: object
+                properties: {h: {type: string}}
                 items: {type: integer}
         "404":
           description: missing
@@ -129,9 +130,7 @@ paths:
 func unmodeledKeys(doc *ir.Document) []string {
 	var keys []string
 	collect := func(p ir.Unmodeled) {
-		for k := range p {
-			keys = append(keys, k)
-		}
+		keys = slices.AppendSeq(keys, maps.Keys(p))
 	}
 	for _, svc := range doc.Services {
 		for _, g := range svc.Groups {
@@ -167,7 +166,7 @@ func TestVerify_UnmodeledSitesOutsideTheCorpus(t *testing.T) {
 	doc := compile(t, "unmodeled-sites.yaml", []byte(uncorpusedUnmodeled))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
-		"openapi:items-after-prefix", "openapi:servers", "openapi:x-mark", "openapi:xml",
+		"openapi:items", "openapi:servers", "openapi:x-mark", "openapi:xml",
 	}, unmodeledKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))
