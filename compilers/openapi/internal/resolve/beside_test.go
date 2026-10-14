@@ -69,6 +69,38 @@ func TestObjectAt_RefusesAHopBesideAPathItemRef(t *testing.T) {
 	assert.Equal(t, use, at)
 }
 
+// TestObjectAt_RecordsNoHopOfARefusedChain pins what a refused chain leaves in
+// Reached: nothing, so the component X it passes through, which no lowering
+// reads, is still kept verbatim. Recording the hops before the refusal left X
+// in no form at all. Accepted, the same chain records X.
+func TestObjectAt_RecordsNoHopOfARefusedChain(t *testing.T) {
+	t.Parallel()
+	const spec = besideSpec + `  /d:
+    post:
+      requestBody: {$ref: '#/components/requestBodies/X'}
+      responses: {"200": {description: ok}}
+components:
+  requestBodies:
+    X: {$ref: '#/paths/~1a/get/requestBody'}
+`
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	d, ok := doc.Doc.GetPaths().Get("/d")
+	require.True(t, ok)
+	body := d.GetObject().Post().GetRequestBody()
+	const x = jsontext.Pointer("/components/requestBodies/X")
+
+	refused := resolve.Scope{SelfPath: "spec.yaml", Doc: doc.Doc, Beside: doc.Siblings.Beside, Reached: resolve.NewReached()}
+	got, _ := resolve.ObjectAt[soa.RequestBody](refused, body, "/paths/~1d/post/requestBody")
+	require.Nil(t, got)
+	assert.False(t, refused.Reached.Has(x), "a refused chain records no hop")
+
+	accepted := resolve.Scope{SelfPath: "spec.yaml", Doc: doc.Doc, Reached: resolve.NewReached()}
+	got, _ = resolve.ObjectAt[soa.RequestBody](accepted, body, "/paths/~1d/post/requestBody")
+	require.NotNil(t, got)
+	assert.True(t, accepted.Reached.Has(x), "an accepted one records each")
+}
+
 // TestScope_PointerReadersRefuseAPointerBesideAPathItemRef pins the two other
 // routes, a schema's $ref and a mapping value, each refusing the same pointer
 // and passing one nothing writes beside the $ref.

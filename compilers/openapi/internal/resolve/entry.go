@@ -110,8 +110,8 @@ const maxRefChain = 32
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
 // returned on its own, since a one-key $ref object has no children to hoist,
-// but scope.Reached records every hop in the source. A chain with a hop
-// scope.Beside refuses resolves to nothing.
+// but scope.Reached records every hop in the source. A hop scope.Beside refuses
+// leaves the chain unresolved and unrecorded.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -124,6 +124,11 @@ func ObjectAt[T, S any, R interface {
 	// at a declaration written here, which is what keeps a chain that exits the
 	// document from returning the last alias it passed through.
 	pointer, cand := usePtr, usePtr
+	// hops are noted in scope.Reached only once no hop is refused: a refused
+	// chain lowers nothing, so a component only it passes through stays
+	// unreached, for the compiler to keep verbatim.
+	var hops [maxRefChain]jsontext.Pointer
+	n := 0
 	for range maxRefChain {
 		// GetReferenceResolutionInfo is nil once the chain reaches a
 		// non-reference entry — the terminator, and why an inline entry
@@ -140,7 +145,7 @@ func ObjectAt[T, S any, R interface {
 		if scope.beside(target) {
 			return nil, usePtr // the resolver read past a field written there; load reported it
 		}
-		scope.Reached.note(target)
+		hops[n], n = target, n+1
 		// The resolver reads the next hop against the document this one
 		// resolved against, the source, even where this one was written in
 		// another document's content or its pointer passed a $ref into one.
@@ -149,6 +154,9 @@ func ObjectAt[T, S any, R interface {
 		// at every hop this loop takes; a nil one would still be safe, since
 		// the getters above are nil-receiver tolerant and end the walk.
 		ref = R(info.Object)
+	}
+	for _, hop := range hops[:n] {
+		scope.Reached.note(hop)
 	}
 	return obj, pointer
 }

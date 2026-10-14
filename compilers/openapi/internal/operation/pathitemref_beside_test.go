@@ -67,7 +67,8 @@ const besideRefChain = `  /c:
 // resolver read #/paths/~1a/get/requestBody as /b's, and the mount declares
 // /a's own at that pointer, so whichever lowered first gave both its type: /c's
 // body took /a's schema when /a came first. Refused, neither order lowers one,
-// and both report it where it is written.
+// both report it where it is written, and both keep X, which nothing lowers,
+// verbatim.
 func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const components = "components:\n  requestBodies:\n    X: {$ref: '#/paths/~1a/get/requestBody'}\n"
@@ -83,6 +84,8 @@ func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing
 		body, ok := doc.Types[getA.Request.Contents[0].Type.Target].(*ir.Model)
 		require.True(t, ok, name)
 		assert.Equal(t, "near", body.Properties[0].WireName, "%s: /a keeps its own body", name)
+		assert.Equal(t, ir.ReasonNoIRHome, doc.Unmodeled["openapi:components/requestBodies/X"].Reason,
+			"%s: the component only the refused chain passes through is kept", name)
 	}
 	assert.Empty(t, cmp.Diff(first.Types, second.Types), "the registry does not depend on the order")
 	for name, diags := range map[string][]ir.Diagnostic{"/a first": firstDiags, "/c first": secondDiags} {
