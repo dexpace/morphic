@@ -1204,6 +1204,23 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	token, ok := propByWire(h, "token")
 	require.True(t, ok)
 	assert.True(t, token.Secret)
+
+	// An integer width selects its primitive whichever numeric type carries it.
+	for wire, want := range map[string]ir.PrimKind{"small": ir.PrimInt8, "count": ir.PrimUint32} {
+		p, ok := propByWire(h, wire)
+		require.True(t, ok)
+		assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "%s selects the shared primitive", wire)
+	}
+	// A float format on an integer admits only integral values, which no
+	// primitive narrower than integer holds, so it hoists over integer.
+	whole, ok := propByWire(h, "whole")
+	require.True(t, ok)
+	ws, ok := doc.Types[whole.Type.Target].(*ir.Scalar)
+	require.True(t, ok, "a pairing no primitive holds hoists a Scalar")
+	require.NotNil(t, ws.Base)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), ws.Base.Target)
+	require.NotNil(t, ws.Encoding)
+	assert.Equal(t, "double", ws.Encoding.Name)
 }
 
 // assertXMLHints covers the XML wire shape, whose hints attach at two carriers
