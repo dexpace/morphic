@@ -63,18 +63,21 @@ func compileWith(t *testing.T, opts openapi.Options) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
-// TestCompile_OverlayMakingServerNamesCollideCreditsTheOverlay pins the
+// TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter pins the
 // duplicate-server-name rule against the tree the overlay produced rather than
-// the bytes on disk: each base document declares no repeat, so only the patched
-// document has one to report. The report names the overlay as its source, at
-// the entry the overlay wrote, whether that entry comes after the base's
-// claimant (an appended item) or before it (an earlier entry renamed); when the
-// overlay wrote both, at the later one, as in a single document.
-func TestCompile_OverlayMakingServerNamesCollideCreditsTheOverlay(t *testing.T) {
+// the bytes on disk. Each repeat is reported at itself, naming the first
+// holder, and credited to the document that wrote that entry, as any finding at
+// a pointer is: the overlay for an entry it appended, the base for the ones it
+// wrote, though an overlay renaming an earlier entry joins them.
+func TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter(t *testing.T) {
 	t.Parallel()
+	type report struct {
+		at, first string
+		source    int
+	}
 	tests := []struct {
 		name, base, patch string
-		at, other         string   // the reported name key and the one its message names
+		want              []report
 		names             []string // each lowered server's declared name
 	}{
 		{
@@ -94,17 +97,19 @@ actions:
       - url: https://prod-mirror.example.com
         name: prod
 `,
-			at: "/servers/1/name", other: "/servers/0/name",
+			want:  []report{{at: "/servers/1/name", first: "/servers/0/name", source: 1}},
 			names: []string{"prod", "prod"},
 		},
 		{
-			name: "the overlay renames an entry ahead of the base's claimant",
+			name: "the overlay renames an entry ahead of a repeat the base writes",
 			base: `openapi: 3.2.0
 info: {title: Pets, version: "1"}
 servers:
   - url: https://dev.example.com
     name: dev
-  - url: https://prod.example.com
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
     name: prod
 paths: {}
 `,
@@ -114,8 +119,11 @@ actions:
   - target: $.servers[0]
     update: {name: prod}
 `,
-			at: "/servers/0/name", other: "/servers/1/name",
-			names: []string{"prod", "prod"},
+			want: []report{
+				{at: "/servers/1/name", first: "/servers/0/name", source: 0},
+				{at: "/servers/2/name", first: "/servers/0/name", source: 0},
+			},
+			names: []string{"prod", "prod", "prod"},
 		},
 		{
 			name: "the overlay appends two entries sharing a name",
@@ -134,7 +142,7 @@ actions:
       - {url: https://a.example.com, name: prod}
       - {url: https://b.example.com, name: prod}
 `,
-			at: "/servers/2/name", other: "/servers/1/name",
+			want:  []report{{at: "/servers/2/name", first: "/servers/1/name", source: 1}},
 			names: []string{"dev", "prod", "prod"},
 		},
 	}
@@ -149,12 +157,17 @@ actions:
 			require.NoError(t, err)
 			require.NotNil(t, doc, "compile refused: %+v", diags)
 
-			found := diagnosticsByCodeAndPointer(diags)[diagKey{diag.DuplicateServerName, jsontext.Pointer(tc.at)}]
-			require.Len(t, found, 1, "one report, at the entry the overlay wrote: %+v", diags)
-			assert.Equal(t, ir.SeverityWarning, found[0].Severity)
-			assert.Equal(t, 1, found[0].Provenance.Source,
-				"the overlay made the names collide, so it is the source the report is against")
-			assert.Contains(t, found[0].Message, tc.other, "and the message names the other claimant")
+			var got []report
+			for _, d := range diags {
+				if d.Code != diag.DuplicateServerName {
+					continue
+				}
+				assert.Equal(t, ir.SeverityWarning, d.Severity)
+				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
+				first, _, _ = strings.Cut(first, ";")
+				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.Source})
+			}
+			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
 
 			names := make([]string, 0, len(doc.Servers))
 			for _, s := range doc.Servers {

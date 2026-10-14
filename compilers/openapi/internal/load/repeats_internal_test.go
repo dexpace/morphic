@@ -2,6 +2,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -176,4 +177,249 @@ func TestListRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, diag.Validation, diags[0].Code)
 	assert.Contains(t, diags[0].Message, "repeat check panicked: walk fault")
+}
+
+// serverRepeatsAt loads src and returns each openapi/duplicate-server-name it
+// draws, keyed by the pointer it is reported at, with the message as the value.
+func serverRepeatsAt(t *testing.T, src string) map[jsontext.Pointer]string {
+	t.Helper()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{})
+	require.NoError(t, err)
+	got := map[jsontext.Pointer]string{}
+	for _, d := range diags {
+		if d.Code == diag.DuplicateServerName {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			got[d.Provenance.Pointer] = d.Message
+		}
+	}
+	return got
+}
+
+// nameRepeat is the message a repeat of name reports, naming the first holder
+// at first.
+func nameRepeat(name, first string) string {
+	return fmt.Sprintf("server name %q repeats the name at %s; both servers are kept, "+
+		"and a consumer keying servers by name cannot tell them apart", name, first)
+}
+
+// TestServerRepeats_ReportsEveryListTheSourceWrites covers each way a servers
+// list repeats a name and each place one is written, lowered or not: the
+// document's, a path item's and an operation's, a component path item nothing
+// mounts, a webhook, a component callback, and the fields beside a path item
+// $ref. Each repeat is reported once, at its own name, naming the first entry
+// holding it, at source indices. A 3.1 document is checked as well: its parser
+// reads the name, and the lowering keeps it.
+func TestServerRepeats_ReportsEveryListTheSourceWrites(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n"
+	const operation = `{responses: {"200": {description: ok}}}`
+	tests := []struct {
+		name string
+		src  string
+		want map[jsontext.Pointer]string
+	}{
+		{
+			name: "two entries of the document's list",
+			src: head + `servers:
+  - {url: https://a.example.com, name: prod}
+  - {url: https://b.example.com, name: prod}
+paths: {}
+`,
+			want: map[jsontext.Pointer]string{"/servers/1/name": nameRepeat("prod", "/servers/0/name")},
+		},
+		{
+			name: "three entries: one report per repeat, each naming the first",
+			src: head + `servers:
+  - {url: https://a.example.com, name: prod}
+  - {url: https://b.example.com, name: prod}
+  - {url: https://c.example.com, name: prod}
+paths: {}
+`,
+			want: map[jsontext.Pointer]string{
+				"/servers/1/name": nameRepeat("prod", "/servers/0/name"),
+				"/servers/2/name": nameRepeat("prod", "/servers/0/name"),
+			},
+		},
+		{
+			name: "an alias repeating an entry, and a merge key carrying a name into two",
+			src: head + `x-base: &b {name: edge}
+servers:
+  - &prod {url: https://a.example.com, name: prod}
+  - *prod
+  - {<<: *b, url: https://b.example.com}
+  - {<<: *b, url: https://c.example.com}
+paths: {}
+`,
+			want: map[jsontext.Pointer]string{
+				"/servers/1/name": nameRepeat("prod", "/servers/0/name"),
+				"/servers/3/name": nameRepeat("edge", "/servers/2/name"),
+			},
+		},
+		{
+			name: "an unnamed entry ahead, which keeps the source indices",
+			src: head + `servers:
+  - {url: https://a.example.com, name: ""}
+  - {url: https://b.example.com, name: prod}
+  - {url: https://c.example.com}
+  - {url: https://d.example.com, name: prod}
+paths: {}
+`,
+			want: map[jsontext.Pointer]string{"/servers/3/name": nameRepeat("prod", "/servers/1/name")},
+		},
+		{
+			name: "a path item's list and its operation's",
+			src: head + `paths:
+  /x:
+    servers:
+      - {url: https://a.example.com, name: eu}
+      - {url: https://b.example.com, name: eu}
+    get:
+      servers:
+        - {url: https://c.example.com, name: us}
+        - {url: https://d.example.com, name: us}
+      responses: {"200": {description: ok}}
+`,
+			want: map[jsontext.Pointer]string{
+				"/paths/~1x/servers/1/name":     nameRepeat("eu", "/paths/~1x/servers/0/name"),
+				"/paths/~1x/get/servers/1/name": nameRepeat("us", "/paths/~1x/get/servers/0/name"),
+			},
+		},
+		{
+			name: "a component path item nothing mounts, a webhook and a component callback",
+			src: head + `paths: {}
+webhooks:
+  hook:
+    post:
+      servers:
+        - {url: https://a.example.com, name: w}
+        - {url: https://b.example.com, name: w}
+      responses: {"200": {description: ok}}
+components:
+  pathItems:
+    Unused:
+      servers:
+        - {url: https://c.example.com, name: p}
+        - {url: https://d.example.com, name: p}
+  callbacks:
+    CB:
+      "{$request.query.q}":
+        servers:
+          - {url: https://e.example.com, name: c}
+          - {url: https://f.example.com, name: c}
+`,
+			want: map[jsontext.Pointer]string{
+				"/webhooks/hook/post/servers/1/name":                         nameRepeat("w", "/webhooks/hook/post/servers/0/name"),
+				"/components/pathItems/Unused/servers/1/name":                nameRepeat("p", "/components/pathItems/Unused/servers/0/name"),
+				"/components/callbacks/CB/{$request.query.q}/servers/1/name": nameRepeat("c", "/components/callbacks/CB/{$request.query.q}/servers/0/name"),
+			},
+		},
+		{
+			name: "a path item two paths mount, reported where it is written",
+			src: head + `paths:
+  /a: {$ref: "#/components/pathItems/Shared"}
+  /b: {$ref: "#/components/pathItems/Shared"}
+components:
+  pathItems:
+    Shared:
+      servers:
+        - {url: https://a.example.com, name: s}
+        - {url: https://b.example.com, name: s}
+      get: ` + operation + `
+`,
+			want: map[jsontext.Pointer]string{
+				"/components/pathItems/Shared/servers/1/name": nameRepeat("s", "/components/pathItems/Shared/servers/0/name"),
+			},
+		},
+		{
+			name: "the fields beside a path item $ref, which an alias mounts again",
+			src: head + `paths:
+  /a: &use
+    $ref: "#/components/pathItems/P"
+    servers:
+      - {url: https://a.example.com, name: b}
+      - {url: https://b.example.com, name: b}
+  /b: *use
+components:
+  pathItems:
+    P:
+      get: ` + operation + `
+`,
+			want: map[jsontext.Pointer]string{"/paths/~1a/servers/1/name": nameRepeat("b", "/paths/~1a/servers/0/name")},
+		},
+		{
+			name: "a 3.1 document",
+			src: `openapi: 3.1.0
+info: {title: T, version: "1"}
+servers:
+  - {url: https://a.example.com, name: prod}
+  - {url: https://b.example.com, name: prod}
+paths: {}
+`,
+			want: map[jsontext.Pointer]string{"/servers/1/name": nameRepeat("prod", "/servers/0/name")},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, serverRepeatsAt(t, tc.src))
+		})
+	}
+}
+
+// TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly is the boundary: an
+// entry with no name or an empty one holds none, and a name may recur across
+// lists, since a path item's or an operation's servers replace the ones above
+// them rather than join them. Names equal only once canonicalized are the
+// openapi package's TestDuplicateServerName_CanonicalCollisionsAreNotReported,
+// which proves each collision is real.
+func TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n"
+	tests := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "distinct names",
+			src: head + `servers:
+  - {url: https://a.example.com, name: prod}
+  - {url: https://b.example.com, name: staging}
+paths: {}
+`,
+		},
+		{
+			name: "entries with no name or an empty one",
+			src: head + `servers:
+  - {url: https://api.example.com/v1}
+  - {url: https://api.example.com/v-1}
+  - {url: https://a.example.com, name: ""}
+  - {url: https://b.example.com, name: ""}
+paths: {}
+`,
+		},
+		{
+			name: "one name in the lists of the document, a path item and two operations",
+			src: head + `servers:
+  - {url: https://a.example.com, name: prod}
+paths:
+  /x:
+    servers:
+      - {url: https://b.example.com, name: prod}
+    get:
+      servers:
+        - {url: https://c.example.com, name: prod}
+      responses: {"200": {description: ok}}
+    put:
+      servers:
+        - {url: https://d.example.com, name: prod}
+      responses: {"200": {description: ok}}
+`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, serverRepeatsAt(t, tc.src))
+		})
+	}
 }

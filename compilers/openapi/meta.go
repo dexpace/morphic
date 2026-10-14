@@ -300,61 +300,24 @@ func infoDocs(c lowering.Ctx, info *soa.Info) ir.Docs {
 // template, description, and templated variables (ir-design §10). It returns nil
 // rather than an empty slice when every entry was skipped, so a document
 // declaring no usable server leaves the field unset.
-//
-// A declared name one entry repeats from another is reported and nothing else
-// changes: both servers still lower, each with the name the document wrote
-// (serverNameClaims).
 func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	// GetServers never returns an empty slice — it injects a default "/" server
 	// when none are declared — so the loop always runs at least once.
 	servers := c.Doc.GetServers()
 	out := make([]ir.Server, 0, len(servers))
-	claims := make(serverNameClaims, len(servers))
 	var diags []ir.Diagnostic
 	for i, s := range servers {
 		if s == nil {
 			continue
 		}
-		sptr := ids.Ptr("servers", strconv.Itoa(i))
-		one, serverDiags := lowerServer(c, s, sptr)
+		one, serverDiags := lowerServer(c, s, ids.Ptr("servers", strconv.Itoa(i)))
 		diags = append(diags, serverDiags...)
-		diags = append(diags, claims.claim(c, s.GetName(), sptr)...)
 		out = append(out, one)
 	}
 	if len(out) == 0 {
 		return nil, diags
 	}
 	return out, diags
-}
-
-// serverNameClaims maps each declared server name to the name key of the first
-// server that declared it. It is consulted in source order and never iterated,
-// so map order cannot reach a diagnostic.
-type serverNameClaims map[string]jsontext.Pointer
-
-// claim records name for the server at sptr, or reports it when an earlier
-// server already declared it, compared as exact strings. An empty name claims
-// nothing, and a URL hint is never a claim: neither is a name the document wrote.
-//
-// The report sits at the repeat's name key, unless only the earlier claim came
-// from the overlay: the overlay then made the two collide, so the report names
-// it as the source a reader has to open.
-func (claims serverNameClaims) claim(c lowering.Ctx, name string, sptr jsontext.Pointer) []ir.Diagnostic {
-	if name == "" {
-		return nil
-	}
-	at := sptr + ids.Ptr("name")
-	first, seen := claims[name]
-	if !seen {
-		claims[name] = at
-		return nil
-	}
-	if c.ProvenanceAt(at).Source == c.SrcIndex && c.ProvenanceAt(first).Source != c.SrcIndex {
-		at, first = first, at
-	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DuplicateServerName, at,
-		"server name %q is also declared by the server at %s; both are kept, and a consumer "+
-			"keying servers by name cannot tell them apart", name, first)}
 }
 
 // lowerServer lowers one server, named by serverName, keeping its x-* on the
@@ -373,16 +336,15 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
-// serverName builds a server's neutral naming: the declared name (defined by
-// OpenAPI 3.2, but read on every version, as the parser does), else a hint
-// derived from the whole URL template, as operationName does for an operation
-// with no operationId (GitHub #258). Not the position, which shifts on
-// reordering, nor part of the URL: one host serving /v1 and /v2 is two servers.
+// serverName builds a server's neutral naming: the declared name (only OpenAPI
+// 3.2 has one), else a hint derived from the URL template, as operationName does
+// for an operation with no operationId (GitHub #258). It names by the URL, not
+// the position in servers[], which shifts when the list is reordered, and by the
+// whole template, not a part: choosing a part is a policy and drops what the
+// rest distinguishes, since one host serving /v1 and /v2 is two servers.
 //
 // Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
-// sequence), as can declared names differing only once canonicalized (prod,
-// Prod); an emitter uniquifies. Only exact repeats are reported
-// (serverNameClaims).
+// sequence), as two enum members can; an emitter uniquifies.
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)

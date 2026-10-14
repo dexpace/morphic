@@ -14,7 +14,7 @@ import (
 
 // listRepeats reports each entry of a list written in the source that repeats
 // what an earlier entry of the same list is identified by: a parameter's name
-// and location (paramRepeats).
+// and location (paramRepeats), or a server's name (serverRepeats).
 //
 // items is walkSource's walk, which visits each list once where it is written,
 // lowered or not, and never through a $ref, so a list only a $ref reaches is
@@ -26,14 +26,21 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items i
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
 		switch m := model.(type) {
+		case *soa.OpenAPI:
+			// Placed from "", not site: the library renders the root's location
+			// as "/", the pointer to a key named "". Read from the field, since
+			// GetServers stands in a server the source never wrote.
+			diags = append(diags, serverRepeats(at, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
 			if item, ok := writtenItem(m, sibs, site); ok {
 				diags = append(diags, paramRepeats(at, item.GetParameters(), site)...)
+				diags = append(diags, serverRepeats(at, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
 			diags = append(diags, paramRepeats(at, m.GetParameters(), site)...)
+			diags = append(diags, serverRepeats(at, m.GetServers(), site)...)
 		default:
-			// No other model holds a parameter list.
+			// No other model holds a parameter or a servers list.
 		}
 		return nil
 	})
@@ -87,6 +94,36 @@ func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referen
 		}
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, at(entry),
 			"parameter %q in %q repeats the entry at %s", slot.name, slot.in, first))
+	}
+	return diags
+}
+
+// serverRepeats reports each entry of the servers list held by the object at
+// owner whose name an earlier entry already has, at the repeat's name, naming
+// the first holder's. Names compare as written, and an entry without one
+// repeats nothing: a URL hint is the lowering's, not a name the source wrote.
+// A list shorter than two entries has nothing to compare, so most lists cost
+// no map.
+func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
+	if len(servers) < 2 {
+		return nil
+	}
+	firstAt := make(map[string]jsontext.Pointer, len(servers))
+	var diags []ir.Diagnostic
+	for i, s := range servers {
+		name := s.GetName()
+		if name == "" {
+			continue
+		}
+		key := owner.AppendToken("servers").AppendToken(strconv.Itoa(i)).AppendToken("name")
+		first, repeated := firstAt[name]
+		if !repeated {
+			firstAt[name] = key
+			continue
+		}
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, at(key),
+			"server name %q repeats the name at %s; both servers are kept, and a consumer "+
+				"keying servers by name cannot tell them apart", name, first))
 	}
 	return diags
 }

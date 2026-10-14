@@ -308,9 +308,9 @@ func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, loc
 }
 
 // sourceChecks runs the rules the compiler checks over the resolved source:
-// the repeats of a parameter list, and the references refused for reading past
-// a path item $ref into the fields beside it, less any resolved already
-// reports (see besideRefs).
+// the repeats of a parameter or servers list, and the references refused for
+// reading past a path item $ref into the fields beside it, less any resolved
+// already reports (see besideRefs).
 func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
