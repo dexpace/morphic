@@ -92,76 +92,37 @@ func TestParse_EndToEnd(t *testing.T) {
 	assert.True(t, sawUnion, "the oneOf survived as a Union node")
 }
 
-// TestParse_RecordsSelfURI pins where a declared `$self` lands — the input
-// file's SourceInfo — and that it lands there whatever minor declared it. The
-// version gate is deliberately absent: the library parses the keyword at every
-// 3.x minor and reports no finding for it, so recording it only at 3.2 would
-// silently drop a value a document wrote (GitHub #614). `$self: ""` and an
-// unset `$self` are one state, for the reason SelfURI's GoDoc gives.
+// TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
+// entry as written, at every minor, as every 3.2 field the parser models is
+// read (GitHub #864 asks whether a minor below 3.2 should be warned). A
+// relative URI is not resolved against the source's path, and an empty or null
+// `$self` records nothing, which is what declaring none records.
 func TestParse_RecordsSelfURI(t *testing.T) {
 	t.Parallel()
 	const uri = "https://example.com/api/openapi.yaml"
 	tests := []struct {
-		name string
-		spec string
-		want string
+		name    string
+		version string
+		self    string // the $self line, or "" for none
+		want    string
 	}{
-		{
-			name: "3.2 with $self",
-			spec: `openapi: 3.2.0
-info: {title: SelfURI, version: "1.0.0"}
-$self: https://example.com/api/openapi.yaml
-paths: {}
-`,
-			want: uri,
-		},
-		{
-			name: "3.2 without $self",
-			spec: `openapi: 3.2.0
-info: {title: SelfURI, version: "1.0.0"}
-paths: {}
-`,
-			want: "",
-		},
-		{
-			name: "3.2 with an empty $self",
-			spec: `openapi: 3.2.0
-info: {title: SelfURI, version: "1.0.0"}
-$self: ""
-paths: {}
-`,
-			want: "",
-		},
-		{
-			// A minor that does not define the keyword still declares it: the
-			// library reads it, and dropping it here is the defect #614 closes.
-			name: "3.1 with $self",
-			spec: `openapi: 3.1.0
-info: {title: SelfURI, version: "1.0.0"}
-$self: https://example.com/api/openapi.yaml
-paths: {}
-`,
-			want: uri,
-		},
-		{
-			name: "3.0 without $self",
-			spec: `openapi: 3.0.3
-info: {title: SelfURI, version: "1.0.0"}
-paths: {}
-`,
-			want: "",
-		},
+		{"3.2 declares one", "3.2.0", "$self: " + uri, uri},
+		{"3.1 declares one", "3.1.0", "$self: " + uri, uri},
+		{"3.0 declares one", "3.0.3", "$self: " + uri, uri},
+		{"a relative one stays relative", "3.2.0", "$self: ../api/openapi.yaml", "../api/openapi.yaml"},
+		{"none declared", "3.2.0", "", ""},
+		{"an empty one is none", "3.2.0", `$self: ""`, ""},
+		{"a null one is none", "3.2.0", "$self: null", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			spec := "openapi: " + tt.version + "\n" + tt.self + "\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
 			doc, diags, err := openapi.New().Compile(context.Background(),
-				[]compilers.Source{{Path: "self-uri.yaml", Data: []byte(tt.spec)}}, compilers.Options{})
+				[]compilers.Source{{Path: "specs/self-uri.yaml", Data: []byte(spec)}}, compilers.Options{})
 			require.NoError(t, err)
-			require.NotNil(t, doc)
-			for _, d := range diags {
-				assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
-			}
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+			assert.False(t, ir.HasError(diags), "%+v", diags)
 			require.Len(t, doc.Sources, 1)
 			assert.Equal(t, tt.want, doc.Sources[0].SelfURI)
 		})

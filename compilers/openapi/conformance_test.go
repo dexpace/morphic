@@ -3168,14 +3168,10 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
 }
 
-// assertSelfURI pins that a document's declared self-assigned URI arrives on the
-// source entry rather than on any lowered node: `$self` is a fact about one input
-// file, so it is read back off Sources[0] beside the format it was parsed as.
-//
-// The golden proves the key reaches the JSON; this assertion cannot tell an
-// absent key from an empty one. rows is empty because the matrix's rows are API
-// capabilities, and a self-assigned URI is source identity: inventing a row would
-// make the matrix describe the corpus instead of the source formats.
+// assertSelfURI pins that a declared `$self` reaches the source's entry rather
+// than a lowered node, since it says where one input document lives. The case
+// witnesses no matrix row: the rows are what an API can express, and the URI a
+// description gives itself is not part of the API it describes.
 func assertSelfURI(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	t.Helper()
 	require.Len(t, doc.Sources, 1)

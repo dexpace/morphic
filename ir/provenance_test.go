@@ -127,13 +127,10 @@ func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
 	}
 }
 
-// TestSourceInfo_JSONEncodesSelfURI pins the wire shape a source's `$self`
-// record takes: a declared URI sits under its own `selfURI` member beside
-// `format`, `path` and `hash`, so a consumer reads it without a GoDoc, and a
-// source that declared none — or declared an empty `$self`, which is one state
-// with none — writes no member at all. The byte-exact rows are the proof that
-// the key is absent rather than empty and that the key's spelling is the one
-// consumers are promised.
+// TestSourceInfo_JSONEncodesSelfURI pins SelfURI's wire shape byte for byte: a
+// `selfURI` member after the other three when one was declared, and no member
+// at all when none was, since empty is the one spelling of none. Each row
+// decodes back to the value it encoded.
 func TestSourceInfo_JSONEncodesSelfURI(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
