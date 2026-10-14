@@ -43,7 +43,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		return again, err
 	}
 	resolved, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
-		newSourceDocument(path, data, root, nil), Options{AllowExternalRefs: true}, rebuild)
+		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root)), Options{AllowExternalRefs: true}, rebuild)
 	return resolved, diags, err
 }
 

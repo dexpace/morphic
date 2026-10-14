@@ -300,7 +300,7 @@ components: {schemas: {A: {$ref: '#/components/schemas/A'}}}
 	line := strings.Split(cyclic, "\n")[3]
 	col := strings.Index(line, "{$ref") + 1
 	require.Greater(t, col, 0, "the fixture must hold the schema object the cycle is reported at")
-	want := fmt.Sprintf("%s:4:%d:", spec, col)
+	want := fmt.Sprintf("%s:4:%d (#/components/schemas/A):", spec, col)
 
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"validate", spec}, &stdout, &stderr)
@@ -325,7 +325,7 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	line := strings.Split(anchorCycle, "\n")[4]
 	col := strings.Index(line, "*a") + 1
 	require.Greater(t, col, 0, "the fixture must hold the alias that closes the cycle")
-	want := fmt.Sprintf("%s:5:%d:", overlay, col)
+	want := fmt.Sprintf("%s:5:%d (#/actions/0/update/p/0):", overlay, col)
 
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)

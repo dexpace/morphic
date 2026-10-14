@@ -35,6 +35,7 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkPrimIDs(doc)...)
 	vs = append(vs, checkPrimKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
+	vs = append(vs, checkOAuthScopes(doc)...)
 	vs = append(vs, checkUnions(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)

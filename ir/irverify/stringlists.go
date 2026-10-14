@@ -21,8 +21,9 @@ const (
 	// zero value, so a field stringLists does not list is held to it rather
 	// than let through.
 	listPath listRule = iota
-	// listSet is a set: a lifecycle set (ir-design §5.2). No entry may be
-	// blank, and none may repeat, since a repeat admits nothing more.
+	// listSet is a set: a lifecycle set (ir-design §5.2), or the methods a
+	// token endpoint accepts (ir-design §9). No entry may be blank, and none may
+	// repeat, since a repeat admits nothing more.
 	listSet
 	// listAliases is Naming.Aliases, which checkNaming holds to rules of its
 	// own (ir-design §3.2).
@@ -45,9 +46,10 @@ var stringLists = map[string]listRule{
 	"Service.Namespace":        listPath,
 	"TypeCommon.Namespace":     listPath,
 
-	"Operation.ParameterVisibility":  listSet,
-	"Operation.ReturnTypeVisibility": listSet,
-	"Visibility.Only":                listSet,
+	"OAuthFlow.TokenEndpointAuthMethods": listSet,
+	"Operation.ParameterVisibility":      listSet,
+	"Operation.ReturnTypeVisibility":     listSet,
+	"Visibility.Only":                    listSet,
 
 	"Naming.Aliases": listAliases,
 

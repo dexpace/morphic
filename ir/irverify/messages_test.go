@@ -142,6 +142,12 @@ func messageCases() []messageCase {
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKind(illFormed)}}
 			return doc
 		}, "ir/unknown-auth-kind", fmt.Sprintf("auth scheme names undeclared mechanism %q", illFormed)},
+		{"oauth scope repeated", func() *ir.Document {
+			doc := typesDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKindOAuth2,
+				Flows: []ir.OAuthFlow{{Kind: "implicit", Scopes: []ir.OAuthScope{{Name: illFormed}, {Name: illFormed}}}}}}
+			return doc
+		}, "ir/oauth-scope-duplicate", fmt.Sprintf("oauth flow offers scope %q more than once", illFormed)},
 		{"member scope", func() *ir.Document {
 			return typesDoc(&ir.Enum{ID: "t/x/E", Name: named("e"), Members: []ir.EnumMember{{
 				ID: ir.EnumMemberID("e/x/" + illFormed + "/k"), Name: named("k"), Value: ir.Value{Kind: ir.ValueString, Str: "k"},

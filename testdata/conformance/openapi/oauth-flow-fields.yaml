@@ -1,0 +1,49 @@
+openapi: 3.2.0
+info: {title: OAuthFlowFields, version: "1.0.0"}
+security:
+  - flowFields: []
+    scopeOrder: [write]
+paths: {}
+components:
+  securitySchemes:
+    # Each flow below writes one URL its kind does not define. The URL is kept
+    # verbatim under that flow's own unmodeled map and announced, never lowered
+    # into a field the flow lacks and never dropped.
+    flowFields:
+      type: oauth2
+      flows:
+        # deviceAuthorizationUrl is defined for the device flow alone.
+        authorizationCode:
+          authorizationUrl: https://example.com/authorize
+          tokenUrl: https://example.com/token
+          deviceAuthorizationUrl: https://example.com/device-undefined
+          scopes: {}
+        # authorizationUrl is defined for implicit and authorizationCode only.
+        clientCredentials:
+          tokenUrl: https://example.com/token
+          authorizationUrl: https://example.com/authorize-undefined
+          scopes: {}
+        # tokenUrl is defined for every flow but implicit, which receives its
+        # token straight from the authorization endpoint.
+        implicit:
+          authorizationUrl: https://example.com/authorize
+          tokenUrl: https://example.com/token-undefined
+          scopes: {}
+        # The device flow's endpoint is deviceAuthorizationUrl, so an
+        # authorizationUrl beside it is undefined and must not displace it.
+        deviceAuthorization:
+          deviceAuthorizationUrl: https://example.com/device
+          tokenUrl: https://example.com/token
+          authorizationUrl: https://example.com/authorize-undefined
+          scopes: {}
+    # Scopes keep the order the document writes them in, which is not the
+    # order a sort by name would give.
+    scopeOrder:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://example.com/token
+          scopes:
+            write: Modify data
+            read: Read data
+            admin: Full access

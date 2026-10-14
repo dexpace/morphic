@@ -580,7 +580,7 @@ func TestReachedFinding(t *testing.T) {
 		verr := validation.Error{Severity: "warning", Rule: "some-rule",
 			UnderlyingError: errors.New("boom"), Node: &yaml.Node{Line: 5, Column: 9}}
 
-		got := reachedFinding(site, "other.yaml", verr)
+		got := reachedFinding(sourceTree{}, site, "other.yaml", verr)
 
 		assert.Equal(t, ir.SeverityWarning, got.Severity)
 		assert.Equal(t, diag.Validation+"/some-rule", got.Code)
@@ -592,14 +592,14 @@ func TestReachedFinding(t *testing.T) {
 		t.Parallel()
 		verr := validation.Error{Severity: "error", Rule: "some-rule", UnderlyingError: errors.New("boom")}
 
-		got := reachedFinding(site, "other.yaml", verr)
+		got := reachedFinding(sourceTree{}, site, "other.yaml", verr)
 
 		assert.Equal(t, "boom", got.Message, "no position to append when the finding names no node")
 	})
 
 	t.Run("an unstructured error", func(t *testing.T) {
 		t.Parallel()
-		got := reachedFinding(site, "other.yaml", errors.New("plain failure"))
+		got := reachedFinding(sourceTree{}, site, "other.yaml", errors.New("plain failure"))
 
 		assert.Equal(t, diag.Validation, got.Code, "no rule to suffix the bare code with")
 		assert.Equal(t, ir.SeverityError, got.Severity)

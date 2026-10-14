@@ -116,11 +116,12 @@ type laterReport struct {
 // The lowering reads each at every version; only this asks which minor added
 // one.
 //
-// items is the source's walk, which visits each object its model holds once,
-// where it is written, not through a $ref, whether anything lowers it or not.
-// It holds none of another document (GitHub #839), none under an x- key a $ref
-// reaches (#872), and none inside the fields beside a Path Item's $ref (#577).
-// A panic in the walk is reported at the model reached.
+// items is the source's walk, visiting each object its model holds once,
+// where it is written, whether anything lowers it or not; or the walk over an
+// object a $ref reaches in the source outside the model (reached.later, GitHub
+// #872). Neither holds another document's (GitHub #839), or the fields beside
+// a Path Item's $ref (#577). A panic in the walk is reported at the model
+// reached.
 func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) laterReport {
 	pending := addedAfter(declared)
 	if len(pending) == 0 {
@@ -133,8 +134,8 @@ func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa
 		if !ok {
 			return nil
 		}
-		if object == openAPIObject {
-			site = "" // the walk spells the root "/", which names the key ""
+		if site == "/" {
+			site = "" // a walk spells its root "/", which names the key ""
 		}
 		for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
 			out.diags = append(out.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))

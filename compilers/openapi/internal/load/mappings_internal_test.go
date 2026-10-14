@@ -38,6 +38,30 @@ func petMapping(mapping string) string {
 	return "    Pet:\n      type: object\n      discriminator: {propertyName: k, mapping: {" + mapping + "}}\n"
 }
 
+// drawnAt is what reaching the source's object at object, holding one type
+// mismatch at keyword, draws, as diagLines spells it: the mismatch its
+// resolution's unmarshal reports at the keyword's value, and the one its
+// validation reports at the object (GitHub #872), each once, placed as the
+// source's own are (GitHub #879) whichever reference reached it.
+// TestResolve_WhatAReferenceReachesInTheSourceIsValidated tells them apart.
+func drawnAt(object, keyword string) []string {
+	const code = " openapi/validation/validation-type-mismatch"
+	return []string{object + code, object + "/" + keyword + code}
+}
+
+// resolvedSites spells each reference the load phase resolved that the walk
+// does not show as its site and the reference, sorted
+// (MappingTargets.resolved): the site an entry is read at, now that a finding
+// about the source's object no longer shows it.
+func resolvedSites(targets MappingTargets) []string {
+	out := make([]string, 0, len(targets.resolved))
+	for _, r := range targets.resolved {
+		out = append(out, string(r.site)+" "+string(r.ref.GetReference()))
+	}
+	slices.Sort(out)
+	return out
+}
+
 // loadTargets loads spec at path, external references allowed or not, and
 // requires it to load.
 func loadTargets(t *testing.T, path, spec string, external bool) (*Document, []ir.Diagnostic) {
@@ -80,21 +104,28 @@ func TestMappings_ATargetHeldAsRawYAMLIsResolvedAtLoad(t *testing.T) {
 		paths         string // the document's paths, when not empty
 		pointer       jsontext.Pointer
 		want          string
+		// version is the document's OpenAPI version, when not 3.1.0: a
+		// defaultMapping is a 3.2 keyword, which a 3.1 document is reported for
+		// writing wherever it writes one.
+		version string
 	}{
-		{"an extension's value, named by a mapping alone", petMapping("c: '#/x-lib/Cat'"), "", "/x-lib/Cat", "cat"},
+		{"an extension's value, named by a mapping alone", petMapping("c: '#/x-lib/Cat'"), "", "/x-lib/Cat", "cat", ""},
 		{"an enum member",
 			petMapping("e: '#/components/schemas/Kennel/properties/e/enum/0'") +
 				"    Kennel: {type: object, properties: {e: {enum: [{description: member, type: object}]}}}\n",
-			"", "/components/schemas/Kennel/properties/e/enum/0", "member"},
-		{"a mapping in what a $ref reaches", "    Holder: {$ref: '#/x-lib/Inner'}\n", "", "/x-lib/Dog", "dog"},
-		{"a mapping in another target", petMapping("i: '#/x-lib/Inner'"), "", "/x-lib/Dog", "dog"},
-		{"a defaultMapping in a response a $ref reaches", "    Pet: {type: object}\n", toResp, "/x-lib/Dog", "dog"},
+			"", "/components/schemas/Kennel/properties/e/enum/0", "member", ""},
+		{"a mapping in what a $ref reaches", "    Holder: {$ref: '#/x-lib/Inner'}\n", "", "/x-lib/Dog", "dog", ""},
+		{"a mapping in another target", petMapping("i: '#/x-lib/Inner'"), "", "/x-lib/Dog", "dog", ""},
+		{"a defaultMapping in a response a $ref reaches", "    Pet: {type: object}\n", toResp, "/x-lib/Dog", "dog", "3.2.0"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			spec := mappingSpec(c.schemas, lib)
 			if c.paths != "" {
 				spec = strings.Replace(spec, "paths: {}\n", c.paths, 1)
+			}
+			if c.version != "" {
+				spec = strings.Replace(spec, "openapi: 3.1.0\n", "openapi: "+c.version+"\n", 1)
 			}
 			got, diags := loadTargets(t, "spec.yaml", spec, false)
 
@@ -115,7 +146,8 @@ const badDiscriminator = "{type: object, properties: {k: {type: string}}, " +
 // component nothing it lowers references, beside a $ref, or in an inline allOf
 // branch. Which positions the lowering reads follows what each lowers to, so
 // no list of them stays in step with it; what an entry reaches is reported once,
-// at the least entry naming it, whether or not it is lowered, as a $ref's is.
+// at the object, whether or not it is lowered, as a $ref's is, and the entry
+// is read at its own key.
 func TestMappings_ADiscriminatorIsResolvedWhereverItIsWritten(t *testing.T) {
 	t.Parallel()
 	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
@@ -163,7 +195,7 @@ func TestMappings_ADiscriminatorIsResolvedWhereverItIsWritten(t *testing.T) {
 			", content: {application/json: {schema: {type: string}}}}], responses: {'200': {description: ok}}")},
 		{name: "a parameter's second content entry", paths: op("parameters: [{name: q, in: query, content: " +
 			"{text/plain: {schema: {type: string}}, application/json: {schema: " + d + "}}}], responses: {'200': {description: ok}}"),
-			source: []string{" openapi/validation/validation-allowed-values"}},
+			source: []string{"/paths/~1a/get/parameters/0/content openapi/validation/validation-allowed-values"}},
 		{name: "a header's schema beside its content", paths: op("responses: {'200': {description: ok, headers: " +
 			"{X-H: {schema: " + d + ", content: {application/json: {schema: {type: string}}}}}}}")},
 		{name: "a response nothing references", components: component("responses", "{description: x, content: "+
@@ -195,15 +227,22 @@ func TestMappings_ADiscriminatorIsResolvedWhereverItIsWritten(t *testing.T) {
 
 			var found, rest []string
 			for _, line := range diagLines(diags) {
-				if strings.HasSuffix(line, "/discriminator/mapping/x openapi/validation/validation-type-mismatch") {
+				if strings.HasPrefix(line, "/x-lib/Bad") {
 					found = append(found, line)
 				} else {
 					rest = append(rest, line)
 				}
 			}
 			assert.ElementsMatch(t, c.source, rest)
-			assert.Len(t, found, 1, "Bad's finding is reported once, at the entry that names it")
+			assert.Equal(t, drawnAt("/x-lib/Bad", "minLength"), found, "Bad's findings are each reported once")
 			assert.NotNil(t, got.Targets.At("/x-lib/Bad"))
+			var entries []string
+			for _, site := range resolvedSites(got.Targets) {
+				if strings.HasSuffix(site, "/discriminator/mapping/x #/x-lib/Bad") {
+					entries = append(entries, site)
+				}
+			}
+			assert.Len(t, entries, 1, "the entry naming Bad is resolved, at its own key: %v", resolvedSites(got.Targets))
 		})
 	}
 }
@@ -290,8 +329,9 @@ func TestMappings_AReferenceInABuiltObjectIsResolved(t *testing.T) {
   Bad: {type: object, minLength: abc}
 `)
 	got, diags := loadTargets(t, filepath.Join(dir, "root.yaml"), spec, true)
-	assert.Equal(t, []string{"/x-lib/Wrapper/not openapi/validation/validation-type-mismatch"}, diagLines(diags),
-		"the $ref under not is resolved as the model's own is, and draws Bad's finding")
+	assert.Equal(t, drawnAt("/x-lib/Bad", "minLength"), diagLines(diags),
+		"the $ref under not is resolved as the model's own is, and draws Bad's findings")
+	assert.Contains(t, resolvedSites(got.Targets), "/x-lib/Wrapper/not #/x-lib/Bad", "read where it is written")
 
 	box, ok := got.Doc.GetComponents().GetSchemas().Get("Box")
 	require.True(t, ok)
@@ -383,7 +423,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs)
+	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, Options{}, nil)
 	pass.targets.limit = limit
 	_, diags := pass.run(doc)
@@ -1070,12 +1110,12 @@ func TestMappings_ChainEndsPastTheBoundRemembersNothing(t *testing.T) {
 }
 
 // TestMappings_AFindingInATargetIsReportedOnce pins where what resolving a
-// target draws is reported: at the mapping entry, once, or at the least of the
-// sites that reach the target when a $ref reaches it too, in either order.
+// target draws is reported: once, at the source's object it is about, whether
+// a mapping entry alone reaches the target or a $ref does too, in either
+// order.
 func TestMappings_AFindingInATargetIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
-	const finding = " openapi/validation/validation-type-mismatch"
 	pet := petMapping("b: '#/x-lib/Bad'")
 	holder := "    A: {$ref: '#/x-lib/Bad'}\n"
 	for _, c := range []struct {
@@ -1083,10 +1123,9 @@ func TestMappings_AFindingInATargetIsReportedOnce(t *testing.T) {
 		docs []string
 		want []string
 	}{
-		{"named by a mapping alone", []string{mappingSpec(pet, lib)},
-			[]string{"/components/schemas/Pet/discriminator/mapping/b" + finding}},
-		{"named by a $ref too, at the lesser site", []string{mappingSpec(pet+holder, lib), mappingSpec(holder+pet, lib)},
-			[]string{"/components/schemas/A" + finding}},
+		{"named by a mapping alone", []string{mappingSpec(pet, lib)}, drawnAt("/x-lib/Bad", "minLength")},
+		{"named by a $ref too", []string{mappingSpec(pet+holder, lib), mappingSpec(holder+pet, lib)},
+			drawnAt("/x-lib/Bad", "minLength")},
 	} {
 		for _, spec := range c.docs {
 			_, diags := loadTargets(t, "spec.yaml", spec, false)
@@ -1096,25 +1135,25 @@ func TestMappings_AFindingInATargetIsReportedOnce(t *testing.T) {
 }
 
 // TestMappings_AFindingIsPlacedWhateverTheEntryOrder pins that every entry
-// naming a target takes part in placing what resolving it draws: the finding
-// lands at the least of their sites, in either declaration order, though only
-// the first entry resolved draws it.
+// naming a target takes part in where it is read: the target is resolved at
+// the least of their sites, in either declaration order, though only the
+// first entry resolved draws its findings, which are placed at the object.
 func TestMappings_AFindingIsPlacedWhateverTheEntryOrder(t *testing.T) {
 	t.Parallel()
 	const lib = "x-lib:\n  Bad: {type: object, minLength: abc}\n"
 	a := strings.Replace(petMapping("b: '#/x-lib/Bad'"), "Pet:", "A:", 1)
 	z := strings.Replace(petMapping("b: '#/x-lib/Bad'"), "Pet:", "Z:", 1)
-	want := []string{"/components/schemas/A/discriminator/mapping/b openapi/validation/validation-type-mismatch"}
 	for _, schemas := range []string{a + z, z + a} {
-		_, diags := loadTargets(t, "spec.yaml", mappingSpec(schemas, lib), false)
-		assert.Empty(t, cmp.Diff(want, diagLines(diags)))
+		got, diags := loadTargets(t, "spec.yaml", mappingSpec(schemas, lib), false)
+		assert.Empty(t, cmp.Diff(drawnAt("/x-lib/Bad", "minLength"), diagLines(diags)))
+		assert.Equal(t, []string{"/components/schemas/A/discriminator/mapping/b #/x-lib/Bad"}, resolvedSites(got.Targets))
 	}
 }
 
 // TestMappings_AnEntryInABuiltObjectIsSitedAtItsKey pins where an entry in an
 // object built from raw YAML is placed: under the key as written. The resolver
 // records the pointer it reached decoded already, so decoding it again read a
-// '+' in the key as a space and '%41' as 'A', siting the finding at a pointer
+// '+' in the key as a space and '%41' as 'A', siting the entry at a pointer
 // that names nothing. Cutting the absolute reference at its first '#' read a
 // source path holding one, such as a C# directory, into the pointer. Each row
 // reaches the object by a mapping and by a $ref, from each path.
@@ -1124,12 +1163,14 @@ func TestMappings_AnEntryInABuiltObjectIsSitedAtItsKey(t *testing.T) {
 		lib := "x-lib:\n  '" + c.key + "':\n    type: object\n" +
 			"    discriminator: {propertyName: k, mapping: {bad: '#/x-lib/Bad'}}\n" +
 			"  Bad: {type: object, minLength: abc}\n"
-		want := []string{"/x-lib/" + c.key + "/discriminator/mapping/bad openapi/validation/validation-type-mismatch"}
+		entry := "/x-lib/" + c.key + "/discriminator/mapping/bad #/x-lib/Bad"
 		for _, schemas := range []string{petMapping("r: '#/x-lib/" + c.spelled + "'"),
 			"    Holder: {$ref: '#/x-lib/" + c.spelled + "'}\n"} {
 			for _, path := range []string{"spec.yaml", "sdk/C#/spec.yaml"} {
-				_, diags := loadTargets(t, path, mappingSpec(schemas, lib), false)
-				assert.Empty(t, cmp.Diff(want, diagLines(diags)), "%s: %s from %s", c.key, schemas, path)
+				got, diags := loadTargets(t, path, mappingSpec(schemas, lib), false)
+				assert.Empty(t, cmp.Diff(drawnAt("/x-lib/Bad", "minLength"), diagLines(diags)),
+					"%s: %s from %s", c.key, schemas, path)
+				assert.Contains(t, resolvedSites(got.Targets), entry, "%s: %s from %s", c.key, schemas, path)
 			}
 		}
 	}
@@ -1177,7 +1218,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 	}
 
 	resolved, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
-		newSourceDocument("root.yaml", data, root, nil), Options{AllowExternalRefs: true}, rebuild)
+		newSourceDocument("root.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root)), Options{AllowExternalRefs: true}, rebuild)
 
 	require.NoError(t, err)
 	require.True(t, rebuilt, "the fixture is resolved twice")
@@ -1257,7 +1298,7 @@ func TestMappings_ADiscriminatorPastARefIntoAnotherDocumentIsNotTheSources(t *te
 			"    P: {$ref: '#/paths/~1a/get/responses/200/content/application~1json/schema'}\n", []string{}},
 		{"the source's own mapping",
 			"    Pet:\n      type: object\n      discriminator: {propertyName: k, mapping: {y: '#/x-lib/Cat'}}\n",
-			[]string{"/components/schemas/Pet/discriminator/mapping/y openapi/validation/validation-type-mismatch"}},
+			drawnAt("/x-lib/Cat", "required")},
 	} {
 		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a: {$ref: './ext.yaml#/paths/~1a'}\n" +
 			"components:\n  schemas:\n" + c.schemas + "x-lib:\n  Cat: {type: object, required: notalist}\n"
@@ -1275,7 +1316,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	require.NoError(t, err)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs)
+	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
