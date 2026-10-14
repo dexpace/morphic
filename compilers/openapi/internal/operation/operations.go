@@ -66,11 +66,13 @@ var httpMethods = []struct {
 }
 
 // pathOperation is one operation a path item declares: the method as sent on the
-// wire, the operation's pointer relative to its path item, and its source node.
+// wire, the operation's pointer relative to its path item, its source node, and
+// whether additionalOperations declares it rather than a fixed method field.
 type pathOperation struct {
-	method string
-	seg    jsontext.Pointer
-	src    *soa.Operation
+	method     string
+	seg        jsontext.Pointer
+	src        *soa.Operation
+	additional bool
 }
 
 // pathOperations returns every operation a path item declares: the fixed method
@@ -100,9 +102,10 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 			continue
 		}
 		ops = append(ops, pathOperation{
-			method: method,
-			seg:    ids.Ptr(additionalOperationsField, method),
-			src:    src,
+			method:     method,
+			seg:        ids.Ptr(additionalOperationsField, method),
+			src:        src,
+			additional: true,
 		})
 	}
 	return ops
@@ -273,8 +276,8 @@ type mountedOp struct {
 // mountPathItem lowers every operation a path item's layers declare, mounted
 // below mount, the one way all three routes to a path item (a path, a webhook,
 // a callback expression) lower them. Each operation is lowered from the
-// nearest layer declaring its method, in that layer's context and below its
-// declaration pointer, the referent's first; it takes every layer's item
+// nearest layer declaring it, in that layer's context and below its
+// declaration pointer, in mountedOperations' order; it takes every layer's item
 // parameters merged into its own and what every layer keeps (applyLayers). A
 // mount lowering none keeps what its layers declare in residue instead. route
 // holds what the route sets on every operation; each brings its own method,
@@ -284,20 +287,16 @@ func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *opera
 	owner, diags := precedence(layers, docs)
 	params := itemParams(layers)
 	var mounted []mountedOp
-	for i, l := range slices.Backward(layers) {
-		for _, po := range pathOperations(l.item) {
-			if owner.cedes(i)(constructOf(constructOperation, string(po.seg))) {
-				continue
-			}
-			opCtx := route
-			opCtx.method = po.method
-			opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
-			opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
-			op, extra, opDiags := lowerOperation(l.in, ts, anchors, claims, po.src, opCtx)
-			diags = append(diags, opDiags...)
-			diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
-			mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
-		}
+	for _, lo := range mountedOperations(layers) {
+		l, po := layers[lo.layer], lo.op
+		opCtx := route
+		opCtx.method = po.method
+		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
+		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
+		op, extra, opDiags := lowerOperation(l.in, ts, anchors, claims, po.src, opCtx)
+		diags = append(diags, opDiags...)
+		diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
+		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
 	}
 	if len(mounted) > 0 {
 		return mounted, diags

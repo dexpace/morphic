@@ -1303,3 +1303,61 @@ paths:
 	slices.Sort(lines)
 	assert.Equal(t, []int{7, 8}, lines, "each value of the wrong type is reported where it is written")
 }
+
+// pathItemRefOrderSpec mounts /b's operations at /a and adds its own beside the
+// $ref, one of them a repeat of /b's COPY. /c writes every operation /a ends up
+// with inline, in the order /b and /a write them.
+const pathItemRefOrderSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put: {operationId: putA, responses: {"200": {description: OK}}}
+    additionalOperations:
+      COPY: {operationId: copyA, responses: {"200": {description: OK}}}
+      LINK: {operationId: linkA, responses: {"200": {description: OK}}}
+  /b:
+    post: {operationId: postB, responses: {"200": {description: OK}}}
+    get: {operationId: getB, responses: {"200": {description: OK}}}
+    additionalOperations:
+      LOCK: {operationId: lockB, responses: {"200": {description: OK}}}
+      COPY: {operationId: copyB, responses: {"200": {description: OK}}}
+  /c:
+    post: {responses: {"200": {description: OK}}}
+    put: {responses: {"200": {description: OK}}}
+    get: {responses: {"200": {description: OK}}}
+    additionalOperations:
+      LOCK: {responses: {"200": {description: OK}}}
+      COPY: {responses: {"200": {description: OK}}}
+      LINK: {responses: {"200": {description: OK}}}
+`
+
+// TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes pins the order a
+// mount lists its layers' operations in: the order the same operations written
+// inline get, whichever layer declares each. A layer-by-layer order put /a's
+// PUT after /b's POST, and its LINK before /b's LOCK.
+func TestPathItemRefSiblings_MountsInTheOrderAnInlineItemDoes(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, pathItemRefOrderSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	inline := methodsAt(doc, "/c")
+	require.Equal(t, []string{"GET", "PUT", "POST", "LOCK", "COPY", "LINK"}, inline)
+	assert.Equal(t, inline, methodsAt(doc, "/a"), "the mount lists them as /c, written inline, does")
+	assert.Equal(t, "copyA", opByPath(t, doc, "COPY", "/a").Name.Source,
+		"the repeated key keeps its place and takes the nearer layer's declaration")
+}
+
+// methodsAt returns the methods of the operations mounted at uri, in the order
+// the document's groups list them.
+func methodsAt(doc *ir.Document, uri string) []string {
+	var methods []string
+	for _, g := range doc.Services[0].Groups {
+		for _, op := range g.Operations {
+			if hb := op.Bindings.HTTP[0]; hb.URITemplate == uri {
+				methods = append(methods, hb.Method)
+			}
+		}
+	}
+	return methods
+}

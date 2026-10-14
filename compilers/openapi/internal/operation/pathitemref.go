@@ -261,6 +261,53 @@ func itemParams(layers []layer) []sourcedParam {
 	return params
 }
 
+// layerOp is one operation a mount lowers and the index of the layer declaring
+// it.
+type layerOp struct {
+	layer int
+	op    pathOperation
+}
+
+// mountedOperations returns the operations a mount's layers declare, each from
+// the nearest layer declaring it, which is the one precedence lets keep it. They
+// come in the order one item holding them all would list them (pathOperations):
+// the fixed methods in httpMethods order, then the additionalOperations keys,
+// the farthest layer's first, each layer's in source order, a nearer layer's
+// declaration taking the place of the key it repeats. So a mount lists the
+// methods written beside a $ref where the same fields written inline would put
+// them.
+func mountedOperations(layers []layer) []layerOp {
+	declared := make([]map[jsontext.Pointer]pathOperation, len(layers))
+	var extra []jsontext.Pointer
+	listed := map[jsontext.Pointer]bool{}
+	for i, l := range slices.Backward(layers) {
+		declared[i] = map[jsontext.Pointer]pathOperation{}
+		for _, po := range pathOperations(l.item) {
+			declared[i][po.seg] = po
+			if po.additional && !listed[po.seg] {
+				listed[po.seg] = true
+				extra = append(extra, po.seg)
+			}
+		}
+	}
+	var out []layerOp
+	take := func(seg jsontext.Pointer) {
+		for i := range layers {
+			if po, ok := declared[i][seg]; ok {
+				out = append(out, layerOp{layer: i, op: po})
+				return
+			}
+		}
+	}
+	for _, m := range httpMethods {
+		take(ids.Ptr(m.name))
+	}
+	for _, seg := range extra {
+		take(seg)
+	}
+	return out
+}
+
 // applyLayers keeps on into what every layer declares and keeps at the mount,
 // farthest first, as applyPathItem does for one item.
 func applyLayers(layers []layer, owner owners, into carrier) []ir.Diagnostic {
