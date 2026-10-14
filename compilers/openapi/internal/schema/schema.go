@@ -1051,8 +1051,8 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
 //
-// KNOWN GAP (GitHub #868): every integer is a number, so a set naming both
-// admits values that match two variants, which Exclusive rejects; with an
+// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
+// both admits values that match two variants, which Exclusive rejects; with an
 // integer width both variants are the same primitive.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
@@ -1957,9 +1957,9 @@ func (w *anchorWalk) charge(depth int) bool {
 // An integer width maps under either numeric type, since OpenAPI applies a
 // format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
 // decimal and decimal128 map under number alone: under integer they admit only
-// the integral values, which no primitive narrower than integer holds. Keys
-// absent here (byte, any unknown format, and those pairings) hoist a Scalar
-// whose Encoding carries the format instead.
+// the integral values, which no primitive narrower than integer holds. Any
+// pairing absent here hoists a Scalar that keeps the format, byte excepted:
+// scalarTypeID reads it before the table, as base64-encoded bytes.
 var formatTable = map[string]ir.PrimKind{
 	"string":            ir.PrimString,
 	"string/date":       ir.PrimDate,
