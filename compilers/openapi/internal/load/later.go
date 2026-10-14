@@ -57,10 +57,12 @@ func (a addition) inSchema() bool {
 
 // additions is every construct OpenAPI 3.1 and 3.2 added to an object, a
 // schema's own keywords aside (GitHub #820). It is the difference between the
-// specification's published schemas of consecutive minors, less a Header
-// Object's allowReserved: that is the Parameter Object's, which every minor's
-// text gives a header though the 3.1 schema omits it, and where it applies is
-// GitHub #628's question.
+// specification's published schemas of consecutive minors
+// (oas/3.0/schema/2024-10-18, 3.1/schema/2025-09-15, 3.2/schema/2025-09-17,
+// and the 3.1 and 3.2 meta-schemas for the Discriminator and XML rows), less a
+// Header Object's allowReserved: that is the Parameter Object's, which every
+// minor's text gives a header though the 3.1 schema omits it, and where it
+// applies is GitHub #628's question.
 var additions = []addition{
 	{openAPIObject, "jsonSchemaDialect", "", "3.1"},
 	{openAPIObject, "webhooks", "", "3.1"},
@@ -105,15 +107,16 @@ type laterReport struct {
 	inSchema bool
 }
 
-// laterConstructs reports each construct a later minor than the document's
-// declared version added to the object it is written on (see
-// diag.LaterVersionConstruct). The lowering reads every one at every version;
-// this is the one place that asks which minor added a construct.
+// laterConstructs reports each construct a minor later than the declared
+// version added to the object it is written on (diag.LaterVersionConstruct).
+// The lowering reads each at every version; only this asks which minor added
+// one.
 //
-// items is the source's walk, which visits each object once, where it is
-// written, never through a $ref, whether or not anything lowers it. A document
-// another one's reference reaches is not walked: which version governs it is
-// GitHub #839's to settle. A panic in the walk is reported at the model reached.
+// items is the source's walk, which visits each object its model holds once,
+// where it is written, not through a $ref, whether anything lowers it or not.
+// It holds none of another document (GitHub #839), none under an x- key a $ref
+// reaches (#872), and none inside the fields beside a Path Item's $ref (#577).
+// A panic in the walk is reported at the model reached.
 func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) laterReport {
 	pending := addedAfter(declared)
 	if len(pending) == 0 {
