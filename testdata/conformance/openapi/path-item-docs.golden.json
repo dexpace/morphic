@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.8.0",
+  "irVersion": "0.12.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -278,10 +285,10 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "petDeleted",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true
+                    "isWebhook": true,
+                    "webhookName": "petDeleted"
                   }
                 ]
               },

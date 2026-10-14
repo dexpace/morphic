@@ -7,7 +7,7 @@ package ir
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed.
-const IRVersion = "0.8.0"
+const IRVersion = "0.12.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing
@@ -111,4 +111,16 @@ type TagDef struct {
 	Name string `json:"name,omitempty"`
 	// Docs is the tag's documentation.
 	Docs Docs `json:"docs"`
+	// Parent names the tag this one is nested under (OpenAPI 3.2 tag parent):
+	// the declared hierarchy a consumer may render as a section tree. Empty =
+	// top-level. It is the declared spelling, not a resolved reference — a
+	// parent that names no declared tag is reported by the parser and left as
+	// written here, since resolving it is grouping policy (OperationGroup).
+	Parent string `json:"parent,omitempty"`
+	// Kind is the tag's declared role (OpenAPI 3.2 tag kind), recorded verbatim
+	// — "nav", "badge", or any other string a document writes. It is kept as a
+	// fact rather than interpreted: whether a kind is navigational is grouping
+	// policy, not a property of the document, so no meaning is read into a
+	// value here (ir-design §7.1).
+	Kind string `json:"kind,omitempty"`
 }

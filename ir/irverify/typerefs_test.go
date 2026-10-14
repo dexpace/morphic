@@ -129,6 +129,15 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 			path: "doc.Types[t/x/T].Elems[1].Target",
 		},
 		{
+			name: "a tuple's rest, allocated but naming nothing",
+			doc: closedDoc(&ir.Tuple{
+				ID:   "t/x/T",
+				Name: ir.Naming{Source: "T", Canonical: "t"},
+				Rest: &ir.TypeRef{},
+			}),
+			path: "doc.Types[t/x/T].Rest.Target",
+		},
+		{
 			name: "a model's base, allocated but naming nothing",
 			doc: closedDoc(&ir.Model{
 				ID:   "t/x/M",

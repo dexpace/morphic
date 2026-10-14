@@ -100,8 +100,9 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
-// $ref position declared that the alias it resolves to cannot hold. It is
-// refSiteRef's other half: the same census, recorded where an
+// $ref position declared that the alias it resolves to cannot hold, and those a
+// collapsed union declared, which resolves to a reference the same way. It is
+// refSiteRef's and schemaBody's other half: the same census, recorded where an
 // annotation.HomeCarrier position keeps everything else its schema declared —
 // oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
 // (GitHub #406).
@@ -115,8 +116,12 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
 	// check covers an absent position, a boolean one, and a caller passing nil.
 	s := js.GetSchema()
-	if s == nil || !resolve.IsRefSite(js, s) || LoweredToOwnNode(ts, pointer, t) {
+	if s == nil || LoweredToOwnNode(ts, pointer, t) {
 		return nil
+	}
+	if !resolve.IsRefSite(js, s) {
+		// A collapsed union lowers to a reference just as a $ref site does.
+		return recordUnhomedAt(c, p, s, collapsedUnhomedKeywords(s), collapsedShape, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -255,10 +260,8 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, dep
 	if owned, ok := ts.Lookup(string(pointer)); ok {
 		return owned, true, diags
 	}
-	var kept ir.Unmodeled
-	cons, consDiags := schemaConstraints(c, &kept, s.Node, pointer)
-	diags = append(diags, consDiags...)
-	id := internAlias(c, ts, pointer, hint, ref, cons, kept)
+	id, aliasDiags := internAlias(c, ts, s.Node, pointer, hint, ref)
+	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
 	return id, true, append(diags, attachDeclaredAnnotations(c, ts, anchors, s.Node, pointer)...)
@@ -380,6 +383,5 @@ var keyedSchemaMaps = map[string]bool{
 // across the reference (refNullVerdict), so the two cannot answer one schema
 // differently.
 func refNullable(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	budget := maxNullConjuncts
-	return refNullVerdict(js, &budget) == nullAdmitted
+	return refNullVerdict(js, new(maxNullConjuncts)) == nullAdmitted
 }

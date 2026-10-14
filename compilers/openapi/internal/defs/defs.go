@@ -3,6 +3,7 @@ package defs
 import (
 	"encoding/json/jsontext"
 	"reflect"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -16,7 +17,11 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
 // defsPrefix opens every pointer the resolver reads relative to the schema that
 // spells it rather than to the document (oas3 resolveDefsReference, v1.25.2).
-const defsPrefix = "/$defs/"
+// defsRoot is the position it opens.
+const (
+	defsRoot   = "/$defs"
+	defsPrefix = defsRoot + "/"
+)
 
 // Navigable is the parsed document a $defs pointer is navigated in: the root
 // every ancestor pointer is read from.
@@ -161,7 +166,7 @@ func (r *Reader) targetFrom(from, pointer jsontext.Pointer) (*schemaRef, jsontex
 	}
 	// Only an object with a $defs of its own can answer, and each holder is
 	// closer to the root than the last, which bounds the walk.
-	for anc := parentPointer(from); anc != ""; {
+	for anc := from.Parent(); anc != ""; {
 		here := r.placeAt(anc)
 		if here.hasDefs {
 			r.reads++
@@ -177,19 +182,21 @@ func (r *Reader) targetFrom(from, pointer jsontext.Pointer) (*schemaRef, jsontex
 // placeAt returns what the document holds at pos. Each position is read from
 // the one at its parent and remembered, so the walk down to a position starts
 // at the closest one already read. Every step shortens the position.
+// Pointer.Parent is the resolver's getParentJSONPointer: everything before the
+// last '/', and "" once none is left, so the root itself is never searched.
 func (r *Reader) placeAt(pos jsontext.Pointer) place {
 	var unread []jsontext.Pointer
 	here := place{value: r.doc, held: true}
-	for at := pos; at != ""; at = parentPointer(at) {
+	for at := pos; at != ""; at = at.Parent() {
 		if read, ok := r.places[at]; ok {
 			here = read
 			break
 		}
 		unread = append(unread, at)
 	}
-	for i := len(unread) - 1; i >= 0; i-- {
-		here = r.read(here, unread[i])
-		r.places[unread[i]] = here
+	for _, u := range slices.Backward(unread) {
+		here = r.read(here, u)
+		r.places[u] = here
 	}
 	return here
 }
@@ -199,7 +206,7 @@ func (r *Reader) placeAt(pos jsontext.Pointer) place {
 // below it either, as the resolver reading a path from the root finds, and nor
 // does one in raw YAML, which holds no schema to read a $defs pointer in.
 func (r *Reader) read(parent place, at jsontext.Pointer) place {
-	above := parentPointer(at)
+	above := at.Parent()
 	next := place{holder: parent.holder}
 	if parent.hasDefs { // never the root, whose place is not read for one
 		next.holder = above
@@ -264,21 +271,27 @@ func defAt(obj any, pointer jsontext.Pointer) (*schemaRef, bool) {
 // localDef is tryResolveLocalDefs: a schema carrying its own $id, or sitting
 // in a resource whose base differs from its document's, reads "#/$defs/k" in
 // its own definitions — k alone, with no path beyond it.
+//
+// The key is decoded as jsontext decodes a token, without the validation
+// navigation.Tokens applies, since tryResolveLocalDefs applies none. A trailing
+// empty token is read as no token, which the library does not do (GitHub #843).
 func localDef(js *schemaRef, pointer jsontext.Pointer) (*schemaRef, bool) {
 	s := js.GetSchema()
 	if s == nil || !ownResource(s) {
 		return nil, false
 	}
-	key, rest, _ := strings.Cut(string(pointer)[len(defsPrefix):], "/")
-	if rest != "" {
+	tokens := slices.Collect(pointer[len(defsRoot):].Tokens())
+	if len(tokens) == 2 && tokens[1] == "" {
+		tokens = tokens[:1]
+	}
+	if len(tokens) != 1 {
 		return nil, false
 	}
-	key = strings.ReplaceAll(strings.ReplaceAll(key, "~1", "/"), "~0", "~")
 	defs := s.GetDefs()
 	if defs == nil {
 		return nil, false
 	}
-	d, ok := defs.Get(key)
+	d, ok := defs.Get(tokens[0])
 	return d, ok && d != nil
 }
 
@@ -291,14 +304,4 @@ func ownResource(s *oas3.Schema) bool {
 	base := s.GetEffectiveBaseURI()
 	reg := s.GetSchemaRegistry()
 	return reg != nil && base != "" && base != reg.GetDocumentBaseURI()
-}
-
-// parentPointer is the resolver's getParentJSONPointer: everything before the
-// last '/', and "" once no ancestor is left — the root itself is never searched.
-func parentPointer(p jsontext.Pointer) jsontext.Pointer {
-	i := strings.LastIndexByte(string(p), '/')
-	if i <= 0 {
-		return ""
-	}
-	return p[:i]
 }

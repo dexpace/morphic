@@ -1,0 +1,17 @@
+openapi: 3.2.0
+info: {title: ResponseSummary32, version: "1.0.0"}
+paths:
+  /items/{id}:
+    delete:
+      operationId: deleteItem
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        # 3.2 gives a Response Object a summary; the bundled model names no field
+        # for it, so it is read off the raw node.
+        "204":
+          summary: The item was deleted
+          description: The long form of the same fact.
+        "404":
+          summary: No such item
+          description: Nothing there.

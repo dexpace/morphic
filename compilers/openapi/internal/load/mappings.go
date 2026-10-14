@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"reflect"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -491,9 +492,9 @@ func (m *mappings) chainEnds(ref references.Reference) bool {
 		}
 		ref = next
 	}
-	for i := len(path) - 1; i >= 0; i-- {
+	for _, p := range slices.Backward(path) {
 		toEnd = min(toEnd+1, farHops)
-		m.ends[path[i]] = toEnd
+		m.ends[p] = toEnd
 	}
 	return toEnd <= maxResolutionHops
 }

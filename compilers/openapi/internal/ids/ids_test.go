@@ -390,11 +390,84 @@ func stringsOver(alphabet []string, maxLen int) []string {
 func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
-		ir.IDKindType:    {"anon", "composed", "openapi"},
-		ir.IDKindOp:      {"openapi"},
-		ir.IDKindProp:    {"openapi"},
-		ir.IDKindAuth:    {"openapi"},
-		ir.IDKindService: {"openapi"},
-		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindType:       {"anon", "composed", "openapi"},
+		ir.IDKindOp:         {"openapi"},
+		ir.IDKindProp:       {"openapi"},
+		ir.IDKindAuth:       {"openapi"},
+		ir.IDKindService:    {"openapi"},
+		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:      {"openapi"},
+		ir.IDKindEnumMember: {"anon", "openapi"},
 	}, ids.Namespaces().Declaration())
+}
+
+// TestParam_ScopesByOperationNameAndLocation pins the spelling of a parameter ID
+// and what it is scoped by, written out rather than derived. The mount, the name
+// and the location each change it; the name is one escaped token, so a slash in
+// it never reads as two segments. A repeat appends its occurrence number.
+func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
+	t.Parallel()
+	const mount = jsontext.Pointer("/paths/~1items/get")
+	tests := []struct {
+		name string
+		got  ir.ParamID
+		want ir.ParamID
+	}{
+		{name: "a query parameter", got: ids.Param(mount, "id", "query", 1), want: "param/openapi/paths/~1items/get/parameters/id/query"},
+		{name: "the same name in the path", got: ids.Param(mount, "id", "path", 1), want: "param/openapi/paths/~1items/get/parameters/id/path"},
+		{name: "another operation", got: ids.Param("/paths/~1items/post", "id", "query", 1), want: "param/openapi/paths/~1items/post/parameters/id/query"},
+		{name: "a slash in the name", got: ids.Param(mount, "a/b", "header", 1), want: "param/openapi/paths/~1items/get/parameters/a~1b/header"},
+		{name: "a tilde in the name", got: ids.Param(mount, "a~b", "header", 1), want: "param/openapi/paths/~1items/get/parameters/a~0b/header"},
+		{name: "a repeat", got: ids.Param(mount, "id", "cookie", 2), want: "param/openapi/paths/~1items/get/parameters/id/cookie/2"},
+		{name: "a third occurrence", got: ids.Param(mount, "id", "cookie", 3), want: "param/openapi/paths/~1items/get/parameters/id/cookie/3"},
+	}
+	seen := map[ir.ParamID]string{}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.got)
+			assert.True(t, ir.WellFormedID(ir.IDKindParam, string(tc.got)), "%q must be a well-formed param ID", tc.got)
+		})
+		require.NotContains(t, seen, tc.got, "%s and %s share an ID", tc.name, seen[tc.got])
+		seen[tc.got] = tc.name
+	}
+}
+
+// TestEnumMember_LivesInItsEnumsSpaceAndPath pins the namespace of a member to
+// that of its enum's TypeID, for a named enum and an anonymous one, and its path
+// to the enum's pointer followed by one escaped key, and by the occurrence number
+// for a repeat. A key spelling a slash and a number is not a repeat.
+func TestEnumMember_LivesInItsEnumsSpaceAndPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		pointer    jsontext.Pointer
+		key        string
+		occurrence int
+		want       ir.EnumMemberID
+		enum       ir.TypeID
+	}{
+		{"a component schema", "/components/schemas/E", "s:a", 1, "e/openapi/components/schemas/E/s:a", "t/openapi/components/schemas/E"},
+		{"an inline schema", "/components/schemas/S/properties/p", "s:a", 1, "e/anon/components/schemas/S/properties/p/s:a", "t/anon/components/schemas/S/properties/p"},
+		{"a key holding a slash", "/components/schemas/E", "s:a/b", 1, "e/openapi/components/schemas/E/s:a~1b", "t/openapi/components/schemas/E"},
+		{"a key holding a tilde", "/components/schemas/E", "s:a~b", 1, "e/openapi/components/schemas/E/s:a~0b", "t/openapi/components/schemas/E"},
+		{"a repeat", "/components/schemas/E", "s:a", 2, "e/openapi/components/schemas/E/s:a/2", "t/openapi/components/schemas/E"},
+		{"a third occurrence", "/components/schemas/E", "s:a", 3, "e/openapi/components/schemas/E/s:a/3", "t/openapi/components/schemas/E"},
+		{"a key spelling a repeat", "/components/schemas/E", "s:a/2", 1, "e/openapi/components/schemas/E/s:a~12", "t/openapi/components/schemas/E"},
+	}
+	seen := map[ir.EnumMemberID]string{}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := ids.EnumMember(tc.pointer, tc.key, tc.occurrence)
+			assert.Equal(t, tc.want, got)
+			assert.True(t, ir.WellFormedID(ir.IDKindEnumMember, string(got)))
+			memberSpace, _ := ir.IDSpace(ir.IDKindEnumMember, string(got))
+			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.ForPointer(tc.pointer)))
+			assert.Equal(t, enumSpace, memberSpace, "a member lives in its enum's own namespace")
+			assert.Equal(t, tc.enum, ids.ForPointer(tc.pointer))
+		})
+		require.NotContains(t, seen, tc.want, "%s and %s share an ID", tc.name, seen[tc.want])
+		seen[tc.want] = tc.name
+	}
 }

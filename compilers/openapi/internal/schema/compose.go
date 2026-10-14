@@ -38,7 +38,7 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := schemaConstraints(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillAllOf(c, ts, anchors, depth, m, s, pointer)...)
@@ -572,22 +572,25 @@ func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, point
 	// the preserved union attaches to a node this pointer owns and not to the
 	// primitive every other unrelated position also resolves to.
 	inner := ts.PrimID(ir.PrimAny)
-	var kept ir.Unmodeled
-	cons, diags := schemaConstraints(c, &kept, s, pointer)
-	owner := internAlias(c, ts, pointer, hint, ir.TypeRef{Target: inner, Nullable: true}, cons, kept)
+	owner, diags := internAlias(c, ts, s, pointer, hint, ir.TypeRef{Target: inner, Nullable: true})
 	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 }
 
 // preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the owning node's
 // Unmodeled: lowerNullOnlyUnion's node is the shared `any` primitive or an
 // alias over it, neither of which carries a branch set of its own to hold
-// them in.
+// them in. It also runs the census lower() runs for a body, which this arm
+// never reaches, so a discriminator written beside the branches is kept too.
+// Its report names the shared primitive as what the position lowered to, as
+// that census does for a bare `{type: null}`, not the alias keeping the
+// keywords.
 func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return diags
 	}
 	common := td.Common()
+	diags = append(diags, recordUnhomedAt(c, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(ir.KindPrimitive), pointer)...)
 	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
 	if len(kept) == 0 {
@@ -974,8 +977,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 	if !branch.Nullable {
 		return false
 	}
-	budget := maxNullConjuncts
-	return schemaNullVerdict(body, &budget) != nullForbidden
+	return schemaNullVerdict(body, new(maxNullConjuncts)) != nullForbidden
 }
 
 // buildComposedVariant assembles the variant Model itself. Every fill reads the
@@ -989,7 +991,7 @@ func composedVariantNullable(body *oas3.Schema, branch ir.TypeRef) bool {
 // constrains both sides of the disjunction and this path never runs the
 // pointer's own census.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := schemaConstraints(c, &common.Unmodeled, body.schema, body.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, fillAllOf(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
@@ -1367,7 +1369,8 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 				n, c.Limits.MaxEnumMembers))
 			return &ir.Any{TypeCommon: common}
 		}
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s))
+		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(s), pointer)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, pointer, hint)
 			diags = append(diags, enumDiags...)
@@ -1407,12 +1410,16 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 // non-scalar member, members heterogeneous in kind, or a set that keeps none
 // (an all-null set degrades rather than becoming a memberless Enum).
 //
-// dropNull skips `null` members instead of refusing them, for a schema whose
-// nullability the enclosing reference carries (see lowerEnum). Kind agreement
-// is read off the members kept, so a leading `null` fixes nothing. The PrimKind
-// is the one every kept member's kind maps to, meaningful only when ok.
-func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimKind, bool) {
+// dropNull skips `null` members, for a schema whose nullability the enclosing
+// reference carries (see lowerEnum). Kind agreement is read off the members
+// kept. The PrimKind is the one every kept member maps to, meaningful only when
+// ok.
+//
+// Each member's ID is keyed by its value under the enum at pointer, and a
+// repeated value is kept, its ID numbered by occurrence; enumRepeats reports it.
+func enumMembers(nodes []values.Value, dropNull bool, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
+	occurrences := make(map[string]int, len(nodes))
 	var kind ir.ValueKind
 	var prim ir.PrimKind
 	for _, node := range nodes {
@@ -1424,7 +1431,8 @@ func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimK
 			continue
 		}
 		memberPrim, text, admissible := enumMemberForm(val)
-		if !admissible {
+		key, keyed := enumMemberKey(val)
+		if !admissible || !keyed {
 			return nil, "", false
 		}
 		if len(members) == 0 {
@@ -1432,7 +1440,9 @@ func enumMembers(nodes []values.Value, dropNull bool) ([]ir.EnumMember, ir.PrimK
 		} else if val.Kind != kind {
 			return nil, "", false
 		}
+		occurrences[key]++
 		members = append(members, ir.EnumMember{
+			ID:    ids.EnumMember(pointer, key, occurrences[key]),
 			Name:  compile.NamingFor(text),
 			Value: val,
 		})
@@ -1522,9 +1532,9 @@ func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// It is the compiler's single switch over ir.ValueKind, with one arm per kind;
-// TestEnumMemberForm_NamesEveryValueKind reddens when ir adds a kind without an
-// arm. The default arm refuses a kind rather than assert a type the source
+// Its switch has one arm per ir.ValueKind, as enumMemberKey's does;
+// TestValueKindSwitches_NameEveryValueKind reddens when ir adds a kind either
+// lacks. The default arm refuses a kind rather than assert a type the source
 // never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	switch v.Kind {

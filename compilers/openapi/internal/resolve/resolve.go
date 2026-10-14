@@ -77,6 +77,39 @@ type Scope struct {
 	// target was built from. Answered from an index, it spares the scan of that
 	// mapping the library makes (GitHub #778); nil asks the library.
 	Holds func(raw *yaml.Node, token string) bool
+	// Reached records each position in the source a reference ObjectAt follows
+	// resolves to; nil records nothing.
+	Reached *Reached
+}
+
+// Reached records the positions in the source a lowering resolved a reference
+// to, each hop of a chain included: the declarations the IR carries through
+// their uses rather than on a node of their own (GitHub #616).
+//
+// No lowering reads it. The compiler asks it once the last lowering has
+// returned, so what it holds cannot change a lowering's answer, and as a set it
+// cannot depend on the order lowerings ran in. That is why sharing it between
+// copies of a context is safe, as sharing a memo is.
+type Reached struct {
+	at map[jsontext.Pointer]bool
+}
+
+// NewReached returns an empty record.
+func NewReached() *Reached {
+	return &Reached{at: map[jsontext.Pointer]bool{}}
+}
+
+// Has reports whether a lowering resolved a reference to pointer. A nil record
+// has recorded nothing.
+func (r *Reached) Has(pointer jsontext.Pointer) bool {
+	return r != nil && r.at[pointer]
+}
+
+// note records pointer, unless r is nil.
+func (r *Reached) note(pointer jsontext.Pointer) {
+	if r != nil {
+		r.at[pointer] = true
+	}
 }
 
 // InSource returns s for reading what the source holds, which is never
@@ -420,14 +453,28 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // as spelled, and an empty path names none.
 //
 // The working directory is read only to tell a relative path from an absolute
-// one, or one climbing out of it.
+// one, or from one not below it (filepath.IsLocal).
 func SameDocument(a, b string) bool {
-	return sameDocument(a, b, filepath.Abs)
+	return sameDocument(a, b, systemRules())
 }
 
-// sameDocument is SameDocument with the way to make a path absolute handed in,
-// so a test can count how often the working directory is read.
-func sameDocument(a, b string, abs func(string) (string, error)) bool {
+// pathRules is how the file system reads a path. A test hands in another
+// system's reading, so the Windows forms are checked on any host.
+type pathRules struct {
+	abs     func(path string) (string, error) // against the working directory
+	isAbs   func(path string) bool
+	isLocal func(path string) bool
+}
+
+// systemRules returns filepath's reading of a path on this system.
+func systemRules() pathRules {
+	return pathRules{abs: filepath.Abs, isAbs: filepath.IsAbs, isLocal: filepath.IsLocal}
+}
+
+// sameDocument is SameDocument with the file system's reading handed in, so a
+// test can count how often the working directory is read, and read paths as
+// another system does.
+func sameDocument(a, b string, rules pathRules) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -441,28 +488,25 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 	if a == b {
 		return true
 	}
-	if sameAnchor(a, b) {
+	if sameAnchor(a, b, rules) {
 		return false
 	}
-	absA, errA := abs(a)
-	absB, errB := abs(b)
+	absA, errA := rules.abs(a)
+	absB, errB := rules.abs(b)
 	return errA == nil && errB == nil && absA == absB
 }
 
 // sameAnchor reports whether two cleaned paths mean the same wherever the
 // working directory is, so that when they differ they name different files:
-// both absolute, or both relative and below it.
-func sameAnchor(a, b string) bool {
-	if filepath.IsAbs(a) != filepath.IsAbs(b) {
+// both absolute, or both below it. Below is filepath.IsLocal, which on Windows
+// also refuses a path rooted without a volume (\a\b), one naming a drive
+// (C:a\b) and a reserved name (NUL): none is absolute, and each is made so
+// before it is compared.
+func sameAnchor(a, b string, rules pathRules) bool {
+	if rules.isAbs(a) != rules.isAbs(b) {
 		return false
 	}
-	return filepath.IsAbs(a) || !climbs(a) && !climbs(b)
-}
-
-// climbs reports whether a cleaned relative path leaves the directory it is
-// relative to.
-func climbs(clean string) bool {
-	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	return rules.isAbs(a) || rules.isLocal(a) && rules.isLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a

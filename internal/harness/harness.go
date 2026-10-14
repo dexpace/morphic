@@ -2,10 +2,11 @@ package harness
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -108,8 +109,7 @@ var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
 // roundTrips for the same reason compile is one. A test swaps it to drive
 // Check's OutcomeRoundtrip classification directly, so that test does not
-// depend on which documents Verify lets through to this oracle — a pointer
-// cycle, for one, verifies clean and cannot be encoded (GitHub #573).
+// depend on which documents Verify lets through to this oracle.
 var roundTrip = roundTrips
 
 // roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and
@@ -166,9 +166,8 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 // so that results named alike keep the order the caller gave them, not an
 // unspecified one.
 func Report(results []Result) string {
-	sorted := make([]Result, len(results))
-	copy(sorted, results)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+	sorted := slices.Clone(results)
+	slices.SortStableFunc(sorted, func(a, b Result) int { return cmp.Compare(a.Spec, b.Spec) })
 
 	specWidth, outcomeWidth := columnWidths(sorted)
 
