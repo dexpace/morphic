@@ -253,6 +253,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		}
 		cyc = append(cyc, d)
 	}
+	valErrs = ownAdditionalOperations(ctx, doc, soa.Walk(ctx, doc), valErrs)
 	later := laterConstructs(pointerAt(srcIndex, origin), soa.Walk(ctx, doc), doc.OpenAPI)
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor, later.inSchema)...)
@@ -935,7 +936,7 @@ func (t tail) describe() string {
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
 // reproducing soa.Unmarshal with the decode lifted out, so each node keeps its
-// line and column through an overlay. ownAdditionalOperations adjusts its findings.
+// line and column through an overlay.
 //
 // A panic from the third-party parser, which faults on degenerate input such as
 // a whitespace-only document, becomes an ErrParse error. The recover reaches
@@ -964,7 +965,7 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.Open
 	}
 	valErrs = append(valErrs, out.Validate(ctx)...)
 	validation.SortValidationErrors(valErrs)
-	return &out, ownAdditionalOperations(ctx, &out, soa.Walk(ctx, &out), valErrs), nil
+	return &out, valErrs, nil
 }
 
 // validationDiag converts one speakeasy validation error into a diagnostic. A
