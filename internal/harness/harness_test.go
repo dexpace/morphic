@@ -29,8 +29,8 @@ func TestCheck_GarbageBytesDoNotPanic(t *testing.T) {
 
 func TestCheck_NilContextIsErrorNotPanic(t *testing.T) {
 	t.Parallel()
-	//nolint:staticcheck // deliberately passing a nil ctx to exercise the boundary guard.
-	r := harness.Check(nil, "minimal", []byte(testspec.Minimal))
+	var noContext context.Context // deliberately nil, to exercise the boundary guard
+	r := harness.Check(noContext, "minimal", []byte(testspec.Minimal))
 	// A caller mistake is a harness error, never a spec-attributed compiler panic.
 	assert.Equal(t, harness.OutcomeError, r.Outcome, r.Detail)
 	assert.Contains(t, r.Detail, "nil context")

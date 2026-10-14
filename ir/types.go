@@ -295,6 +295,10 @@ type Enum struct {
 
 // EnumMember is one member of an Enum (ir-design §4.5).
 type EnumMember struct {
+	// ID identifies the member within the document. It is keyed by the member's
+	// value, never its name or position, so reordering members whose values are
+	// distinct renames none.
+	ID EnumMemberID `json:"id"`
 	// Name is the member's naming.
 	Name Naming `json:"name"`
 	// Value is the member's typed value, matching Enum.ValueType.
@@ -336,12 +340,20 @@ type MapT struct {
 	Value TypeRef `json:"value"`
 }
 
-// Tuple is a positional, fixed-arity sequence (prefixItems, TypeSpec tuples,
-// Erlang tuples) (ir-design §4.6).
+// Tuple is a positional sequence: a type for each leading position, then the
+// type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
+// tuples) (ir-design §4.6). Elems types positions without requiring them: how
+// many elements an instance must hold is Constraints.MinItems, so a tuple of
+// fixed length sets it to len(Elems) and has no Rest.
 type Tuple struct {
 	TypeCommon
 	// Elems are the element types in position order.
 	Elems []TypeRef `json:"elems,omitempty"`
+	// Rest types every element past Elems; nil = no element may follow them.
+	Rest *TypeRef `json:"rest,omitzero"`
+	// Constraints bounds the whole instance, Elems and Rest together
+	// (minItems/maxItems/uniqueItems).
+	Constraints *Constraints `json:"constraints,omitzero"`
 }
 
 // Literal is a single constant value used as a type (const, single-value enum,

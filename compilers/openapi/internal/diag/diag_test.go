@@ -3,18 +3,19 @@ package diag_test
 import (
 	"encoding/json/v2"
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
+	"go/constant"
+	"go/types"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -135,9 +136,9 @@ func codes() []string {
 		diag.UndecodableSource,
 		diag.OverlayInvalid, diag.OverlayFailed,
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
-		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum,
+		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
-		diag.DuplicateStatusKey,
+		diag.DuplicateStatusKey, diag.DuplicateParameter,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.DisjointVisibility,
@@ -148,7 +149,7 @@ func codes() []string {
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
-		diag.InvalidLocationKeyword,
+		diag.InvalidLocationKeyword, diag.MissingArrayItems,
 	}
 }
 
@@ -169,79 +170,34 @@ func TestCodes_AreNamespacedAndDistinct(t *testing.T) {
 	}
 }
 
-// TestCodes_MatchTheDeclaredSet guards the fixture above against rot. It counts
-// the exported string constants the package declares and requires codes() to
-// list exactly that many, so a code added to the package but not to the fixture
-// fails here instead of going unchecked by the two tests that read it.
+// TestCodes_MatchTheDeclaredSet guards the fixture above against rot. It
+// requires codes() to list exactly the exported string constants the package
+// declares, so a code added to the package but not to the fixture fails here,
+// by name, instead of going unchecked by the two tests that read it.
 func TestCodes_MatchTheDeclaredSet(t *testing.T) {
 	t.Parallel()
-	assert.Len(t, codes(), declaredCodeCount(t),
-		"codes() must list every code the package declares")
+	assert.Empty(t, cmp.Diff(declaredCodes(t), slices.Sorted(slices.Values(codes()))),
+		"codes() must list every code the package declares, once each (-declared +listed)")
 }
 
-// declaredCodeCount returns how many exported string constants the package
-// declares, read from its own source. The kind is read off the declaration, not
-// the name, so MaxQuotedErrorBytes is not counted and a new code is counted
-// whatever it is called.
-//
-// It is parsed rather than written down because a maintained count rots
-// silently: a code added without touching this file would leave the number
-// right by accident until it was not.
-func declaredCodeCount(t *testing.T) int {
+// declaredCodes returns, sorted, the value of every exported string constant
+// the package declares. The kind is read off the type checker, not the name, so
+// MaxQuotedErrorBytes is not one and a new code is one whatever it is called or
+// however its value is written.
+func declaredCodes(t *testing.T) []string {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/diag")
 	require.NoError(t, err)
 
-	fset := token.NewFileSet()
-	var n, parsed int
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, parseErr := parser.ParseFile(fset, name, nil, 0)
-		require.NoError(t, parseErr)
-		parsed++
-		for _, decl := range file.Decls {
-			n += constNamesIn(decl)
+	var out []string
+	for c := range p.Objects[*types.Const]() {
+		if c.Exported() && c.Val().Kind() == constant.String {
+			out = append(out, constant.StringVal(c.Val()))
 		}
 	}
-	require.Positive(t, parsed, "found no non-test source to read the codes from")
-	require.Positive(t, n, "found no declared codes to count")
-	return n
-}
-
-// constNamesIn returns how many exported names decl declares as string
-// constants.
-func constNamesIn(decl ast.Decl) int {
-	gen, ok := decl.(*ast.GenDecl)
-	if !ok || gen.Tok != token.CONST {
-		return 0
-	}
-	var n int
-	for _, spec := range gen.Specs {
-		vs, ok := spec.(*ast.ValueSpec)
-		if !ok {
-			continue
-		}
-		for i, name := range vs.Names {
-			if name.IsExported() && isStringLiteral(vs, i) {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-// isStringLiteral reports whether the i'th name of vs is bound to a string
-// literal. A ValueSpec with no values at position i is an iota-style or repeated
-// declaration, which no code in this package uses and which names no string.
-func isStringLiteral(vs *ast.ValueSpec, i int) bool {
-	if i >= len(vs.Values) {
-		return false
-	}
-	lit, ok := vs.Values[i].(*ast.BasicLit)
-	return ok && lit.Kind == token.STRING
+	require.NotEmpty(t, out, "found no declared codes")
+	slices.Sort(out)
+	return out
 }
 
 // TestOneLine_CollapsesWhatALibraryWrote pins both join rules and the reason for

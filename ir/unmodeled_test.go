@@ -1,11 +1,10 @@
 package ir_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"go/types"
+	"maps"
 	"path/filepath"
-	"strconv"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,7 +57,7 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 
 // TestUnmodeledReason_TiesToConstBlock keeps UnmodeledReason.Valid tied to the
 // const block, since nothing rejects an undeclared value on deserialization. It
-// parses the ir package with go/ast and requires the declared reasons and
+// reads the ir package's declarations and requires the declared reasons and
 // unmodeledReasonWire to name the same set, and every declared reason to be
 // Valid: declared is the bar, not written, since the wire can carry a reason
 // the moment a compiler first writes it.
@@ -68,12 +67,9 @@ func TestUnmodeledReason_WireStrings(t *testing.T) {
 // TestUnmodeledReason_UnknownIsInvalid pins only the two values it names.
 func TestUnmodeledReason_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
-	declared := parseDeclaredReasons(t)
+	declared := declaredReasons(t)
 
-	want := make([]string, 0, len(unmodeledReasonWire))
-	for _, s := range unmodeledReasonWire {
-		want = append(want, s)
-	}
+	want := slices.Collect(maps.Values(unmodeledReasonWire))
 	require.ElementsMatch(t, want, declared)
 
 	for _, d := range declared {
@@ -90,120 +86,45 @@ func TestUnmodeledReason_UnknownIsInvalid(t *testing.T) {
 	assert.False(t, ir.UnmodeledReason("").Valid())
 }
 
-// reasonTypeName is the only type spelling a reason declaration may use. Specs
-// are matched against it literally rather than bucketed under whatever identifier
-// appears, so a same-file alias (`type reason = UnmodeledReason`) cannot join the
-// taxonomy at every usage site under a key this test never inspects.
+// reasonTypeName names the reason type, whose constants are the taxonomy.
 const reasonTypeName = "UnmodeledReason"
 
-// reasonHomeFile returns the base name of the ir source that declares
-// reasonTypeName — the reason vocabulary's only home. Every declaration there is
-// held to the strict form because the file holds nothing else; in the package's
-// other files, only UnmodeledReason-typed declarations are.
+// declaredReasons returns the value of every UnmodeledReason constant the
+// ir package declares, read type-checked: one typed through an alias, built by a
+// conversion or written as an expression is recorded as the compiler sees it.
 //
-// It is derived rather than written down. A constant naming the file by hand
-// keeps matching nothing once the file is renamed, which disarms the strict check
-// without failing anything — the shape this test carried when ir/preserved.go
-// became ir/unmodeled.go.
-func reasonHomeFile(t *testing.T) string {
+// Two guards keep a reason from joining the taxonomy unrecorded. No package-level
+// var may have the type, since one is assignable to UnmodeledEntry.Reason without
+// still holding what this test read. Every constant in the type's own file must
+// have it, so an untyped one written there fails rather than passing as a string.
+func declaredReasons(t *testing.T) []string {
 	t.Helper()
-	var homes []string
-	for _, path := range irSourceFiles(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		if declaresType(t, f, reasonTypeName) {
-			homes = append(homes, filepath.Base(path))
-		}
-	}
-	require.Len(t, homes, 1, "exactly one ir source must declare %s, found %v", reasonTypeName, homes)
-	return homes[0]
-}
+	p := irDecls(t)
+	named, err := p.Named(reasonTypeName)
+	require.NoError(t, err)
+	home := p.Fset.Position(named.Obj().Pos()).Filename
 
-// declaresType reports whether f declares a package-level type named name.
-func declaresType(t *testing.T, f *ast.File, name string) bool {
-	t.Helper()
-	for _, decl := range f.Decls {
-		gd, isGen := decl.(*ast.GenDecl)
-		if !isGen || gd.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gd.Specs {
-			ts, isType := spec.(*ast.TypeSpec)
-			require.True(t, isType, "type decl spec is not a TypeSpec: %#v", spec)
-			if ts.Name.Name == name {
-				return true
+	for obj := range p.Objects[types.Object]() {
+		ofType := types.Identical(obj.Type(), named)
+		switch obj.(type) {
+		case *types.Var:
+			assert.False(t, ofType, "%s is a var of %s; a reason must be a constant", obj.Name(), reasonTypeName)
+		case *types.Const:
+			if p.Fset.Position(obj.Pos()).Filename == home {
+				assert.True(t, ofType, "%s in %s does not have type %s; every constant in the reason type's file must have it",
+					obj.Name(), filepath.Base(home), reasonTypeName)
 			}
+		default:
+			// A type or a function declares no reason.
 		}
 	}
-	return false
-}
 
-// parseDeclaredReasons returns the literal value of every UnmodeledReason-typed
-// constant the ir package declares. It parses every production source rather than
-// the reason type's own file alone, so a reason declared beside unrelated code is
-// recorded instead of missed.
-//
-// Two spellings stay out of reach, both needing go/types rather than a parse to
-// see: an untyped constant in another file (`const legacy = "x"` acquires the
-// type only where it is assigned), and one typed through an alias declared in a
-// different file. Neither is reachable inside the home file, where every
-// declaration must spell the type literally.
-func parseDeclaredReasons(t *testing.T) []string {
-	t.Helper()
-	home := reasonHomeFile(t)
-	var out []string
-	for _, path := range irSourceFiles(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		for _, decl := range f.Decls {
-			gd, isGen := decl.(*ast.GenDecl)
-			if !isGen || (gd.Tok != token.CONST && gd.Tok != token.VAR) {
-				continue
-			}
-			out = append(out, reasonValues(t, gd, filepath.Base(path), home)...)
-		}
-	}
-	require.NotEmpty(t, out, "no UnmodeledReason constants found; the parse went wrong")
-	return out
-}
-
-// reasonValues returns the unquoted value of each `Name UnmodeledReason =
-// "literal"` spec in gd, declared in the source file named file. home is the
-// reason type's own file, whose every declaration is held to that form.
-//
-// Nothing is skipped in silence. A spec naming the reason type in any other
-// form fails, as does any spec at all in home: skipping would let a constant
-// join the taxonomy unrecorded — untyped, built by a conversion, typed through
-// a same-file alias, or held in a mutable var — and surface later as a spurious
-// ir/unknown-unmodeled-reason.
-func reasonValues(t *testing.T, gd *ast.GenDecl, file, home string) []string {
-	t.Helper()
-	var out []string
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "%s: declaration spec is not a ValueSpec: %#v", file, spec)
-
-		id, isIdent := vs.Type.(*ast.Ident)
-		if !isIdent || id.Name != reasonTypeName {
-			require.NotEqual(t, home, file,
-				"%s in %s declares no %s type; every declaration in this file must spell it "+
-					"literally, so an untyped constant, a conversion or a same-file alias cannot "+
-					"join the taxonomy unrecorded", vs.Names, file, reasonTypeName)
-			continue
-		}
-		require.Equal(t, token.CONST, gd.Tok,
-			"%s in %s: a reason must be a constant; a var of this type is assignable to "+
-				"UnmodeledEntry.Reason but need not still hold what this test recorded",
-			vs.Names, file)
-
-		require.Len(t, vs.Values, 1, "%s in %s: expected exactly one literal value", vs.Names, file)
-		lit, isLit := vs.Values[0].(*ast.BasicLit)
-		require.True(t, isLit && lit.Kind == token.STRING,
-			"%s in %s: value must be a string literal, not a conversion or expression", vs.Names, file)
-
-		unquoted, err := strconv.Unquote(lit.Value)
-		require.NoError(t, err)
-		out = append(out, unquoted)
+	consts, err := p.StringConsts(reasonTypeName)
+	require.NoError(t, err)
+	require.NotEmpty(t, consts, "no UnmodeledReason constants found; the load went wrong")
+	out := make([]string, len(consts))
+	for i, c := range consts {
+		out[i] = c.Value
 	}
 	return out
 }

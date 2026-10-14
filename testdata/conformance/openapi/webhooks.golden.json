@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.12.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -87,13 +94,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "newPet",
                     "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": true
+                    "isWebhook": true,
+                    "webhookName": "newPet"
                   }
                 ]
               },
@@ -126,6 +133,89 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/webhooks/newPet/post"
+              }
+            },
+            {
+              "id": "op/openapi/webhooks/{tenant}.created/post",
+              "name": {
+                "hint": "post_tenant_created"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true,
+                    "webhookName": "{tenant}.created"
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/{tenant}.created/post"
+              }
+            },
+            {
+              "id": "op/openapi/webhooks//post",
+              "name": {
+                "hint": "post"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks//post"
               }
             }
           ]
@@ -188,7 +278,7 @@
     {
       "format": "openapi@3.1",
       "path": "webhooks.yaml",
-      "hash": "a1a8c6abd2eddc50abf4aaa27edf7c634a26b068f2c13fdfb0a6dbe8a8d2ef83"
+      "hash": "622b4ddb9061133597f3bb6f8da4eeb80ef0c6ba5afaab7928415b463529f531"
     }
   ]
 }

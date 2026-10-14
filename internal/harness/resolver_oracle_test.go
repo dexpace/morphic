@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -242,12 +243,9 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 // reference. Other error diagnostics — an unresolved ref, a validation failure —
 // are not refusals of this kind and do not count.
 func hasCyclicRef(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Code == "openapi/cyclic-ref" && d.Severity == ir.SeverityError {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == "openapi/cyclic-ref" && d.Severity == ir.SeverityError
+	})
 }
 
 // markerValue reads the value the helper printed for a marker.

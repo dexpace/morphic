@@ -161,23 +161,21 @@ func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
 	assert.False(t, c.DeclaresAuth(""))
 }
 
-// TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric completes the set the
-// two accessors above start: every reader on this type answers on a context with
-// nothing in it. This is the one that reaches through the document pointer, so
-// it is the one that would panic instead — and a test holding a Ctx literal is
-// not a hypothetical, it is how half this file drives the type.
-func TestExclusiveBoundIsBoolean_TheZeroContextReadsAsNumeric(t *testing.T) {
+// TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
+// answers false rather than panicking: the accessor reaches through the
+// document pointer, and half this file drives the type as a Ctx literal.
+func TestIs30_TheZeroContextReadsAs2020(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	assert.False(t, c.ExclusiveBoundIsBoolean(),
-		"no document names no dialect, which falls back to the 2020-12 numeric form")
+	assert.False(t, c.Is30(),
+		"no document names no dialect, which falls back to 2020-12")
 }
 
-// TestExclusiveBoundIsBoolean_FollowsTheDialect pins which spelling of
-// exclusiveMinimum/exclusiveMaximum the document uses. Reading a 3.0 boolean as
-// a 2020-12 numeric bound (or the reverse) silently changes what constraint the
-// IR records, and neither form fails to parse as the other.
-func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
+// TestIs30_FollowsTheDeclaredVersion pins which documents read as OpenAPI 3.0.
+// A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
+// turns a boolean exclusiveMinimum into a numeric bound and silences a missing
+// `items`, and the reverse warns on every 3.1 array that omits `items`.
+func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
@@ -194,9 +192,49 @@ func TestExclusiveBoundIsBoolean_FollowsTheDialect(t *testing.T) {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.ExclusiveBoundIsBoolean())
+			assert.Equal(t, tc.want, c.Is30())
 		})
 	}
+}
+
+// TestSince32_FollowsTheDeclaredVersion pins the one answer every raw-node
+// reader of a 3.2 field and its census ask (GitHub #615). A version nobody
+// recognizes answers false, so no reader runs on a dialect nothing describes.
+func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		want    bool
+	}{
+		{version: "3.0.3", want: false},
+		{version: "3.1.0", want: false},
+		{version: "3.2.0", want: true},
+		{version: "3.2.1", want: true},
+		{version: "4.0.0", want: false},
+		{version: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
+			assert.Equal(t, tc.want, c.Since32())
+		})
+	}
+}
+
+// TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
+// references lives: a context and the scope it builds hold the same one, so a
+// resolution through any copy is visible to the compiler, and a zero context,
+// which holds none, has reached nothing.
+func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+	require.NotNil(t, c.RefScope().Reached)
+	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
+	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
+	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution

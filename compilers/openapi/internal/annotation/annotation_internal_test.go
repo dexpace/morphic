@@ -24,7 +24,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0))
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0), false)
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -40,7 +40,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0))
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0), false)
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -54,7 +54,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0))
+	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0), false)
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -207,4 +207,97 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "invalid UTF-8")
+}
+
+// TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key of a 3.2
+// document this reader takes off the raw node: the library's XML model has no
+// field for `nodeType`, so a reader that consulted the model alone would drop
+// a declaration the document makes (GitHub #615). The census is told the key
+// was read, which is why the same fixture read as 3.1 warns below instead.
+func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+
+	require.NotNil(t, got.XML)
+	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
+	assert.Equal(t, "attribute", got.XML.NodeType)
+	assert.Empty(t, diags, "a key the dialect defines is not announced as undefined")
+}
+
+// TestRead_NodeTypeBelow32IsCensused is the other side of the gate: below 3.2
+// the key is a misspelling rather than a field the dialect added, so nothing is
+// read into the IR and the census owes the warning.
+func TestRead_NodeTypeBelow32IsCensused(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), false)
+
+	require.NotNil(t, got.XML)
+	assert.Empty(t, got.XML.NodeType, "3.1 defines no nodeType, so no field is filled")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/xml/nodeType"), diags[0].Provenance.Pointer,
+		"the warning names the key's own position")
+}
+
+// TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers applyNodeType's first
+// branch. `nodeType` is written inside the xml object, so a schema declaring no
+// xml object has no position the key could sit at — and no hints to carry it.
+func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+
+	assert.Nil(t, got.XML)
+	assert.Empty(t, diags)
+}
+
+// TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
+// on 3.2: one of the five node types the specification defines. Anything else is
+// kept verbatim under the xml object's scope with a warning, an attribute flag
+// the nodeType contradicts is kept the same way rather than overwritten, and a
+// nodeType merged in through `<<` keeps the census's report.
+func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		xml      string
+		nodeType string
+		kept     string // the Unmodeled key expected, "" for none
+		code     string // the diagnostic expected at the key, "" for none
+	}{
+		{"defined", "{nodeType: cdata}", "cdata", "", ""},
+		{"null", "{nodeType: ~}", "", "", ""},
+		{"null beside attribute", "{attribute: true, nodeType: ~}", "attribute", "", ""},
+		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
+		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
+			"openapi:xml/attribute", diag.DegradedConstruct},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "", "", diag.UnknownKeyUnreachable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
+			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+			require.NotNil(t, got.XML)
+			assert.Equal(t, tc.nodeType, got.XML.NodeType)
+			if tc.kept == "" {
+				assert.Empty(t, got.Unmodeled)
+			} else {
+				assert.Equal(t, ir.ReasonDegradedLowering, got.Unmodeled[tc.kept].Reason)
+			}
+			if tc.code == "" {
+				assert.Empty(t, diags)
+				return
+			}
+			require.Len(t, diags, 1, "got %v", diags)
+			assert.Equal(t, tc.code, diags[0].Code)
+		})
+	}
 }

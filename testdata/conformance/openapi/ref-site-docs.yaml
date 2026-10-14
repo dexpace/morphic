@@ -1,0 +1,110 @@
+openapi: 3.2.0
+info: {title: RefSiteDocs, version: "1.0.0"}
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      parameters:
+        - {$ref: '#/components/parameters/Limit', summary: Page size, description: How many widgets to return.}
+      requestBody: {$ref: '#/components/requestBodies/WidgetBody', description: The widget to create.}
+      responses:
+        "200":
+          $ref: '#/components/responses/Listing'
+          description: The listing, as this operation returns it.
+        "404":
+          $ref: '#/components/responses/Missing'
+          description: No such widget.
+  /gadgets:
+    get:
+      operationId: listGadgets
+      parameters:
+        - {$ref: '#/components/parameters/Limit', description: How many gadgets to return.}
+      responses:
+        "200": {$ref: '#/components/responses/Listing'}
+  /sprockets:
+    post:
+      operationId: makeSprocket
+      # Each position reaches its declaration through an alias, a component
+      # that is itself a $ref with docs of its own. The alias's docs override
+      # the declaration's, and a use site's override the alias's in turn.
+      parameters:
+        - {$ref: '#/components/parameters/LimitAlias', summary: Sprocket page size}
+      requestBody: {$ref: '#/components/requestBodies/WidgetBodyAlias'}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Rate-Unit: {$ref: '#/components/headers/RateUnitAlias'}
+          content:
+            application/json:
+              schema: {type: string}
+              examples:
+                one: {$ref: '#/components/examples/PageAlias'}
+        "404": {$ref: '#/components/responses/MissingAlias'}
+components:
+  parameters:
+    LimitAlias:
+      $ref: '#/components/parameters/Limit'
+      description: The alias's own description.
+    Limit:
+      name: limit
+      in: query
+      description: The declaration's own description.
+      schema: {type: integer}
+  requestBodies:
+    WidgetBodyAlias:
+      $ref: '#/components/requestBodies/WidgetBody'
+      description: The alias's own body description.
+    WidgetBody:
+      description: The declaration's own body description.
+      content:
+        application/json:
+          schema: {type: object, properties: {sku: {type: string}}}
+  responses:
+    Listing:
+      description: A page of results.
+      headers:
+        X-Rate-Unit:
+          $ref: '#/components/headers/RateUnit'
+          description: The unit a rate limit is stated in.
+      content:
+        application/json:
+          schema: {type: object, properties: {items: {type: array, items: {type: string}}}}
+          examples:
+            one:
+              $ref: '#/components/examples/Page'
+              summary: One page
+              description: A single page of results.
+    Missing:
+      description: Nothing there.
+    MissingAlias:
+      $ref: '#/components/responses/Missing'
+      description: The alias's own response description.
+  headers:
+    RateUnitAlias:
+      $ref: '#/components/headers/RateUnit'
+      description: The alias's own header description.
+    RateUnit:
+      description: The declaration's own header description.
+      schema: {type: string}
+  examples:
+    PageAlias:
+      $ref: '#/components/examples/Page'
+      summary: The alias's own summary
+    Page:
+      summary: Declared summary
+      description: Declared description
+      value: {items: []}
+  securitySchemes:
+    BaseKey:
+      description: The declaration's own scheme description.
+      type: apiKey
+      in: header
+      name: X-Key
+    ApiKey:
+      $ref: '#/components/securitySchemes/BaseKey'
+      description: The key this API expects.
+    KeyAlias:
+      $ref: '#/components/securitySchemes/ApiKey'
+security:
+  - ApiKey: []

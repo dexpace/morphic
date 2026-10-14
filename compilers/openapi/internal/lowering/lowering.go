@@ -134,6 +134,12 @@ type Ctx struct {
 	// targets, which no lowering changes, so what one copy remembers is what
 	// another would read. Nil in a zero context.
 	typePositions map[typePositionKey]typePositionAt
+
+	// reached records where each reference a lowering resolved landed in the
+	// source. Copies share it on purpose: no lowering reads it, so it cannot
+	// change any lowering's answer, and the compiler reads it once the last one
+	// has returned (Reached). Nil in a zero context, which records nothing.
+	reached *resolve.Reached
 }
 
 // typePositionKey is a position a discriminator mapping target names, and the
@@ -179,7 +185,15 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		defsReader: reader,
 
 		typePositions: map[typePositionKey]typePositionAt{},
+		reached:       resolve.NewReached(),
 	}
+}
+
+// Reached reports whether a lowering run under this context, or any copy of it,
+// resolved a reference to pointer in the source. It is meant to be asked once
+// every lowering has returned: before that it answers for those that have.
+func (c Ctx) Reached(pointer jsontext.Pointer) bool {
+	return c.reached.Has(pointer)
 }
 
 // Sources is the document's input files, in the order Provenance.Source indexes
@@ -319,7 +333,7 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 		return nil
 	}
 	names := make(map[string]bool, schemas.Len())
-	for name := range schemas.All() {
+	for name := range schemas.Keys() {
 		names[name] = true
 	}
 	return names
@@ -335,21 +349,30 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // caller, which is the one thing keeping it unexported was for.
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
-// ExclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
-//
-// It reads the document version, which makes it a question about the context
-// rather than about any schema — annotation.Constraints takes the answer as a
-// parameter precisely so the reader never has to ask it.
-//
-// The version is read through its accessor so a context with no document answers
-// like an unrecognized version rather than panicking, which is how the other two
-// readers behave on a zero value.
-func (c Ctx) ExclusiveBoundIsBoolean() bool {
+// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
+// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
+// as a boolean exclusiveMinimum or a required `items`, asks this rather than
+// parsing the version itself; `nullable` is still read in every dialect
+// (GitHub #632). An unrecognized version, and a context with no document,
+// answer false. It reads the entry document's version, whichever document
+// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
+// 3.0 (GitHub #839).
+func (c Ctx) Is30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"
+}
+
+// Since32 reports whether this document's dialect is OpenAPI 3.2 or a later
+// one, which define fields the parser's model has no member for: a Response
+// Object's summary, an XML Object's nodeType, an Encoding Object's nested
+// encodings and components/mediaTypes. Each is read off the raw node, and the
+// census must be told so (GitHub #615); one answer keeps the two agreeing. It
+// names a floor rather than one version, so a later dialect inherits the reads
+// rather than silently warning about its own fields again; an unrecognized
+// version answers false, as Is30 does.
+func (c Ctx) Since32() bool {
+	minor, ok := load.SupportedMinor(c.Doc.GetOpenAPI())
+	return ok && minor != "3.0" && minor != "3.1"
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
@@ -361,7 +384,8 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
-		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Holds: c.targets.Holds}
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Holds: c.targets.Holds,
+		Reached: c.reached}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

@@ -92,6 +92,43 @@ func TestParse_EndToEnd(t *testing.T) {
 	assert.True(t, sawUnion, "the oneOf survived as a Union node")
 }
 
+// TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
+// entry as written, at every minor, as other 3.2 fields the parser models are
+// read (GitHub #864 asks whether a document below 3.2 should be warned). A
+// relative URI is not resolved against the source's path, and an empty or null
+// `$self` records nothing, which is what declaring none records.
+func TestParse_RecordsSelfURI(t *testing.T) {
+	t.Parallel()
+	const uri = "https://example.com/api/openapi.yaml"
+	tests := []struct {
+		name    string
+		version string
+		self    string // the $self line, or "" for none
+		want    string
+	}{
+		{"3.2 declares one", "3.2.0", "$self: " + uri, uri},
+		{"3.1 declares one", "3.1.0", "$self: " + uri, uri},
+		{"3.0 declares one", "3.0.3", "$self: " + uri, uri},
+		{"a relative one stays relative", "3.2.0", "$self: ../api/openapi.yaml", "../api/openapi.yaml"},
+		{"none declared", "3.2.0", "", ""},
+		{"an empty one is none", "3.2.0", `$self: ""`, ""},
+		{"a null one is none", "3.2.0", "$self: null", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: " + tt.version + "\n" + tt.self + "\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
+			doc, diags, err := openapi.New().Compile(context.Background(),
+				[]compilers.Source{{Path: "specs/self-uri.yaml", Data: []byte(spec)}}, compilers.Options{})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+			assert.False(t, ir.HasError(diags), "%+v", diags)
+			require.Len(t, doc.Sources, 1)
+			assert.Equal(t, tt.want, doc.Sources[0].SelfURI)
+		})
+	}
+}
+
 func TestParse_RegistersInRegistry(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()

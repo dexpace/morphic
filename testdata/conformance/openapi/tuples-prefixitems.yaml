@@ -3,8 +3,45 @@ info: {title: TuplesPrefixItems, version: "1.0.0"}
 paths: {}
 components:
   schemas:
+    # Closed first, so a lowering that read a closed tuple as open, or the
+    # reverse, shows in the single-order golden too. `items: false` lets no
+    # element follow the two positions, and no minItems requires either.
+    ClosedPair:
+      type: array
+      prefixItems:
+        - {type: string}
+        - {type: integer}
+      items: false
+    # No items at all: 2020-12 reads that as `true`, so anything may follow.
     Pair:
       type: array
       prefixItems:
         - {type: string}
         - {type: integer}
+    # A typed rest, inline, so its own type graph has to reach the IR.
+    PairWithRest:
+      type: array
+      prefixItems:
+        - {type: string}
+      items:
+        type: object
+        properties:
+          flag: {type: boolean}
+    # Exactly two: closed, and both positions required.
+    ExactPair:
+      type: array
+      prefixItems:
+        - {type: string}
+        - {type: integer}
+      items: false
+      minItems: 2
+    # Every collection bound reaches the tuple.
+    BoundedClosedPair:
+      type: array
+      prefixItems:
+        - {type: string}
+        - {type: integer}
+      items: false
+      minItems: 1
+      maxItems: 2
+      uniqueItems: true
