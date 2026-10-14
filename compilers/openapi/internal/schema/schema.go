@@ -1050,6 +1050,10 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
+//
+// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
+// both admits values that match two variants, which Exclusive rejects; with an
+// integer width both variants are the same primitive.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -1397,10 +1401,11 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
-// known pairing interns the shared primitive; byte, an unknown format, and the
-// 2020-12 content vocabulary each hoist a named Scalar wrapping the base
-// primitive with an Encoding, so what the position wrote never leaks onto the
-// shared primitive every other declaration of that type also resolves to.
+// known pairing interns the shared primitive; byte, a pairing the table does
+// not list, and the 2020-12 content vocabulary each hoist a named Scalar
+// wrapping the base primitive with an Encoding, so what the position wrote
+// never leaks onto the shared primitive every other declaration of that type
+// also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
@@ -1948,25 +1953,46 @@ func (w *anchorWalk) charge(depth int) bool {
 }
 
 // formatTable maps a scalar "type" or "type/format" key to its IR primitive.
-// Keys absent here (byte, and any unknown format) hoist a Scalar instead.
+//
+// An integer width maps under either numeric type, since OpenAPI applies a
+// format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
+// decimal and decimal128 map under number alone: under integer they admit only
+// the integral values, which no primitive narrower than integer holds. Any
+// pairing absent here hoists a Scalar that keeps the format, byte excepted:
+// scalarTypeID reads it before the table, as base64-encoded bytes.
 var formatTable = map[string]ir.PrimKind{
-	"string":           ir.PrimString,
-	"string/date":      ir.PrimDate,
-	"string/time":      ir.PrimTime,
-	"string/duration":  ir.PrimDuration,
-	"string/uuid":      ir.PrimUUID,
-	"string/uri":       ir.PrimURL,
-	"string/date-time": ir.PrimDatetimeOffset,
-	"string/binary":    ir.PrimBytes,
-	"string/password":  ir.PrimString,
-	"integer":          ir.PrimInteger,
-	"integer/int32":    ir.PrimInt32,
-	"integer/int64":    ir.PrimInt64,
-	"number":           ir.PrimNumber,
-	"number/float":     ir.PrimFloat32,
-	"number/double":    ir.PrimFloat64,
-	"number/decimal":   ir.PrimDecimal,
-	"boolean":          ir.PrimBool,
+	"string":            ir.PrimString,
+	"string/date":       ir.PrimDate,
+	"string/time":       ir.PrimTime,
+	"string/duration":   ir.PrimDuration,
+	"string/uuid":       ir.PrimUUID,
+	"string/uri":        ir.PrimURL,
+	"string/date-time":  ir.PrimDatetimeOffset,
+	"string/binary":     ir.PrimBytes,
+	"string/password":   ir.PrimString,
+	"integer":           ir.PrimInteger,
+	"integer/int8":      ir.PrimInt8,
+	"integer/int16":     ir.PrimInt16,
+	"integer/int32":     ir.PrimInt32,
+	"integer/int64":     ir.PrimInt64,
+	"integer/uint8":     ir.PrimUint8,
+	"integer/uint16":    ir.PrimUint16,
+	"integer/uint32":    ir.PrimUint32,
+	"integer/uint64":    ir.PrimUint64,
+	"number":            ir.PrimNumber,
+	"number/int8":       ir.PrimInt8,
+	"number/int16":      ir.PrimInt16,
+	"number/int32":      ir.PrimInt32,
+	"number/int64":      ir.PrimInt64,
+	"number/uint8":      ir.PrimUint8,
+	"number/uint16":     ir.PrimUint16,
+	"number/uint32":     ir.PrimUint32,
+	"number/uint64":     ir.PrimUint64,
+	"number/float":      ir.PrimFloat32,
+	"number/double":     ir.PrimFloat64,
+	"number/decimal":    ir.PrimDecimal,
+	"number/decimal128": ir.PrimDecimal128,
+	"boolean":           ir.PrimBool,
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
