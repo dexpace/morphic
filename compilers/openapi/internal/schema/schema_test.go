@@ -507,19 +507,9 @@ func TestLower_MissingArrayItemsLoweredTwiceWarnsOnce(t *testing.T) {
 // Compile's own diagnostics.
 func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpecVer("3.0.3", "    NoItems: {type: array}\n")
-	doc, diags := parseFull(t, spec)
-	require.NotNil(t, doc)
-
-	var got []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.MissingArrayItems {
-			got = append(got, d)
-		}
-	}
-	require.Len(t, got, 1, "the warning reaches Compile's diagnostics; got %+v", diags)
-	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/NoItems"), got[0].Provenance.Pointer)
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", "    NoItems: {type: array}\n"))
+	assert.Equal(t, []string{"/components/schemas/NoItems"}, missingItemsAt(t, diags),
+		"the warning reaches Compile's diagnostics, once")
 
 	l, ok := doc.Types[componentID("NoItems")].(*ir.List)
 	require.True(t, ok)
