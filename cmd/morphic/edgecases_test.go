@@ -403,9 +403,14 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 			want: "error openapi/bad spec.yaml:5: m\n",
 		},
 		{
-			name: "pointer and position together: the pointer wins",
+			name: "pointer and position together: the link leads and the pointer follows",
 			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5, Column: 1}},
-			want: "error openapi/bad spec.yaml#/paths/~1x: m\n",
+			want: "error openapi/bad spec.yaml:5:1 (#/paths/~1x): m\n",
+		},
+		{
+			name: "pointer and a line alone",
+			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5}},
+			want: "error openapi/bad spec.yaml:5 (#/paths/~1x): m\n",
 		},
 		{
 			name: "a node beside a source: the file is printed, not the node",
@@ -426,6 +431,11 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 			name: "an unresolvable source with a pointer prints the pointer bare",
 			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x"},
 			want: "error openapi/bad /paths/~1x: m\n",
+		},
+		{
+			name: "an unresolvable source with both prints them bare",
+			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x", Position: ir.Position{Line: 9, Column: 7}},
+			want: "error openapi/bad 9:7 (#/paths/~1x): m\n",
 		},
 		{
 			name: "nothing at all prints no location",

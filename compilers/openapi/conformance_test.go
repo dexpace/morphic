@@ -248,6 +248,7 @@ func conformanceCases() []conformanceCase {
 		{"servers-variables", assertServersVariables, []string{"servers"}},
 		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
 		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
+		{"oauth-flow-fields", assertOAuthFlowFields, []string{"auth-schemes"}},
 		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
 	}
 }
@@ -3911,6 +3912,64 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, 2, n, "two flowless declarations, two reports: %+v", diags)
 	assert.Equal(t, "https://example.com/.well-known/oauth-authorization-server",
 		byPointer["/components/securitySchemes/metadataOnly"].OAuth2MetadataURL, "the control's metadata URL is kept")
+}
+
+// assertOAuthFlowFields pins that a URL written on a flow whose kind does not
+// define it is kept in that flow's Unmodeled, in no IR slot, and announced once
+// at its own pointer, and that scopes keep the order the document writes them
+// (GitHub #865, #639).
+func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	byName := make(map[string]ir.AuthScheme, len(doc.Auth))
+	for _, s := range doc.Auth {
+		byName[s.Name.Source] = s
+	}
+	const e = "https://example.com/"
+	cases := []struct {
+		kind, keyword, field string
+		// authorize and token are what the flow's own fields lower to; stray is
+		// the undefined field's value as the document wrote it.
+		authorize, token, stray string
+	}{
+		{"authorization_code", "authorizationCode", "deviceAuthorizationUrl", e + "authorize", e + "token", e + "device-undefined"},
+		{"client_credentials", "clientCredentials", "authorizationUrl", "", e + "token", e + "authorize-undefined"},
+		{"implicit", "implicit", "tokenUrl", e + "authorize", "", e + "token-undefined"},
+		{"device", "deviceAuthorization", "authorizationUrl", e + "device", e + "token", e + "authorize-undefined"},
+	}
+	flows := map[string]ir.OAuthFlow{}
+	for _, fl := range byName["flowFields"].Flows {
+		flows[fl.Kind] = fl
+	}
+	require.Len(t, flows, len(cases), "every declared flow lowers")
+	for _, tc := range cases {
+		fl := flows[tc.kind]
+		pointer := "/components/securitySchemes/flowFields/flows/" + tc.keyword + "/" + tc.field
+		assert.Equal(t, tc.authorize, fl.AuthorizationURL, "%s: only a defined field fills this slot", tc.kind)
+		assert.Equal(t, tc.token, fl.TokenURL, "%s: only a defined field fills this slot", tc.kind)
+		require.Len(t, fl.Unmodeled, 1, "%s keeps its one undefined field: %v", tc.kind, fl.Unmodeled)
+		kept, ok := fl.Unmodeled["openapi:"+tc.field]
+		require.True(t, ok, "%s keeps %s; got %v", tc.kind, tc.field, fl.Unmodeled)
+		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)
+		assert.Equal(t, ir.RawValue(`"`+tc.stray+`"`), kept.Value)
+		assert.Equal(t, jsontext.Pointer(pointer), kept.Provenance.Pointer)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, pointer),
+			"%s: announced once at the field", tc.kind)
+	}
+	var announced int
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			announced++
+		}
+	}
+	assert.Equal(t, len(cases), announced, "one announcement per kept field: %+v", diags)
+
+	scoped := byName["scopeOrder"].Flows
+	require.Len(t, scoped, 1)
+	assert.Empty(t, cmp.Diff([]ir.OAuthScope{
+		{Name: "write", Description: "Modify data"},
+		{Name: "read", Description: "Read data"},
+		{Name: "admin", Description: "Full access"},
+	}, scoped[0].Scopes), "scopes keep source order")
 }
 
 func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

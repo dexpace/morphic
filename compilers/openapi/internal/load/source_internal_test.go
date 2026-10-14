@@ -87,7 +87,7 @@ func TestHold_ABackReferenceReachesTheSourceAsHeld(t *testing.T) {
 		t.Parallel()
 		got, diags := loadExternal(t, dir, root, Options{})
 
-		assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)),
+		assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)),
 			"reported once, by the source's own validation, and not again at the $ref")
 		r, ok := got.Doc.Components.Responses.Get("R")
 		require.True(t, ok)
@@ -127,7 +127,8 @@ components:
 `
 	_, diags := loadExternal(t, dir, root, Options{})
 
-	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-allowed-values"}, diagLines(diags)))
+	assert.Empty(t, cmp.Diff([]string{"/components/parameters/Q/in openapi/validation/validation-allowed-values"},
+		diagLines(diags)))
 }
 
 // TestHold_EverySpellingOfTheSourceReachesIt pins that a back reference reaches
@@ -166,7 +167,7 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
-			assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
+			assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)))
 			r, ok := got.Doc.Components.Responses.Get("R")
 			require.True(t, ok)
 			for _, path := range []string{"/a", "/b"} {
@@ -531,7 +532,7 @@ func TestHold_ASpellingTheSourceUsesForItselfIsHeldAhead(t *testing.T) {
 	dir := t.TempDir()
 	got, diags := loadExternal(t, dir, backRoot(backPath("/a", dir+"/./root.yaml#/components/responses/R")), Options{})
 
-	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
+	assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)))
 	r, ok := got.Doc.Components.Responses.Get("R")
 	require.True(t, ok)
 	assert.Same(t, r.GetObject(), response200(t, got.Doc, "/a").GetObject())

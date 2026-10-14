@@ -58,6 +58,14 @@ var heldLists = map[string]listFixture{
 		path:  "doc.Services[0].Groups[0].Operations[0].ReturnTypeVisibility",
 		isSet: true,
 	},
+	"OAuthFlow.TokenEndpointAuthMethods": {
+		set: func(doc *ir.Document, s []string) {
+			scheme := doc.Auth["auth/x/s"]
+			scheme.Flows[0].TokenEndpointAuthMethods = s
+		},
+		path:  "doc.Auth[auth/x/s].Flows[0].TokenEndpointAuthMethods",
+		isSet: true,
+	},
 }
 
 // heldListDoc returns a document that verifies clean and holds every list in
@@ -72,6 +80,8 @@ func heldListDoc() *ir.Document {
 	doc.Services[0].Groups[0].Name = named("g")
 	doc.Types = ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Name: named("a"),
 		Properties: []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"}}}}}
+	doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/s": {ID: "auth/x/s", Name: named("s"), Kind: ir.AuthKindOAuth2,
+		Flows: []ir.OAuthFlow{{Kind: "client_credentials"}}}}
 	return doc
 }
 

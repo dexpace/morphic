@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestLowerSecurityRequirement_Nil covers the half of the object guard a parsed
@@ -97,4 +99,129 @@ func TestPresentFlows_ReadsEverySourceFlowField(t *testing.T) {
 	}
 	require.NotZero(t, seen, "the walk found no flow field at all")
 	assert.Len(t, presentFlows(&all), seen, "each flow field is read exactly once")
+}
+
+// TestFlowFields_AccountForEverySourceField holds flowFields to the OAuth Flow
+// model it lists, so a field the upstream model gains fails here rather than
+// being dropped from the IR without trace (GitHub #865). Each field must be
+// read for every flow or be listed by wire name, and every field a flow kind
+// defines must be one of those listed. The flow keywords come from presentFlows
+// over a fully populated object, so a flow the model gains is named here too.
+func TestFlowFields_AccountForEverySourceField(t *testing.T) {
+	t.Parallel()
+	// alwaysRead are the fields oauthFlow reads whatever the flow is.
+	alwaysRead := map[string]bool{"RefreshURL": true, "Scopes": true, "Extensions": true}
+	// perKind are the fields only some flows define, keyed by Go field name and
+	// valued by the wire name flowFields must list.
+	perKind := map[string]string{
+		"AuthorizationURL":       "authorizationUrl",
+		"DeviceAuthorizationURL": "deviceAuthorizationUrl",
+		"TokenURL":               "tokenUrl",
+	}
+
+	var want []string
+	for f := range reflect.TypeFor[soa.OAuthFlow]().Fields() {
+		if f.Anonymous || !f.IsExported() {
+			continue // the embedded marshaller model is not a document field
+		}
+		wire, isPerKind := perKind[f.Name]
+		require.True(t, alwaysRead[f.Name] || isPerKind,
+			"OAuth flow field %q is neither read for every flow nor listed as a per-kind field, "+
+				"so a document writing it loses it: add it to one or the other", f.Name)
+		if isPerKind {
+			want = append(want, wire)
+		}
+	}
+	slices.Sort(want)
+	fields := flowFields()
+	listed := make([]string, 0, len(fields))
+	for _, field := range fields {
+		listed = append(listed, field.name)
+	}
+	assert.Equal(t, want, listed, "flowFields must list every per-kind field, sorted")
+
+	var all soa.OAuthFlows
+	for f := range reflect.TypeFor[soa.OAuthFlows]().Fields() {
+		if f.Anonymous || !f.IsExported() || f.Name == "Extensions" {
+			continue
+		}
+		reflect.ValueOf(&all).Elem().FieldByIndex(f.Index).Set(reflect.ValueOf(&soa.OAuthFlow{}))
+	}
+	declared := presentFlows(&all)
+	keywords := make([]string, 0, len(declared))
+	for _, f := range declared {
+		keywords = append(keywords, f.keyword)
+	}
+	require.ElementsMatch(t,
+		[]string{"implicit", "authorizationCode", "password", "clientCredentials", "deviceAuthorization"}, keywords,
+		"a flow the model gains needs a row in flowFieldsDefinedBy and here")
+	for _, keyword := range keywords {
+		defined := flowFieldsDefinedBy(keyword)
+		assert.NotEmpty(t, defined, "every flow defines some endpoint: %s", keyword)
+		for _, name := range defined {
+			assert.Contains(t, listed, name, "%s defines a field flowFields does not list", keyword)
+		}
+	}
+}
+
+// TestFlowFields_ReadTheFieldTheirNameSays holds each flowField's accessors to
+// the source field its wire name spells: written reports that field alone and
+// read returns its value. A pair crossed between two names would lower one
+// endpoint under another's flow kind with every other test still agreeing.
+func TestFlowFields_ReadTheFieldTheirNameSays(t *testing.T) {
+	t.Parallel()
+	goName := map[string]string{
+		"authorizationUrl":       "AuthorizationURL",
+		"deviceAuthorizationUrl": "DeviceAuthorizationURL",
+		"tokenUrl":               "TokenURL",
+	}
+	require.Len(t, flowFields(), len(goName))
+	for _, field := range flowFields() {
+		t.Run(field.name, func(t *testing.T) {
+			t.Parallel()
+			name, ok := goName[field.name]
+			require.True(t, ok, "%s names no known source field", field.name)
+			value := "https://a.example/" + field.name
+			var src soa.OAuthFlow
+			assert.False(t, field.written(&src), "an unwritten field is not written")
+
+			reflect.ValueOf(&src).Elem().FieldByName(name).Set(reflect.ValueOf(&value))
+			assert.True(t, field.written(&src))
+			assert.Equal(t, value, field.read(&src))
+			for _, other := range flowFields() {
+				if other.name != field.name {
+					assert.False(t, other.written(&src), "%s must not read %s", other.name, field.name)
+				}
+			}
+		})
+	}
+}
+
+// TestPreserveFlowField_AValueJSONCannotHoldIsReported pins the one outcome of
+// keeping a merged flow field that is neither kept nor silent: a value JSON
+// cannot quote reaches the IR in no form at all, so it is reported as the
+// losslessness failure it is, and nothing is recorded as kept. Invalid UTF-8
+// is unreachable from a real document, so the flow is hand-built.
+func TestPreserveFlowField_AValueJSONCannotHoldIsReported(t *testing.T) {
+	t.Parallel()
+	bad := "\xff"
+	var token flowField
+	for _, field := range flowFields() {
+		if field.name == "tokenUrl" {
+			token = field
+		}
+	}
+	require.NotNil(t, token.read, "flowFields lists tokenUrl")
+	prov := ir.Provenance{Pointer: "/components/securitySchemes/s/flows/implicit/tokenUrl"}
+	var kept ir.Unmodeled
+
+	ok, diags := preserveFlowField(&kept, &soa.OAuthFlow{TokenURL: &bad}, token, prov)
+
+	assert.False(t, ok, "nothing was kept")
+	assert.Empty(t, kept, "so nothing is recorded as kept")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, prov, diags[0].Provenance)
+	assert.Contains(t, diags[0].Message, "openapi:tokenUrl")
 }
