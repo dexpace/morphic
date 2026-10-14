@@ -1,6 +1,7 @@
 package archtest_test
 
 import (
+	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -8,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -57,22 +57,33 @@ var rules = map[string][]string{
 	// spelling, so a package that could reach the compiler would be able to let a
 	// surrounding schema type change what a literal means.
 	"compilers/openapi/internal/value": {module + "/ir", "gopkg.in/yaml.v3"},
-	// The yaml.v3 node vocabulary: the tag a resolved `<<` merge key carries and
-	// the constructors for the node kinds a parse produces. It reaches yaml and
-	// nothing else, which is what lets the view below import it rather than the
-	// other way round — nodeview's own internal tests build these nodes, and an
-	// internal test file cannot import a package that imports its own.
+	// The yaml.v3 nodes tests build trees from: the constructors for the node
+	// kinds a parse produces, the `<<` merge key among them. It reaches yaml and
+	// nothing else, so any package's internal tests can import it, nodeview's
+	// included: an internal test file cannot import a package that imports its
+	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
 	// A view over the raw source: mappings read the way the resolver reads them,
-	// through aliases and `<<` merge keys. It reaches ynode for the merge tag its
-	// key predicate tests against, and is below both the scans that first wanted
-	// it and the schema lowering that wants the same view.
-	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/ynode", "gopkg.in/yaml.v3"},
+	// through aliases and `<<` merge keys. It reaches the library's yml package
+	// for the merge-key predicate the unmarshaller itself uses, and is below both
+	// the scans that first wanted it and the schema lowering that wants the same
+	// view.
+	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	// How the library's walk reads a pointer through the parsed model, a token at
+	// a time, and where it leaves the model for raw YAML. It reaches the library's
+	// navigation and the root node a model was built from, and nothing of the
+	// compiler, so the $defs rule, the reference scope and the loader all read a
+	// pointer as the resolver does, without the key scan its read of raw YAML
+	// costs.
+	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
+		"github.com/speakeasy-api/openapi/marshaller", "gopkg.in/yaml.v3"},
 	// How the resolver reads a "#/$defs/..." pointer: relative to the schema that
-	// spells it. It reads the parsed model through the library's own navigation
-	// and nothing of the compiler, so the loader that hands the resolver its
-	// answer and the lowering that names the target can both reach the one rule.
-	"compilers/openapi/internal/defs": {"github.com/speakeasy-api/openapi/jsonpointer",
+	// spells it. It reads the parsed model as the library's walk does, through
+	// navigation, and nothing of the compiler, so the loader that hands the
+	// resolver its answer and the lowering that names the target can both reach
+	// the one rule.
+	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/navigation",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
@@ -92,13 +103,16 @@ var rules = map[string][]string{
 	// plus the validation-only keywords the IR keeps verbatim. It reads the
 	// parsed model and the raw nodes behind it, and holds no opinion about
 	// lowering — so it sits below the schema lowering that asks it questions and
-	// above nothing that asks it any.
+	// above nothing that asks it any. It reaches the library's yml package for
+	// the tags its decoder accepts as a string, so a field read off a raw node
+	// decodes as the parser decodes the fields it models.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3", "gopkg.in/yaml.v3"},
+		"github.com/speakeasy-api/openapi/jsonschema/oas3",
+		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
 	// reports through diag, reaching ids for the pointer that names a position and
@@ -114,12 +128,14 @@ var rules = map[string][]string{
 	// through scan, applies the caller's overlay through overlay, and reads value
 	// only to tell a real numeric-literal problem from a library artifact. It
 	// reaches resolve to read which mapping values name a position in the source
-	// as the lowering will, and the library's pointer walk to tell a hop that
-	// walked a document's bytes and to walk a document as it does. It reaches
-	// nothing that lowers — at this point there is no document to lower.
+	// as the lowering will, and the library's pointer walk, directly and through
+	// navigation, to tell a hop that walked a document's bytes and to walk a
+	// document as it does. It reaches nothing that lowers — at this point there
+	// is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
@@ -135,9 +151,9 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
 	// the type already interned there. It reaches annotation to ask whether a
-	// referenced position declares a body at all, jsonpointer to find that
-	// schema as the resolver does, compile for the registry it looks IDs up in,
-	// the library's openapi package to name each kind of reference once
+	// referenced position declares a body at all, navigation to find that schema
+	// as the resolver does, compile for the registry it looks IDs up in, the
+	// library's openapi package to name each kind of reference once
 	// (ReferenceEnd), and yaml to stop a walk at raw YAML, which holds none. It
 	// reaches nothing that lowers — following a reference far enough to lower
 	// its target recurses back into the schema walk, so that stays with the
@@ -146,7 +162,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/ids",
-		"github.com/speakeasy-api/openapi/jsonpointer",
+		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
@@ -226,8 +242,10 @@ var rules = map[string][]string{
 	// it reached. Widening this entry is how that becomes true silently.
 	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/stretchr/testify/assert",
 		"github.com/stretchr/testify/require", "gopkg.in/yaml.v3"},
@@ -238,13 +256,28 @@ var rules = map[string][]string{
 	// named here.
 	"engine": {module + "/ir", module + "/compilers", module + "/compilers/openapi",
 		module + "/pass"},
-	"cmd/morphic":         {module + "/ir", module + "/engine"},
+	// The CLI. Beyond the pipeline it reaches its command framework: cobra
+	// dispatches the commands and renders help, on pflag's parse.
+	"cmd/morphic": {module + "/ir", module + "/engine",
+		"github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
-	"internal/testspec":   {},
+	// The coverage gate's judge: tooling outside the pipeline, like the harness
+	// command above. x/tools/cover parses and merges the profile it judges.
+	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
+	"internal/testspec":     {},
 	// Test infrastructure outside the pipeline, like internal/harness above —
 	// but stdlib-only, which is what lets a package that starts a goroutine in
 	// its tests call it without pulling anything else in.
 	"internal/leakcheck": {},
+	// Test infrastructure too: tests that hold a hand-written list to what a
+	// package declares read it type-checked, through go/packages. Two of its
+	// testdata packages are imported by others, which is how a test shows a
+	// package reaching a type directly and through another import.
+	"internal/decls": {
+		"golang.org/x/tools/go/packages",
+		module + "/internal/decls/testdata/good/fixture",
+		module + "/internal/decls/testdata/good/uses",
+	},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
@@ -269,7 +302,7 @@ func TestImportGraph_LayeringHolds(t *testing.T) {
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			base := filepath.Join(root, dir)
-			if _, err := os.Stat(base); os.IsNotExist(err) {
+			if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
 				t.Skipf("directory %s does not exist yet", dir)
 			}
 			violations, err := walkImports(dir, base, allowed)
@@ -471,7 +504,7 @@ func fileViolations(p, dir string, allowed []string) ([]string, error) {
 	var violations []string
 	for _, imp := range f.Imports {
 		ip := strings.Trim(imp.Path.Value, `"`)
-		if !strings.Contains(strings.SplitN(ip, "/", 2)[0], ".") {
+		if first, _, _ := strings.Cut(ip, "/"); !strings.Contains(first, ".") {
 			continue // stdlib: first path element has no dot
 		}
 		// An empty allowlist (the "ir" rule) forbids every non-stdlib import.
@@ -500,13 +533,14 @@ func importAllowed(ip string, allowed []string) bool {
 	return false
 }
 
-// repoRoot walks up from this test file's directory until it finds the module's
-// go.mod, returning that directory.
+// repoRoot walks up from the working directory, which go test sets to this
+// package's own, until it finds the module's go.mod, returning that directory.
+// It does not start from this file's path: under -trimpath, runtime.Caller
+// reports the file under its import path, not on disk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed")
-	dir := filepath.Dir(file)
+	dir, err := os.Getwd()
+	require.NoError(t, err)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -90,6 +92,47 @@ func TestParse_EndToEnd(t *testing.T) {
 	assert.Equal(t, ir.KindModel, pet.Kind())
 	assert.True(t, sawAnon, "the inline meta object was hoisted as an anonymous type")
 	assert.True(t, sawUnion, "the oneOf survived as a Union node")
+}
+
+// TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
+// entry as written, at every minor, and is reported below 3.2 as a construct a
+// later version added, as every 3.2 field is. A relative URI is not resolved
+// against the source's path, and an empty or null `$self` records nothing,
+// which is what declaring none records.
+func TestParse_RecordsSelfURI(t *testing.T) {
+	t.Parallel()
+	const uri = "https://example.com/api/openapi.yaml"
+	tests := []struct {
+		name    string
+		version string
+		self    string // the $self line, or "" for none
+		want    string
+	}{
+		{"3.2 declares one", "3.2.0", "$self: " + uri, uri},
+		{"3.1 declares one", "3.1.0", "$self: " + uri, uri},
+		{"3.0 declares one", "3.0.3", "$self: " + uri, uri},
+		{"a relative one stays relative", "3.2.0", "$self: ../api/openapi.yaml", "../api/openapi.yaml"},
+		{"none declared", "3.2.0", "", ""},
+		{"an empty one is none", "3.2.0", `$self: ""`, ""},
+		{"a null one is none", "3.2.0", "$self: null", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			spec := "openapi: " + tt.version + "\n" + tt.self + "\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
+			doc, diags, err := openapi.New().Compile(context.Background(),
+				[]compilers.Source{{Path: "specs/self-uri.yaml", Data: []byte(spec)}}, compilers.Options{})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+			assert.False(t, ir.HasError(diags), "%+v", diags)
+			require.Len(t, doc.Sources, 1)
+			assert.Equal(t, tt.want, doc.Sources[0].SelfURI)
+			assert.Equal(t, tt.self != "" && tt.version != "3.2.0",
+				slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+					return d.Code == diag.LaterVersionConstruct && d.Provenance.Pointer == "/$self"
+				}))
+		})
+	}
 }
 
 func TestParse_RegistersInRegistry(t *testing.T) {

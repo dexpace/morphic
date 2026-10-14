@@ -42,8 +42,9 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, _, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	resolved, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc,
-		newSourceDocument(path, data, root, nil), Options{AllowExternalRefs: true}, rebuild)
+	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
+		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root)),
+		Options{AllowExternalRefs: true}, rebuild)
 	return resolved, diags, err
 }
 
@@ -51,8 +52,8 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 // the tests that need to observe or fail whether it is called.
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
-	resolved, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec),
-		sourceDocument{path: "root.yaml"}, Options{AllowExternalRefs: true}, rebuild)
+	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), modelOf(t, spec),
+		Siblings{}, sourceDocument{path: "root.yaml"}, Options{AllowExternalRefs: true}, rebuild)
 	return resolved, diags, err
 }
 
@@ -618,6 +619,50 @@ func TestLoad_RecoversARespelledExternalReference(t *testing.T) {
 	assert.Empty(t, diags)
 	assertRecovered(t, got.Doc)
 	assert.Equal(t, int32(1), requests.Load())
+}
+
+// TestLoad_RecoversARespelledURLBesideAPathItemRef pins the rebuild for a
+// reference only the fields beside a path item's $ref write: the second pass
+// models those fields again over the rebuilt document, so the anchored
+// operations the resolver's own parse would skip are recovered there too. The
+// first pass's models hold what that parse built, and keeping them loses both
+// operations without a word.
+func TestLoad_RecoversARespelledURLBesideAPathItemRef(t *testing.T) {
+	t.Parallel()
+	srv, requests := countingServer(t, anchoredExternalDoc)
+	url := "HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/ext.yaml"
+	src := compilers.Source{Path: "root.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put:
+      callbacks:
+        cb:
+          '{$request.body#/u}': {$ref: '` + url + `#/paths/~1x'}
+      responses: {"200": {description: ok}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)}
+
+	got, diags, err := Load(t.Context(), 0, src, Options{AllowExternalRefs: true})
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Empty(t, diags)
+	a, ok := got.Siblings.Of(pathEntry(t, got.Doc, "/a"))
+	require.True(t, ok)
+	cb, ok := a.Item.Put().GetCallbacks().Get("cb")
+	require.True(t, ok)
+	expr, ok := cb.GetObject().Get("{$request.body#/u}")
+	require.True(t, ok)
+	item := expr.GetObject()
+	require.NotNil(t, item, "the callback's $ref resolved")
+	require.NotNil(t, item.Get(), "the anchored GET entry was folded, not skipped")
+	assert.Equal(t, "EXTGET", item.Get().GetOperationID())
+	require.NotNil(t, item.Put(), "the anchored PUT entry was folded, not skipped")
+	assert.Equal(t, "EXTPUT", item.Put().GetOperationID())
+	assert.Equal(t, int32(1), requests.Load(), "the second pass fetched nothing again")
 }
 
 // TestLoad_ARebuildFailureIsWrappedAsRebuildSource drives build's wrap of a

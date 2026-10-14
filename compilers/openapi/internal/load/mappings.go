@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
-	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -27,10 +26,24 @@ import (
 // otherwise found only once a $ref had lowered it. Its zero value holds none.
 //
 // It also holds the schema walked at each raw position (see arrive), so every
-// reference to one reaches the object whose own $refs were resolved.
+// reference to one reaches the object whose own $refs were resolved, and its
+// index of raw YAML (see Holds).
 type MappingTargets struct {
 	byPointer map[jsontext.Pointer]*schemaRef
 	built     map[jsontext.Pointer]*schemaRef
+	reads     *treeReads
+	// resolved holds every reference resolved here that the document's walk
+	// does not show, for validateReached to validate what each reaches as it
+	// does a walked $ref's (GitHub #872).
+	resolved []siteRef
+}
+
+// siteRef is a reference the load phase resolved, and the site it is read at:
+// a mapping target's least entry, or where a $ref inside an object built from
+// raw YAML is written.
+type siteRef struct {
+	site jsontext.Pointer
+	ref  resolvable
 }
 
 // At returns the schema a mapping target resolved to at pointer, or nil.
@@ -45,12 +58,22 @@ func (t MappingTargets) Built(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Re
 	return t.built[pointer]
 }
 
+// Holds is resolve.Scope.Holds, answered from the index the targets were read
+// through, which builds each mapping's index once, whoever asks. The zero value
+// answers from an index of its own each time.
+func (t MappingTargets) Holds(raw *yaml.Node, token string) bool {
+	reads := t.reads
+	if reads == nil {
+		reads = newTreeReads()
+	}
+	return reads.holds(raw, token)
+}
+
 // maxMappingWork bounds the steps resolving the mapping targets takes: each
-// entry it reads, hop of a chain it reads, object it reaches, walk item it
-// reads and position it resolves, and for each position the keys the library
-// scans to find it (see keysHolding). Each is done once, so the steps follow
-// what the library builds for the targets, which is what a $ref to each would
-// build.
+// entry it reads, object it reaches, walk item it reads, and hop of a chain it
+// reads and position it resolves, priced as the library's read of each (see
+// priced). Each is done once, so the steps follow what the library builds for
+// the targets, which is what a $ref to each would build.
 const maxMappingWork = 1 << 28
 
 // farHops is a distance past maxResolutionHops, at which chainEnds remembers a
@@ -73,6 +96,8 @@ type mappings struct {
 	reader *external
 	// view reads the $ref a raw node carries, when a chain's end is asked after.
 	view *nodeview.View
+	// reads prices the reads of the source the work makes (see priced).
+	reads *treeReads
 	// ends holds, for each hop chainEnds read, the reads from it to its chain's
 	// end, at most farHops.
 	ends map[hop]int
@@ -90,6 +115,8 @@ type mappings struct {
 	order     []jsontext.Pointer
 	byPointer map[jsontext.Pointer]*target
 	out       map[jsontext.Pointer]*schemaRef
+	// nested holds each $ref resolveNested resolved, where it is written.
+	nested []siteRef
 	// work counts the steps taken, against limit. resolutions counts the
 	// positions resolved: one each, however many entries name it.
 	work, limit, resolutions int
@@ -103,11 +130,12 @@ type arrival struct {
 }
 
 // target is a position mapping entries name: the least entry naming it, and,
-// once resolved, what its resolution drew and the nodes it reached that hold
-// no schema (see noSchemaNodes).
+// once resolved, the reference it was resolved as, what its resolution drew
+// and the nodes it reached that hold no schema (see noSchemaNodes).
 type target struct {
 	least    jsontext.Pointer
 	resolved bool
+	ref      *schemaRef
 	trail    trail
 	found    []error
 	noSchema map[*yaml.Node]bool
@@ -117,16 +145,23 @@ type target struct {
 // self, which resolves each with opts, through reader when external references
 // are allowed.
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
-	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), ends: map[hop]int{},
-		model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
+	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), reads: newTreeReads(),
+		ends: map[hop]int{}, model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
 		built: map[jsontext.Pointer]*schemaRef{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},
 		out: map[jsontext.Pointer]*schemaRef{}, limit: maxMappingWork}
 }
 
-// targets returns what resolve resolved.
+// targets returns what resolve resolved. Each target's reference is placed at
+// its least entry, which is final only once every entry has been read.
 func (m *mappings) targets() MappingTargets {
-	return MappingTargets{byPointer: m.out, built: m.built}
+	resolved := slices.Clone(m.nested)
+	for _, pointer := range m.order {
+		if t := m.byPointer[pointer]; t.resolved {
+			resolved = append(resolved, siteRef{site: t.least, ref: t.ref})
+		}
+	}
+	return MappingTargets{byPointer: m.out, built: m.built, reads: m.reads, resolved: resolved}
 }
 
 // see notes a model the walk reached at site: a discriminator's entries are
@@ -213,7 +248,7 @@ func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival
 		return
 	}
 	m.walked[at] = true
-	if (refscope.Scope{Doc: m.doc, Ends: refscope.ReferenceEnd}).At(at.pointer).Foreign {
+	if positionScope(m.doc, m.reads).At(at.pointer).Foreign {
 		return
 	}
 	if js, ok := q.record.object.(*schemaRef); ok && !namesEmptyKey(at.pointer) &&
@@ -221,6 +256,14 @@ func (m *mappings) arrive(ctx context.Context, found *reachedFindings, q arrival
 		m.built[at.pointer] = js
 	}
 	m.walk(ctx, found, at.pointer, q.record)
+}
+
+// positionScope is the scope arrive reads a position of doc in: each reference
+// a walk passes is followed as the resolver follows it, and a mapping a walk
+// leaves the model for at one is read through reads' index (see
+// resolve.Scope.Holds), the one the mappings' pricing reads through too.
+func positionScope(doc *soa.OpenAPI, reads *treeReads) refscope.Scope {
+	return refscope.Scope{Doc: doc, Ends: refscope.ReferenceEnd, Holds: reads.holds}
 }
 
 // builtKey is an object's kind and the position it is at.
@@ -320,7 +363,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	if !m.chainEnds(ref.GetRef()) {
 		return
 	}
-	if !m.spend(m.keysHolding(pointer)) {
+	if !m.spend(m.priced(string(pointer), true, false)) {
 		return
 	}
 	vErrs, err := ref.Resolve(ctx, m.opts)
@@ -333,7 +376,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	if declared := firstSchema(c); declared != nil {
 		m.out[pointer] = declared
 	}
-	t.resolved, t.trail, t.found, t.noSchema = true, c.trail(), vErrs, noSchemaNodes(c)
+	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, c.trail(), vErrs, noSchemaNodes(c)
 	if err == nil {
 		m.enqueue(t.least, c)
 	}
@@ -400,7 +443,7 @@ func (m *mappings) enqueue(site jsontext.Pointer, c chain) {
 // holding no schema is noted as an entry's (see noSchemaNodes).
 func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, site jsontext.Pointer, js *schemaRef) {
 	pointer, ok := sourcePointer(m.self.path, string(js.GetRef()))
-	if !ok || !m.chainEnds(js.GetRef()) || !m.spend(m.keysHolding(pointer)) {
+	if !ok || !m.chainEnds(js.GetRef()) || !m.spend(m.priced(string(pointer), true, false)) {
 		return
 	}
 	readInModel(js, m.doc, m.opts.TargetLocation)
@@ -410,6 +453,7 @@ func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, si
 	}
 	c := resolutionChain(js)
 	found.noteEntry(site, c.trail(), vErrs, noSchemaNodes(c))
+	m.nested = append(m.nested, siteRef{site: site, ref: js})
 	if err == nil {
 		m.enqueue(site, c)
 	}
@@ -456,7 +500,7 @@ func (m *mappings) chainEnds(ref references.Reference) bool {
 		if onPath[h] {
 			break
 		}
-		if !m.spend(1) {
+		if !m.spend(m.priced(h.pointer, !h.inTree, h.inTree || m.reader != nil)) {
 			return false
 		}
 		onPath[h] = true
@@ -471,9 +515,9 @@ func (m *mappings) chainEnds(ref references.Reference) bool {
 		}
 		ref = next
 	}
-	for i := len(path) - 1; i >= 0; i-- {
+	for _, p := range slices.Backward(path) {
 		toEnd = min(toEnd+1, farHops)
-		m.ends[path[i]] = toEnd
+		m.ends[p] = toEnd
 	}
 	return toEnd <= maxResolutionHops
 }
@@ -512,60 +556,23 @@ func (m *mappings) readAt(h hop) (references.Reference, hopKind) {
 	return next, kind
 }
 
-// keysHolding returns the steps resolving the position pointer costs: one, and
-// the keys of each mapping the library scans to find it. The model finds a
-// field or an entry by name, so a position it holds, such as a component,
-// costs one however wide its map. Where it holds raw YAML, or nothing, the
-// mapping its object was built from is charged, which it scans for a key it
-// holds in no field, and so is each level of raw YAML below (see keysScanned).
-func (m *mappings) keysHolding(pointer jsontext.Pointer) int {
-	tokens := slices.Collect(pointer.Tokens())
-	var node any = m.doc
-	for i, token := range tokens {
-		next, ok := refscope.Step(node, token)
-		raw, leaves := next.(*yaml.Node)
-		if ok && !leaves {
-			node = next
-			continue
-		}
-		// raw is nil where the model holds nothing, and nothing below is scanned.
-		return 1 + keysIn(builtFrom(node)) + m.keysScanned(raw, tokens[i+1:])
+// priced returns the steps of reading pointer in the source as the library
+// does, in its model, its tree, or both (see readAt), with a step for the read
+// and the keys indexed to count it. A position the model holds, such as a
+// component, costs a step a token however wide its map; raw YAML costs the
+// keys the library compares (see treeReads), along its own reading of them, so
+// a key written twice cannot steer the price off the mapping it scans (GitHub
+// #777).
+func (m *mappings) priced(pointer string, model, tree bool) int {
+	steps := 1
+	if model {
+		steps += m.reads.modelCost(m.doc, jsontext.Pointer(pointer), m.limit-m.work)
 	}
-	return 1
-}
-
-// keysScanned returns the keys of each mapping the library scans to find the
-// position tokens name below node, raw YAML: a scan of each level for its
-// token, down to the last or the first it misses, below which there is no node
-// and so no key.
-func (m *mappings) keysScanned(node *yaml.Node, tokens []string) int {
-	keys := 0
-	for _, token := range tokens {
-		node = nodeview.Deref(node)
-		keys += keysIn(node)
-		node = m.view.ChildByToken(node, token)
+	if tree {
+		read, _ := m.reads.cost(m.self.root, pointer, m.limit-m.work)
+		steps += read
 	}
-	return keys
-}
-
-// builtFrom returns the mapping the model object node was built from, which the
-// library scans for a key the object holds in no field or entry, or nil for an
-// object built from none: a map or list, or a nil one.
-func builtFrom(node any) *yaml.Node {
-	built, ok := node.(marshaller.RootNodeAccessor)
-	if v := reflect.ValueOf(node); !ok || v.Kind() == reflect.Pointer && v.IsNil() {
-		return nil
-	}
-	return built.GetRootNode()
-}
-
-// keysIn returns how many keys the mapping node holds, read through an alias,
-// and none for a node of any other kind.
-func keysIn(node *yaml.Node) int {
-	if node = nodeview.Deref(node); node == nil || node.Kind != yaml.MappingNode {
-		return 0
-	}
-	return len(node.Content) / 2
+	return steps + m.reads.drain()
 }
 
 // pointerOf returns the position target names in the source, and whether it

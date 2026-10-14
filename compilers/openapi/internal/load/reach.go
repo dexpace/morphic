@@ -2,6 +2,7 @@ package load
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -80,15 +81,17 @@ type reach struct {
 // library's walk order. A document the model could not finish is not refused,
 // as for every bound in this stage: it is reported as diag.CycleScanFailed and
 // the compile goes on.
-func reachCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
-	return reachWithin(ctx, maxReachWork, locate, root, doc)
+func reachCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
+) (ir.Diagnostic, bool) {
+	return reachWithin(ctx, maxReachWork, locate, root, doc, sibs)
 }
 
 // reachWithin is reachCycle under a work budget of limit, so a test can exhaust
 // it without a document that costs maxReachWork.
-func reachWithin(ctx context.Context, limit int, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI) (ir.Diagnostic, bool) {
+func reachWithin(ctx context.Context, limit int, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
+) (ir.Diagnostic, bool) {
 	return recoverChains(locate, func() (ir.Diagnostic, bool) {
-		r, starts := newReach(ctx, limit, root, doc)
+		r, starts := newReach(ctx, limit, root, doc, sibs)
 		state := map[vertex]int{}
 		for _, start := range starts {
 			if r.cycles(start, state) {
@@ -115,11 +118,11 @@ func (r *reach) incomplete() bool {
 // the model's schemas and the definitions its held references name, the
 // declarations' scopes, the searched ancestors and the drift. It returns the
 // references a search starts from.
-func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI) (*reach, []*yaml.Node) {
+func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings) (*reach, []*yaml.Node) {
 	r := emptyReach(root, &budget{limit: limit})
 	r.rule = defs.NewReader(doc)
 	declared, defsRefs := r.tree.index()
-	starts := r.collect(ctx, doc)
+	starts := r.collect(walkSource(ctx, doc, sibs))
 	r.group(declared)
 	defsRefs = r.unheld(defsRefs)
 	r.markSearched(defsRefs)
@@ -150,9 +153,9 @@ func emptyReach(root *yaml.Node, b *budget) *reach {
 
 // collect records the schema document each schema of the model belongs to, and
 // returns the schemas that are references, in the library's walk order.
-func (r *reach) collect(ctx context.Context, doc *soa.OpenAPI) []*yaml.Node {
+func (r *reach) collect(items iter.Seq[soa.WalkItem]) []*yaml.Node {
 	var starts []*yaml.Node
-	matchSchemas(soa.Walk(ctx, doc), func(js *schemaRef) error {
+	matchSchemas(items, func(js *schemaRef) error {
 		r.budget.spend(1)
 		s := js.GetSchema()
 		if s == nil || s.GetRootNode() == nil {
@@ -242,7 +245,7 @@ func (r *reach) intern(raw string) int {
 // applied once and each node marked once, so the worklist is bounded by the
 // tree.
 func (r *reach) drift(defsRefs []*yaml.Node) {
-	work := append([]*yaml.Node(nil), defsRefs...)
+	work := slices.Clone(defsRefs)
 	seen, done := map[refClass]bool{}, map[*posSet]bool{}
 	for len(work) > 0 && r.budget.spend(1) {
 		n := work[len(work)-1]
@@ -345,7 +348,7 @@ func (r *reach) parentScopes(m *yaml.Node) []*yaml.Node {
 }
 
 func (r *reach) markSearched(defsRefs []*yaml.Node) {
-	stack := append([]*yaml.Node(nil), defsRefs...)
+	stack := slices.Clone(defsRefs)
 	for len(stack) > 0 && r.budget.spend(1) {
 		n := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]

@@ -14,12 +14,11 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
-	"path"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
@@ -28,6 +27,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -73,6 +73,105 @@ type Scope struct {
 	// reference kinds are each a type of their own, which the caller names;
 	// nil passes no reference.
 	Ends func(node any) (End, bool)
+	// Holds reports whether the library's read of token in raw finds a node:
+	// what a walk leaving the model at a reference asks of the mapping its
+	// target was built from. Answered from an index, it spares the scan of that
+	// mapping the library makes (GitHub #778); nil asks the library.
+	Holds func(raw *yaml.Node, token string) bool
+	// Reached records each position in the source a reference ObjectAt follows
+	// resolves to; nil records nothing.
+	Reached *Reached
+	// Beside returns the path item use site, and the key written beside its
+	// $ref, that a pointer in the source passes through (load.Siblings.Beside).
+	// The resolver reads such a pointer through the $ref, so a reference landing
+	// there is refused rather than interning what it found at the pointer the
+	// field written there is declared at (GitHub #824). Nil refuses none.
+	Beside func(jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
+	// Writes reports whether obj is the field written beside a path item $ref
+	// at a pointer, held or copied (load.Siblings.Writes): an answer ObjectAt
+	// takes although Beside names its pointer. Nil writes none.
+	Writes func(pointer jsontext.Pointer, obj any) bool
+}
+
+// refuses reports whether ObjectAt refuses answer, the object the resolver
+// found at pointer: one Beside names, unless Writes says it is the field
+// written there.
+func (s Scope) refuses(pointer jsontext.Pointer, answer any) bool {
+	return s.beside(pointer) && (s.Writes == nil || !s.Writes(pointer, answer))
+}
+
+// beside reports whether pointer is one Beside refuses.
+func (s Scope) beside(pointer jsontext.Pointer) bool {
+	if s.Beside == nil {
+		return false
+	}
+	_, _, ok := s.Beside(pointer)
+	return ok
+}
+
+// BesideWhy returns the reason a reference written at site, naming pointer,
+// reports when Beside refuses it, and "" for any other. A "#/$defs/..." pointer
+// names a definition read from where it is written, so it is refused when site
+// is in the fields beside a $ref; any other pointer when it lands there itself.
+func (s Scope) BesideWhy(site, pointer jsontext.Pointer) string {
+	if s.Beside == nil {
+		return ""
+	}
+	if defs.IsPointer(pointer) {
+		if use, key, ok := s.Beside(site); ok {
+			return ": " + DefsBesideReason(use, key)
+		}
+		return ""
+	}
+	if use, key, ok := s.Beside(pointer); ok {
+		return ": it reaches " + string(pointer) + "; " + BesideReason(use, key)
+	}
+	return ""
+}
+
+// BesideReason says why a reference reaching the fields beside the path item
+// $ref at use, under key, is left unresolved, in one phrasing for every report.
+func BesideReason(use jsontext.Pointer, key string) string {
+	return fmt.Sprintf("the path item $ref at %s has %q written beside it, and the resolver reads a pointer "+
+		"through that $ref into the item it names, not into the field written there, so the reference is left "+
+		"unresolved (GitHub #824)", use, key)
+}
+
+// DefsBesideReason is BesideReason for a "#/$defs/..." pointer written in the
+// fields beside the path item $ref at use, which names a definition there too.
+func DefsBesideReason(use jsontext.Pointer, key string) string {
+	return "it is written in the fields beside a path item $ref, as is any definition it can name; " +
+		BesideReason(use, key)
+}
+
+// Reached records the positions in the source a lowering resolved a reference
+// to, each hop of a chain included: the declarations the IR carries through
+// their uses rather than on a node of their own (GitHub #616).
+//
+// No lowering reads it. The compiler asks it once the last lowering has
+// returned, so what it holds cannot change a lowering's answer, and as a set it
+// cannot depend on the order lowerings ran in. That is why sharing it between
+// copies of a context is safe, as sharing a memo is.
+type Reached struct {
+	at map[jsontext.Pointer]bool
+}
+
+// NewReached returns an empty record.
+func NewReached() *Reached {
+	return &Reached{at: map[jsontext.Pointer]bool{}}
+}
+
+// Has reports whether a lowering resolved a reference to pointer. A nil record
+// has recorded nothing.
+func (r *Reached) Has(pointer jsontext.Pointer) bool {
+	return r != nil && r.at[pointer]
+}
+
+// note records pointer, unless r is nil.
+func (r *Reached) note(pointer jsontext.Pointer) {
+	if r != nil {
+		r.at[pointer] = true
+	}
 }
 
 // InSource returns s for reading what the source holds, which is never
@@ -101,64 +200,165 @@ func (s Scope) At(pointer jsontext.Pointer) Scope {
 // maxRefChain turns, and for a chain endOf cut, it is no document's: Foreign
 // with no Holder, so none of its references reads as internal.
 func (s Scope) reached(end End) Scope {
-	for range maxRefChain {
+	return s.turned(end, maxRefChain)
+}
+
+// turned is reached with turns walks left to take.
+func (s Scope) turned(end End, turns int) Scope {
+	for range turns {
 		if end.Document != any(s.Doc) && !SameDocument(s.SelfPath, end.Path) {
 			s.Foreign, s.Holder = true, end.Path
 			return s
 		}
-		next, passed := s.passed(end.Pointer)
-		if !passed {
+		walk := s.locate(end.Pointer)
+		if !walk.passes {
 			return s.InSource()
 		}
-		end = next
+		end = walk.end
 	}
 	s.Foreign, s.Holder = true, ""
 	return s
 }
 
-// passed returns where the chain of the last $ref the resolver's walk to
-// pointer through Doc passes ends, and false when it passes none. The walk
-// reads a reference it passes as what that resolved to (GetNavigableNode), so
-// what lies past one is the content its chain ends in. A schema's own $ref is
-// read as a keyword instead, so nothing past a schema is passed. Nor is
-// anything past raw YAML, which holds no reference the resolver resolved.
-func (s Scope) passed(pointer jsontext.Pointer) (End, bool) {
-	if s.Ends == nil {
-		return End{}, false
+// located is what a walk of a pointer through the model found: what the model
+// holds there, nil where the read finds nothing or leaves the model, and where
+// the chain of the last reference the walk passed ends.
+type located struct {
+	target any
+	end    End
+	passes bool
+}
+
+// locate walks pointer through Doc as the resolver's walk reads it, a token at
+// a time, noting each reference Ends names that it steps past, read as what it
+// resolved to. A schema's own $ref is read as a keyword, so none is noted past
+// a schema. A token that leaves the model (navigation.Leaves) ends the walk:
+// raw YAML holds no schema and no reference the resolver resolved (see leave).
+// Past an index the library retries (navigation.Retried), the pointer names
+// what the library's read of the rest finds, though references are still noted
+// a step at a time.
+func (s Scope) locate(pointer jsontext.Pointer) located {
+	var l located
+	tokens, ok := navigation.Tokens(pointer)
+	if !ok {
+		return l
 	}
-	var (
-		node   any = s.Doc
-		end    End
-		passes bool
-	)
-	for token := range pointer.Tokens() {
+	noting, whole := s.Ends != nil, false
+	var node any = s.Doc
+	for i, token := range tokens {
 		if _, schema := node.(*oas3.JSONSchema[oas3.Referenceable]); schema {
-			break
+			noting = false
 		}
-		if _, raw := node.(*yaml.Node); raw {
-			break
+		reading, raw := navigation.ReadingOf(node, token)
+		if reading == navigation.Leaving {
+			if noting {
+				l.leave(s, node, raw, token)
+			}
+			return l
 		}
-		next, ok := Step(node, token)
+		if reading == navigation.Retried && !whole {
+			l.target, whole = retriedRead(node, tokens[i:]), true
+		}
+		next, ok := navigation.Step(node, token)
 		if !ok {
-			break
+			return l
 		}
-		if e, isRef := s.Ends(node); isRef {
-			end, passes = e, true
+		if e, isRef := s.ends(noting, node); isRef {
+			l.end, l.passes = e, true
 		}
 		node = next
 	}
-	return end, passes
+	if !whole {
+		l.target = node
+	}
+	return l
 }
 
-// Step returns what node holds under the one token, as the resolver's walk
-// reads it, and false where it holds nothing. The library reads the
-// one-token pointer "/" as the root rather than the empty token, so the token
-// is read as the second of two, below an envelope keyed by the empty string.
-func Step(node any, token string) (any, bool) {
-	envelope := map[string]any{"": node}
-	next, err := jsonpointer.GetTarget(envelope, jsonpointer.JSONPointer("//"+jsonpointer.EscapeString(token)),
-		jsonpointer.WithStructTags("key"))
-	return next, err == nil
+// retriedRead returns what the library's read of tokens from node finds, or
+// nil where it finds nothing. The library retries tokens[0] as an index once
+// the rest fails below it as a key, so only the whole read says which answers
+// (navigation.Walk).
+func retriedRead(node any, tokens []string) any {
+	target, _, err := navigation.Walk(node, tokens)
+	if err != nil {
+		return nil
+	}
+	return target
+}
+
+// ends is Ends's answer for node, and false while a walk notes nothing.
+func (s Scope) ends(noting bool, node any) (End, bool) {
+	if !noting {
+		return End{}, false
+	}
+	return s.Ends(node)
+}
+
+// leave notes node passed where the walk leaves the model from it for raw: a
+// reference is stepped past only where raw, the mapping its target was built
+// from, holds token, as the resolver's read of the pointer finds it (see
+// Scope.Holds). Raw YAML is no reference, and the walk passes nothing it holds.
+func (l *located) leave(s Scope, node any, raw *yaml.Node, token string) {
+	if _, isRaw := node.(*yaml.Node); isRaw {
+		return
+	}
+	if e, isRef := s.Ends(node); isRef && held(s.Holds, node, raw, token) {
+		l.end, l.passes = e, true
+	}
+}
+
+// held reports whether the library's read of token from node, which leaves the
+// model for raw, finds a node: holds's answer, or the library's without one.
+func held(holds func(*yaml.Node, string) bool, node any, raw *yaml.Node, token string) bool {
+	if holds != nil {
+		return holds(raw, token)
+	}
+	_, found := navigation.Step(node, token)
+	return found
+}
+
+// Location is what one walk of a same-document pointer through the model found
+// (Locate): ModelAt's, DeclaredAt's and At's answers for it at once.
+type Location struct {
+	scope   Scope
+	pointer jsontext.Pointer
+	walk    located
+}
+
+// Locate walks pointer through the model once, for the answers ModelAt,
+// DeclaredAt and At would each walk it again for: a hoisted reference asks two
+// of them about one pointer.
+func (s Scope) Locate(pointer jsontext.Pointer) Location {
+	return Location{scope: s, pointer: pointer, walk: s.locate(pointer)}
+}
+
+// Pointer returns the pointer l located.
+func (l Location) Pointer() jsontext.Pointer { return l.pointer }
+
+// Model is ModelAt's answer for l's pointer: nil for anything but a schema,
+// as for a keyword a schema leaves unset, which the walk reaches as a nil one.
+func (l Location) Model() *oas3.JSONSchema[oas3.Referenceable] {
+	js, _ := l.walk.target.(*oas3.JSONSchema[oas3.Referenceable])
+	return js
+}
+
+// Declared is DeclaredAt's answer for l's pointer.
+func (l Location) Declared() *oas3.JSONSchema[oas3.Referenceable] {
+	if js := l.Model(); js != nil {
+		return js
+	}
+	if l.scope.Mapped == nil {
+		return nil
+	}
+	return l.scope.Mapped(l.pointer)
+}
+
+// At is At's answer for l's pointer, whose first turn is the walk Locate took.
+func (l Location) At() Scope {
+	if !l.walk.passes {
+		return l.scope.InSource()
+	}
+	return l.scope.turned(l.walk.end, maxRefChain-1)
 }
 
 // reader returns the reader s reads "#/$defs/..." pointers through.
@@ -174,11 +374,13 @@ func (s Scope) reader() *defs.Reader {
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
 // the document does not have (GitHub #557). ok is false for a reference into
-// another document and for a $defs pointer the rule finds nothing for.
+// another document, for a $defs pointer the rule finds nothing for, and for any
+// other pointer Beside refuses. A $defs pointer written beside a path item's
+// $ref is held unresolved by load, so no schema it could name reaches here.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(ref)); !held {
 		return "", false // left to the resolver, as load leaves it: see load.heldRefs
@@ -191,18 +393,18 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 // pointer it names, which for a "#/$defs/..." value is the definition read from
 // the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
 // the same schema reads one (GitHub #557). ok is false for a value into another
-// document, for a $defs value the rule finds nothing for, and for no
-// discriminator.
+// document, for a $defs value the rule finds nothing for, for no discriminator,
+// and for a pointer Beside refuses.
 func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(value)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(value)); !held {
 		return "", false
 	}
 	_, at, found := s.reader().MappingTarget(d, pointer)
-	return at, found
+	return at, found && !s.beside(at)
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the
@@ -215,50 +417,14 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 // $refs nothing resolved. Mapped answers where the model holds raw YAML, such
 // as an extension's value or an enum member (GitHub #757).
 func (s Scope) DeclaredAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	if js := s.ModelAt(pointer); js != nil {
-		return js
-	}
-	if s.Mapped == nil {
-		return nil
-	}
-	return s.Mapped(pointer)
+	return s.Locate(pointer).Declared()
 }
 
 // ModelAt returns the schema the source's model holds at a same-document
 // pointer, found the way the resolver finds a $ref's target, or nil where it
-// holds none, as at a position it holds as raw YAML.
+// holds none, as at a position it holds as raw YAML (see locate).
 func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
-	target, err := jsonpointer.GetTarget(s.Doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
-	if err != nil {
-		return nil
-	}
-	// Anything but a schema fails the assertion, and so does a keyword the
-	// schema leaves unset, which the walk reaches as a typed nil.
-	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && js != nil {
-		return js
-	}
-	return nil
-}
-
-// sameFile reports whether a $ref document part names this compilation's own
-// source file: an exact path match, or a bare filename equal to our own
-// basename, since self-references are conventionally spelled that way
-// (`m.yaml#/...` inside m.yaml). A part carrying its own directory is matched
-// in full, so `dir2/m.yaml` referenced from `dir1/m.yaml` is not a
-// self-reference.
-//
-// The slash test is redundant with the basename equality: path.Base yields a
-// separator only for "/", which the exact match has already taken. It states
-// the intent, and holds if the comparison is loosened.
-func (s Scope) sameFile(doc string) bool {
-	self := s.SelfPath
-	if self == "" {
-		return false
-	}
-	if doc == self {
-		return true
-	}
-	return !strings.Contains(doc, "/") && doc == path.Base(self)
+	return s.Locate(pointer).Model()
 }
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
@@ -301,35 +467,42 @@ func (s Scope) InternalPointer(ref string) (jsontext.Pointer, bool) {
 	return pointer, true
 }
 
-// namesSelf reports whether ref names a position in the source. In the
-// source's own content, one with no document part does, as does one whose part
-// names this file (sameFile). In a Foreign scope, one does when the document it
-// names there (foreignDocument) is the source.
+// namesSelf reports whether ref names a position in the source. One with no
+// document part does in the source's own content, and in no other. Otherwise
+// its document part is read as the resolver reads it, against the document
+// holding the reference (documentOf), and names the source when that is the
+// source. The source's own content and a Foreign scope differ in that base
+// only: SelfPath, or Holder.
 func (s Scope) namesSelf(ref references.Reference) bool {
-	if !s.Foreign {
-		doc := ref.GetURI()
-		return doc == "" || s.sameFile(doc)
+	base := s.SelfPath
+	if s.Foreign {
+		base = s.Holder
+	} else if ref.GetURI() == "" {
+		return true
 	}
-	doc, ok := s.foreignDocument(ref)
+	doc, ok := documentOf(ref, base)
 	return ok && SameDocument(s.SelfPath, doc)
 }
 
 // NamesHolder reports whether ref, in a Foreign scope, names a position in the
 // document holding it, which this compile cannot lower (GitHub #74).
 func (s Scope) NamesHolder(ref string) bool {
-	doc, ok := s.foreignDocument(references.Reference(ref))
+	if !s.Foreign {
+		return false
+	}
+	doc, ok := documentOf(references.Reference(ref), s.Holder)
 	return ok && SameDocument(s.Holder, doc)
 }
 
-// foreignDocument returns the path of the document ref names in a Foreign
-// scope: its document part resolved against Holder, as the resolver resolves
-// it, or Holder for none. It reports false outside a Foreign scope, in one with
-// no Holder (see reached), and for a reference the resolver could not place.
-func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
-	if !s.Foreign || s.Holder == "" {
+// documentOf returns the path of the document ref names when it is written in
+// the document at base: its document part joined onto base's directory and
+// cleaned, as the resolver resolves it, or base for none. It reports false for
+// no base and for a reference the resolver could not place.
+func documentOf(ref references.Reference, base string) (string, bool) {
+	if base == "" {
 		return "", false
 	}
-	abs, err := references.ResolveAbsoluteReference(ref, s.Holder)
+	abs, err := references.ResolveAbsoluteReference(ref, base)
 	if err != nil {
 		return "", false
 	}
@@ -337,11 +510,35 @@ func (s Scope) foreignDocument(ref references.Reference) (string, bool) {
 }
 
 // SameDocument reports whether paths a and b name one document: the same
-// spelling, or, for two file paths, the same path once made absolute against
-// the working directory and cleaned (filepath.Abs). The test is lexical, so a
-// file reached through a symlink or another link is another document. A URL
-// (IsURL) names one only as spelled, and an empty path names none.
+// spelling, or, for two file paths, the same path once cleaned and made
+// absolute. The test is lexical, as for a URI reference, so a file reached
+// through a symlink or another link is another document, and a directory that
+// does not exist cleans away like one that does. A URL (IsURL) names one only
+// as spelled, and an empty path names none.
+//
+// The working directory is read only to tell a relative path from an absolute
+// one, or from one not below it (filepath.IsLocal).
 func SameDocument(a, b string) bool {
+	return sameDocument(a, b, systemRules())
+}
+
+// pathRules is how the file system reads a path. A test hands in another
+// system's reading, so the Windows forms are checked on any host.
+type pathRules struct {
+	abs     func(path string) (string, error) // against the working directory
+	isAbs   func(path string) bool
+	isLocal func(path string) bool
+}
+
+// systemRules returns filepath's reading of a path on this system.
+func systemRules() pathRules {
+	return pathRules{abs: filepath.Abs, isAbs: filepath.IsAbs, isLocal: filepath.IsLocal}
+}
+
+// sameDocument is SameDocument with the file system's reading handed in, so a
+// test can count how often the working directory is read, and read paths as
+// another system does.
+func sameDocument(a, b string, rules pathRules) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -351,9 +548,29 @@ func SameDocument(a, b string) bool {
 	if IsURL(a) || IsURL(b) {
 		return false
 	}
-	absA, errA := filepath.Abs(a)
-	absB, errB := filepath.Abs(b)
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == b {
+		return true
+	}
+	if sameAnchor(a, b, rules) {
+		return false
+	}
+	absA, errA := rules.abs(a)
+	absB, errB := rules.abs(b)
 	return errA == nil && errB == nil && absA == absB
+}
+
+// sameAnchor reports whether two cleaned paths mean the same wherever the
+// working directory is, so that when they differ they name different files:
+// both absolute, or both below it. Below is filepath.IsLocal, which on Windows
+// also refuses a path rooted without a volume (\a\b), one naming a drive
+// (C:a\b) and a reserved name (NUL): none is absolute, and each is made so
+// before it is compared.
+func sameAnchor(a, b string, rules pathRules) bool {
+	if rules.isAbs(a) != rules.isAbs(b) {
+		return false
+	}
+	return rules.isAbs(a) || rules.isLocal(a) && rules.isLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a

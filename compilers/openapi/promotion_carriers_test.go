@@ -6,15 +6,9 @@
 package openapi_test // external test package — exercises only the public API
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"maps"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -153,7 +147,7 @@ func deprecationCarrierTypes(t *testing.T) []reflect.Type {
 	}
 
 	walk(reflect.TypeFor[ir.Document](), 0)
-	for _, kind := range irTypeKinds(t) {
+	for _, kind := range sealedTypeKinds(t) {
 		td, ok := ir.NewTypeDef(kind)
 		require.True(t, ok, "no concrete type is registered for kind %q", kind)
 		rt := reflect.TypeOf(td)
@@ -162,92 +156,4 @@ func deprecationCarrierTypes(t *testing.T) []reflect.Type {
 	}
 	slices.SortFunc(found, func(a, b reflect.Type) int { return strings.Compare(a.Name(), b.Name()) })
 	return found
-}
-
-// irTypeKinds returns every TypeKind constant the ir sources declare, read from
-// the sources so that the list cannot go stale. The count is held to the
-// typeDef() marker methods that seal the sum, which reads the same sources by a
-// different route: finding constants proves the parse ran, not that it saw them
-// all, and a walk seeded from a subset skips whole concrete kinds in silence.
-func irTypeKinds(t *testing.T) []ir.TypeKind {
-	t.Helper()
-	var kinds []ir.TypeKind
-	impls := 0
-	for _, path := range irSourcePaths(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		for _, decl := range f.Decls {
-			switch d := decl.(type) {
-			case *ast.GenDecl:
-				if d.Tok == token.CONST {
-					kinds = append(kinds, typeKindsIn(t, d)...)
-				}
-			case *ast.FuncDecl:
-				if d.Recv != nil && d.Name.Name == "typeDef" {
-					impls++
-				}
-			default:
-				// Neither a constant block nor a method: nothing to read.
-			}
-		}
-	}
-	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
-	require.Len(t, kinds, impls, "the sum holds one concrete type per kind, so a count that "+
-		"disagrees means this parse stopped seeing every constant rather than that the IR changed")
-	return kinds
-}
-
-// typeKindsIn returns the TypeKind constants one const group declares. A spec
-// naming neither type nor value repeats the previous one, so the group's last
-// explicit type carries forward; a spec with a value of its own declares its own
-// type.
-func typeKindsIn(t *testing.T, gd *ast.GenDecl) []ir.TypeKind {
-	t.Helper()
-	var kinds []ir.TypeKind
-	isKind := false
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
-		switch {
-		case vs.Type != nil:
-			id, isIdent := vs.Type.(*ast.Ident)
-			isKind = isIdent && id.Name == "TypeKind"
-		case len(vs.Values) > 0:
-			isKind = false
-		}
-		if !isKind {
-			continue
-		}
-		for i, name := range vs.Names {
-			require.Less(t, i, len(vs.Values), "TypeKind constant %s must declare its own value", name.Name)
-			lit, isLit := vs.Values[i].(*ast.BasicLit)
-			require.True(t, isLit, "constant %s must be declared as a string literal", name.Name)
-			require.Equal(t, token.STRING, lit.Kind, "constant %s must be declared as a string literal", name.Name)
-			unquoted, err := strconv.Unquote(lit.Value)
-			require.NoError(t, err, "unquoting the value of %s", name.Name)
-			kinds = append(kinds, ir.TypeKind(unquoted))
-		}
-	}
-	return kinds
-}
-
-// irSourcePaths lists the ir package's non-test Go files, resolved against this
-// file's own directory so the result does not depend on the working directory the
-// suite runs from.
-func irSourcePaths(t *testing.T) []string {
-	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this test's path")
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(self), "..", "..", "ir", "*.go"))
-	require.NoError(t, err)
-
-	paths := make([]string, 0, len(matches))
-	for _, path := range matches {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		paths = append(paths, path)
-	}
-	require.NotEmpty(t, paths, "the ir package must hold production Go sources")
-	return paths
 }

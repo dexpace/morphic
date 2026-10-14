@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -71,13 +72,13 @@ func referencingRoots(data []byte) (forward, reversed string, ok bool) {
 	render := func(order func([]string) []string) string {
 		var pathItems, kindEntries strings.Builder
 		for _, p := range order(paths) {
-			fmt.Fprintf(&pathItems, "  %q: {$ref: %q}\n", p, "./ext.yaml#/paths/"+pointerToken(p))
+			fmt.Fprintf(&pathItems, "  %q: {$ref: %q}\n", p, "./ext.yaml#/paths/"+jsonpointer.EscapeString(p))
 		}
 		for _, kind := range kinds {
 			fmt.Fprintf(&kindEntries, "  %q:\n", kind)
 			for _, name := range order(mappingKeys(mappingValue(components, kind))) {
 				fmt.Fprintf(&kindEntries, "    %q: {$ref: %q}\n", name,
-					"./ext.yaml#/components/"+pointerToken(kind)+"/"+pointerToken(name))
+					"./ext.yaml#/components/"+jsonpointer.EscapeString(kind)+"/"+jsonpointer.EscapeString(name))
 			}
 		}
 		return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
@@ -126,11 +127,6 @@ func mappingKeys(n *yaml.Node) []string {
 		}
 	}
 	return out
-}
-
-// pointerToken escapes s as one JSON pointer token.
-func pointerToken(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
 }
 
 // compiledThrough compiles root as root.yaml in dir with external references

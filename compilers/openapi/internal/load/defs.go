@@ -10,6 +10,9 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/ir"
 )
 
 // heldRef is one "#/$defs/..." reference and the definition the resolver's own
@@ -20,6 +23,9 @@ type heldRef struct {
 	target  *schemaRef            // the definition the rule names
 	at      jsontext.Pointer      // where that definition is written
 	site    jsontext.Pointer      // where the reference is written
+	// refused is why a reference written in the fields beside a path item's
+	// $ref is left unresolved, or empty for any other (see heldRefs).
+	refused string
 }
 
 // heldRefs collects every schema reference whose pointer the resolver reads
@@ -28,12 +34,15 @@ type heldRef struct {
 // document. A tree that spells no such pointer is not walked: that is every
 // document without a $defs reference, and the walk is a second pass over the
 // whole model.
-func heldRefs(ctx context.Context, doc *soa.OpenAPI, rule *defs.Reader) []heldRef {
+//
+// One written beside a path item's $ref is held with no target: its definition
+// is beside the $ref too, where the resolver reads through it (Siblings.Beside).
+func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.Reader) []heldRef {
 	if !anyScalar(doc.GetRootNode(), isDefsRef) {
 		return nil
 	}
 	var out []heldRef
-	for item := range soa.Walk(ctx, doc) {
+	for item := range walkSource(ctx, doc, sibs) {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Schema: func(js *schemaRef) error {
 			pointer, ok := heldDefsPointer(js)
@@ -41,7 +50,11 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, rule *defs.Reader) []heldRe
 				return nil
 			}
 			r := heldRef{js: js, written: js.GetSchema().Ref, site: jsontext.Pointer(item.Location.ToJSONPointer())}
-			r.target, r.at, _ = rule.Target(js, pointer)
+			if use, key, beside := sibs.Beside(r.site); beside {
+				r.refused = refscope.DefsBesideReason(use, key)
+			} else {
+				r.target, r.at, _ = rule.Target(js, pointer)
+			}
 			out = append(out, r)
 			return nil
 		}})
@@ -84,8 +97,7 @@ func (r heldRef) restore() { r.js.GetSchema().Ref = r.written }
 func (r heldRef) retarget() {
 	r.hold()
 	if r.target != nil {
-		ref := references.Reference("#" + fragmentOf(r.at))
-		r.js.GetSchema().Ref = &ref
+		r.js.GetSchema().Ref = new(references.Reference("#" + fragmentOf(r.at)))
 	}
 }
 
@@ -105,6 +117,11 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 	p.loops.forget()
 	for _, r := range refs {
 		site = r.site
+		if r.refused != "" {
+			p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, p.at(site),
+				"unresolved $ref %q: %s", *r.written, r.refused))
+			continue
+		}
 		if r.target == nil {
 			p.missing(site, *r.written)
 			continue
@@ -128,7 +145,7 @@ func (p *resolution) missing(site jsontext.Pointer, ref references.Reference) {
 func fragmentOf(pointer jsontext.Pointer) string {
 	const plain = "/~$-_.!*'(),;:@&=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	out := make([]byte, 0, len(pointer))
-	for i := 0; i < len(pointer); i++ {
+	for i := range len(pointer) {
 		b := pointer[i]
 		if strings.IndexByte(plain, b) >= 0 {
 			out = append(out, b)

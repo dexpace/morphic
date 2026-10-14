@@ -26,7 +26,10 @@ const (
 	Validation = "openapi/validation"
 	// UnsupportedVersion reports an OpenAPI version the compiler cannot lower.
 	UnsupportedVersion = "openapi/unsupported-version"
-	// UnresolvedRef reports a $ref that could not be resolved.
+	// UnresolvedRef reports a $ref that could not be resolved, or a reference
+	// left unresolved because its pointer passes through the fields beside a path
+	// item $ref, which the resolver reads in the item that $ref names (GitHub
+	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// CyclicRef reports a degenerate reference cycle, caught before it can crash
 	// the parser with a stack overflow or deadlock the resolver on a lock its own
@@ -40,9 +43,12 @@ const (
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
-	// pre-parse scan or load's reach either aborted (a detector bug) or hit one of
-	// its bounds. It is a warning, never a refusal: the compile still
-	// proceeds, and every cycle the check did classify is still caught.
+	// pre-parse scan, load's reach, or load's reading of schema chains for one
+	// closing through the source's file name either aborted (a detector bug) or
+	// hit one of its bounds. It is a warning: the compile still proceeds, and
+	// every cycle the check did classify is still caught. Past the chain read's
+	// bound, a $ref it did not read is left unresolved where the source is held,
+	// since its chain could close through the held file and run the stack out.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
 	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
@@ -118,6 +124,16 @@ const (
 	// filled. Not an error: the document is well-formed, and harness.Check stops
 	// at the first error diagnostic, hiding later findings.
 	EmptyEnum = "openapi/empty-enum"
+	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
+	// already holds, at the repeat's own position, whether the set lowers to an
+	// Enum or a Union. Every occurrence is kept, since dropping one would lose a
+	// declaration; in an Enum each repeat's member ID ends in its occurrence
+	// number. Entries compare as JSON Schema compares instances: a number by its
+	// value, an object regardless of member order.
+	//
+	// Warning: the document is well-formed, and JSON Schema's own uniqueness
+	// requirement on enum is a SHOULD.
+	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
 	// number (error severity: Morphic owns these keywords, so this is the sole
 	// diagnostic for the defect — see boundLiteralDiag).
@@ -139,6 +155,16 @@ const (
 	// because neither key is wrong on its own and dropping one would pick a winner
 	// on nothing but declaration order.
 	DuplicateStatusKey = "openapi/duplicate-status-key"
+	// DuplicateParameter reports a parameter list entry repeating the name and
+	// location of an earlier entry in the same list, its $refs resolved, which
+	// OpenAPI forbids. The compiler owns the rule, dropping the bundled parser's
+	// report, which saw only inline entries: every list the source writes is
+	// checked whether or not it lowers (load), and a list another document
+	// writes where it lowers (the parameter lowering). A lowered list keeps
+	// every occurrence, each repeat's ID ending in its occurrence number.
+	//
+	// Error, as the parser's report was.
+	DuplicateParameter = "openapi/duplicate-parameter"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's
@@ -148,7 +174,8 @@ const (
 	// DegradedConstruct reports a construct the compiler could not carry into the
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or — for an annotation like a default or example — dropped.
+	// the top type), or dropped — an annotation like a default or example, or
+	// the fields beside a path item $ref the load phase's walk does not reach.
 	// It marks the lossy lowerings the compiler reports, not a guarantee that
 	// every lossy lowering is reported.
 	DegradedConstruct = "openapi/degraded-construct"
@@ -200,18 +227,17 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
-	// BudgetExceeded reports an input that crossed a cardinality budget: a source
-	// or overlay document past the byte budget, a source past the node budget (or
-	// an overlay action that would build it past that), aliases in either that add
-	// more nodes than the alias budget, or one enum past the member budget (GitHub
-	// #75).
+	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
+	// most: a document past the byte or node budget (or an overlay action that
+	// would build it past that), aliases adding more nodes than the alias budget,
+	// an enum past the member budget (GitHub #75). Load bounds two kinds of work
+	// itself: resolving the mapping targets, and resuming chains through other
+	// documents.
 	//
 	// Unlike AliasAmplification's bomb, these are documents legitimately that
-	// large, past the budget this compile was given; openapi.Limits raises them.
-	//
-	// Error at every site: load-phase budgets refuse the document, and the enum
-	// budget leaves the top type with every declared member gone, a losslessness
-	// failure (UnpreservableConstruct).
+	// large. Every site reports an error: the document is refused, its
+	// validation stops, an enum loses its members (UnpreservableConstruct), or
+	// what the work did not reach is left unresolved.
 	BudgetExceeded = "openapi/budget-exceeded"
 	// UnattachableRequired reports a composition-scope `required` name (an allOf
 	// branch's own required list, or the composed schema's own) that matches none
@@ -236,6 +262,18 @@ const (
 	// the document describes, webhooks and callbacks included, and this is the
 	// document repeating it, so it is an error (GitHub #502).
 	ConflictingOperationID = "openapi/conflicting-operation-id"
+	// PathItemRefCollision reports a construct declared beside a path item's
+	// $ref that the item it references declares too, or the fields beside a
+	// later $ref of its chain: a method or additionalOperations key, summary,
+	// description, servers, x-* name, undeclared key, or item-level (name, in)
+	// parameter.
+	//
+	// OpenAPI does not say which declaration wins, so the one nearer the use
+	// site does, as for a $ref-adjacent schema sibling, and the other is not
+	// lowered at that mount. A warning, as InvalidStatusKey is: the document
+	// still lowers, nothing is lost unnamed, and an error would stop
+	// harness.Check early (GitHub #577).
+	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
 	// token. Nothing is interned for it and every requirement naming it is dropped
@@ -246,6 +284,17 @@ const (
 	// there. The document is invalid either way, since OpenAPI requires both
 	// fields.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
+	// OAuth2NoFlow reports an oauth2 securitySchemes entry that states no way to
+	// obtain a token: its flows object declares no flow — `flows: {}`, or only
+	// x-* and keys that name no flow — and it has no oauth2MetadataUrl. Every
+	// flow is optional, so the loader accepts that shape; a `flows` its
+	// REQUIRED-field rule finds missing is that rule's to report (GitHub #646).
+	// Placed at the declaration, which its same-document aliases share (#874).
+	//
+	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
+	// what the document said, and refusing would drop the entry's text. A warning,
+	// like ReservedHeaderName, since the document lowers whole.
+	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//
@@ -329,6 +378,24 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
+	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
+	// lowers as it would in 3.1, where `items` is optional: a List's element is
+	// the top type. A warning rather than an error: nothing the document
+	// declared is dropped, and harness.Check stops at the first error
+	// diagnostic. A code of its own rather than DegradedConstruct, because
+	// nothing is kept in a weaker shape.
+	MissingArrayItems = "openapi/missing-array-items"
+	// LaterVersionConstruct reports a field, or a value of one, that a later
+	// OpenAPI minor than the document declares added to the object it is written
+	// on. It is lowered as in a document declaring that minor, the reading that
+	// loses the least: from the lowering and this diagnostic a consumer can still
+	// set it aside, while from a verbatim copy it could not recover the lowering
+	// (ir-design §12).
+	//
+	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
+	// document is invalid for the version it declares, but it still lowers.
+	LaterVersionConstruct = "openapi/later-version-construct"
 	// InvalidPathKey reports a Paths Object key that is not a path: one that
 	// omits the leading "/" (required at every version, so not version-gated),
 	// carries a "?" (RFC 3986 §3.4: the query is not the path; OpenAPI uses in:

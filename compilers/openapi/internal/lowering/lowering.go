@@ -124,16 +124,35 @@ type Ctx struct {
 	// growing with how deep its schema sits. Nil when there is no document.
 	defsReader *defs.Reader
 
-	// targets holds the schema each discriminator mapping target names, which
-	// the load phase resolved as a $ref to it is. Its zero value holds none.
-	// Unexported for the reason schemas is, and read only through RefScope.
-	targets load.MappingTargets
+	// loaded is what the load phase resolved with the document, set only by
+	// WithLoaded and nil in a context given none. It sits behind one pointer
+	// because RefScope copies the whole context into a closure for every
+	// reference a lowering reads, and with it every word the context holds.
+	loaded *loadResult
 
 	// typePositions remembers each answer TypePosition read. Copies share it on
 	// purpose, as they share defsReader: an answer reads only the document and
 	// targets, which no lowering changes, so what one copy remembers is what
 	// another would read. Nil in a zero context.
 	typePositions map[typePositionKey]typePositionAt
+
+	// reached records where each reference a lowering resolved landed in the
+	// source. Copies share it on purpose: no lowering reads it, so it cannot
+	// change any lowering's answer, and the compiler reads it once the last one
+	// has returned (Reached). Nil in a zero context, which records nothing.
+	reached *resolve.Reached
+}
+
+// loadResult holds what a context reads of the load phase (see WithLoaded): the
+// fields the path items write beside their $refs, and the readings RefScope
+// hands every scope over them and over the schemas the document's
+// discriminator mapping targets name. The readings are bound once, here:
+// binding them in RefScope would allocate each time.
+type loadResult struct {
+	siblings load.Siblings
+	// reads holds those readings in the scope fields they fill: Mapped, Built
+	// and Holds over the mapping targets, Beside and Writes over siblings.
+	reads resolve.Scope
 }
 
 // typePositionKey is a position a discriminator mapping target names, and the
@@ -179,7 +198,15 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		defsReader: reader,
 
 		typePositions: map[typePositionKey]typePositionAt{},
+		reached:       resolve.NewReached(),
 	}
+}
+
+// Reached reports whether a lowering run under this context, or any copy of it,
+// resolved a reference to pointer in the source. It is meant to be asked once
+// every lowering has returned: before that it answers for those that have.
+func (c Ctx) Reached(pointer jsontext.Pointer) bool {
+	return c.reached.Has(pointer)
 }
 
 // Sources is the document's input files, in the order Provenance.Source indexes
@@ -213,13 +240,17 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 	return c
 }
 
-// WithMappingTargets returns a copy of c carrying the schemas the load phase
-// resolved for the document's discriminator mapping targets. They come with
-// the document rather than being derived from it, since resolving one runs the
-// resolver, which only the load phase may (GitHub #757). The copy remembers no
-// TypePosition answer of c's, which read c's targets.
-func (c Ctx) WithMappingTargets(targets load.MappingTargets) Ctx {
-	c.targets, c.typePositions = targets, map[typePositionKey]typePositionAt{}
+// WithLoaded returns a copy of c carrying what the load phase resolved with
+// doc: the schemas its discriminator mapping targets name, and the fields its
+// path items write beside their $refs. They come with the document rather than
+// being derived from it, since resolving either runs the resolver, which only
+// the load phase may (GitHub #757). One call sets both, so no context carries
+// one without the other. The copy remembers no TypePosition answer of c's,
+// which read c's targets.
+func (c Ctx) WithLoaded(doc *load.Document) Ctx {
+	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Mapped: doc.Targets.At, Built: doc.Targets.Built,
+		Holds: doc.Targets.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes}}
+	c.typePositions = map[typePositionKey]typePositionAt{}
 	return c
 }
 
@@ -281,6 +312,16 @@ func (c Ctx) NamingByReferenceAt(usePtr, declPtr jsontext.Pointer) Ctx {
 	return c.NamingByReference()
 }
 
+// Siblings returns the fields the load phase modelled beside the document's
+// path item $refs (see WithLoaded). A load.Siblings only answers questions, so
+// handing it out lets no copy of c change what another reads.
+func (c Ctx) Siblings() load.Siblings {
+	if c.loaded == nil {
+		return load.Siblings{}
+	}
+	return c.loaded.siblings
+}
+
 // Within returns c for lowering what the entry ref resolves to, in the scope
 // resolve.ScopeOf reads it in: Foreign when another document holds it,
 // InSource when its chain ends in the source, and c itself for an inline entry.
@@ -299,11 +340,11 @@ func Within[T, S any, R interface {
 	return c
 }
 
-// At returns c for lowering what an internal pointer names, in the scope
-// resolve.Scope.At reads it in: the source's own, or, where the resolver's walk
-// to it passes a $ref into another document, that document's.
-func (c Ctx) At(pointer jsontext.Pointer) Ctx {
-	scope := c.RefScope().At(pointer)
+// InScope returns c for lowering what is read in scope, which c's own
+// reference scope answered for a position (resolve.Scope.At, Location.At): the
+// source's own content, or, where the resolver's walk to it passes a $ref into
+// another document, that document's.
+func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	c.foreign, c.holder = scope.Foreign, scope.Holder
 	return c
 }
@@ -319,7 +360,7 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 		return nil
 	}
 	names := make(map[string]bool, schemas.Len())
-	for name := range schemas.All() {
+	for name := range schemas.Keys() {
 		names[name] = true
 	}
 	return names
@@ -335,19 +376,15 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // caller, which is the one thing keeping it unexported was for.
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
-// ExclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
-//
-// It reads the document version, which makes it a question about the context
-// rather than about any schema — annotation.Constraints takes the answer as a
-// parameter precisely so the reader never has to ask it.
-//
-// The version is read through its accessor so a context with no document answers
-// like an unrecognized version rather than panicking, which is how the other two
-// readers behave on a zero value.
-func (c Ctx) ExclusiveBoundIsBoolean() bool {
+// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
+// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
+// as a boolean exclusiveMinimum or a required `items`, asks this rather than
+// parsing the version itself; `nullable` is still read in every dialect
+// (GitHub #632). An unrecognized version, and a context with no document,
+// answer false. It reads the entry document's version, whichever document
+// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
+// 3.0 (GitHub #839).
+func (c Ctx) Is30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"
 }
@@ -360,8 +397,12 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
-		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd}
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Foreign: c.foreign, Holder: c.holder,
+		Ends: resolve.ReferenceEnd, Reached: c.reached}
+	if l := c.loaded; l != nil {
+		r := l.reads
+		scope.Mapped, scope.Built, scope.Holds, scope.Beside, scope.Writes = r.Mapped, r.Built, r.Holds, r.Beside, r.Writes
+	}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

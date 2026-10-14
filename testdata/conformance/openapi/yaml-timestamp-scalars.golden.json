@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "YamlTimestampScalars",
   "version": "1.0.0",
   "docs": {},
@@ -13,6 +45,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/default",
           "name": {
             "hint": "default"
           },
@@ -116,6 +149,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/D/s:2021-01-01",
           "name": {
             "source": "2021-01-01",
             "canonical": "2021_01_01"
@@ -127,6 +161,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/D/s:2022-02-02",
           "name": {
             "source": "2022-02-02",
             "canonical": "2022_02_02"

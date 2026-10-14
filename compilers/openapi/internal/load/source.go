@@ -1,17 +1,21 @@
 package load
 
 import (
+	"encoding/json/jsontext"
 	"path/filepath"
 
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
 // path they are relative to, the bytes and the tree its model was built from,
-// and the findings its own validation made.
+// the findings its own validation made, and where a finding about a node of
+// that tree is placed.
 //
 // A $ref from another document back into the source is answered from here,
 // not from the file, so it reaches what the compile holds: the tree an overlay
@@ -22,30 +26,58 @@ type sourceDocument struct {
 	data     []byte
 	root     *yaml.Node
 	found    map[findingKey]bool
+	tree     sourceTree
 	holdless bool
 }
 
+// sourceTree places a finding about a node of the source's patched tree as the
+// source's own findings are placed (see locator), and names the node's pointer
+// there. Its zero value holds no node, so every finding is placed at the $ref
+// that reached it, as another document's are.
+type sourceTree struct {
+	locate   scan.Locator
+	pointers func(*yaml.Node) (jsontext.Pointer, bool)
+}
+
+// newSourceTree returns the places of the nodes of root, the patched tree,
+// under the overlay attribution origin, indexing root once for both.
+func newSourceTree(srcIndex int, origin overlay.Origin, root *yaml.Node) sourceTree {
+	pointers := scan.Pointers(root)
+	return sourceTree{locate: locator(srcIndex, origin, pointers), pointers: pointers}
+}
+
+// pointer returns n's pointer in the tree, or false when the tree does not hold
+// n.
+func (t sourceTree) pointer(n *yaml.Node) (jsontext.Pointer, bool) {
+	if t.pointers == nil {
+		return "", false
+	}
+	return t.pointers(n)
+}
+
 // newSourceDocument returns the source at path, built from data into root,
-// whose own validation found valErrs. Only a finding at a node is kept: one at
-// none is told apart by where it is placed, which a $ref reaching it changes.
-func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []error) sourceDocument {
+// whose own validation found valErrs, and whose findings tree places. Only a
+// finding at a node is kept: one at none is told apart by where it is placed,
+// which a $ref reaching it changes.
+func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []error, tree sourceTree) sourceDocument {
 	found := make(map[findingKey]bool, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok && verr.Node != nil {
 			found[keyOf(ve, "")] = true
 		}
 	}
-	return sourceDocument{path: path, data: data, root: root, found: found,
+	return sourceDocument{path: path, data: data, root: root, found: found, tree: tree,
 		holdless: anyScalar(root, isID) || spellsManyRefs(root)}
 }
 
 // maxHeldRefs is the most $ref scalars a source held under its file name may
 // write. loops reads each hop of their chains once, and a pending one again per
-// reference, so about three reads a $ref; past this the guard could run out of
-// reads and answer nothing, and a held source lets a cycle through its file
-// name run the stack out (GitHub #768). A larger source is not held, so a
-// reference naming its file reads the file.
-const maxHeldRefs = maxLoopReads / 4
+// reference, so about three reads a $ref; at this many, maxLoopWork still
+// affords reads of over a thousand steps each before the guard runs out and
+// answers nothing, and a held source lets a cycle through its file name run the
+// stack out (GitHub #768). A larger source is not held, so a reference naming
+// its file reads the file.
+const maxHeldRefs = 1 << 16
 
 // spellsManyRefs reports whether the tree under root writes more than
 // maxHeldRefs scalars spelling $ref, as a key or otherwise: counted widely, a
@@ -88,6 +120,9 @@ func (s sourceDocument) keys() []string {
 // source as held (see keys), as the lowering reads a document part naming it
 // (refscope.SameDocument). A source named by a URL is held, and so named,
 // under its own spelling alone; one keys holds under none is never named.
+// The path is read lexically, as a URI reference's is, so one through a
+// directory that does not exist, or through a link, names the source; Open
+// reads the file it names (see fileNamed).
 func (s sourceDocument) names(name string) bool {
 	return len(s.keys()) > 0 && refscope.SameDocument(s.path, name)
 }

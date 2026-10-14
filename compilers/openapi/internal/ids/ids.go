@@ -68,6 +68,59 @@ const (
 	ComposedSpace compile.Space = "composed"
 )
 
+// The spaces an operation group is addressed in. No OpenAPI construct is a
+// group: a Tag Object is metadata about a name, and an operation may tag itself
+// with a name no Tag Object declares. The grouping rule mints the group, so each
+// rule takes a namespace of its own (ir-design §3.1), distinct from
+// OpenAPISpace, which addresses source coordinates. The first two are named for
+// the strategy that forms the group, the last two for the one group they hold.
+const (
+	// TagGroupSpace holds the groups formed by operation tag, keyed by tag name.
+	TagGroupSpace compile.Space = "tags"
+	// PathPrefixGroupSpace holds the groups formed by first path segment.
+	PathPrefixGroupSpace compile.Space = "path-prefix"
+	// DefaultGroupSpace names the one group holding untagged operations.
+	DefaultGroupSpace compile.Space = "default"
+	// WebhookGroupSpace names the one group holding webhook operations.
+	WebhookGroupSpace compile.Space = "webhooks"
+)
+
+// TagGroup returns the stable ID of the group of operations whose first tag is
+// name. It is keyed by the name, not by a Tag Object's position, so declaring
+// the tag, reordering the tag list or repeating a declaration leaves it alone.
+func TagGroup(name string) ir.GroupID {
+	return compile.GroupID(TagGroupSpace, string(Ptr(name)))
+}
+
+// PathPrefixGroup returns the stable ID of the group of operations whose path
+// starts with segment. The root path has no segment, so its key is empty.
+func PathPrefixGroup(segment string) ir.GroupID {
+	return compile.GroupID(PathPrefixGroupSpace, string(Ptr(segment)))
+}
+
+// DefaultGroup returns the stable ID of the group holding untagged operations.
+func DefaultGroup() ir.GroupID { return compile.GroupID(DefaultGroupSpace, "") }
+
+// WebhookGroup returns the stable ID of the group holding webhook operations.
+func WebhookGroup() ir.GroupID { return compile.GroupID(WebhookGroupSpace, "") }
+
+// Namespaces returns the namespaces this compiler mints IDs in, by kind: what the
+// document declares in IDSpaces. It names the constants the derivations below use,
+// so a namespace cannot be minted in without being one of these, and the
+// compiler's tests hold the list to the namespaces its corpus really uses.
+func Namespaces() compile.Namespaces {
+	return compile.Namespaces{
+		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
+		ir.IDKindOp:         {OpenAPISpace},
+		ir.IDKindProp:       {OpenAPISpace},
+		ir.IDKindAuth:       {OpenAPISpace},
+		ir.IDKindService:    {OpenAPISpace},
+		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
+		ir.IDKindParam:      {OpenAPISpace},
+		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace},
+	}
+}
+
 // NamedType returns the stable ID of a components-named schema at pointer.
 func NamedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(OpenAPISpace, string(pointer))
@@ -92,6 +145,42 @@ func Op(pointer jsontext.Pointer) ir.OpID {
 // Prop returns the stable ID of the property at pointer.
 func Prop(pointer jsontext.Pointer) ir.PropID {
 	return compile.PropID(OpenAPISpace, string(pointer))
+}
+
+// Param returns the stable ID of the occurrence-th parameter, counting from one,
+// to hold name in location in on the operation mounted at mount.
+//
+// The mount is the pointer the operation lowers at, so a path item $ref'd from
+// two paths gives each mount its own parameter IDs. The name is one escaped
+// token and in is the source's location, so a name and a location cannot be
+// confused, and reordering a list without repeats renames nothing. A repeat's
+// number follows the location (numbered) and equals no other parameter's ID:
+// that would take an operation mounted at another's parameters list.
+func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
+	return compile.ParamID(OpenAPISpace, string(numbered(mount+Ptr("parameters", name, in), occurrence)))
+}
+
+// EnumMember returns the stable ID of the occurrence-th member, counting from
+// one, of the enum at enumPointer to hold key.
+//
+// It lives in the namespace of the enum's own TypeID, which schemaSpace chooses
+// for both, so the member sits under the type that declares it. The key is one
+// escaped token, built by the caller from the member's value, never from its
+// name or position. A repeat's number follows the key (numbered) and is never
+// a key itself, since a key opens with a kind tag and a colon.
+func EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
+	return compile.EnumMemberID(schemaSpace(enumPointer), string(numbered(enumPointer+Ptr(key), occurrence)))
+}
+
+// numbered returns the path of the occurrence-th holder of the identity at
+// path: path itself for the first, and path with the occurrence appended as one
+// more token for each repeat. A source that repeats nothing carries no number,
+// and reordering it renames nothing.
+func numbered(path jsontext.Pointer, occurrence int) jsontext.Pointer {
+	if occurrence < 2 {
+		return path
+	}
+	return path + Ptr(strconv.Itoa(occurrence))
 }
 
 // Auth returns the stable ID of the named security scheme.
@@ -180,10 +269,20 @@ func componentEntryName(pointer jsontext.Pointer) (string, bool) {
 // the named-component ID for a top-level component schema, the anonymous
 // (hoisted-inline) ID otherwise.
 func ForPointer(pointer jsontext.Pointer) ir.TypeID {
-	if _, ok := ComponentSchemaName(pointer); ok {
+	if schemaSpace(pointer) == OpenAPISpace {
 		return NamedType(pointer)
 	}
 	return AnonType(pointer)
+}
+
+// schemaSpace returns the namespace of the type a schema at pointer lowers to:
+// OpenAPISpace for a top-level component schema, the one kind that declares a
+// named type, and AnonSpace for every other position.
+func schemaSpace(pointer jsontext.Pointer) compile.Space {
+	if _, ok := ComponentSchemaName(pointer); ok {
+		return OpenAPISpace
+	}
+	return AnonSpace
 }
 
 // ComponentSchemaName reports whether pointer addresses a top-level component

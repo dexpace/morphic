@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,8 +30,8 @@ func TestSettingFlag_SetCollectsPairs(t *testing.T) {
 
 func TestSettingFlag_StringOfNilRendersEmpty(t *testing.T) {
 	t.Parallel()
-	// The flag package renders a zero value to decide whether to print a
-	// default, so this is reached before any -opt is typed.
+	// pflag renders a zero value to decide whether to print a
+	// default, so this is reached before any --opt is typed.
 	var unset settingFlag
 	assert.Empty(t, unset.String())
 }
@@ -61,4 +62,55 @@ func TestSettingFlag_SetRefusals(t *testing.T) {
 
 	var unset settingFlag
 	assert.Error(t, unset.Set("grouping=tags"), "a nil set must refuse rather than panic")
+}
+
+// TestFlagValues_TypeNames pins the names help documents a flag's value by.
+// pflag asks for one where the standard library's flag package did not, and an
+// empty name would render as a bare flag with no hint of what it takes.
+func TestFlagValues_TypeNames(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "key=value", settingFlag{}.Type())
+	assert.Equal(t, "pointer", (&pointerFlag{}).Type())
+	assert.Equal(t, "name", (&passFlag{}).Type())
+}
+
+// TestPassFlag_SetKeepsNamesAsTyped pins that the flag judges no name: a
+// repeat and an empty one both reach the engine, which owns what they mean.
+func TestPassFlag_SetKeepsNamesAsTyped(t *testing.T) {
+	t.Parallel()
+
+	var got passFlag
+	assert.Empty(t, got.String())
+	for _, name := range []string{"validate", "validate", ""} {
+		require.NoError(t, got.Set(name))
+	}
+
+	assert.Empty(t, cmp.Diff(passFlag{"validate", "validate", ""}, got))
+	assert.Equal(t, "validate validate ", got.String())
+}
+
+// TestSpecOptions_DisabledPasses pins that --skip-validate adds validate to
+// whatever --disable-pass named, and that names reach the engine as typed.
+func TestSpecOptions_DisabledPasses(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		opts specOptions
+		want []string
+	}{
+		{"neither flag", specOptions{}, nil},
+		{"--skip-validate", specOptions{skipValidate: true}, []string{"validate"}},
+		{"--disable-pass validate", specOptions{disable: passFlag{"validate"}}, []string{"validate"}},
+		{"both", specOptions{skipValidate: true, disable: passFlag{"validate"}},
+			[]string{"validate", "validate"}},
+		{"another name with --skip-validate", specOptions{skipValidate: true, disable: passFlag{"Nope"}},
+			[]string{"Nope", "validate"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, cmp.Diff(tt.want, tt.opts.disabledPasses()))
+		})
+	}
 }

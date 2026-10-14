@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json/jsontext"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -37,6 +40,25 @@ func TestRun_ExplainReportsTheNodeAtACoordinate(t *testing.T) {
 	assert.Contains(t, out, "openapi/validation-only-keyword",
 		"a diagnostic stamped at the coordinate is part of what happened there")
 	assert.NotContains(t, out, `"irVersion"`, "--explain replaces the document, it does not add to it")
+}
+
+// TestRun_ExplainListsALoaderFindingAtItsDeclaration pins that a finding the
+// loader made on a raw node is stamped at that node's pointer, so explaining
+// the declaration lists it beside what the lowering reports there (GitHub
+// #803). Located by line and column alone, it stamped no coordinate at all.
+func TestRun_ExplainListsALoaderFindingAtItsDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"+
+		"components:\n  securitySchemes:\n    s: {type: oauth2}\n")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", "/components/securitySchemes/s"}, &stdout, &stderr)
+
+	require.Equal(t, 1, code, "an error diagnostic fails the run, explained or not: %s", stderr.String())
+	out := stdout.String()
+	assert.Contains(t, out, "diagnostics (1)")
+	assert.Contains(t, out, "error openapi/validation/validation-required-field: "+
+		"`securityScheme.flows` is required for type=oauth2")
 }
 
 // TestRun_ExplainTakesTheWholeDocumentAsTheEmptyPointer pins that an empty
@@ -209,6 +231,80 @@ func TestNodeAtPointer_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 			require.True(t, ok, "a node declared at the root is still found there")
 			assert.Equal(t, atRoot.ID, id, "the root names that node, never the decoy")
 		})
+	}
+}
+
+// sharedPointer is the coordinate of a oneOf branch the compiler lowers twice,
+// as an anonymous scalar and as the composed model that distributes it
+// (testdata/conformance/openapi/allof-oneof-cooccurrence.yaml, at
+// /components/schemas/Combo/oneOf/0): two nodes, one coordinate.
+const sharedPointer = "/components/schemas/Combo/oneOf/0"
+
+// documentOfSharedNodes returns a document of n model nodes, all stamped at
+// sharedPointer and named t/n/00, t/n/01, and so on.
+func documentOfSharedNodes(n int) *ir.Document {
+	types := make(ir.TypeRegistry, n)
+	for i := range n {
+		id := ir.TypeID(fmt.Sprintf("t/n/%02d", i))
+		types[id] = &ir.Model{ID: id, Provenance: ir.Provenance{Source: 0, Pointer: sharedPointer}}
+	}
+	return &ir.Document{Types: types}
+}
+
+// TestSortedTypeIDs_AreInIDOrder pins the order itself. Sixty-four keys make it
+// all but impossible for an unsorted answer, which Go's randomized map
+// iteration would give, to pass.
+func TestSortedTypeIDs_AreInIDOrder(t *testing.T) {
+	t.Parallel()
+	ids := sortedTypeIDs(documentOfSharedNodes(64))
+
+	assert.Len(t, ids, 64)
+	assert.True(t, slices.IsSorted(ids), "explain output is deterministic only if its walk is")
+}
+
+// TestNodeAtPointer_ASharedPointerNamesTheLeastID pins which node explain names
+// when several sit at one coordinate: the first in ID order, every time. Each
+// round builds a fresh registry, so each draws its own map iteration order, and
+// an unsorted walk would have to name the least ID by luck in all thirty-two.
+func TestNodeAtPointer_ASharedPointerNamesTheLeastID(t *testing.T) {
+	t.Parallel()
+	const types, rounds = 16, 32
+	for round := range rounds {
+		doc := documentOfSharedNodes(types)
+
+		id, _, ok := nodeAtPointer(doc, sharedPointer)
+
+		require.True(t, ok, "round %d: the coordinate holds %d nodes", round, types)
+		require.Equal(t, ir.TypeID("t/n/00"), id, "round %d", round)
+	}
+}
+
+// TestCoordinatesBelow_TiedPointersListInIDOrder pins the order of nodes that
+// share a coordinate: the registry's ID order, which is also how nodeAtPointer
+// reads them. A sort that is not stable leaves them in an order that depends on
+// the list, and is stable by accident below thirteen elements, so eight
+// pointers of eight nodes each make a scrambled answer all but certain.
+func TestCoordinatesBelow_TiedPointersListInIDOrder(t *testing.T) {
+	t.Parallel()
+	const pointers, perPointer = 8, 8
+	types := make(ir.TypeRegistry, pointers*perPointer)
+	for n := range perPointer {
+		for p := range pointers {
+			id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, p))
+			at := jsontext.Pointer(fmt.Sprintf("/components/schemas/P%d", p))
+			types[id] = &ir.Model{ID: id, Provenance: ir.Provenance{Pointer: at}}
+		}
+	}
+
+	got := coordinatesBelow(&ir.Document{Types: types}, "/components/schemas")
+
+	require.Len(t, got, pointers*perPointer)
+	for i := 1; i < len(got); i++ {
+		if got[i-1].pointer != got[i].pointer {
+			continue
+		}
+		assert.Less(t, string(got[i-1].id), string(got[i].id),
+			"%s lists its nodes out of ID order", got[i].pointer)
 	}
 }
 

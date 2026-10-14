@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "SecuritySchemes",
   "version": "1.0.0",
   "docs": {},
@@ -112,9 +144,12 @@
           "kind": "client_credentials",
           "tokenURL": "https://example.com/token",
           "refreshURL": "https://example.com/refresh",
-          "scopes": {
-            "read": "Read access"
-          }
+          "scopes": [
+            {
+              "name": "read",
+              "description": "Read access"
+            }
+          ]
         }
       ],
       "oauth2MetadataURL": "https://example.com/.well-known/oauth-authorization-server",
@@ -179,6 +214,7 @@
       "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
       "provenance": {
         "source": 0,
+        "pointer": "/components/securitySchemes/strayFieldAuth/bearerFormat",
         "position": {
           "line": 46,
           "column": 21

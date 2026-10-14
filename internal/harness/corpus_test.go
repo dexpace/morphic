@@ -32,6 +32,12 @@ func knownInvalid() map[string]bool {
 		// load as sources (#74).
 		filepath.FromSlash("../../testdata/openapi/resolve_main_external_valid.yaml"):       true,
 		filepath.FromSlash("../../testdata/openapi/resolve_main_alias_external_valid.yaml"): true,
+		// A path item's $ref with an operation written beside it, whose
+		// parameter $refs resolve_target_path_item_sibling.yaml. The sweep's
+		// default refuses external refs, so the load phase reports it
+		// unresolved rather than dropping it (#577); the test of the
+		// cross-document lowering opts in.
+		filepath.FromSlash("../../testdata/openapi/resolve_main_path_item_sibling.yaml"): true,
 		// Degenerate ref cycles that never reach a concrete schema node. The
 		// pre-parse detector reports cyclic-ref instead of letting the parser
 		// stack-overflow (#12).

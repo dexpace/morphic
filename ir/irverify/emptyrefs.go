@@ -11,13 +11,16 @@ import (
 // holds this set to identityClasses, which classifies every named string type
 // the ir sources declare.
 var idTypes = map[reflect.Type]bool{
-	reflect.TypeFor[ir.TypeID]():    true,
-	reflect.TypeFor[ir.OpID]():      true,
-	reflect.TypeFor[ir.ChannelID](): true,
-	reflect.TypeFor[ir.MessageID](): true,
-	reflect.TypeFor[ir.AuthID]():    true,
-	reflect.TypeFor[ir.ServiceID](): true,
-	reflect.TypeFor[ir.PropID]():    true,
+	reflect.TypeFor[ir.TypeID]():       true,
+	reflect.TypeFor[ir.OpID]():         true,
+	reflect.TypeFor[ir.ChannelID]():    true,
+	reflect.TypeFor[ir.MessageID]():    true,
+	reflect.TypeFor[ir.AuthID]():       true,
+	reflect.TypeFor[ir.ServiceID]():    true,
+	reflect.TypeFor[ir.GroupID]():      true,
+	reflect.TypeFor[ir.PropID]():       true,
+	reflect.TypeFor[ir.ParamID]():      true,
+	reflect.TypeFor[ir.EnumMemberID](): true,
 }
 
 // idRule is what an empty value means at one ID-typed position.
@@ -50,6 +53,9 @@ var idPositions = map[string]idRule{
 	"Channel.ID":        idElsewhere,
 	"Message.ID":        idElsewhere,
 	"Operation.ID":      idElsewhere,
+	"Parameter.ID":      idElsewhere,
+	"EnumMember.ID":     idElsewhere,
+	"OperationGroup.ID": idElsewhere,
 	"Property.ID":       idElsewhere,
 	"Service.ID":        idElsewhere,
 	"TypeCommon.ID":     idElsewhere,
@@ -59,6 +65,7 @@ var idPositions = map[string]idRule{
 	"Document.Auth":     idElsewhere,
 	"TypeRef.Target":    idElsewhere,
 
+	"Idempotency.TokenParam": idOptional,
 	"Discriminator.Default":  idOptional,
 	"Discriminator.Property": idLocator,
 
@@ -68,6 +75,7 @@ var idPositions = map[string]idRule{
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,
 	"HTTPParamBinding.BodyPath":    idRequired,
+	"HTTPParamBinding.Param":       idRequired,
 	"HTTPParamBinding.ParamPath":   idRequired,
 	"LongRunning.FinalOperation":   idRequired,
 	"LongRunning.PollingOperation": idRequired,
@@ -75,6 +83,7 @@ var idPositions = map[string]idRule{
 	"MessageBinding.Messages":      idRequired,
 	"OTPBinding.Process":           idRequired,
 	"Operation.OverloadOf":         idRequired,
+	"ParamPath.Param":              idRequired,
 	"ParamPath.Segments":           idRequired,
 	"PropPath.Segments":            idRequired,
 	"Reply.Channel":                idRequired,

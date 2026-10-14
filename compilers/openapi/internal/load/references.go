@@ -28,24 +28,24 @@ type resolvable interface {
 // resolveWith resolves every reference in doc, reading external documents
 // through reader when one is given, then every discriminator mapping target as
 // a $ref to it would be (see mappings). It reports each failure at the $ref
-// that failed, and each finding in what a reference names at a $ref reaching
-// it (GitHub #385, GitHub #537). It runs ResolveAllReferences' own walk, since
-// that call names no reference for either.
+// that failed (GitHub #385), and each finding in what a reference names where
+// reachedFinding places it (GitHub #537). It runs ResolveAllReferences' own
+// walk, since that call names no reference for either.
 //
 // A "#/$defs/..." reference is held out of that walk and resolved after it (see
 // withDefsHeld). A finding is reported once (see reachedFindings), and not
 // where the source's own validation reported it.
-func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, reader *external,
+func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, reader *external,
 ) (MappingTargets, []ir.Diagnostic) {
-	return newResolution(ctx, at, doc, self, opts, reader).run(doc)
+	return newResolution(ctx, at, doc, sibs, self, opts, reader).run(doc)
 }
 
 // run is resolveWith's work over doc, the document p was made for.
 func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
-	held := heldRefs(p.ctx, doc, defs.NewReader(doc))
+	held := heldRefs(p.ctx, doc, p.sibs, defs.NewReader(doc))
 	withDefsHeld(held, func() {
-		p.fail(eachSighting(soa.Walk(p.ctx, doc), resolverPanics,
+		p.fail(eachSighting(walkSource(p.ctx, doc, p.sibs), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
 				p.targets.see(site, model)
 				if r, ok := model.(resolvable); ok && r.IsReference() {
@@ -58,6 +58,9 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	p.fail(p.resolveTargets(held))
 	p.failures = append(p.failures, p.targets.exhausted(p.at)...)
 	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
+	if p.reader != nil {
+		p.failures = append(p.failures, p.reader.work.exhausted(p.at)...)
+	}
 	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
 }
 
@@ -89,12 +92,15 @@ type resolution struct {
 	loops    *loops
 	failures []ir.Diagnostic
 	found    reachedFindings
+	// sibs is what the source writes beside its path items' $refs, walked
+	// after doc as the rest of the source.
+	sibs Siblings
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
 // where the resolver looks for it when reader reads other documents.
-func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, reader *external,
+func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, reader *external,
 ) *resolution {
 	resolveOpts := references.ResolveOptions{
 		TargetLocation:      self.path,
@@ -104,11 +110,12 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	if reader != nil {
 		resolveOpts.VirtualFS = *reader
 		resolveOpts.HTTPClient = *reader
-		reader.hold(ctx)
+		reader.hold(ctx, sibs)
 	}
-	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader,
+	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs,
 		targets: newMappings(self, doc, resolveOpts, reader),
-		found:   reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found}}
+		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
+			tree: self.tree}}
 	if reader != nil {
 		p.loops = newLoops(self, doc)
 	}
@@ -233,13 +240,16 @@ func recovered(err *error, what string) {
 // them, and for each target the least pointer among the $refs whose trails end
 // at it. Which $ref draws a finding depends on declaration order: the library
 // hands a later $ref the object an earlier one built, and with it no findings.
-// The set of $refs reaching a target does not, so a finding is placed by that.
+// The set of $refs reaching a target does not, so a finding placed at a $ref
+// is placed by that.
 type reachedFindings struct {
 	sites   map[references.Reference]jsontext.Pointer
 	pending []pendingFinding
 	// known holds the findings the source's own validation reported, which are
 	// not reported again.
 	known map[findingKey]bool
+	// tree places a finding about a node of the source (see reachedFinding).
+	tree sourceTree
 }
 
 // pendingFinding is a finding as the $ref at site drew it, along a trail ending
@@ -284,12 +294,13 @@ func (f *reachedFindings) noteEntry(site jsontext.Pointer, t trail, vErrs []erro
 	}
 }
 
-// diags reports each finding once, at its target's least $ref, or at its own
-// $ref when its trail ended at no target, and none that is known, nor one only
-// ever drawn as optional (see noteEntry). A finding drawn more than once is
-// kept at the least of its places: the library caches no object it builds from
-// a document whose bytes it already holds, so it builds a target again for each
-// $ref once another read that document.
+// diags reports each finding once, where reachedFinding places it: at the node
+// of the source it is about, or else at its target's least $ref, or its own
+// $ref when its trail ended at no target. None that is known is reported, nor
+// one only ever drawn as optional (see noteEntry). A finding drawn more than
+// once is kept at the least of its places: the library caches no object it
+// builds from a document whose bytes it already holds, so it builds a target
+// again for each $ref once another read that document.
 func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
 	placed := make([]jsontext.Pointer, len(f.pending))
 	kept := make(map[findingKey]int, len(f.pending))
@@ -308,7 +319,7 @@ func (f *reachedFindings) diags(at func(jsontext.Pointer) ir.Provenance) []ir.Di
 	out := make([]ir.Diagnostic, 0, len(kept))
 	for i, p := range f.pending {
 		if key := keyOf(p.err, placed[i]); kept[key] == i && required[key] && !f.known[key] {
-			out = append(out, reachedFinding(at(placed[i]), p.place, p.err))
+			out = append(out, reachedFinding(f.tree, at(placed[i]), p.place, p.err))
 		}
 	}
 	return out
@@ -376,15 +387,21 @@ func quotedStop(t trail) string {
 	return strconv.Quote(string(t.stopped)) + " in " + t.docs[len(t.docs)-1]
 }
 
-// reachedFinding converts a finding the resolver made while building the
+// reachedFinding converts a finding the resolver or validation made about the
 // object a reference names. A structured finding keeps its rule and severity,
-// as validationDiag keeps them for the source's own. Its position is in the
-// document place names, which no Provenance can (GitHub #74), so the message
-// carries both.
-func reachedFinding(site ir.Provenance, place string, err error) ir.Diagnostic {
+// as validationDiag keeps them for the source's own.
+//
+// One about a node of the source's tree is placed as the source's own findings
+// are, at the node (GitHub #879). Any other is placed at site, the $ref that
+// reached it, and its message names its position in the document place names,
+// which no Provenance can (GitHub #74).
+func reachedFinding(tree sourceTree, site ir.Provenance, place string, err error) ir.Diagnostic {
 	verr, ok := asValidationError(err)
 	if !ok {
 		return diag.Newf(ir.SeverityError, diag.Validation, site, "%s", err.Error())
+	}
+	if _, held := tree.pointer(verr.Node); held {
+		return validationDiag(tree.locate, err)
 	}
 	msg := validationMessage(verr)
 	if verr.Node != nil {

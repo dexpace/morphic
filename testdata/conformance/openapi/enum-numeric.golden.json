@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "EnumNumeric",
   "version": "1.0.0",
   "docs": {},
@@ -34,6 +66,7 @@
       "valueType": "integer",
       "members": [
         {
+          "id": "e/openapi/components/schemas/BigCodes/n:1e0",
           "name": {
             "source": "1",
             "canonical": "1"
@@ -45,6 +78,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/BigCodes/n:9.007199254740993e15",
           "name": {
             "source": "9007199254740993",
             "canonical": "9007199254740993"

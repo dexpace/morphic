@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info: {title: PathItemRefSiblings, version: "1"}
+paths:
+  /a:
+    # The path's whole entry is a $ref, and the fields beside it are what the
+    # library's reference wrapper erases: the operation, the summary, the
+    # servers, the extension, the undeclared key and the item parameter reached
+    # the IR in no form at all, with nothing reported (GitHub #577). The
+    # undeclared key's value is an object because a path item folds an
+    # unrecognized key into its operations map, the same shape
+    # path-item-anchored-key uses.
+    $ref: '#/paths/~1b'
+    summary: written beside the ref
+    servers: [{url: https://beside.example}]
+    x-beside: use
+    bogusBeside: {responses: {"200": {description: BESIDE}}}
+    parameters:
+      - {name: beside, in: query, schema: {type: string}}
+    put:
+      operationId: putA
+      responses: {"200": {description: OK}}
+  /b:
+    get:
+      operationId: getB
+      responses: {"200": {description: OK}}

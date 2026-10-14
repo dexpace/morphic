@@ -122,7 +122,7 @@ func TestHeldRefs_AgreeWithTheResolverOnTheFirstReferenceItMeets(t *testing.T) {
 	for range parityDocs {
 		spec := g.document()
 		doc, _ := buildDoc(t, spec)
-		for i, r := range heldRefs(t.Context(), doc, defs.NewReader(doc)) {
+		for i, r := range heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)) {
 			want, found := resolverTarget(t, spec, i)
 			assert.Equal(t, found, r.target != nil, "%s: whether %s finds a definition\n%s", r.site, *r.written, spec)
 			if !found {

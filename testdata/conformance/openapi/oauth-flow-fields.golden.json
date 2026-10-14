@@ -1,0 +1,228 @@
+{
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "OAuthFlowFields",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "OAuthFlowFields",
+        "canonical": "o_auth_flow_fields"
+      },
+      "docs": {},
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/flowFields"
+            },
+            {
+              "scheme": "auth/openapi/components/securitySchemes/scopeOrder",
+              "scopes": [
+                "write"
+              ]
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/flowFields": {
+      "id": "auth/openapi/components/securitySchemes/flowFields",
+      "name": {
+        "source": "flowFields",
+        "canonical": "flow_fields"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "authorization_code",
+          "authorizationURL": "https://example.com/authorize",
+          "tokenURL": "https://example.com/token",
+          "unmodeled": {
+            "openapi:deviceAuthorizationUrl": {
+              "reason": "degraded_lowering",
+              "value": "https://example.com/device-undefined",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/securitySchemes/flowFields/flows/authorizationCode/deviceAuthorizationUrl"
+              }
+            }
+          }
+        },
+        {
+          "kind": "client_credentials",
+          "tokenURL": "https://example.com/token",
+          "unmodeled": {
+            "openapi:authorizationUrl": {
+              "reason": "degraded_lowering",
+              "value": "https://example.com/authorize-undefined",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/securitySchemes/flowFields/flows/clientCredentials/authorizationUrl"
+              }
+            }
+          }
+        },
+        {
+          "kind": "implicit",
+          "authorizationURL": "https://example.com/authorize",
+          "unmodeled": {
+            "openapi:tokenUrl": {
+              "reason": "degraded_lowering",
+              "value": "https://example.com/token-undefined",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/securitySchemes/flowFields/flows/implicit/tokenUrl"
+              }
+            }
+          }
+        },
+        {
+          "kind": "device",
+          "authorizationURL": "https://example.com/device",
+          "tokenURL": "https://example.com/token",
+          "unmodeled": {
+            "openapi:authorizationUrl": {
+              "reason": "degraded_lowering",
+              "value": "https://example.com/authorize-undefined",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/securitySchemes/flowFields/flows/deviceAuthorization/authorizationUrl"
+              }
+            }
+          }
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/flowFields"
+      }
+    },
+    "auth/openapi/components/securitySchemes/scopeOrder": {
+      "id": "auth/openapi/components/securitySchemes/scopeOrder",
+      "name": {
+        "source": "scopeOrder",
+        "canonical": "scope_order"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "client_credentials",
+          "tokenURL": "https://example.com/token",
+          "scopes": [
+            {
+              "name": "write",
+              "description": "Modify data"
+            },
+            {
+              "name": "read",
+              "description": "Read data"
+            },
+            {
+              "name": "admin",
+              "description": "Full access"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/scopeOrder"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oauth flow authorizationCode does not define deviceAuthorizationUrl; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/flowFields/flows/authorizationCode/deviceAuthorizationUrl"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oauth flow clientCredentials does not define authorizationUrl; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/flowFields/flows/clientCredentials/authorizationUrl"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oauth flow implicit does not define tokenUrl; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/flowFields/flows/implicit/tokenUrl"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oauth flow deviceAuthorization does not define authorizationUrl; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/flowFields/flows/deviceAuthorization/authorizationUrl"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "oauth-flow-fields.yaml",
+      "hash": "818afb0a61f953a2a14f44b00885b30c76bf33b85320d9bcdc94979171b76ca1"
+    }
+  ]
+}

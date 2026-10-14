@@ -51,6 +51,9 @@ type externalReads struct {
 	// stood holds the source's reference object each stand-in stands for (see
 	// external.holdObject).
 	stood map[any]resolvable
+	// spelled holds what the source is held under besides its own keys, for a
+	// second resolution to hold again.
+	spelled *heldSpellings
 }
 
 // digest is the SHA-256 of a document's bytes.
@@ -77,6 +80,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		byDigest: map[digest]*yaml.Node{},
 		mended:   map[string]treeAnswer{},
 		stood:    map[any]resolvable{},
+		spelled:  newHeldSpellings(),
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
@@ -221,21 +225,6 @@ func (r *externalReads) stoodIn(c chain) bool {
 	return ok
 }
 
-// sourceKeys returns, sorted, each key the source was recorded under: those it
-// is looked up by, and each a reader found a $ref spell it by.
-func (r *externalReads) sourceKeys() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var keys []string
-	for key, tree := range r.trees {
-		if tree == r.self.root && r.self.root != nil {
-			keys = append(keys, key)
-		}
-	}
-	slices.Sort(keys)
-	return keys
-}
-
 // emptyOf returns an empty object of obj's kind of reference object, or false
 // for a kind with no stand-in.
 func emptyOf(obj resolvable) (any, bool) {
@@ -364,39 +353,41 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // external.replaying). It resolves as the first did but for those trees, which
 // the walk never descends into, so it reaches no new document; one found
 // unprepared is an internal fault.
-func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, self sourceDocument,
-	opts Options, rebuild func() (*soa.OpenAPI, error),
-) (*soa.OpenAPI, MappingTargets, []ir.Diagnostic, error) {
+func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
 	read := newExternalReads(self)
 	reader := newExternal(doc, opts, read)
-	targets, diags := resolveWith(ctx, at, doc, self, opts, &reader)
-	used := documentsUsed(ctx, doc)
+	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
+	used := documentsUsed(ctx, doc, sibs)
 	if !anyAnchored(doc, unprepared(doc, read, used)) {
-		return doc, targets, diags, nil
+		return doc, sibs, targets, diags, nil
 	}
 
 	again, err := rebuild()
 	if err != nil {
-		return nil, MappingTargets{}, nil, err
+		return nil, Siblings{}, MappingTargets{}, nil, err
 	}
 	again.InitCache()
+	// Modelled again, since the first models hold what the first pass resolved.
+	// Their findings are the first models', reported already.
+	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
 	reader.replaying = true
-	targets, diags = resolveWith(ctx, at, again, self, opts, &reader)
-	return again, targets, append(diags, stillUnprepared(at, unprepared(again, read, documentsUsed(ctx, again)))...), nil
+	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
+	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
+	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil
 }
 
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
 func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
-	for _, m := range missed {
+	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
-		if tree, ok := cached.(*yaml.Node); ok && hasAnchor(tree) {
-			return true
-		}
-	}
-	return false
+		tree, ok := cached.(*yaml.Node)
+		return ok && hasAnchor(tree)
+	})
 }
 
 // hasAnchor reports whether any node of the tree under root carries an anchor.
@@ -440,8 +431,8 @@ type usedDocument struct {
 
 // documentsUsed returns every document a resolved reference in doc read, at
 // every hop of its resolution, in walk order.
-func documentsUsed(ctx context.Context, doc *soa.OpenAPI) []usedDocument {
-	return hopsUsed(soa.Walk(ctx, doc))
+func documentsUsed(ctx context.Context, doc *soa.OpenAPI, sibs Siblings) []usedDocument {
+	return hopsUsed(walkSource(ctx, doc, sibs))
 }
 
 // hopsUsed is documentsUsed over walk items rather than a document, so a test

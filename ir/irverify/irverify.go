@@ -1,7 +1,9 @@
 package irverify
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -12,7 +14,9 @@ import (
 type Violation struct {
 	// Code is a stable, slash-namespaced identifier for the defect class.
 	Code string
-	// Message is a human-readable description of the specific defect.
+	// Message is a human-readable description of the specific defect. Text it
+	// takes from the document is strconv.Quote'd, so it is valid UTF-8 whatever
+	// the document holds (GitHub #400); Path is not yet (GitHub #739).
 	Message string
 	// Path locates the offending node within the document.
 	Path string
@@ -31,6 +35,7 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkPrimIDs(doc)...)
 	vs = append(vs, checkPrimKinds(doc)...)
 	vs = append(vs, checkAuthKinds(doc)...)
+	vs = append(vs, checkOAuthScopes(doc)...)
 	vs = append(vs, checkUnions(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, runWalkChecks(doc)...)
@@ -39,11 +44,8 @@ func Verify(doc *ir.Document) []Violation {
 	// contributes no path segment, so two promoted fields of the same name would
 	// collide — and a stable sort leaves those in the walk's deterministic order
 	// rather than an unspecified one.
-	sort.SliceStable(vs, func(i, j int) bool {
-		if vs[i].Code != vs[j].Code {
-			return vs[i].Code < vs[j].Code
-		}
-		return vs[i].Path < vs[j].Path
+	slices.SortStableFunc(vs, func(a, b Violation) int {
+		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Path, b.Path))
 	})
 	return vs
 }
@@ -57,8 +59,8 @@ func Verify(doc *ir.Document) []Violation {
 // run and handed down; the checks that do not need them still take them,
 // because one signature is what lets walkChecks be a list.
 //
-// The zero value says the document declares none, so every OpID and ServiceID
-// reference reports as dangling. Read one with readDeclarations.
+// The zero value says the document declares none, so every OpID, ServiceID and
+// GroupID reference reports as dangling. Read one with readDeclarations.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
@@ -82,14 +84,19 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkTypeRefs,
 		checkDuplicateIDs,
 		checkDeclaredIDs,
+		checkIDSpaces,
 		checkNaming,
+		checkStringLists,
 		checkRawPayloads,
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
 		checkUTF8,
 		checkValues,
+		checkCycles,
 		checkEmptyRefs,
+		checkIdempotency,
+		checkWebhookRoutes,
 	}
 }
 
@@ -170,7 +177,7 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 	if key != nodeID {
 		return append(vs, Violation{
 			Code:    "ir/" + noun + "-id-mismatch",
-			Message: "registry key " + key + " disagrees with node ID " + nodeID,
+			Message: "registry key " + strconv.Quote(key) + " disagrees with node ID " + strconv.Quote(nodeID),
 			Path:    reg + "[" + key + "]",
 		})
 	}

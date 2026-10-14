@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -34,8 +35,8 @@ type declaredAt struct {
 
 // checkDuplicateIDs asserts no two nodes declare the same identity (invariant
 // #3), reporting each later declaration against the first. The registry maps
-// cannot enforce it for classes they lack, such as operations and services, so
-// a shared ID resolves to whichever the reader reaches first.
+// cannot enforce it for classes they lack, such as operations, services and
+// groups, so a shared ID resolves to whichever the reader reaches first.
 //
 // ir.PropID is held to a fingerprint instead: a response declared once in
 // components is embedded by value at every use, each copy keeping the
@@ -58,7 +59,7 @@ func checkDuplicateIDs(doc *ir.Document, decls declarations) ([]Violation, bool)
 		}
 		vs = append(vs, Violation{
 			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + d.ID + " is declared here and at " + at.path,
+			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(at.path),
 			Path:    d.Path,
 		})
 	}

@@ -29,8 +29,8 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the compiler, then the passes (`validate · link · dedup · filter ·
-version-slice · overlay`), then — **once per document** — the shared plan, and finally each
+The engine (Layer 3) runs the compiler, then the passes (`link · dedup · filter · version-slice ·
+overlay · validate`), then — **once per document** — the shared plan, and finally each
 requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
 (INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
 from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,
@@ -228,8 +228,8 @@ type Capabilities struct {
 - **Full document under scope.** Scope gates *emission*, not the plan or naming; global decisions
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
-- **Snapshots only.** The engine runs `version-slice` first; the emitter receives a single version
-  snapshot and never interprets `Availability`.
+- **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
+  single version snapshot and never interprets `Availability`.
 
 ---
 
@@ -247,7 +247,7 @@ type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
     Shapes  map[ShapeKey]ModelShape     // (TypeID × Lifecycle) → projected wire shape
-    Groups  map[GroupKey]GroupPlan      // sub-client / resource nesting (from OperationGroup)
+    Groups  map[ir.GroupID]GroupPlan    // sub-client / resource nesting (from OperationGroup)
     Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
 }
 ```
@@ -468,10 +468,9 @@ purposes.
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
 ```go
-type GroupKey string                 // stable, derived from OperationGroup identity
 type GroupPlan struct {
     Name     ir.Naming               // neutral — cased in refine
-    Parent   GroupKey                // "" = top-level; nesting → sub-clients
+    Parent   *ir.GroupID             // nil = top-level; nesting → sub-clients
     Ops      []ir.OpID
     Resource *ir.ResourceInfo        // Smithy resource lifecycle, when declared
 }
@@ -552,7 +551,7 @@ snapshot pins the whole lowering deterministically.
 | Step | Reads (un-lowered IR fact) | Lowers to (Go example) | IR ref |
 |---|---|---|---|
 | `ResolveScalarChains` | `Scalar.Base` chain, `Constraints`, `Encoding` | nearest representable base + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
-| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct; non-string map key → custom-key map or diagnostic | §4.6 |
+| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; non-string map key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
@@ -733,7 +732,9 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists keep their bounds; `List.Encoding` (packed/expanded) reaches
-  the serializer; non-string map keys are handled or diagnosed; tuples become fixed-arity structs.
+  the serializer; non-string map keys are handled or diagnosed; tuples become positional structs
+  whose positions past `Constraints.MinItems` are optional and whose `Rest`, when present, is a
+  trailing slice.
 - **Scalars**: `ResolveScalarChains` walks `Base` transitively, accumulating
   `Constraints`/`Encoding`; nil-base scalars (GraphQL custom) go to the opaque-scalar strategy
   (a Go newtype), never a fabricated chain.
@@ -788,7 +789,9 @@ depends on the rendered identifier (§13 test T-4). Collisions are resolved dete
 `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
 collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`.
+in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
+`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
+alike are two entries to disambiguate, and reordering members of distinct values renames none.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -929,11 +932,11 @@ drops a hint (INV3):
 
 ```go
 type ShapeHint struct {
-    Rename         string    // presentation rename for the entity's symbol; "" = none
-    Remount        GroupKey  // move an operation under a different sub-client; "" = keep
-    SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
-                             // the one sanctioned union→arguments collapse (§4.4); default off
-    URLBuilder     bool      // expose a URL-builder variant of the operation
+    Rename         string      // presentation rename for the entity's symbol; "" = none
+    Remount        *ir.GroupID // move an operation under a different sub-client; nil = keep
+    SplitUnionBody bool        // flatten a request-body union into typed wrapper methods — OPT-IN,
+                               // the one sanctioned union→arguments collapse (§4.4); default off
+    URLBuilder     bool        // expose a URL-builder variant of the operation
     Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
 ```
@@ -1169,7 +1172,7 @@ degrade; a missing row is an IR bug (INV9), not a compiler change.
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | pattern channel |
 | `Union` (4 tag modes) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | `WireName`/`WireID` per variant |
 | `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/struct; `List.Encoding`→serializer mode | packed/expanded |
+| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | — |
 | `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | — |
 | `Any` | `any` (distinct from a diagnosed unknown) | — |
@@ -1300,6 +1303,37 @@ throughout this document.
     `testing/synctest` bubble against `httptest.NewTestServer`, whose in-memory network works within
     the bubble: a backoff schedule is asserted exactly under the fake clock and completes instantly,
     and `synctest.Sleep` advances the clock and waits for the runtime under test to settle.
+14. **T-14 · Runtime behavior against a shared server, with a coverage gate (milestone 3)** — every
+    target's generated SDK runs one hand-written suite of behaviors against one behavior server,
+    and a gate fails a target that silently skips one (§13.1).
+
+### 13.1 The behavior server (T-14)
+
+T-12 checks the requests an SDK builds and T-13 the timing of its runtime, both inside the process.
+Much of what an SDK does shows only against a live server: honoring `Retry-After`, an event stream
+split across chunk boundaries or carrying one very large event, JSON Lines framing, each pagination
+strategy, status-monitor polling, OAuth token acquisition and refresh, an error body that does not
+parse, and the four combinations of required and nullable in a response (§4.7). Writing those
+tests once per target does not scale, and nothing would notice a target that left one out.
+
+- **One server, shared by every target.** It has one route per behavior and is written by hand,
+  together with the OpenAPI document that describes it, from which each target generates the SDK
+  under test. It is deliberately not the mock-server emitter's output (§10): that mock is
+  wire-consistent with the SDK by construction, so it would share any misreading of the spec the
+  generator makes, and a test against it could not disagree with the code it tests. Each test gets
+  a session of its own, so tests run in parallel, and the server records the requests each session
+  received.
+- **Target-neutral definitions.** Each behavior is an Arazzo workflow: the operation, the request,
+  and the success criteria, written by hand. Expectations are not derived from the spec's own
+  examples, which the generator under test also reads, for the same reason the server is not
+  generated. A criterion about what the client sent — a second attempt no sooner than
+  `Retry-After` allowed, a token refreshed once — is checked against the session's recorded
+  requests. Each target supplies the runner that turns a workflow step into a call through its
+  generated SDK; exact timing stays with T-13, under a fake clock.
+- **A coverage gate.** Every workflow ID is registered in one place, and every target declares,
+  for each, that it runs it or skips it with a reason. The gate fails when a registered ID is
+  neither, when an ID a target names is not registered, and when a skipped test passes: skipped
+  tests still run, and one that would pass has outlived its reason.
 
 ---
 
@@ -1314,7 +1348,8 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
    four optionality states, containers, external types, values. Each is a refine step tied to a
    specific un-lowered IR fact — the acceptance test cashed.
 3. **M3c — operations & runtime.** Pagination, streaming, LRO, error taxonomy, auth; the runtime
-   policy tree and the boilerplate templates; the wire-conformance harness.
+   policy tree and the boilerplate templates; the wire-conformance harness; the behavior server, its
+   workflows and its coverage gate (T-14).
 4. **M3d — docs + mock emitters.** Prove reuse of `Doc + Plan` over a second and third target AST,
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
@@ -1370,6 +1405,11 @@ Extends architecture.md §6 milestone 3 (the first emitter) and beyond.
 6. **Surface behavioral channel scope.** Which behavioral changes beyond default-value changes
    (e.g. a `Retryable` flip, an idempotency change) belong in the separate behavioral channel vs the
    structural one. Decide when surface verification (M4) is built against real cross-revision diffs.
+
+7. **Behavior server distribution.** The server T-14 runs against is Go in this repository, and a
+   target in another language needs it running beside its own test suite. Whether that is a
+   released binary, a container image or a build at a pinned revision is decided when the second
+   language (M5) lands.
 
 ---
 

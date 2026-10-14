@@ -7,7 +7,7 @@ package ir
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed.
-const IRVersion = "0.6.0"
+const IRVersion = "0.13.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing
@@ -34,6 +34,15 @@ type TypeRegistry map[TypeID]TypeDef
 type Document struct {
 	// IRVersion is the version of the IR schema itself (semver).
 	IRVersion string `json:"irVersion,omitempty"`
+	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
+	// document's IDs of that kind live in. A producer states it as it stamps
+	// IRVersion, from the namespace constants it already names; irverify reports
+	// an ID whose namespace is not declared, which sees a path glued onto its
+	// namespace in every class. A type needs no entry for IDSpacePrim, which is
+	// ir's own. A kind with no namespace is left out. Each list is sorted by the
+	// byte order of its UTF-8 spelling, without repeats, and names no empty or
+	// separator-bearing namespace.
+	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`
 	// Version is the source-declared API version string.
@@ -71,7 +80,7 @@ type Document struct {
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	// Sources describes the input files: format, path, content hash.
+	// Sources describes the input files, one entry each.
 	Sources []SourceInfo `json:"sources,omitempty"`
 }
 
@@ -102,4 +111,16 @@ type TagDef struct {
 	Name string `json:"name,omitempty"`
 	// Docs is the tag's documentation.
 	Docs Docs `json:"docs"`
+	// Parent names the tag this one is nested under (OpenAPI 3.2 tag parent):
+	// the declared hierarchy a consumer may render as a section tree. Empty =
+	// top-level. It is the declared spelling, not a resolved reference — a
+	// parent that names no declared tag is reported by the parser and left as
+	// written here, since resolving it is grouping policy (OperationGroup).
+	Parent string `json:"parent,omitempty"`
+	// Kind is the tag's declared role (OpenAPI 3.2 tag kind), recorded verbatim
+	// — "nav", "badge", or any other string a document writes. It is kept as a
+	// fact rather than interpreted: whether a kind is navigational is grouping
+	// policy, not a property of the document, so no meaning is read into a
+	// value here (ir-design §7.1).
+	Kind string `json:"kind,omitempty"`
 }
