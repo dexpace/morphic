@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info: {title: MediaTypeSpelling, version: "1.0.0"}
+# A media type's type and subtype are case-insensitive and a parameter does not
+# name another type (RFC 6838 §4.2), so each key below is classified by the type
+# alone and the IR keeps the key as written.
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          Multipart/Form-Data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+            encoding:
+              file: {contentType: image/png}
+      responses:
+        "200":
+          description: ok
+  # No explicit encoding here: document validation refuses one beside a
+  # parameterized form-urlencoded key (#623), so the part carries the encoding
+  # synthesized for a repeated part.
+  /submit:
+    post:
+      operationId: submit
+      requestBody:
+        content:
+          "Application/X-WWW-Form-Urlencoded; charset=utf-8":
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items: {type: string}
+      responses:
+        "200":
+          description: ok
+  /blob:
+    put:
+      operationId: putBlob
+      requestBody:
+        content:
+          Application/Octet-Stream: {}
+      responses:
+        "200":
+          description: ok
+          content:
+            "application/octet-stream; type=tar": {}

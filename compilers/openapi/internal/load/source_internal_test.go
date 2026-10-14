@@ -87,7 +87,7 @@ func TestHold_ABackReferenceReachesTheSourceAsHeld(t *testing.T) {
 		t.Parallel()
 		got, diags := loadExternal(t, dir, root, Options{})
 
-		assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)),
+		assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)),
 			"reported once, by the source's own validation, and not again at the $ref")
 		r, ok := got.Doc.Components.Responses.Get("R")
 		require.True(t, ok)
@@ -127,7 +127,8 @@ components:
 `
 	_, diags := loadExternal(t, dir, root, Options{})
 
-	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-allowed-values"}, diagLines(diags)))
+	assert.Empty(t, cmp.Diff([]string{"/components/parameters/Q/in openapi/validation/validation-allowed-values"},
+		diagLines(diags)))
 }
 
 // TestHold_EverySpellingOfTheSourceReachesIt pins that a back reference reaches
@@ -166,7 +167,7 @@ func TestHold_EverySpellingOfTheSourceReachesIt(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, got, "%+v", diags)
 
-			assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
+			assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)))
 			r, ok := got.Doc.Components.Responses.Get("R")
 			require.True(t, ok)
 			for _, path := range []string{"/a", "/b"} {
@@ -260,8 +261,9 @@ func TestHold_ABackReferenceResolvesAsItDoesInEitherOrder(t *testing.T) {
 
 // TestHold_AFindingTheSourceDoesNotMakeIsReportedOnce pins what the source's
 // own findings leave to the $refs. A response under an extension is no object
-// the source's validation reaches, so its finding is reported at a $ref
-// reaching it, once, at the least of an internal $ref and a back reference.
+// the source's validation reaches, so its finding is reported for the $refs
+// reaching it, an internal one and a back reference, once, at the response
+// itself, as the source's own findings are placed (GitHub #879).
 func TestHold_AFindingTheSourceDoesNotMakeIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{
@@ -275,7 +277,7 @@ paths:
 `
 	_, diags := loadExternal(t, dir, root, Options{})
 
-	assert.Empty(t, cmp.Diff([]string{"/paths/~1a/get/responses/200 openapi/validation/validation-required-field"},
+	assert.Empty(t, cmp.Diff([]string{"/x-lib/R openapi/validation/validation-required-field"},
 		diagLines(diags)))
 }
 
@@ -403,7 +405,7 @@ func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
 	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
 	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
 
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")})
+	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{})
 
 	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
 }
@@ -452,10 +454,10 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	releaseAnchors(root)
 	doc, valErrs, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs)
+	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
-	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)
+	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
 }
 
 // TestExternal_OpenHoldsTheSourceItIsAskedFor pins what Open does with the
@@ -531,7 +533,7 @@ func TestHold_ASpellingTheSourceUsesForItselfIsHeldAhead(t *testing.T) {
 	dir := t.TempDir()
 	got, diags := loadExternal(t, dir, backRoot(backPath("/a", dir+"/./root.yaml#/components/responses/R")), Options{})
 
-	assert.Empty(t, cmp.Diff([]string{" openapi/validation/validation-required-field"}, diagLines(diags)))
+	assert.Empty(t, cmp.Diff([]string{"/components/responses/R openapi/validation/validation-required-field"}, diagLines(diags)))
 	r, ok := got.Doc.Components.Responses.Get("R")
 	require.True(t, ok)
 	assert.Same(t, r.GetObject(), response200(t, got.Doc, "/a").GetObject())
@@ -623,7 +625,7 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
 	reader := newExternal(again, Options{}, pass.reader.read)
-	reader.hold(t.Context())
+	reader.hold(t.Context(), Siblings{})
 
 	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
 	assert.True(t, ok, "held under the spelling the first resolution found")

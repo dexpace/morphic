@@ -34,9 +34,9 @@ func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	assert.Contains(t, codes(diags), "ir/dangling-type-ref")
 }
 
-// TestValidate_DanglingRefsAcrossContainerKinds drives every container TypeDef
-// walker branch (Scalar base/encoding, List elem, MapT key+value, Tuple elems)
-// with a dangling target so each visit fires.
+// TestValidate_DanglingRefsAcrossContainerKinds gives every reference a
+// container TypeDef carries (Scalar base/encoding, List elem, MapT key+value,
+// Tuple elems and rest) a dangling target, so each must be reported once.
 func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -58,10 +58,11 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	doc.Types["t/tuple"] = &ir.Tuple{
 		ID:    "t/tuple",
 		Elems: []ir.TypeRef{{Target: "t/ghost-e0"}},
+		Rest:  &ir.TypeRef{Target: "t/ghost-rest"},
 	}
 	diags := pass.Validate(doc)
 	// Each dangling target above yields exactly one dangling-type-ref diagnostic.
-	assert.Equal(t, 7, countCode(t, diags, "ir/dangling-type-ref"))
+	assert.Equal(t, 8, countCode(t, diags, "ir/dangling-type-ref"))
 }
 
 // TestValidate_ModelImplementsAndAdditionalPropsWalked covers a model's
@@ -118,7 +119,7 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 }
 
 // TestValidate_ModelDiscriminator drives checkModelDiscriminator and every
-// isSubtype branch: subtype via Base, subtype via Implements, a non-model target,
+// ir.IsSubtype branch: subtype via Base, subtype via Implements, a non-model target,
 // and a model that is neither, plus the clean (valid) mapping path.
 func TestValidate_ModelDiscriminator(t *testing.T) {
 	t.Parallel()
@@ -439,12 +440,12 @@ func TestValidate_HostParamBoundMultipleTimesIsLegal(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{
 		ID:     "op",
-		Params: []ir.Parameter{{Name: ir.Naming{Source: "region"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+		Params: []ir.Parameter{{ID: "param/x/op/region/host", Name: ir.Naming{Source: "region"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 		Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
 			Method: "GET", URITemplate: "/x", HostPrefix: "{region}.{region}",
 			ParamBindings: []ir.HTTPParamBinding{
-				{Param: "region", Location: ir.HTTPLocationHost},
-				{Param: "region", Location: ir.HTTPLocationHost},
+				{Param: "param/x/op/region/host", Location: ir.HTTPLocationHost},
+				{Param: "param/x/op/region/host", Location: ir.HTTPLocationHost},
 			},
 		}}},
 	}
@@ -576,8 +577,8 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 	assert.Contains(t, codes(diags), "ir/dangling-auth-ref")
 }
 
-// TestValidate_ExcessiveGroupNestingIsTruncated drives the maxGroupDepth guard in
-// forEachGroupOperation: an operation buried below the depth cap is never
+// TestValidate_ExcessiveGroupNestingIsTruncated drives the ir.MaxGroupDepth guard
+// in ir.ForEachOperation: an operation buried below the depth cap is never
 // visited, so its one-way violation goes unreported (the recursion stops). The
 // truncation itself is reported instead — see
 // TestValidate_GroupWalkTruncationIsReported.
@@ -585,7 +586,7 @@ func TestValidate_ExcessiveGroupNestingIsTruncated(t *testing.T) {
 	t.Parallel()
 	// A one-way op with responses would normally raise oneway-with-responses.
 	buried := ir.Operation{ID: "deep", OneWay: true, Responses: []ir.Response{{}}}
-	// Nest it 200 levels deep, past maxGroupDepth (128).
+	// Nest it 200 levels deep, past ir.MaxGroupDepth (128).
 	group := ir.OperationGroup{Operations: []ir.Operation{buried}}
 	for range 200 {
 		group = ir.OperationGroup{Groups: []ir.OperationGroup{group}}

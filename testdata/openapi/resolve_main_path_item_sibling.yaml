@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: Main, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    summary: written beside the ref
+    get:
+      operationId: getA
+      parameters:
+        - {$ref: './resolve_target_path_item_sibling.yaml#/components/parameters/ExtSibling'}
+      responses: {"200": {description: OK}}
+  /b:
+    post:
+      operationId: postB
+      responses: {"200": {description: OK}}

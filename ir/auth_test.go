@@ -34,13 +34,19 @@ func TestAuthScheme_JSONContract(t *testing.T) {
 					AuthorizationURL: "https://example.com/authorize",
 					TokenURL:         "https://example.com/token",
 					RefreshURL:       "https://example.com/refresh",
-					Scopes:           map[string]string{"read": "read access", "write": "write access"},
-					Unmodeled:        populatedUnmodeled(),
+					Scopes: []ir.OAuthScope{
+						{Name: "write", Description: "write access"},
+						{Name: "read", Description: "read access"},
+						{Name: "openid"},
+					},
+					TokenEndpointAuthMethods: []string{"private_key_jwt", "client_secret_basic"},
+					Unmodeled:                populatedUnmodeled(),
 				},
 				{Kind: "client_credentials", TokenURL: "https://example.com/token"},
 			},
 			OAuth2MetadataURL: "https://example.com/.well-known/oauth-authorization-server",
 			OpenIDConnectURL:  "https://example.com/.well-known/openid-configuration",
+			Credentials:       &ir.TypeRef{Target: "t/openapi/components/schemas/Credentials"},
 			Unmodeled:         populatedUnmodeled(),
 			Provenance:        populatedProvenance(),
 		})
@@ -75,8 +81,8 @@ func TestAuthKind_Constants(t *testing.T) {
 // nothing rejects an empty or misspelled mechanism on deserialization, and no
 // structural check can tell one from oauth2 by reading a scheme's key and its
 // ID, so irverify has Valid and nothing else to test against. Valid therefore
-// has to stay tied to the const block, and it is tied here by parsing the ir
-// sources rather than by a list.
+// has to stay tied to the const block, and it is tied here by reading the ir
+// package's declarations rather than by a list.
 //
 // Adding a mechanism without teaching Valid about it fails here rather than
 // surfacing later as a spurious ir/unknown-auth-kind on a document that names
@@ -86,7 +92,7 @@ func TestAuthKind_TiesToConstBlock(t *testing.T) {
 	declared := declaredConstsOfType(t, "AuthKind")
 	require.NotEmpty(t, declared, "the ir sources must declare AuthKind constants")
 	for _, c := range declared {
-		assert.True(t, ir.AuthKind(c.value).Valid(), "declared mechanism %q must be Valid", c.value)
+		assert.True(t, ir.AuthKind(c.Value).Valid(), "declared mechanism %q must be Valid", c.Value)
 	}
 }
 
@@ -109,22 +115,28 @@ func TestOAuthFlow_ZeroValueShape(t *testing.T) {
 	assertZeroValueShape(t, ir.OAuthFlow{}, `{}`)
 }
 
-// TestOAuthFlow_ScopesDeterministic pins Class C for OAuthFlow's map field:
-// Scopes must marshal with keys in sorted order on every run.
-func TestOAuthFlow_ScopesDeterministic(t *testing.T) {
+// TestOAuthFlow_ScopesKeepSourceOrder pins that a flow's scopes marshal in
+// the order they were written, not sorted: the author's order is what
+// documentation and consent screens show.
+func TestOAuthFlow_ScopesKeepSourceOrder(t *testing.T) {
 	t.Parallel()
-	flow := ir.OAuthFlow{
-		Scopes: map[string]string{
-			"z:scope": "z",
-			"m:scope": "m",
-			"a:scope": "a",
-			"q:scope": "q",
-			"b:scope": "b",
-		},
-	}
+	flow := ir.OAuthFlow{Scopes: []ir.OAuthScope{
+		{Name: "write", Description: "Modify data"},
+		{Name: "read", Description: "Read data"},
+		{Name: "admin"},
+	}}
 	got := assertDeterministicMarshal(t, flow)
 	assert.Contains(t, got,
-		`"scopes":{"a:scope":"a","b:scope":"b","m:scope":"m","q:scope":"q","z:scope":"z"}`)
+		`"scopes":[{"name":"write","description":"Modify data"},{"name":"read","description":"Read data"},{"name":"admin"}]`)
+}
+
+// TestOAuthScope_JSONContract pins that a scope always spells its name, an
+// empty one included, since the name is what a token request sends, while a
+// scope with no description leaves the key out.
+func TestOAuthScope_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.OAuthScope{}, `{"name":""}`,
+		ir.OAuthScope{Name: "read", Description: "Read data"})
 }
 
 // TestAuthRequirement_JSONContract pins AuthRequirement's omitempty contract

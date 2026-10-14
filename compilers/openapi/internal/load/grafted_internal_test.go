@@ -96,7 +96,8 @@ func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 			continue
 		}
 		found++
-		assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 6, Column: 26}}, d.Provenance,
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/200",
+			Position: ir.Position{Line: 6, Column: 26}}, d.Provenance,
 			"the source declared this node, at this position")
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)

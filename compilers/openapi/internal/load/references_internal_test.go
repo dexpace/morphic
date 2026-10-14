@@ -68,7 +68,7 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 	doc, valErrs := parseSpec(t, sitedFailuresSpec)
 	require.Empty(t, valErrs, "the fixture is otherwise well-formed")
 
-	_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
+	_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 	want := []struct {
 		pointer        jsontext.Pointer
@@ -157,7 +157,7 @@ components:
 `)
 		require.Empty(t, valErrs)
 
-		_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "root.yaml"}, Options{}, nil)
+		_, got := resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "root.yaml"}, Options{}, nil)
 
 		assertFailures(t, got, map[jsontext.Pointer]string{
 			"/paths/~1a/get/parameters/0": `unresolved $ref "#/components/parameters/Alias", ` +
@@ -580,7 +580,7 @@ func TestReachedFinding(t *testing.T) {
 		verr := validation.Error{Severity: "warning", Rule: "some-rule",
 			UnderlyingError: errors.New("boom"), Node: &yaml.Node{Line: 5, Column: 9}}
 
-		got := reachedFinding(site, "other.yaml", verr)
+		got := reachedFinding(sourceTree{}, site, "other.yaml", verr)
 
 		assert.Equal(t, ir.SeverityWarning, got.Severity)
 		assert.Equal(t, diag.Validation+"/some-rule", got.Code)
@@ -592,14 +592,14 @@ func TestReachedFinding(t *testing.T) {
 		t.Parallel()
 		verr := validation.Error{Severity: "error", Rule: "some-rule", UnderlyingError: errors.New("boom")}
 
-		got := reachedFinding(site, "other.yaml", verr)
+		got := reachedFinding(sourceTree{}, site, "other.yaml", verr)
 
 		assert.Equal(t, "boom", got.Message, "no position to append when the finding names no node")
 	})
 
 	t.Run("an unstructured error", func(t *testing.T) {
 		t.Parallel()
-		got := reachedFinding(site, "other.yaml", errors.New("plain failure"))
+		got := reachedFinding(sourceTree{}, site, "other.yaml", errors.New("plain failure"))
 
 		assert.Equal(t, diag.Validation, got.Code, "no rule to suffix the bare code with")
 		assert.Equal(t, ir.SeverityError, got.Severity)
@@ -696,7 +696,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if d, found := chainCycle(t.Context(), scan.InSource(0), root, doc1); found && d.Severity == ir.SeverityError {
+		if d, found := chainCycle(t.Context(), scan.InSource(0), root, doc1, Siblings{}); found && d.Severity == ir.SeverityError {
 			continue // a chain the resolver would recurse through forever
 		}
 
@@ -707,9 +707,9 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		require.NoError(t, err, path)
 
 		checked++
-		//nolint:errcheck // the resolution failures themselves are not this test's
-		// concern; IsResolved, read back by referencePairs, is.
-		doc1.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{
+		// The resolution failures are not this test's concern; IsResolved, read
+		// back by referencePairs, is. They are reported only if the comparison fails.
+		failures, resolveErr := doc1.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{
 			OpenAPILocation: path, DisableExternalRefs: true,
 		})
 		want := referencePairs(t, doc1)
@@ -718,11 +718,12 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 			want[pointer] = true
 		}
 
-		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), pointerAt(0, overlay.Origin{}), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
-			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s", path, d)
+			t.Errorf("%s: resolved references differ from the library's own walk (-want +got):\n%s\n"+
+				"the library's resolution returned %d failure(s), error: %v", path, d, len(failures), resolveErr)
 		}
 	}
 	assert.GreaterOrEqual(t, checked, 10,

@@ -105,7 +105,7 @@ func TestLoad_AnOverlayRefusalNamesTheOverlay(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, diags, 1)
-	assert.Equal(t, ir.Provenance{Source: 1, Position: want}, diags[0].Provenance,
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/actions/0/update/p/0", Position: want}, diags[0].Provenance,
 		"the alias that closes the cycle, in the overlay's own text")
 }
 

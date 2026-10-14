@@ -48,6 +48,18 @@ func operationDoc(p ir.Parameter) *ir.Document {
 	return doc
 }
 
+// credentialsDoc returns a closed document whose one custom scheme declares
+// its credential as ref: a TypeRef held under Auth rather than under Types or
+// Services.
+func credentialsDoc(ref *ir.TypeRef) *ir.Document {
+	doc := closedDoc()
+	doc.IRVersion = ir.IRVersion
+	doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/s": {
+		ID: "auth/x/s", Name: named("s"), Kind: ir.AuthKindCustom, Credentials: ref,
+	}}
+	return doc
+}
+
 // typeRefViolations returns the ir/type-ref-no-target violations in doc, so a
 // test asserting none is not satisfied by an unrelated violation being absent.
 func typeRefViolations(t *testing.T, doc *ir.Document) []irverify.Violation {
@@ -129,6 +141,15 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 			path: "doc.Types[t/x/T].Elems[1].Target",
 		},
 		{
+			name: "a tuple's rest, allocated but naming nothing",
+			doc: closedDoc(&ir.Tuple{
+				ID:   "t/x/T",
+				Name: ir.Naming{Source: "T", Canonical: "t"},
+				Rest: &ir.TypeRef{},
+			}),
+			path: "doc.Types[t/x/T].Rest.Target",
+		},
+		{
 			name: "a model's base, allocated but naming nothing",
 			doc: closedDoc(&ir.Model{
 				ID:   "t/x/M",
@@ -141,6 +162,11 @@ func TestVerify_EmptyTargetIsReportedAtEveryCarrierShape(t *testing.T) {
 			name: "a parameter's type, outside the type registry",
 			doc:  operationDoc(ir.Parameter{Name: named("p"), Type: ir.TypeRef{}}),
 			path: "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Target",
+		},
+		{
+			name: "a scheme's credential type, allocated but naming nothing",
+			doc:  credentialsDoc(&ir.TypeRef{}),
+			path: "doc.Auth[auth/x/s].Credentials.Target",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -169,4 +195,17 @@ func TestVerify_AbsentOptionalTypeRefIsClean(t *testing.T) {
 		}},
 	})
 	assert.Empty(t, typeRefViolations(t, doc))
+}
+
+// TestVerify_SchemeCredentialsAreReferences holds a scheme's credential type to
+// the rules every TypeRef is held to: one naming a registered type is clean,
+// and one naming no registered type is dangling, at the field that names it.
+func TestVerify_SchemeCredentialsAreReferences(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "t/x/Leaf"})))
+
+	got := verifyDeclared(credentialsDoc(&ir.TypeRef{Target: "t/x/Missing"}))
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/dangling-type-ref", got[0].Code)
+	assert.Equal(t, "doc.Auth[auth/x/s].Credentials.Target", got[0].Path)
 }

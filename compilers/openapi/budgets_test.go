@@ -3,6 +3,7 @@ package openapi
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -301,12 +303,10 @@ func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {
 // liveForCalls answers Err with nil for its first left calls and
 // context.Canceled from then on, counting every call it answers.
 //
-// The document under test declares nothing, so the walks never consult
-// ctx.Err() and run's phase boundaries are its only callers. Counting puts the
-// cancellation at a chosen boundary deterministically, where a timer would
-// race the walk. seen says which boundary stopped the compile: every boundary
-// returns the same nil document and context.Canceled, so one that never fires
-// is covered for by the next and the outcome cannot tell them apart.
+// Counting puts the cancellation at a chosen call deterministically, where a
+// timer would race the walk. seen says which call stopped the compile: every
+// boundary returns the same nil document and context.Canceled, so one that
+// never fires is covered for by the next and the outcome cannot tell them apart.
 type liveForCalls struct {
 	context.Context
 	left *int
@@ -322,6 +322,9 @@ func (c liveForCalls) Err() error {
 	return context.Canceled
 }
 
+// TestRun_RefusesAtEveryPhaseBoundaryOnCancellation pins each boundary run
+// checks. The document declares nothing, so the walks never consult ctx.Err()
+// and the boundaries are its only callers.
 func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -347,4 +350,50 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 				"and it stopped there: a boundary reached after it would have asked again")
 		})
 	}
+}
+
+// TestRun_CancellationReachesTheSettlements pins that the settling honours ctx
+// as the walks do. Cancelled at its own check it takes no settlement, and the
+// boundary after it refuses the document. One call later the settlement runs
+// and only the boundary refuses, so the check that stopped it was the
+// settling's own.
+func TestRun_CancellationReachesTheSettlements(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
+      oneOf: [{$ref: '#/components/schemas/Cat'}]
+    Cat: {type: object}
+`
+	runUntil := func(live int) (int, []ir.Diagnostic, error) {
+		loaded, _, err := load.Load(t.Context(), 0,
+			compilers.Source{Path: "spec.yaml", Data: []byte(src)}, loadOptions(Options{}.withDefaults()))
+		require.NoError(t, err)
+		left, seen := live, 0
+		_, diags, err := run(liveForCalls{Context: t.Context(), left: &left, seen: &seen},
+			loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes())
+		return seen, diags, err
+	}
+	moved := func(diags []ir.Diagnostic) bool {
+		return openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator")
+	}
+	// Pet's is the one settlement, so the settling asks once, second to last,
+	// and the boundary after it asks last.
+	calls, diags, err := runUntil(math.MaxInt)
+	require.NoError(t, err)
+	require.True(t, moved(diags), "uncancelled, the settlement moves the discriminator")
+
+	seen, diags, err := runUntil(calls - 2)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, moved(diags), "a cancelled settling takes no settlement")
+	assert.Equal(t, calls, seen, "and the boundary after it still asks")
+
+	_, diags, err = runUntil(calls - 1)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.True(t, moved(diags), "one call later the settlement ran and only the boundary refused")
 }

@@ -104,10 +104,7 @@ func TestRun_NilArgsAreNoArguments(t *testing.T) {
 // working directory so -o's relative value resolves to that file.
 func TestRun_HelpFlagAsFlagValue(t *testing.T) {
 	dir := t.TempDir()
-	prevWD, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { require.NoError(t, os.Chdir(prevWD)) })
+	t.Chdir(dir)
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer

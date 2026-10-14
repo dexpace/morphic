@@ -3,6 +3,7 @@ package irverify
 import (
 	"encoding/json/jsontext"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -32,19 +33,21 @@ func checkIDs(doc *ir.Document) []Violation {
 		vs = appendIDViolations(vs, ir.IDKindAuth, string(id),
 			scheme.Provenance, "auth["+string(id)+"]")
 	}
-	return vs
+	return append(vs, checkMemberIDs(doc)...)
 }
 
 // kindPrefixes maps every class of ID that opens with a kind prefix to it, so a
 // check that needs the prefix of a class asks one table. Channels and messages
 // are absent: no compiler mints either, so ir defines no prefix for them yet.
 var kindPrefixes = map[reflect.Type]string{
-	reflect.TypeFor[ir.TypeID]():    ir.IDKindType,
-	reflect.TypeFor[ir.AuthID]():    ir.IDKindAuth,
-	reflect.TypeFor[ir.OpID]():      ir.IDKindOp,
-	reflect.TypeFor[ir.ServiceID](): ir.IDKindService,
-	reflect.TypeFor[ir.GroupID]():   ir.IDKindGroup,
-	reflect.TypeFor[ir.PropID]():    ir.IDKindProp,
+	reflect.TypeFor[ir.TypeID]():       ir.IDKindType,
+	reflect.TypeFor[ir.AuthID]():       ir.IDKindAuth,
+	reflect.TypeFor[ir.OpID]():         ir.IDKindOp,
+	reflect.TypeFor[ir.ServiceID]():    ir.IDKindService,
+	reflect.TypeFor[ir.GroupID]():      ir.IDKindGroup,
+	reflect.TypeFor[ir.PropID]():       ir.IDKindProp,
+	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
+	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring
@@ -53,9 +56,9 @@ var kindPrefixes = map[reflect.Type]string{
 // in every class.
 //
 // Only a property is in it among the classes that declare their own ID. An
-// operation's provenance records where its body is declared and its ID where it
-// is mounted, and the two differ for one reached through a $ref'd path item
-// (GitHub #107). A service records no pointer and a group no provenance.
+// operation's or parameter's provenance records where it is declared and its ID
+// where it is mounted, and the two differ for a $ref'd path item (GitHub #107).
+// A service records no pointer, and a group or an enum member no provenance.
 var pointerDerived = map[reflect.Type]bool{
 	reflect.TypeFor[ir.PropID](): true,
 }
@@ -136,10 +139,10 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 // — checkIDs reports it malformed wherever it is used — so offering it as the
 // place the node belongs would send a reader to fix the wrong end.
 func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID, path string) Violation {
-	msg := "primitive of kind " + string(kind) + " is interned at " + string(id) +
-		" rather than the shared " + string(want)
+	msg := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
+		" rather than the shared " + strconv.Quote(string(want))
 	if kind == "" {
-		msg = "primitive at " + string(id) + " carries no kind, so no shared ID derives from it"
+		msg = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
 	}
 	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: path}
 }
@@ -158,7 +161,7 @@ func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path st
 	}
 	return append(vs, Violation{
 		Code: "ir/prim-space-reserved",
-		Message: "id " + string(id) + " addresses the reserved primitive space but names a " +
+		Message: "id " + strconv.Quote(string(id)) + " addresses the reserved primitive space but names a " +
 			string(kind),
 		Path: path,
 	})
@@ -169,7 +172,7 @@ func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, pat
 	if !ir.WellFormedID(kind, id) {
 		return append(vs, Violation{
 			Code:    "ir/id-malformed",
-			Message: "id " + id + " is not " + kind + "/<space>[/<path>]; every segment must be non-empty",
+			Message: "id " + strconv.Quote(id) + " is not " + kind + "/<space>[/<path>]; every segment must be non-empty",
 			Path:    path,
 		})
 	}
@@ -183,8 +186,8 @@ func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, pat
 	}
 	return append(vs, Violation{
 		Code: "ir/id-provenance-disagreement",
-		Message: "id " + id + " carries path " + idPath +
-			", which is not the source pointer " + string(prov.Pointer) + " it records",
+		Message: "id " + strconv.Quote(id) + " carries path " + strconv.Quote(idPath) +
+			", which is not the source pointer " + strconv.Quote(string(prov.Pointer)) + " it records",
 		Path: path,
 	})
 }

@@ -48,10 +48,11 @@ type Operation struct {
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`
 	// ParameterVisibility overrides the visibility filter for the request view
-	// (TypeSpec @parameterVisibility); nil = protocol default.
+	// (TypeSpec @parameterVisibility); nil = protocol default. It is a set, as
+	// Visibility.Only is.
 	ParameterVisibility []Lifecycle `json:"parameterVisibility,omitempty"`
 	// ReturnTypeVisibility overrides the visibility filter for the response view;
-	// nil = protocol default.
+	// nil = protocol default. It is a set, as Visibility.Only is.
 	ReturnTypeVisibility []Lifecycle `json:"returnTypeVisibility,omitempty"`
 	// OverloadOf points at the operation this one overloads (TypeSpec @overload);
 	// when set, never empty.
@@ -70,6 +71,10 @@ type Operation struct {
 // location is HTTP-binding detail (ir-design §7.2). GraphQL field arguments
 // (Property.Args) reuse this shape.
 type Parameter struct {
+	// ID identifies the parameter within the document. The bindings, the
+	// pagination inputs and the idempotency token name a parameter by it, not by
+	// its name, which two locations of one operation may share.
+	ID ParamID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
 	// Type is the parameter's type.
@@ -123,6 +128,11 @@ type Payload struct {
 	// request body can be omitted, and pass/validate reports one that is set
 	// anywhere else (ir/payload-required-outside-request).
 	Required *bool `json:"required,omitzero"`
+	// Docs is the body's own documentation, as against any one media type's:
+	// an OpenAPI Request Body Object's description, a TypeSpec @doc on a @body
+	// parameter. Unlike a named node's, it is omitted when empty, since a
+	// response or message usually documents itself rather than its body.
+	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
@@ -331,9 +341,9 @@ const (
 type Idempotency struct {
 	// Kind is the idempotency class.
 	Kind IdempotencyKind `json:"kind,omitempty"`
-	// TokenParam names the idempotency-token parameter; set only when Kind is
-	// IdempotencyToken.
-	TokenParam string `json:"tokenParam,omitempty"`
+	// TokenParam is the ID of the idempotency-token parameter; set only when
+	// Kind is IdempotencyToken.
+	TokenParam ParamID `json:"tokenParam,omitempty"`
 }
 
 // PageStrategy names the pagination mechanism of an Operation (ir-design §7.3).
@@ -398,8 +408,8 @@ type PropPath struct {
 
 // ParamPath addresses a member within a named parameter (ir-design §7.3).
 type ParamPath struct {
-	// Param is the parameter name the path roots in.
-	Param string `json:"param,omitempty"`
+	// Param is the ID of the parameter the path roots in.
+	Param ParamID `json:"param,omitempty"`
 	// Segments are the ordered property IDs walked from the parameter; no entry
 	// is empty.
 	Segments []PropID `json:"segments,omitempty"`

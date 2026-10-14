@@ -1,7 +1,7 @@
 package irverify
 
 import (
-	"go/ast"
+	"go/types"
 	"slices"
 	"testing"
 
@@ -20,12 +20,13 @@ import (
 // to preserve.
 func TestValuePayloads_CoverTheDeclaredKinds(t *testing.T) {
 	t.Parallel()
-	declared := declaredConstsOfType(t, "ValueKind")
+	declared, err := irDecls(t).StringConsts("ValueKind")
+	require.NoError(t, err)
 	require.NotEmpty(t, declared, "the ir sources must declare ValueKind constants")
 
 	declaredValues := make([]string, 0, len(declared))
 	for _, c := range declared {
-		declaredValues = append(declaredValues, c.value)
+		declaredValues = append(declaredValues, c.Value)
 	}
 
 	tableValues := make([]string, 0, len(valuePayloads))
@@ -47,8 +48,8 @@ func TestValuePayloads_CoverTheDeclaredKinds(t *testing.T) {
 func TestValuePayloads_NameValueFields(t *testing.T) {
 	t.Parallel()
 	selected := make(map[string]bool, valueType.NumField())
-	for i := range valueType.NumField() {
-		name := valueType.Field(i).Name
+	for field := range valueType.Fields() {
+		name := field.Name
 		if name != "Kind" {
 			selected[name] = false
 		}
@@ -68,64 +69,49 @@ func TestValuePayloads_NameValueFields(t *testing.T) {
 	}
 }
 
-// valueCarriers derives, from the ir sources, every struct field that holds an
+// valueCarriers derives, from the ir package, every struct field that holds an
 // ir.Value — a Value, a pointer to one, or a slice, array or map of either —
 // named "Type.Field", sorted. Value, Field and CtorValue are left out: they are
 // a value's own payload, reached only below a value the walk has already
 // found, which TestVerify_NestedStrayPayloadIsReportedAtItsPath covers.
 func valueCarriers(t *testing.T) []string {
 	t.Helper()
+	value, err := irDecls(t).Named("Value")
+	require.NoError(t, err)
 	payloadTypes := map[string]bool{"Value": true, "Field": true, "CtorValue": true}
-	decls := typeDecls(t)
+
 	var out []string
-	for name, expr := range decls {
-		st, isStruct := expr.(*ast.StructType)
-		if !isStruct || payloadTypes[name] {
+	for _, f := range declaredFields(t) {
+		if payloadTypes[f.owner] || !holdsValue(t, value, f.field.Type(), 0) {
 			continue
 		}
-		for _, f := range st.Fields.List {
-			if !holdsValue(t, decls, f.Type, 0) {
-				continue
-			}
-			require.NotEmpty(t, f.Names, "%s embeds a Value; the carrier has no field name to key", name)
-			for _, n := range f.Names {
-				out = append(out, name+"."+n.Name)
-			}
-		}
+		out = append(out, f.key())
 	}
 	slices.Sort(out)
 	return out
 }
 
-// holdsValue reports whether a field's type holds an ir.Value: Value itself,
-// or a pointer, slice, array or map of one, looking through the ir package's
-// own declarations as mentionsInteger does, so a field typed `type Samples
-// []*Value` is a carrier as much as a []*Value field is. A struct declaration
-// is not followed: the Value fields it holds are carriers of its own, derived
-// where it is declared. depth bounds the walk through declarations, as it does
-// there.
-func holdsValue(t *testing.T, decls map[string]ast.Expr, expr ast.Expr, depth int) bool {
+// holdsValue reports whether a field's type holds an ir.Value: Value itself, or
+// a pointer, slice, array or map of one, looking through every named type, so a
+// field typed `type Samples []*Value` is a carrier as much as a []*Value field
+// is. A struct type is not followed: the Value fields it holds are carriers of
+// its own, derived where it is declared. depth bounds the walk, as it does in
+// mentionsInteger.
+func holdsValue(t *testing.T, value *types.Named, typ types.Type, depth int) bool {
 	t.Helper()
 	require.Less(t, depth, maxTypeChain, "resolving a field type exceeded %d steps", maxTypeChain)
-	switch e := expr.(type) {
-	case *ast.Ident:
-		if e.Name == "Value" {
-			return true
-		}
-		declared, isDeclared := decls[e.Name]
-		if !isDeclared {
-			return false // the chain ended at a builtin
-		}
-		if _, isStruct := declared.(*ast.StructType); isStruct {
-			return false
-		}
-		return holdsValue(t, decls, declared, depth+1)
-	case *ast.StarExpr:
-		return holdsValue(t, decls, e.X, depth+1)
-	case *ast.ArrayType:
-		return holdsValue(t, decls, e.Elt, depth+1)
-	case *ast.MapType:
-		return holdsValue(t, decls, e.Value, depth+1)
+	if types.Identical(typ, value) {
+		return true
+	}
+	switch u := typ.Underlying().(type) {
+	case *types.Pointer:
+		return holdsValue(t, value, u.Elem(), depth+1)
+	case *types.Slice:
+		return holdsValue(t, value, u.Elem(), depth+1)
+	case *types.Array:
+		return holdsValue(t, value, u.Elem(), depth+1)
+	case *types.Map:
+		return holdsValue(t, value, u.Elem(), depth+1)
 	default:
 		return false
 	}

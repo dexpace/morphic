@@ -13,7 +13,8 @@ const (
 	AuthKindHTTPBasic AuthKind = "http_basic"
 	// AuthKindHTTPBearer is HTTP Bearer-token authentication.
 	AuthKindHTTPBearer AuthKind = "http_bearer"
-	// AuthKindOAuth2 is OAuth 2.0 with one or more flows.
+	// AuthKindOAuth2 is OAuth 2.0. Its Flows may be empty: OAuth2MetadataURL can
+	// name the authorization server instead, and a source can state neither.
 	AuthKindOAuth2 AuthKind = "oauth2"
 	// AuthKindOpenIDConnect is OpenID Connect discovery.
 	AuthKindOpenIDConnect AuthKind = "openid_connect"
@@ -86,6 +87,11 @@ type AuthScheme struct {
 	OAuth2MetadataURL string `json:"oauth2MetadataURL,omitempty"`
 	// OpenIDConnectURL is the OpenID Connect discovery URL.
 	OpenIDConnectURL string `json:"openIDConnectURL,omitempty"`
+	// Credentials is the type of the credential a client supplies to the
+	// scheme, when the source declares one: the fields a custom scheme combines
+	// into a request. Nil when it declares none, as for every kind whose
+	// credential the kind itself implies.
+	Credentials *TypeRef `json:"credentials,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 	// Provenance records where the scheme came from.
@@ -104,10 +110,27 @@ type OAuthFlow struct {
 	TokenURL string `json:"tokenURL,omitempty"`
 	// RefreshURL is the token-refresh endpoint.
 	RefreshURL string `json:"refreshURL,omitempty"`
-	// Scopes maps scope names to their descriptions.
-	Scopes map[string]string `json:"scopes,omitempty"`
+	// Scopes are the flow's scopes in source order, which documentation and
+	// consent screens show as the author wrote them, each name once.
+	Scopes []OAuthScope `json:"scopes,omitempty"`
+	// TokenEndpointAuthMethods are the ways a client may authenticate to the
+	// token endpoint, spelled as the IANA "OAuth Token Endpoint Authentication
+	// Methods" registry spells them (client_secret_basic, client_secret_post,
+	// private_key_jwt, …; RFC 8414 token_endpoint_auth_methods_supported). The
+	// registry is open, so a value outside it is kept as written. It is a set,
+	// none blank and none repeated; empty means the source does not say.
+	TokenEndpointAuthMethods []string `json:"tokenEndpointAuthMethods,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+}
+
+// OAuthScope is one scope an OAuthFlow offers (ir-design §9).
+type OAuthScope struct {
+	// Name is the scope as a token request spells it.
+	Name string `json:"name"`
+	// Description is what the scope grants, or empty when the source says
+	// nothing.
+	Description string `json:"description,omitempty"`
 }
 
 // AuthRequirement is one authentication option: all its SchemeUses must be

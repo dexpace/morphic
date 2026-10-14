@@ -15,6 +15,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
@@ -86,6 +87,140 @@ func InSource(srcIndex int) Locator {
 		}
 		return prov
 	}
+}
+
+// InTree is InSource for a node of the tree pointers indexes (see Pointers),
+// which also gives the node's JSON pointer there: a finding on a raw node is
+// then placed where a lowering finding at the same position is, and a reader
+// sees which declaration to edit (GitHub #803).
+//
+// The root's pointer is the empty one, which beside a position reads as none,
+// so a finding on the document's top mapping is placed by position alone.
+func InTree(srcIndex int, pointers func(*yaml.Node) (jsontext.Pointer, bool)) Locator {
+	inSource := InSource(srcIndex)
+	return func(n *yaml.Node) ir.Provenance {
+		prov := inSource(n)
+		prov.Pointer, _ = pointers(n)
+		return prov
+	}
+}
+
+// Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
+// the parser keys them (nodeview.KeyOf), and whether the tree holds the node.
+// A key shares its member's pointer, and an alias's target is placed where it
+// is written. A nil node or root is held by none, nor is a node under a `<<`
+// merge key: the document the merge spells holds that pair at another pointer.
+//
+// The tree is indexed on the first node asked about, once, so a load that
+// reports nothing never indexes it.
+func Pointers(root *yaml.Node) func(*yaml.Node) (jsontext.Pointer, bool) {
+	var steps map[*yaml.Node]step
+	return func(n *yaml.Node) (jsontext.Pointer, bool) {
+		if n == nil || root == nil {
+			return "", false
+		}
+		if steps == nil {
+			// Never cut short for a tree the loader reads: each passed a
+			// sourceindex walk under the same bound first.
+			steps, _ = stepsIn(root, sourceindex.MaxIndexedNodes)
+		}
+		if _, held := steps[n]; !held {
+			return "", false
+		}
+		return pointerOf(steps, n), true
+	}
+}
+
+// step is how a node of a tree is reached from the node holding it: that node,
+// and the token naming the member or element. The document's own content has
+// no holder.
+type step struct {
+	holder *yaml.Node
+	token  string
+}
+
+// stepsIn indexes every node of root's tree, its keys included, by the step
+// that first reaches it, and reports whether limit nodes held them all. An
+// alias is a leaf: what it names is indexed where it is written. A node
+// indexed already is not entered again, so a node placed twice ends the walk
+// too; one past limit has no pointer.
+//
+// A pointer is not stored per node: that is the sum of every node's depth,
+// which a long key over a wide subtree, or a deep one, makes quadratic in the
+// document's size.
+func stepsIn(root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
+	out := map[*yaml.Node]step{root: {}}
+	top := nodeview.DocumentRoot(root)
+	if top == nil {
+		return out, true // a document node holding nothing
+	}
+	out[top] = step{}
+	stack := []*yaml.Node{top}
+	entered, cut := 1, false
+	reach := func(n *yaml.Node, s step) {
+		if _, indexed := out[n]; indexed {
+			return
+		}
+		if entered >= limit {
+			cut = true
+			return
+		}
+		entered++
+		out[n] = s
+		stack = append(stack, n)
+	}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		reachChildren(n, reach)
+	}
+	return out, !cut
+}
+
+// reachChildren hands reach each child of n with the step that leads to it.
+func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
+	switch n.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key, value := n.Content[i], n.Content[i+1]
+			token, own := nodeview.KeyOf(key)
+			if !own {
+				continue
+			}
+			reach(key, step{holder: n, token: token})
+			reach(value, step{holder: n, token: token})
+		}
+	case yaml.SequenceNode:
+		for i, item := range n.Content {
+			reach(item, step{holder: n, token: strconv.Itoa(i)})
+		}
+	default:
+		// A scalar holds nothing, and an alias's target is indexed where it
+		// is written.
+	}
+}
+
+// pointerOf returns n's pointer in the tree steps indexes, or "" when the tree
+// does not hold n. A holder is indexed before what it holds, so the walk up
+// ends at the top in as many steps as n is deep.
+func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
+	var tokens []string
+	for at := n; ; {
+		s, ok := steps[at]
+		if !ok {
+			return ""
+		}
+		if s.holder == nil {
+			break
+		}
+		tokens = append(tokens, s.token)
+		at = s.holder
+	}
+	var p jsontext.Pointer
+	for _, token := range slices.Backward(tokens) {
+		p = p.AppendToken(token)
+	}
+	return p
 }
 
 // Cycles refuses, before parsing, structures that crash, hang or exhaust memory
@@ -674,7 +809,7 @@ type weighFrame struct {
 // shared *yaml.Node an alias resolves to, so it builds a model subtree per path
 // reaching a node. The count is exact for aliases and an over-count, the safe
 // side, for `<<` merge keys, whose pairs are deduplicated. Re-check it on a
-// dependency bump, as nodeview.IsMergeKey does.
+// dependency bump.
 type aliasWeigher struct {
 	allowance int64
 	ceiling   int64

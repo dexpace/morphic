@@ -12,3 +12,11 @@ components:
         color: {type: string, format: hex-color, minLength: 4}
         # A password format is a redaction request, not just an encoding.
         token: {type: string, format: password}
+        # An integer width selects the primitive the IR has for it, under
+        # either numeric type: OpenAPI applies a format to integers and other
+        # numbers alike, and registers the widths under number.
+        small: {type: integer, format: int8}
+        count: {type: number, format: uint32}
+        # A float format on an integer admits only its integral values, which
+        # no primitive narrower than integer holds, so the format is kept.
+        whole: {type: integer, format: double}

@@ -1,4 +1,5 @@
 AdditionalProps.Key
+AuthScheme.Credentials
 Availability.Added
 Availability.Deprecated
 Availability.Removed
@@ -109,6 +110,7 @@ Model.Implements
 Model.InputOnly
 Model.Positional
 Naming.Aliases
+OAuthFlow.TokenEndpointAuthMethods
 OTPBinding.Behaviour
 OTPBinding.Kind
 OTPBinding.Process
@@ -128,7 +130,6 @@ Operation.Pagination
 Operation.ParameterVisibility
 Operation.ReturnTypeVisibility
 OperationGroup.Availability
-OperationGroup.Groups
 OperationGroup.Resource
 OperationGroup.Unmodeled
 Pagination.FirstLink
