@@ -101,10 +101,14 @@ var additions = []addition{
 }
 
 // laterReport is what laterConstructs found: one diagnostic per construct, and
-// whether any is written inside a schema.
+// whether any reported construct is one whose refusal by the library this
+// package takes over, a keyword inside a schema (metaSchemaVersionArtifacts)
+// or a Path Item's additionalOperations (ownAdditionalOperations). A takeover
+// runs only where its construct was reported, so no refusal is dropped without
+// the warning that replaces it.
 type laterReport struct {
-	diags    []ir.Diagnostic
-	inSchema bool
+	diags                          []ir.Diagnostic
+	inSchema, additionalOperations bool
 }
 
 // laterConstructs reports each construct a minor later than the declared
@@ -135,6 +139,8 @@ func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa
 		for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
 			out.diags = append(out.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
 			out.inSchema = out.inSchema || a.inSchema()
+			out.additionalOperations = out.additionalOperations ||
+				a.object == pathItemObject && a.key == "additionalOperations"
 		}
 		return nil
 	})
@@ -311,11 +317,11 @@ func plainObject(model rootNoder) string {
 // ownAdditionalOperations takes over what the library does with a Path Item's
 // additionalOperations in a document older than its model (modelMinor): it
 // refuses the field and checks nothing inside it. The compiler lowers the field
-// at every version and laterConstructs reports it, so the refusal is dropped and
-// the library's own checks are run on every path item whose model holds such
-// operations, whether or not the library refused the field: it refuses only one
-// it read whole. items is doc's walk; a panic in it or in a check is returned
-// as an error among the findings.
+// at every version and laterConstructs reports it, so where it did, the refusal
+// is dropped and the library's own checks are run on every path item whose
+// model holds such operations, whether or not the library refused the field: it
+// refuses only one it read whole. items is doc's walk; a panic in it or in a
+// check is returned as an error among the findings.
 func ownAdditionalOperations(ctx context.Context, doc *soa.OpenAPI, items iter.Seq[soa.WalkItem], valErrs []error) []error {
 	if !before(doc.OpenAPI, modelMinor()) {
 		return valErrs // the library checked the field itself

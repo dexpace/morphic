@@ -253,8 +253,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		}
 		cyc = append(cyc, d)
 	}
-	valErrs = ownAdditionalOperations(ctx, doc, soa.Walk(ctx, doc), valErrs)
 	later := laterConstructs(pointerAt(srcIndex, origin), soa.Walk(ctx, doc), doc.OpenAPI)
+	if later.additionalOperations {
+		valErrs = ownAdditionalOperations(ctx, doc, soa.Walk(ctx, doc), valErrs)
+	}
 	diags := cyc
 	diags = append(diags, findings(ctx, locate, doc, valErrs, minor, later.inSchema)...)
 	diags = append(diags, later.diags...)

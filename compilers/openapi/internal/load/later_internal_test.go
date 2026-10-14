@@ -441,6 +441,15 @@ paths:
         responses: {"200": {description: ok}}
 `
 
+// unmappedOpsSpec writes the field as no mapping, so the parser reports the
+// type and its model holds no operations: there is nothing to check inside it,
+// and nothing the library refuses either.
+const unmappedOpsSpec = `info: {title: T, version: "1"}
+paths:
+  /x:
+    additionalOperations: 5
+`
+
 // validationAt loads src and returns the library findings it reports, as
 // "code line:column" lines, with what laterConstructs adds left out.
 func validationAt(t *testing.T, src string) []string {
@@ -460,7 +469,7 @@ func validationAt(t *testing.T, src string) []string {
 // takes over below 3.2: the library's refusal of the field is gone, and what
 // the library checks inside it at 3.2 is checked all the same — each finding
 // once, at 3.2 as well, where the library checks it itself, and whether or not
-// the library read the field whole enough to refuse it.
+// the library read the field whole enough to refuse it, or modelled it at all.
 func TestOwnAdditionalOperations_A31DocumentIsCheckedAs32Is(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -469,6 +478,7 @@ func TestOwnAdditionalOperations_A31DocumentIsCheckedAs32Is(t *testing.T) {
 	}{
 		{"read whole", additionalOpsSpec, 3},
 		{"not read whole", unreadOpsSpec, 2},
+		{"not a mapping", unmappedOpsSpec, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -487,6 +497,17 @@ func TestOwnAdditionalOperations_OnlyTheFieldsRefusalIsDropped(t *testing.T) {
 	t.Parallel()
 	got := validationAt(t, "openapi: \"3.1\"\n"+additionalOpsSpec)
 	assert.Contains(t, got, diag.Validation+"/"+validation.RuleValidationSupportedVersion+" 1:10")
+}
+
+// TestOwnAdditionalOperations_A32DocumentIsLeftToTheLibrary pins the guard that
+// keeps the takeover off a document the library checks the field in itself:
+// its findings come back as they were, and the walk is not even read.
+func TestOwnAdditionalOperations_A32DocumentIsLeftToTheLibrary(t *testing.T) {
+	t.Parallel()
+	doc, valErrs := parseSpec(t, "openapi: 3.2.0\n"+additionalOpsSpec)
+	panics := func(func(soa.WalkItem) bool) { panic("walk read") }
+	got := ownAdditionalOperations(t.Context(), doc, panics, valErrs)
+	assert.Equal(t, valErrs, got)
 }
 
 // TestOwnAdditionalOperations_AWalkThatPanicsIsReported pins the barrier around
