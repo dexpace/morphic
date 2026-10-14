@@ -1,0 +1,31 @@
+openapi: 3.2.0
+info: {title: OAuth2NoFlow, version: "1.0.0"}
+security:
+  - aliasFirst: []
+paths: {}
+components:
+  securitySchemes:
+    # Two aliases declared before the flowless declaration they share: one
+    # report, at the declaration, whichever entry is lowered first.
+    aliasFirst: {$ref: '#/components/securitySchemes/emptyFlows'}
+    aliasSecond: {$ref: '#/components/securitySchemes/emptyFlows'}
+    emptyFlows:
+      type: oauth2
+      description: A flows object written empty.
+      flows: {}
+    # A flows object naming only a key OpenAPI defines for no flow declares no
+    # flow either; the key itself is kept and reported on its own.
+    unknownFlowsOnly:
+      type: oauth2
+      flows:
+        application: {tokenUrl: https://example.com/token, scopes: {}}
+    # The silent controls. RFC 8414 metadata states the endpoints, and flows is
+    # REQUIRED in 3.2, so this is the only way to write a metadata-only scheme.
+    metadataOnly:
+      type: oauth2
+      oauth2MetadataUrl: https://example.com/.well-known/oauth-authorization-server
+      flows: {}
+    declaredFlow:
+      type: oauth2
+      flows:
+        clientCredentials: {tokenUrl: https://example.com/token, scopes: {}}

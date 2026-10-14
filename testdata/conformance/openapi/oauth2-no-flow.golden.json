@@ -1,0 +1,211 @@
+{
+  "irVersion": "0.12.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "OAuth2NoFlow",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "OAuth2NoFlow",
+        "canonical": "o_auth_2_no_flow"
+      },
+      "docs": {},
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/aliasFirst"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/aliasFirst": {
+      "id": "auth/openapi/components/securitySchemes/aliasFirst",
+      "name": {
+        "source": "aliasFirst",
+        "canonical": "alias_first"
+      },
+      "kind": "oauth2",
+      "docs": {
+        "description": "A flows object written empty."
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/aliasFirst"
+      }
+    },
+    "auth/openapi/components/securitySchemes/aliasSecond": {
+      "id": "auth/openapi/components/securitySchemes/aliasSecond",
+      "name": {
+        "source": "aliasSecond",
+        "canonical": "alias_second"
+      },
+      "kind": "oauth2",
+      "docs": {
+        "description": "A flows object written empty."
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/aliasSecond"
+      }
+    },
+    "auth/openapi/components/securitySchemes/declaredFlow": {
+      "id": "auth/openapi/components/securitySchemes/declaredFlow",
+      "name": {
+        "source": "declaredFlow",
+        "canonical": "declared_flow"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "flows": [
+        {
+          "kind": "client_credentials",
+          "tokenURL": "https://example.com/token"
+        }
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/declaredFlow"
+      }
+    },
+    "auth/openapi/components/securitySchemes/emptyFlows": {
+      "id": "auth/openapi/components/securitySchemes/emptyFlows",
+      "name": {
+        "source": "emptyFlows",
+        "canonical": "empty_flows"
+      },
+      "kind": "oauth2",
+      "docs": {
+        "description": "A flows object written empty."
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/emptyFlows"
+      }
+    },
+    "auth/openapi/components/securitySchemes/metadataOnly": {
+      "id": "auth/openapi/components/securitySchemes/metadataOnly",
+      "name": {
+        "source": "metadataOnly",
+        "canonical": "metadata_only"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "oauth2MetadataURL": "https://example.com/.well-known/oauth-authorization-server",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/metadataOnly"
+      }
+    },
+    "auth/openapi/components/securitySchemes/unknownFlowsOnly": {
+      "id": "auth/openapi/components/securitySchemes/unknownFlowsOnly",
+      "name": {
+        "source": "unknownFlowsOnly",
+        "canonical": "unknown_flows_only"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "unmodeled": {
+        "openapi:flows/application": {
+          "reason": "out_of_scope",
+          "value": {
+            "scopes": {},
+            "tokenUrl": "https://example.com/token"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/unknownFlowsOnly/flows/application"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/unknownFlowsOnly"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/oauth2-no-flow",
+      "message": "oauth2 security scheme declares no flow and no oauth2MetadataUrl, so it states no way to obtain a token",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/emptyFlows"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/oauth2-no-flow",
+      "message": "oauth2 security scheme declares no flow and no oauth2MetadataUrl, so it states no way to obtain a token",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/unknownFlowsOnly"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"application\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/unknownFlowsOnly/flows/application"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "oauth2-no-flow.yaml",
+      "hash": "73200a81de2fab2fc620e01f26d79d731fe79c2bfa31ddf7b728c0796b1217c2"
+    }
+  ]
+}
