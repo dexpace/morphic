@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.10.0",
+  "irVersion": "0.11.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -296,13 +296,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "uriTemplate": "onShipped",
                     "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": true
+                    "isWebhook": true,
+                    "webhookName": "onShipped"
                   }
                 ]
               },

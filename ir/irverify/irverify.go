@@ -95,6 +95,7 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkCycles,
 		checkEmptyRefs,
 		checkIdempotency,
+		checkWebhookRoutes,
 	}
 }
 

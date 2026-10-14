@@ -55,6 +55,7 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			ChecksumRequired:         true,
 			PatchImplicitOptionality: new(false),
 			IsWebhook:                true,
+			WebhookName:              "newPet",
 			Callbacks: []ir.Callback{
 				{Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
 			},

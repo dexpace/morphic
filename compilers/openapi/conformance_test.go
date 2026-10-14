@@ -717,7 +717,8 @@ func assertComponentReuse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // operationAt finds the operation bound to one HTTP method and URI template.
 // Operations reached through a shared path item have no distinguishing name of
-// their own, so their binding is what tells them apart.
+// their own, so their binding is what tells them apart. A webhook binding has
+// no URI template, so no webhook is found.
 func operationAt(t *testing.T, doc *ir.Document, method, uri string) ir.Operation {
 	t.Helper()
 	for _, op := range allOperations(doc) {
@@ -2859,9 +2860,32 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
+	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 	assertPathItemServersKept(t, op, "https://hooks.example.com")
 	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
 	assertWebhookGroupIsAHint(t, doc)
+
+	// Two keys a URI template would misstate: braces that belong to the event's
+	// name, and the empty key, which names nothing. Neither declares an
+	// operationId, so the hint is built from the method and the key.
+	ops := allOperations(doc)
+	for _, hook := range []struct {
+		id        ir.OpID
+		key, hint string
+	}{
+		{"op/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
+		{"op/openapi/webhooks//post", "", "post"},
+	} {
+		i := slices.IndexFunc(ops, func(op ir.Operation) bool { return op.ID == hook.id })
+		require.GreaterOrEqual(t, i, 0, "the webhook keyed %q is mounted", hook.key)
+		require.Len(t, ops[i].Bindings.HTTP, 1)
+		b := ops[i].Bindings.HTTP[0]
+		assert.True(t, b.IsWebhook)
+		assert.Equal(t, hook.key, b.WebhookName, "the key, verbatim")
+		assert.Empty(t, b.URITemplate, "a webhook has no URI template")
+		assert.Equal(t, hook.hint, ops[i].Name.Hint)
+	}
 }
 
 // assertOwnServersKeptBesideThem pins the overriding half of the servers pair in
@@ -3037,6 +3061,9 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	require.True(t, ok)
 	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
 		"a webhook mount marks the binding whichever field declared the operation")
+	assert.Equal(t, "cacheFlushed", onFlush.Bindings.HTTP[0].WebhookName,
+		"the webhooks-map key names the event")
+	assert.Empty(t, onFlush.Bindings.HTTP[0].URITemplate)
 
 	subscribe, ok := opByName(doc, "subscribeIndex")
 	require.True(t, ok)

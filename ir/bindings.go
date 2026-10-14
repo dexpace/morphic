@@ -44,13 +44,14 @@ const (
 	HTTPLocationHost HTTPLocation = "host"
 )
 
-// HTTPBinding maps an Operation onto one HTTP method+path (ir-design §8.1).
+// HTTPBinding maps an Operation onto one HTTP method and path, or for a webhook
+// onto a method and the event it names (ir-design §8.1).
 type HTTPBinding struct {
 	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
 	// keys carry exact capitalization; QUERY and custom methods are legal).
 	Method string `json:"method,omitempty"`
 	// URITemplate is the RFC 6570 path template — the one true path
-	// representation.
+	// representation. A webhook binding has none: WebhookName names its event.
 	URITemplate string `json:"uriTemplate,omitempty"`
 	// HostPrefix is the endpoint host prefix, may contain {param} labels
 	// (Smithy @endpoint).
@@ -81,6 +82,13 @@ type HTTPBinding struct {
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
 	// IsWebhook marks an inbound webhook operation (OpenAPI 3.1 webhooks).
 	IsWebhook bool `json:"isWebhook"`
+	// WebhookName is the webhooks-map key that declared a webhook operation,
+	// verbatim. The key names an event rather than a path, so braces in it are
+	// part of the name and not template variables. It is no Naming: the
+	// operation's Name is what an emitter renders, and an empty key, which is
+	// legal, would name nothing. irverify reports this field on a binding that is
+	// not a webhook, and URITemplate on one that is, as ir/webhook-route.
+	WebhookName string `json:"webhookName,omitempty"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
