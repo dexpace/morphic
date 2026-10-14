@@ -35,7 +35,7 @@ import (
 //
 // An entry that resolves to an object but names no mechanism is refused and
 // reported the same way; see mechanismRefusalDiag. Every other diagnostic from
-// here concerns a scheme that did intern (see oauthNoFlowDiag).
+// here concerns a scheme that did intern.
 func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	comps := c.Doc.Components
 	if comps == nil {
@@ -119,7 +119,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	if !named {
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	if declaresNoFlow(scheme, ss) {
+	if tokenless(scheme) && !loaderReportsFlows(ss) {
 		// Reported rather than refused; see oauthNoFlowDiag.
 		diags = append(diags, oauthNoFlowDiag(c, decl))
 	}
@@ -196,18 +196,21 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
 }
 
-// declaresNoFlow reports whether an interned oauth2 scheme writes a flows
-// object that declares no flow, with no oauth2MetadataUrl to discover its
-// endpoints from (RFC 8414). An absent flows object is the loader's finding
-// (a REQUIRED field), so it is not this one.
-func declaresNoFlow(scheme ir.AuthScheme, ss *soa.SecurityScheme) bool {
-	if scheme.Kind != ir.AuthKindOAuth2 || ss.GetFlows() == nil {
-		return false
-	}
-	if scheme.OAuth2MetadataURL != "" {
-		return false
-	}
-	return len(scheme.Flows) == 0
+// tokenless reports whether scheme is an oauth2 scheme that states no way to
+// obtain a token: it lowered no flow, and names no metadata URL to discover its
+// authorization server from (RFC 8414).
+func tokenless(scheme ir.AuthScheme) bool {
+	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
+}
+
+// loaderReportsFlows reports whether the loader's REQUIRED-field rule already
+// reports ss's flows as missing, restating the library's own condition over the
+// fields it reads. That condition holds for a flows object that is absent or
+// not an object, and also for one holding a flow that does not decode, which
+// leaves the object not Present. A library release that moves it reddens
+// TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce.
+func loaderReportsFlows(ss *soa.SecurityScheme) bool {
+	return !ss.GetCore().Flows.Present || ss.GetFlows() == nil
 }
 
 // oauthNoFlowDiag reports a flows object declaring no flow; the design record
@@ -218,7 +221,8 @@ func declaresNoFlow(scheme ir.AuthScheme, ss *soa.SecurityScheme) bool {
 // so the copies every alias of one declaration draws dedup to one report.
 func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
-		"oauth2 security scheme declares no flow: no token endpoint is stated for it")
+		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
+			"so it states no way to obtain a token")
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
@@ -241,8 +245,6 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 		return fillHTTPScheme(scheme, ss)
 	case soa.SecuritySchemeTypeOAuth2:
 		scheme.Kind = ir.AuthKindOAuth2
-		// An absent or empty flows object lowers to nil flows; the caller
-		// reports the empty one (declaresNoFlow).
 		scheme.Flows = oauthFlows(ss.GetFlows())
 		scheme.OAuth2MetadataURL = ss.GetOAuth2MetadataUrl()
 	case soa.SecuritySchemeTypeOpenIDConnect:

@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.12.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -169,7 +176,7 @@
     {
       "severity": "warning",
       "code": "openapi/oauth2-no-flow",
-      "message": "oauth2 security scheme declares no flow: no token endpoint is stated for it",
+      "message": "oauth2 security scheme declares no flow and no oauth2MetadataUrl, so it states no way to obtain a token",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/emptyFlows"
@@ -178,7 +185,7 @@
     {
       "severity": "warning",
       "code": "openapi/oauth2-no-flow",
-      "message": "oauth2 security scheme declares no flow: no token endpoint is stated for it",
+      "message": "oauth2 security scheme declares no flow and no oauth2MetadataUrl, so it states no way to obtain a token",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/unknownFlowsOnly"
