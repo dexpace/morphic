@@ -182,17 +182,18 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 // without this they would be lost: the parser models every field on every flow,
 // and the unknown-key census never sees one.
 //
-// A field the raw node does not hold was merged in through a `<<` key, which no
-// raw reader follows (GitHub #395). The value the parser read is kept instead,
-// so that spelling loses nothing either.
+// It reads the flow's own mapping, as every preservation site does, so a field
+// merged in through a `<<` key is not kept (GitHub #384).
 func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
+	defined := flowFieldsDefinedBy(f.keyword)
 	var diags []ir.Diagnostic
 	for _, field := range flowFields() {
-		if slices.Contains(flowFieldsDefinedBy(f.keyword), field.name) || !field.written(f.src) {
+		if slices.Contains(defined, field.name) {
 			continue
 		}
 		at := fptr + ids.Ptr(field.name)
-		kept, keptDiags := preserveFlowField(&fl.Unmodeled, f.src, field, c.ProvenanceAt(at))
+		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
+			annotation.RawChildNode(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -201,22 +202,6 @@ func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow,
 			"oauth flow %s does not define %s; kept verbatim under Unmodeled", f.keyword, field.name))
 	}
 	return diags
-}
-
-// preserveFlowField keeps one field of src under Unmodeled, reporting whether
-// it did: from the raw node when the flow's own mapping writes it, and as the
-// string the parser read when a `<<` key merged it in.
-func preserveFlowField(p *ir.Unmodeled, src *soa.OAuthFlow, field flowField, prov ir.Provenance) (bool, []ir.Diagnostic) {
-	key := "openapi:" + field.name
-	if node := annotation.RawChildNode(src.GetRootNode(), field.name); node != nil {
-		return annotation.PreserveNodeInto(p, key, node, ir.ReasonDegradedLowering, prov)
-	}
-	raw, err := jsontext.AppendQuote(nil, field.read(src))
-	if err != nil {
-		return false, []ir.Diagnostic{annotation.UnpreservableDiag(key, prov, err)}
-	}
-	annotation.PreserveInto(p, key, raw, ir.ReasonDegradedLowering, prov)
-	return true, nil
 }
 
 // mechanismRefusalDiag reports a securitySchemes entry that omits missing, the
@@ -466,13 +451,12 @@ func oauthFlow(f sourceFlow) ir.OAuthFlow {
 }
 
 // flowField is one field of the OAuth Flow Object that only some flows define:
-// its name, how the model reads it and whether the flow wrote it, and the field
-// of ir.OAuthFlow it lowers to where it is defined.
+// its name, how the model reads it, and the field of ir.OAuthFlow it lowers to
+// where it is defined.
 type flowField struct {
-	name    string
-	read    func(*soa.OAuthFlow) string
-	written func(*soa.OAuthFlow) bool
-	slot    func(*ir.OAuthFlow) *string
+	name string
+	read func(*soa.OAuthFlow) string
+	slot func(*ir.OAuthFlow) *string
 }
 
 // flowFields returns the OAuth Flow Object fields only some flows define,
@@ -482,19 +466,9 @@ type flowField struct {
 func flowFields() []flowField {
 	authorization := func(fl *ir.OAuthFlow) *string { return &fl.AuthorizationURL }
 	return []flowField{
-		{
-			name: "authorizationUrl", read: (*soa.OAuthFlow).GetAuthorizationURL, slot: authorization,
-			written: func(f *soa.OAuthFlow) bool { return f.AuthorizationURL != nil },
-		},
-		{
-			name: "deviceAuthorizationUrl", read: (*soa.OAuthFlow).GetDeviceAuthorizationURL, slot: authorization,
-			written: func(f *soa.OAuthFlow) bool { return f.DeviceAuthorizationURL != nil },
-		},
-		{
-			name: "tokenUrl", read: (*soa.OAuthFlow).GetTokenURL,
-			slot:    func(fl *ir.OAuthFlow) *string { return &fl.TokenURL },
-			written: func(f *soa.OAuthFlow) bool { return f.TokenURL != nil },
-		},
+		{name: "authorizationUrl", read: (*soa.OAuthFlow).GetAuthorizationURL, slot: authorization},
+		{name: "deviceAuthorizationUrl", read: (*soa.OAuthFlow).GetDeviceAuthorizationURL, slot: authorization},
+		{name: "tokenUrl", read: (*soa.OAuthFlow).GetTokenURL, slot: func(fl *ir.OAuthFlow) *string { return &fl.TokenURL }},
 	}
 }
 

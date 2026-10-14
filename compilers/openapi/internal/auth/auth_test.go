@@ -1664,24 +1664,27 @@ components:
 	}
 }
 
-// TestLowerSecuritySchemes_AMergedFlowFieldItsKindDoesNotDefineIsKept pins that
-// a stray flow field arriving through a YAML merge key or an alias is kept as
-// the value the parser read, since the raw mapping does not hold it: a `<<`
-// key spells it in no child of the flow. A merged field the kind does define
-// still lowers, and is not kept.
-func TestLowerSecuritySchemes_AMergedFlowFieldItsKindDoesNotDefineIsKept(t *testing.T) {
+// TestLowerSecuritySchemes_AMergedOrAliasedFlowFieldFillsOnlyItsKindsSlot pins
+// the flow field spellings the raw mapping does not hold as written. A field
+// the kind does not define never fills a slot, whether merged in through `<<`
+// or written as an alias, and the alias, which the mapping does hold, is kept
+// as its value. A merged field the kind defines still lowers. Whether a merged
+// stray field is kept is GitHub #384's, as for every preservation site, so it
+// is not asserted here.
+func TestLowerSecuritySchemes_AMergedOrAliasedFlowFieldFillsOnlyItsKindsSlot(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, keyword, kind, body string
-		// wantKept is the field expected under Unmodeled, or "" for none.
+		wantAuth, wantTok         string
+		// wantKept is the field expected under Unmodeled, or "" for none; merged
+		// says the stray field arrives through `<<`, which leaves that to #384.
 		wantKept string
-		wantAuth string
-		wantTok  string
+		merged   bool
 	}{
 		{
-			name: "a merge key", keyword: "implicit", kind: "implicit",
+			name: "a merge key supplying a field the kind does not define", keyword: "implicit", kind: "implicit",
 			body:     `{<<: *base, authorizationUrl: "https://a.example/a", scopes: {}}`,
-			wantKept: "tokenUrl", wantAuth: "https://a.example/a",
+			wantAuth: "https://a.example/a", merged: true,
 		},
 		{
 			name: "an alias value", keyword: "implicit", kind: "implicit",
@@ -1715,6 +1718,9 @@ components:
 			assert.Equal(t, tc.kind, fl.Kind)
 			assert.Equal(t, tc.wantAuth, fl.AuthorizationURL)
 			assert.Equal(t, tc.wantTok, fl.TokenURL, "a field the kind does not define fills no slot")
+			if tc.merged {
+				return
+			}
 			if tc.wantKept == "" {
 				assert.Empty(t, fl.Unmodeled)
 				assert.Empty(t, messagesAt(diags, diag.DegradedConstruct), "%+v", diags)

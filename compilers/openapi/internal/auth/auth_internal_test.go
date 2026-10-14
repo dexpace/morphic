@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -158,16 +157,26 @@ func TestFlowFields_AccountForEverySourceField(t *testing.T) {
 	for _, keyword := range keywords {
 		defined := flowFieldsDefinedBy(keyword)
 		assert.NotEmpty(t, defined, "every flow defines some endpoint: %s", keyword)
+		var fl ir.OAuthFlow
+		slots := map[*string]string{}
+		for _, field := range fields {
+			if !slices.Contains(defined, field.name) {
+				continue
+			}
+			slot := field.slot(&fl)
+			assert.Empty(t, slots[slot], "%s defines %s and %s, which lower to one field", keyword, slots[slot], field.name)
+			slots[slot] = field.name
+		}
 		for _, name := range defined {
 			assert.Contains(t, listed, name, "%s defines a field flowFields does not list", keyword)
 		}
 	}
 }
 
-// TestFlowFields_ReadTheFieldTheirNameSays holds each flowField's accessors to
-// the source field its wire name spells: written reports that field alone and
-// read returns its value. A pair crossed between two names would lower one
-// endpoint under another's flow kind with every other test still agreeing.
+// TestFlowFields_ReadTheFieldTheirNameSays holds each flowField's reader to the
+// source field its wire name spells: it returns that field's value, and no
+// other field's. A pair crossed between two names would lower one endpoint
+// under another's flow kind with every other test still agreeing.
 func TestFlowFields_ReadTheFieldTheirNameSays(t *testing.T) {
 	t.Parallel()
 	goName := map[string]string{
@@ -183,45 +192,14 @@ func TestFlowFields_ReadTheFieldTheirNameSays(t *testing.T) {
 			require.True(t, ok, "%s names no known source field", field.name)
 			value := "https://a.example/" + field.name
 			var src soa.OAuthFlow
-			assert.False(t, field.written(&src), "an unwritten field is not written")
-
 			reflect.ValueOf(&src).Elem().FieldByName(name).Set(reflect.ValueOf(&value))
-			assert.True(t, field.written(&src))
+
 			assert.Equal(t, value, field.read(&src))
 			for _, other := range flowFields() {
 				if other.name != field.name {
-					assert.False(t, other.written(&src), "%s must not read %s", other.name, field.name)
+					assert.Empty(t, other.read(&src), "%s must not read %s", other.name, field.name)
 				}
 			}
 		})
 	}
-}
-
-// TestPreserveFlowField_AValueJSONCannotHoldIsReported pins the one outcome of
-// keeping a merged flow field that is neither kept nor silent: a value JSON
-// cannot quote reaches the IR in no form at all, so it is reported as the
-// losslessness failure it is, and nothing is recorded as kept. Invalid UTF-8
-// is unreachable from a real document, so the flow is hand-built.
-func TestPreserveFlowField_AValueJSONCannotHoldIsReported(t *testing.T) {
-	t.Parallel()
-	bad := "\xff"
-	var token flowField
-	for _, field := range flowFields() {
-		if field.name == "tokenUrl" {
-			token = field
-		}
-	}
-	require.NotNil(t, token.read, "flowFields lists tokenUrl")
-	prov := ir.Provenance{Pointer: "/components/securitySchemes/s/flows/implicit/tokenUrl"}
-	var kept ir.Unmodeled
-
-	ok, diags := preserveFlowField(&kept, &soa.OAuthFlow{TokenURL: &bad}, token, prov)
-
-	assert.False(t, ok, "nothing was kept")
-	assert.Empty(t, kept, "so nothing is recorded as kept")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, prov, diags[0].Provenance)
-	assert.Contains(t, diags[0].Message, "openapi:tokenUrl")
 }
