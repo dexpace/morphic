@@ -285,6 +285,81 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
+// TestScalar_NumericFormatPairings pins which numeric (type, format) pairings
+// select a shared primitive and which hoist a Scalar that keeps the format. An
+// integer width selects its primitive under either numeric type. A float or
+// decimal format on an integer admits only integral values, which no primitive
+// narrower than integer holds, so it hoists as an unknown format does.
+func TestScalar_NumericFormatPairings(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		typ, format string
+		prim        ir.PrimKind // the primitive the pairing selects; "" = it hoists
+		base        ir.PrimKind // the hoisted Scalar's base
+	}{
+		{typ: "integer", format: "int8", prim: ir.PrimInt8},
+		{typ: "integer", format: "int16", prim: ir.PrimInt16},
+		{typ: "integer", format: "int32", prim: ir.PrimInt32},
+		{typ: "integer", format: "int64", prim: ir.PrimInt64},
+		{typ: "integer", format: "uint8", prim: ir.PrimUint8},
+		{typ: "integer", format: "uint16", prim: ir.PrimUint16},
+		{typ: "integer", format: "uint32", prim: ir.PrimUint32},
+		{typ: "integer", format: "uint64", prim: ir.PrimUint64},
+		{typ: "number", format: "int8", prim: ir.PrimInt8},
+		{typ: "number", format: "int16", prim: ir.PrimInt16},
+		{typ: "number", format: "int32", prim: ir.PrimInt32},
+		{typ: "number", format: "int64", prim: ir.PrimInt64},
+		{typ: "number", format: "uint8", prim: ir.PrimUint8},
+		{typ: "number", format: "uint16", prim: ir.PrimUint16},
+		{typ: "number", format: "uint32", prim: ir.PrimUint32},
+		{typ: "number", format: "uint64", prim: ir.PrimUint64},
+		{typ: "number", format: "float", prim: ir.PrimFloat32},
+		{typ: "number", format: "double", prim: ir.PrimFloat64},
+		{typ: "number", format: "decimal", prim: ir.PrimDecimal},
+		{typ: "number", format: "decimal128", prim: ir.PrimDecimal128},
+
+		// A pairing no primitive holds hoists over its type's primitive.
+		{typ: "integer", format: "float", base: ir.PrimInteger},
+		{typ: "integer", format: "double", base: ir.PrimInteger},
+		{typ: "integer", format: "decimal", base: ir.PrimInteger},
+		{typ: "integer", format: "decimal128", base: ir.PrimInteger},
+		{typ: "integer", format: "Int8", base: ir.PrimInteger},     // a format name is case-sensitive
+		{typ: "number", format: "double-int", base: ir.PrimNumber}, // a registry format with no primitive
+		{typ: "number", format: "float16", base: ir.PrimNumber},    // a width no PrimKind names
+		{typ: "string", format: "int64", base: ir.PrimString},      // GitHub #637's orientation
+	} {
+		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
+				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
+				tc.typ, tc.format)))
+			assert.Empty(t, diags, "the format is homed either way, so nothing is reported")
+			h, ok := typeByName(doc, "H").(*ir.Model)
+			require.True(t, ok, "H lowers to a model")
+			require.Len(t, h.Properties, 1)
+			assert.Empty(t, h.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
+			target := h.Properties[0].Type.Target
+
+			if tc.prim != "" {
+				assert.Equal(t, ir.PrimTypeID(tc.prim), target, "the position resolves to the shared primitive")
+				prim, ok := doc.Types[target].(*ir.Primitive)
+				require.True(t, ok, "the primitive is interned")
+				assert.Equal(t, tc.prim, prim.Prim)
+				for id, td := range doc.Types {
+					assert.NotEqual(t, ir.KindScalar, td.Kind(), "%s: no node is hoisted for the position", id)
+				}
+				return
+			}
+			sc, ok := doc.Types[target].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target)
+			require.NotNil(t, sc.Encoding)
+			assert.Equal(t, tc.format, sc.Encoding.Name, "the format is kept verbatim")
+		})
+	}
+}
+
 // TestLower_TupleRest pins what a prefixItems tuple admits past its elements and
 // the bounds beside them. 2020-12 applies items to every element past
 // prefixItems and reads an absent one as `true`, so only `items: false` closes
