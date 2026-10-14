@@ -507,7 +507,7 @@ func TestCheckReached_APanicIsReported(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), c.items, nil, newReached(doc, Options{}, nil))
+			diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), c.items, nil, newReached(doc, Options{}, sourceTree{}))
 
 			require.Len(t, diags, 1, "%+v", diags)
 			assert.Equal(t, diag.Validation, diags[0].Code)
@@ -676,9 +676,10 @@ func TestResolve_ValidatesWhatAnExternalReferenceReaches(t *testing.T) {
 // naming the source's file reaches that the source's own validation never
 // checked: raw YAML, such as an extension's value, and a node read as another
 // kind than it is declared as. Each is validated as an object in another
-// document is, at the $ref reaching it, whether that $ref is the source's own
-// or comes back into it from another document (GitHub #759). What the source
-// declares, reached as its kind, is not validated again
+// document is, whether the $ref is the source's own or comes back into it from
+// another document (GitHub #759), and its finding is placed at the node it is
+// about, as the source's own are (GitHub #879). What the source declares,
+// reached as its kind, is not validated again
 // (TestHold_AFindingOnlyValidationMakesIsTheSourcesOwn).
 func TestResolve_WhatTheSourcesValidationNeverCheckedIsValidated(t *testing.T) {
 	t.Parallel()
@@ -695,7 +696,7 @@ components:
     A: {$ref: 'root.yaml#/x-defs/S'}
 x-defs:
   S: {type: string, minLength: -1}
-`, []string{"/components/schemas/A openapi/validation/validation-invalid-schema"}},
+`, []string{"/x-defs/S/minLength openapi/validation/validation-invalid-schema"}},
 		{
 			"a response under an extension, from another document",
 			map[string]string{"other.yaml": "components:\n  responses:\n    Back: {$ref: 'root.yaml#/x-responses/R'}\n"},
@@ -709,7 +710,7 @@ x-responses:
     description: ok
     links:
       L: {operationId: a, operationRef: '#/paths/~1a/get'}
-`, []string{"/paths/~1a/get/responses/200 openapi/validation/validation-mutually-exclusive-fields"},
+`, []string{"/x-responses/R/links/L/operationId openapi/validation/validation-mutually-exclusive-fields"},
 		},
 		{"a response read as a schema", nil, header + `paths: {}
 components:
@@ -717,7 +718,7 @@ components:
     S: {$ref: 'root.yaml#/components/responses/R'}
   responses:
     R: {description: ok, minLength: -1}
-`, []string{"/components/schemas/S openapi/validation/validation-invalid-schema"}},
+`, []string{"/components/responses/R/minLength openapi/validation/validation-invalid-schema"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -778,7 +779,7 @@ x-defs:
 		}
 	}
 
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil, newReached(got.Doc, Options{}, nil))
+	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil, newReached(got.Doc, Options{}, sourceTree{}))
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, "validation panicked: walk boom", diags[0].Message)
@@ -1413,30 +1414,29 @@ func markerPosition(t *testing.T, spec, marker string) (line, col int) {
 	return 1 + strings.Count(spec[:at], "\n"), at - strings.LastIndex(spec[:at], "\n")
 }
 
-// inSourceFinding is one finding on an object a $ref reaches in the source:
-// where it is reported, under which code, what it says and, when at is set,
-// the snippet of the fixture the object starts at, whose line and column the
-// message names. "{line}" in text stands for that line.
+// inSourceFinding is one finding on a node of the source: the pointer it is
+// placed at, its code and what it says, and at, the snippet of the fixture the
+// node starts at, whose line and column it carries beside the pointer.
+// "{line}" in text stands for that line.
 type inSourceFinding struct {
 	pointer, code, text, at string
 }
 
 // render spells the finding as renderDiags spells a diagnostic.
-func (f inSourceFinding) render(t *testing.T, spec, path string) string {
+func (f inSourceFinding) render(t *testing.T, spec string) string {
 	t.Helper()
-	if f.at == "" {
-		return fmt.Sprintf("%s %s %s", f.pointer, f.code, f.text)
-	}
 	line, col := markerPosition(t, spec, f.at)
 	text := strings.ReplaceAll(f.text, "{line}", fmt.Sprint(line))
-	return fmt.Sprintf("%s %s %s, at %d:%d of %s", f.pointer, f.code, text, line, col, path)
+	return fmt.Sprintf("%s %d:%d %s %s", f.pointer, line, col, f.code, text)
 }
 
-// renderDiags spells each diagnostic as its pointer, code and message, sorted.
+// renderDiags spells each diagnostic as its pointer, position, code and
+// message, sorted.
 func renderDiags(diags []ir.Diagnostic) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
-		out = append(out, fmt.Sprintf("%s %s %s", d.Provenance.Pointer, d.Code, d.Message))
+		at := d.Provenance.Position
+		out = append(out, fmt.Sprintf("%s %d:%d %s %s", d.Provenance.Pointer, at.Line, at.Column, d.Code, d.Message))
 	}
 	slices.Sort(out)
 	return out
@@ -1474,9 +1474,10 @@ components:
 // $ref reaches in the source is validated, whether or not external references
 // are read (GitHub #872): one under an x-* key, which the source's model never
 // declares, whether reached by a $ref, a discriminator mapping entry, or a $ref
-// inside raw YAML. Each finding is at the reaching site and its message names
-// the object's own position. An object the model declares is reported once, by
-// the source; a valid one reports nothing.
+// inside raw YAML. Each finding is placed as the source's own are, at the
+// pointer and position of the node it is about, not at the $ref (GitHub
+// #879), resolution's and validation's alike. An object the model declares is
+// reported once, by the source; a valid one reports nothing.
 func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 	t.Parallel()
 	const (
@@ -1501,37 +1502,37 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 		want []inSourceFinding
 	}{
 		{"GitHub #872's reproducer", reachedInSourceFixture, []inSourceFinding{
-			{"/paths/~1x/get/parameters/0", required, "`parameter.in` is required", "{name: q"},
-			{"/paths/~1x/get/parameters/0", allowed, inValues, "{name: q"},
-			{"/components/securitySchemes/key", required, "`securityScheme.name` is required for type=apiKey", "{type: apiKey"},
-			{"/components/securitySchemes/oidc", required,
+			{"/x-params/q", required, "`parameter.in` is required", "{name: q"},
+			{"/x-params/q", allowed, inValues, "{name: q"},
+			{"/x-schemes/key", required, "`securityScheme.name` is required for type=apiKey", "{type: apiKey"},
+			{"/x-schemes/oidc", required,
 				"`securityScheme.openIdConnectUrl` is required for type=openIdConnect", "{type: openIdConnect}"},
-			{"/components/securitySchemes/oauth", required, "`securityScheme.flows` is required for type=oauth2", "{type: oauth2}"},
+			{"/x-schemes/oauth", required, "`securityScheme.flows` is required for type=oauth2", "{type: oauth2}"},
 		}},
 		{
 			"a schema only a discriminator mapping entry reaches",
 			mappingSpec(petMapping("x: '#/x-lib/Bad'"), "x-lib:\n  Bad: {type: string, minLength: -1}\n"),
-			[]inSourceFinding{{"/components/schemas/Pet/discriminator/mapping/x", invalid, minimum, "-1"}},
+			[]inSourceFinding{{"/x-lib/Bad/minLength", invalid, minimum, "-1"}},
 		},
 		{
 			"a schema a $ref inside raw YAML reaches",
 			mappingSpec("    S: {$ref: '#/x-lib/A'}\n",
 				"x-lib:\n  A: {type: object, properties: {b: {$ref: '#/x-lib/B'}}}\n  B: {type: string, minLength: -1}\n"),
-			[]inSourceFinding{{"/x-lib/A/properties/b", invalid, minimum, "-1"}},
+			[]inSourceFinding{{"/x-lib/B/minLength", invalid, minimum, "-1"}},
 		},
 		{
 			"a type mismatch is told by resolution and by validation",
 			mappingSpec("    S: {$ref: '#/x-lib/A'}\n", "x-lib:\n  A: {type: string, minLength: abc}\n"),
 			[]inSourceFinding{
-				{"/components/schemas/S", mismatch, "schema.minLength line {line}: cannot unmarshal !!str `abc` into int64", "abc"},
-				{"/components/schemas/S", mismatch, "schema.minLength expected `integer`, got `string`", "{type: string, minLength: abc}"},
+				{"/x-lib/A/minLength", mismatch, "schema.minLength line {line}: cannot unmarshal !!str `abc` into int64", "abc"},
+				{"/x-lib/A", mismatch, "schema.minLength expected `integer`, got `string`", "{type: string, minLength: abc}"},
 			},
 		},
 		{
 			"a declared component is reported by the source alone",
 			fmt.Sprintf(byOperation, "#/components/parameters/P") +
 				"components:\n  parameters:\n    P: {name: p, in: sideways, schema: {type: string}}\n",
-			[]inSourceFinding{{"/components/parameters/P/in", allowed, inValues, ""}},
+			[]inSourceFinding{{"/components/parameters/P/in", allowed, inValues, "sideways"}},
 		},
 		{
 			"a valid object under an extension reports nothing",
@@ -1545,7 +1546,7 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 				t.Parallel()
 				want := make([]string, 0, len(c.want))
 				for _, f := range c.want {
-					want = append(want, f.render(t, c.spec, "spec.yaml"))
+					want = append(want, f.render(t, c.spec))
 				}
 				slices.Sort(want)
 
@@ -1559,10 +1560,11 @@ func TestResolve_WhatAReferenceReachesInTheSourceIsValidated(t *testing.T) {
 
 // TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder pins that an
 // object in the source reached from several places is reported once, at the
-// least of them, whatever order they and the object are declared in. The
-// places are $refs, discriminator mapping entries, and a $ref inside raw YAML;
-// each case is compiled as written and then reversed, with the object moved
-// from after the components to before them.
+// node the finding is about rather than at any of them, whatever order they
+// and the object are declared in. The places are $refs, discriminator mapping
+// entries, and a $ref inside raw YAML; each case is compiled as written and
+// then reversed, with the object moved from after the components to before
+// them.
 func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const bad = "  Bad: {type: string, minLength: -1}\n"
@@ -1575,18 +1577,15 @@ func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T)
 		name    string
 		lib     string
 		entries []string
-		site    jsontext.Pointer
 	}{
 		{"two $refs and an entry, the least a $ref", lib,
-			[]string{ref("A"), ref("B"), holder("Pet", "x: '#/x-lib/Bad'")}, "/components/schemas/A"},
+			[]string{ref("A"), ref("B"), holder("Pet", "x: '#/x-lib/Bad'")}},
 		{"two $refs and an entry, the least an entry", lib,
-			[]string{holder("Alpha", "x: '#/x-lib/Bad'"), ref("Beta"), ref("Gamma")},
-			"/components/schemas/Alpha/discriminator/mapping/x"},
+			[]string{holder("Alpha", "x: '#/x-lib/Bad'"), ref("Beta"), ref("Gamma")}},
 		{"two entries of one mapping and a $ref", lib,
-			[]string{holder("Alpha", "y: '#/x-lib/Bad', x: '#/x-lib/Bad'"), ref("Beta")},
-			"/components/schemas/Alpha/discriminator/mapping/x"},
+			[]string{holder("Alpha", "y: '#/x-lib/Bad', x: '#/x-lib/Bad'"), ref("Beta")}},
 		{"a $ref and a $ref inside raw YAML", "x-lib:\n  A: {type: object, properties: {b: {$ref: '#/x-lib/Bad'}}}\n" + bad,
-			[]string{"    S: {$ref: '#/x-lib/A'}\n", ref("T")}, "/components/schemas/T"},
+			[]string{"    S: {$ref: '#/x-lib/A'}\n", ref("T")}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -1600,7 +1599,7 @@ func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T)
 				_, diags := loadTargets(t, "spec.yaml", spec, false)
 				return diagLines(diags)
 			}
-			want := []string{string(c.site) + " openapi/validation/validation-invalid-schema"}
+			want := []string{"/x-lib/Bad/minLength openapi/validation/validation-invalid-schema"}
 
 			backwards := slices.Clone(c.entries)
 			slices.Reverse(backwards)
@@ -1659,7 +1658,7 @@ func TestCheckReached_APanicInAResolvedReferenceIsReported(t *testing.T) {
 	}
 
 	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), slices.Values([]soa.WalkItem(nil)),
-		resolved, newReached(doc, Options{}, nil))
+		resolved, newReached(doc, Options{}, sourceTree{}))
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.Validation, diags[0].Code)
@@ -1725,8 +1724,9 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // written inline draws in an older document: a warning for each construct a
 // later minor added, at the pointer it is written at, with the library's
 // refusal of it taken over, and an additionalOperations' operations checked.
-// A 3.2 document draws none; another document's object keeps the library's
-// own reading (GitHub #839).
+// An object reached both itself and inside another reached object draws each
+// warning once. A 3.2 document draws none; another document's object keeps the
+// library's own reading (GitHub #839).
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1754,7 +1754,14 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 			"paths:\n  /a: {$ref: '#/x-paths/A'}\nx-paths:\n  A:\n    additionalOperations:\n" +
 				"      PURGE: {parameters: [{name: q, in: sideways, schema: {type: string}}], " +
 				"responses: {\"200\": {description: ok}}}\n",
-			[]string{"/paths/~1a openapi/validation/validation-allowed-values", "/x-paths/A/additionalOperations" + later}},
+			[]string{"/x-paths/A/additionalOperations" + later,
+				"/x-paths/A/additionalOperations/PURGE/parameters/0/in openapi/validation/validation-allowed-values"}},
+		{"an object reached inside another reached one, warned once", "3.1.0",
+			"paths: {}\ncomponents:\n  schemas:\n    Ref: {$ref: '#/x-lib/Pet'}\n" +
+				"    Inner: {$ref: '#/x-lib/Pet/properties/kind'}\n    Cat: {type: object}\n" +
+				"x-lib:\n  Pet: {type: object, properties: {kind: {type: object, discriminator: " +
+				"{propertyName: k, defaultMapping: '#/components/schemas/Cat'}}}}\n",
+			[]string{"/x-lib/Pet/properties/kind/discriminator/defaultMapping" + later}},
 		{"a 3.2 document, which added them", "3.2.0",
 			"paths: {}\ncomponents:\n  schemas:\n    Ref: {$ref: '#/x-lib/Pet'}\n    Cat: {type: object}\n" +
 				"  responses:\n    R: {$ref: '#/x-responses/R'}\n" + pet + "x-responses:\n  R: {description: ok, summary: S}\n",

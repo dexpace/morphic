@@ -89,28 +89,30 @@ func InSource(srcIndex int) Locator {
 	}
 }
 
-// InTree is InSource for a node of root's tree, which also gives the node's
-// JSON pointer in that tree: a finding on a raw node is then placed where a
-// lowering finding at the same position is, and a reader sees which
-// declaration to edit (GitHub #803). A key shares its member's pointer.
+// InTree is InSource for a node of the tree pointers indexes (see Pointers),
+// which also gives the node's JSON pointer there: a finding on a raw node is
+// then placed where a lowering finding at the same position is, and a reader
+// sees which declaration to edit (GitHub #803).
 //
-// A node the tree does not hold has none, and nor does one under a `<<` merge
-// key: the document the merge spells holds those pairs at other pointers.
-// The tree is indexed on the first node asked about, so a load that reports
-// nothing never indexes it.
-func InTree(srcIndex int, root *yaml.Node) Locator {
+// The root's pointer is the empty one, which beside a position reads as none,
+// so a finding on the document's top mapping is placed by position alone.
+func InTree(srcIndex int, pointers func(*yaml.Node) (jsontext.Pointer, bool)) Locator {
 	inSource := InSource(srcIndex)
-	pointer := Pointers(root)
 	return func(n *yaml.Node) ir.Provenance {
 		prov := inSource(n)
-		prov.Pointer, _ = pointer(n)
+		prov.Pointer, _ = pointers(n)
 		return prov
 	}
 }
 
-// Pointers returns what InTree places a node at, the node's JSON pointer in
-// root's tree, and whether the tree holds it; a nil node or root is held by
-// none. The tree is indexed on the first node asked about.
+// Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
+// the parser keys them (nodeview.KeyOf), and whether the tree holds the node.
+// A key shares its member's pointer, and an alias's target is placed where it
+// is written. A nil node or root is held by none, nor is a node under a `<<`
+// merge key: the document the merge spells holds that pair at another pointer.
+//
+// The tree is indexed on the first node asked about, once, so a load that
+// reports nothing never indexes it.
 func Pointers(root *yaml.Node) func(*yaml.Node) (jsontext.Pointer, bool) {
 	var steps map[*yaml.Node]step
 	return func(n *yaml.Node) (jsontext.Pointer, bool) {
@@ -181,11 +183,12 @@ func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
-			if key.Kind != yaml.ScalarNode || key.Tag == "!!merge" {
+			token, own := nodeview.KeyOf(key)
+			if !own {
 				continue
 			}
-			reach(key, step{holder: n, token: key.Value})
-			reach(value, step{holder: n, token: key.Value})
+			reach(key, step{holder: n, token: token})
+			reach(value, step{holder: n, token: token})
 		}
 	case yaml.SequenceNode:
 		for i, item := range n.Content {

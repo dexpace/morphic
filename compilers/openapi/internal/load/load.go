@@ -210,7 +210,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
 	root := parsed.root
-	cyc := refusals(scan.InTree(srcIndex, root), root, opts)
+	cyc := refusals(scan.InTree(srcIndex, scan.Pointers(root)), root, opts)
 	if diag.HasError(cyc) {
 		return nil, cyc, nil // degenerate cycle: refuse to lower, do not crash the parser
 	}
@@ -246,8 +246,8 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 			"unsupported OpenAPI version %q; want 3.0, 3.1, or 3.2", doc.OpenAPI)), nil
 	}
 
-	locate := locator(srcIndex, origin, root)
-	if d, found := opts.chains(ctx, locate, root, doc); found {
+	tree := newSourceTree(srcIndex, origin, root)
+	if d, found := opts.chains(ctx, tree.locate, root, doc); found {
 		if d.Severity == ir.SeverityError {
 			return nil, append(cyc, d), nil // a chain the resolver would recurse through forever
 		}
@@ -258,7 +258,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		valErrs = ownAdditionalOperations(ctx, doc, soa.Walk(ctx, doc), valErrs)
 	}
 	diags := cyc
-	diags = append(diags, findings(ctx, locate, doc, valErrs, minor, later.inSchema)...)
+	diags = append(diags, findings(ctx, tree.locate, doc, valErrs, minor, later.inSchema)...)
 	diags = append(diags, later.diags...)
 	rebuildDoc := opts.rebuildDoc
 	if rebuildDoc == nil {
@@ -268,7 +268,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		again, _, err := rebuildDoc(ctx, src.Data, root)
 		return again, err
 	}
-	self := newSourceDocument(src.Path, src.Data, root, valErrs)
+	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree)
 	doc, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, self, opts, rebuild)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
@@ -363,15 +363,15 @@ func defaultIndex(root *yaml.Node) sourceindex.Index {
 	return sourceindex.Build(root, sourceindex.MaxIndexedNodes)
 }
 
-// locator answers where a node of root, the patched tree, is, for every
-// diagnostic anchored on one: the overlay's index and the node's JSON pointer
-// for a node the overlay introduced or rewrote — the answer the lowering gives
-// for that pointer — and otherwise srcIndex with the node's own line and column
-// and its pointer in root (scan.InTree). A zero origin, the answer for a
-// compile with no overlay, never claims a node, so the two cases need no
-// telling apart here.
-func locator(srcIndex int, origin overlay.Origin, root *yaml.Node) scan.Locator {
-	inSource := scan.InTree(srcIndex, root)
+// locator answers where a node of the patched tree pointers indexes is, for
+// every diagnostic anchored on one: the overlay's index and the node's JSON
+// pointer for a node the overlay introduced or rewrote — the answer the
+// lowering gives for that pointer — and otherwise srcIndex with the node's own
+// line and column and its pointer in the tree (scan.InTree). A zero origin, the
+// answer for a compile with no overlay, never claims a node, so the two cases
+// need no telling apart here.
+func locator(srcIndex int, origin overlay.Origin, pointers func(*yaml.Node) (jsontext.Pointer, bool)) scan.Locator {
+	inSource := scan.InTree(srcIndex, pointers)
 	return func(n *yaml.Node) ir.Provenance {
 		if prov, ok := origin.At(n); ok {
 			return prov
@@ -461,7 +461,7 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(locator(srcIndex, origin, root), root, opts)...)
+	return origin, append(diags, refusals(locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
 }
 
 // overlayRefusals refuses an overlay whose aliases the library would follow
@@ -493,7 +493,7 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 	if build == nil {
 		build = defaultIndex
 	}
-	locate := scan.InTree(opts.OverlaySrcIndex, &tree)
+	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(&tree))
 	idx := build(&tree)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),

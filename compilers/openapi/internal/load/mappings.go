@@ -38,9 +38,9 @@ type MappingTargets struct {
 	resolved []siteRef
 }
 
-// siteRef is a reference the load phase resolved, and the site its findings
-// are placed at: a mapping target's least entry, or where a $ref inside an
-// object built from raw YAML is written.
+// siteRef is a reference the load phase resolved, and the site it is read at:
+// a mapping target's least entry, or where a $ref inside an object built from
+// raw YAML is written.
 type siteRef struct {
 	site jsontext.Pointer
 	ref  resolvable

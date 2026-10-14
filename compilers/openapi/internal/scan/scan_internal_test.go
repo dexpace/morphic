@@ -1034,6 +1034,9 @@ merged:
 aliased:
   <<: *base
   own: 3
+named: &nm renamed
+*nm : 6
+!!merge tagged: 7
 `
 
 // decodeTree decodes inTreeFixture afresh into the document node a parse gives
@@ -1088,7 +1091,9 @@ func keyAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
 // content: a key shares its member's pointer, a sequence item is its index,
 // tokens are RFC 6901-escaped, an alias is a leaf indexed where it is written
 // while its target keeps the anchor's pointer, and nothing under a `<<` merge
-// key, the key included, has one. Every row keeps its position.
+// key has one. A pair is keyed as the parser keys it: an alias key by the
+// scalar it names, a !!merge-tagged key other than `<<` as written. Every row
+// keeps its position.
 func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -1165,6 +1170,15 @@ func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 		"a member beside an aliased merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
 			return valueAt(t, doc, "aliased", "own")
 		}, "/aliased/own"},
+		"a value under an alias key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "nm")
+		}, "/renamed"},
+		"an alias key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "nm")
+		}, "/renamed"},
+		"a value under a key tagged !!merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "tagged")
+		}, "/tagged"},
 	}
 	for name, tt := range tests {
 		for rooted, root := range map[string]func(*yaml.Node) *yaml.Node{
@@ -1181,7 +1195,7 @@ func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 					Position: ir.Position{Line: node.Line, Column: node.Column},
 				}
 
-				got := InTree(3, root(doc))(node)
+				got := InTree(3, Pointers(root(doc)))(node)
 
 				assert.Empty(t, cmp.Diff(want, got))
 				assert.NotZero(t, got.Position, "a parsed node has a position")
@@ -1231,7 +1245,7 @@ func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := InTree(3, tt.root(t))(tt.node(t))
+			got := InTree(3, Pointers(tt.root(t)))(tt.node(t))
 
 			assert.Empty(t, cmp.Diff(tt.want, got))
 		})
@@ -1343,7 +1357,7 @@ func TestStepsIn_StopsAtItsLimit(t *testing.T) {
 	assert.True(t, complete)
 	assert.Equal(t, map[*yaml.Node]step{empty: {}}, steps)
 	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
-		InTree(0, empty)(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
+		InTree(0, Pointers(empty))(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
 		"a node of no tree, asked of an empty document, is located by position alone")
 }
 
@@ -1375,7 +1389,7 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	locate := InTree(0, root)
+	locate := InTree(0, Pointers(root))
 	got := locate(deep)
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(root)

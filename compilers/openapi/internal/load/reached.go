@@ -15,7 +15,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,12 +34,15 @@ type reached struct {
 	version string
 	minor   string
 	limit   int
-	// pointerOf places a node of the source's tree, for the later version's
-	// constructs an object reached there writes (see later).
-	pointerOf func(*yaml.Node) (jsontext.Pointer, bool)
+	// tree places a finding about a node of the source, and the later
+	// version's constructs an object reached there writes (see later).
+	tree sourceTree
 	// reported holds every finding already reported (see keyOf), the source's
 	// own validation's included.
 	reported map[findingKey]bool
+	// warned holds every later version's construct already reported: an object
+	// inside another reached one is walked again (see checkAll).
+	warned map[ir.Diagnostic]bool
 	// spent is the node count charged to each document so far.
 	spent map[string]int
 	// over names the documents whose budget has been reported crossed.
@@ -68,13 +70,13 @@ type targetKey struct {
 
 // validateReached validates every object a resolved reference in doc reaches
 // that the source's own validation did not (see targetOf and dropDeclared), and
-// reports each finding once, at a $ref that reaches it (see reached). A finding
-// known, the source's own validation's, is not reported again: a node a $ref
-// reads as another kind holds what the source declares inside it.
+// reports each finding once, where reachedFinding places it. A finding known,
+// the source's own validation's, is not reported again: a node a $ref reads as
+// another kind holds what the source declares inside it.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI,
 	targets MappingTargets, opts Options, self sourceDocument,
 ) []ir.Diagnostic {
-	checks := newReached(doc, opts, self.root)
+	checks := newReached(doc, opts, self.tree)
 	maps.Copy(checks.reported, self.found)
 	return checkReached(ctx, at, soa.Walk(ctx, doc), targets.resolved, checks)
 }
@@ -174,8 +176,8 @@ func dropDeclared(items iter.Seq[soa.WalkItem], targets map[targetKey]reachedTar
 // under opts' node and alias budgets; either one unbounded leaves the charge
 // unbounded. It validates with the options the source's validation passes
 // down: the root document, which a security requirement cannot be checked
-// without, and its version. root is the tree doc was built from.
-func newReached(doc *soa.OpenAPI, opts Options, root *yaml.Node) *reached {
+// without, and its version. tree is the source's (see reachedFinding).
+func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree) *reached {
 	limit := 0
 	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
 		limit = opts.MaxSourceNodes + opts.MaxAliasSurplus
@@ -183,22 +185,23 @@ func newReached(doc *soa.OpenAPI, opts Options, root *yaml.Node) *reached {
 	version := doc.OpenAPI
 	minor, _ := SupportedMinor(version) // Load refused an unsupported version before resolving
 	return &reached{
-		doc:       doc,
-		pointerOf: scan.Pointers(root),
-		opts:      documentOptions(doc),
-		version:   version,
-		minor:     minor,
-		limit:     limit,
-		reported:  map[findingKey]bool{},
-		spent:     map[string]int{},
-		over:      map[string]bool{},
+		doc:      doc,
+		tree:     tree,
+		opts:     documentOptions(doc),
+		version:  version,
+		minor:    minor,
+		limit:    limit,
+		reported: map[findingKey]bool{},
+		warned:   map[ir.Diagnostic]bool{},
+		spent:    map[string]int{},
+		over:     map[string]bool{},
 	}
 }
 
 // checkAll validates each target in the order of its site, and reports its
-// findings. A finding already reported was reported at a lesser $ref, so each
-// lands at the least $ref whose object's validation draws it, and a budget is
-// crossed at the same object, whatever the declaration order.
+// findings. A finding already reported was reported for a lesser $ref, so one
+// placed at a $ref lands at the least whose object's validation draws it, and
+// a budget is crossed at the same object, whatever the declaration order.
 //
 // An object inside one validated before it is validated, and charged, again
 // (GitHub #571): a container spans more than its model reads, such as an
@@ -242,14 +245,20 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 		found = ownAdditionalOperations(ctx, v.doc, reachedWalk(ctx, t.obj), found)
 	}
 	artifacts := v.artifacts(ctx, t.obj, later.inSchema)
-	diags := later.diags
+	var diags []ir.Diagnostic
+	for _, d := range later.diags {
+		if !v.warned[d] {
+			v.warned[d] = true
+			diags = append(diags, d)
+		}
+	}
 	for _, f := range found {
 		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[siteOf(verr)]) {
 			continue
 		}
 		if key := keyOf(f, t.site); !v.reported[key] {
 			v.reported[key] = true
-			diags = append(diags, reachedFinding(site, t.doc, f))
+			diags = append(diags, reachedFinding(v.tree, site, t.doc, f))
 		}
 	}
 	return diags
@@ -304,7 +313,7 @@ func (v *reached) artifacts(ctx context.Context, obj any, later bool) map[findin
 // object written inline draws a warning (GitHub #872). Another document's
 // content, which the tree does not hold, is GitHub #839's.
 func (v *reached) later(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) laterReport {
-	base, ok := v.pointerOf(t.node)
+	base, ok := v.tree.pointer(t.node)
 	if !ok {
 		return laterReport{}
 	}

@@ -238,15 +238,31 @@ func (v *View) expandContent(n *yaml.Node, depth int) expansion {
 			e.height = max(e.height, got.height+1)
 			continue
 		}
-		key := Deref(raw)
-		if key == nil || key.Kind != yaml.ScalarNode {
-			continue // a non-scalar key (after Deref) cannot name a schema keyword
+		key, own := KeyOf(raw)
+		if !own {
+			continue // a non-scalar key cannot name a schema keyword
 		}
-		explicit = append(explicit, Pair{Key: key.Value, Val: val})
+		explicit = append(explicit, Pair{Key: key, Val: val})
 	}
 
 	e.pairs = appendUnseen(dedupeLastWins(explicit), merged)
 	return e
+}
+
+// KeyOf returns the key the parser gives the mapping pair whose raw key node is
+// raw, and whether the pair is one of the mapping's own: a `<<` merge key
+// names none, nor does a key that is no scalar once its alias is followed. The
+// view and every reader of a mapping's raw pairs ask it, so none can disagree
+// with the parser about a pair's key.
+func KeyOf(raw *yaml.Node) (string, bool) {
+	if yml.IsMergeKey(raw) {
+		return "", false
+	}
+	key := Deref(raw)
+	if key == nil || key.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	return key.Value, true
 }
 
 // dedupeLastWins keeps the last pair for each key, at that last occurrence's

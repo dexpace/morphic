@@ -4008,6 +4008,6 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 	}
 	assert.Equal(t, len(written), n, "one warning per construct, none elsewhere: %+v", diags)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-		diagsAt(diags, "openapi/validation/validation-allowed-values", "/components/securitySchemes/key"),
-		"the parser's finding on the reached scheme, at the $ref reaching it")
+		diagsAt(diags, "openapi/validation/validation-allowed-values", "/x-schemes/key/bearerFormat"),
+		"the parser's finding on the reached scheme, where the field is written (GitHub #879)")
 }

@@ -503,10 +503,14 @@
     {
       "severity": "warning",
       "code": "openapi/validation/validation-allowed-values",
-      "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http), at 38:62 of reached-outside-model.yaml",
+      "message": "securityScheme.bearerFormat is not used for type=apiKey (only valid for type=http)",
       "provenance": {
         "source": 0,
-        "pointer": "/components/securitySchemes/key"
+        "pointer": "/x-schemes/key/bearerFormat",
+        "position": {
+          "line": 38,
+          "column": 62
+        }
       }
     },
     {

@@ -116,8 +116,9 @@ func diagnosticsAt(diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnos
 
 // stampedAt reports whether prov locates a node or finding at pointer in a
 // source. A shared primitive and an IR pass's finding sit on NoSource, in no
-// source at all. One located by position records no pointer, and its empty
-// Pointer is not the whole document's: the position locates it finer, and
+// source at all. An empty Pointer beside a position is not the whole
+// document's: it is no pointer, or the top-level mapping's, which the two
+// cannot be told apart by, and either way the position locates it finer, so
 // matching it at the root would put every such one there.
 func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 	if prov.Pointer != pointer || prov.Source == ir.NoSource {

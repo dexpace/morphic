@@ -261,8 +261,9 @@ func TestHold_ABackReferenceResolvesAsItDoesInEitherOrder(t *testing.T) {
 
 // TestHold_AFindingTheSourceDoesNotMakeIsReportedOnce pins what the source's
 // own findings leave to the $refs. A response under an extension is no object
-// the source's validation reaches, so its finding is reported at a $ref
-// reaching it, once, at the least of an internal $ref and a back reference.
+// the source's validation reaches, so its finding is reported for the $refs
+// reaching it, an internal one and a back reference, once, at the response
+// itself, as the source's own findings are placed (GitHub #879).
 func TestHold_AFindingTheSourceDoesNotMakeIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{
@@ -276,7 +277,7 @@ paths:
 `
 	_, diags := loadExternal(t, dir, root, Options{})
 
-	assert.Empty(t, cmp.Diff([]string{"/paths/~1a/get/responses/200 openapi/validation/validation-required-field"},
+	assert.Empty(t, cmp.Diff([]string{"/x-lib/R openapi/validation/validation-required-field"},
 		diagLines(diags)))
 }
 
@@ -404,7 +405,7 @@ func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
 	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
 	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
 
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")})
+	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{})
 
 	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
 }
@@ -453,7 +454,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	releaseAnchors(root)
 	doc, valErrs, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs)
+	self := newSourceDocument(path, data, root, valErrs, sourceTree{})
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader)

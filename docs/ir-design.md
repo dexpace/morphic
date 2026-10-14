@@ -2480,9 +2480,11 @@ each kind has its own field. `Pointer` is the structural locator into a source a
 but an RFC 6901 pointer, which is what lets a consumer walk it with `jsontext.Pointer`'s methods.
 `Position` is for a finding made on a raw node the parser hands back, and is the form editors turn
 into a link. Such a finding carries the node's `Pointer` beside it whenever the parsed tree holds
-the node, so it is placed where a lowering finding about the same construct is; the position stands
-alone only for a part of the source no pointer reaches, such as a later document of a YAML stream
-or a pair a `<<` merge key brings in, which the merged document holds at another pointer. `Node` is where an IR pass reports a finding about the document itself; its spelling is the
+the node, so it is placed where a lowering finding about the same construct is. The position stands
+alone for a part of the source no pointer reaches, such as a later document of a YAML stream or a
+pair a `<<` merge key brings in, which the merged document holds at another pointer; and for the
+document's top-level mapping, whose pointer is the empty one, which beside a position reads as none.
+`Node` is where an IR pass reports a finding about the document itself; its spelling is the
 producer's, and nothing parses it. A verifier holds a `Pointer` to RFC 6901 and a `Position` to
 1-based values, and refuses either one on `NoSource`, where there is no file for it to be inside.
 Nothing requires exactly one locator: a finding may carry a `Node` beside a source location, and a
