@@ -142,6 +142,56 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Choice/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Choice/enum/0",
+      "name": {
+        "hint": "choice_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice/enum/0"
+      },
+      "value": {
+        "kind": "list",
+        "list": [
+          {
+            "kind": "number",
+            "num": "1"
+          },
+          {
+            "kind": "number",
+            "num": "2"
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/Choice/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Choice/enum/1",
+      "name": {
+        "hint": "choice_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice/enum/1"
+      },
+      "value": {
+        "kind": "list",
+        "list": [
+          {
+            "kind": "number",
+            "num": "3"
+          }
+        ]
+      }
+    },
     "t/anon/components/schemas/Holder/properties/empty": {
       "kind": "list",
       "id": "t/anon/components/schemas/Holder/properties/empty",
@@ -232,6 +282,55 @@
         "target": "t/prim/any",
         "nullable": false
       }
+    },
+    "t/openapi/components/schemas/Choice": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Choice",
+      "name": {
+        "source": "Choice",
+        "canonical": "choice"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "array",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Choice/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "choice_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Choice/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "choice_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Choice/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
     },
     "t/openapi/components/schemas/Copy": {
       "kind": "model",
@@ -419,7 +518,7 @@
     {
       "severity": "warning",
       "code": "openapi/missing-array-items",
-      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "message": "OpenAPI 3.0 requires items when type is array, and this schema writes none, so only its other keywords constrain its elements",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/tags"
@@ -428,7 +527,7 @@
     {
       "severity": "warning",
       "code": "openapi/missing-array-items",
-      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "message": "OpenAPI 3.0 requires items when type is array, and this schema writes none, so only its other keywords constrain its elements",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bare"
@@ -437,7 +536,34 @@
     {
       "severity": "warning",
       "code": "openapi/missing-array-items",
-      "message": "3.0 requires items on an array schema; the element type is left as the top type",
+      "message": "OpenAPI 3.0 requires items when type is array, and this schema writes none, so only its other keywords constrain its elements",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"union\", which has no home for type declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Choice"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/missing-array-items",
+      "message": "OpenAPI 3.0 requires items when type is array, and this schema writes none, so only its other keywords constrain its elements",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1things/get/parameters/0/schema"
@@ -448,7 +574,7 @@
     {
       "format": "openapi@3.0",
       "path": "missing-array-items.yaml",
-      "hash": "af517a40f73b562c21b144835f055ba349e7cb11490013e19d288862ba8ea0ed"
+      "hash": "25f506e0d87fd04603e514b55020de4b9bbc9d6c3f5ce7e4b9868fc72000ccde"
     }
   ]
 }

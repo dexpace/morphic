@@ -24,3 +24,4 @@ components:
         typed: {type: array, items: {type: string}}
         empty: {type: array, items: {}}
     Bare: {type: array}
+    Choice: {type: array, enum: [[1, 2], [3]]}

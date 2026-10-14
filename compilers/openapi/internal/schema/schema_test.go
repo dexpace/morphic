@@ -386,69 +386,74 @@ func TestLower_ListConstraints(t *testing.T) {
 	assert.Equal(t, int64(1), *l.Constraints.MinItems)
 }
 
-// TestLower_ListWithoutItems pins what an array schema that writes no items
-// lowers to, and which dialects say so: a 3.0 array without items is reported
-// at its own pointer, while 3.1 and 3.2 leave the keyword optional and stay
-// silent. The element type is the top type in every row. Warnings are counted
-// as the lowering returns them, before compile.Diags drops duplicates, so
-// "once" is an assertion about the guard; every row builds each node once.
+// TestLower_ListWithoutItems pins that an array schema writing no items lowers
+// to a List over the top type in every dialect. 3.0's requirement is reported
+// (TestLower_MissingArrayItems) and never applied to the IR.
 func TestLower_ListWithoutItems(t *testing.T) {
 	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpecVer(version, "    L: {type: array}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			l, ok := typeByName(doc, "L").(*ir.List)
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+		})
+	}
+}
+
+// TestLower_MissingArrayItems pins which declarations the 3.0 rule reports and
+// where. Every schema writing type array and no items is reported at its own
+// pointer, whatever it lowers to; a written items, a type that is not array, a
+// $ref site, a subschema kept verbatim and a 2020-12 document are not. Reports
+// are counted as the lowering returns them, before compile.Diags drops
+// repeats, and each row lowers each declaration once, so a doubled report
+// reddens.
+func TestLower_MissingArrayItems(t *testing.T) {
+	t.Parallel()
+	const holder = "    Holder:\n      type: object\n      properties:\n"
 	cases := []struct {
 		name    string
 		version string
 		schemas string
-		// wantWarnings locates the missing-array-items warnings expected, in the
-		// order they are reported; empty when the row must be silent.
-		wantWarnings []string
-		// elemOf names a component whose lowered List element must be the top
-		// type, when the row has one to check.
-		elemOf string
+		want    []string // report pointers, in order; nil when silent
 	}{
-		{
-			name:         "3.0 bare warns once at the schema",
-			version:      "3.0.3",
-			schemas:      "    L: {type: array}\n",
-			wantWarnings: []string{"/components/schemas/L"},
-			elemOf:       "L",
-		},
-		{
-			name:    "3.0 items written empty is silent",
-			version: "3.0.3",
-			schemas: "    L: {type: array, items: {}}\n",
-			elemOf:  "L",
-		},
-		{
-			name:         "3.0 nested array property warns at the property",
-			version:      "3.0.3",
-			schemas:      "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n",
-			wantWarnings: []string{"/components/schemas/Holder/properties/tags"},
-		},
-		{
-			name:         "3.0 type array variant warns at the variant",
-			version:      "3.0.3",
-			schemas:      "    T: {type: [array, string]}\n",
-			wantWarnings: []string{"/components/schemas/T/type/0"},
-		},
-		{
-			name:         "3.0 sibling $ref to the bare array warns once",
-			version:      "3.0.3",
-			schemas:      "    Holder:\n      type: object\n      properties:\n        l: {$ref: \"#/components/schemas/L\"}\n    L: {type: array}\n",
-			wantWarnings: []string{"/components/schemas/L"},
-			elemOf:       "L",
-		},
-		{
-			name:    "3.1 bare is legal and silent",
-			version: "3.1.0",
-			schemas: "    L: {type: array}\n",
-			elemOf:  "L",
-		},
-		{
-			name:    "3.2 bare is legal and silent",
-			version: "3.2.0",
-			schemas: "    L: {type: array}\n",
-			elemOf:  "L",
-		},
+		{name: "a bare array", version: "3.0.3",
+			schemas: "    L: {type: array}\n", want: []string{"/components/schemas/L"}},
+		{name: "a nullable array", version: "3.0.3",
+			schemas: "    L: {type: array, nullable: true}\n", want: []string{"/components/schemas/L"}},
+		{name: "a property", version: "3.0.3",
+			schemas: holder + "        tags: {type: array}\n", want: []string{"/components/schemas/Holder/properties/tags"}},
+		{name: "an array as another's items", version: "3.0.3",
+			schemas: "    L: {type: array, items: {type: array}}\n", want: []string{"/components/schemas/L/items"}},
+		{name: "a type list holding array", version: "3.0.3",
+			schemas: "    T: {type: [array, string]}\n", want: []string{"/components/schemas/T"}},
+		{name: "a tuple", version: "3.0.3",
+			schemas: "    L: {type: array, prefixItems: [{type: string}]}\n", want: []string{"/components/schemas/L"}},
+		{name: "an enum of arrays", version: "3.0.3",
+			schemas: "    L: {type: array, enum: [[1, 2], [3]]}\n", want: []string{"/components/schemas/L"}},
+		{name: "an empty enum", version: "3.0.3",
+			schemas: "    L: {type: array, enum: []}\n", want: []string{"/components/schemas/L"}},
+		{name: "a const", version: "3.0.3",
+			schemas: "    L: {type: array, const: [1]}\n", want: []string{"/components/schemas/L"}},
+		{name: "an allOf beside it", version: "3.0.3",
+			schemas: "    L: {type: array, allOf: [{minItems: 1}]}\n", want: []string{"/components/schemas/L"}},
+		{name: "a oneOf beside it", version: "3.0.3",
+			schemas: "    L: {type: array, oneOf: [{maxItems: 1}, {minItems: 3}]}\n", want: []string{"/components/schemas/L"}},
+		{name: "a $ref to it from a sibling", version: "3.0.3",
+			schemas: holder + "        l: {$ref: '#/components/schemas/L'}\n    L: {type: array}\n",
+			want:    []string{"/components/schemas/L"}},
+		{name: "items written empty is silent", version: "3.0.3",
+			schemas: "    L: {type: array, items: {}}\n"},
+		{name: "array keywords without a type are silent", version: "3.0.3",
+			schemas: "    L: {minItems: 1}\n"},
+		{name: "a $ref site's sibling type is silent", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n"},
+		{name: "an array kept verbatim under not is silent", version: "3.0.3",
+			schemas: "    L: {type: integer, not: {type: array}}\n"},
+		{name: "3.1 is silent", version: "3.1.0", schemas: "    L: {type: array}\n"},
+		{name: "3.2 is silent", version: "3.2.0", schemas: "    L: {type: array}\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -456,57 +461,50 @@ func TestLower_ListWithoutItems(t *testing.T) {
 			l, loadDiags := loweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
 			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
 			openapitest.RequireNoErrorDiags(t, append(loadDiags, raw...))
-			var got []string
-			for _, d := range raw {
-				if d.Code != diag.MissingArrayItems {
-					continue
-				}
-				assert.Equal(t, ir.SeverityWarning, d.Severity)
-				got = append(got, string(d.Provenance.Pointer))
-			}
-			assert.Equal(t, tc.wantWarnings, got)
-			if tc.elemOf != "" {
-				list, ok := typeByName(l.out, tc.elemOf).(*ir.List)
-				require.True(t, ok)
-				assert.Equal(t, ir.TypeID("t/prim/any"), list.Elem.Target,
-					"a missing items leaves the element at the top type, unchanged")
-			}
+			assert.Equal(t, tc.want, missingItemsAt(t, raw))
 		})
 	}
 }
 
-// TestLower_ListWithoutItemsRebuiltWarnsOnce pins the path where the guard runs
-// twice: a $ref naming a coordinate inside another declaration (a property
-// here; an `items` or a parameter's schema takes the same path), lowered before
-// that declaration, builds the node, and the declaration builds it again
-// (Types.InternDeclared). The caller still sees one warning, because
-// compile.Diags drops identical diagnostics; both orders are asserted.
-func TestLower_ListWithoutItemsRebuiltWarnsOnce(t *testing.T) {
+// TestLower_MissingArrayItemsLoweredTwiceWarnsOnce pins the path that lowers a
+// declaration twice: a $ref naming a coordinate inside another declaration (a
+// property here; an `items` or a parameter's schema takes the same path),
+// lowered before that declaration, lowers the body, and the declaration lowers
+// it again (Types.InternDeclared). The lowering reports each time, and
+// compile.Diags drops the identical repeat, so the caller sees one warning in
+// both orders.
+func TestLower_MissingArrayItemsLoweredTwiceWarnsOnce(t *testing.T) {
 	t.Parallel()
 	const (
 		ref    = "    A:\n      type: object\n      properties:\n        copy: {$ref: '#/components/schemas/Holder/properties/tags'}\n"
 		holder = "    Holder:\n      type: object\n      properties:\n        tags: {type: array}\n"
+		tags   = "/components/schemas/Holder/properties/tags"
 	)
-	for name, schemas := range map[string]string{"ref first": ref + holder, "declaration first": holder + ref} {
-		t.Run(name, func(t *testing.T) {
+	cases := []struct {
+		name    string
+		schemas string
+		raw     int // reports the lowering returns before compile.Diags
+	}{
+		{name: "ref first", schemas: ref + holder, raw: 2},
+		{name: "declaration first", schemas: holder + ref, raw: 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, diags := lowerSpecOnly(t, openapitest.ComponentSpecVer("3.0.3", schemas))
-			openapitest.RequireNoErrorDiags(t, diags)
-			var got []string
-			for _, d := range diags {
-				if d.Code == diag.MissingArrayItems {
-					got = append(got, string(d.Provenance.Pointer))
-				}
-			}
-			assert.Equal(t, []string{"/components/schemas/Holder/properties/tags"}, got)
+			l, _ := loweredFor(t, openapitest.ComponentSpecVer("3.0.3", tc.schemas))
+			raw := schema.LowerComponentSchemas(t.Context(), l.ctx, l.types, &l.anchors)
+			require.Len(t, missingItemsAt(t, raw), tc.raw, "this order lowers the property that many times")
+
+			l.diags.AppendAll(raw)
+			assert.Equal(t, []string{tags}, missingItemsAt(t, l.diags.List()))
 		})
 	}
 }
 
 // TestCompile_MissingArrayItemsReachesTheDiagnostics drives the issue's exact
-// document (GitHub #650) through the public compiler: the guard's warning is
-// raised by the schema lowering, and a caller only sees it if it survives the
-// walk up to Compile's own diagnostics.
+// document (GitHub #650) through the public compiler: the warning is raised by
+// the schema lowering, and a caller only sees it if it survives the walk up to
+// Compile's own diagnostics.
 func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpecVer("3.0.3", "    NoItems: {type: array}\n")
@@ -526,6 +524,21 @@ func TestCompile_MissingArrayItemsReachesTheDiagnostics(t *testing.T) {
 	l, ok := doc.Types[componentID("NoItems")].(*ir.List)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+}
+
+// missingItemsAt returns the pointer of each missing-array-items report in
+// diags, in order, holding each to the warning severity the code carries.
+func missingItemsAt(t *testing.T, diags []ir.Diagnostic) []string {
+	t.Helper()
+	var at []string
+	for _, d := range diags {
+		if d.Code != diag.MissingArrayItems {
+			continue
+		}
+		assert.Equal(t, ir.SeverityWarning, d.Severity, "at %s", d.Provenance.Pointer)
+		at = append(at, string(d.Provenance.Pointer))
+	}
+	return at
 }
 
 func TestLower_ValidationOnlyKeywords(t *testing.T) {

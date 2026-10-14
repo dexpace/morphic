@@ -351,12 +351,13 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
-	// MissingArrayItems reports an OpenAPI 3.0 array schema that writes no
-	// `items`, so declares an array without saying what its elements are. It
-	// still lowers, as a List over the top type. A warning rather than an
-	// error: nothing the document declared is dropped, and harness.Check stops
-	// at the first error diagnostic. A code of its own rather than
-	// DegradedConstruct, because nothing is kept in a weaker shape.
+	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
+	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
+	// lowers as it would in 3.1, where `items` is optional: a List's element is
+	// the top type. A warning rather than an error: nothing the document
+	// declared is dropped, and harness.Check stops at the first error
+	// diagnostic. A code of its own rather than DegradedConstruct, because
+	// nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
 )
 

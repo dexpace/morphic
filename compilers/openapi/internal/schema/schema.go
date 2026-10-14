@@ -197,9 +197,12 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 // records the schema's own annotations on whatever node the lowering hoisted at
 // pointer. It is shared by Ref and by sub-schema hoisting
 // (resolveSchemaRef), which both reach a body only after peeling off any
-// leading $ref.
+// leading $ref. A rule about the declaration itself is checked here, above the
+// dispatch that picks what it lowers to (missingArrayItems).
 func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, schema *oas3.Schema, pointer jsontext.Pointer, hint string, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	target, diags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
+	diags := missingArrayItems(c, schema, pointer)
+	target, bodyDiags := lowerSchemaBody(c, ts, anchors, depth, schema, pointer, hint)
+	diags = append(diags, bodyDiags...)
 	// A body's census ran inside lower(), against the node the walk actually
 	// built, which is the only thing that can answer it. A collapsed union built
 	// none, so it takes a $ref site's census, and its verdict homes an alias.
@@ -210,6 +213,24 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
 	}
 	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, schema, unhomed, collapsedShape, pointer)...)
+}
+
+// missingArrayItems reports a 3.0 schema that writes type array and no items,
+// which 3.0 requires and 2020-12 leaves optional (GitHub #650). The lowering
+// is the same in every dialect, so this is the only place the document is told.
+//
+// It reads the declaration, never what it lowered to, so an array that lowers
+// to a tuple, an enum or an allOf is held to the rule as a List is; that a 3.0
+// prefixItems lowers at all is GitHub #820. `items: {}` is silent. Neither a
+// $ref site, whose siblings 3.0 ignores, nor a subschema kept verbatim, such as
+// one under `not`, reaches it.
+func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if s.GetItems() != nil || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) || !c.Is30() {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
+		"OpenAPI 3.0 requires items when type is array, and this schema writes none, "+
+			"so only its other keywords constrain its elements")}
 }
 
 // hoistDeclarationHome gives a declaration a node of its own when its lowering
