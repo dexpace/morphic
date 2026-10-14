@@ -140,7 +140,7 @@ func TestLoad_TakesAHopThatFindsTheFieldWrittenThere(t *testing.T) {
 	assert.False(t, got.Siblings.Writes(body, far), "not the one the $ref names")
 	assert.False(t, got.Siblings.Writes("/paths/~1b/get/requestBody", far), "nor one at a position no model holds")
 	assert.False(t, got.Siblings.Writes(body+"/content/application~1json/schema", media.GetSchema()), "nor a schema")
-	assert.NotContains(t, got.Siblings.written, jsontext.Pointer("/paths/~1c/post/requestBody"),
+	assert.NotContains(t, got.Siblings.writtenAs, jsontext.Pointer("/paths/~1c/post/requestBody"),
 		"the document's own objects are never asked about, so they are not recorded")
 }
 

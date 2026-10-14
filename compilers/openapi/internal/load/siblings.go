@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"iter"
-	"slices"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
@@ -39,10 +38,10 @@ type Siblings struct {
 	// at holds every position the walk met a modelled use site at, an alias's
 	// included, with that use site's model.
 	at *sites
-	// written holds the mapping each reference object a model's walk met is
+	// writtenAs holds the mapping each reference object a model's walk met is
 	// written as, by its position there: every one but a schema, whose $ref is
 	// refused by pointer alone.
-	written map[jsontext.Pointer]*yaml.Node
+	writtenAs map[jsontext.Pointer]*yaml.Node
 }
 
 // sites is a trie of positions by token, so Beside reads a pointer in one pass
@@ -78,9 +77,9 @@ func (n *sites) insert(site jsontext.Pointer, model int) {
 type Sibling struct {
 	Item    *soa.PathItem
 	Pointer jsontext.Pointer
-	// written holds the keys the fields are written under, as the parser reads
-	// the mapping, `<<` merge keys expanded.
-	written map[string]bool
+	// keys holds the keys the fields are written under, as the parser reads the
+	// mapping, `<<` merge keys expanded.
+	keys map[string]bool
 }
 
 // Of returns the fields written beside rp's $ref, and false when rp is no
@@ -137,7 +136,7 @@ func (s Siblings) useOf(pointer jsontext.Pointer) (*sites, string, bool) {
 		if n == nil {
 			break
 		}
-		if n.ends && s.list[n.model].written[token] {
+		if n.ends && s.list[n.model].keys[token] {
 			return n, token, true
 		}
 		n = n.next[token]
@@ -156,7 +155,7 @@ func (s Siblings) Writes(pointer jsontext.Pointer, obj any) bool {
 	if !beside {
 		return false
 	}
-	node, ok := s.written[s.list[n.model].Pointer+pointer[len(n.use):]]
+	node, ok := s.writtenAs[s.list[n.model].Pointer+pointer[len(n.use):]]
 	return ok && nodeview.Deref(ownRoot(obj)) == node
 }
 
@@ -241,10 +240,10 @@ func unreported(errs, valErrs []error) []error {
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
 ) (Siblings, []error, []ir.Diagnostic) {
 	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{},
-		written: map[jsontext.Pointer]*yaml.Node{}}
+		writtenAs: map[jsontext.Pointer]*yaml.Node{}}
 	var errs []error
 	var faults []ir.Diagnostic
-	add := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
+	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
 		built, fault := s.add(ctx, site, rp, build, locate)
 		errs = append(errs, built...)
 		faults = append(faults, fault...)
@@ -256,12 +255,12 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 			s.write(site, w)
 		}
 		if rp, isItem := w.(*soa.ReferencedPathItem); isItem {
-			add(site, rp)
+			met(site, rp)
 		}
 		return nil
 	}
 	_, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-		add(site, rp)
+		met(site, rp)
 		return nil
 	})
 	// The document's walk, then each model's in turn, until one panics.
@@ -275,7 +274,7 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 // One with none is not recorded, so no answer without one is taken for it.
 func (s *Siblings) write(site jsontext.Pointer, w referenceWrapper) {
 	if node := nodeview.Deref(ownRoot(w)); node != nil {
-		s.written[site] = node
+		s.writtenAs[site] = node
 	}
 }
 
@@ -310,7 +309,7 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 	}
 	s.byNode[node] = len(s.list)
 	s.at.insert(site, len(s.list))
-	s.list = append(s.list, Sibling{Item: item, Pointer: site, written: writtenKeys(fields)})
+	s.list = append(s.list, Sibling{Item: item, Pointer: site, keys: writtenKeys(fields)})
 	return errs, nil
 }
 
@@ -385,101 +384,4 @@ func siblingModel(doc *soa.OpenAPI) siblingBuild {
 		errs, err = marshaller.UnmarshalNode(ctx, "", node, item)
 		return item, append(errs, item.Validate(ctx, opts...)...), err
 	}
-}
-
-// modelWalk returns the walk of the i-th model, located where its use site
-// writes it, less the wrapper the walk starts from, which the source does not
-// write. A model found inside it is not entered: siblingsFrom queues each in
-// turn.
-func (s Siblings) modelWalk(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
-	prefix := locationOf(s.list[i].Pointer)
-	start := &soa.ReferencedPathItem{Object: s.list[i].Item}
-	return func(yield func(soa.WalkItem) bool) {
-		for item := range soa.Walk(ctx, start) {
-			if len(item.Location) == 0 {
-				continue
-			}
-			item.Location = append(slices.Clip(prefix), item.Location...)
-			if !yield(item) {
-				return
-			}
-		}
-	}
-}
-
-// walkSource returns the walk of doc with the fields beside each path item $ref
-// walked right after the $ref, so every pass meets them in the order the source
-// writes them, as it meets an inline item's: which members of a failing chain
-// are reported follows that order (GitHub #767). A document with none, which is
-// nearly every one, is walked as the library walks it.
-func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.WalkItem] {
-	if len(s.list) == 0 {
-		return soa.Walk(ctx, doc)
-	}
-	return s.interleaved(ctx, soa.Walk(ctx, doc))
-}
-
-// interleaved yields items and, after each $ref whose fields were modelled where
-// the walk meets it, that model's walk, interleaved alike. The open walks are a
-// stack rather than a recursion, and each model is entered once, at the one
-// position it was found at, so the stack holds at most one walk per model
-// beyond the walk of items itself.
-func (s Siblings) interleaved(ctx context.Context, items iter.Seq[soa.WalkItem]) iter.Seq[soa.WalkItem] {
-	return func(yield func(soa.WalkItem) bool) {
-		var open []func() (soa.WalkItem, bool)
-		var stops []func()
-		defer func() {
-			for _, stop := range stops {
-				stop()
-			}
-		}()
-		push := func(seq iter.Seq[soa.WalkItem]) {
-			next, stop := iter.Pull(seq)
-			open, stops = append(open, next), append(stops, stop)
-		}
-		push(items)
-		for len(open) > 0 {
-			item, ok := open[len(open)-1]()
-			if !ok {
-				open = open[:len(open)-1]
-				continue
-			}
-			if !yield(item) {
-				return
-			}
-			if i, entered := s.entry(item); entered {
-				push(s.modelWalk(ctx, i))
-			}
-		}
-	}
-}
-
-// entry returns the model of the fields beside the $ref item is, when item is
-// met at the position that model was found at.
-func (s Siblings) entry(item soa.WalkItem) (int, bool) {
-	at, entered := 0, false
-	// Match returns only what its matcher does, and this one never fails.
-	_ = item.Match(soa.Matcher{ReferencedPathItem: func(rp *soa.ReferencedPathItem) error {
-		i, ok := s.byNode[useSite(rp)]
-		entered = ok && s.list[i].Pointer == jsontext.Pointer(item.Location.ToJSONPointer())
-		at = i
-		return nil
-	}})
-	return at, entered
-}
-
-// locationOf returns the walk location that renders as pointer. The first token
-// is a field and each later one a key, because a location renders its first
-// field without a separator and every key with one; a use site's first token
-// is never empty, since it names a field of the OpenAPI Object.
-func locationOf(pointer jsontext.Pointer) soa.Locations {
-	var loc soa.Locations
-	for token := range pointer.Tokens() {
-		if len(loc) == 0 {
-			loc = append(loc, soa.LocationContext{ParentField: token})
-			continue
-		}
-		loc = append(loc, soa.LocationContext{ParentKey: &token})
-	}
-	return loc
 }
