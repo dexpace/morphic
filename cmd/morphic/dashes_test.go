@@ -82,6 +82,8 @@ func TestRun_SingleDashArgumentsThatAreNotFlags(t *testing.T) {
 			`invalid --fail-on "-pretty"`},
 		{"an operand after --", []string{"compile", "--", "-opt"}, `read spec "-opt"`},
 		{"an argument of an unknown command", []string{"bogus", "-opt"}, `unknown command "bogus"`},
+		{"a root flag's one-dash spelling after an unknown command", []string{"bogus", "-version"},
+			`unknown command "bogus"`},
 		{"an argument after one pflag refuses", []string{"compile", spec, "--bogus", "-opt=a=1"},
 			"unknown flag: --bogus"},
 	}
@@ -110,4 +112,23 @@ func TestRun_AJoinedValueIsReadOnce(t *testing.T) {
 	require.Equal(t, 0, run([]string{"compile", spec, "--opt=grouping=path-prefix"}, &stdout, &stderr),
 		"stderr: %s", stderr.String())
 	assert.NotEmpty(t, stdout.String())
+}
+
+// TestFindCommand_ReturnsNothingWhenCobraFindsNone pins findCommand's comma-ok
+// form: a command found comes with the arguments left for it, and one not found
+// with neither, where cobra itself hands back the root and everything it was
+// given.
+func TestFindCommand_ReturnsNothingWhenCobraFindsNone(t *testing.T) {
+	t.Parallel()
+	root := newRootCmd()
+
+	target, rest, found := findCommand(root, []string{"compile", "spec.yaml", "--output=ir.json"})
+	require.True(t, found)
+	assert.Equal(t, "compile", target.Name())
+	assert.Equal(t, []string{"spec.yaml", "--output=ir.json"}, rest)
+
+	target, rest, found = findCommand(root, []string{"bogus", "-version"})
+	assert.False(t, found)
+	assert.Nil(t, target)
+	assert.Nil(t, rest)
 }

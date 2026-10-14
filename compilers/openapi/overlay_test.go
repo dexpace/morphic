@@ -245,6 +245,37 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "the second source entry keeps the document valid")
 }
 
+// TestCompile_OverlaySetsTheSpecsSelfURI pins where a `$self` an overlay writes
+// is recorded: on the spec's entry, replacing the one the spec declared. An
+// overlay is not an OpenAPI document and declares no `$self` of its own, so its
+// entry records none.
+func TestCompile_OverlaySetsTheSpecsSelfURI(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+$self: https://example.com/declared.yaml
+info: {title: Pets, version: "1"}
+paths: {}
+`
+	const patch = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $
+    update:
+      $self: https://example.com/patched.yaml
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	require.Len(t, doc.Sources, 2, "the spec and the overlay applied to it")
+	assert.Equal(t, "https://example.com/patched.yaml", doc.Sources[0].SelfURI)
+	assert.Empty(t, doc.Sources[1].SelfURI)
+}
+
 // TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic runs the two
 // document-level oracles over a patched compile.
 //
@@ -745,11 +776,13 @@ actions:
 // what keeps the table below honest about which map an entry actually landed
 // on instead of merely one it could have.
 func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
-	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
 	out := map[string]ir.UnmodeledEntry{}
 	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() == entryType && v.CanInterface() {
-			out[path] = v.Interface().(ir.UnmodeledEntry)
+		if !v.CanInterface() {
+			return true
+		}
+		if entry, ok := reflect.TypeAssert[ir.UnmodeledEntry](v); ok {
+			out[path] = entry
 		}
 		return true
 	})
@@ -958,10 +991,10 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 // call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
 // exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
 // which only a 3.0 document reads as a modifier: for a component schema
-// (schema.go schemaConstraints) and for a parameter's schema (params.go
-// fillParamSchema). And a oneOf that will not render is reported rather than
-// kept (schema.go preserveBranchSets), which is an error a clean fixture cannot
-// carry.
+// (schema.go hoistDeclarationHome) and for a parameter's schema (params.go
+// fillParamSchema), each through schema.ConstraintsOf. And a oneOf that will
+// not render is reported rather than kept (schema.go preserveBranchSets), which
+// is an error a clean fixture cannot carry.
 func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.0.3
@@ -1008,7 +1041,7 @@ actions:
 	entries := unmodeledEntriesByPath(doc)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
-		"a component schema's kept modifier (schema.go schemaConstraints)")
+		"a component schema's kept modifier (schema.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")

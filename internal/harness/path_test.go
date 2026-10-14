@@ -64,8 +64,8 @@ func TestCheckPath_MissingPathIsError(t *testing.T) {
 
 func TestCheckPath_NilContextIsError(t *testing.T) {
 	t.Parallel()
-	//nolint:staticcheck // deliberately passing a nil ctx to exercise the boundary guard.
-	_, err := harness.CheckPath(nil, t.TempDir())
+	var noContext context.Context // deliberately nil, to exercise the boundary guard
+	_, err := harness.CheckPath(noContext, t.TempDir())
 	require.Error(t, err)
 }
 

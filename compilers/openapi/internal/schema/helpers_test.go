@@ -73,7 +73,7 @@ func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
 	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
 		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{}).
-		WithMappingTargets(loadedDoc.Targets)), diags
+		WithLoaded(loadedDoc)), diags
 }
 
 // lowerSpec loads src and lowers its component schemas, returning the document

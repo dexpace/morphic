@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -112,12 +111,14 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 			"back to LF, or mark a file that needs them `-text` in .gitattributes")
 }
 
-// repoRoot walks up from this file to the directory holding go.mod.
+// repoRoot walks up from the working directory, which go test sets to this
+// package's own, to the directory holding go.mod. It does not start from this
+// file's path: under -trimpath, runtime.Caller reports the file under its
+// import path, not on disk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed")
-	dir := filepath.Dir(file)
+	dir, err := os.Getwd()
+	require.NoError(t, err)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir

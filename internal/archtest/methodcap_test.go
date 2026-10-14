@@ -6,9 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ func TestMethodsPerType_StayUnderTheCap(t *testing.T) {
 	require.NotEmpty(t, counts, "the sweep found no methods at all, so an empty result proves nothing")
 
 	var over []string
-	for _, name := range sortedKeys(counts) {
+	for _, name := range slices.Sorted(maps.Keys(counts)) {
 		if counts[name] > maxMethodsPerType {
 			over = append(over, fmt.Sprintf("%s has %d methods", name, counts[name]))
 		}
@@ -141,17 +142,6 @@ func receiverType(decl ast.Decl) (string, bool) {
 		return "", false
 	}
 	return id.Name, true
-}
-
-// sortedKeys returns m's keys in order, so a failure reads the same on every
-// run.
-func sortedKeys(m map[string]int) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // writeMethods plants a package declaring typ with n methods on it.

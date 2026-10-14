@@ -2,6 +2,7 @@ package defs
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -304,7 +305,8 @@ func TestMappingTarget_GuardClauses(t *testing.T) {
 // TestLocalDef drives tryResolveLocalDefs' own branches directly: a schema
 // that is not a resource at all, a resource whose pointer carries a rest path
 // (never handled locally, whatever the schema is), a resource with no $defs of
-// its own, and a resource whose $defs does not carry the requested key.
+// its own, a resource whose $defs does not carry the requested key, how the key
+// is decoded, and a trailing slash.
 func TestLocalDef(t *testing.T) {
 	t.Parallel()
 
@@ -335,6 +337,27 @@ func TestLocalDef(t *testing.T) {
 		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  n: {type: string}\n")
 		_, ok := localDef(owner, "/$defs/missing")
 		assert.False(t, ok)
+	})
+
+	t.Run("the key is decoded as the library decodes it", func(t *testing.T) {
+		t.Parallel()
+		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  a/b: {type: string}\n  \"~1\": {type: string}\n  \"a~2\": {type: string}\n")
+		defs := owner.GetSchema().GetDefs()
+		for pointer, key := range map[jsontext.Pointer]string{"/$defs/a~1b": "a/b", "/$defs/~01": "~1", "/$defs/a~2": "a~2"} {
+			got, ok := localDef(owner, pointer)
+			want, _ := defs.Get(key)
+			assert.True(t, ok, "%q", pointer)
+			assert.Same(t, want, got, "%q reads %q", pointer, key)
+		}
+	})
+
+	t.Run("a trailing slash reads as the key alone", func(t *testing.T) {
+		t.Parallel()
+		owner := schemaFromYAML(t, "$id: \"https://x.test/a\"\n$defs:\n  n: {type: string}\n")
+		_, ok := localDef(owner, "/$defs/n/")
+		assert.True(t, ok, "tryResolveLocalDefs declines it; GitHub #843 makes this read as it does")
+		_, ok = localDef(owner, "/$defs/n//")
+		assert.False(t, ok, "past one trailing slash, a path")
 	})
 }
 
@@ -397,8 +420,8 @@ func TestReader_AnswersDoNotDependOnWhatItReadBefore(t *testing.T) {
 		assert.Equal(t, fresh[i], ask(shared, q), "forward: %v", q)
 	}
 	reversed := NewReader(root)
-	for i := len(queries) - 1; i >= 0; i-- {
-		assert.Equal(t, fresh[i], ask(reversed, queries[i]), "reversed: %v", queries[i])
+	for i, q := range slices.Backward(queries) {
+		assert.Equal(t, fresh[i], ask(reversed, q), "reversed: %v", q)
 	}
 	var found int
 	for _, r := range fresh {
@@ -578,10 +601,10 @@ func TestOwnResource(t *testing.T) {
 	assert.False(t, ownResource(plain), "no $id and no registered base on a freshly parsed schema")
 }
 
-// TestParentPointer pins getParentJSONPointer's own bound: everything before
-// the last '/', and "" once there is no '/' left to strip — the root itself is
-// never an answer.
-func TestParentPointer(t *testing.T) {
+// TestPointerParent_MatchesTheResolversBound pins that Pointer.Parent has
+// getParentJSONPointer's bound, on which the $defs walk relies: everything before
+// the last '/', and "" once none is left, so the root is never an answer.
+func TestPointerParent_MatchesTheResolversBound(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -597,7 +620,7 @@ func TestParentPointer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, parentPointer(tc.in))
+			assert.Equal(t, tc.want, tc.in.Parent())
 		})
 	}
 }

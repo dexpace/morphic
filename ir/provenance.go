@@ -2,6 +2,7 @@ package ir
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 )
 
@@ -35,8 +36,9 @@ type Provenance struct {
 	// shared primitive, is on NoSource rather than at the root of one.
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
 	// Position is where the construct starts inside Source, for a finding made
-	// before the construct has a pointer — on a raw node, or in a part of the
-	// source no pointer reaches.
+	// on a raw node: beside the node's Pointer when the tree holds it, alone for
+	// a part of the source no pointer reaches and for the document's top-level
+	// mapping, whose pointer is the empty one.
 	Position Position `json:"position,omitzero"`
 	// Node locates a finding in the IR rather than in a source: a stable ID, or a
 	// path through the document's own fields, for what an IR pass reports about
@@ -99,12 +101,11 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 // from advisory warnings that must be carried forward, and to report the
 // offending diagnostic once a refusal is confirmed.
 func FirstError(diags []Diagnostic) (Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Severity == SeverityError {
-			return d, true
-		}
+	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return d.Severity == SeverityError })
+	if i < 0 {
+		return Diagnostic{}, false
 	}
-	return Diagnostic{}, false
+	return diags[i], true
 }
 
 // HasError reports whether diags contains at least one error-severity
@@ -116,9 +117,23 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
-// SourceInfo describes one input file of a Document.
+// SourceInfo describes one input file of a Document. The table a refused
+// compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
+	// Format names the format and version the file was read as, such as
+	// "openapi@3.2" or "overlay@1.0.0".
 	Format string `json:"format"`
-	Path   string `json:"path"`
-	Hash   string `json:"hash"`
+	// Path is the path the file was handed to the compiler under.
+	Path string `json:"path"`
+	// Hash is the hex SHA-256 of the file's bytes.
+	Hash string `json:"hash"`
+	// SelfURI is the URI the document declared for itself, OpenAPI's `$self`,
+	// as written: a relative reference is not resolved against Path. It is
+	// empty when the document declared none, and for an empty `$self`, which
+	// says the same: an empty reference resolves to the location it was read
+	// from (RFC 3986 §5.2.2), the location a document declaring none is known by.
+	//
+	// It is the value the compiler lowered, so a `$self` an overlay writes is
+	// recorded here, on the patched document's entry, not on the overlay's.
+	SelfURI string `json:"selfURI,omitempty"`
 }

@@ -1,0 +1,43 @@
+openapi: 3.1.0
+info: {title: ReachedOutsideModel, version: "1.0.0"}
+security:
+  - key: []
+paths:
+  /pets: {$ref: '#/x-paths/Pets'}
+components:
+  schemas:
+    # A $ref into an extension's value: the object is validated and held to
+    # the later-version table as if the model declared it, at its own pointers.
+    Pet: {$ref: '#/x-lib/Pet'}
+    # A discriminator's mapping is the only route to x-lib/Cat.
+    Kennel:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {cat: '#/x-lib/Cat'}}
+  responses:
+    Listed: {$ref: '#/x-responses/Listed'}
+  securitySchemes:
+    key: {$ref: '#/x-schemes/key'}
+x-lib:
+  Pet:
+    type: object
+    properties:
+      name: {type: string}
+      # Reached only by this $ref, nested inside an object under x-lib.
+      owner: {$ref: '#/x-lib/Owner'}
+    xml: {nodeType: element}
+  Owner: {type: object, properties: {name: {type: string}}, xml: {nodeType: element}}
+  Cat:
+    allOf: [{$ref: '#/components/schemas/Kennel'}]
+    xml: {nodeType: element}
+x-responses:
+  Listed: {description: The pets, summary: Pets}
+x-schemes:
+  # bearerFormat is for http schemes: the parser's warning, and the field
+  # kept under Unmodeled where it is written.
+  key: {type: apiKey, in: header, name: X-Key, bearerFormat: JWT}
+x-paths:
+  Pets:
+    get:
+      operationId: listPets
+      responses: {"200": {$ref: '#/components/responses/Listed'}}

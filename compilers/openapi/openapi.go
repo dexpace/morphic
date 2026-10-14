@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
@@ -80,8 +81,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → meta; assembles Document
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
-	//nolint:gocritic // deliberate concat: load diagnostics precede lowering diagnostics
-	all := append(diags, withoutRereported(lowerDiags, diags)...)
+	// Load diagnostics precede lowering diagnostics.
+	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
 		return nil, all, err
 	}
@@ -137,14 +138,14 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then document
-// metadata.
+// requirements reference registered IDs; then the service walk; then the
+// deferred settlements; then document metadata.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. The document is dropped with it,
-// since the two walks that honour ctx stop mid-registry and what is left
-// references types never interned, but the diagnostics gathered before the stop
-// are returned.
+// since the phases that honour ctx stop mid-registry and what is left
+// references types never interned or settled, but the diagnostics gathered
+// before the stop are returned.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out and the anchor memo are this function's, not a struct's: a document
 	// being built and a memo (micro-compiler-design §4.1). Nothing below
@@ -158,11 +159,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// whole stream to do it.
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts, &anchors))
-	// The two checks in this function sit after the two phases that honour ctx.
-	// Each stops between items and returns what it had, so a non-nil ctx.Err()
-	// here is the only way to tell a phase that finished from one that was cut
-	// short — and the cut-short one leaves a registry nothing may be assembled
-	// from.
+	// The checks in this function sit after the phases that honour ctx. Each
+	// stops between items and returns what it had, so a non-nil ctx.Err() here
+	// is the only way to tell a phase that finished from one that was cut short —
+	// and the cut-short one leaves a registry nothing may be assembled from.
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
@@ -178,6 +178,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{svc}
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
+	// Every lowering has returned, so what was deferred until the registry is
+	// whole is decided now (compile.Settlement), before the check that refuses
+	// a registry either phase left cut short.
+	acc.AppendAll(ts.Settle(ctx))
 	if err := ctx.Err(); err != nil {
 		return nil, acc.List(), err
 	}
@@ -246,7 +250,7 @@ func loadOptions(o Options) load.Options {
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{MaxEnumMembers: bounded(o.Limits.MaxEnumMembers)}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.Promotions, doc.Overlay).WithMappingTargets(doc.Targets)
+		o.StreamingMedia, o.Promotions, doc.Overlay).WithLoaded(doc)
 }
 
 // undecodable reports a source this compiler recognized and could not read.

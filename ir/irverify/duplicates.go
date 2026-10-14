@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -58,7 +59,7 @@ func checkDuplicateIDs(doc *ir.Document, decls declarations) ([]Violation, bool)
 		}
 		vs = append(vs, Violation{
 			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + d.ID + " is declared here and at " + at.path,
+			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(at.path),
 			Path:    d.Path,
 		})
 	}

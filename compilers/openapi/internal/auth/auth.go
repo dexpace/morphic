@@ -10,7 +10,6 @@ package auth
 
 import (
 	"encoding/json/jsontext"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -59,6 +58,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		if !ok {
 			continue
 		}
+		// A summary or description beside a $ref of the entry's chain documents
+		// this entry rather than the scheme it names (GitHub #610).
+		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](rs, scheme.Docs)
 		out[ids.Auth(name)] = scheme
 	}
 	if len(out) == 0 {
@@ -116,7 +118,11 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	if !named {
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	diags = preserveUnreadFields(c, &scheme, ss, decl)
+	if tokenless(scheme) && !flowsMissing(ss) {
+		// Reported rather than refused; see oauthNoFlowDiag.
+		diags = append(diags, oauthNoFlowDiag(c, decl))
+	}
+	diags = append(diags, preserveUnreadFields(c, &scheme, ss, decl)...)
 	diags = append(diags, applySchemeAnnotations(c, &scheme, ss, decl)...)
 	// Distinct from preserveUnreadFields above it: that keeps the fields OpenAPI
 	// defines for a securityScheme which this entry's own mechanism gives no
@@ -152,11 +158,11 @@ func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Secur
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
-// applyFlowAnnotations writes each declared flow's own x-* and undeclared keys
-// onto the ir.OAuthFlow it lowered to. Both lists are one ordered reading of the
-// same object — scheme.Flows came from oauthFlows, which walks presentFlows — so
-// the i-th lowered flow is the i-th declared one and the two cannot differ in
-// length.
+// applyFlowAnnotations writes each declared flow's own x-*, undeclared keys and
+// the fields its kind does not define onto the ir.OAuthFlow it lowered to. Both
+// lists are one ordered reading of the same object — scheme.Flows came from
+// oauthFlows, which walks presentFlows — so the i-th lowered flow is the i-th
+// declared one and the two cannot differ in length.
 func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
@@ -164,7 +170,36 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.ProvenanceAt, fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
+		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
 		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.ProvenanceAt, fptr)...)
+	}
+	return diags
+}
+
+// preserveUndefinedFlowFields keeps each field of flowFields the flow wrote but
+// its kind does not define verbatim under the flow's Unmodeled (GitHub #865),
+// as preserveUnreadFields does for a scheme. oauthFlow lowered none of them, so
+// without this they would be lost: the parser models every field on every flow,
+// and the unknown-key census never sees one.
+//
+// It reads the flow's own mapping, as every preservation site does, so a field
+// merged in through a `<<` key is not kept (GitHub #384).
+func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
+	defined := flowFieldsDefinedBy(f.keyword)
+	var diags []ir.Diagnostic
+	for _, field := range flowFields() {
+		if slices.Contains(defined, field.name) {
+			continue
+		}
+		at := fptr + ids.Ptr(field.name)
+		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
+			annotation.RawChildNode(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"oauth flow %s does not define %s; kept verbatim under Unmodeled", f.keyword, field.name))
 	}
 	return diags
 }
@@ -187,6 +222,38 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
+}
+
+// tokenless reports whether scheme is an oauth2 scheme that states no way to
+// obtain a token: it lowered no flow, and names no metadata URL to discover its
+// authorization server from (RFC 8414).
+func tokenless(scheme ir.AuthScheme) bool {
+	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
+}
+
+// flowsMissing reports whether ss fails the parser library's REQUIRED-field
+// rule for flows, restating the library's own condition over the fields it
+// reads: absent, not an object, or holding a flow that does not decode, which
+// leaves the object not Present. The loader reports each scheme that fails the
+// rule wherever it is written, one a $ref reaches under an x-* key included
+// (GitHub #872), so the lowering stands aside. A library release that moves
+// the rule reddens TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce.
+func flowsMissing(ss *soa.SecurityScheme) bool {
+	return !ss.GetCore().Flows.Present || ss.GetFlows() == nil
+}
+
+// oauthNoFlowDiag reports a flows object declaring no flow; the design record
+// is on diag.OAuth2NoFlow.
+//
+// decl places it, not entry: a flowless declaration is a fact about the text at
+// decl, and a $ref entry holds no flows either way. The message names no entry,
+// so the copies every alias of one declaration draws dedup to one report. A
+// declaration in another document has no pointer here, so each entry naming it
+// carries its own copy, as every finding placed at decl does (GitHub #874).
+func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
+		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
+			"so it states no way to obtain a token")
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
@@ -354,48 +421,86 @@ func presentFlows(flows *soa.OAuthFlows) []sourceFlow {
 }
 
 // oauthFlows lowers each present OAuth2 flow in a fixed, deterministic order.
-// The device flow's deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL
-// (ir-design §9).
 func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
-	var out []ir.OAuthFlow
-	for _, f := range presentFlows(flows) {
-		if f.kind == "device" {
-			out = append(out, deviceFlow(f.src))
-			continue
-		}
-		out = append(out, oauthFlow(f.kind, f.src))
+	present := presentFlows(flows)
+	if len(present) == 0 {
+		return nil
+	}
+	out := make([]ir.OAuthFlow, 0, len(present))
+	for _, f := range present {
+		out = append(out, oauthFlow(f))
 	}
 	return out
 }
 
-// oauthFlow lowers one OAuth2 flow of the given kind.
-func oauthFlow(kind string, f *soa.OAuthFlow) ir.OAuthFlow {
-	return ir.OAuthFlow{
-		Kind:             kind,
-		AuthorizationURL: f.GetAuthorizationURL(),
-		TokenURL:         f.GetTokenURL(),
-		RefreshURL:       f.GetRefreshURL(),
-		Scopes:           scopeMap(f),
+// oauthFlow lowers one OAuth2 flow, reading only the fields of flowFields its
+// kind defines; preserveUndefinedFlowFields keeps the rest. The device flow's
+// deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL (ir-design §9).
+func oauthFlow(f sourceFlow) ir.OAuthFlow {
+	fl := ir.OAuthFlow{
+		Kind:       f.kind,
+		RefreshURL: f.src.GetRefreshURL(),
+		Scopes:     scopes(f.src),
 	}
-}
-
-// deviceFlow lowers the RFC 8628 device flow, carrying its
-// deviceAuthorizationUrl on AuthorizationURL.
-func deviceFlow(f *soa.OAuthFlow) ir.OAuthFlow {
-	fl := oauthFlow("device", f)
-	if u := f.GetDeviceAuthorizationURL(); u != "" {
-		fl.AuthorizationURL = u
+	for _, field := range flowFields() {
+		if slices.Contains(flowFieldsDefinedBy(f.keyword), field.name) {
+			*field.slot(&fl) = field.read(f.src)
+		}
 	}
 	return fl
 }
 
-// scopeMap lowers a flow's scope map, or nil when it declares none.
-func scopeMap(f *soa.OAuthFlow) map[string]string {
-	scopes := f.GetScopes()
-	if scopes == nil || scopes.Len() == 0 {
+// flowField is one field of the OAuth Flow Object that only some flows define:
+// its name, how the model reads it, and the field of ir.OAuthFlow it lowers to
+// where it is defined.
+type flowField struct {
+	name string
+	read func(*soa.OAuthFlow) string
+	slot func(*ir.OAuthFlow) *string
+}
+
+// flowFields returns the OAuth Flow Object fields only some flows define,
+// sorted by name. refreshUrl and scopes are absent because every flow defines
+// them; TestFlowFields_AccountForEverySourceField holds the split to the source
+// model.
+func flowFields() []flowField {
+	authorization := func(fl *ir.OAuthFlow) *string { return &fl.AuthorizationURL }
+	return []flowField{
+		{name: "authorizationUrl", read: (*soa.OAuthFlow).GetAuthorizationURL, slot: authorization},
+		{name: "deviceAuthorizationUrl", read: (*soa.OAuthFlow).GetDeviceAuthorizationURL, slot: authorization},
+		{name: "tokenUrl", read: (*soa.OAuthFlow).GetTokenURL, slot: func(fl *ir.OAuthFlow) *string { return &fl.TokenURL }},
+	}
+}
+
+// flowFieldsDefinedBy returns the fields of flowFields that OpenAPI gives the
+// flow written under keyword a meaning for (3.2.0 §4.8.30; 3.0 and 3.1 alike,
+// without the device flow): the authorization endpoint for the flows that
+// redirect a user agent, the token endpoint for every flow that requests a
+// token from one, and the device authorization endpoint for the device flow.
+func flowFieldsDefinedBy(keyword string) []string {
+	switch keyword {
+	case "implicit":
+		return []string{"authorizationUrl"}
+	case "authorizationCode":
+		return []string{"authorizationUrl", "tokenUrl"}
+	case "deviceAuthorization":
+		return []string{"deviceAuthorizationUrl", "tokenUrl"}
+	default: // password, clientCredentials
+		return []string{"tokenUrl"}
+	}
+}
+
+// scopes lowers a flow's scopes in the order the document writes them, or nil
+// when it declares none.
+func scopes(f *soa.OAuthFlow) []ir.OAuthScope {
+	declared := f.GetScopes()
+	if declared == nil || declared.Len() == 0 {
 		return nil
 	}
-	out := maps.Collect(scopes.All())
+	out := make([]ir.OAuthScope, 0, declared.Len())
+	for name, description := range declared.All() {
+		out = append(out, ir.OAuthScope{Name: name, Description: description})
+	}
 	return out
 }
 

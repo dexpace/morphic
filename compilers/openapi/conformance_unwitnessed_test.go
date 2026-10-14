@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -160,9 +159,9 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 			markWitnessed(t, out, v.Index(i), depth+1)
 		}
 	case reflect.Map:
-		for _, k := range v.MapKeys() {
+		for k, e := range v.Seq2() {
 			markWitnessed(t, out, k, depth+1)
-			markWitnessed(t, out, v.MapIndex(k), depth+1)
+			markWitnessed(t, out, e, depth+1)
 		}
 	case reflect.Struct:
 		markStructFields(t, out, v, depth)
@@ -173,12 +172,10 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 func markStructFields(t *testing.T, out map[string]bool, v reflect.Value, depth int) {
 	t.Helper()
 	rt := v.Type()
-	for i := range rt.NumField() {
-		f := rt.Field(i)
+	for f, field := range v.Fields() {
 		if f.PkgPath != "" {
 			continue
 		}
-		field := v.Field(i)
 		if !field.IsZero() {
 			out[rt.Name()+"."+f.Name] = true
 		}
@@ -209,35 +206,20 @@ func corpusSpecs(t *testing.T) []string {
 // sealedTypeKinds returns every ir.TypeKind constant the ir package's production
 // sources declare — the sealed sum's full membership, since ir.TypeDef admits no
 // implementation from outside that package.
+//
+// A walk seeded from the kinds skips a variant that has none, in silence, so
+// their count is held to the types declaring the typeDef() marker that seals
+// the sum.
 func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
 	consts := irConstsOfType(t, "TypeKind")
 	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
+	require.Len(t, consts, len(irDecls(t).TypesDeclaring("typeDef")), "the sum holds one concrete "+
+		"type per kind, so a count that disagrees means a variant is sealed without a TypeKind or a "+
+		"kind has no variant")
 	out := make([]ir.TypeKind, 0, len(consts))
 	for _, c := range consts {
-		out = append(out, ir.TypeKind(c.value))
+		out = append(out, ir.TypeKind(c.Value))
 	}
-	return out
-}
-
-// irSourceFiles lists the ir package's non-test Go files, located relative to
-// this test's own path so the result does not depend on the working directory.
-func irSourceFiles(t *testing.T) []string {
-	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this test's path")
-	dir := filepath.Join(filepath.Dir(self), "..", "..", "ir")
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		out = append(out, filepath.Join(dir, name))
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
 	return out
 }

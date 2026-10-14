@@ -45,7 +45,7 @@ const (
 // (ir-design §5.2). The zero value is visible in all lifecycles.
 type Visibility struct {
 	// Only lists the lifecycles the property is visible in; empty = visible in
-	// all (unless None).
+	// all (unless None). It is a set: no entry is blank or repeated.
 	Only []Lifecycle `json:"only,omitempty"`
 	// None marks a property visible in NO lifecycle, excluded from every
 	// projection (TypeSpec @invisible); distinct from the zero value.

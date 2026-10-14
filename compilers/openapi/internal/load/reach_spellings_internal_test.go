@@ -141,10 +141,10 @@ func TestReachWithin_WarnsWhenItCouldNotRuleACycleOut(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, anchoredReferences(50))
 
-	whole, found := reachWithin(t.Context(), maxReachWork, scan.InSource(0), root, doc)
+	whole, found := reachWithin(t.Context(), maxReachWork, scan.InSource(0), root, doc, Siblings{})
 	assert.False(t, found, "within budget the document is clean: %v", whole)
 
-	d, found := reachWithin(t.Context(), 10, scan.InSource(4), root, doc)
+	d, found := reachWithin(t.Context(), 10, scan.InSource(4), root, doc, Siblings{})
 	require.True(t, found, "past the budget it says so")
 	assert.Equal(t, ir.SeverityWarning, d.Severity)
 	assert.Equal(t, diag.CycleScanFailed, d.Code)
@@ -159,7 +159,7 @@ func TestReachWithin_WarnsOnMergeKeysNestedPastTheViewsBound(t *testing.T) {
 	t.Parallel()
 	assertNotRefusedByReach(t, mergeChain(nodeview.MergeDepthLimit/2))
 	doc, root := buildDoc(t, mergeChain(nodeview.MergeDepthLimit+6))
-	d, found := reachCycle(t.Context(), scan.InSource(0), root, doc)
+	d, found := reachCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
 	require.True(t, found)
 	assert.Equal(t, ir.SeverityWarning, d.Severity)
 	assert.Equal(t, diag.CycleScanFailed, d.Code)
@@ -181,7 +181,7 @@ func mergeChain(depth int) string {
 func anchoredReferences(n int) string {
 	var sb strings.Builder
 	sb.WriteString("    Big:\n      properties:\n")
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&sb, "        p%d: {$anchor: a%d, type: string}\n        q%d: {$ref: '#a%d'}\n", i, i, i, i)
 	}
 	return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -199,14 +199,14 @@ var workShapes = []struct {
 }{
 	{"one spelling everywhere", func(n int) string {
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    S%d: {$defs: {a: {$ref: '#/$defs/b'}, b: {type: string}}}\n", i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
 	}},
 	{"a distinct spelling in each", func(n int) string {
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    S%d: {$defs: {k%d: {type: string}}, properties: {p: {$ref: '#/$defs/k%d'}}}\n", i, i, i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -214,9 +214,9 @@ var workShapes = []struct {
 	{"an anchor per reference in one schema", anchoredReferences},
 	{"a layered chain", func(n int) string {
 		var sb strings.Builder
-		for j := 0; j < n/6+1; j++ {
+		for j := range n/6 + 1 {
 			fmt.Fprintf(&sb, "    M%d:\n      $defs:\n", j)
-			for k := 0; k < 5; k++ {
+			for k := range 5 {
 				fmt.Fprintf(&sb, "        L%d: {$ref: '#/$defs/L%d'}\n", k, k+1)
 			}
 			sb.WriteString("        L5: {type: string}\n")
@@ -235,7 +235,7 @@ var workShapes = []struct {
 	{"a new URI to one duplicated anchor in each", func(n int) string {
 		var sb strings.Builder
 		sb.WriteString("    Big:\n      properties:\n")
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "        p%d: {$anchor: a, type: string}\n        q%d: {$ref: 'u%d#a'}\n", i, i, i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -243,7 +243,7 @@ var workShapes = []struct {
 	{"one schema aliased into a new component in each", func(n int) string {
 		var sb strings.Builder
 		sb.WriteString("    Q: &q {type: string, example: {$anchor: z}}\n")
-		for i := 0; i < n; i++ {
+		for i := range n {
 			fmt.Fprintf(&sb, "    C%d: {properties: {p: *q}}\n", i)
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -259,7 +259,7 @@ var workShapes = []struct {
 // into a schemas document.
 func repeated(n int, block string) string {
 	var sb strings.Builder
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&sb, block, i, i)
 	}
 	return schemasDoc(strings.TrimRight(sb.String(), "\n"))
@@ -269,7 +269,7 @@ func repeated(n int, block string) string {
 func workSpent(t *testing.T, spec string) int {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
-	r, starts := newReach(t.Context(), maxReachWork, root, doc)
+	r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	state := map[vertex]int{}
 	for _, start := range starts {
 		r.cycles(start, state)
@@ -307,11 +307,11 @@ func TestNewReach_ChargesEveryPhase(t *testing.T) {
 	const copies, keys = 40, 50
 	var sb strings.Builder
 	sb.WriteString("    Big: &big {")
-	for k := 0; k < keys; k++ {
+	for k := range keys {
 		fmt.Fprintf(&sb, "k%d: {type: string}, ", k)
 	}
 	sb.WriteString("$anchor: a}\n")
-	for i := 0; i < copies; i++ {
+	for i := range copies {
 		fmt.Fprintf(&sb, "    M%d: {<<: *big, $defs: {d: {$ref: '#'}}, properties: {p: {$ref: '#/$defs/d'}}}\n", i)
 	}
 	doc, root := buildDoc(t, schemasDoc(strings.TrimRight(sb.String(), "\n")))
@@ -327,7 +327,7 @@ func TestNewReach_ChargesEveryPhase(t *testing.T) {
 	assert.GreaterOrEqual(t, phase(func() { declared, defsRefs = r.tree.index() }), copies*keys,
 		"every merged pair is charged")
 	var starts []*yaml.Node
-	assert.GreaterOrEqual(t, phase(func() { starts = r.collect(t.Context(), doc) }), len(r.schemas))
+	assert.GreaterOrEqual(t, phase(func() { starts = r.collect(walkSource(t.Context(), doc, Siblings{})) }), len(r.schemas))
 	assert.Positive(t, phase(func() {
 		for _, d := range declared {
 			r.scopesOf(d)
@@ -351,7 +351,7 @@ func TestNewReach_ChargesEveryPhase(t *testing.T) {
 func TestScopesOf_VisitsASharedAncestorOnce(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(`    A: {example: {p: &x {$anchor: z}}, default: {q: *x}}`))
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	schema := r.tree.walk(r.tree.root, []string{"components", "schemas", "A"})
 	shared := r.tree.walk(schema, []string{"example", "p"})
 	require.NotNil(t, shared)
@@ -366,7 +366,7 @@ func TestScopesOf_VisitsASharedAncestorOnce(t *testing.T) {
 func TestLookups_ReferenceNamingNothingLandsNowhere(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(`    A: {type: string}`))
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	assert.Empty(t, r.lookups(refClass{id: r.intern("   ")}))
 }
 
@@ -375,7 +375,7 @@ func TestLookups_ReferenceNamingNothingLandsNowhere(t *testing.T) {
 func TestLookups_AnUndriftedEmptyFragmentHasNoDocumentToLandOn(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(`    A: {$ref: "#"}`))
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	assert.Empty(t, r.lookups(refClass{id: r.intern("#")}))
 	assert.NotEmpty(t, r.lookups(refClass{id: r.intern("#"), drifted: true}), "a drifted one lands on A")
 }
@@ -390,7 +390,7 @@ func TestLookups_ChargeEveryStep(t *testing.T) {
 	chain := strings.Repeat("{a: ", depth) + "1" + strings.Repeat("}", depth)
 	spec := schemasDoc("    A: {$ref: '#/$defs/n', $defs: {n: {type: string}}}\n    B: {$ref: '#'}") + "x-c: {$defs: {b: " + chain + "}}\n"
 	doc, root := buildDoc(t, spec)
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	spent := func(c refClass) int {
 		r.docs = nil
 		before := r.budget.spent
@@ -415,11 +415,11 @@ func TestCycles_ChargesEveryStep(t *testing.T) {
 	const declarations = 200
 	var sb strings.Builder
 	sb.WriteString("    A:\n      $ref: '#a'\n      properties:\n")
-	for i := 0; i < declarations; i++ {
+	for i := range declarations {
 		fmt.Fprintf(&sb, "        p%d: {$anchor: a, type: string}\n", i)
 	}
 	doc, root := buildDoc(t, schemasDoc(strings.TrimRight(sb.String(), "\n")))
-	r, starts := newReach(t.Context(), maxReachWork, root, doc)
+	r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	require.Len(t, starts, 1)
 
 	before := r.budget.spent
@@ -439,7 +439,7 @@ func TestReach_EveryWalkStopsOnceTheBudgetIsSpent(t *testing.T) {
 		b := &budget{limit: maxReachWork}
 		r := emptyReach(root, b)
 		declared, defsRefs := r.tree.index()
-		r.collect(t.Context(), doc)
+		r.collect(walkSource(t.Context(), doc, Siblings{}))
 		return r, b, declared, defsRefs
 	}
 
@@ -479,7 +479,7 @@ func TestReach_EveryWalkStopsOnceTheBudgetIsSpent(t *testing.T) {
 	})
 	t.Run("cycles", func(t *testing.T) {
 		t.Parallel()
-		r, starts := newReach(t.Context(), maxReachWork, root, doc)
+		r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 		require.True(t, r.cycles(starts[0], map[vertex]int{}), "with budget to spare the cycle is found")
 		r.budget.limit = r.budget.spent
 		assert.False(t, r.cycles(starts[0], map[vertex]int{}), "with none it gives no verdict")
@@ -494,7 +494,7 @@ func TestDocuments_ADriftedReferenceCanLandOnAnyReferenceOrSearchedAncestor(t *t
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(
 		"    A: {x-raw: {$ref: \"#/$defs/m\"}, $defs: {m: {type: string}}}\n    B: {$ref: \"#/components/schemas/A\"}\n    C: {type: string}"))
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	node := func(path ...string) *yaml.Node {
 		return r.tree.walk(r.tree.root, append([]string{"components", "schemas"}, path...))
 	}
@@ -527,7 +527,7 @@ func TestParentScopes_ChargesEveryOwnerItReads(t *testing.T) {
 func TestScopesOf_StopsAtTheNearestSchema(t *testing.T) {
 	t.Parallel()
 	doc, root := buildDoc(t, schemasDoc(`    A: {properties: {p: {properties: {q: {$anchor: z}}}}}`))
-	r, _ := newReach(t.Context(), maxReachWork, root, doc)
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
 	deep := r.tree.walk(r.tree.root, []string{"components", "schemas", "A", "properties", "p", "properties", "q"})
 	require.NotNil(t, deep)
 

@@ -47,10 +47,11 @@ func diagsAt(diags []ir.Diagnostic, code, pointer string) []ir.Severity {
 // the top type, which understates it entirely.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	untyped := map[string]struct{ keyword, raw string }{
-		"UntypedItems":       {"items", `{"type":"string"}`},
-		"UntypedPrefixItems": {"prefixItems", `[{"type":"string"}]`},
-		"UntypedRequired":    {"required", `["name"]`},
-		"UntypedFormat":      {"format", `"uuid"`},
+		"UntypedItems":         {"items", `{"type":"string"}`},
+		"UntypedPrefixItems":   {"prefixItems", `[{"type":"string"}]`},
+		"UntypedRequired":      {"required", `["name"]`},
+		"UntypedFormat":        {"format", `"uuid"`},
+		"UntypedDiscriminator": {"discriminator", `{"propertyName":"kind"}`},
 	}
 	for name, want := range untyped {
 		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
@@ -84,6 +85,16 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	_, ok = propByWire(m, "h")
 	assert.True(t, ok, "the half that did lower is untouched")
 
+	// The tuple's control beside the array's: a collection bound beside
+	// prefixItems is the Tuple's own, so the census keeps nothing.
+	boundTuple, ok := doc.Types[namedID("ItemsBoundOnTuple")].(*ir.Tuple)
+	require.True(t, ok)
+	assert.Empty(t, boundTuple.Unmodeled, "the bound reached Tuple.Constraints")
+	require.NotNil(t, boundTuple.Constraints)
+	require.NotNil(t, boundTuple.Constraints.MaxItems)
+	assert.Equal(t, int64(2), *boundTuple.Constraints.MaxItems)
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/ItemsBoundOnTuple"))
+
 	// The union case reaches this through hasUnionSiblings, which used to treat
 	// items as not-a-sibling and lower the union over it. Both halves survive:
 	// the applicator here, the branches under the union's own keys.
@@ -101,8 +112,8 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // assertRefSiteKeywords pins the same census at a $ref site, where it did not
 // run at all (GitHub #283). $ref is an ordinary 2020-12 keyword, so its siblings
 // are conjoined with it; the position lowers to an alias over the target, which
-// has none of their fields, and the five below reached no field, no Unmodeled
-// entry and no diagnostic.
+// has none of their fields, and each below reached no field, no Unmodeled entry
+// and no diagnostic.
 func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, want := range map[string]struct{ keyword, target, raw string }{
 		"RefFormat":               {"format", "RefTargetStr", `"email"`},
@@ -110,6 +121,7 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"RefConst":                {"const", "RefTargetStr", `"a"`},
 		"RefRequired":             {"required", "RefTargetObj", `["a"]`},
 		"RefAdditionalProperties": {"additionalProperties", "RefTargetObj", `false`},
+		"RefDiscriminator":        {"discriminator", "RefTargetObj", `{"propertyName":"a"}`},
 	} {
 		sc, ok := doc.Types[namedID(name)].(*ir.Scalar)
 		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
@@ -866,12 +878,12 @@ func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Di
 		diagsAt(diags, "openapi/degraded-construct", "/paths/~1x/get/responses/200/headers/X-H/schema"))
 }
 
-// indexByParam indexes HTTP parameter bindings by the logical parameter they
-// bind.
+// indexByParam indexes HTTP parameter bindings by wire name, the name of the
+// logical parameter each one binds.
 func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
 	out := make(map[string]ir.HTTPParamBinding, len(bindings))
 	for _, b := range bindings {
-		out[b.Param] = b
+		out[b.WireName] = b
 	}
 	return out
 }
