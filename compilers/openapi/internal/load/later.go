@@ -209,7 +209,7 @@ type referenceWrapper interface {
 
 // laterObject names the object a walked model is, for the objects additions
 // has rows for, with the mapping its keys are written on. A model written as a
-// $ref is the Reference Object (referenceOf), never the object it names.
+// $ref is judged on the keys beside it (referenceOf), never on its target's.
 func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 	object := plainObject(m)
 	if w, ok := m.(referenceWrapper); ok {
@@ -224,14 +224,17 @@ func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 	return object, nodeview.DocumentRoot(m.GetRootNode()), true
 }
 
-// referenceOf names a model written as a $ref a Reference Object, with the
-// mapping the $ref is written on. A Path Item's $ref is a field of the Path
-// Item, beside which its own fields stand, so it is none. A schema's is one in
-// 3.0, but 3.1 admits any keyword beside it, which no row expresses (GitHub
-// #871), so it is judged as none here.
+// referenceOf names the object whose keys a model written as a $ref writes
+// beside it, with the mapping they are written on. A Path Item's $ref is a
+// field of the Path Item, so the keys beside it are the Path Item's own. A
+// schema's is a Reference Object in 3.0, but 3.1 admits any keyword beside it,
+// which no row expresses (GitHub #871), so it is judged as none here. Any other
+// $ref is the Reference Object's.
 func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
 	switch w.(type) {
-	case *soa.ReferencedPathItem, *oas3.JSONSchema[oas3.Referenceable]:
+	case *soa.ReferencedPathItem:
+		return pathItemObject, nodeview.DocumentRoot(ownRoot(w)), true
+	case *oas3.JSONSchema[oas3.Referenceable]:
 		return "", nil, false
 	default:
 		return referenceObject, nodeview.DocumentRoot(ownRoot(w)), true

@@ -278,6 +278,37 @@ func TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	assert.Empty(t, laterAt(t, "openapi: 3.1.0\n"+referenceSiblingsSpec))
 }
 
+// TestLaterConstructs_APathItemRefIsJudgedOnTheFieldsBesideIt pins a Path
+// Item's $ref: the keys written beside it are the Path Item's own fields, so a
+// later minor's is reported there, where it is written, whether or not
+// anything lowers it (GitHub #577), and one every minor defines is not.
+func TestLaterConstructs_APathItemRefIsJudgedOnTheFieldsBesideIt(t *testing.T) {
+	t.Parallel()
+	const spec = `info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses: {"200": {description: ok}}
+  /b:
+    $ref: '#/paths/~1a'
+    summary: s
+    query:
+      responses: {"200": {description: ok}}
+    additionalOperations:
+      PURGE:
+        responses: {"200": {description: ok}}
+`
+	got := laterAt(t, "openapi: 3.1.0\n"+spec)
+	assert.Equal(t, []jsontext.Pointer{
+		"/paths/~1b/additionalOperations",
+		"/paths/~1b/query",
+	}, slices.Sorted(maps.Keys(got)))
+	for at, message := range got {
+		assert.Contains(t, message, "of the Path Item Object was added in OpenAPI 3.2", at)
+	}
+	assert.Empty(t, laterAt(t, "openapi: 3.2.0\n"+spec))
+}
+
 // bareReference is a $ref model with no core to read, and coredReference one
 // whose core holds no mapping: shapes no library model takes, which ownRoot
 // must still answer for rather than fault on.
