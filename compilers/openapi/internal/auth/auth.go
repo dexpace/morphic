@@ -119,7 +119,7 @@ func lowerSecurityScheme(c lowering.Ctx, name string, ss *soa.SecurityScheme,
 	if !named {
 		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
 	}
-	if tokenless(scheme) && !loaderReportsFlows(ss) {
+	if tokenless(scheme) && !flowsMissing(ss) {
 		// Reported rather than refused; see oauthNoFlowDiag.
 		diags = append(diags, oauthNoFlowDiag(c, decl))
 	}
@@ -203,13 +203,15 @@ func tokenless(scheme ir.AuthScheme) bool {
 	return scheme.Kind == ir.AuthKindOAuth2 && len(scheme.Flows) == 0 && scheme.OAuth2MetadataURL == ""
 }
 
-// loaderReportsFlows reports whether the loader's REQUIRED-field rule already
-// reports ss's flows as missing, restating the library's own condition over the
-// fields it reads. That condition holds for a flows object that is absent or
-// not an object, and also for one holding a flow that does not decode, which
-// leaves the object not Present. A library release that moves it reddens
+// flowsMissing reports whether ss fails the parser library's REQUIRED-field
+// rule for flows, restating the library's own condition over the fields it
+// reads: absent, not an object, or holding a flow that does not decode, which
+// leaves the object not Present. The loader reports each object it validates
+// that fails the rule, so the lowering stands aside; an object it never
+// validates, one a $ref reaches under an x-* key, is GitHub #872. A library
+// release that moves the rule reddens
 // TestLowerSecuritySchemes_AnOAuth2SchemeWithNoFlowIsReportedOnce.
-func loaderReportsFlows(ss *soa.SecurityScheme) bool {
+func flowsMissing(ss *soa.SecurityScheme) bool {
 	return !ss.GetCore().Flows.Present || ss.GetFlows() == nil
 }
 

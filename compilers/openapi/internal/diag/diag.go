@@ -271,9 +271,9 @@ const (
 	// OAuth2NoFlow reports an oauth2 securitySchemes entry that states no way to
 	// obtain a token: its flows object declares no flow — `flows: {}`, or only
 	// x-* and keys that name no flow — and it has no oauth2MetadataUrl. Every
-	// flow is optional, so the loader accepts that shape; where its
-	// REQUIRED-field rule does report `flows`, that error stands alone (GitHub
-	// #646). Placed at the declaration, once however many aliases reach it.
+	// flow is optional, so the loader accepts that shape; a `flows` its
+	// REQUIRED-field rule finds missing is that rule's to report (GitHub #646).
+	// Placed at the declaration, once however many aliases reach it.
 	//
 	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
 	// what the document said, and refusing would drop the entry's text. A warning,
