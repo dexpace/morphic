@@ -47,7 +47,8 @@ func besideRefs(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items it
 }
 
 // besideRef reports the reference model written at site when a hop of its chain
-// passes beside a path item's $ref. The chain is read as the lowering reads it
+// passes beside a path item's $ref and finds something other than the field
+// written there (Siblings.Writes). The chain is read as the lowering reads it
 // (resolve.ObjectAt): hop by hop while each lands in the source, and for a
 // schema's $ref, whose target is lowered as a schema of its own, the first hop
 // alone.
@@ -62,7 +63,9 @@ func besideRef(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, s
 		if _, source := (*hop.document).(*soa.OpenAPI); !source {
 			break
 		}
-		if use, key, beside := sibs.Beside(hop.pointer); beside {
+		// Writes names no schema, so a schema's hop is refused by its pointer,
+		// as resolve.Scope.TargetPointer refuses it.
+		if use, key, beside := sibs.Beside(hop.pointer); beside && !sibs.Writes(hop.pointer, hop.object) {
 			return diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "unresolved $ref %q: it reaches %s; %s",
 				r.GetReference(), hop.pointer, refscope.BesideReason(use, key)), true
 		}

@@ -39,6 +39,10 @@ type Siblings struct {
 	// at holds every position the walk met a modelled use site at, an alias's
 	// included, with that use site's model.
 	at *sites
+	// written holds the mapping each reference object a model's walk met is
+	// written as, by its position there: every one but a schema, whose $ref is
+	// refused by pointer alone.
+	written map[jsontext.Pointer]*yaml.Node
 }
 
 // sites is a trie of positions by token, so Beside reads a pointer in one pass
@@ -119,17 +123,41 @@ func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
 // the field the source writes there (GitHub #824), and the lowering declares
 // that field at the very pointer. ok is false for any other pointer.
 func (s Siblings) Beside(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool) {
+	n, key, ok := s.useOf(pointer)
+	if !ok {
+		return "", "", false
+	}
+	return n.use, key, true
+}
+
+// useOf returns the position Beside names for pointer, with the key.
+func (s Siblings) useOf(pointer jsontext.Pointer) (*sites, string, bool) {
 	n := s.at
 	for token := range pointer.Tokens() {
 		if n == nil {
 			break
 		}
 		if n.ends && s.list[n.model].written[token] {
-			return n.use, token, true
+			return n, token, true
 		}
 		n = n.next[token]
 	}
-	return "", "", false
+	return nil, "", false
+}
+
+// Writes reports whether obj, a reference object, is written as the mapping
+// the fields beside a path item $ref write at pointer: the field itself, held
+// or copied, rather than one the $ref names. With external references allowed,
+// the resolver can answer a pointer into those fields so, since the load phase
+// holds the source for it (external.hold). A pointer through an alias's
+// position reads the fields where their model was found. No schema is written.
+func (s Siblings) Writes(pointer jsontext.Pointer, obj any) bool {
+	n, _, beside := s.useOf(pointer)
+	if !beside {
+		return false
+	}
+	node, ok := s.written[s.list[n.model].Pointer+pointer[len(n.use):]]
+	return ok && nodeview.Deref(ownRoot(obj)) == node
 }
 
 // useSite returns the mapping rp, which must not be nil, is written as, through
@@ -212,23 +240,43 @@ func unreported(errs, valErrs []error) []error {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
 ) (Siblings, []error, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{}}
+	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{},
+		written: map[jsontext.Pointer]*yaml.Node{}}
 	var errs []error
 	var faults []ir.Diagnostic
-	search := func(items iter.Seq[soa.WalkItem]) bool {
-		_, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-			built, fault := s.add(ctx, site, rp, build, locate)
-			errs = append(errs, built...)
-			faults = append(faults, fault...)
-			return nil
-		})
-		return err == nil
+	add := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
+		built, fault := s.add(ctx, site, rp, build, locate)
+		errs = append(errs, built...)
+		faults = append(faults, fault...)
 	}
+	// A model's walk also records what each reference object in it is written
+	// as; the document's matches its path items alone.
+	inModel := func(site jsontext.Pointer, w referenceWrapper) error {
+		if _, schema := w.(*schemaRef); !schema {
+			s.write(site, w)
+		}
+		if rp, isItem := w.(*soa.ReferencedPathItem); isItem {
+			add(site, rp)
+		}
+		return nil
+	}
+	_, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
+		add(site, rp)
+		return nil
+	})
 	// The document's walk, then each model's in turn, until one panics.
-	for walk, i := items, 0; search(walk) && i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
-		walk = s.modelWalk(ctx, i)
+	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
+		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", inModel)
 	}
 	return s, errs, faults
+}
+
+// write records the mapping w, met at site in a model's walk, is written as.
+// One with none is not recorded, so no answer without one is taken for it.
+func (s *Siblings) write(site jsontext.Pointer, w referenceWrapper) {
+	if node := nodeview.Deref(ownRoot(w)); node != nil {
+		s.written[site] = node
+	}
 }
 
 // add models the fields rp's use site writes beside its $ref, at site, and

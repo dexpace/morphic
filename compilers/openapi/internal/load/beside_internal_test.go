@@ -109,6 +109,73 @@ func TestLoad_ReportsAChainIntoTheFieldsBesideARefAsTheLoweringReadsIt(t *testin
 	}, refused)
 }
 
+// TestLoad_TakesAHopThatFindsTheFieldWrittenThere pins the one answer the
+// refusal takes. With external references allowed, this phase holds the
+// source's objects for the resolver, the fields beside a $ref among them, so
+// /c's chain through X finds the body /a's get writes, and neither is
+// reported. S still is: a schema's $ref is refused by its pointer, which the
+// lowering reads through the $ref, so Writes never names a schema.
+func TestLoad_TakesAHopThatFindsTheFieldWrittenThere(t *testing.T) {
+	t.Parallel()
+	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(besideChainSpec)},
+		Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+
+	refused := map[jsontext.Pointer]int{}
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef && d.Severity == ir.SeverityError {
+			refused[d.Provenance.Pointer]++
+		}
+	}
+	assert.Equal(t, map[jsontext.Pointer]int{"/components/schemas/S": 1}, refused)
+
+	a, ok := got.Siblings.Of(pathEntry(t, got.Doc, "/a"))
+	require.True(t, ok)
+	near := a.Item.Get().GetRequestBody()
+	far := pathEntry(t, got.Doc, "/b").GetObject().Get().GetRequestBody()
+	media, ok := near.GetObject().GetContent().Get("application/json")
+	require.True(t, ok)
+	const body = jsontext.Pointer("/paths/~1a/get/requestBody")
+	assert.True(t, got.Siblings.Writes(body, near), "the body written beside the $ref")
+	assert.False(t, got.Siblings.Writes(body, far), "not the one the $ref names")
+	assert.False(t, got.Siblings.Writes("/paths/~1b/get/requestBody", far), "nor one at a position no model holds")
+	assert.False(t, got.Siblings.Writes(body+"/content/application~1json/schema", media.GetSchema()), "nor a schema")
+	assert.NotContains(t, got.Siblings.written, jsontext.Pointer("/paths/~1c/post/requestBody"),
+		"the document's own objects are never asked about, so they are not recorded")
+}
+
+// TestSiblings_WritesReadsTheNodeAnAnswerIsWrittenAs pins Writes on the answers
+// a copy gives: one the resolver builds from the node the fields write, as for
+// a pointer through an alias's position, is that field, though it is not the
+// object their model holds. An answer with no node of its own is none.
+func TestSiblings_WritesReadsTheNodeAnAnswerIsWrittenAs(t *testing.T) {
+	t.Parallel()
+	spec := strings.Replace(besideChainSpec, "  /a:\n", "  /a: &a\n", 1)
+	spec = strings.Replace(spec, "components:\n", `  /z: *a
+  /d:
+    post:
+      requestBody: {$ref: 'spec.yaml#/paths/~1z/get/requestBody'}
+      responses: {"200": {description: ok}}
+components:
+`, 1)
+	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)},
+		Options{AllowExternalRefs: true})
+	require.NoError(t, err)
+	for _, d := range diags {
+		assert.NotEqual(t, jsontext.Pointer("/paths/~1d/post/requestBody"), d.Provenance.Pointer, "%s", d.Message)
+	}
+
+	d := pathEntry(t, got.Doc, "/d").GetObject().Post().GetRequestBody()
+	copied := d.GetReferenceResolutionInfo().Object
+	a, ok := got.Siblings.Of(pathEntry(t, got.Doc, "/a"))
+	require.True(t, ok)
+	require.NotSame(t, a.Item.Get().GetRequestBody(), copied, "the resolver built a copy")
+	assert.True(t, got.Siblings.Writes("/paths/~1z/get/requestBody", copied))
+
+	got.Siblings.write("/paths/~1a/get/requestBody", bareReference{})
+	assert.False(t, got.Siblings.Writes("/paths/~1a/get/requestBody", bareReference{}))
+}
+
 // TestLoad_HoldsADefsPointerBesideARefUnresolved pins a "#/$defs/..." pointer
 // written in the fields beside a $ref: its definition is in those fields too,
 // at a pointer the resolver reads through the $ref, so it is held unresolved

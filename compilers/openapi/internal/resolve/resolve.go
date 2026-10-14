@@ -87,6 +87,17 @@ type Scope struct {
 	// there is refused rather than interning what it found at the pointer the
 	// field written there is declared at (GitHub #824). Nil refuses none.
 	Beside func(jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
+	// Writes reports whether obj is the field written beside a path item $ref
+	// at a pointer, held or copied (load.Siblings.Writes): an answer ObjectAt
+	// takes although Beside names its pointer. Nil writes none.
+	Writes func(pointer jsontext.Pointer, obj any) bool
+}
+
+// refuses reports whether ObjectAt refuses answer, the object the resolver
+// found at pointer: one Beside names, unless Writes says it is the field
+// written there.
+func (s Scope) refuses(pointer jsontext.Pointer, answer any) bool {
+	return s.beside(pointer) && (s.Writes == nil || !s.Writes(pointer, answer))
 }
 
 // beside reports whether pointer is one Beside refuses.

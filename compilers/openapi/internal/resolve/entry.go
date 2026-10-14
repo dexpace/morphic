@@ -110,8 +110,8 @@ const maxRefChain = 32
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
 // returned on its own, since a one-key $ref object has no children to hoist,
-// but scope.Reached records every hop in the source. A hop scope.Beside refuses
-// leaves the chain unresolved and unrecorded.
+// but scope.Reached records every hop in the source. A hop scope.refuses leaves
+// the chain unresolved and unrecorded, as a failure does.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -142,7 +142,7 @@ func ObjectAt[T, S any, R interface {
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
 		}
-		if scope.beside(target) {
+		if scope.refuses(target, found(info.Object)) {
 			return nil, usePtr // the resolver read past a field written there; load reported it
 		}
 		hops[n], n = target, n+1
@@ -159,6 +159,15 @@ func ObjectAt[T, S any, R interface {
 		scope.Reached.note(hop)
 	}
 	return obj, pointer
+}
+
+// found returns obj as the answer Scope.refuses reads, and nil for a nil one,
+// which as a typed nil would reach a getter that does not tolerate it.
+func found[S any](obj *S) any {
+	if obj == nil {
+		return nil
+	}
+	return obj
 }
 
 // Hop is one reference a chain passes through after its entry, and whether

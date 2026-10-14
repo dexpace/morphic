@@ -131,11 +131,12 @@ type Ctx struct {
 
 	// siblings holds the fields the source writes beside its path items' $refs,
 	// which the load phase modelled and resolved. Its zero value holds none.
-	// Set only by WithLoaded, with targets, and read through Siblings. beside is
-	// its Beside, bound once there: RefScope runs for every reference a lowering
-	// reads, and binding it there would allocate each time.
+	// Set only by WithLoaded, with targets, and read through Siblings. beside and
+	// writes are its Beside and Writes, bound once there: RefScope runs for every
+	// reference a lowering reads, and binding them there would allocate each time.
 	siblings load.Siblings
 	beside   func(jsontext.Pointer) (jsontext.Pointer, string, bool)
+	writes   func(jsontext.Pointer, any) bool
 
 	// typePositions remembers each answer TypePosition read. Copies share it on
 	// purpose, as they share defsReader: an answer reads only the document and
@@ -243,7 +244,8 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // one without the other. The copy remembers no TypePosition answer of c's,
 // which read c's targets.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.targets, c.siblings, c.beside = doc.Targets, doc.Siblings, doc.Siblings.Beside
+	c.targets, c.siblings = doc.Targets, doc.Siblings
+	c.beside, c.writes = doc.Siblings.Beside, doc.Siblings.Writes
 	c.typePositions = map[typePositionKey]typePositionAt{}
 	return c
 }
@@ -388,7 +390,7 @@ func (c Ctx) Is30() bool {
 func (c Ctx) RefScope() resolve.Scope {
 	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Mapped: c.targets.At, Built: c.targets.Built,
 		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Holds: c.targets.Holds,
-		Reached: c.reached, Beside: c.beside}
+		Reached: c.reached, Beside: c.beside, Writes: c.writes}
 	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
 		scope.Doc, scope.Defs = c.Doc, c.defsReader
 	}

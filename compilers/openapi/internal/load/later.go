@@ -251,8 +251,9 @@ func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
 }
 
 // ownRoot is the mapping a $ref is written on, which the reference's core holds:
-// the model's own GetRootNode answers with the target's.
-func ownRoot(w referenceWrapper) *yaml.Node {
+// the model's own GetRootNode answers with the target's. Anything with no core
+// holding one has none.
+func ownRoot(w any) *yaml.Node {
 	holder, ok := w.(interface{ GetCoreAny() any })
 	if !ok {
 		return nil

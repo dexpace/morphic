@@ -96,6 +96,49 @@ func TestPathItemRefSiblings_APointerPastTheRefIsRefusedInEitherOrder(t *testing
 	assert.Contains(t, errorsAt(firstDiags)["/paths/~1c/post/requestBody"][0], "GitHub #824")
 }
 
+// TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder pins the one
+// answer the refusal takes. With external references allowed, the load phase
+// holds the source for the resolver, so the chain through X finds the body /a's
+// get writes, by a pointer or by the source's file name, and through /z, which
+// aliases /a, a copy of it. It finds put's too, which only /a writes and which
+// without them the resolver finds nowhere (GitHub #824). Each is the
+// declaration the mount interns at the same pointer, so /c lowers it in both
+// declaration orders with nothing reported.
+func TestPathItemRefSiblings_AnAnswerWrittenThereIsTakenInEitherOrder(t *testing.T) {
+	t.Parallel()
+	compile := func(src string) (*ir.Document, []ir.Diagnostic) {
+		doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+			compilers.Options{FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc, diags
+	}
+	for _, tc := range []struct{ ref, method, mount, wire string }{
+		{"#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+		{"spec.yaml#/paths/~1a/get/requestBody", "GET", "/a", "near"},
+		{"spec.yaml#/paths/~1z/get/requestBody", "GET", "/z", "near"},
+		{"#/paths/~1a/put/requestBody", "PUT", "/a", "nearPut"},
+	} {
+		ref := tc.ref
+		components := "components:\n  requestBodies:\n    X: {$ref: '" + ref + "'}\n"
+		first, firstDiags := compile(besideRefSpec("  /z: *a\n"+besideRefChain, components))
+		second, secondDiags := compile("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+			besideRefChain + besideRefPaths + "  /z: *a\n" + components)
+
+		for name, doc := range map[string]*ir.Document{"/a first": first, "/c first": second} {
+			own := openapitest.BodyTarget(t, opByPath(t, doc, tc.method, tc.mount).Request)
+			body, ok := doc.Types[own].(*ir.Model)
+			require.True(t, ok, "%s %s", ref, name)
+			assert.Equal(t, tc.wire, body.Properties[0].WireName, "%s %s: %s keeps its own body", ref, name, tc.mount)
+			assert.Equal(t, own, openapitest.BodyTarget(t, openapitest.FindOp(t, doc, "postC").Request),
+				"%s %s: /c takes the same one", ref, name)
+		}
+		assert.Empty(t, cmp.Diff(first.Types, second.Types), "%s: the registry does not depend on the order", ref)
+		assert.Empty(t, errorsAt(firstDiags), ref)
+		assert.Empty(t, errorsAt(secondDiags), ref)
+	}
+}
+
 // TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefIsRefused pins the
 // refusal on every route a reference reaches a pointer by: a $ref of each kind,
 // a discriminator mapping value, a reference written inside the fields

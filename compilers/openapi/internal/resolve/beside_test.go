@@ -101,6 +101,17 @@ components:
 	assert.True(t, accepted.Reached.Has(x), "an accepted one records each")
 }
 
+// TestFound_HandsOnNoTypedNil pins the answer ObjectAt hands Scope.refuses for
+// a hop: a nil interface for a nil object, since a typed nil panics in the read
+// of the mapping a reference is written as. It is compared with ==, which a
+// typed nil fails and assert.Nil would let through.
+func TestFound_HandsOnNoTypedNil(t *testing.T) {
+	t.Parallel()
+	assert.True(t, resolve.Found[soa.ReferencedRequestBody](nil) == nil)
+	body := &soa.ReferencedRequestBody{}
+	assert.Equal(t, any(body), resolve.Found(body))
+}
+
 // TestScope_PointerReadersRefuseAPointerBesideAPathItemRef pins the two other
 // routes, a schema's $ref and a mapping value, each refusing the same pointer
 // and passing one nothing writes beside the $ref.
