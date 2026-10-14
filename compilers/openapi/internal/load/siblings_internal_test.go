@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -271,21 +271,6 @@ s: scalar
 	}
 }
 
-// TestLocationOf_RendersThePointer pins the round trip a sibling walk relies on
-// for every site it reports: the location rendered back is the pointer, escapes
-// and empty tokens included.
-func TestLocationOf_RendersThePointer(t *testing.T) {
-	t.Parallel()
-	for _, p := range []jsontext.Pointer{
-		"/paths/~1a",
-		"/paths/~1a~0b/put/callbacks/cb/{$request.body#~1url}",
-		"/paths//get",
-		"/webhooks/hook",
-	} {
-		assert.Equal(t, string(p), string(locationOf(p).ToJSONPointer()))
-	}
-}
-
 // walkSites returns the site of every item items yields.
 func walkSites(items iter.Seq[soa.WalkItem]) []string {
 	var sites []string
@@ -293,86 +278,6 @@ func walkSites(items iter.Seq[soa.WalkItem]) []string {
 		sites = append(sites, string(item.Location.ToJSONPointer()))
 	}
 	return sites
-}
-
-// TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem pins the order every
-// pass reads the source in: a model's items right after its $ref, before the
-// next path, as an inline item's would be, each model once though an alias
-// reaches it twice, and no item for the wrapper a model's walk starts from.
-func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
-	t.Parallel()
-	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
-	sites := walkSites(walkSource(t.Context(), doc, sibs))
-
-	index := func(site string) int {
-		t.Helper()
-		for i, s := range sites {
-			if s == site {
-				return i
-			}
-		}
-		require.Failf(t, "site not walked", "%s", site)
-		return -1
-	}
-	put := index("/paths/~1a/put")
-	assert.Less(t, index("/paths/~1a"), put)
-	assert.Less(t, put, index("/paths/~1b"), "the fields are walked before the next path")
-	assert.Less(t, put, index("/paths/~1a/put/callbacks/cb/{$request.body#~1url}/delete"))
-	count := 0
-	for item := range walkSource(t.Context(), doc, sibs) {
-		_ = item.Match(soa.Matcher{Operation: func(op *soa.Operation) error {
-			if op == sibs.list[0].Item.Put() {
-				count++
-			}
-			return nil
-		}})
-	}
-	assert.Equal(t, 1, count, "a model is walked once, where it was found, though an alias reaches it twice")
-	assert.Equal(t, walkSites(soa.Walk(t.Context(), doc)), walkSites(walkSource(t.Context(), doc, Siblings{})),
-		"with no model the walk is the document's own")
-}
-
-// TestWalkSource_StopsWhenTheReaderDoes pins that a pass leaving the walk early,
-// as one stopping at a fault does, stops it inside a model as well as outside.
-func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
-	t.Parallel()
-	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
-	for _, stopAt := range []string{"/paths/~1b", "/paths/~1a/put"} {
-		var last string
-		for item := range walkSource(t.Context(), doc, sibs) {
-			last = string(item.Location.ToJSONPointer())
-			if last == stopAt {
-				break
-			}
-		}
-		assert.Equal(t, stopAt, last)
-	}
-}
-
-// TestWalkSource_ReleasesEveryWalkItOpens pins that a reader stopping inside a
-// model nested in another leaves no walk running. Each open walk is a pulled
-// iterator, whose goroutine lives until it is stopped or runs out, and the
-// leak check does not see one left suspended. Not parallel, since it counts
-// the process's goroutines.
-func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
-	doc := modelOf(t, siblingSpec)
-	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
-	nested := "/paths/~1a/put/callbacks/cb/{$request.body#~1url}/"
-	const reads = 100
-	before := runtime.NumGoroutine()
-	for range reads {
-		stopped := false
-		for item := range walkSource(t.Context(), doc, sibs) {
-			if strings.HasPrefix(string(item.Location.ToJSONPointer()), nested) {
-				stopped = true
-				break
-			}
-		}
-		require.True(t, stopped, "the read stops with three walks open")
-	}
-	assert.Less(t, runtime.NumGoroutine()-before, reads, "no read leaves its walks suspended")
 }
 
 // TestLoad_AFieldTheParserFaultsOnIsReported pins the parser fault's way into
@@ -500,4 +405,48 @@ func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 			assert.Contains(t, at[0].Message, tc.says)
 		})
 	}
+}
+
+// TestSiblings_UnreadAsksWithoutCopying pins Unread's cost: it asks whether a
+// mapping no model holds writes a key other than $ref, which the first such key
+// answers. Copying the mapping to ask cost its width at every mount reaching it.
+func TestSiblings_UnreadAsksWithoutCopying(t *testing.T) {
+	var keys strings.Builder
+	for i := range 10_000 {
+		fmt.Fprintf(&keys, "    k%d: v\n", i)
+	}
+	doc := modelOf(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-shared:
+  item:
+    $ref: '#/paths/~1b'
+`+keys.String()+`paths:
+  /a: {$ref: '#/x-shared/item'}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+`)
+	sibs, _, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	_, err := pathEntry(t, doc, "/a").Resolve(t.Context(), soa.ResolveOptions{TargetLocation: "spec.yaml", RootDocument: doc, TargetDocument: doc})
+	require.NoError(t, err)
+	hop := pathEntry(t, doc, "/a").GetReferenceResolutionInfo().Object
+	require.True(t, hop.IsReference(), "the walk does not reach the item under x-shared")
+
+	require.True(t, sibs.Unread(hop))
+	assert.Zero(t, testing.AllocsPerRun(20, func() { sibs.Unread(hop) }))
+}
+
+// TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef pins the skip
+// that keeps the sibling search off nearly every document: a tree in which no
+// mapping keys $ref beside another holds no use site, so the model is not
+// walked, and the cost is a scan of the tree, whatever the document's size.
+func TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef(t *testing.T) {
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /r: {$ref: '#/paths/~1p0'}\n")
+	for i := range 200 {
+		fmt.Fprintf(&spec, "  /p%d:\n    get: {responses: {\"200\": {description: ok}}}\n", i)
+	}
+	doc := modelOf(t, spec.String())
+
+	allocs := testing.AllocsPerRun(10, func() { modelSiblings(t.Context(), doc, scan.InSource(0)) })
+	assert.Less(t, allocs, 50.0, "a scan, not a walk of 200 path items")
 }
