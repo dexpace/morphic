@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -534,13 +533,14 @@ func importAllowed(ip string, allowed []string) bool {
 	return false
 }
 
-// repoRoot walks up from this test file's directory until it finds the module's
-// go.mod, returning that directory.
+// repoRoot walks up from the working directory, which go test sets to this
+// package's own, until it finds the module's go.mod, returning that directory.
+// It does not start from this file's path: under -trimpath, runtime.Caller
+// reports the file under its import path, not on disk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed")
-	dir := filepath.Dir(file)
+	dir, err := os.Getwd()
+	require.NoError(t, err)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir

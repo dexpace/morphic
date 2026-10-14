@@ -45,6 +45,16 @@ $(warning warning: GOTOOLCHAIN is $(GOTOOLCHAIN), go.mod pins go$(GO_VERSION))
 $(warning warning:   unset GOTOOLCHAIN to run the gate as CI runs it)
 endif
 
+# The gate's go commands run with -trimpath, added to whatever GOFLAGS the
+# caller set. Without it the go command keys this module's packages by the
+# absolute directory they were built in, so two checkouts of one commit share
+# nothing in the build cache, and the heaviest packages here compile to tens of
+# megabytes apiece. Exported for the same reason GOTOOLCHAIN is: the scripts and
+# golangci-lint invoke go themselves. CI's make steps get it too, so a test that
+# finds files through its own source path, which -trimpath erases, fails there.
+GOFLAGS := $(strip $(GOFLAGS) -trimpath)
+export GOFLAGS
+
 # The golangci-lint release CI installs. The workflow reads it back from
 # `make print-lint-version`, so the pin has one definition and no copy: without
 # it the action installs whatever it resolves as latest that day, and an
