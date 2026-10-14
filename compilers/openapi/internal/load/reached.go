@@ -183,10 +183,7 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 	version := doc.OpenAPI
 	minor, _ := SupportedMinor(version) // Load refused an unsupported version before resolving
 	return &reached{
-		opts: []validation.Option{
-			validation.WithContextObject(doc),
-			validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}),
-		},
+		opts:     documentOptions(doc),
 		version:  version,
 		minor:    minor,
 		limit:    limit,

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"slices"
 	"strings"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -251,8 +252,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		}
 		cyc = append(cyc, d)
 	}
+	later := laterConstructs(pointerAt(srcIndex, origin), soa.Walk(ctx, doc), doc.OpenAPI)
 	diags := cyc
-	diags = append(diags, findings(ctx, locate, doc, valErrs, minor)...)
+	diags = append(diags, findings(ctx, locate, doc, valErrs, minor, later.inSchema)...)
+	diags = append(diags, later.diags...)
 	rebuildDoc := opts.rebuildDoc
 	if rebuildDoc == nil {
 		rebuildDoc = unmarshal
@@ -286,9 +289,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 // dropping the two kinds that are library artifacts rather than spec problems —
 // a numeric literal Morphic captures losslessly anyway, and a schema finding
 // raised only because the library checked against the wrong meta-schema — and
-// the findings of a rule the compiler checks itself.
-func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string) []ir.Diagnostic {
-	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor)
+// the findings of a rule the compiler checks itself. later says whether
+// laterConstructs reported a construct inside a schema (metaSchemaVersionArtifacts).
+func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, valErrs []error, minor string, later bool) []ir.Diagnostic {
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, minor, later)
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok &&
@@ -507,35 +511,38 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 // removal of a false positive, and belongs to its own change.
 const metaSchemaReconciledMinor = "3.2"
 
-// metaSchemaVersionArtifacts returns the findings the library raised only by
-// checking schemas against the wrong meta-schema, keyed by findingSite, or nil
-// unless minor is metaSchemaReconciledMinor.
+// metaSchemaVersionArtifacts returns the schema findings the library raised
+// only by checking against a meta-schema older than 3.2's, keyed by
+// findingSite, or nil when there is nothing to reconcile.
 //
 // JSONSchema[T].Validate discards its options (jsonschema/oas3/jsonschema.go),
-// so the document's version never reaches schema validation and every schema is
-// checked against the 3.1 meta-schema. A valid 3.2 document using a 3.2-only
-// keyword, such as discriminator.defaultMapping, then fails.
+// so every schema is checked against the 3.1 meta-schema, which refuses the
+// keywords 3.2 added, such as discriminator.defaultMapping. In a 3.2 document
+// such a finding is false. In an older one, where later says laterConstructs
+// reported such a keyword, the compiler reports it itself.
 //
-// The findings are derived, not listed. oas3.Validate does honour the option,
-// so validating every schema twice, at the document's version and as the
-// library does, isolates them: a finding only the second run raises is an
-// artifact and the rest stay.
-func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string) map[string]bool {
+// Validating every schema twice, at 3.2 and as the library does, isolates them:
+// a finding only the second run raises is about a keyword 3.2 admits.
+func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor string, later bool) map[string]bool {
+	against := doc.OpenAPI
 	if minor != metaSchemaReconciledMinor {
-		return nil
+		if !later {
+			return nil
+		}
+		against = metaSchemaReconciledMinor + ".0"
 	}
-	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }, doc.OpenAPI)
+	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return soa.Walk(ctx, doc) }, against)
 }
 
 // schemaArtifacts returns the findings sites schema validation raises over the
-// walk only because it checked against the wrong meta-schema (see
-// metaSchemaVersionArtifacts), for a document at version. walk is called once
-// per run, so each run gets a walk of its own.
+// walk as the library checks and not when checked at version (see
+// metaSchemaVersionArtifacts). walk is called once per run, so each run gets a
+// walk of its own.
 func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], version string) map[string]bool {
-	atDocumentVersion := schemaFindings(ctx, walk(),
+	atVersion := schemaFindings(ctx, walk(),
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}))
 	asLibraryChecks := schemaFindings(ctx, walk())
-	for key := range atDocumentVersion {
+	for key := range atVersion {
 		delete(asLibraryChecks, key)
 	}
 	return asLibraryChecks
@@ -918,7 +925,7 @@ func (t tail) describe() string {
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
 // reproducing soa.Unmarshal with the decode lifted out, so each node keeps its
-// line and column through an overlay.
+// line and column through an overlay. ownAdditionalOperations adjusts its findings.
 //
 // A panic from the third-party parser, which faults on degenerate input such as
 // a whitespace-only document, becomes an ErrParse error. The recover reaches
@@ -947,7 +954,7 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.Open
 	}
 	valErrs = append(valErrs, out.Validate(ctx)...)
 	validation.SortValidationErrors(valErrs)
-	return &out, valErrs, nil
+	return &out, ownAdditionalOperations(ctx, &out, soa.Walk(ctx, &out), valErrs), nil
 }
 
 // validationDiag converts one speakeasy validation error into a diagnostic. A
@@ -1014,18 +1021,20 @@ func mapSeverity(s validation.Severity) ir.Severity {
 	}
 }
 
+// supportedMinors are the OpenAPI minors the compiler reads, oldest first, so
+// an index orders them.
+var supportedMinors = []string{"3.0", "3.1", "3.2"}
+
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
-// string and whether the compiler supports it (3.0, 3.1, or 3.2).
+// string and whether the compiler supports it (supportedMinors).
 func SupportedMinor(version string) (string, bool) {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) < 2 {
 		return "", false
 	}
 	mm := parts[0] + "." + parts[1]
-	switch mm {
-	case "3.0", "3.1", "3.2":
-		return mm, true
-	default:
+	if !slices.Contains(supportedMinors, mm) {
 		return "", false
 	}
+	return mm, true
 }

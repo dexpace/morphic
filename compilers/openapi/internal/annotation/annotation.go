@@ -611,15 +611,12 @@ type Set struct {
 	Unmodeled  ir.Unmodeled
 }
 
-// Read reads every site-local annotation at st. since32 reports a dialect of
-// OpenAPI 3.2 or later, whose XML object writes a `nodeType` the parser's model
-// has no field for (GitHub #615); a parameter, as this package may not import
-// the lowering that knows the dialect.
+// Read reads every site-local annotation at st.
 //
 // This is the one place the site-versus-referent choice is made, rather than
 // at each position that attaches annotations: three attachment points used to
 // make it separately and disagreed.
-func Read(st Site, pointer jsontext.Pointer, locate Locator, since32 bool) (Set, []ir.Diagnostic) {
+func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnostic) {
 	var out Set
 
 	referent := st.Referent
@@ -635,7 +632,7 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator, since32 bool) (Set,
 	out.Examples = examples
 
 	ext, extDiags := ExtensionsFrom(st.Node.GetExtensions(), locate, pointer)
-	sub, subDiags := subObjectKeys(st.Node, out.XML, pointer, locate, since32)
+	sub, subDiags := subObjectKeys(st.Node, out.XML, pointer, locate)
 	kept, keptDiags := unmodeledAt(st.Node, pointer, locate)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
@@ -653,15 +650,11 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator, since32 bool) (Set,
 // specification defines for none of them. None of those IR types holds an
 // Unmodeled map, so the entries ride on the schema's node, keyed apart by the
 // keyword each was written under. The census is graded as an OpenAPI object's,
-// not a schema keyword's. Under since32 it first reads the XML object's
-// nodeType into hints (applyNodeType).
-func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, locate Locator, since32 bool) (ir.Unmodeled, []ir.Diagnostic) {
+// not a schema keyword's. It first reads the XML object's nodeType into hints
+// (applyNodeType).
+func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
-	var diags []ir.Diagnostic
-	var xmlTaken []string
-	if since32 {
-		xmlTaken, diags = applyNodeType(&out, hints, s.GetXML(), locate, pointer+ids.Ptr("xml"))
-	}
+	xmlTaken, diags := applyNodeType(&out, hints, s.GetXML(), locate, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
 		obj     any
@@ -682,12 +675,14 @@ func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer,
 	return out, diags
 }
 
-// applyNodeType places the nodeType a 3.2 XML object writes on hints, and
-// returns the keys it read for the census to leave alone. A non-empty value
-// outside the five the specification defines is kept verbatim on p instead, as
-// nothing else may fill XMLHints.NodeType. An attribute flag the nodeType contradicts,
-// which 3.2 forbids writing beside it, is kept verbatim on p rather than
-// overwritten in silence.
+// applyNodeType places the nodeType an XML object writes on hints, which the
+// parser's model has no field for (GitHub #615), and returns the keys it read
+// for the census to leave alone. It reads at every version, as load reports the
+// field below 3.2 (diag.LaterVersionConstruct). A non-empty value outside the
+// five the specification defines is kept verbatim on p instead, as nothing else
+// may fill XMLHints.NodeType. An attribute flag the nodeType contradicts, which
+// 3.2 forbids writing beside it, is kept verbatim on p rather than overwritten
+// in silence.
 func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Locator, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	if x == nil {
 		return nil, nil

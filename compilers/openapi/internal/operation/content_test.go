@@ -2481,14 +2481,14 @@ components:
 	openapitest.AssertInfoDiagAt(t, diags, decl)
 }
 
-// TestEncoding_NestedEncodingsAreKeptFor32Only pins GitHub #615's nested
+// TestEncoding_NestedEncodingsAreKeptAtEveryVersion pins GitHub #615's nested
 // Encoding fields: 3.2 gives an Encoding Object an encoding map and the
 // positional prefix/item encodings, ir.PartEncoding has no field for any of
 // them, and the bundled model does not name them either — so they used to draw
-// three unknown-object-key warnings and reach no entry. Each is now kept
-// verbatim under the part's own scope with one info, and below 3.2 the warnings
-// stay.
-func TestEncoding_NestedEncodingsAreKeptFor32Only(t *testing.T) {
+// unknown-object-key warnings and reach no entry. Each is kept verbatim under
+// the part's own scope with one info, and below 3.2 load adds that the field is
+// a later version's (GitHub #864).
+func TestEncoding_NestedEncodingsAreKeptAtEveryVersion(t *testing.T) {
 	t.Parallel()
 	const body = `  /upload:
     post:
@@ -2506,19 +2506,22 @@ func TestEncoding_NestedEncodingsAreKeptFor32Only(t *testing.T) {
                 prefixEncoding: [{contentType: text/plain}]
       responses: {"200": {description: ok}}
 `
-	_, svc32, diags32 := lowerServiceSpec(t, "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
-	openapitest.RequireNoErrorDiags(t, diags32)
-	content := openapitest.FirstOp(t, svc32).Request.Contents[0]
-	kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]
-	require.True(t, ok, "the nested prefixEncoding is kept under the part's own scope; got %v",
-		slices.Sorted(maps.Keys(content.Unmodeled)))
-	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-	openapitest.AssertInfoDiagAt(t, diags32,
-		"/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding")
-	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
-		"3.2 defines the keys this reader took, so the census must leave them alone")
-
-	_, _, diags31 := lowerServiceSpec(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
-	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
-		"below 3.2 the same key is a misspelling and the warning is owed")
+	const at = "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/note/prefixEncoding"
+	for _, version := range []string{"3.2.0", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			kept, ok := content.Unmodeled["openapi:encoding/note/prefixEncoding"]
+			require.True(t, ok, "the nested prefixEncoding is kept under the part's own scope; got %v",
+				slices.Sorted(maps.Keys(content.Unmodeled)))
+			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+			openapitest.AssertInfoDiagAt(t, diags, at)
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
+				"the reader took the keys, so the census must leave them alone")
+			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, at),
+				"only a document older than 3.2 is told the field is a later version's")
+		})
+	}
 }

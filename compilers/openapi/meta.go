@@ -103,14 +103,11 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 
 // keepComponentMediaTypes keeps the components/mediaTypes map OpenAPI 3.2 adds
 // verbatim on the document, read as the parser reads it, at the entry and
-// pointer the components census would use, so the census leaves it alone. The parser models no such section
-// and this compiler does not resolve a reference into it yet (GitHub #856), so
-// the map has no IR home; below 3.2 the key is not the dialect's and the census
-// reports it as undefined.
+// pointer the components census would use, so the census leaves it alone. The
+// parser models no such section and this compiler does not resolve a reference
+// into it yet (GitHub #856), so the map has no IR home. It is kept at every
+// version, as load reports it below 3.2 (diag.LaterVersionConstruct).
 func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	if !c.Since32() {
-		return nil
-	}
 	view := nodeview.New()
 	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
 	at := ids.Ptr("components", "mediaTypes")

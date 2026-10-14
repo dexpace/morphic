@@ -432,15 +432,27 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 	assert.Zero(t, visited, "a failed match ends the walk rather than skipping one item")
 }
 
-// TestMetaSchemaVersionArtifacts_OtherMinorsUntouched pins the gate: only 3.2
-// findings are reconciled, because the library defaults to the 3.1 meta-schema
-// and reconciling 3.0 changes what a 3.0 document reports rather than removing a
-// false positive.
-func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
+// TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater pins the gate below
+// 3.2: a document there is reconciled only when laterConstructs reported a
+// keyword inside a schema, since the library defaults to the 3.1 meta-schema and
+// reconciling 3.0 otherwise changes what a 3.0 document reports rather than
+// removing a false positive. With one reported, what is dropped is exactly the
+// 3.2 keyword's finding.
+func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseSpec(t, minimal31)
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
+	for _, version := range []string{"3.1.0", "3.0.3"} {
+		spec := strings.Replace(defaultMapping32Spec, "openapi: 3.2.0", "openapi: "+version, 1)
+		doc, _ := parseSpec(t, spec)
+		minor, ok := SupportedMinor(version)
+		require.True(t, ok)
+		assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, minor, false))
+
+		dropped := metaSchemaVersionArtifacts(t.Context(), doc, minor, true)
+		require.Len(t, dropped, 1, "the defaultMapping finding, and nothing else")
+		for site := range dropped {
+			assert.Contains(t, site, "validation-invalid-schema")
+		}
+	}
 }
 
 // countErrorsAt counts the error-severity diagnostics carrying code. Severity is
