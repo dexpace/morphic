@@ -17,6 +17,9 @@ components:
     # format pairs with a declared type to select a primitive or hoist a scalar.
     # With no type beside it, nothing reads it.
     UntypedFormat: {format: uuid}
+    # A discriminator is held by a Model or a Union that routes by it. The top
+    # type routes nothing, so the discriminator is kept rather than dropped.
+    UntypedDiscriminator: {discriminator: {propertyName: kind}}
     # A contradictory schema: an instance cannot be both a two-member string
     # enum and an object. The enum is taken and the property set kept beside it,
     # so which half the IR describes stays recoverable (ir-design §4.8).
@@ -56,6 +59,7 @@ components:
     RefConst: {$ref: '#/components/schemas/RefTargetStr', const: a}
     RefRequired: {$ref: '#/components/schemas/RefTargetObj', required: [a]}
     RefAdditionalProperties: {$ref: '#/components/schemas/RefTargetObj', additionalProperties: false}
+    RefDiscriminator: {$ref: '#/components/schemas/RefTargetObj', discriminator: {propertyName: a}}
     # The control: a bound and a description at the identical position always
     # reached the alias's own fields, so neither may acquire an entry now.
     RefConstrained: {$ref: '#/components/schemas/RefTargetStr', minLength: 3, description: kept}
@@ -77,20 +81,17 @@ components:
     AllOfWithObjectType: {allOf: [{$ref: '#/components/schemas/RefTargetObj'}], type: object}
     ConstWithFormat: {const: 5, type: integer, format: int32}
     ConstWithBound: {const: ab, type: string, maxLength: 1}
-    # A collection bound is carried by ir.List.Constraints and by nothing else:
-    # listConstraints is its only reader and only an array lowering calls it, so
-    # an object keeps it here, and so does the Tuple prefixItems hoists, which
-    # has no Constraints field at all. Both reached the IR in no form until the
-    # bounds joined the census.
+    # A collection bound is carried by the Constraints of a List or a Tuple and
+    # by nothing else, so an object keeps it here.
     ItemsBoundOnObject:
       type: object
       properties: {f: {type: string}}
       minItems: 3
+    # Its controls: the nodes that do carry one keep no entry.
     ItemsBoundOnTuple:
       type: array
       prefixItems: [{type: string}]
       maxItems: 2
-    # Its control: the node that does carry them keeps no entry.
     ItemsBoundOnArray:
       type: array
       items: {type: string}

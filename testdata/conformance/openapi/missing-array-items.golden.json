@@ -1,7 +1,11 @@
 {
-  "irVersion": "0.7.0",
+  "irVersion": "0.11.0",
   "idSpaces": {
     "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
       "openapi"
     ],
     "g": [
@@ -14,6 +18,9 @@
       "openapi"
     ],
     "p": [
+      "openapi"
+    ],
+    "param": [
       "openapi"
     ],
     "s": [
@@ -52,6 +59,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1things/get/parameters/ids/query",
                   "name": {
                     "source": "ids",
                     "canonical": "ids"
@@ -107,7 +115,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "ids",
+                        "param": "param/openapi/paths/~1things/get/parameters/ids/query",
                         "location": "query",
                         "wireName": "ids",
                         "style": "form",

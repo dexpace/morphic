@@ -68,7 +68,6 @@ func (l *libraryRead) node(n *yaml.Node, p part, rest []part) (*yaml.Node, bool)
 }
 
 func (l *libraryRead) mapping(n *yaml.Node, p part, rest []part) (*yaml.Node, bool) {
-	key := strings.ReplaceAll(strings.ReplaceAll(p.value, "~1", "/"), "~0", "~")
 	for i := 0; i < len(n.Content); i += 2 {
 		l.steps++
 		if i+1 >= len(n.Content) {
@@ -78,7 +77,7 @@ func (l *libraryRead) mapping(n *yaml.Node, p part, rest []part) (*yaml.Node, bo
 		for k.Kind == yaml.AliasNode && k.Alias != nil {
 			k = k.Alias
 		}
-		if k.Kind == yaml.ScalarNode && k.Value == key {
+		if k.Kind == yaml.ScalarNode && k.Value == p.value {
 			if len(rest) == 0 {
 				return n.Content[i+1], true
 			}
@@ -284,7 +283,7 @@ func (g *treeGen) token(n *yaml.Node) string {
 		if key == nil || key.Kind != yaml.ScalarNode {
 			return "a"
 		}
-		return strings.ReplaceAll(strings.ReplaceAll(key.Value, "~", "~0"), "/", "~1")
+		return jsonpointer.EscapeString(key.Value)
 	case n != nil && n.Kind == yaml.SequenceNode && len(n.Content) > 0:
 		return strconv.Itoa(g.rng.IntN(len(n.Content)))
 	default:
@@ -537,8 +536,8 @@ func TestTreeReads_ModelCostReadsOnThroughAStructHeldByValue(t *testing.T) {
 }
 
 // TestPartsOf pins how a pointer is split as the library splits it: a token is
-// an index when it is digits with no leading zero, '/' alone has no token, and
-// what the library's validation refuses is no pointer.
+// decoded, it is an index when it is digits with no leading zero, '/' alone
+// has no token, and what the library's validation refuses is no pointer.
 func TestPartsOf(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -547,8 +546,8 @@ func TestPartsOf(t *testing.T) {
 		ok      bool
 	}{
 		{"/a/0/10/01/", []part{{"a", false}, {"0", true}, {"10", true}, {"01", false}, {"", false}}, true},
-		{"/a~1b/~0", []part{{"a~1b", false}, {"~0", false}}, true},
-		{"/", nil, true},
+		{"/a~1b/~0/~01", []part{{"a/b", false}, {"~", false}, {"~1", false}}, true},
+		{"/", []part{}, true},
 		{"", nil, false},
 		{"a", nil, false},
 		{"/~2", nil, false},

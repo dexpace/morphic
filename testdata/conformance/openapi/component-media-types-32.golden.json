@@ -1,0 +1,361 @@
+{
+  "irVersion": "0.11.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ComponentMediaTypes32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ComponentMediaTypes32",
+        "canonical": "component_media_types_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "listEvents",
+                "canonical": "list_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "unmodeled": {
+                          "openapi:$ref": {
+                            "reason": "degraded_lowering",
+                            "value": "#/components/mediaTypes/Event",
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1events/get/responses/200/content/application~1json/$ref"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1events~1{id}/get",
+              "name": {
+                "source": "getEvent",
+                "canonical": "get_event"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
+                  "name": {
+                    "source": "id",
+                    "canonical": "id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1events~1{id}/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "unmodeled": {
+                          "openapi:$ref": {
+                            "reason": "degraded_lowering",
+                            "value": "#/components/mediaTypes/Event",
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1events~1{id}/get/responses/200/content/application~1json/$ref"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events/{id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1events~1{id}/get/parameters/id/path",
+                        "location": "path",
+                        "wireName": "id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events~1{id}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Event": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Event",
+      "name": {
+        "source": "Event",
+        "canonical": "event"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Event"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Event/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Event/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "unmodeled": {
+    "openapi:components/mediaTypes": {
+      "reason": "no_ir_home",
+      "value": {
+        "Event": {
+          "examples": {
+            "one": {
+              "value": {
+                "id": "e1"
+              }
+            }
+          },
+          "schema": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "x-note": "from the component"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1events/get/responses/200/content/application~1json/$ref"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1events~1{id}/get/responses/200/content/application~1json/$ref"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "component-media-types-32.yaml",
+      "hash": "38d2d2ba356fbadfb5ec31c1be6fef82f446f5ed16ece632ee4a6cdeba3cf0b0"
+    }
+  ]
+}

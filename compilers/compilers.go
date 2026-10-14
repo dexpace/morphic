@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -295,16 +296,15 @@ func isNilCompiler(c Compiler) bool {
 
 // Formats returns every format some registered compiler serves, sorted by name
 // and then by version as a string, so the set reads the same from run to run.
+// An empty registry answers an empty list, never nil, so a caller that encodes
+// the result writes [] rather than null.
 //
 // String order matches numeric order only while minor versions stay
 // single-digit: 3.10 sorts ahead of 3.2. That is left unfixed because the order
 // is read, never compared against, and a version comparator guessing at every
 // format's scheme is a larger thing to get wrong.
 func (r *Registry) Formats() []SourceFormat {
-	formats := make([]SourceFormat, 0, len(r.byFormat))
-	for format := range r.byFormat {
-		formats = append(formats, format)
-	}
+	formats := slices.AppendSeq(make([]SourceFormat, 0, len(r.byFormat)), maps.Keys(r.byFormat))
 	slices.SortFunc(formats, func(a, b SourceFormat) int {
 		if byName := strings.Compare(a.Name, b.Name); byName != 0 {
 			return byName

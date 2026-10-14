@@ -84,8 +84,7 @@ func (r heldRef) restore() { r.js.GetSchema().Ref = r.written }
 func (r heldRef) retarget() {
 	r.hold()
 	if r.target != nil {
-		ref := references.Reference("#" + fragmentOf(r.at))
-		r.js.GetSchema().Ref = &ref
+		r.js.GetSchema().Ref = new(references.Reference("#" + fragmentOf(r.at)))
 	}
 }
 
@@ -128,7 +127,7 @@ func (p *resolution) missing(site jsontext.Pointer, ref references.Reference) {
 func fragmentOf(pointer jsontext.Pointer) string {
 	const plain = "/~$-_.!*'(),;:@&=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	out := make([]byte, 0, len(pointer))
-	for i := 0; i < len(pointer); i++ {
+	for i := range len(pointer) {
 		b := pointer[i]
 		if strings.IndexByte(plain, b) >= 0 {
 			out = append(out, b)

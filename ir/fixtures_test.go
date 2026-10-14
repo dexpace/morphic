@@ -49,15 +49,15 @@ func TestPopulatedFixtures_LeaveNoFieldZero(t *testing.T) {
 			rv := reflect.Indirect(reflect.ValueOf(tc.fixture))
 			require.Equal(t, reflect.Struct, rv.Kind(), "fixture must be a struct or a pointer to one")
 			require.Positive(t, rv.NumField(), "a struct with no fields witnesses nothing")
-			for i := range rv.NumField() {
-				name := rv.Type().Field(i).Name
+			for field, value := range rv.Fields() {
+				name := field.Name
 				if why, exempt := tc.zeroOK[name]; exempt {
-					assert.Truef(t, rv.Field(i).IsZero(),
+					assert.Truef(t, value.IsZero(),
 						"%s.%s is listed as deliberately zero (%s) but the fixture sets it; drop the entry",
 						rv.Type().Name(), name, why)
 					continue
 				}
-				assert.Falsef(t, rv.Field(i).IsZero(),
+				assert.Falsef(t, value.IsZero(),
 					"%s.%s is left zero, so the %s round-trip asserts nothing about it",
 					rv.Type().Name(), name, rv.Type().Name())
 			}

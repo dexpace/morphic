@@ -267,6 +267,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
 	diags = append(diags, resolveDiags...)
+	diags = append(diags, parameterRepeats(pointerAt(srcIndex, origin), soa.Walk(ctx, doc))...)
 
 	return &Document{
 		Doc:     doc,
@@ -309,15 +310,18 @@ func dropped(verr validation.Error) bool {
 // compilerOwned reports whether a finding belongs to a rule the compiler checks
 // itself.
 //
-// operationId uniqueness is the one. The library counts the operations written
-// under paths, walking the model before references are resolved: an operation a
-// YAML alias mounts twice counts twice, a $ref's target counts only where it is
-// written under paths, and no webhook, callback or component operation counts
-// at all. So it refused the alias form where the $ref form drew only a warning,
-// and missed repeats outside paths. The service lowering judges every claim
-// once it has seen them all (GitHub #502).
+// operationId uniqueness: the library counts operations before references
+// resolve, so it read an alias's reuse as a repeat and missed repeats outside
+// paths. The service lowering judges every claim once it has seen them all
+// (GitHub #502).
+//
+// Parameter uniqueness: the library reads only inline entries, so a repeat
+// through a $ref went unreported, and beside the compiler's own report an
+// inline repeat drew two errors. parameterRepeats checks every list the source
+// writes, its $refs resolved (#634, #840).
 func compilerOwned(verr validation.Error) bool {
-	return verr.Rule == validation.RuleValidationOperationIdUnique
+	return verr.Rule == validation.RuleValidationOperationIdUnique ||
+		verr.Rule == validation.RuleValidationOperationParameters
 }
 
 // resolve resolves every reference in doc and reports what each resolution
@@ -618,15 +622,15 @@ func numericLiteralArtifact(verr validation.Error) bool {
 // meta-schema and an unmarshal finding for one bad bound; both carry the keyword
 // in their parent path, so both are recognized and suppressed together.
 func isNumericBoundKeyword(verr validation.Error) bool {
-	var mismatch *validation.TypeMismatchError
-	if !errors.As(verr.UnderlyingError, &mismatch) {
+	mismatch, ok := errors.AsType[*validation.TypeMismatchError](verr.UnderlyingError)
+	if !ok {
 		return false
 	}
 	name := mismatch.ParentName
 	if _, after, ok := strings.CutLast(name, "."); ok {
 		name = after
 	}
-	_, ok := numericBoundKeywords[name]
+	_, ok = numericBoundKeywords[name]
 	return ok
 }
 
@@ -978,14 +982,16 @@ func validationMessage(verr validation.Error) string {
 
 // asValidationError extracts a structured validation error. The wrapped value
 // may be stored by value or by pointer, so both forms are probed. The chain is
-// walked manually with type assertions instead of errors.As; see the nolint
-// comment below for why.
+// walked manually with type assertions instead of errors.As; see the comment
+// below for why.
 func asValidationError(err error) (validation.Error, bool) {
 	for e := err; e != nil; e = errors.Unwrap(e) {
-		//nolint:errorlint // Deliberately hand-walked: errors.As would invoke the
-		// speakeasy errors.Error type's As method, which matches any target named
-		// "Error" and calls SetString, panicking on the validation.Error struct.
-		switch v := e.(type) {
+		// Deliberately hand-walked: errors.As would invoke the speakeasy
+		// errors.Error type's As method, which matches any target named "Error"
+		// and calls SetString, panicking on the validation.Error struct. The switch
+		// is on any(e) because a type switch on an error is what errorlint refuses,
+		// and this is the one place it is meant.
+		switch v := any(e).(type) {
 		case *validation.Error:
 			return *v, true
 		case validation.Error:

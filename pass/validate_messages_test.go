@@ -88,8 +88,7 @@ func replyBindingDoc(replyChannel *ir.ChannelID, carried, replyUsed []ir.Message
 // channel does not — and every id resolves, so nothing else can catch it.
 func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
 	t.Parallel()
-	replyCh := ir.ChannelID("chan/a")
-	diags := pass.Validate(replyBindingDoc(&replyCh,
+	diags := pass.Validate(replyBindingDoc(new(ir.ChannelID("chan/a")),
 		[]ir.MessageID{"msg/a"}, []ir.MessageID{"msg/b"}))
 
 	assert.Equal(t, 0, countCode(t, diags, "ir/dangling-message-ref"),
@@ -107,9 +106,8 @@ func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
 func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
 	t.Parallel()
 	carried := []ir.MessageID{"msg/a", "msg/b"}
-	replyCh := ir.ChannelID("chan/a")
 
-	assert.Empty(t, pass.Validate(replyBindingDoc(&replyCh, carried, []ir.MessageID{"msg/b"})))
+	assert.Empty(t, pass.Validate(replyBindingDoc(new(ir.ChannelID("chan/a")), carried, []ir.MessageID{"msg/b"})))
 	assert.Empty(t, pass.Validate(replyBindingDoc(nil, carried, []ir.MessageID{"msg/b"})),
 		"a reply with a dynamic address declares no channel to be a subset of")
 }
@@ -122,8 +120,7 @@ func replyOnItsOwnChannelDoc(replyUsed []ir.MessageID) *ir.Document {
 	doc := messageBindingDoc("chan/a", []ir.MessageID{"msg/a"}, []ir.MessageID{"msg/a"})
 	doc.Messages["msg/reply"] = ir.Message{ID: "msg/reply", Name: ir.Naming{Source: "reply"}}
 	doc.Channels["chan/reply"] = ir.Channel{ID: "chan/reply", Messages: []ir.MessageID{"msg/reply"}}
-	replyCh := ir.ChannelID("chan/reply")
-	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: &replyCh, Messages: replyUsed}
+	firstOp(doc).Bindings.Message.Reply = &ir.Reply{Channel: new(ir.ChannelID("chan/reply")), Messages: replyUsed}
 	return doc
 }
 
