@@ -349,19 +349,15 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // caller, which is the one thing keeping it unexported was for.
 func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
-// ExclusiveBoundIsBoolean reports whether this document's dialect spells
-// exclusiveMinimum/exclusiveMaximum as a boolean modifier (OpenAPI 3.0) rather
-// than a numeric bound (the 2020-12 dialect of 3.1 and 3.2). An unrecognized
-// version defaults to the 2020-12 numeric form.
-//
-// It reads the document version, which makes it a question about the context
-// rather than about any schema — annotation.Constraints takes the answer as a
-// parameter precisely so the reader never has to ask it.
-//
-// The version is read through its accessor so a context with no document answers
-// like an unrecognized version rather than panicking, which is how the other two
-// readers behave on a zero value.
-func (c Ctx) ExclusiveBoundIsBoolean() bool {
+// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
+// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
+// as a boolean exclusiveMinimum or a required `items`, asks this rather than
+// parsing the version itself; `nullable` is still read in every dialect
+// (GitHub #632). An unrecognized version, and a context with no document,
+// answer false. It reads the entry document's version, whichever document
+// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
+// 3.0 (GitHub #839).
+func (c Ctx) Is30() bool {
 	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return minor == "3.0"
 }
@@ -373,7 +369,7 @@ func (c Ctx) ExclusiveBoundIsBoolean() bool {
 // census must be told so (GitHub #615); one answer keeps the two agreeing. It
 // names a floor rather than one version, so a later dialect inherits the reads
 // rather than silently warning about its own fields again; an unrecognized
-// version answers false, as ExclusiveBoundIsBoolean does.
+// version answers false, as Is30 does.
 func (c Ctx) Since32() bool {
 	minor, ok := load.SupportedMinor(c.Doc.GetOpenAPI())
 	return ok && minor != "3.0" && minor != "3.1"
