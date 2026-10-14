@@ -285,87 +285,77 @@ func TestScalar_UnknownFormatPerBaseType(t *testing.T) {
 	assert.Equal(t, ir.PrimString, bases["s"])
 }
 
-// TestScalar_NumericFormatsMapToPrimitive pins that a format naming a width of
-// its base type resolves to the shared primitive for that width, not to an
-// anonymous Scalar carrying the format as an encoding. The controls pin the
-// pairings formatTable already mapped, and the last two rows pin the boundary
-// that still hoists.
-func TestScalar_NumericFormatsMapToPrimitive(t *testing.T) {
+// TestScalar_NumericFormatPairings pins which numeric (type, format) pairings
+// select a shared primitive and which hoist a Scalar that keeps the format. An
+// integer width selects its primitive under either numeric type. A float or
+// decimal format on an integer admits only integral values, which no primitive
+// narrower than integer holds, so it hoists as an unknown format does.
+func TestScalar_NumericFormatPairings(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		typ      string
-		format   string
-		wantPrim ir.PrimKind // mapped row: the primitive the position resolves to
-		wantBase ir.PrimKind // fallback row: the base the hoisted Scalar wraps
-		wantEnc  string      // fallback row: the hoisted Scalar's Encoding.Name
+	for _, tc := range []struct {
+		typ, format string
+		prim        ir.PrimKind // the primitive the pairing selects; "" = it hoists
+		base        ir.PrimKind // the hoisted Scalar's base
 	}{
-		{name: "int8", typ: "integer", format: "int8", wantPrim: ir.PrimInt8},
-		{name: "int16", typ: "integer", format: "int16", wantPrim: ir.PrimInt16},
-		{name: "uint8", typ: "integer", format: "uint8", wantPrim: ir.PrimUint8},
-		{name: "uint16", typ: "integer", format: "uint16", wantPrim: ir.PrimUint16},
-		{name: "uint32", typ: "integer", format: "uint32", wantPrim: ir.PrimUint32},
-		{name: "uint64", typ: "integer", format: "uint64", wantPrim: ir.PrimUint64},
-		{name: "decimal128", typ: "number", format: "decimal128", wantPrim: ir.PrimDecimal128},
+		{typ: "integer", format: "int8", prim: ir.PrimInt8},
+		{typ: "integer", format: "int16", prim: ir.PrimInt16},
+		{typ: "integer", format: "int32", prim: ir.PrimInt32},
+		{typ: "integer", format: "int64", prim: ir.PrimInt64},
+		{typ: "integer", format: "uint8", prim: ir.PrimUint8},
+		{typ: "integer", format: "uint16", prim: ir.PrimUint16},
+		{typ: "integer", format: "uint32", prim: ir.PrimUint32},
+		{typ: "integer", format: "uint64", prim: ir.PrimUint64},
+		{typ: "number", format: "int8", prim: ir.PrimInt8},
+		{typ: "number", format: "int16", prim: ir.PrimInt16},
+		{typ: "number", format: "int32", prim: ir.PrimInt32},
+		{typ: "number", format: "int64", prim: ir.PrimInt64},
+		{typ: "number", format: "uint8", prim: ir.PrimUint8},
+		{typ: "number", format: "uint16", prim: ir.PrimUint16},
+		{typ: "number", format: "uint32", prim: ir.PrimUint32},
+		{typ: "number", format: "uint64", prim: ir.PrimUint64},
+		{typ: "number", format: "float", prim: ir.PrimFloat32},
+		{typ: "number", format: "double", prim: ir.PrimFloat64},
+		{typ: "number", format: "decimal", prim: ir.PrimDecimal},
+		{typ: "number", format: "decimal128", prim: ir.PrimDecimal128},
 
-		// Controls: these pairings were already mapped and must not move.
-		{name: "int32", typ: "integer", format: "int32", wantPrim: ir.PrimInt32},
-		{name: "int64", typ: "integer", format: "int64", wantPrim: ir.PrimInt64},
-		{name: "float", typ: "number", format: "float", wantPrim: ir.PrimFloat32},
-		{name: "double", typ: "number", format: "double", wantPrim: ir.PrimFloat64},
-		{name: "decimal", typ: "number", format: "decimal", wantPrim: ir.PrimDecimal},
+		// A pairing no primitive holds hoists over its type's primitive.
+		{typ: "integer", format: "float", base: ir.PrimInteger},
+		{typ: "integer", format: "double", base: ir.PrimInteger},
+		{typ: "integer", format: "decimal", base: ir.PrimInteger},
+		{typ: "integer", format: "decimal128", base: ir.PrimInteger},
+		{typ: "integer", format: "Int8", base: ir.PrimInteger},     // a format name is case-sensitive
+		{typ: "number", format: "double-int", base: ir.PrimNumber}, // a registry format with no primitive
+		{typ: "number", format: "float16", base: ir.PrimNumber},    // a width no PrimKind names
+		{typ: "string", format: "int64", base: ir.PrimString},      // GitHub #637's orientation
+	} {
+		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
+				"    H:\n      type: object\n      properties:\n        p: {type: %s, format: %s}\n",
+				tc.typ, tc.format)))
+			assert.Empty(t, diags, "the format is homed either way, so nothing is reported")
+			h, ok := typeByName(doc, "H").(*ir.Model)
+			require.True(t, ok, "H lowers to a model")
+			require.Len(t, h.Properties, 1)
+			assert.Empty(t, h.Properties[0].Unmodeled, "the format is homed either way, so nothing is kept")
+			target := h.Properties[0].Type.Target
 
-		// Boundaries: an unlisted format still hoists over its base type. float16
-		// names no PrimKind, and a string carrying an integer width is #637's
-		// orientation rather than this table's.
-		{
-			name: "float16 hoists over number", typ: "number", format: "float16",
-			wantBase: ir.PrimNumber, wantEnc: "float16",
-		},
-		{
-			name: "string int64 hoists over string", typ: "string", format: "int64",
-			wantBase: ir.PrimString, wantEnc: "int64",
-		},
-	}
-
-	var props strings.Builder
-	props.WriteString("    Holder:\n      type: object\n      properties:\n")
-	for i, tt := range tests {
-		fmt.Fprintf(&props, "        p%d: {type: %s, format: %s}\n", i, tt.typ, tt.format)
-	}
-	doc, diags := lowerSpec(t, openapitest.ComponentSpec(props.String()))
-	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "Holder").(*ir.Model)
-	require.True(t, ok, "Holder lowers to a model")
-	byWire := openapitest.PropsByWire(m.Properties)
-
-	for i, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wire := fmt.Sprintf("p%d", i)
-			prop, ok := byWire[wire]
-			require.True(t, ok, "Holder declares %s", wire)
-			target := prop.Type.Target
-
-			if tt.wantEnc != "" {
-				sc, ok := doc.Types[target].(*ir.Scalar)
-				require.True(t, ok, "%s hoists as a Scalar", wire)
-				require.NotNil(t, sc.Base)
-				require.Equal(t, ir.PrimTypeID(tt.wantBase), sc.Base.Target)
-				assert.Equal(t, tt.wantBase, doc.Types[sc.Base.Target].(*ir.Primitive).Prim)
-				assert.Equal(t, tt.wantEnc, sc.Encoding.Name,
-					"an unlisted format is preserved verbatim")
+			if tc.prim != "" {
+				assert.Equal(t, ir.PrimTypeID(tc.prim), target, "the position resolves to the shared primitive")
+				prim, ok := doc.Types[target].(*ir.Primitive)
+				require.True(t, ok, "the primitive is interned")
+				assert.Equal(t, tc.prim, prim.Prim)
+				for id, td := range doc.Types {
+					assert.NotEqual(t, ir.KindScalar, td.Kind(), "%s: no node is hoisted for the position", id)
+				}
 				return
 			}
-
-			assert.Equal(t, ir.PrimTypeID(tt.wantPrim), target,
-				"%s resolves to the shared primitive", wire)
-			prim, ok := doc.Types[target].(*ir.Primitive)
-			require.True(t, ok, "%s is a Primitive", wire)
-			assert.Equal(t, tt.wantPrim, prim.Prim)
-
-			anon := ir.TypeID("t/anon/components/schemas/Holder/properties/" + wire)
-			assert.NotContains(t, doc.Types, anon,
-				"no anonymous node is interned at the property pointer")
+			sc, ok := doc.Types[target].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target)
+			require.NotNil(t, sc.Encoding)
+			assert.Equal(t, tc.format, sc.Encoding.Name, "the format is kept verbatim")
 		})
 	}
 }

@@ -1029,6 +1029,10 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
 // exclusive, untagged union with one variant per declared type.
+//
+// KNOWN GAP (GitHub #868): every integer is a number, so a set naming both
+// admits values that match two variants, which Exclusive rejects; with an
+// integer width both variants are the same primitive.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -1376,10 +1380,11 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 }
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
-// known pairing interns the shared primitive; byte, an unknown format, and the
-// 2020-12 content vocabulary each hoist a named Scalar wrapping the base
-// primitive with an Encoding, so what the position wrote never leaks onto the
-// shared primitive every other declaration of that type also resolves to.
+// known pairing interns the shared primitive; byte, a pairing the table does
+// not list, and the 2020-12 content vocabulary each hoist a named Scalar
+// wrapping the base primitive with an Encoding, so what the position wrote
+// never leaks onto the shared primitive every other declaration of that type
+// also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if st == oas3.SchemaTypeString && format == "byte" {
@@ -1927,11 +1932,13 @@ func (w *anchorWalk) charge(depth int) bool {
 }
 
 // formatTable maps a scalar "type" or "type/format" key to its IR primitive.
-// A format naming a width of its base type — an integer width, and
-// decimal/decimal128 — maps to the primitive for that width; float, double and
-// decimal are OpenAPI's spellings for the floating-point and decimal
-// primitives, not widths of them. Keys absent here (byte, and any unknown
-// format) hoist a Scalar instead.
+//
+// An integer width maps under either numeric type, since OpenAPI applies a
+// format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
+// decimal and decimal128 map under number alone: under integer they admit only
+// the integral values, which no primitive narrower than integer holds. Keys
+// absent here (byte, any unknown format, and those pairings) hoist a Scalar
+// whose Encoding carries the format instead.
 var formatTable = map[string]ir.PrimKind{
 	"string":            ir.PrimString,
 	"string/date":       ir.PrimDate,
@@ -1952,6 +1959,14 @@ var formatTable = map[string]ir.PrimKind{
 	"integer/uint32":    ir.PrimUint32,
 	"integer/uint64":    ir.PrimUint64,
 	"number":            ir.PrimNumber,
+	"number/int8":       ir.PrimInt8,
+	"number/int16":      ir.PrimInt16,
+	"number/int32":      ir.PrimInt32,
+	"number/int64":      ir.PrimInt64,
+	"number/uint8":      ir.PrimUint8,
+	"number/uint16":     ir.PrimUint16,
+	"number/uint32":     ir.PrimUint32,
+	"number/uint64":     ir.PrimUint64,
 	"number/float":      ir.PrimFloat32,
 	"number/double":     ir.PrimFloat64,
 	"number/decimal":    ir.PrimDecimal,
