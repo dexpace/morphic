@@ -68,3 +68,33 @@ func TestMechanismFieldNames_AccountForEverySourceField(t *testing.T) {
 	assert.Equal(t, want, mechanismFieldNames(),
 		"mechanismFieldNames must list every per-type field, sorted")
 }
+
+// TestPresentFlows_ReadsEverySourceFlowField holds presentFlows to the flow
+// fields soa.OAuthFlows declares. The no-flow report reads an empty lowered list
+// as "the document declares no flow", which is true only while every flow field
+// is read: a field the upstream model gains would otherwise lower to nothing,
+// losing the flow and drawing a false report. Each flow field is set alone
+// through reflection, so the check reads the struct rather than a second
+// hand-written list.
+func TestPresentFlows_ReadsEverySourceFlowField(t *testing.T) {
+	t.Parallel()
+	flowType := reflect.TypeFor[*soa.OAuthFlow]()
+	notFlows := map[string]bool{"Extensions": true}
+	st := reflect.TypeFor[soa.OAuthFlows]()
+	var seen int
+	var all soa.OAuthFlows
+	for f := range st.Fields() {
+		if f.Anonymous || !f.IsExported() || notFlows[f.Name] {
+			continue // the embedded marshaller model is not a document field
+		}
+		require.Equal(t, flowType, f.Type,
+			"OAuthFlows field %q is neither a flow nor listed as one that is not", f.Name)
+		var flows soa.OAuthFlows
+		reflect.ValueOf(&flows).Elem().FieldByIndex(f.Index).Set(reflect.ValueOf(&soa.OAuthFlow{}))
+		assert.Len(t, presentFlows(&flows), 1, "presentFlows does not read the %s flow", f.Name)
+		reflect.ValueOf(&all).Elem().FieldByIndex(f.Index).Set(reflect.ValueOf(&soa.OAuthFlow{}))
+		seen++
+	}
+	require.NotZero(t, seen, "the walk found no flow field at all")
+	assert.Len(t, presentFlows(&all), seen, "each flow field is read exactly once")
+}

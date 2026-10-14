@@ -13,7 +13,8 @@ const (
 	AuthKindHTTPBasic AuthKind = "http_basic"
 	// AuthKindHTTPBearer is HTTP Bearer-token authentication.
 	AuthKindHTTPBearer AuthKind = "http_bearer"
-	// AuthKindOAuth2 is OAuth 2.0 with one or more flows.
+	// AuthKindOAuth2 is OAuth 2.0. Its Flows may be empty: OAuth2MetadataURL can
+	// name the authorization server instead, and a source can state neither.
 	AuthKindOAuth2 AuthKind = "oauth2"
 	// AuthKindOpenIDConnect is OpenID Connect discovery.
 	AuthKindOpenIDConnect AuthKind = "openid_connect"

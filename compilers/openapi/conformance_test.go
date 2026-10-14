@@ -247,6 +247,7 @@ func conformanceCases() []conformanceCase {
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
 		{"servers-variables", assertServersVariables, []string{"servers"}},
 		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
+		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
 		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
 	}
 }
@@ -3874,6 +3875,42 @@ func assertSchemeDetail(t *testing.T, doc *ir.Document) {
 		oauth.OAuth2MetadataURL)
 	require.Len(t, oauth.Flows, 1)
 	assert.Equal(t, "https://example.com/refresh", oauth.Flows[0].RefreshURL)
+}
+
+// assertOAuth2NoFlow pins where a flowless oauth2 declaration is reported: once,
+// at the declaration, however many of the document's aliases reach it, and
+// never for a scheme whose metadata URL states its endpoints or that declares a
+// flow. Every entry interns either way (GitHub #646).
+func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	const code = "openapi/oauth2-no-flow"
+	reported := map[string]bool{"emptyFlows": true, "unknownFlowsOnly": true}
+	byPointer := map[jsontext.Pointer]ir.AuthScheme{}
+	for _, s := range doc.Auth {
+		byPointer[s.Provenance.Pointer] = s
+	}
+	for _, name := range []string{
+		"aliasFirst", "aliasSecond", "emptyFlows", "unknownFlowsOnly", "metadataOnly", "declaredFlow",
+	} {
+		s, ok := byPointer[jsontext.Pointer("/components/securitySchemes/"+name)]
+		require.True(t, ok, "%s interns, flowless or not", name)
+		assert.Equal(t, ir.AuthKindOAuth2, s.Kind, "%s", name)
+		var want []ir.Severity
+		if reported[name] {
+			want = []ir.Severity{ir.SeverityWarning}
+		}
+		assert.Equal(t, want, diagsAt(diags, code, "/components/securitySchemes/"+name),
+			"%s: reported once at a flowless declaration, never at an alias or a control", name)
+	}
+	n := 0
+	for _, d := range diags {
+		if d.Code == code {
+			n++
+		}
+	}
+	assert.Equal(t, 2, n, "two flowless declarations, two reports: %+v", diags)
+	assert.Equal(t, "https://example.com/.well-known/oauth-authorization-server",
+		byPointer["/components/securitySchemes/metadataOnly"].OAuth2MetadataURL, "the control's metadata URL is kept")
 }
 
 func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
