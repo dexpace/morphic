@@ -1,21 +1,16 @@
 package pass_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
-	"strconv"
-	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,18 +32,13 @@ const (
 // TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails when the IR declares a
 // field carrying an ir.Payload that encodingCarriers does not name.
 //
-// forEachPayload reaches every Payload by naming the Payload-bearing fields by
-// hand, because nothing in a Payload's Go type says who owns one. Naming them
-// costs a coupling the compiler cannot check, and this is what checks it: a
-// fourth carrier added to the IR would otherwise be walked by neither the checks
-// built on the walk nor the cases below, its encoding keys resolved against
-// nothing and its Required unjudged, with the whole suite green.
-//
-// The guard holds both lists at once, in two steps. Here it holds
+// forEachPayload names the Payload-bearing fields by hand, a coupling the
+// compiler cannot check: a carrier added to the IR would otherwise be walked by
+// neither the checks built on the walk nor the cases below, with the whole
+// suite green. The guard holds both lists in two steps. This test holds
 // encodingCarriers against the IR; TestValidate_EncodingKeyAddressesNoProperty
-// then holds forEachPayload against encodingCarriers, by requiring a diagnostic
-// from every entry. So a carrier added to the IR reddens this test, and adding
-// it here reddens that one until forEachPayload walks it too.
+// holds forEachPayload against encodingCarriers by requiring a diagnostic from
+// every entry.
 func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	t.Parallel()
 	carriers := encodingCarriers()
@@ -71,11 +61,10 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 //
 // The walk starts at ir.Document and visits each distinct reflect.Type once, so
 // recursive shapes terminate. The sealed TypeDef sum is reached only through an
-// interface, which a walk over the static type graph cannot descend into, so each
-// concrete kind is walked from its own root as well — seeded from the kinds the
-// ir sources declare, so a variant is covered the day it is added rather than the
-// day someone remembers a list here (ir/nofloat_test.go walks the same two halves
-// for the same reason).
+// interface, which a static walk cannot descend into, so each concrete kind is
+// walked from its own root as well, seeded from the kinds the ir sources
+// declare so a new variant is covered at once (ir/nofloat_test.go walks the
+// same two halves).
 func payloadFields(t *testing.T) []string {
 	t.Helper()
 	var found []string
@@ -141,117 +130,52 @@ func carriesPayload(t *testing.T, rt reflect.Type, depth int) bool {
 	}
 }
 
-// irTypeKinds returns every TypeKind constant the ir package's production sources
-// declare. Derived from the source because a list of the kinds written here is
-// one commit away from disagreeing with the sum it claims to enumerate, which is
-// the failure this whole file exists to catch.
+// irPackage is the ir package type-checked, loaded once per test binary.
+var irPackage = sync.OnceValues(func() (*decls.Package, error) {
+	return decls.Load("github.com/dexpace/morphic/ir")
+})
+
+// irDecls returns the ir package, type-checked.
+func irDecls(t *testing.T) *decls.Package {
+	t.Helper()
+	p, err := irPackage()
+	require.NoError(t, err)
+	return p
+}
+
+// irTypeKinds returns every TypeKind constant the ir package declares, read
+// type-checked because a list of the kinds written here is one commit away from
+// disagreeing with the sum it claims to enumerate, which is the failure this
+// whole file exists to catch.
 //
 // It reads the same declarations ir's own declaredTypeKinds does, spelled out
 // again because a helper in one package's test binary is not linked into
 // another's.
 func irTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
-	var kinds []ir.TypeKind
-	for _, path := range irSourcePaths(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		for _, decl := range f.Decls {
-			gd, isGen := decl.(*ast.GenDecl)
-			if !isGen || gd.Tok != token.CONST {
-				continue
-			}
-			kinds = append(kinds, typeKindsIn(t, gd)...)
-		}
-	}
-	require.Len(t, kinds, irTypeDefImpls(t),
-		"the sum holds one concrete type per kind, so a count that disagrees means this parse "+
-			"stopped seeing every constant rather than that the IR changed")
-	return kinds
-}
-
-// irTypeDefImpls counts the concrete types the ir sources seal into the TypeDef
-// sum, by the typeDef() marker methods that seal them.
-//
-// It reads the same sources by a different route, and exists to hold the other
-// reading to completeness. irTypeKinds finding constants proves its parse ran,
-// not that it saw them all, and a walk seeded from a subset skips whole concrete
-// kinds in silence — the failure this file exists to catch, one level up in the
-// machinery catching it. Removing a kind drops its constant and its marker
-// together, so the two agree without anyone maintaining a number.
-func irTypeDefImpls(t *testing.T) int {
-	t.Helper()
-	impls := 0
-	for _, path := range irSourcePaths(t) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
-		for _, decl := range f.Decls {
-			fd, isFunc := decl.(*ast.FuncDecl)
-			if isFunc && fd.Recv != nil && fd.Name.Name == "typeDef" {
-				impls++
-			}
-		}
-	}
-	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
-	return impls
-}
-
-// typeKindsIn returns the TypeKind constants one const group declares. A spec
-// naming neither type nor value repeats the previous one, so the group's last
-// explicit type carries forward; a spec with a value of its own declares its own
-// type.
-func typeKindsIn(t *testing.T, gd *ast.GenDecl) []ir.TypeKind {
-	t.Helper()
-	var kinds []ir.TypeKind
-	isKind := false
-	for _, spec := range gd.Specs {
-		vs, isValue := spec.(*ast.ValueSpec)
-		require.True(t, isValue, "const spec is not a ValueSpec: %#v", spec)
-		switch {
-		case vs.Type != nil:
-			id, isIdent := vs.Type.(*ast.Ident)
-			isKind = isIdent && id.Name == "TypeKind"
-		case len(vs.Values) > 0:
-			isKind = false
-		}
-		if !isKind {
-			continue
-		}
-		for i, name := range vs.Names {
-			require.Less(t, i, len(vs.Values), "TypeKind constant %s must declare its own value", name.Name)
-			kinds = append(kinds, ir.TypeKind(stringLit(t, name.Name, vs.Values[i])))
-		}
-	}
-	return kinds
-}
-
-// stringLit returns the string a constant's value expression spells out.
-func stringLit(t *testing.T, constName string, expr ast.Expr) string {
-	t.Helper()
-	lit, isLit := expr.(*ast.BasicLit)
-	require.True(t, isLit, "constant %s must be declared as a string literal", constName)
-	require.Equal(t, token.STRING, lit.Kind, "constant %s must be declared as a string literal", constName)
-	unquoted, err := strconv.Unquote(lit.Value)
-	require.NoError(t, err, "unquoting the value of %s", constName)
-	return unquoted
-}
-
-// irSourcePaths lists the ir package's non-test Go files, resolved against this
-// file's own directory so the result does not depend on the working directory the
-// suite runs from.
-func irSourcePaths(t *testing.T) []string {
-	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this test's path")
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(self), "..", "ir", "*.go"))
+	consts, err := irDecls(t).StringConsts("TypeKind")
 	require.NoError(t, err)
 
-	paths := make([]string, 0, len(matches))
-	for _, path := range matches {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		paths = append(paths, path)
+	kinds := make([]ir.TypeKind, len(consts))
+	for i, c := range consts {
+		kinds[i] = ir.TypeKind(c.Value)
 	}
-	require.NotEmpty(t, paths, "the ir package must hold production Go sources")
-	return paths
+	require.Len(t, kinds, irTypeDefImpls(t),
+		"the sum holds one concrete type per kind, so a count that disagrees means a variant is "+
+			"sealed without a TypeKind or a kind has no variant, and a walk seeded from the kinds skips it")
+	return kinds
+}
+
+// irTypeDefImpls counts the concrete types that declare the sealed typeDef()
+// marker, the sum's membership as the compiler sees it.
+//
+// It holds irTypeKinds to completeness from the other side: a walk seeded from
+// the kinds skips a variant that has none, in silence. Removing a kind drops its
+// constant and its marker together, so the two agree without anyone maintaining
+// a number.
+func irTypeDefImpls(t *testing.T) int {
+	t.Helper()
+	impls := len(irDecls(t).TypesDeclaring("typeDef"))
+	require.NotZero(t, impls, "the ir sources must seal concrete types into the TypeDef sum")
+	return impls
 }

@@ -42,6 +42,7 @@ the ones the next compiler will be first to bind to.
 | `recursive-types` | Recursive types | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `maps` | Maps / additionalProperties | ✅ | ✅ | ✅ Record | ✅ map | — | ✅ | ✅ map | ✅ :=/=> |
 | `tuples` | Tuples | ✅ prefixItems (3.1) | — | ✅ | — | — | ✅ | — | ✅ native |
+| `tuple-rest` | Tuple elements past the positional ones | ✅ items beside prefixItems (3.1) | — | — | — | — | ✅ additionalItems | — | ⚠ tuple() (any arity) |
 | `literal-types` | Literal types | ✅ const | ⚠ single enum | ✅ | — | — | ✅ | — | ✅ atoms/ints |
 | `operation-grouping` | Operations grouped by service/interface | ✅ tags (3.2 parent/kind) | ⚠ tags | ✅ interface/namespace | ✅ service/resource | ✅ Query/Mutation/Subscription | ⚠ | ✅ service | ✅ module |
 | `resource-hierarchy` | Resource hierarchy (CRUDL) | — | — | ⚠ @autoRoute | ✅ resource (incl. put, instance vs collection ops) | — | — | — | — |

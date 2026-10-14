@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -110,6 +111,14 @@ func (nilDocCompiler) Detect(compilers.Source, compilers.Options) (compilers.Rec
 
 func (nilDocCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
 
+func (nilDocCompiler) SourceTable(sources []compilers.Source, _ compilers.Options) []ir.SourceInfo {
+	table := make([]ir.SourceInfo, 0, len(sources))
+	for _, src := range sources {
+		table = append(table, ir.SourceInfo{Path: src.Path})
+	}
+	return table
+}
+
 func (nilDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
 	return nil, []ir.Diagnostic{{
 		Severity: ir.SeverityError,
@@ -169,7 +178,8 @@ func TestRunParse_NilDocumentReturnsOne(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout.String(), "no IR JSON should be written for a nil document")
-	assert.Contains(t, stderr.String(), "openapi/unsupported-version")
+	assert.Equal(t, "error openapi/unsupported-version "+spec+": refused\n", stderr.String(),
+		"nilDocCompiler's SourceTable names the spec even without a Document")
 }
 
 func TestRunParse_SkipValidateToStdout(t *testing.T) {
@@ -330,37 +340,37 @@ func TestSeverityRank_AllLevels(t *testing.T) {
 
 func TestSourcePath_Cases(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}}
+	table := []ir.SourceInfo{{Path: "spec.yaml"}}
 	tests := []struct {
-		name   string
-		doc    *ir.Document
-		source int
-		want   string
+		name    string
+		sources []ir.SourceInfo
+		source  int
+		want    string
 	}{
-		{"nil document", nil, 0, ""},
-		{"negative index", doc, -1, ""},
-		{"index past end", doc, 1, ""},
-		{"valid index", doc, 0, "spec.yaml"},
+		{"no table", nil, 0, ""},
+		{"negative index", table, -1, ""},
+		{"index past end", table, 1, ""},
+		{"valid index", table, 0, "spec.yaml"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, sourcePath(tt.doc, tt.source))
+			assert.Equal(t, tt.want, sourcePath(tt.sources, tt.source))
 		})
 	}
 }
 
 // TestRenderDiagnostics_WithAndWithoutSourcePath is the table over every shape
 // location renders: each of the three locators alone, the precedence between
-// them, a source with none of them, and a source index that resolves to no
-// file, as every index does in a refused compile, which returns no document
+// them, a source with none of them, and a source index past the end of the
+// table — a producer bug, which location renders bare rather than guess at
 // (see location's doc comment). Whole lines are asserted, not fragments: the
 // location is what varies between rows, and a containment check on the
 // message alone would pass for a line that rendered the location wrongly or
 // fabricated one.
 func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 	t.Parallel()
-	doc := &ir.Document{Sources: []ir.SourceInfo{{Path: "spec.yaml"}}}
+	sources := []ir.SourceInfo{{Path: "spec.yaml"}}
 
 	tests := []struct {
 		name string
@@ -427,7 +437,7 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			res := &engine.Result{
-				Document: doc,
+				Sources: sources,
 				Diagnostics: []ir.Diagnostic{
 					{Severity: ir.SeverityError, Code: "openapi/bad", Message: "m", Provenance: tt.prov},
 				},
@@ -854,4 +864,63 @@ func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
 	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
+}
+
+// danglingDocCompiler lowers to a Document with a dangling type ref and no
+// compiler diagnostics, so the only thing that can report it is the validate
+// pass.
+type danglingDocCompiler struct{ nilDocCompiler }
+
+func (danglingDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		Name:  "Dangling",
+		Types: ir.TypeRegistry{},
+		Services: []ir.Service{{
+			ID: "s/x",
+			Groups: []ir.OperationGroup{{
+				Operations: []ir.Operation{{
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
+				}},
+			}},
+		}},
+	}, nil, nil
+}
+
+// TestRun_PassFlagsSilenceTheValidatePass pins that --skip-validate and
+// --disable-pass validate each turn the pass off end to end, on both commands:
+// the document's dangling ref fails the run by default and goes unreported
+// under either flag.
+func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	commands := [][]string{
+		{"compile", spec, "-o", filepath.Join(t.TempDir(), "ir.json")},
+		{"validate", spec},
+	}
+	tests := []struct {
+		flags []string
+		want  int
+	}{
+		{nil, exitFindings},
+		{[]string{"--skip-validate"}, 0},
+		{[]string{"--disable-pass", "validate"}, 0},
+	}
+	for _, command := range commands {
+		for _, tt := range tests {
+			var stdout, stderr bytes.Buffer
+			args := slices.Concat(command, tt.flags)
+
+			code := run(args, &stdout, &stderr)
+
+			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
+			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
+				"%v: stderr %q", args, stderr.String())
+		}
+	}
 }

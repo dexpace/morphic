@@ -1,0 +1,77 @@
+# GitHub #757: a discriminator mapping may name its subtype at a position the
+# parsed model holds as raw YAML, such as an extension's value. The resolver
+# follows no mapping value, so such a target was found only once a $ref had
+# lowered it, and the entry was dropped as unresolved where nothing had. The
+# document is written in the order that failed: each base comes before what its
+# mapping names, and no $ref the model holds names any target. The sweep's order
+# oracle compiles the reversed document as well, so both orders must agree.
+#
+# Pet maps to Cat, an extension's value, and to Hound, whose own mapping names
+# Puppy. Hound sits where only Pet's mapping reaches it. Holder's $ref reaches
+# Reached, whose mapping names Leaf. Box's $ref reaches Kennel, whose property
+# names Cat by a $ref inside the raw YAML: declared ahead of Pet, that $ref was
+# left unresolved, and resolved only where Pet's mapping had lowered Cat first.
+# A mapping to an enum member is left out: it lowers the member as a schema in
+# one order only (GitHub #730).
+openapi: 3.1.0
+info: {title: Discriminator Mapping Raw Targets, version: "1"}
+paths: {}
+components:
+  schemas:
+    Box:
+      $ref: '#/x-lib/Kennel'
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/x-lib/Cat'
+          hound: '#/x-lib/Hound'
+    Holder:
+      $ref: '#/x-lib/Reached'
+x-lib:
+  Kennel:
+    type: object
+    properties:
+      resident: {$ref: '#/x-lib/Cat'}
+  Cat:
+    allOf:
+      - $ref: '#/components/schemas/Pet'
+    type: object
+    properties:
+      meow: {type: string}
+  Hound:
+    allOf:
+      - $ref: '#/components/schemas/Pet'
+    type: object
+    required: [tag]
+    properties:
+      tag: {type: string}
+    discriminator:
+      propertyName: tag
+      mapping:
+        puppy: '#/x-lib/Puppy'
+  Puppy:
+    allOf:
+      - $ref: '#/x-lib/Hound'
+    type: object
+    properties:
+      teething: {type: boolean}
+  Reached:
+    type: object
+    required: [tag]
+    properties:
+      tag: {type: string}
+    discriminator:
+      propertyName: tag
+      mapping:
+        leaf: '#/x-lib/Leaf'
+  Leaf:
+    allOf:
+      - $ref: '#/x-lib/Reached'
+    type: object
+    properties:
+      veins: {type: integer}

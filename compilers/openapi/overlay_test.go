@@ -143,6 +143,37 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "the second source entry keeps the document valid")
 }
 
+// TestCompile_OverlaySetsTheSpecsSelfURI pins where a `$self` an overlay writes
+// is recorded: on the spec's entry, replacing the one the spec declared. An
+// overlay is not an OpenAPI document and declares no `$self` of its own, so its
+// entry records none.
+func TestCompile_OverlaySetsTheSpecsSelfURI(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+$self: https://example.com/declared.yaml
+info: {title: Pets, version: "1"}
+paths: {}
+`
+	const patch = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $
+    update:
+      $self: https://example.com/patched.yaml
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	require.Len(t, doc.Sources, 2, "the spec and the overlay applied to it")
+	assert.Equal(t, "https://example.com/patched.yaml", doc.Sources[0].SelfURI)
+	assert.Empty(t, doc.Sources[1].SelfURI)
+}
+
 // TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic runs the two
 // document-level oracles over a patched compile.
 //
@@ -454,20 +485,16 @@ actions:
 }
 
 // provenanceSpec and provenancePatch exercise GitHub #522's fix on every
-// annotation-package call path a clean 3.1 document reaches: component schemas
-// and a property of one, an operation and its externalDocs, a response with its
-// header, media type and example, a request body and its encoding, a parameter
-// and its schema, both security schemes and an OAuth flow, the document's info
-// and servers, and a path item the overlay mounts that no operation reaches.
-// The call paths only a 3.0 document or a failing read reaches are
+// annotation-package call path a clean 3.1 document reaches, including a path
+// item the overlay mounts that no operation reaches. The paths only a 3.0
+// document or a failing read reaches are
 // TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet's.
 //
-// They also carry GitHub #534's combined entries. The overlay writes Pet's
-// if/then/else and contains entries whole, and Tags' unevaluatedItems on the
-// array schema it describes. Widget's base declares then and the overlay adds
-// if, the arm the combining reader lists first, so a rule that read only the
-// first keyword would credit the overlay with the entry. A combined entry that
-// will not render is TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry's.
+// They also carry GitHub #534's combined entries. Widget's base declares then
+// and the overlay adds if, the arm the combining reader lists first, so a rule
+// reading only the first keyword would credit the overlay with the entry. A
+// combined entry that will not render is
+// TestCompile_OverlayIsCreditedWithAnUnkeptCombinedEntry's.
 const provenanceSpec = `openapi: 3.1.0
 info:
   title: t
@@ -647,11 +674,13 @@ actions:
 // what keeps the table below honest about which map an entry actually landed
 // on instead of merely one it could have.
 func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
-	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
 	out := map[string]ir.UnmodeledEntry{}
 	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() == entryType && v.CanInterface() {
-			out[path] = v.Interface().(ir.UnmodeledEntry)
+		if !v.CanInterface() {
+			return true
+		}
+		if entry, ok := reflect.TypeAssert[ir.UnmodeledEntry](v); ok {
+			out[path] = entry
 		}
 		return true
 	})
@@ -709,21 +738,16 @@ func diagnosticsByCodeAndPointer(diags []ir.Diagnostic) map[diagKey][]ir.Diagnos
 	return out
 }
 
-// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522 end to end.
-// The annotation package's readers sit below lowering.Ctx in the import graph
-// and used to be handed the base document's raw source index rather than the
-// context's own attribution, so an extension, an unknown key, a dialect
-// keyword or a validation-only keyword an overlay added claimed to come from
-// the base document it patched — and so did the diagnostics announcing them.
+// TestCompile_OverlayIsCreditedWithTheKeysItAdds pins GitHub #522: what an
+// overlay adds, and the diagnostics announcing it, name the overlay as their
+// source. The annotation readers sit below lowering.Ctx, so they take a Locator
+// over its attribution rather than the base document's raw source index.
 //
-// Every row here names the production call path it exercises, so that
-// reverting the fix at any one of them reddens the row beside it. The
-// controls (x-base, x-obj) must stay with the base: crediting the overlay with
-// everything it touches, rather than with what it introduced or rewrote, would
-// be the opposite defect. GitHub #534's combined entries have no position of
-// their own and are credited by their keywords instead: to the overlay where
-// it wrote every one, and to the document declaring the schema where each
-// document wrote some, as on Widget.
+// Each row names its call path, so reverting the fix at any one reddens it. The
+// controls (x-base, x-obj) stay with the base: crediting the overlay with all
+// it touches would be the opposite defect. GitHub #534's combined entries are
+// credited by keyword: to the overlay where it wrote every one, otherwise to
+// the declaring document.
 func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
@@ -865,10 +889,10 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 // call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
 // exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
 // which only a 3.0 document reads as a modifier: for a component schema
-// (schema.go schemaConstraints) and for a parameter's schema (params.go
-// fillParamSchema). And a oneOf that will not render is reported rather than
-// kept (schema.go preserveBranchSets), which is an error a clean fixture cannot
-// carry.
+// (schema.go hoistDeclarationHome) and for a parameter's schema (params.go
+// fillParamSchema), each through schema.ConstraintsOf. And a oneOf that will
+// not render is reported rather than kept (schema.go preserveBranchSets), which
+// is an error a clean fixture cannot carry.
 func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.0.3
@@ -915,7 +939,7 @@ actions:
 	entries := unmodeledEntriesByPath(doc)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
-		"a component schema's kept modifier (schema.go schemaConstraints)")
+		"a component schema's kept modifier (schema.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")

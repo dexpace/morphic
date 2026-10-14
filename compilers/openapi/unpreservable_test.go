@@ -30,9 +30,8 @@ const unpreservableValue = ".nan"
 // Unmodeled" must not be emitted when nothing was written.
 //
 // It asserts the pairing rather than one site's message, because the defect was
-// a property of the idiom rather than of any one caller: every site that
-// converts a node and then announces it shared the bug, and four of them still
-// had it after the first fix was applied to the fifth.
+// a property of the idiom: every site that converts a node and then announces
+// it shared the bug.
 //
 // Each case compiles a document whose preserved payload cannot convert, then
 // requires that (a) no degradation diagnostic claims preservation, and (b) the
@@ -48,13 +47,6 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 		// making no claim because it made no lowering.
 		at string
 	}{
-		{
-			name: "items after prefixItems",
-			spec: openapitest.ComponentSpec("    T:\n      type: array\n" +
-				"      prefixItems: [{type: string}]\n" +
-				"      items: {type: string, x-t: " + unpreservableValue + "}\n"),
-			at: "/components/schemas/T/items",
-		},
 		{
 			name: "unmerged allOf branch",
 			spec: openapitest.ComponentSpec("    M:\n      allOf:\n" +
@@ -146,16 +138,15 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 // announcing and also stopped reporting would satisfy that one.
 func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec("    T:\n      type: array\n" +
-		"      prefixItems: [{type: string}]\n" +
-		"      items: {type: string, x-t: " + unpreservableValue + "}\n")
+	spec := openapitest.ComponentSpec("    M:\n      allOf:\n" +
+		"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
 	d, ok := firstDiagWithCode(diags, diag.UnpreservableConstruct)
 	require.True(t, ok, "the unconvertible construct is reported: %+v", diags)
 	assert.Equal(t, ir.SeverityError, d.Severity,
 		"a construct that reached the IR in no form at all is a losslessness failure, not a degradation")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/T/items"), d.Provenance.Pointer,
+	assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0"), d.Provenance.Pointer,
 		"the diagnostic locates the construct that was lost, not its owner")
 	assert.Contains(t, d.Message, "no form at all")
 }
@@ -249,8 +240,8 @@ components:
         - {required: [a]}
         - {required: [b]}
     T:
-      type: array
-      prefixItems: [{type: string}]
+      type: object
+      properties: {h: {type: string}}
       items: {type: integer}
 paths:
   /p:
@@ -266,9 +257,9 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	// S witnesses vendor_extension, validation_only (its constraint-only union
-	// joins `not` there) and out_of_scope (its $schema); T's open tuple is the
-	// only degraded_lowering witness here, so it must not be folded into another
-	// case.
+	// joins `not` there) and out_of_scope (its $schema); T's items, which its
+	// Model has no home for, is the only degraded_lowering witness here, so it
+	// must not be folded into another case.
 	seen := map[ir.UnmodeledReason]bool{}
 	for _, name := range []string{"S", "T"} {
 		for _, entry := range doc.Types[componentID(name)].Common().Unmodeled {

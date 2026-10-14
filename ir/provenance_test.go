@@ -127,6 +127,48 @@ func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
 	}
 }
 
+// TestSourceInfo_JSONEncodesSelfURI pins SelfURI's wire shape byte for byte: a
+// `selfURI` member after the other three when one was declared, and no member
+// at all when none was, since empty is the one spelling of none. Each row
+// decodes back to the value it encoded.
+func TestSourceInfo_JSONEncodesSelfURI(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		info ir.SourceInfo
+		want string
+	}{
+		{
+			name: "a declared $self writes selfURI",
+			info: ir.SourceInfo{
+				Format:  "openapi@3.2",
+				Path:    "openapi.yaml",
+				Hash:    "abc123",
+				SelfURI: "https://example.com/api/openapi.yaml",
+			},
+			want: `{"format":"openapi@3.2","path":"openapi.yaml","hash":"abc123",` +
+				`"selfURI":"https://example.com/api/openapi.yaml"}`,
+		},
+		{
+			name: "no $self writes no key",
+			info: ir.SourceInfo{Format: "openapi@3.2", Path: "openapi.yaml", Hash: "abc123"},
+			want: `{"format":"openapi@3.2","path":"openapi.yaml","hash":"abc123"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			raw, err := json.Marshal(tt.info, json.Deterministic(true))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(raw))
+
+			var back ir.SourceInfo
+			require.NoError(t, json.Unmarshal(raw, &back))
+			assert.Equal(t, tt.info, back, "the source survives a decode round-trip")
+		})
+	}
+}
+
 // TestFirstError_Cases covers the shapes call sites depend on: no
 // diagnostics, diagnostics with no error severity, and diagnostics carrying
 // more than one error — where the first, not the last, must be returned.

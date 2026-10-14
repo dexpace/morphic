@@ -2,12 +2,9 @@ package irverify
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"go/types"
 	"reflect"
 	"runtime"
-	"slices"
 	"strings"
 	"testing"
 
@@ -66,17 +63,15 @@ func TestVerify_ReportsTruncationOnce(t *testing.T) {
 	assert.Equal(t, 1, truncations)
 }
 
-// TestWalkChecks_NoWalkDropsItsTruncationFlag is the drift guard on the list
-// itself, and it makes two claims that together leave a walk nowhere to drop the
-// flag. A function that calls ir.WalkValues must hand a bool back to its caller,
-// so the flag cannot die at the walk site; and a function shaped like a walking
-// check must be in walkChecks, so it cannot be wired into Verify by a path that
-// never folds the flag into a report.
+// TestWalkChecks_NoWalkDropsItsTruncationFlag guards walkChecks against drift
+// with two claims that leave a walk nowhere to drop the flag. A function that
+// calls ir.WalkValues must return a bool, so the flag cannot die at the walk
+// site; and a function shaped like a walking check must be in walkChecks, so no
+// path wires it into Verify without folding its flag into a report.
 //
-// The two populations overlap without coinciding: checkReferentialIntegrity
-// reaches the walk through collectRefs, so it is a check that does not itself
-// call ir.WalkValues, and collectRefs is a walker that is no check. Each claim is
-// therefore asked of the functions it applies to rather than of one list.
+// The populations overlap without coinciding (checkReferentialIntegrity walks
+// through collectRefs, a walker that is no check), so each claim is asked of
+// the functions it applies to rather than of one list.
 func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 	t.Parallel()
 	listed := map[string]bool{}
@@ -84,16 +79,19 @@ func TestWalkChecks_NoWalkDropsItsTruncationFlag(t *testing.T) {
 		listed[checkName(check)] = true
 	}
 
+	violation, err := verifyDecls(t).Named("Violation")
+	require.NoError(t, err)
+	violations := types.NewSlice(violation)
 	fns := packageFuncs(t)
 	require.NotEmpty(t, fns, "the package must declare functions")
 	var walkers int
 	for _, fn := range fns {
 		if fn.callsWalkValues {
 			walkers++
-			assert.Equal(t, "bool", last(fn.results),
+			assert.True(t, endsInBool(fn.sig),
 				"%s calls ir.WalkValues but returns no truncation flag", fn.name)
 		}
-		if slices.Equal(fn.results, []string{"[]Violation", "bool"}) {
+		if isCheckShaped(fn.sig, violations) {
 			assert.True(t, listed[fn.name],
 				"%s is shaped like a walking check but is not in walkChecks, "+
 					"so nothing folds its truncation flag into a report", fn.name)
@@ -113,19 +111,11 @@ func checkName(check func(*ir.Document, declarations) ([]Violation, bool)) strin
 	return full
 }
 
-// last returns the final element of ss, or "" when ss is empty.
-func last(ss []string) string {
-	if len(ss) == 0 {
-		return ""
-	}
-	return ss[len(ss)-1]
-}
-
 // packageFunc is one function this package's production sources declare: its
-// name, the types it returns, and whether its body reaches ir.WalkValues.
+// name, its signature, and whether its body reaches ir.WalkValues.
 type packageFunc struct {
 	name            string
-	results         []string
+	sig             *types.Signature
 	callsWalkValues bool
 }
 
@@ -133,49 +123,55 @@ type packageFunc struct {
 // sources, methods included.
 func packageFuncs(t *testing.T) []packageFunc {
 	t.Helper()
+	p := verifyDecls(t)
+	irAsSeen, reaches := p.Imported(irPath)
+	require.True(t, reaches, "this package must import ir")
+	walkValues := irAsSeen.Scope().Lookup("WalkValues")
+	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
 	var out []packageFunc
-	for _, path := range goSourceFiles(t, packageDir(t, ".")) {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-		require.NoError(t, err, "parsing %s", path)
+	for _, f := range p.Syntax {
 		for _, decl := range f.Decls {
 			fn, isFunc := decl.(*ast.FuncDecl)
 			if !isFunc {
 				continue
 			}
+			obj, isFuncObj := p.Info.Defs[fn.Name].(*types.Func)
+			require.True(t, isFuncObj, "%s declares no function object", fn.Name.Name)
+			sig, isSig := obj.Type().(*types.Signature)
+			require.True(t, isSig, "%s has no signature", fn.Name.Name)
 			out = append(out, packageFunc{
 				name:            fn.Name.Name,
-				results:         resultTypes(fn),
-				callsWalkValues: callsWalkValues(fn),
+				sig:             sig,
+				callsWalkValues: refersTo(p.Info, fn, walkValues),
 			})
 		}
 	}
 	return out
 }
 
-// resultTypes renders fn's result types, one entry per result, so a named and an
-// unnamed result list read the same.
-func resultTypes(fn *ast.FuncDecl) []string {
-	if fn.Type.Results == nil {
-		return nil
-	}
-	var out []string
-	for _, field := range fn.Type.Results.List {
-		out = append(out, slices.Repeat([]string{types.ExprString(field.Type)}, max(1, len(field.Names)))...)
-	}
-	return out
+// endsInBool reports whether sig's last result, named or not, has type bool.
+func endsInBool(sig *types.Signature) bool {
+	results := sig.Results()
+	return results.Len() > 0 && types.Identical(results.At(results.Len()-1).Type(), types.Typ[types.Bool])
 }
 
-// callsWalkValues reports whether fn's body calls ir.WalkValues.
-func callsWalkValues(fn *ast.FuncDecl) bool {
-	var found bool
-	ast.Inspect(fn, func(node ast.Node) bool {
-		sel, isSelector := node.(*ast.SelectorExpr)
-		if !isSelector || sel.Sel.Name != "WalkValues" {
+// isCheckShaped reports whether sig returns (violations, bool): the shape of a
+// check that walks the document and owes its caller a truncation flag.
+func isCheckShaped(sig *types.Signature, violations types.Type) bool {
+	results := sig.Results()
+	return results.Len() == 2 && endsInBool(sig) &&
+		types.Identical(results.At(0).Type(), violations)
+}
+
+// refersTo reports whether fn's body names target, resolved through info so an
+// import renamed or dotted still counts. target is compared as an object, so it
+// must be the one info's package sees, as Imported reaches it.
+func refersTo(info *types.Info, fn *ast.FuncDecl, target types.Object) bool {
+	for node := range ast.Preorder(fn) {
+		ident, isIdent := node.(*ast.Ident)
+		if isIdent && info.Uses[ident] == target {
 			return true
 		}
-		pkg, isIdent := sel.X.(*ast.Ident)
-		found = found || (isIdent && pkg.Name == "ir")
-		return true
-	})
-	return found
+	}
+	return false
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -286,6 +287,27 @@ func TestUnknownKeysIn_ModelWithNoCensusRecordsNothing(t *testing.T) {
 	}
 }
 
+// TestUnknownKeysNamed_DelegatesTheSameGrading covers the object census's other
+// entry point: an object whose model keeps no key list of its own — a Path
+// Item's leftovers, in practice — so the caller names the keys the model does
+// not define and this reader grades them exactly as the modelled path does.
+func TestUnknownKeysNamed_DelegatesTheSameGrading(t *testing.T) {
+	t.Parallel()
+	root := parsedMapping(t, "get: {}\nnotAKey: 3\n")
+
+	var got ir.Unmodeled
+	diags := UnknownKeysNamed(&got, []string{"notAKey"}, root, sourced(0), "/paths/~1p", "")
+
+	require.Len(t, got, 1, "got %v", got)
+	entry := got["openapi:notAKey"]
+	assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
+	assert.Equal(t, ir.RawValue("3"), entry.Value)
+	assert.Equal(t, ir.Provenance{Pointer: "/paths/~1p/notAKey"}, entry.Provenance)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+}
+
 // fakeObject is a parsed model standing in for the library's, so the census can
 // be driven at shapes no real document produces — an unsorted census, one past
 // the bound, and a core that keeps none.
@@ -313,4 +335,77 @@ func parsedMapping(t *testing.T, body string) *yaml.Node {
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(body), &doc))
 	return &doc
+}
+
+// TestTakeString_UnkeepableValueIsReportedAndRead pins the one value TakeString
+// can neither place nor keep: a mapping that writes one key twice, which no JSON
+// rendering can hold. It is reported as lost, and still read, so the census does
+// not report it a second time.
+func TestTakeString_UnkeepableValueIsReportedAndRead(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("k: {a: 1, a: 2}"), &root))
+	var p ir.Unmodeled
+	got, read, diags := TakeString(&p, &root, "k", nil, sourced(0), "/o", "")
+	assert.Empty(t, got)
+	assert.True(t, read)
+	assert.Empty(t, p)
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
+}
+
+// TestTakeString_DecodesAsTheParserDoes pins TakeString to the parser's own
+// reading of a string field: every scalar tag it accepts there, null as empty,
+// an alias followed. Anything else is kept verbatim at the census's own entry
+// with a warning, a non-empty value valid refuses likewise, and a key the
+// mapping does not present directly is left unread for the census.
+func TestTakeString_DecodesAsTheParserDoes(t *testing.T) {
+	t.Parallel()
+	only := func(v string) bool { return v == "ok" }
+	for _, tc := range []struct {
+		name  string
+		src   string
+		valid func(string) bool
+		want  string
+		read  bool
+		kept  string // the verbatim value kept, "" for none
+	}{
+		{"a string", "k: plain", nil, "plain", true, ""},
+		{"an int", "k: 5", nil, "5", true, ""},
+		{"a float", "k: 1.5", nil, "1.5", true, ""},
+		{"a bool", "k: true", nil, "true", true, ""},
+		{"null", "k: ~", nil, "", true, ""},
+		{"an alias", "a: &x hello\nk: *x", nil, "hello", true, ""},
+		{"a sequence", "k: [a, b]", nil, "", true, `["a","b"]`},
+		{"a timestamp", "k: 2001-12-14", nil, "", true, `"2001-12-14"`},
+		{"a value valid accepts", "k: ok", only, "ok", true, ""},
+		{"a value valid refuses", "k: no", only, "", true, `"no"`},
+		{"an empty string valid would refuse", `k: ""`, only, "", true, ""},
+		{"a null valid would refuse", "k: ~", only, "", true, ""},
+		{"absent", "j: x", nil, "", false, ""},
+		{"merged in", "<<: {k: m}", nil, "", false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root))
+			var p ir.Unmodeled
+			got, read, diags := TakeString(&p, &root, "k", tc.valid, sourced(0), "/o", "s")
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.read, read)
+			if tc.kept == "" {
+				assert.Empty(t, p)
+				assert.Empty(t, diags)
+				return
+			}
+			entry, ok := p["openapi:s/k"]
+			require.True(t, ok)
+			assert.JSONEq(t, tc.kept, string(entry.Value))
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			assert.Equal(t, jsontext.Pointer("/o/k"), entry.Provenance.Pointer)
+			require.Len(t, diags, 1)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+			assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+		})
+	}
 }

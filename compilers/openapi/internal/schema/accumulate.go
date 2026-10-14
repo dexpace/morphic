@@ -28,14 +28,13 @@ import (
 // are what the upper layer still waits on; the rest of the apparent coupling was
 // this, filed in the wrong place.
 
-// AppendExample converts node into proto's value and appends the result to out;
-// an unconvertible node is skipped and yields a warning diagnostic for the
-// caller to record, rather than being silently dropped — an example is an annotation, not a structural hole, so losing it is
-// fine as long as it isn't silent. proto carries the annotations that surround
-// the value (name, summary, description); base and seg locate the node, joined
-// into a pointer only on the failure path, so an example that converts builds no
-// pointer at all. Shared by every example site: schema (schemaExamples),
-// media type, header, and parameter (exampleList).
+// AppendExample converts node into proto's value and appends the result to out.
+// An unconvertible node is skipped and yields a warning diagnostic for the
+// caller to record: an example is an annotation, not a structural hole, so
+// losing it is fine as long as it is not silent. proto carries the surrounding
+// annotations (name, summary, description); base and seg locate the node,
+// joined into a pointer only on the failure path. The media type, header and
+// parameter example sites share it through exampleList.
 func AppendExample(c lowering.Ctx, out []ir.Example, proto ir.Example, node *yaml.Node,
 	base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
@@ -105,7 +104,7 @@ func preserveKeyword(c lowering.Ctx, p *ir.Unmodeled, key string, raw ir.RawValu
 }
 
 // lowerArray hoists an array schema as a Tuple when prefixItems is present, else
-// a List over its item schema with its collection constraints.
+// a List over its item schema, each with the collection bounds it declares.
 func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -119,7 +118,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		return &ir.List{
 			TypeCommon:  common,
 			Elem:        elem,
-			Constraints: listConstraints(s),
+			Constraints: collectionConstraints(s),
 		}
 	})
 	return id, diags

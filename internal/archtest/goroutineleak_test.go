@@ -6,9 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -157,11 +158,7 @@ func recordGoroutineState(dirs map[string]*dirGoroutineState, p, rel string) err
 // unguardedDirs returns one message per directory in dirs that started a
 // goroutine with no call recorded against it, sorted for a stable report.
 func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
-	names := make([]string, 0, len(dirs))
-	for dir := range dirs {
-		names = append(names, dir)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(dirs))
 
 	var violations []string
 	for _, dir := range names {
@@ -169,7 +166,7 @@ func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
 		if !state.startsGoroutine || state.hasCall {
 			continue
 		}
-		sort.Strings(state.goroutineFiles)
+		slices.Sort(state.goroutineFiles)
 		violations = append(violations, fmt.Sprintf(
 			"%s: starts a goroutine (%s) with no _test.go file calling leakcheck.Main",
 			dir, strings.Join(state.goroutineFiles, ", ")))
@@ -179,16 +176,13 @@ func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
 
 // startsGoroutine reports whether f contains a go statement, or a call shaped
 // like sync.WaitGroup.Go / errgroup.Group.Go: a single-argument method call
-// named Go. Both start a real goroutine, but only the first is an ast.GoStmt —
-// engine's concurrency test starts its workers through the second shape, which
-// a check for go statements alone would miss.
+// named Go. Both start a goroutine, but only the first is an ast.GoStmt, so a
+// check for go statements alone would miss the second, which engine's
+// concurrency test uses.
 //
-// The second check is syntactic, not type-checked: it matches any
-// single-argument ".Go(...)" call, whatever type the receiver has, rather than
-// resolving it to confirm the receiver really is a sync.WaitGroup or an
-// errgroup.Group. A false positive costs one harmless extra TestMain; a miss
-// is exactly what this guard exists to prevent, so the syntactic match is
-// deliberately the more permissive of the two mistakes.
+// The second match is syntactic: any single-argument ".Go(...)" call, whatever
+// the receiver's type. A false positive costs one harmless extra TestMain; a
+// miss is what this guard exists to prevent.
 func startsGoroutine(f *ast.File) bool {
 	found := false
 	ast.Inspect(f, func(n ast.Node) bool {

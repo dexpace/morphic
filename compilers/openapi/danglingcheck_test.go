@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,7 +42,7 @@ func danglingRefs(doc *ir.Document) []string {
 		}
 		out = append(out, fmt.Sprintf("%s: %s", v.Path, v.Message))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -62,12 +62,9 @@ func compileFile(t *testing.T, dir, file, srcPath string) (*ir.Document, []ir.Di
 // hasErrorRef reports whether the diagnostics carry an error-severity
 // unresolved-ref finding — the signal that an offending entry was dropped.
 func hasErrorRef(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Severity == ir.SeverityError && d.Code == "openapi/unresolved-ref" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Severity == ir.SeverityError && d.Code == "openapi/unresolved-ref"
+	})
 }
 
 // outcome classifies how a reproducer must be made referentially sound.
@@ -101,12 +98,12 @@ func danglingReproducers() []danglingCase {
 		{"f05-discriminator.yaml", "f05.yaml", drops},
 		{"f06-discriminator.yaml", "f06.yaml", drops},
 		{"f07-discriminator.yaml", "f07.yaml", interns},
-		{"f08-discriminator.yaml", "f08.yaml", drops},
+		{"f08-discriminator.yaml", "f08.yaml", interns},
 		{"f09-discriminator.yaml", "f09.yaml", drops},
 		{"f10-refs.yaml", "f10.yaml", interns},
 		{"f11-refs.yaml", "f11.yaml", interns},
 		{"f12-refs.yaml", "m.yaml", internsNoisy},
-		{"f13-refs.yaml", "f13.yaml", drops},
+		{"f13-refs.yaml", "f13.yaml", interns},
 		{"f28-maps-additional.yaml", "f28.yaml", interns},
 		{"f30-protocol-surface.yaml", "f30.yaml", drops},
 		{"f31-discriminator-empty-name.yaml", "f31.yaml", interns},

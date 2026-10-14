@@ -1,80 +1,24 @@
 package ir
 
 // IRVersion is the semver of the IR schema itself. Compilers stamp it into
-// Document.IRVersion; consumers compare against it to detect schema drift.
+// Document.IRVersion; the document decoder and irverify compare it through
+// CompatibleVersion and refuse any other.
 //
-// It names a schema generation, not a commit. A line of work that changes the
-// JSON shape several times bumps it once, where it lands on main, rather than
-// once per change: a version that moves within an unmerged branch tells a
-// consumer nothing and rewrites every golden each time it moves. Pre-1.0 is no
-// exemption from moving it at all — a shape change that reaches main without a
-// bump leaves a consumer pinned to the old version accepting a document it
-// cannot read, which is the one thing this constant exists to prevent.
-//
-// 0.2.0 covers three shape changes made together: Extensions became Preserved
-// with RawConfig split out, Content.ItemEncoding became a single encoding
-// rather than a sentinel-keyed map, and the diagnostic code
-// pass/dangling-auth-ref became ir/dangling-auth-ref (see pass's package doc).
-//
-// 0.3.0 renames that field to Unmodeled on every carrier, so the JSON key
-// "preserved" is now "unmodeled". A consumer pinned to 0.2.0 finds no key it
-// recognizes and drops every unmodeled construct in silence.
-//
-// 0.4.0 covers six shape changes made together, all of them closing a gap a
-// consumer had to read around rather than adding a capability:
-//
-//   - ErrorCase becomes Response's sibling: Type is REMOVED, and Name, Payload
-//     and Headers take its place. A consumer pinned to 0.3.0 finds no "type" on
-//     an error case and cannot reach its models at all; one that reads the new
-//     fields gets the status spelling, the headers and every media type, which
-//     0.3.0 dumped into Unmodeled whatever their arity.
-//   - Payload gains Required. Body optionality stopped being an inverted
-//     Unmodeled sentinel read by absence, so a consumer that still reads
-//     "openapi:required" now finds nothing and reads every body as required.
-//   - Parameter gains Provenance, non-omitempty, and with it x-sunset promotion
-//     at the parameter position.
-//   - Deprecation gains RemovalDate. x-sunset promotes into it rather than into
-//     RemovalVersion, so a consumer reading a removal date off the version field
-//     now finds it empty.
-//   - Encoding gains Schema, giving contentSchema a home at scalar positions.
-//   - Constraints.ExclusiveMin and ExclusiveMax change from bool to a decimal
-//     string carrying the bound itself, so the two dialects' exclusive bounds no
-//     longer lose one keyword to the other. The JSON type of both keys changed;
-//     a consumer decoding them as booleans fails rather than degrades.
-//
-// 0.5.0 moves the IR onto encoding/json/v2 and gives absence one spelling:
-//
-//   - Operation.Auth, Service.Auth and Server.Auth write nil (inherit) as an
-//     absent key rather than null. An empty list, explicitly public, is still [].
-//   - A Value's bytes, list and object payloads, and a CtorValue's args, are
-//     omitted when empty rather than written as null.
-//   - Strings use RFC 8785's minimal escaping, so <, > and & are written as
-//     themselves rather than as \u003c, \u003e and \u0026.
-//   - Decoding refuses what it used to take in silence: a member the schema
-//     does not define, a duplicate name, a string that is not UTF-8, and a
-//     missing or foreign irVersion, which is read before any other member.
-//
-// 0.6.0 gives each kind of Provenance locator its own key. "pointer" holds
-// only an RFC 6901 pointer; a line and column move to "position", and an IR
-// pass's location in the document itself moves to "node". A consumer pinned to
-// 0.5.0 knows neither new key and reads those findings as unlocated.
-const IRVersion = "0.6.0"
+// It names a schema generation, not a commit: any change to the JSON shape
+// bumps it, once, where the change lands on main. ir-design §2.1 holds that
+// policy and the history of what each bump changed.
+const IRVersion = "0.12.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
-// this build. It is the predicate behind the compatibility policy in
-// ir-design §2.1, and what a consumer holding a decoded document asks before
-// interpreting any other field in it.
-//
-// The comparison is exact. Every bump this constant has taken changed the JSON
-// shape, so there is no looser relation to admit: a differing patch, a
-// prerelease suffix, and a value that is not a version at all are equally
-// unreadable. Accepting a neighbouring version would mean claiming to know what
-// changed between the two, which is the knowledge a version exists because
-// nobody has.
+// this build: exact equality with IRVersion, per ir-design §2.1. A differing
+// patch, a prerelease suffix and a non-version are equally unreadable, since
+// accepting a neighbouring version would claim to know what changed between the
+// two. A consumer asks it before interpreting any other field of a decoded
+// document.
 //
 // An empty version is incompatible too, but a caller that can act on the
 // difference should test for it separately: absence is a producer that never
-// stamped the document, while an unrecognized stamp is a fault in the pairing.
+// stamped the document, an unrecognized stamp a fault in the pairing.
 func CompatibleVersion(version string) bool {
 	return version == IRVersion
 }
@@ -90,6 +34,15 @@ type TypeRegistry map[TypeID]TypeDef
 type Document struct {
 	// IRVersion is the version of the IR schema itself (semver).
 	IRVersion string `json:"irVersion,omitempty"`
+	// IDSpaces declares, for each kind prefix (IDKinds), the namespaces the
+	// document's IDs of that kind live in. A producer states it as it stamps
+	// IRVersion, from the namespace constants it already names; irverify reports
+	// an ID whose namespace is not declared, which sees a path glued onto its
+	// namespace in every class. A type needs no entry for IDSpacePrim, which is
+	// ir's own. A kind with no namespace is left out. Each list is sorted by the
+	// byte order of its UTF-8 spelling, without repeats, and names no empty or
+	// separator-bearing namespace.
+	IDSpaces map[string][]string `json:"idSpaces,omitempty"`
 	// Name is the API title.
 	Name string `json:"name,omitempty"`
 	// Version is the source-declared API version string.
@@ -127,7 +80,7 @@ type Document struct {
 	// Diagnostics is accumulated by the compiler and passes; not part of API
 	// meaning.
 	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
-	// Sources describes the input files: format, path, content hash.
+	// Sources describes the input files, one entry each.
 	Sources []SourceInfo `json:"sources,omitempty"`
 }
 
@@ -158,4 +111,16 @@ type TagDef struct {
 	Name string `json:"name,omitempty"`
 	// Docs is the tag's documentation.
 	Docs Docs `json:"docs"`
+	// Parent names the tag this one is nested under (OpenAPI 3.2 tag parent):
+	// the declared hierarchy a consumer may render as a section tree. Empty =
+	// top-level. It is the declared spelling, not a resolved reference — a
+	// parent that names no declared tag is reported by the parser and left as
+	// written here, since resolving it is grouping policy (OperationGroup).
+	Parent string `json:"parent,omitempty"`
+	// Kind is the tag's declared role (OpenAPI 3.2 tag kind), recorded verbatim
+	// — "nav", "badge", or any other string a document writes. It is kept as a
+	// fact rather than interpreted: whether a kind is navigational is grouping
+	// policy, not a property of the document, so no meaning is read into a
+	// value here (ir-design §7.1).
+	Kind string `json:"kind,omitempty"`
 }

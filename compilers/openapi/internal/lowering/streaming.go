@@ -1,7 +1,5 @@
 package lowering
 
-import "strings"
-
 // StreamingMediaTypeHeuristic is the name Provenance.Inferred carries on an
 // operation whose streaming was read out of a media type rather than declared.
 // It is a constant because the marker is what an auditor greps for, and a
@@ -14,11 +12,10 @@ const StreamingMediaTypeHeuristic = "streaming-media-type"
 //
 // It is a policy rather than a table in the lowering because the reading is a
 // guess (architecture principle 6). OpenAPI below 3.2 has no keyword for a
-// sequential body at all, so an SSE or NDJSON API says what it does only by
-// naming a media type — and a media type is a content encoding, not a promise
-// about framing. The vocabulary is declared here, below both walks, and
-// re-exported by the compiler's public options for the reason GroupingStrategy
-// is: one declaration cannot drift from itself.
+// sequential body, so an SSE or NDJSON API says what it does only by naming a
+// media type, which is a content encoding, not a promise about framing. The
+// vocabulary is declared here, below both walks, and re-exported by the
+// compiler's public options, as GroupingStrategy is.
 type StreamingMedia struct {
 	// Disabled turns the inference off. Off means off: an operation then carries
 	// the streaming fields a 3.2 itemSchema declares and nothing else, which is
@@ -47,7 +44,7 @@ func DefaultStreamingMediaTypes() []string {
 // DeclaresSchema is: handing back the set would make it writable through a copy
 // of the context.
 func (c Ctx) MediaTypeStreams(mediaType string) bool {
-	return c.streaming[normalizeMediaType(mediaType)]
+	return c.streaming[NormalizeMediaType(mediaType)]
 }
 
 // streamingSet normalizes a policy into the set MediaTypeStreams answers from,
@@ -63,18 +60,9 @@ func streamingSet(p StreamingMedia) map[string]bool {
 	}
 	set := make(map[string]bool, len(types))
 	for _, mt := range types {
-		if normalized := normalizeMediaType(mt); normalized != "" {
+		if normalized := NormalizeMediaType(mt); normalized != "" {
 			set[normalized] = true
 		}
 	}
 	return set
-}
-
-// normalizeMediaType reduces a media type to the form the policy compares:
-// lowercased, with any parameters dropped.
-func normalizeMediaType(mediaType string) string {
-	if i := strings.IndexByte(mediaType, ';'); i >= 0 {
-		mediaType = mediaType[:i]
-	}
-	return strings.ToLower(strings.TrimSpace(mediaType))
 }

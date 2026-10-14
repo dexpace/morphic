@@ -1,7 +1,9 @@
 package irverify
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -12,7 +14,9 @@ import (
 type Violation struct {
 	// Code is a stable, slash-namespaced identifier for the defect class.
 	Code string
-	// Message is a human-readable description of the specific defect.
+	// Message is a human-readable description of the specific defect. Text it
+	// takes from the document is strconv.Quote'd, so it is valid UTF-8 whatever
+	// the document holds (GitHub #400); Path is not yet (GitHub #739).
 	Message string
 	// Path locates the offending node within the document.
 	Path string
@@ -39,11 +43,8 @@ func Verify(doc *ir.Document) []Violation {
 	// contributes no path segment, so two promoted fields of the same name would
 	// collide — and a stable sort leaves those in the walk's deterministic order
 	// rather than an unspecified one.
-	sort.SliceStable(vs, func(i, j int) bool {
-		if vs[i].Code != vs[j].Code {
-			return vs[i].Code < vs[j].Code
-		}
-		return vs[i].Path < vs[j].Path
+	slices.SortStableFunc(vs, func(a, b Violation) int {
+		return cmp.Or(cmp.Compare(a.Code, b.Code), cmp.Compare(a.Path, b.Path))
 	})
 	return vs
 }
@@ -51,17 +52,14 @@ func Verify(doc *ir.Document) []Violation {
 // declarations is the identities a document's nodes declare, plus whether the
 // walk that read them was cut short.
 //
-// Reading them costs a full walk of the document, and two checks need them —
+// Reading them costs a full walk, and two checks need them:
 // checkReferentialIntegrity to resolve the classes Document keys no map by, and
-// checkDuplicateIDs to hold each one to being declared once. Deriving it in each
-// was the same walk twice over, so it is read once per run and handed down. The
-// checks that do not need it still take it, because one signature is what lets
-// walkChecks be a list at all.
+// checkDuplicateIDs to hold each to being declared once. They are read once per
+// run and handed down; the checks that do not need them still take them,
+// because one signature is what lets walkChecks be a list.
 //
-// The zero value is not a stand-in for "no declarations to speak of": it says the
-// document declares none, which makes every OpID and ServiceID reference in it
-// resolve against an empty registry and report as dangling. Read one with
-// readDeclarations from the document being checked.
+// The zero value says the document declares none, so every OpID, ServiceID and
+// GroupID reference reports as dangling. Read one with readDeclarations.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
@@ -85,34 +83,33 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 		checkTypeRefs,
 		checkDuplicateIDs,
 		checkDeclaredIDs,
+		checkIDSpaces,
 		checkNaming,
+		checkStringLists,
 		checkRawPayloads,
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
 		checkUTF8,
 		checkValues,
+		checkCycles,
 		checkEmptyRefs,
+		checkIdempotency,
+		checkWebhookRoutes,
 	}
 }
 
 // runWalkChecks runs every walking check and folds their truncation flags into
 // one ir/walk-truncated violation.
 //
-// Truncation is a fact about the document, not about the check that noticed it,
-// so it is reported once here rather than once per walk that noticed it — which
-// would give one document a violation per walking check, all sharing a code and
-// a path. Not reporting it at all is what left the pruning walks silently
-// under-checking a too-deep document (GitHub #55): a pruned walk reaches a subset
-// of what the unpruned reference walk does, so today that one trips the cap
-// first, and depending on that coincidence is exactly what the flag replaces.
+// Truncation is a fact about the document, not about a check, so it is reported
+// once. Not reporting it left the pruning walks silently under-checking a
+// too-deep document (GitHub #55).
 //
-// The seed is decls.truncated rather than false because the declaration walk runs
-// here, and a function that walks owns its own flag. Both checks that read the
-// declarations return it too, so seeding from false reports the same thing today
-// — planting that mutation leaves the suite green. It is written this way anyway,
-// for the reason above: relying on a callee to hand back the flag for a walk this
-// function performed is the same dependence on a coincidence that #55 was.
+// The seed is decls.truncated rather than false because the declaration walk
+// runs here and a function that walks owns its own flag. The checks reading the
+// declarations return it too, so seeding from false reports the same today, but
+// relying on a callee for a walk performed here is the coincidence #55 was.
 func runWalkChecks(doc *ir.Document) []Violation {
 	decls := readDeclarations(doc)
 	var vs []Violation
@@ -179,7 +176,7 @@ func registryKey(vs []Violation, noun, reg, key, nodeID string) []Violation {
 	if key != nodeID {
 		return append(vs, Violation{
 			Code:    "ir/" + noun + "-id-mismatch",
-			Message: "registry key " + key + " disagrees with node ID " + nodeID,
+			Message: "registry key " + strconv.Quote(key) + " disagrees with node ID " + strconv.Quote(nodeID),
 			Path:    reg + "[" + key + "]",
 		})
 	}

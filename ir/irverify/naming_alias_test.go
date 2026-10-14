@@ -15,18 +15,16 @@ import (
 
 // aliasViolations returns everything Verify reports on a model named with
 // aliases. Its Source is "m", which no fixture below lists, so the
-// redundant-with-Source rule is out of the way of the ones being measured.
+// redundant-with-Source rule stays out of the way.
 //
-// Unfiltered on purpose. TestVerify_VerbatimAliasesAreClean is the one pinning
-// that no neutrality rule reaches an alias, so it has to be able to see
-// ir/naming-cased and ir/naming-not-words if some later change starts holding
-// aliases to Canonical's grammar; filtering to the alias codes would leave that
-// test unable to fail for the reason it exists. Nothing unrelated is in the way
-// either — TestVerify_NoAliasesIsClean asserts this exact document, with the
-// alias list empty, verifies empty.
+// Unfiltered on purpose: TestVerify_VerbatimAliasesAreClean must be able to see
+// ir/naming-cased and ir/naming-not-words if aliases are ever held to
+// Canonical's grammar, which filtering to the alias codes would hide. Nothing
+// unrelated is in the way, since TestVerify_NoAliasesIsClean asserts this
+// document verifies empty with no aliases.
 func aliasViolations(t *testing.T, aliases ...string) []irverify.Violation {
 	t.Helper()
-	return irverify.Verify(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
+	return verifyDeclared(modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases}))
 }
 
 // TestVerify_VerbatimAliasesAreClean pins the settlement this check rests on: an
@@ -153,7 +151,7 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 	require.Len(t, got, 1, "the repeat is reported, not the first occurrence")
 	assert.Equal(t, "ir/naming-alias-duplicate", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[2]", got[0].Path)
-	assert.Equal(t, "alias dup is listed here and at index 0", got[0].Message)
+	assert.Equal(t, `alias "dup" is listed here and at index 0`, got[0].Message)
 }
 
 // TestVerify_AliasRepeatingItsOwnSourceIsAViolation covers the other way an
@@ -162,12 +160,12 @@ func TestVerify_DuplicateAliasIsAViolation(t *testing.T) {
 // argument the duplicate rule rests on, one channel over.
 func TestVerify_AliasRepeatingItsOwnSourceIsAViolation(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User"}}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/naming-alias-redundant", got[0].Code)
 	assert.Equal(t, "doc.Types[t/x/M].Name.Aliases[0]", got[0].Path)
-	assert.Equal(t, "alias User is the entity's own source name, so it matches nothing more",
+	assert.Equal(t, `alias "User" is the entity's own source name, so it matches nothing more`,
 		got[0].Message)
 }
 
@@ -183,7 +181,7 @@ func TestVerify_AliasMatchingDerivedChannelsIsClean(t *testing.T) {
 	} {
 		t.Run(channel, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, irverify.Verify(modelNamed(n)))
+			assert.Empty(t, verifyDeclared(modelNamed(n)))
 		})
 	}
 }
@@ -219,7 +217,7 @@ func TestVerify_RepeatedBlankAliasReportsEachAsBlank(t *testing.T) {
 // are each wrong on their own.
 func TestVerify_RepeatedSourceAliasReportsEachAsRedundant(t *testing.T) {
 	t.Parallel()
-	got := irverify.Verify(modelNamed(
+	got := verifyDeclared(modelNamed(
 		ir.Naming{Source: "User", Canonical: "user", Aliases: []string{"User", "User"}}))
 	require.Len(t, got, 2)
 	for i, v := range got {
@@ -248,44 +246,58 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 	}, byCode)
 }
 
-// TestVerify_AliasSharedByTwoNamings pins the scope boundary
-// appendAliasViolations declares: a repeat across two Namings goes unreported
-// today, and closing GitHub #398 is what should change it.
+// TestVerify_AliasClaimedByAnotherEntityIsClean pins what irverify leaves to
+// others (ir-design §3.2). Across the type registry no rule decides a
+// collision: a relative alias resolves against its own namespace, and two
+// independent schemas may each declare one. Between sibling properties it is a
+// problem in the spec, which pass/validate reports.
 //
-// Without this, nothing holds seen to being per-Naming. Hoisting it into
-// checkNaming's closure — the one-line change anyone implementing #398 reaches
-// for first — makes this document report ir/naming-alias-duplicate, and every
-// other test in this file stays green, because each drives a document with one
-// Naming in it.
-func TestVerify_AliasSharedByTwoNamings(t *testing.T) {
+// The first case puts one alias on two Namings, so hoisting seen into
+// checkNaming's closure, the first change a cross-Naming rule reaches for,
+// reddens it as ir/naming-alias-duplicate.
+func TestVerify_AliasClaimedByAnotherEntityIsClean(t *testing.T) {
 	t.Parallel()
 	const shared = "com.example.User"
-	a := &ir.Model{
-		ID:   "t/x/A",
-		Name: ir.Naming{Source: "a", Canonical: "a", Aliases: []string{shared}},
+	aliased := func(source string) ir.Naming {
+		return ir.Naming{Source: source, Canonical: source, Aliases: []string{shared}}
 	}
-	b := &ir.Model{
-		ID:   "t/x/B",
-		Name: ir.Naming{Source: "b", Canonical: "b", Aliases: []string{shared}},
+	declared := ir.Naming{Source: shared, Canonical: ir.CanonicalWords(shared)}
+	property := func(id ir.PropID, n ir.Naming) ir.Property {
+		return ir.Property{ID: id, Name: n, Type: ir.TypeRef{Target: "t/x/A"}}
 	}
 
-	got := irverify.Verify(&ir.Document{IRVersion: ir.IRVersion,
-		Types: ir.TypeRegistry{a.ID: a, b.ID: b}})
-	assert.Empty(t, got, "out of scope until GitHub #398; this is the fixture that says so")
+	for name, types := range map[string]ir.TypeRegistry{
+		"alias on two types": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
+			"t/x/B": &ir.Model{ID: "t/x/B", Name: aliased("b")},
+		},
+		"alias naming another type": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: aliased("a")},
+			"t/x/B": &ir.Model{ID: "t/x/B", Name: declared},
+		},
+		"alias naming a sibling property": {
+			"t/x/A": &ir.Model{ID: "t/x/A", Name: ir.Naming{Source: "a", Canonical: "a"},
+				Properties: []ir.Property{
+					property("p/x/A/b", aliased("b")),
+					property("p/x/A/c", declared),
+				}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, verifyDeclared(&ir.Document{IRVersion: ir.IRVersion, Types: types}))
+		})
+	}
 }
 
 // TestVerify_AliasPathIsSpelledAsTheWalkWould ties the hand-assembled violation
 // path to ir.WalkValues' own grammar.
 //
-// checkNaming prunes at ir.Naming — it holds no reference and no nested Naming
-// to descend into — so the walk never renders these paths itself and aliasPath
-// spells them by hand. That leaves two statements of one grammar with nothing
-// between them: were ir's slice-index rendering to change, every walk-produced
-// path in every other check would move while these codes alone kept the old
-// spelling, and no test would say so. This is that seam, so it reddens here.
-//
-// Past the single digits too, which is where a hand-built path and a formatted
-// one last agree.
+// checkNaming prunes at ir.Naming, so the walk never renders these paths and
+// aliasPath spells them by hand. Were ir's slice-index rendering to change,
+// every walk-produced path would move while these kept the old spelling, and
+// nothing else would say so. The fixture runs past the single digits, beyond
+// which a hand-built path and a formatted one can differ.
 func TestVerify_AliasPathIsSpelledAsTheWalkWould(t *testing.T) {
 	t.Parallel()
 	const size = 12

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -35,21 +34,15 @@ const corpusRoot = "../../testdata"
 const maxValueDepth = 128
 
 // TestConformance_UnwitnessedIRFields snapshots every ir (struct, field) pair
-// that no committed spec drives to a non-zero value. It is the corpus's own
-// coverage report: a case that reaches a new field removes a line, a new IR field
-// adds one, and a compiler that stops writing a field it used to write adds one
-// too. Regenerate with `go test ./compilers/openapi -run TestConformance -update`.
+// no committed spec drives to a non-zero value, the corpus's coverage report.
+// A case reaching a field removes a line; a new IR field, or a compiler that
+// stops writing one, adds a line. -update recomputes the file, so it cannot
+// drift like a hand-kept allowlist.
 //
-// Derived, never maintained, is the whole point: -update recomputes the file from
-// the corpus, so it cannot drift the way a hand-kept allowlist does.
-//
-// Two weaknesses are deliberate. It does not classify, so a removed line does not
-// say whether a corpus case landed or an IR field was deleted — the diff shows
-// which, the file does not. And IsZero cannot see an assignment of a zero value,
-// so a bool field written false, or an int index written 0, stays listed however
-// many times the compiler writes it. FileInfo.IsText is the standing case of
-// that: the compiler's only construction site writes it false, so no spec can
-// ever remove its line — it is listed permanently, not uncovered.
+// Two weaknesses are deliberate. A removed line does not say whether a case
+// landed or a field was deleted; the surrounding diff does. IsZero cannot see
+// an assignment of a zero value, so a field the compiler writes false or 0,
+// such as FileInfo.IsText, stays listed permanently.
 func TestConformance_UnwitnessedIRFields(t *testing.T) {
 	t.Parallel()
 	universe := irFieldUniverse(t)
@@ -166,9 +159,9 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 			markWitnessed(t, out, v.Index(i), depth+1)
 		}
 	case reflect.Map:
-		for _, k := range v.MapKeys() {
+		for k, e := range v.Seq2() {
 			markWitnessed(t, out, k, depth+1)
-			markWitnessed(t, out, v.MapIndex(k), depth+1)
+			markWitnessed(t, out, e, depth+1)
 		}
 	case reflect.Struct:
 		markStructFields(t, out, v, depth)
@@ -179,12 +172,10 @@ func markWitnessed(t *testing.T, out map[string]bool, v reflect.Value, depth int
 func markStructFields(t *testing.T, out map[string]bool, v reflect.Value, depth int) {
 	t.Helper()
 	rt := v.Type()
-	for i := range rt.NumField() {
-		f := rt.Field(i)
+	for f, field := range v.Fields() {
 		if f.PkgPath != "" {
 			continue
 		}
-		field := v.Field(i)
 		if !field.IsZero() {
 			out[rt.Name()+"."+f.Name] = true
 		}
@@ -215,35 +206,20 @@ func corpusSpecs(t *testing.T) []string {
 // sealedTypeKinds returns every ir.TypeKind constant the ir package's production
 // sources declare — the sealed sum's full membership, since ir.TypeDef admits no
 // implementation from outside that package.
+//
+// A walk seeded from the kinds skips a variant that has none, in silence, so
+// their count is held to the types declaring the typeDef() marker that seals
+// the sum.
 func sealedTypeKinds(t *testing.T) []ir.TypeKind {
 	t.Helper()
 	consts := irConstsOfType(t, "TypeKind")
 	require.NotEmpty(t, consts, "the ir sources must declare TypeKind constants")
+	require.Len(t, consts, len(irDecls(t).TypesDeclaring("typeDef")), "the sum holds one concrete "+
+		"type per kind, so a count that disagrees means a variant is sealed without a TypeKind or a "+
+		"kind has no variant")
 	out := make([]ir.TypeKind, 0, len(consts))
 	for _, c := range consts {
-		out = append(out, ir.TypeKind(c.value))
+		out = append(out, ir.TypeKind(c.Value))
 	}
-	return out
-}
-
-// irSourceFiles lists the ir package's non-test Go files, located relative to
-// this test's own path so the result does not depend on the working directory.
-func irSourceFiles(t *testing.T) []string {
-	t.Helper()
-	_, self, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller must report this test's path")
-	dir := filepath.Join(filepath.Dir(self), "..", "..", "ir")
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		out = append(out, filepath.Join(dir, name))
-	}
-	require.NotEmpty(t, out, "the ir package must have production sources")
 	return out
 }

@@ -8,8 +8,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,6 +40,46 @@ type docMeta struct {
 	Unmodeled      ir.Unmodeled
 }
 
+// retainedSections are the components sections with no registry. Schemas and
+// security schemes are lowered whole and unconditionally; an entry of one of
+// these reaches the IR only where a lowering follows a reference to it.
+// components/mediaTypes is kept whole instead until a reference into it is
+// followed (GitHub #856).
+func retainedSections() []string {
+	return []string{"responses", "parameters", "examples", "requestBodies", "headers", "links", "callbacks", "pathItems"}
+}
+
+// retainUnreferencedComponents keeps every entry of a retainedSections section
+// that no lowering resolved a reference to verbatim on the document, under
+// openapi:components/<section>/<name> with ReasonNoIRHome and no diagnostic
+// (GitHub #616). It must run after every other lowering: only they know what
+// they followed (lowering.Ctx.Reached), and a $ref string they never follow,
+// in a links map, an x- extension or an example's value, carries nothing of
+// its target into the IR. A section is read as the parser reads it, through
+// `<<` merge keys, so a merged-in entry is kept under its own name.
+func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+	view := nodeview.New()
+	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
+	var out ir.Unmodeled
+	var diags []ir.Diagnostic
+	for _, section := range retainedSections() {
+		for _, entry := range view.MappingPairs(view.ChildByToken(nodeview.Deref(components), section)) {
+			pointer := ids.Ptr("components", section, entry.Key)
+			if c.Reached(pointer) {
+				continue
+			}
+			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),
+				entry.Val, ir.ReasonNoIRHome, c.ProvenanceAt(pointer))
+			diags = append(diags, keptDiags...)
+		}
+	}
+	if view.Exhausted() {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, ids.Ptr("components"),
+			"components merges through `<<` deeper than %d levels; entries past that are not kept", nodeview.MergeDepthLimit))
+	}
+	return out, diags
+}
+
 // lowerMeta lowers the document-level metadata that is not part of the type or
 // service graph: info, servers, and the extensions of every object around them
 // that lowers to no node of its own (ir-design §10, §12).
@@ -47,22 +89,48 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	ext, diags := documentExtensions(c)
 	m.Unmodeled = ext
 
+	retained, retainDiags := retainUnreferencedComponents(c)
+	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
+	diags = append(diags, retainDiags...)
+
 	servers, serverDiags := lowerServers(c)
 	m.Servers = servers
 	diags = append(diags, serverDiags...)
 
+	diags = append(diags, keepComponentMediaTypes(c, &m.Unmodeled)...)
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+}
+
+// keepComponentMediaTypes keeps the components/mediaTypes map OpenAPI 3.2 adds
+// verbatim on the document, read as the parser reads it, at the entry and
+// pointer the components census would use, so the census leaves it alone. The parser models no such section
+// and this compiler does not resolve a reference into it yet (GitHub #856), so
+// the map has no IR home; below 3.2 the key is not the dialect's and the census
+// reports it as undefined.
+func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+	if !c.Since32() {
+		return nil
+	}
+	view := nodeview.New()
+	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
+	at := ids.Ptr("components", "mediaTypes")
+	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("components", "mediaTypes"),
+		view.ChildByToken(nodeview.Deref(components), "mediaTypes"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled"))
 }
 
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
 // from every object around the document metadata that lowers to no node of its
-// own: the document root, the info block and the contact and license inside it,
-// the root externalDocs, the components object, and each declared tag with its
-// own externalDocs.
+// own: the root, info with its contact and license, the root externalDocs, the
+// components object, and each tag with its own externalDocs.
 //
 // ir.Document is the nearest node with an Unmodeled map for all of them, so each
 // object's keys are scoped by the source path they were written at. One unscoped
-// "openapi:status" would be a single key for six objects, and the entry that
+// "openapi:status" would be a single key for every object, and the entry that
 // survived would be whichever site ran last.
 func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	sites := append(rootUnknownSites(c), tagUnknownSites(c)...)
@@ -87,11 +155,10 @@ type unknownSite struct {
 // itself; the rest are keyed by the path from it down to the object that wrote
 // them.
 //
-// The components object is one of them, unlike the maps beneath it. `paths`,
+// The components object is one of them, unlike the maps beneath it: `paths`,
 // `responses` and a callback each embed a sequenced map, so every key they hold
-// is a valid entry and an unrecognized one is not a thing they have; the
-// Components Object is a fixed-field struct beside them, and a key it does not
-// define is as undeclared as one on any other object here.
+// is a valid entry, while the Components Object is a fixed-field struct and a
+// key it does not define is as undeclared as one on any other object here.
 func rootUnknownSites(c lowering.Ctx) []unknownSite {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
@@ -253,22 +320,15 @@ func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Serve
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
 
-// serverName builds a server's neutral naming: the declared name when the source
-// carries one, which only OpenAPI 3.2 can, else a hint derived from the URL
-// template that locates it — the shape operationName already uses for an
-// operation with no operationId. Every server below 3.2 used to reach the IR with
-// all three name channels empty (GitHub #258).
+// serverName builds a server's neutral naming: the declared name (only OpenAPI
+// 3.2 has one), else a hint derived from the URL template, as operationName does
+// for an operation with no operationId (GitHub #258). It names by the URL, not
+// the position in servers[], which shifts when the list is reordered, and by the
+// whole template, not a part: choosing a part is a policy and drops what the
+// rest distinguishes, since one host serving /v1 and /v2 is two servers.
 //
-// The URL rather than the position in servers[], which stops naming the same
-// server the moment the list is reordered. The whole template rather than a
-// chosen part of it, because choosing is a policy about what a server's name is
-// where transcribing is not, and it keeps what the omitted part distinguished:
-// one host serving /v1 and /v2 is two servers.
-//
-// Distinct servers can still collide, since canonicalizing drops every non-word
-// character and ".../v1" and ".../v-1" reduce to one word sequence. That is the
-// collision "red" and "Red" already produce between two enum members, and
-// uniquifying it is an emitter's job.
+// Distinct servers can collide (".../v1" and ".../v-1" reduce to one word
+// sequence), as two enum members can; an emitter uniquifies.
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
 		return compile.NamingFor(name)

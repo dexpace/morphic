@@ -11,13 +11,16 @@ import (
 // holds this set to identityClasses, which classifies every named string type
 // the ir sources declare.
 var idTypes = map[reflect.Type]bool{
-	reflect.TypeFor[ir.TypeID]():    true,
-	reflect.TypeFor[ir.OpID]():      true,
-	reflect.TypeFor[ir.ChannelID](): true,
-	reflect.TypeFor[ir.MessageID](): true,
-	reflect.TypeFor[ir.AuthID]():    true,
-	reflect.TypeFor[ir.ServiceID](): true,
-	reflect.TypeFor[ir.PropID]():    true,
+	reflect.TypeFor[ir.TypeID]():       true,
+	reflect.TypeFor[ir.OpID]():         true,
+	reflect.TypeFor[ir.ChannelID]():    true,
+	reflect.TypeFor[ir.MessageID]():    true,
+	reflect.TypeFor[ir.AuthID]():       true,
+	reflect.TypeFor[ir.ServiceID]():    true,
+	reflect.TypeFor[ir.GroupID]():      true,
+	reflect.TypeFor[ir.PropID]():       true,
+	reflect.TypeFor[ir.ParamID]():      true,
+	reflect.TypeFor[ir.EnumMemberID](): true,
 }
 
 // idRule is what an empty value means at one ID-typed position.
@@ -50,6 +53,9 @@ var idPositions = map[string]idRule{
 	"Channel.ID":        idElsewhere,
 	"Message.ID":        idElsewhere,
 	"Operation.ID":      idElsewhere,
+	"Parameter.ID":      idElsewhere,
+	"EnumMember.ID":     idElsewhere,
+	"OperationGroup.ID": idElsewhere,
 	"Property.ID":       idElsewhere,
 	"Service.ID":        idElsewhere,
 	"TypeCommon.ID":     idElsewhere,
@@ -59,6 +65,7 @@ var idPositions = map[string]idRule{
 	"Document.Auth":     idElsewhere,
 	"TypeRef.Target":    idElsewhere,
 
+	"Idempotency.TokenParam": idOptional,
 	"Discriminator.Default":  idOptional,
 	"Discriminator.Property": idLocator,
 
@@ -68,6 +75,7 @@ var idPositions = map[string]idRule{
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,
 	"HTTPParamBinding.BodyPath":    idRequired,
+	"HTTPParamBinding.Param":       idRequired,
 	"HTTPParamBinding.ParamPath":   idRequired,
 	"LongRunning.FinalOperation":   idRequired,
 	"LongRunning.PollingOperation": idRequired,
@@ -75,6 +83,7 @@ var idPositions = map[string]idRule{
 	"MessageBinding.Messages":      idRequired,
 	"OTPBinding.Process":           idRequired,
 	"Operation.OverloadOf":         idRequired,
+	"ParamPath.Param":              idRequired,
 	"ParamPath.Segments":           idRequired,
 	"PropPath.Segments":            idRequired,
 	"Reply.Channel":                idRequired,
@@ -110,17 +119,15 @@ type idField struct {
 
 // checkEmptyRefs asserts no reference is empty where its position requires one.
 //
-// collectRefs skips an empty ID because it is no reference, and that is right;
-// but it left the positions that require one reported by nothing (GitHub #473),
-// the state the empty union variant was in before checkTypeRefs (GitHub #397).
-// Unlike TypeRef, the answer cannot be keyed by type: Discriminator.Default is
-// a TypeID whose empty value means "none". So it is per position, recorded in
-// idPositions and on each field's comment, and every position not documented
-// as admitting an empty value is held to naming something.
+// collectRefs skips an empty ID because it is no reference, which leaves a
+// position that requires one reported by nothing (GitHub #473). The answer
+// cannot be keyed by type: Discriminator.Default is a TypeID whose empty value
+// means "none". So it is per position, recorded in idPositions, and a position
+// not documented as admitting an empty value must name something.
 //
-// Positions are found by reflection over each struct type the walk reaches,
-// once per type per run, so every shape is covered — a field, a pointer, a slice
-// element, a map key and a map value. Paths spell each one as the walk would.
+// Reflection finds positions of every shape (field, pointer, slice element, map
+// key, map value) in each struct type the walk reaches. Paths match the walk's
+// spelling.
 func checkEmptyRefs(doc *ir.Document, _ declarations) ([]Violation, bool) {
 	var vs []Violation
 	fields := map[reflect.Type][]idField{}

@@ -29,8 +29,8 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
                     └────────────────────────────────────────────────────────────┘
 ```
 
-The engine (Layer 3) runs the compiler, then the passes (`validate · link · dedup · filter ·
-version-slice · overlay`), then — **once per document** — the shared plan, and finally each
+The engine (Layer 3) runs the compiler, then the passes (`link · dedup · filter · version-slice ·
+overlay · validate`), then — **once per document** — the shared plan, and finally each
 requested emitter. A emitter never sees a source spec, a compiler, another emitter, or the engine
 (INV1). Its only structural input is an `ir.Document`; everything else it needs is either derived
 from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime policy,
@@ -228,8 +228,8 @@ type Capabilities struct {
 - **Full document under scope.** Scope gates *emission*, not the plan or naming; global decisions
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
-- **Snapshots only.** The engine runs `version-slice` first; the emitter receives a single version
-  snapshot and never interprets `Availability`.
+- **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
+  single version snapshot and never interprets `Availability`.
 
 ---
 
@@ -247,7 +247,7 @@ type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
     Shapes  map[ShapeKey]ModelShape     // (TypeID × Lifecycle) → projected wire shape
-    Groups  map[GroupKey]GroupPlan      // sub-client / resource nesting (from OperationGroup)
+    Groups  map[ir.GroupID]GroupPlan    // sub-client / resource nesting (from OperationGroup)
     Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
 }
 ```
@@ -468,10 +468,9 @@ purposes.
 `GroupPlan` mirrors the `OperationGroup` tree so a refiner can build sub-clients / fluent navigation:
 
 ```go
-type GroupKey string                 // stable, derived from OperationGroup identity
 type GroupPlan struct {
     Name     ir.Naming               // neutral — cased in refine
-    Parent   GroupKey                // "" = top-level; nesting → sub-clients
+    Parent   *ir.GroupID             // nil = top-level; nesting → sub-clients
     Ops      []ir.OpID
     Resource *ir.ResourceInfo        // Smithy resource lifecycle, when declared
 }
@@ -552,7 +551,7 @@ snapshot pins the whole lowering deterministically.
 | Step | Reads (un-lowered IR fact) | Lowers to (Go example) | IR ref |
 |---|---|---|---|
 | `ResolveScalarChains` | `Scalar.Base` chain, `Constraints`, `Encoding` | nearest representable base + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
-| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct; non-string map key → custom-key map or diagnostic | §4.6 |
+| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; non-string map key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
@@ -733,7 +732,9 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists keep their bounds; `List.Encoding` (packed/expanded) reaches
-  the serializer; non-string map keys are handled or diagnosed; tuples become fixed-arity structs.
+  the serializer; non-string map keys are handled or diagnosed; tuples become positional structs
+  whose positions past `Constraints.MinItems` are optional and whose `Rest`, when present, is a
+  trailing slice.
 - **Scalars**: `ResolveScalarChains` walks `Base` transitively, accumulating
   `Constraints`/`Encoding`; nil-base scalars (GraphQL custom) go to the opaque-scalar strategy
   (a Go newtype), never a fabricated chain.
@@ -788,7 +789,9 @@ depends on the rendered identifier (§13 test T-4). Collisions are resolved dete
 `Ctx.Syms`, which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
 collision-cascade counterexample; INV3). Anonymous hoisted types get a emitter-chosen name from
 `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`.
+in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
+`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
+alike are two entries to disambiguate, and reordering members of distinct values renames none.
 
 ### 4.13 Interface extraction & request shaping
 
@@ -929,11 +932,11 @@ drops a hint (INV3):
 
 ```go
 type ShapeHint struct {
-    Rename         string    // presentation rename for the entity's symbol; "" = none
-    Remount        GroupKey  // move an operation under a different sub-client; "" = keep
-    SplitUnionBody bool      // flatten a request-body union into typed wrapper methods — OPT-IN,
-                             // the one sanctioned union→arguments collapse (§4.4); default off
-    URLBuilder     bool      // expose a URL-builder variant of the operation
+    Rename         string      // presentation rename for the entity's symbol; "" = none
+    Remount        *ir.GroupID // move an operation under a different sub-client; nil = keep
+    SplitUnionBody bool        // flatten a request-body union into typed wrapper methods — OPT-IN,
+                               // the one sanctioned union→arguments collapse (§4.4); default off
+    URLBuilder     bool        // expose a URL-builder variant of the operation
     Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
 ```
@@ -1169,7 +1172,7 @@ degrade; a missing row is an IR bug (INV9), not a compiler change.
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | pattern channel |
 | `Union` (4 tag modes) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | `WireName`/`WireID` per variant |
 | `Enum` open/closed/flags | closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/struct; `List.Encoding`→serializer mode | packed/expanded |
+| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | — |
 | `External` | imported library type at `MinVersion` + dep-manifest; opaque handle→passthrough/diagnostic | — |
 | `Any` | `any` (distinct from a diagnosed unknown) | — |

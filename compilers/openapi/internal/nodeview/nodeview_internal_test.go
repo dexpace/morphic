@@ -3,9 +3,12 @@ package nodeview
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -131,69 +134,6 @@ func pairMap(pairs []Pair) map[string]string {
 		out[p.Key] = p.Val.Value
 	}
 	return out
-}
-
-func TestIsMergeKey_MatchesResolver(t *testing.T) {
-	t.Parallel()
-	tagged := func(tag string) *yaml.Node {
-		return &yaml.Node{Kind: yaml.ScalarNode, Value: "<<", Tag: tag}
-	}
-	tests := []struct {
-		name string
-		in   *yaml.Node
-		want bool
-	}{
-		{"resolved merge tag", tagged(ynode.MergeTag), true},
-		{"quoted string tag", tagged("!!str"), false},
-		{"untagged scalar", ynode.Scalar("<<"), false},
-		{"non-specific tag", tagged("!"), false},
-		{"long-form merge tag", tagged("tag:yaml.org,2002:merge"), false},
-		{"other value", ynode.Scalar("$ref"), false},
-		{"alias key", ynode.Alias(ynode.Merge()), false},
-		{"mapping key", ynode.Map(), false},
-		{"nil", nil, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, IsMergeKey(tc.in))
-		})
-	}
-}
-
-func TestIsMergeKey_AgreesWithParsedTags(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, src string
-		want      bool
-	}{
-		{"plain", "b: &b {k: v}\nA:\n  <<: *b\n", true},
-		{"non-specific tag", "b: &b {k: v}\nA:\n  ! <<: *b\n", true},
-		{"explicit merge tag", "b: &b {k: v}\nA:\n  !!merge <<: *b\n", true},
-		{"quoted", "b: &b {k: v}\nA:\n  '<<': *b\n", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var root yaml.Node
-			require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root))
-			key := findScalar(&root, "<<")
-			require.NotNil(t, key, "no '<<' scalar in the parsed tree")
-			assert.Equal(t, tc.want, IsMergeKey(key), "parsed tag was %q", key.Tag)
-		})
-	}
-}
-
-func findScalar(n *yaml.Node, value string) *yaml.Node {
-	if n.Kind == yaml.ScalarNode && n.Value == value {
-		return n
-	}
-	for _, c := range n.Content {
-		if found := findScalar(c, value); found != nil {
-			return found
-		}
-	}
-	return nil
 }
 
 func TestPureRefTarget_Cases(t *testing.T) {
@@ -413,6 +353,58 @@ func TestMappingPairs_MergeKeySources(t *testing.T) {
 	}
 }
 
+// TestMappingPairs_MergeKeySpellings holds the view to the library on which key
+// merges: each key is read through both, and the view must present the keys the
+// unmarshaller does. The spellings are the ones a hand-written predicate gets
+// wrong: ignoring the tag merges a quoted '<<', reading only the tag merges
+// `!!merge other`, and resolving the key first merges an alias the library
+// reads as the ordinary key "<<".
+func TestMappingPairs_MergeKeySpellings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, key string
+		merges    bool
+	}{
+		{"plain", "<<", true},
+		{"non-specific tag", "! <<", true},
+		{"merge tag", "!!merge <<", true},
+		{"verbatim merge tag", "!<tag:yaml.org,2002:merge> <<", true},
+		{"merge tag on a quoted key", "!!merge '<<'", true},
+		{"quoted", "'<<'", false},
+		{"string tag", "!!str <<", false},
+		{"local tag", "!merge <<", false},
+		{"merge tag on another key", "!!merge other", false},
+		{"alias to a merge key", "*m", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// m anchors a merge key for the alias case to stand in for.
+			src := fmt.Sprintf("b: &b {k: v}\nm: {&m <<: *b}\nuse:\n  %s : *b\n", tc.key)
+			use := New().ChildByToken(yamlDoc(t, src), "use")
+			require.NotNil(t, use, "the fixture declares a `use` mapping")
+
+			got := pairMap(New().MappingPairs(use))
+
+			assert.Equal(t, libraryKeys(use), slices.Sorted(maps.Keys(got)), "the view presents the library's keys")
+			_, merged := got["k"]
+			assert.Equal(t, tc.merges, merged, "pairs %v", got)
+		})
+	}
+}
+
+// libraryKeys returns the keys of mapping n as the unmarshaller reads them,
+// sorted: expanded by yml.ResolveMergeKeys, each key resolved through an alias.
+func libraryKeys(n *yaml.Node) []string {
+	content := yml.ResolveMergeKeys(n.Content)
+	keys := make([]string, 0, len(content)/2)
+	for i := 0; i+1 < len(content); i += 2 {
+		keys = append(keys, yml.ResolveAlias(content[i]).Value)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
 // TestExhausted_ReportsAnIncompleteExpansion pins the signal a caller refusing a
 // document on incomplete information depends on. A view that stopped at its
 // merge-depth bound has not seen every pair, and reporting a clean read from
@@ -571,17 +563,16 @@ func wideMap(extra ...*yaml.Node) *yaml.Node {
 }
 
 // TestChildByToken_IndexAgreesWithTheScanItReplaces holds the key index to the
-// scan it stands in for, over the mappings whose effective pairs are not their
-// literal ones: a merge source and a key written twice.
+// scan it replaces, over mappings whose effective pairs are not their literal
+// ones: a merge source and a key written twice.
 //
-// A map answers by key where a scan answers by position, so the two agree only
-// because expandContent yields each key once. That is the property under test —
-// asserting the index against MappingPairs itself, key by key, is what would
-// redden if a duplicate ever survived into an expansion.
+// A map answers by key where a scan answers by position, so they agree only
+// because expandContent yields each key once; comparing against MappingPairs
+// key by key reddens if a duplicate ever survives an expansion.
 //
-// Every fixture is wide enough to be indexed, and the index is asserted present
-// before the reads: without that the whole table passes with the index disabled,
-// comparing the fallback scan against itself.
+// Every fixture is wide enough to index, and the index is asserted present
+// before the reads, since otherwise the table passes with the index disabled,
+// comparing the scan against itself.
 func TestChildByToken_IndexAgreesWithTheScanItReplaces(t *testing.T) {
 	t.Parallel()
 	base := wideMap(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), ynode.Scalar("2"))
@@ -649,17 +640,14 @@ func TestKeyIndex_IsBoundedByThePairsMemoRatherThanCharged(t *testing.T) {
 	assert.Len(t, v.keys[n], len(pairs), "one entry per pair, so the memo bounds it")
 }
 
-// TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep covers the gate that makes the
-// index optional, from each state a read can reach it in.
+// TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep covers the gate that makes
+// the index optional, from each state a read can reach it in: the budget, a
+// merge cycle, and a mapping too narrow to repay an index.
 //
-// The three states are the budget, a merge cycle, and a mapping too narrow to
-// repay an index. They are asserted together because each reaches the same
-// outcome down a different path, and only the first is about the budget at all:
-// a cycle yields no pairs, so width turns it away before the memo is consulted.
-//
-// None of them distinguishes the memo gate from a copy of memoize's budget test,
-// which is not what that gate is for — see keyIndex. A test claiming to pin the
-// difference would be pinning nothing, since at depth 0 the two select the same
+// Each reaches the same outcome down a different path, and only the first is
+// about the budget: a cycle yields no pairs, so width turns it away before the
+// memo is consulted. None distinguishes the memo gate from a copy of memoize's
+// budget test (see keyIndex), since at depth 0 the two select the same
 // mappings.
 func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	t.Parallel()
@@ -697,19 +685,15 @@ func TestKeyIndex_DeclinesWhatThePairsMemoDidNotKeep(t *testing.T) {
 	})
 }
 
-// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what the
-// benchmark beside it can only show with a stopwatch.
+// TestPointerPath_ReachesTheIndexOnAWideMapping settles by assertion what
+// BenchmarkPointerPath_IntoAWideMapping can only show with a stopwatch, and
+// nothing runs that in CI: a walk resolving many pointers through one view must
+// leave an index on the mapping every one of them descends. If a gate stopped
+// admitting it, through a raised width or a reuse marker never promoted, the
+// walk would silently return to scanning.
 //
-// BenchmarkPointerPath_IntoAWideMapping reads a flat per-component cost as the
-// index being reached, and nothing runs it in CI. What that cost depends on is
-// not a timing question at all: a walk resolving many pointers through one view
-// must leave an index on the mapping every one of them descends. If a gate ever
-// stops admitting that mapping — a width raised, a reuse marker never promoted —
-// the walk silently returns to scanning and only a benchmark nobody runs would
-// show it.
-//
-// The pointers deliberately name distinct components, because it is the mapping
-// they share that has to be indexed, not the entries they end at.
+// The pointers name distinct components because it is the shared mapping that
+// must be indexed, not the entries they end at.
 func TestPointerPath_ReachesTheIndexOnAWideMapping(t *testing.T) {
 	t.Parallel()
 	const width = minIndexedPairs

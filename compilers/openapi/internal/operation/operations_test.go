@@ -92,16 +92,14 @@ func TestResponses_ErrorSplitAndRanges(t *testing.T) {
 }
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
-// It declares none — it keys responses by status code — so Response.Name carries
-// the hint ir-design §7.2 calls for there, derived from the key the response is
-// filed under. Every response used to reach the IR with all three name channels
-// empty, leaving an emitter naming a per-response result type nothing to build
-// one from (GitHub #259).
+// It declares no name and keys responses by status code, so Response.Name
+// carries the hint ir-design §7.2 calls for, derived from that key; without it
+// an emitter has nothing to name a per-response result type from (GitHub #259).
 //
-// The error half of the same map is named the same way and by the same
-// function (GitHub #422), which is what "404" and "default" below assert: the
-// spelling a wildcard or catch-all key was written under is recorded nowhere
-// else, since StatusRange renders both {500,599} and {0,0} with no trace of it.
+// The error half of the map is named the same way, by the same function (GitHub
+// #422), as "404" and "default" assert: the spelling of a wildcard or catch-all
+// key is recorded nowhere else, since StatusRange renders {500,599} and {0,0}
+// without it.
 func TestResponses_NamedByStatusKey(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /w:
@@ -500,12 +498,21 @@ func TestResponses_LinksPreserved(t *testing.T) {
 	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
 }
 
+// TestGrouping_ByPathPrefixInferred pins that grouping by path prefix marks
+// every operation it places as inferred, a callback's operation included,
+// since it is placed with the operation that declares it.
 func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /users/{id}:
     get: {operationId: getUser, responses: {"200": {description: ok}}}
   /orders:
-    get: {operationId: listOrders, responses: {"200": {description: ok}}}
+    get:
+      operationId: listOrders
+      callbacks:
+        done:
+          '{$request.query.cb}':
+            post: {operationId: ordersDone, responses: {"200": {description: ok}}}
+      responses: {"200": {description: ok}}
 `)
 	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -514,6 +521,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	_, hasOrders := byName["orders"]
 	assert.True(t, hasUsers, "first path segment forms a group")
 	assert.True(t, hasOrders)
+	require.Len(t, byName["orders"].Operations, 2, "the callback operation is placed beside its parent")
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
 			assert.Equal(t, "group-path-prefix", op.Provenance.Inferred, "op %s must be marked inferred", op.ID)
@@ -652,6 +660,9 @@ func TestWebhooks_PathItemRefResolved(t *testing.T) {
 	op := openapitest.FindOp(t, doc, "onPing")
 	require.NotEmpty(t, op.Bindings.HTTP)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "ping", op.Bindings.HTTP[0].WebhookName,
+		"a webhook reached through a $ref'd path item still names its event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate)
 }
 
 func TestGrouping_PathPrefixRootPath(t *testing.T) {
@@ -813,17 +824,11 @@ components:
           responses: {"200": {description: ok}}
 `
 
-// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the fix's core
-// scenario for a referenced callback (issue #107): two parent operations
-// $ref'ing one #/components/callbacks/Shared must keep distinct callback
-// operation identities per parent while the callback's own request schema
-// interns once, at the shared component's own pointer.
 // TestCallbacks_NameWithSlashKeepsItsOwnKey is the encoding case's twin: the
-// callback scope is "callbacks/<name>" and the name is a map key the document
-// chooses, so a "/" in it read as a separator and two callbacks spelled one key
-// between them on the HTTP binding. Both sites take their scope from ids.Scope
-// for that reason, and each needs its own case — the fix was applied at one and
-// would have been just as easy to leave standing at the other.
+// callback scope is "callbacks/<name>" and the name is a document-chosen map
+// key, so a "/" in it must not read as a separator and merge two callbacks into
+// one key on the HTTP binding. Both sites take their scope from ids.Scope, and
+// each needs its own case, since a fix at one can leave the other standing.
 func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -852,6 +857,11 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
 }
 
+// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the core scenario
+// for a referenced callback (issue #107): two parent operations $ref'ing one
+// #/components/callbacks/Shared must keep distinct callback operation
+// identities per parent while the callback's own request schema interns once,
+// at the shared component's own pointer.
 func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedCallbackSpec)
@@ -1117,6 +1127,11 @@ func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) 
 	require.Contains(t, ops, idA, "each webhook keeps its own mount identity")
 	require.Contains(t, ops, idB, "each webhook keeps its own mount identity")
 	assert.True(t, ops[idA].Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "onA", ops[idA].Bindings.HTTP[0].WebhookName,
+		"each mount names its own event")
+	assert.Equal(t, "onB", ops[idB].Bindings.HTTP[0].WebhookName)
+	assert.Empty(t, ops[idA].Bindings.HTTP[0].URITemplate)
+	assert.Empty(t, ops[idB].Bindings.HTTP[0].URITemplate)
 
 	require.Len(t, ops[idA].Params, 1)
 	require.Len(t, ops[idB].Params, 1)
@@ -1289,18 +1304,17 @@ components:
           schema: {type: object}
 `
 
-// TestDiag_SharedDeclarationReportsEachDefectOnce pins the consequence of
-// lowering a referenced component at its declaration: both operations reach the
-// same request body — whose scalar schema carries a `required` the lowered node
-// has no field for — and the same error response, whose header declares an
-// `explode` ir.Property has no field for, so each defect has one pointer and one
-// message. Reported per use site they would arrive as byte-identical copies —
-// nothing a reader could act on twice — and a component shared by twenty
-// operations would repeat each line twenty times.
+// TestDiag_SharedDeclarationReportsEachDefectOnce pins that lowering a
+// referenced component at its declaration reports each defect once. Both
+// operations reach the same request body, whose scalar schema carries a
+// `required` the lowered node has no field for, and the same error response,
+// whose header declares an `explode` ir.Property has no field for. Reported per
+// use site, a component shared by twenty operations would repeat each line
+// twenty times.
 //
-// The second defect sits on an error response's header on purpose: those reach
-// lowerHeaders only since GitHub #422, so the case covers the shared-declaration
-// rule on the path that gained them rather than on the success side alone.
+// The second defect sits on an error response's header on purpose, so the case
+// covers the shared-declaration rule on the path GitHub #422 added, not only on
+// the success side.
 func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, sharedDefectiveBodySpec)
@@ -1415,17 +1429,15 @@ func renderOperationIDDiags(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// TestOperations_OperationIDUniqueness is the end-to-end table over the
-// operationId reuse and repeat shapes. One declaration mounted more than once —
-// by a $ref, a YAML alias, a merge key, or a chain of them — is a warning at
-// each mount but one: the mount it is written at where it has one, and the
-// first by pointer where it does not. A second declaration writing the same id
-// is an error where it is written, whether the two are both paths or a path
-// against a callback, a webhook or a component.
+// TestOperations_OperationIDUniqueness is the end-to-end table over operationId
+// reuse. One declaration mounted more than once, by $ref, YAML alias or merge
+// key, warns at every mount but the one it is written at, else the first by
+// pointer. A second declaration writing the same id is an error where it is
+// written, against a path, callback, webhook or component alike.
 //
-// Several rows name their paths so that the mount a declaration is written at
-// sorts after the mount reusing it. Pointer order alone would warn at the
-// declaration there, and anchor a conflict at an alias that writes no id.
+// Several rows name their paths so the mount a declaration is written at sorts
+// after the one reusing it; pointer order alone would warn at the declaration
+// there and anchor a conflict at an alias that writes no id.
 func TestOperations_OperationIDUniqueness(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1766,20 +1778,16 @@ paths:
 }
 
 // TestOperations_SelfReferencesByFileName pins the reuse a reference naming
-// this document by its file name makes. The compiler reads such a reference as
-// internal, so the claim resolves to the declaration pointer the plain
-// reference does. The resolver, though, parses the document again to follow
-// it, so the node it hands back is a copy: node identity alone read the two as
-// two declarations and reported an error naming one pointer twice.
+// this document by its file name makes. The compiler reads it as internal, so
+// its claim has the plain reference's pointer.
 //
 // The last case is a self-reference the compiler does not read as one, since
-// its document part carries a directory (GitHub #576). Its claim resolves to a
-// pointer of its own as well as a node of its own, so it stays a conflict
-// until that is fixed, and fixing it turns the row red.
+// its document part carries a directory (GitHub #576), so its pointer is
+// another. The resolver answers it from the source as held (GitHub #759), so
+// it shares the declaring node, and that is what makes it a reuse.
 //
-// The file is written to disk because that is where the resolver reads it
-// from, and the compile needs AllowExternalRefs because the resolver counts a
-// document part in the reference as leaving the document.
+// AllowExternalRefs is needed because the resolver counts a document part as
+// leaving the document.
 func TestOperations_SelfReferencesByFileName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -1803,11 +1811,11 @@ func TestOperations_SelfReferencesByFileName(t *testing.T) {
 			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 		{
-			name: "a self-reference through a directory, read as another document (GitHub #576)",
+			name: "a self-reference through a directory, read as another document's pointer (GitHub #576)",
 			paths: `  /a: {$ref: '#/components/pathItems/Shared'}
   /b: {$ref: './self.yaml#/components/pathItems/Shared'}
 `,
-			want: []string{"error openapi/conflicting-operation-id /paths/~1b/get"},
+			want: []string{"warning openapi/duplicate-operation-id /paths/~1b/get"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2008,14 +2016,26 @@ func TestGhostRefs_AllResolversDegradeGracefully(t *testing.T) {
 	doc, diags := parseFull(t, ghostRefsSpec)
 	require.NotEmpty(t, diags, "unresolved refs reported")
 
-	// And the skips themselves are silent: every diagnostic here is the resolve
-	// phase's own report of a component that does not exist, which is why none
-	// carries a pointer — that phase runs before the walk that would know one. A
-	// skip lowering an empty stand-in instead would report on a construct the
-	// document never wrote, and would report it from the walk, sited.
-	for _, d := range diags {
-		assert.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
-		assert.Empty(t, d.Provenance.Pointer, "reported by the resolve phase, not the walk: %+v", d)
+	// And the skips themselves are silent: every diagnostic here is the load
+	// phase's report of a $ref it followed to nothing, at the $ref itself
+	// (GitHub #385). A skip lowering an empty stand-in instead would report on a
+	// construct the document never wrote, beside the one report per $ref below.
+	wantRefs := map[string]string{
+		"/paths/~1a/parameters/0":                                             "#/components/parameters/GhostParam",
+		"/paths/~1a/get/callbacks/good/{$url}":                                "#/components/pathItems/GhostInner",
+		"/paths/~1a/get/callbacks/bad":                                        "#/components/callbacks/GhostCb",
+		"/paths/~1a/get/requestBody":                                          "#/components/requestBodies/GhostBody",
+		"/paths/~1a/get/responses/200":                                        "#/components/responses/GhostResp",
+		"/paths/~1a/get/responses/201/headers/X-H":                            "#/components/headers/GhostHeader",
+		"/paths/~1a/get/responses/201/content/application~1json/examples/one": "#/components/examples/GhostEx",
+		"/paths/~1ref":                                                        "#/components/pathItems/GhostItem",
+		"/webhooks/hook":                                                      "#/components/pathItems/GhostHook",
+	}
+	require.Len(t, diags, len(wantRefs),
+		"one report per ghost reference, not a second added by a lowering resolver: %+v", diags)
+	for pointer, ref := range wantRefs {
+		msg := openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, pointer)
+		assert.Contains(t, msg, fmt.Sprintf("unresolved $ref %q", ref), "names the reference that failed")
 	}
 
 	// What each skip has to do is contribute nothing — not an empty stand-in.
@@ -2119,25 +2139,13 @@ func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
 }
 
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
-// each of the three path items a document can declare, valued with the route it
-// sits on so an entry recovered from the wrong item cannot pass for the right
-// one.
+// each of the three path items a document can declare, valued with its route so
+// an entry recovered from the wrong item cannot pass for the right one.
 //
-// The value is a whole operation because that is what the position accepts:
-// the library folds a key it does not recognize into the item's operations map
-// and unmarshals it as an Operation, so a scalar there is a validation error
-// rather than a key with a value to keep. It is also the case that used to be
-// lost in silence — a well-formed operation under an undefined key raised no
-// finding at all.
-//
-// Each item writes a second such key whose value carries a YAML anchor. That one
-// never reaches the operations map — the library skips an anchored value before
-// folding it — so it is read off the raw mapping instead (GitHub #412), and the
-// raw reading has to reach every route exactly as the map reading does. The two
-// forms part company on a scalar: `bogus: 1` is folded and draws the library's
-// type-mismatch error, while `bogus: &a 1` bypasses the fold and is kept
-// verbatim with the warning alone. That divergence is the lossless outcome, not
-// a gap to close by rejecting the anchored one.
+// Each value is an operation, because the library folds an unrecognized key
+// into the item's operations map as one. Each item also writes a second such
+// key whose value carries a YAML anchor, which must be kept and reported as the
+// plain one is, on every route (GitHub #412, #459).
 const pathItemUnknownKeySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -2197,17 +2205,14 @@ func TestOperations_PathItemUnknownKeyKeptOnEveryRoute(t *testing.T) {
 	}
 }
 
-// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422.
-// ir.ErrorCase held one bare TypeRef and no media type, so a 404 declaring only
-// application/problem+json reached the IR indistinguishable from one declaring
-// application/json, and a 400 declaring both kept the first schema and lost the
-// second entirely — the whole map going verbatim to Unmodeled in either case.
-// Both now lower to ErrorCase.Payload.Contents, one entry per media type, the
-// same shape and by the same function as a success response's.
+// TestErrorCase_EveryMediaTypeIsAContent pins the content half of GitHub #422:
+// an error response lowers to ErrorCase.Payload.Contents, one entry per media
+// type, in the same shape and by the same function as a success response's. A
+// 404 declaring only application/problem+json must be distinguishable from one
+// declaring application/json, and a 400 declaring both must keep both schemas.
 //
-// The 409 is the control: an error declaring no content at all still gets no
-// payload, so a Contents entry marks a declaration rather than appearing on
-// every error case.
+// The 409 is the control: an error declaring no content still gets no payload,
+// so a Contents entry marks a declaration rather than appearing on every case.
 func TestErrorCase_EveryMediaTypeIsAContent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
@@ -2300,20 +2305,15 @@ webhooks:
 `
 
 // TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
-// the servers pair, on every route that lowers an operation. OpenAPI says an
-// Operation Object's servers override the Path Item Object's, but only the path
-// item's were read: a document declaring both kept the superseded list and
-// dropped the effective one outright, so an emitter reading openapi:servers
-// would route to a host the operation had replaced — and nothing reported it.
+// the servers pair, on every route that lowers an operation. An Operation
+// Object's servers override the Path Item Object's, so both lists must be kept:
+// keeping only the path item's would send an emitter to a host the operation
+// had replaced, with nothing reporting it.
 //
-// All three routes are asserted because the path-item half of this same pair was
-// missing on two of its three, and preserving from lowerOperation is what is
-// claimed to make that unrepeatable. A single-route case cannot see a fix that
-// skips the other two, which is the whole shape of GitHub #39 item 2.
-//
-// The two levels are asserted under separate keys because they are two
-// declarations at two pointers. One key for both would make the surviving list
-// depend on which lowering ran last, which no single-order test could see.
+// All three routes are asserted because a single-route case cannot see a fix
+// that skips the other two (GitHub #39). The two levels sit under separate keys
+// because they are two declarations at two pointers; one key would make the
+// surviving list depend on which lowering ran last.
 func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
@@ -2558,8 +2558,12 @@ func TestPathItem_AdditionalOperationsLowerOnEveryRoute(t *testing.T) {
 			"%s binds the method key as the source spelled it", tc.op)
 	}
 
-	assert.True(t, openapitest.FindOp(t, doc, "flushHook").Bindings.HTTP[0].IsWebhook,
+	flushHook := openapitest.FindOp(t, doc, "flushHook")
+	assert.True(t, flushHook.Bindings.HTTP[0].IsWebhook,
 		"a webhook mount marks the binding whichever field declared the operation")
+	assert.Equal(t, "hooked", flushHook.Bindings.HTTP[0].WebhookName,
+		"the webhooks-map key names the event")
+	assert.Empty(t, flushHook.Bindings.HTTP[0].URITemplate)
 
 	// Nothing reachable only through a dropped operation reached the registry
 	// either: the request body's schema was not interned at all.
@@ -2721,15 +2725,11 @@ paths:
 	}
 }
 
-// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's half
-// of the orphan branch, and the one it was missing.
-//
-// A callback expression maps to a Path Item Object like any other, so an
-// expression whose item mounts no operation reached applyPathItem through
-// nothing and lost everything it wrote — the same mechanism as the paths and
-// webhooks walks, on the route that had no branch for it. That is the shape
-// GitHub #39 already cost this compiler twice, which is why the entry point is
-// shared and why this asserts the third route rather than assuming it.
+// TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's
+// half of the orphan branch: a callback expression is a Path Item Object like
+// any other, so an item that mounts no operation must still keep what it wrote,
+// as on the paths and webhooks walks (GitHub #39). The entry point is shared,
+// and this asserts the third route rather than assuming it.
 //
 // The parent's HTTP binding is the carrier: a callback lowers to no node holding
 // an Unmodeled map, and the binding is where the Callback Object's own
@@ -2928,5 +2928,627 @@ components:
 	for _, d := range diags {
 		assert.NotEqual(t, jsontext.Pointer("/components/responses/NF"), d.Provenance.Pointer,
 			"a key of the operation's map is no fault of the component it resolved to: %v", d)
+	}
+}
+
+// TestResponses_RefSiteDocsOverrideTheDeclaration pins the response half of
+// GitHub #610 at both status classes, and the per-mount rule: one component
+// mounted three times — a success with a sibling description, an error with a
+// different one, and a success with none — must give each mount its own docs
+// and leave the declaration's description for the mount that writes none.
+func TestResponses_RefSiteDocsOverrideTheDeclaration(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', description: as a returns it}
+  /b:
+    get:
+      operationId: b
+      responses:
+        "404": {$ref: '#/components/responses/Ok', description: as b fails}
+  /c:
+    get:
+      operationId: c
+      responses:
+        "200": {$ref: '#/components/responses/Ok'}
+components:
+  responses:
+    Ok:
+      description: declared
+      content:
+        application/json: {schema: {type: object, properties: {n: {type: string}}}}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	a := openapitest.FindOp(t, doc, "a")
+	require.Len(t, a.Responses, 1)
+	assert.Equal(t, "as a returns it", a.Responses[0].Docs.Description)
+
+	b := openapitest.FindOp(t, doc, "b")
+	require.Len(t, b.Errors, 1)
+	assert.Equal(t, "as b fails", b.Errors[0].Docs.Description,
+		"an error case is lowered by the same shared function, so it folds too")
+
+	c := openapitest.FindOp(t, doc, "c")
+	require.Len(t, c.Responses, 1)
+	assert.Equal(t, "declared", c.Responses[0].Docs.Description,
+		"a mount with no siblings keeps the declaration's description")
+}
+
+// TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder is the hand-rolled two-order
+// diff for GitHub #610. A use-site summary or description is neither part of the
+// type registry nor a diagnostic, so the in-package order-invariance oracle does
+// not reach it. One component referenced by two operations with different
+// overrides, declared in both orders, must give each mount its own docs.
+func TestRefSiteDocs_MountsKeepTheirOwnInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const first = `  /a:
+    get:
+      operationId: a
+      parameters: [{$ref: '#/components/parameters/Limit', description: from a}]
+      responses: {"200": {description: ok}}
+`
+	const second = `  /b:
+    get:
+      operationId: b
+      parameters: [{$ref: '#/components/parameters/Limit', description: from b}]
+      responses: {"200": {description: ok}}
+`
+	projection := func(paths string) map[string]string {
+		t.Helper()
+		spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+` + paths + `components:
+  parameters:
+    Limit: {name: limit, in: query, description: declared, schema: {type: integer}}
+`
+		doc, _, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		out := map[string]string{}
+		for _, name := range []string{"a", "b"} {
+			p, ok := paramBySource(openapitest.FindOp(t, doc, name), "limit")
+			require.True(t, ok)
+			out[name] = p.Docs.Description
+		}
+		return out
+	}
+	assert.Empty(t, cmp.Diff(projection(first+second), projection(second+first)),
+		"each mount keeps its own override whichever was lowered first")
+}
+
+// groupBySource returns the top-level group whose name source is name.
+func groupBySource(groups []ir.OperationGroup, name string) (ir.OperationGroup, bool) {
+	for _, g := range groups {
+		if g.Name.Source == name {
+			return g, true
+		}
+	}
+	return ir.OperationGroup{}, false
+}
+
+// TestGrouping_NonNavigationalTagIsSkipped pins GitHub #613's first half: an
+// operation's first tag may be a badge, which is not a section it belongs to, so
+// the group comes from the first *navigational* tag. The badge tag is declared
+// first in the operation's `tags` on purpose — the order that was wrong before
+// the fix, so reverting the skip groups under the badge and reddens this.
+func TestGrouping_NonNavigationalTagIsSkipped(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: books, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the badge tag contributes no group")
+	books, ok := groupBySource(svc.Groups, "books")
+	require.True(t, ok)
+	require.Len(t, books.Operations, 1)
+	assert.Equal(t, "listBooks", books.Operations[0].Name.Source)
+	_, badge := groupBySource(svc.Groups, "beta")
+	assert.False(t, badge, "a non-navigational tag never groups")
+}
+
+// TestGrouping_BadgeOnlyOperationFallsToDefault is the other arm: when every tag
+// an operation names is non-navigational there is no section to group it under,
+// and inventing one from a tag that does not group would be an inference.
+func TestGrouping_BadgeOnlyOperationFallsToDefault(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+paths:
+  /beta:
+    get:
+      operationId: betaOp
+      tags: [beta]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "default", svc.Groups[0].Name.Hint)
+	assert.Empty(t, svc.Groups[0].Name.Source)
+	require.Len(t, svc.Groups[0].Operations, 1)
+}
+
+// TestGrouping_NavigationalChildNestsUnderItsParent pins the tree: a group whose
+// tag declares a parent that is itself a navigational declared tag is nested
+// under that parent's group. The child is declared before the parent on purpose
+// — the parent chain must be built from the declarations rather than from the
+// order they arrive in.
+func TestGrouping_NavigationalChildNestsUnderItsParent(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, description: Everything, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the child is nested, not a second top-level group")
+	catalog := svc.Groups[0]
+	assert.Equal(t, "catalog", catalog.Name.Source)
+	assert.Empty(t, catalog.Operations, "the ancestor exists to hold its children")
+	require.Len(t, catalog.Groups, 1)
+	assert.Equal(t, "books", catalog.Groups[0].Name.Source)
+	require.Len(t, catalog.Groups[0].Operations, 1)
+	assert.Equal(t, "listBooks", catalog.Groups[0].Operations[0].Name.Source)
+}
+
+// TestGrouping_AncestorDeclaredAfterItsChildIsStillNested is the same tree with
+// the two declarations in the other order, so the nesting cannot depend on which
+// of them the document wrote first.
+func TestGrouping_AncestorDeclaredAfterItsChildIsStillNested(t *testing.T) {
+	t.Parallel()
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	assert.Empty(t, cmp.Diff(tree(childFirst), tree(parentFirst)),
+		"the group tree must not depend on the declaration order")
+}
+
+// TestGrouping_DanglingParentStaysTopLevel pins that a parent naming no declared
+// tag ends the walk: the group is top-level rather than nested under a group
+// invented for the missing name.
+func TestGrouping_DanglingParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: nope, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source, "the group is top-level")
+}
+
+// TestGrouping_NonNavigationalParentStaysTopLevel holds the parent side of the
+// kind rule: a parent that is declared but not navigational does not receive a
+// group, so its child stays top-level.
+func TestGrouping_NonNavigationalParentStaysTopLevel(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: beta, kind: nav}
+  - {name: beta, kind: badge}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_ParentCycleNestsNoMemberUnderAnother pins that a cycle among the
+// declared parents terminates and keeps every operation reachable: neither
+// member of the cycle nests under the other, while a tag declaring a member as
+// its parent still nests under it.
+func TestGrouping_ParentCycleNestsNoMemberUnderAnother(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: a, parent: b, kind: nav}
+  - {name: b, parent: a, kind: nav}
+  - {name: c, parent: a, kind: nav}
+paths:
+  /a:
+    get:
+      operationId: opA
+      tags: [a]
+      responses: {"200": {description: ok}}
+  /b:
+    get:
+      operationId: opB
+      tags: [b]
+      responses: {"200": {description: ok}}
+  /c:
+    get:
+      operationId: opC
+      tags: [c]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	assert.True(t, openapitest.HasDiag(diags, "openapi/validation/validation-circular-reference"),
+		"the parser reports the cycle; the lowering only has to terminate")
+	require.Len(t, svc.Groups, 2, "the cycle's members stay top-level")
+	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
+	assert.Empty(t, byName["b"].Groups)
+	require.Len(t, byName["a"].Groups, 1, "c nests under a, which is on the cycle but top-level")
+	assert.Equal(t, "c", byName["a"].Groups[0].Name.Source)
+	for _, g := range []ir.OperationGroup{byName["a"], byName["b"], byName["a"].Groups[0]} {
+		require.Len(t, g.Operations, 1, "no operation is lost to the cycle")
+	}
+}
+
+// TestGrouping_UndeclaredTagIsNavigational pins that a tag an operation uses
+// without declaring has no kind to read, so it groups exactly as every 3.0 and
+// 3.1 tag does and stays top-level.
+func TestGrouping_UndeclaredTagIsNavigational(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: x
+      tags: [adHoc]
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	assert.Equal(t, "adHoc", svc.Groups[0].Name.Source)
+}
+
+// TestGrouping_SameNameDeclaredTwiceIsDeterministic pins that two declarations
+// of one tag name resolve the same way whichever order the operations that name
+// them are lowered in: the first declaration wins, so a second one declaring a
+// different parent cannot move the group midway through the walk.
+func TestGrouping_SameNameDeclaredTwiceIsDeterministic(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      responses: {"200": {description: ok}}
+`
+	_, svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1, "the first declaration wins for both the kind and the parent")
+	assert.Equal(t, "books", svc.Groups[0].Name.Source)
+}
+
+// TestTagDefs_RecordParentAndKind pins GitHub #613's second half: the declared
+// tag registry keeps the 3.2 parent and kind verbatim, and neither is invented
+// for a tag that declares none.
+func TestTagDefs_RecordParentAndKind(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: beta, kind: badge}
+  - {name: plain}
+paths: {}
+`
+	doc, _, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, doc.TagDefs, 3)
+	assert.Equal(t, ir.TagDef{Name: "books", Docs: ir.Docs{}, Parent: "catalog", Kind: "nav"}, doc.TagDefs[0])
+	assert.Equal(t, "badge", doc.TagDefs[1].Kind)
+	assert.Empty(t, doc.TagDefs[1].Parent)
+	assert.Empty(t, doc.TagDefs[2].Parent, "a tag declaring neither keeps both empty")
+	assert.Empty(t, doc.TagDefs[2].Kind)
+}
+
+// TestGrouping_TreeIsIndependentOfDeclarationOrder is the two-order diff for
+// GitHub #613. The group tree is neither the type registry nor a diagnostic, so
+// the in-package order-invariance oracle does not see it. Both documents declare
+// the same tags and the same operations; only the order of the `tags` list and
+// of the badge tag within one operation's `tags` differs, and the tree — nesting,
+// sibling order and operations — must be identical.
+func TestGrouping_TreeIsIndependentOfDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /books:
+    get:
+      operationId: listBooks
+      tags: [beta, books]
+      responses: {"200": {description: ok}}
+  /catalog:
+    get:
+      operationId: showCatalog
+      tags: [catalog]
+      responses: {"200": {description: ok}}
+`
+	childFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: books, parent: catalog, kind: nav}
+  - {name: catalog, kind: nav}
+  - {name: beta, kind: badge}
+` + paths
+	parentFirst := `openapi: 3.2.0
+info: {title: T, version: "1"}
+tags:
+  - {name: beta, kind: badge}
+  - {name: catalog, kind: nav}
+  - {name: books, parent: catalog, kind: nav}
+` + paths
+	tree := func(spec string) []ir.OperationGroup {
+		t.Helper()
+		_, svc, diags := lowerServiceSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		return svc.Groups
+	}
+	got := tree(childFirst)
+	assert.Empty(t, cmp.Diff(tree(parentFirst), got), "the group tree must not depend on declaration order")
+	require.Len(t, got, 1, "catalog is the only top-level group")
+	require.Len(t, got[0].Groups, 1)
+	assert.Equal(t, "books", got[0].Groups[0].Name.Source)
+	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
+}
+
+// TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
+// 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
+// dialect does not define, so it keeps warning rather than being silently
+// suppressed.
+func TestResponses_SummaryIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `  /a:
+    get:
+      operationId: a
+      responses:
+        "204":
+          summary: The item was deleted
+          description: Long form.
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	resp32 := openapitest.FindOp(t, doc32, "a").Responses[0]
+	assert.Equal(t, "The item was deleted", resp32.Docs.Summary)
+	assert.Equal(t, "Long form.", resp32.Docs.Description)
+	assert.NotContains(t, resp32.Unmodeled, "openapi:summary",
+		"a key the dialect defines is read, not also kept verbatim")
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
+		"3.2 defines the key, so the census must not call it undefined")
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the key is undefined and the warning is owed")
+	resp31 := openapitest.FindOp(t, doc31, "a").Responses[0]
+	assert.Empty(t, resp31.Docs.Summary, "nothing is invented for a version without the field")
+	assert.Contains(t, resp31.Unmodeled, "openapi:summary")
+}
+
+// TestResponses_SummaryNoReaderTakesIsStillReported pins the two summaries the
+// 3.2 reader does not place in Docs.Summary, which must not vanish because the
+// census was told the key is the dialect's: one that is not a string is kept
+// verbatim with a warning, and one merged in through `<<` keeps the census's
+// report that it reached the IR in no form.
+func TestResponses_SummaryNoReaderTakesIsStillReported(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {description: ok, summary: [not, a, string]}
+        "201":
+          <<: {summary: Merged}
+          description: ok
+`))
+	responses := openapitest.FindOp(t, doc, "a").Responses
+	require.Len(t, responses, 2)
+	assert.Empty(t, responses[0].Docs.Summary)
+	kept, ok := responses[0].Unmodeled["openapi:summary"]
+	require.True(t, ok, "a summary that is not a string is kept verbatim")
+	assert.JSONEq(t, `["not","a","string"]`, string(kept.Value))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1a/get/responses/200/summary"))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyUnreachable, "/paths/~1a/get/responses/201/summary"),
+		"a merged-in summary is still reported; got %v", diags)
+}
+
+// TestResponses_SummaryUseSiteBeatsTheDeclaration holds the 3.2 field to the
+// same precedence the rest of a response's docs take: a summary written beside
+// the $ref describes this mount, so it wins over the declaration's own.
+func TestResponses_SummaryUseSiteBeatsTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200": {$ref: '#/components/responses/Ok', summary: As a sees it}
+components:
+  responses:
+    Ok:
+      summary: As declared
+      description: ok
+      content:
+        application/json: {schema: {type: string}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "As a sees it", openapitest.FindOp(t, doc, "a").Responses[0].Docs.Summary)
+}
+
+// TestXML_NodeTypeIsReadFor32Only pins the 3.2 XML nodeType: ir.XMLHints.NodeType
+// already existed and its GoDoc already named the version, so this is the wiring
+// — and below 3.2 the key keeps the warning it always drew.
+func TestXML_NodeTypeIsReadFor32Only(t *testing.T) {
+	t.Parallel()
+	const body = `    S:
+      type: object
+      properties:
+        n:
+          type: string
+          xml: {nodeType: text}
+`
+	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	openapitest.RequireNoErrorDiags(t, diags32)
+	model, ok := doc32.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop, ok := openapitest.PropsByWire(model.Properties)["n"]
+	require.True(t, ok)
+	require.NotNil(t, prop.XML)
+	assert.Equal(t, "text", prop.XML.NodeType)
+	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey))
+
+	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+`+body)
+	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
+		"below 3.2 the XML object defines no nodeType and the warning is owed")
+	model31, ok := doc31.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+	require.True(t, ok)
+	prop31, ok := openapitest.PropsByWire(model31.Properties)["n"]
+	require.True(t, ok)
+	require.NotNil(t, prop31.XML)
+	assert.Empty(t, prop31.XML.NodeType)
+}
+
+// TestContent_UnkeepableMediaTypeRefIsReported pins the media type $ref that
+// cannot be kept verbatim, a mapping writing one key twice: it is reported as
+// lost, and nothing claims it was kept.
+func TestContent_UnkeepableMediaTypeRefIsReported(t *testing.T) {
+	t.Parallel()
+	_, _, diags := lowerServiceSpec(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: {a: 1, a: 2}}
+`))
+	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
+		"/paths/~1a/get/responses/200/content/application~1json/$ref"), "nothing announces a keep it did not make")
+}
+
+// TestContent_MediaTypeRefIsKeptNotFollowed pins a content entry written as a
+// Reference Object while this compiler does not follow one (GitHub #856). On
+// 3.2, which allows it, the $ref and the summary beside it are kept verbatim and
+// one warning says the entry lowered as written; below 3.2 the $ref is a key
+// the dialect does not define, and the census says so.
+func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
+	t.Parallel()
+	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
+	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/$ref"
+	for _, tc := range []struct {
+		version string
+		reason  ir.UnmodeledReason
+		code    string
+	}{
+		{"3.2.0", ir.ReasonDegradedLowering, diag.DegradedConstruct},
+		{"3.1.0", ir.ReasonOutOfScope, diag.UnknownObjectKey},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(tc.version, `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Json', summary: S}
+`))
+			op := openapitest.FirstOp(t, svc)
+			content := op.Responses[0].Payload.Contents[0]
+			assert.Equal(t, tc.reason, content.Unmodeled["openapi:$ref"].Reason)
+			assert.Contains(t, content.Unmodeled, "openapi:summary", "nothing beside the $ref is dropped")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, at), "got %v", diags)
+			require.Len(t, op.Params, 1)
+			assert.Equal(t, tc.reason, op.Params[0].Unmodeled["openapi:content/application~1json/$ref"].Reason)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, paramAt))
+		})
 	}
 }

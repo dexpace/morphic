@@ -11,13 +11,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
-// with no lowerer, no parser and no document anywhere in the setup.
-//
-// This is the extraction's whole purpose. Reaching the conflict lattice
-// previously meant standing up a compiler and feeding it a spec that happened to
-// produce the pair of declarations under test; the registry dependency is narrow
-// enough to pass as a function, so the lattice can be driven directly.
 // ptrAt is the provenance a declaration at pointer carries. MergeProperty reads
 // the position off the property rather than taking it alongside, so a test that
 // merges one has to say where it was written.
@@ -39,6 +32,9 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
+// with no lowerer, parser or document in the setup, so the conflict lattice can
+// be driven directly.
 func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
@@ -90,17 +86,16 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	d := (*recorded)[0]
 	assert.Equal(t, diag.ConflictingRedecl, d.Code)
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
+	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the property already merged keeps its type")
 }
 
 // TestMerger_MergeConstraintsKeepsBothSidesBounds covers the merge half rather
 // than the conflict half: constraints that do not disagree combine.
 func TestMerger_MergeConstraintsKeepsBothSidesBounds(t *testing.T) {
 	t.Parallel()
-	maxLen := int64(10)
-	minLen := int64(2)
 	got := mergeConstraints(
-		&ir.Constraints{MaxLength: &maxLen},
-		&ir.Constraints{MinLength: &minLen},
+		&ir.Constraints{MaxLength: new(int64(10))},
+		&ir.Constraints{MinLength: new(int64(2))},
 	)
 	require.NotNil(t, got)
 	require.NotNil(t, got.MaxLength)

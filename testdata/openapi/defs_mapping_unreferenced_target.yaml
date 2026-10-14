@@ -1,0 +1,17 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object, properties: {meow: {type: string}}}
+    Toy:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object, properties: {squeak: {type: string}}}

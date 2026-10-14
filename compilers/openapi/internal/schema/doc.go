@@ -1,17 +1,13 @@
-// Package schema lowers OpenAPI schemas into IR types: the shape walk itself,
-// the compositions written around it, the references that reach other schemas,
-// and the preservation of what the IR has no field for.
+// Package schema lowers OpenAPI schemas into IR types: the shape walk, its
+// compositions, the references between schemas, and the preservation of what
+// the IR has no field for.
 //
-// It is one package because those are one cycle. Lowering a schema resolves the
-// references inside it, resolving a reference lowers what it names, and a
-// composition is lowered by lowering its branches — so no line can be drawn
-// through the set that some call does not cross back over
-// (micro-compiler-design §5). The mutual recursion is pinned, by name, in
-// internal/archtest.
+// It is one package because those are one cycle: lowering a schema resolves its
+// references, resolving a reference lowers what it names, and a composition
+// lowers its branches (micro-compiler-design §5). internal/archtest pins the
+// mutual recursion by name.
 //
-// Its exported surface is the entry points the rest of the compiler needs, plus
-// the few facts a carrier lowering has to agree with this one about. Everything
-// the walk says to itself stays unexported, so a caller cannot enter it halfway
-// down — which is why the recursion pinned in internal/archtest is almost
-// entirely unexported names.
+// Only the entry points the rest of the compiler needs, and the few facts a
+// carrier lowering must agree on, are exported, so no caller can enter the walk
+// halfway down.
 package schema

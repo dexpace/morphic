@@ -99,14 +99,13 @@ var (
 
 // TestMergeVisibility_IntersectsUnderAllOfSemantics pins the shapes an allOf
 // redeclaration's Visibility pairing can take. An empty Only means
-// unrestricted rather than restricted-to-nothing (ir-design §5.2), so the
-// merge has to read each side as the set it admits before intersecting.
+// unrestricted, not restricted-to-nothing (ir-design §5.2), so each side must
+// be read as the set it admits before intersecting.
 //
-// A plain append is the tempting wrong answer, and the first three cases here
-// do not catch it: concatenating an empty Only is a no-op, so every pairing
-// where at most one side restricts comes out right by accident. It is the five
-// below them that carry the argument — appending duplicates when both branches
-// agree, unions where allOf intersects, and cannot spell the empty set at all.
+// The first three cases cannot catch a plain append, since concatenating an
+// empty Only is a no-op. The five below them do: appending duplicates when both
+// branches agree, unions where allOf intersects, and cannot spell the empty
+// set.
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
 	unrestricted := ir.Visibility{}
@@ -530,12 +529,11 @@ func TestReconcileProperty_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
 	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
-	maxLen := int64(10)
 	src := ir.Property{
 		WireName:    "id",
 		Type:        ir.TypeRef{Target: "t/str"},
 		Default:     &ir.Value{Kind: ir.ValueString, Str: "abc"},
-		Constraints: &ir.Constraints{MaxLength: &maxLen},
+		Constraints: &ir.Constraints{MaxLength: new(int64(10))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
 	}
 
@@ -643,12 +641,11 @@ func TestReconcileProperty_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing
 		"t/B": &ir.Model{ID: "t/B"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
-	one := int64(1)
 	src := ir.Property{
 		WireName:    "x",
 		Type:        ir.TypeRef{Target: "t/B"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
-		Constraints: &ir.Constraints{MinProps: &one},
+		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
 		Provenance:  ptrAt("/allOf/1/properties/x"),
 	}

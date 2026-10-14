@@ -2,9 +2,9 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,6 +54,103 @@ webhooks:
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
+	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
+}
+
+// TestWebhooks_KeyIsTheEventName lowers a webhooks-map key as the event's name
+// however it is spelled: braces in it are not template variables, and pointer
+// escaping is the ID's business, not the name's. The binding carries no URI
+// template, and an operation with no operationId takes its hint from the method
+// and the key, which the empty template would have dropped.
+func TestWebhooks_KeyIsTheEventName(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, key, operationID string
+		wantID                 ir.OpID
+		wantName               ir.Naming
+	}{
+		{"braces, with an operationId", "{tenant}.created", "tenantCreated",
+			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Source: "tenantCreated", Canonical: "tenant_created"}},
+		{"braces, named by the key", "{tenant}.created", "",
+			"op/openapi/webhooks/{tenant}.created/post", ir.Naming{Hint: "post_tenant_created"}},
+		{"pointer escapes, named by the key", "a/b~c", "",
+			"op/openapi/webhooks/a~1b~0c/post", ir.Naming{Hint: "post_a_b_c"}},
+		{"the empty key", "", "", "op/openapi/webhooks//post", ir.Naming{Hint: "post"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			operationID := ""
+			if tc.operationID != "" {
+				operationID = "\n      operationId: " + tc.operationID
+			}
+			spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  ` + strconv.Quote(tc.key) + `:
+    post:` + operationID + `
+      responses: {"200": {description: ok}}
+`
+			svc, diags := lowerServiceSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := webhookOperation(t, svc)
+			assert.Equal(t, tc.wantID, op.ID, "the mount pointer, not the event name, identifies the operation")
+			assert.Equal(t, tc.wantName, op.Name)
+			require.Len(t, op.Bindings.HTTP, 1)
+			assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+			assert.Equal(t, tc.key, op.Bindings.HTTP[0].WebhookName, "the key, verbatim")
+			assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
+		})
+	}
+}
+
+// webhookOperation returns the one operation of svc's webhooks group.
+func webhookOperation(t *testing.T, svc ir.Service) ir.Operation {
+	t.Helper()
+	i := slices.IndexFunc(svc.Groups, func(g ir.OperationGroup) bool { return g.ID == ids.WebhookGroup() })
+	require.GreaterOrEqual(t, i, 0, "the service has a webhooks group")
+	require.Len(t, svc.Groups[i].Operations, 1, "the webhooks group holds exactly one operation")
+	return svc.Groups[i].Operations[0]
+}
+
+// TestWebhooks_CallbacksLandInTheWebhooksGroup pins that a webhook operation's
+// callbacks are lowered, as a path operation's are, and that their operations
+// join it in the webhooks group.
+func TestWebhooks_CallbacksLandInTheWebhooksGroup(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+webhooks:
+  newPet:
+    post:
+      operationId: onNewPet
+      callbacks:
+        ack:
+          '{$request.body#/ack}':
+            post:
+              operationId: ackPost
+              responses: {"200": {description: ok}}
+      responses: {"200": {description: ok}}
+`
+	svc, diags := lowerServiceSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, svc.Groups, 1)
+	group := svc.Groups[0]
+	assert.Equal(t, "webhooks", group.Name.Hint)
+	byName := openapitest.IndexBy(group.Operations, func(op ir.Operation) string { return op.Name.Source })
+	hook, ok := byName["onNewPet"]
+	require.True(t, ok)
+	ack, ok := byName["ackPost"]
+	require.True(t, ok, "the callback operation joins the webhook in its group")
+	require.Len(t, hook.Bindings.HTTP, 1)
+	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
+	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
+	require.Len(t, ack.Bindings.HTTP, 1)
+	assert.False(t, ack.Bindings.HTTP[0].IsWebhook, "a callback is not a webhook, though a webhook declares it")
+	assert.Empty(t, ack.Bindings.HTTP[0].WebhookName, "the webhook's name stays on the webhook")
+	assert.Equal(t, "{$request.body#/ack}", ack.Bindings.HTTP[0].URITemplate)
 }
 
 func TestCallbacks_RegisteredAndBound(t *testing.T) {
@@ -154,17 +251,14 @@ func TestStatusRange_NamesAStatus(t *testing.T) {
 	}
 }
 
-// TestStatusRange_NamesNoStatus is the half that used to be silent. Every key
-// here reached {0,0} or a range OpenAPI cannot declare, with no diagnostic and
-// no way for a consumer to tell the result from a declared default (GitHub
-// #262).
+// TestStatusRange_NamesNoStatus pins that every key here is reported as naming
+// no status, not read as {0,0} or a range OpenAPI cannot declare, which a
+// consumer could not tell from a declared default (GitHub #262).
 //
-// The zero range beside the false is asserted because it is load-bearing, not
-// because it is obvious: lowerResponses routes on isErrorRange without
-// re-testing ok, so a false paired with anything from 400 up would send a key
-// that names no status to lowerErrorCase, which would classify a fault from a
-// range nothing derived and drop the key entirely — ErrorCase holds no naming.
-// This is what holds that pairing.
+// The zero range beside the false is load-bearing: lowerResponses routes on
+// isErrorRange without re-testing ok, so a false paired with a range from 400
+// up would send a key naming no status to lowerErrorCase, which would classify
+// a fault from a range nothing derived and assert a status the key never named.
 func TestStatusRange_NamesNoStatus(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{
@@ -351,29 +445,16 @@ func httpMethodsNames() []string {
 }
 
 // TestHTTPMethods_AgreesWithLibraryVocabulary holds httpMethods to
-// soa.IsStandardMethod, mirroring the shape of the schema package's 2020-12
-// vocabulary tests (internal/schema/schema_test.go's vocabularyCases): one
-// table enumerating the vocabulary, checked against the library predicate that
-// is meant to track it.
+// soa.IsStandardMethod: they must agree on every name either holds an opinion
+// about. If the library learns a method before this compiler does,
+// undeclaredPathItemKeys grades the key as declared, so no field lowers it and
+// no diagnostic reports it (GitHub #413); this turns that disagreement into a
+// build failure.
 //
-// The two vocabularies answer different questions — httpMethods says what this
-// compiler lowers, IsStandardMethod says what the specification defines — but
-// httpMethods is meant to be a subset of what the library recognizes, so the
-// two must agree on every name either one holds an opinion about. If the
-// library learns a method before this compiler does, IsStandardMethod turns
-// true for it while httpMethods stays silent: undeclaredPathItemKeys then
-// grades the key as declared, so no field lowers it and no diagnostic reports
-// it. That silent drop is GitHub #413; this test turns the disagreement that
-// causes it into a build failure instead.
-//
-// The library exports no list IsStandardMethod is built from — it is the
-// unexported standardHttpMethods in
-// github.com/speakeasy-api/openapi/openapi@v1.24.1's paths.go — so this probes
-// with an explicit candidate set instead: every method RFC 9110 §9.3 defines
-// (GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE), plus QUERY and
-// PATCH, plus every name httpMethods itself declares, each checked in both
-// letter cases since IsStandardMethod compares case-sensitively against
-// lowercase constants and a case mismatch would otherwise hide a real gap.
+// The library exports no list to compare against, so this probes a candidate
+// set: the methods RFC 9110 §9.3 defines, plus QUERY and PATCH, plus every name
+// httpMethods declares, each in both letter cases because IsStandardMethod
+// compares case-sensitively and a mismatch would hide a real gap.
 func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	t.Parallel()
 
@@ -391,11 +472,7 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 		seen[strings.ToUpper(c)] = true
 		seen[strings.ToLower(c)] = true
 	}
-	names := make([]string, 0, len(seen))
-	for n := range seen {
-		names = append(names, n)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(seen))
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
@@ -407,17 +484,15 @@ func TestHTTPMethods_AgreesWithLibraryVocabulary(t *testing.T) {
 	}
 }
 
-// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags of
-// the library's Path Item core model, the way the ir package holds its
-// hand-written kind lists to the kinds the sources declare. The list decides
-// which raw keys the census leaves alone as declared fields, so a field the
-// library adds and this list does not name would be announced as a key the
-// document was not permitted to write — and one this list names and the library
-// has dropped would be a key the census never looks at.
+// TestPathItemFields_MatchTheLibraryModel holds pathItemFields to the key tags
+// of the library's Path Item core model. The list decides which raw keys the
+// census leaves alone as declared fields, so a field the library adds and the
+// list lacks would be announced as a key the document was not permitted to
+// write, and one the list names and the library dropped would escape the
+// census.
 //
-// The extensions field is the one tag left out: it is spelled "extensions" in
-// the tag and reached by x- prefix in the document, which pathItemDeclares tests
-// for on its own.
+// The extensions field is left out: its tag is "extensions", but the document
+// reaches it by x- prefix, which pathItemDeclares tests for on its own.
 func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 	t.Parallel()
 	var declared []string
@@ -434,20 +509,16 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 		"pathItemFields must name every keyed field of core.PathItem, once each, in its order (-model +listed)")
 }
 
-// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared is the control the
-// raw reading needs: the library skips every anchored value on a path item, a
-// declared field's included, so the raw mapping presents each declared key
-// exactly as it presents an undeclared one and only the vocabulary tells them
-// apart. Each class of declared key is written with an anchored value here, and
-// the census must report none of them.
+// TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared pins that declared
+// keys written with anchored values are not reported as undeclared. The library
+// skips every anchored value on a path item, so the raw mapping presents a
+// declared key as it presents an undeclared one, and only the vocabulary tells
+// them apart.
 //
-// The item is unmarshalled through the library directly, as the resolver
-// unmarshals one it loads through an external reference: the source document's
-// own anchors are cleared before its model is built (GitHub #459), so this is
-// the path the census's raw reading still serves. The anchored `get` is not
-// lowered there — the same skip unmounts it — and that is a loss of its own,
-// outside what a census of undeclared keys can answer; what is pinned here is
-// only that it is not misreported as a key the specification does not define.
+// The item is unmarshalled through the library directly, the one way left to
+// reach this shape: anchors are cleared before any model is built (GitHub #459,
+// #501, #538). The anchored `get` is not lowered there, a loss this census
+// cannot answer.
 func TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	pi := pathItemOf(t, `
@@ -679,4 +750,44 @@ func TestOperationIDClaims_AddSkipsAnEmptyOperationID(t *testing.T) {
 
 	assert.Empty(t, claims.names, "nothing was claimed, so nothing is queued to report")
 	assert.Empty(t, claims.report(newRawLowerer(nil).ctx))
+}
+
+// TestIndexTags_SkipsANilEntry pins the guard on the tag list: a nil entry
+// indexes no name, so it can neither be read for a kind or a parent by the
+// grouping walk nor shadow a tag the document does declare. The parser produces
+// no such entry, which is why the guard is exercised at the list it guards.
+func TestIndexTags_SkipsANilEntry(t *testing.T) {
+	t.Parallel()
+	kept := &soa.Tag{Name: "kept"}
+
+	got := indexTags([]*soa.Tag{nil, kept})
+
+	require.Len(t, got, 1)
+	assert.Same(t, kept, got["kept"])
+}
+
+// TestTagIndex_ChainAgreesWithEveryAncestor pins what makes a group's parent
+// independent of which operation creates it: the chain of every tag a chain
+// passes through is that chain's own prefix. The tags hold a cycle (a and b), a
+// tag beneath it (c), one beneath that (d), and one whose parent is a badge (e).
+func TestTagIndex_ChainAgreesWithEveryAncestor(t *testing.T) {
+	t.Parallel()
+	tag := func(name, parent, kind string) *soa.Tag {
+		return &soa.Tag{Name: name, Parent: &parent, Kind: &kind}
+	}
+	x := indexTags([]*soa.Tag{
+		tag("a", "b", "nav"), tag("b", "a", "nav"), tag("c", "a", "nav"),
+		tag("d", "c", ""), tag("badge", "", "badge"), tag("e", "badge", "nav"),
+	})
+	want := map[string][]string{
+		"a": {"a"}, "b": {"b"}, "c": {"a", "c"}, "d": {"a", "c", "d"},
+		"e": {"e"}, "undeclared": {"undeclared"},
+	}
+	for name, chain := range want {
+		got := x.chain(name)
+		assert.Equal(t, chain, got, "chain of %s", name)
+		for i := range got {
+			assert.Equal(t, got[:i+1], x.chain(got[i]), "%s's ancestor %s agrees", name, got[i])
+		}
+	}
 }

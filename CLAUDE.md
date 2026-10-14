@@ -102,7 +102,7 @@ in the docs.
 ```
 ir/          Layer 0 — IR nodes, IDs, traversal, JSON round-trip. Imports ONLY the stdlib.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
-  irtest/    Layer 0 — golden-file helper (`-update` rewrites). Imports ir + go-cmp.
+  irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir only.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
@@ -116,10 +116,13 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
 pass/        Layer 1 — IR → IR passes. Imports ir only.
 emitters/*   Layer 2 — imports ir + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine.
+cmd/morphic/ Layer 4 — CLI; imports ir + engine + its command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, testspec).
+cmd/morphic-covergate/
+             Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, leakcheck,
+             testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -136,11 +139,15 @@ unkeyed subdirectory is audited under its nearest keyed ancestor's allowlist, so
 way to widen one; and give it its own entry rather than letting it inherit a wider one, since an
 inherited allowlist says nothing about where the package sits.
 
-Two caps guard shape rather than the graph. No type under `compilers/` may carry more than 20
+Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
 (`.golangci.yml`, tests excluded). The method cap is the one that matters: the god object this
 structure replaced reached 159 methods without ever writing a long function, so every rule then in
 force stayed green while it grew. A failure is a prompt to ask what the type has started doing.
+
+No lint suppression stands in the source: `internal/archtest` refuses a `//nolint`, `revive:` or
+`lint:ignore` comment. A suppression is a rule under `exclusions` in `.golangci.yml`, kept as narrow
+as the finding it excuses, with its reason beside it.
 
 ## Testing strategy
 
@@ -163,6 +170,13 @@ These all exist already — extend them rather than building a parallel mechanis
   `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
   deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above.
+- **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
+  kinds, the fields of a shape) to what a package declares reads the package through
+  `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
+  readers each rebuilt const-group carry-forward, aliases and import names their own way and were
+  blind to spellings the compiler accepts (#409). Each package is loaded on its own, because
+  `go/types` can race when one load checks several at once (golang/go#81122), so a type another
+  package declares is compared through `Package.Imported`, the copy the package itself sees.
 - **Goroutine leak check**: `internal/leakcheck` wraps `TestMain` around Go 1.27's `goroutineleak`
   profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
   `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
@@ -232,6 +246,15 @@ below are the ones most likely to bite in this codebase — the full guide gover
   (stdlib, external, local); no dot imports.
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
   comment on every package; comments explain *why*, not what.
+- **Doc comments: 100 words at most.** The cap is strict and holds for each doc comment on its
+  own — package, declaration, field or method, tests included. A word is a token with a letter
+  in it: `//` markers, directives, numbers and punctuation are not counted.
+  A comment may exceed it only when the excess is both *necessary* (a reader of that symbol cannot
+  do without it, and it has no better home in `docs/`, an issue or a commit message) and
+  *valuable* (it says what neither the code nor the names can). Narrative history, restated code
+  and a second telling of the why never qualify, and a longer comment nearby is not precedent.
+  `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
+  lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
   `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
@@ -262,7 +285,7 @@ pins, so the local command and the job are the same commands in the same order. 
 for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
 rest are individually runnable while iterating.
 
-**Coverage is a gate at exactly 100%, not a target.** `scripts/check-coverage.sh` counts
+**Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
 statement fails the build — `go test ./...` passing locally is not evidence the gate passes.
 
@@ -350,6 +373,15 @@ context-switch between repos.
   the cap until the number was appended, which is the whole failure mode; to see that split rather
   than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
   `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+- **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
+  or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
+  or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a
+  reviewer reads and orphans their comments, and the squash merge keeps `main` clean whatever the
+  branch holds. To pick up `main`, merge it in rather than rebasing. The squash commit's *body* is
+  settled when merging, not by shaping the branch:
+  `gh api repos/dexpace/morphic --jq .squash_merge_commit_message` names what a default squash
+  pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
+  could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
   logical change; split unrelated changes into separate PRs.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal

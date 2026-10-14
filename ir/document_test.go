@@ -86,9 +86,9 @@ func TestCompatibleVersion(t *testing.T) {
 		// generation" literal WAS the current version, and the row asserted the
 		// build rejects its own documents. The rows below spell IRVersion
 		// directly and need no such maintenance.
-		{"the generation before this one", "0.5.0", false},
-		{"a later generation", "0.7.0", false},
-		{"a differing patch", "0.6.1", false},
+		{"the generation before this one", "0.11.0", false},
+		{"a later generation", "0.13.0", false},
+		{"a differing patch", "0.12.1", false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},
@@ -143,4 +143,18 @@ func TestDocument_AuthDeterministic(t *testing.T) {
 		`"auth":{"a/a":{"name":{},"docs":{},"provenance":{"source":0}},`+
 			`"m/a":{"name":{},"docs":{},"provenance":{"source":0}},`+
 			`"z/a":{"name":{},"docs":{},"provenance":{"source":0}}}`)
+}
+
+// TestTagDef_JSONContract pins TagDef's optional members: an OpenAPI 3.0/3.1
+// tag declares neither parent nor kind, so both stay absent keys and such a
+// tag's JSON is what it was, while a 3.2 tag's declared hierarchy and role
+// round-trip. Docs carries no omitempty, so a bare tag still writes it.
+func TestTagDef_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.TagDef{}, `{"docs":{}}`, ir.TagDef{
+		Name:   "books",
+		Docs:   ir.Docs{Summary: "Books"},
+		Parent: "catalog",
+		Kind:   "nav",
+	})
 }

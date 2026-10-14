@@ -1,18 +1,13 @@
 package pass
 
 import (
-	"cmp"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
-
-// maxGroupDepth bounds recursion over nested operation groups; deeper nesting is
-// pathological and is truncated rather than allowed to blow the stack, which
-// checkGroupWalkTruncated reports as ir/walk-truncated.
-const maxGroupDepth = 128
 
 // Validate checks a Document for referential-integrity violations and returns
 // the diagnostics it finds, most-structural first. It is pure: it never mutates
@@ -26,9 +21,12 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	if doc == nil {
 		return nil
 	}
+	// Read once: the dangling walk resolves against these, and checkParams
+	// leaves to it exactly what it reports.
+	decls, declTruncated := ir.DeclaredIDs(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
 	diags = append(diags, checkNilTypes(doc)...)
-	diags = append(diags, checkDanglingRefs(doc)...)
+	diags = append(diags, checkDanglingRefs(doc, decls, declTruncated)...)
 	diags = append(diags, checkGroupWalkTruncated(doc)...)
 	diags = append(diags, checkServerIndices(doc)...)
 	diags = append(diags, checkResponseIndices(doc)...)
@@ -37,54 +35,37 @@ func Validate(doc *ir.Document) []ir.Diagnostic {
 	diags = append(diags, checkPropIDRefs(doc)...)
 	diags = append(diags, checkDiscriminators(doc)...)
 	diags = append(diags, checkDuplicateWireNames(doc)...)
-	diags = append(diags, checkParamBindings(doc)...)
+	diags = append(diags, checkAmbiguousAliases(doc)...)
+	diags = append(diags, checkDuplicateMemberIDs(doc)...)
+	diags = append(diags, checkParams(doc, decls)...)
+	diags = append(diags, checkIdempotency(doc)...)
 	diags = append(diags, checkMessageBindings(doc)...)
 	diags = append(diags, checkOneWay(doc)...)
 	diags = append(diags, checkArgsOutsideGraphQL(doc)...)
 	return diags
 }
 
-// checkDanglingRefs reports every typed-ID reference in the document that
-// resolves to no entry in the registry that declares that class of ID — a
-// TypeRef.Target into doc.Types, a MessageBinding.Channel into doc.Channels, a
-// SchemeUse.Scheme into doc.Auth — wherever it sits.
+// checkDanglingRefs reports every typed-ID reference that resolves to no entry
+// in the registry declaring that class of ID — a TypeRef.Target into doc.Types,
+// a SchemeUse.Scheme into doc.Auth — wherever it sits. decls and declTruncated
+// are ir.DeclaredIDs(doc).
 //
-// The sites and the registries both come from reflection over the document's own
-// shape (ir.WalkValues, ir.DocumentRegistries) rather than a list of field names:
-// referential integrity is the guarantee an emitter relies on, and a hand-written
-// enumeration drifts behind the IR without anything failing.
-//
-// What that leaves out is a category rather than a stray field. A reference
-// carried as an integer index is an int like any other: Service.Servers and
-// Channel.Servers into Document.Servers, and HTTPBinding.SuccessStatus's keys
-// into Operation.Responses, are enumerated by hand below; Provenance.Source into
-// Document.Sources is left to irverify, because a stale source index is a
-// compiler bug rather than a spec problem, and because this pass stamps
-// ir.NoSource on its own diagnostics, which the engine folds into
-// Document.Diagnostics — a document-wide check here would report its own previous
-// output. A new integer-index reference has to be added to those checks by hand
-// too; irverify's integerFields guard is what stops one being added unnoticed.
-// The other class the registries cannot resolve is ir.PropID, which names a
-// position inside a model: checkPropIDRefs resolves those against the properties
-// the same traversal saw.
-//
-// Not every ID class has a map on Document to be derived from. An ir.Operation is
-// declared in the Service→OperationGroup tree and an ir.Service in a slice, so an
-// OpID or ServiceID reference resolved against nothing at all (GitHub #50);
-// ir.Registries.WithDeclarations supplies both from the identities the document's
-// own nodes declare, under the same ir/dangling-<noun>-ref code every other class
-// is reported with.
-//
-// Those two classes are dropped when the declaration walk truncates. A registry
-// derived from a walk that saw a subset of the document answers "not declared"
-// for a node it simply never reached, so a reference to a legitimate operation
-// buried past the cap would be reported as dangling — a false error, where the
-// registries Document declares maps for can only ever under-report. The walk-
-// truncated diagnostic below says why nothing is claimed for them, as
-// checkArgsOutsideGraphQL does with the reachability it cannot trust.
-func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
-	decls, declTruncated := ir.DeclaredIDs(doc)
+// Sites and registries come from reflection over the document's own shape
+// (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
+// would drift behind the IR unnoticed. Integer-index references are enumerated
+// by hand below, and ir.PropID is checkPropIDRefs's. Provenance.Source is
+// irverify's: a stale index is a compiler bug, and this pass's own ir.NoSource
+// diagnostics would make a document-wide check report its own output.
+func checkDanglingRefs(doc *ir.Document, decls []ir.IDDeclaration, declTruncated bool) []ir.Diagnostic {
+	// Document has no map for OpID, ServiceID or GroupID: an ir.Operation and an
+	// ir.OperationGroup are declared in the Service→OperationGroup tree and an
+	// ir.Service in a slice (GitHub #50), so their registries come from the
+	// identities the nodes declare.
 	regs := ir.DocumentRegistries(doc)
+	// A registry built from a truncated walk says "not declared" of a node it
+	// never reached, so a legitimate operation past the depth bound would be
+	// reported as dangling. Dropping both classes can only under-report; the
+	// walk-truncated diagnostic below says why nothing is claimed for them.
 	if !declTruncated {
 		regs = regs.WithDeclarations(decls)
 	}
@@ -119,15 +100,17 @@ func checkDanglingRefs(doc *ir.Document) []ir.Diagnostic {
 //
 // These are references carried as integer indices, so nothing in their Go type
 // marks them as references and the walk in refs.go cannot reach them — they are
-// enumerated here instead. An emitter iterating them to render base URLs indexes
-// out of range on a document that is otherwise referentially closed.
+// enumerated here instead, and a new one has to be added by hand; irverify's
+// integerFields test is what notices it. An emitter iterating them to render
+// base URLs indexes out of range on a document that is otherwise referentially
+// closed.
 func checkServerIndices(doc *ir.Document) []ir.Diagnostic {
 	declared := len(doc.Servers)
 	var diags []ir.Diagnostic
 	for _, svc := range doc.Services {
 		diags = appendServerIndexDiags(diags, svc.Servers, declared, string(svc.ID))
 	}
-	for _, id := range sortedKeys(doc.Channels) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Channels)) {
 		diags = appendServerIndexDiags(diags, doc.Channels[id].Servers, declared, string(id))
 	}
 	return diags
@@ -155,7 +138,7 @@ func appendServerIndexDiags(dst []ir.Diagnostic, indices []int, declared int, wh
 // are, and are enumerated here for the same reason.
 func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for i, b := range op.Bindings.HTTP {
 			where := fmt.Sprintf("%s/bindings/http/%d", op.ID, i)
 			diags = appendSuccessStatusDiags(diags, b.SuccessStatus, len(op.Responses), where)
@@ -168,7 +151,7 @@ func checkResponseIndices(doc *ir.Document) []ir.Diagnostic {
 // addresses none of the declared responses, in ascending key order so map
 // iteration cannot reach the output.
 func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared int, where string) []ir.Diagnostic {
-	for _, index := range sortedKeys(status) {
+	for _, index := range slices.Sorted(maps.Keys(status)) {
 		if index >= 0 && index < declared {
 			continue
 		}
@@ -183,33 +166,17 @@ func appendSuccessStatusDiags(dst []ir.Diagnostic, status map[int]int, declared 
 // checkPropIDRefs reports every PropID a document carries that names no property
 // it declares.
 //
-// Retyping Content.Encoding made one carrier of a PropID honest about its shape,
-// and checkEncodingKeys resolves those keys; every other carrier was resolved by
-// nothing. PropPath.Segments, ParamPath.Segments, HTTPParamBinding.ParamPath and
-// Discriminator.Property are all invisible to checkDanglingRefs, because that
-// walk is registry-driven and a PropID addresses no registry — a property is a
-// position inside its model, so resolving one means finding the model that owns
-// it. Nothing produces a bad one today, since each is derived from the pointer
-// that interned the thing it names; what was missing is that a bad one would have
-// gone unreported.
+// A property is a position inside its model and addresses no registry, so the
+// registry-driven checkDanglingRefs cannot see PropPath.Segments,
+// ParamPath.Segments, HTTPParamBinding.ParamPath or Discriminator.Property. The
+// claim is membership: the ID names a property declared somewhere. Reflection
+// supplies the sites but not the root each path is walked from, and
+// checkDiscriminators makes the model-scoped claim for the one carrier whose
+// root is written down.
 //
-// The claim is membership: the ID names a property the document declares
-// somewhere. Reflection supplies the sites but not the root each path is meant to
-// be walked from, and a root read off a field name would be the hand-maintained
-// enumeration this avoids. checkDiscriminators makes the tighter, model-scoped
-// claim for the one carrier whose root is written down.
-//
-// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
-// names the defect rather than the finder, so a second checker growing this check
-// adopts the code instead of forcing a rename. Only this pass reports it today —
-// irverify's walk is registry-driven and cannot reach the class at all.
-//
-// One member of the same class is deliberately left unchecked. Docs.Description
-// is CommonMark that may carry {t:TypeID} cross-reference tokens for emitters to
-// resolve (ir/docs.go, normative at ir-design §12), so a description naming a type
-// that does not exist is a broken reference inside a plain string, invisible here
-// for the same reason a PropID was. Reaching it needs a token parser rather than a
-// lookup, and a false positive inside prose is noisier than a missing check.
+// Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
+// a token parser, and a false positive in prose is noisier than a missing
+// check.
 func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 	sites, declared := collectPropIDs(doc, ir.DocumentPath)
 	var diags []ir.Diagnostic
@@ -227,16 +194,14 @@ func checkPropIDRefs(doc *ir.Document) []ir.Diagnostic {
 // checkEncodingKeys reports Content.Encoding keys that name no property of the
 // model the content's Type addresses.
 //
-// A key is a PropID, and a property is a position inside its model rather than an
-// entry in a document-level registry, so the type-driven walk has nothing to
-// resolve one against — the keys are enumerated here for the same reason the
-// indices above are. An emitter rendering multipart parts looks the key up among
-// the body's properties and silently renders no part for a key that misses.
+// A key is a PropID, which no document-level registry resolves, so the
+// type-driven walk has nothing to resolve it against and the keys are
+// enumerated here. An emitter rendering multipart parts looks the key up among
+// the body's properties and silently renders no part for a miss.
 //
-// The code carries the ir/ namespace because it names the defect, not the finder
-// (see the package doc): a key addressing nothing is a broken reference, so a
-// second checker growing this check adopts the code rather than forcing a rename.
-// Only this pass reports it today.
+// The code carries the ir/ namespace because it names the defect, not the
+// finder (see the package doc), so a second checker growing this check adopts
+// it. Only this pass reports it today.
 func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachPayload(doc, func(site payloadSite) {
@@ -248,15 +213,14 @@ func checkEncodingKeys(doc *ir.Document) []ir.Diagnostic {
 // checkPayloadRequired reports a Payload.Required set anywhere but on a request.
 //
 // Only a request body can be omitted, so ir.Payload defines the field for that
-// one position and says a response or message payload leaves it nil. Set there
-// it states something no exchange can honour, and an emitter that renders
-// "required" off the boolean prints it on a response — the reading GitHub #421
-// was filed about. No compiler produces the shape today; this is the rule's
-// guard rather than the repair of a lowering, and an error rather than a
-// warning because the document is wrong, not merely lossy.
+// one position and leaves it nil on a response or message payload. Set there it
+// states something no exchange can honour, and an emitter rendering "required"
+// off the boolean prints it on a response (GitHub #421). No compiler produces
+// the shape today; this guards the rule, and is an error because the document
+// is wrong, not merely lossy.
 //
-// The code carries the ir/ namespace for the reason checkEncodingKeys does: it
-// names the defect, not the finder. Only this pass reports it today.
+// The ir/ code namespace is explained at checkEncodingKeys; only this pass
+// reports it today.
 func checkPayloadRequired(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	forEachPayload(doc, func(site payloadSite) {
@@ -282,23 +246,18 @@ type payloadSite struct {
 // forEachPayload calls fn once per Payload the document carries, skipping the
 // positions that hold none.
 //
-// The fields that carry a Payload are named here — Operation.Request,
-// Response.Payload, ErrorCase.Payload and Message.Payload — because nothing in a
-// Payload's Go type says who owns one, so a new one has to be added by hand.
-// That coupling is guarded: TestEncodingCarriers_NameEveryPayloadFieldInTheIR
-// (validate_carriers_test.go) walks the IR for Payload-bearing fields and fails
-// the moment one of them is not walked here, and every check built on this walk
-// reaches a carrier the day it is added.
-//
-// ErrorCase.Payload is reached at both of the IR's error positions — an
-// operation's own Errors and its service's CommonErrors — because the field is
-// one field wherever the node hangs, and a walk that visited only the operation
-// list would leave a service-level error's payload unjudged in silence.
+// The carrying fields are named here, since nothing in a Payload's Go type says
+// who owns one, so a new one has to be added by hand: Operation.Request,
+// Response.Payload, ErrorCase.Payload and Message.Payload.
+// TestEncodingCarriers_NameEveryPayloadFieldInTheIR fails the moment a
+// Payload-bearing field in the IR is not walked here. ErrorCase.Payload is
+// reached at both error positions, an operation's Errors and its service's
+// CommonErrors, since a walk of only the first would leave the second unjudged.
 func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 	for _, svc := range doc.Services {
 		forEachErrorPayload(svc.CommonErrors, string(svc.ID)+"/commonErrors", fn)
 	}
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.Request != nil {
 			fn(payloadSite{payload: op.Request, where: string(op.ID) + "/request", request: true})
 		}
@@ -309,7 +268,7 @@ func forEachPayload(doc *ir.Document, fn func(payloadSite)) {
 		}
 		forEachErrorPayload(op.Errors, string(op.ID)+"/errors", fn)
 	})
-	for _, id := range sortedKeys(doc.Messages) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Messages)) {
 		msg := doc.Messages[id]
 		fn(payloadSite{payload: &msg.Payload, where: string(id)})
 	}
@@ -327,13 +286,17 @@ func forEachErrorPayload(errs []ir.ErrorCase, where string, fn func(payloadSite)
 
 // appendEncodingKeyDiags appends to dst a diagnostic per unresolvable encoding
 // key in each of the payload's contents; where locates the payload's owner.
+//
+// A content whose type no entry declares exposes no part, so each of its keys
+// is reported beside checkDanglingRefs's finding on the type. The claims
+// differ, as with checkMapping.
 func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.Payload, where string) []ir.Diagnostic {
 	for i, c := range payload.Contents {
 		if len(c.Encoding) == 0 {
 			continue
 		}
 		at := fmt.Sprintf("%s/contents/%d", where, i)
-		dst = appendUnknownPartDiags(dst, c, exposedProps(doc, c.Type.Target), at)
+		dst = appendUnknownPartDiags(dst, c, ir.ExposedProps(doc, c.Type.Target), at)
 	}
 	return dst
 }
@@ -342,7 +305,7 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, doc *ir.Document, payload *ir.P
 // content that names no property in parts, in ascending key order so map
 // iteration cannot reach the output.
 func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.PropID]bool, where string) []ir.Diagnostic {
-	for _, key := range sortedKeys(c.Encoding) {
+	for _, key := range slices.Sorted(maps.Keys(c.Encoding)) {
 		if parts[key] {
 			continue
 		}
@@ -350,77 +313,6 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, c ir.Content, parts map[ir.Prop
 		dst = append(dst, diag(ir.SeverityError, "ir/encoding-key-unknown-property",
 			fmt.Sprintf("encoding key %q at %s addresses no property of the content's type %q",
 				key, at, c.Type.Target), at))
-	}
-	return dst
-}
-
-// exposedProps returns the property IDs a type exposes: its own, plus the ones it
-// composes in (§4.3), which is the flat set an emitter renders. A root naming no
-// model — one the registry does not declare, or the empty target — exposes none,
-// so every reference against such a root is reported beside whatever
-// checkDanglingRefs says about the root itself: the two make different claims, as
-// with checkMapping.
-//
-// It answers the two checks with a root written down — a content's multipart
-// parts and a model discriminator's tag property. A body typed by an alias scalar
-// exposes the parts of the model its Base names; a $ref carrying siblings hoists
-// exactly that shape, so it is how an ordinary referenced multipart body arrives
-// here.
-//
-// The walk is iterative with a visited set, so a cyclic composition or alias
-// chain terminates and the finite registry bounds it.
-func exposedProps(doc *ir.Document, root ir.TypeID) map[ir.PropID]bool {
-	props := map[ir.PropID]bool{}
-	seen := map[ir.TypeID]bool{}
-	queue := []ir.TypeID{root}
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		td := doc.Types[id]
-		if ir.IsNilTypeDef(td) {
-			continue // undeclared, or the typed nil checkNilTypes reports
-		}
-		queue = appendPartSources(queue, props, td)
-	}
-	return props
-}
-
-// appendPartSources records td's own part properties in props and appends the
-// nodes the rest come from: a model's composition parents, an alias scalar's
-// base. No other kind carries parts or says where to find them.
-func appendPartSources(dst []ir.TypeID, props map[ir.PropID]bool, td ir.TypeDef) []ir.TypeID {
-	switch t := td.(type) {
-	case *ir.Model:
-		for _, p := range t.Properties {
-			props[p.ID] = true
-		}
-		return appendCompositionParents(dst, t)
-	case *ir.Scalar:
-		if t.Base == nil {
-			return dst // an opaque scalar stands for nothing.
-		}
-		return append(dst, t.Base.Target)
-	default:
-		return dst // no other kind exposes parts.
-	}
-}
-
-// appendCompositionParents appends m's base, interfaces and mixins to dst. All
-// three contribute to the flat property set an emitter computes (§4.3), so a part
-// inherited through any of them is a legal encoding key.
-func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
-	if m.Base != nil {
-		dst = append(dst, m.Base.Target)
-	}
-	for _, r := range m.Implements {
-		dst = append(dst, r.Target)
-	}
-	for _, r := range m.Mixins {
-		dst = append(dst, r.Target)
 	}
 	return dst
 }
@@ -434,7 +326,7 @@ func appendCompositionParents(dst []ir.TypeID, m *ir.Model) []ir.TypeID {
 // site instead would leave the next check added here to rediscover the crash;
 // checkNilTypes reports whatever this omits.
 func liveTypeIDs(doc *ir.Document) []ir.TypeID {
-	ids := sortedKeys(doc.Types)
+	ids := slices.Sorted(maps.Keys(doc.Types))
 	live := make([]ir.TypeID, 0, len(ids))
 	for _, id := range ids {
 		if !ir.IsNilTypeDef(doc.Types[id]) {
@@ -452,7 +344,7 @@ func liveTypeIDs(doc *ir.Document) []ir.TypeID {
 // can consume — and dereferenced the four kinds it did match.
 func checkNilTypes(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, id := range sortedKeys(doc.Types) {
+	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
 		if !ir.IsNilTypeDef(doc.Types[id]) {
 			continue
 		}
@@ -506,7 +398,7 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 	}
 	diags := checkDiscriminatorProperty(doc, m)
 	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
-		return isSubtype(doc, target, m.ID)
+		return ir.IsSubtype(doc, target, m.ID)
 	})...)
 }
 
@@ -519,7 +411,7 @@ func checkModelDiscriminator(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 // an emitter building a decoder reads the tag off *this* model's instance.
 func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 	prop := m.Discriminator.Property
-	if prop == "" || exposedProps(doc, m.ID)[prop] {
+	if prop == "" || ir.ExposedProps(doc, m.ID)[prop] {
 		return nil
 	}
 	where := string(m.ID)
@@ -530,21 +422,15 @@ func checkDiscriminatorProperty(doc *ir.Document, m *ir.Model) []ir.Diagnostic {
 
 // checkMapping validates every routing target a discriminator names — each
 // wire-value mapping entry and the Default an unrecognized tag falls back to.
-// All of them must resolve in the registry and satisfy member.
+// All of them must resolve in the registry and satisfy member. Default names
+// the type an instance deserializes into, so it is held to the same claim as a
+// mapping entry.
 //
-// Default is held to the same claim rather than a weaker one because it makes the
-// same decision: it names the type an instance deserializes into, so a Default
-// outside the discriminated set has an emitter's fallback branch constructing a
-// type the discriminator does not admit. Both callers share this function, so the
-// union and model arms are covered by checking it here rather than in either.
-//
-// A target that resolves nowhere is reported here and again by checkDanglingRefs,
-// and that double report is deliberate: the two codes make different claims.
-// ir/dangling-type-ref says the document is not referentially closed, which every
-// reference in it is held to; pass/discriminator-missing-variant says this
-// discriminator cannot route that wire value, which is what an emitter building a
-// polymorphic decoder subscribes to. Neither consumer should have to subscribe to
-// the other's code to get its own answer.
+// A target that resolves nowhere is reported here and again by
+// checkDanglingRefs, deliberately: ir/dangling-type-ref says the document is
+// not referentially closed, while pass/discriminator-missing-variant says this
+// discriminator cannot route that wire value, which a polymorphic decoder's
+// emitter subscribes to. Neither consumer should need the other's code.
 func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	report := func(target ir.TypeID, position string) {
@@ -556,7 +442,7 @@ func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member fu
 			fmt.Sprintf("discriminator %s on %s references %q, which %s", position, where, target, why),
 			where))
 	}
-	for _, key := range sortedKeys(d.Mapping) {
+	for _, key := range slices.Sorted(maps.Keys(d.Mapping)) {
 		report(d.Mapping[key], fmt.Sprintf("mapping %q", key))
 	}
 	if d.Default != "" {
@@ -578,80 +464,6 @@ func mappingTarget(doc *ir.Document, target ir.TypeID, member func(ir.TypeID) bo
 		return false, "is not a variant of it"
 	}
 	return true, ""
-}
-
-// isSubtype reports whether target is a declared subtype of base at any distance
-// along the composition chain, via single inheritance or interface conformance.
-//
-// The relation is the transitive closure because that is what the discriminator
-// on the base routes: a three-level hierarchy is ordinary in every source format
-// the IR compiles, and a base tagging a grandchild is legal in each of them.
-// Reading one hop refused such a mapping with a severity error — a false report
-// on valid IR, which is fatal at the CLI.
-//
-// A composition parent naming an alias scalar is read through it: a `$ref`
-// carrying siblings composes the branch's own node rather than the referenced
-// schema directly (ir-design §4.3), so a subtype declared that way names its
-// parent one hop further away than the discriminator mapping spells it.
-// exposedProps reads composition the same way.
-//
-// The walk is iterative with a visited set, so a cyclic composition or alias
-// chain terminates and the finite registry bounds it.
-func isSubtype(doc *ir.Document, target, base ir.TypeID) bool {
-	seen := map[ir.TypeID]bool{}
-	queue := []ir.TypeID{target}
-	for len(queue) > 0 {
-		id := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		sub, ok := doc.Types[id].(*ir.Model)
-		if !ok {
-			continue // no other kind declares a supertype.
-		}
-		supers := appendSupertypes(nil, doc, sub)
-		if slices.Contains(supers, base) {
-			return true
-		}
-		queue = append(queue, supers...)
-	}
-	return false
-}
-
-// appendSupertypes appends m's immediate supertypes to dst: its single-inheritance
-// Base and every interface it conforms to, each read through the alias scalars
-// standing in for it.
-//
-// Mixins are absent on purpose, which is what separates this from
-// appendCompositionParents: a mixin contributes members to a model without making
-// it a member of anything, so it belongs to the flat property set and not to
-// subtype identity.
-func appendSupertypes(dst []ir.TypeID, doc *ir.Document, m *ir.Model) []ir.TypeID {
-	if m.Base != nil {
-		dst = append(dst, aliasedType(doc, m.Base.Target))
-	}
-	for _, r := range m.Implements {
-		dst = append(dst, aliasedType(doc, r.Target))
-	}
-	return dst
-}
-
-// aliasedType follows a chain of alias scalars — a Scalar whose Base names
-// another type — to the type it stands for, returning id unchanged when it names
-// no alias. The visited set bounds it: the IR permits a cyclic alias chain, and
-// a walk over one must terminate rather than spin.
-func aliasedType(doc *ir.Document, id ir.TypeID) ir.TypeID {
-	seen := make(map[ir.TypeID]bool)
-	for {
-		s, ok := doc.Types[id].(*ir.Scalar)
-		if !ok || s.Base == nil || seen[id] {
-			return id
-		}
-		seen[id] = true
-		id = s.Base.Target
-	}
 }
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
@@ -681,6 +493,89 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
+// checkAmbiguousAliases reports a property alias that another property of the
+// same model also answers to, by its wire name or by an alias of its own: a
+// reader resolving a writer's field by that name has two to choose from, which
+// is why Avro holds an alias to the uniqueness of names. The scope is the one
+// checkDuplicateWireNames holds, a model's own properties (ir-design §3.2).
+//
+// A source can write one, so it is a problem in the spec rather than an
+// irverify violation. A repeat within one property's own names is irverify's
+// (ir/naming-alias-duplicate, ir/naming-alias-redundant).
+func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range liveTypeIDs(doc) {
+		if m, ok := doc.Types[id].(*ir.Model); ok {
+			diags = append(diags, ambiguousAliases(id, m.Properties)...)
+		}
+	}
+	return diags
+}
+
+// ambiguousAliases is checkAmbiguousAliases over one model's properties. Every
+// wire name is claimed before any alias, so an alias meeting a sibling's wire
+// name is reported whichever comes first; an alias meeting a sibling's alias is
+// reported at the later one. Either way the alias is reported, since it is the
+// name a fix renames or removes, and the message names the sibling.
+func ambiguousAliases(id ir.TypeID, props []ir.Property) []ir.Diagnostic {
+	claimant := make(map[string]int, len(props))
+	for i, p := range props {
+		if name := effectiveWireName(p); name != "" {
+			if _, taken := claimant[name]; !taken {
+				claimant[name] = i
+			}
+		}
+	}
+	var diags []ir.Diagnostic
+	for i, p := range props {
+		for _, alias := range p.Name.Aliases {
+			j, taken := claimant[alias]
+			switch {
+			case alias == "" || (taken && j == i):
+				// Answers to nothing, or repeats this property's own name.
+			case !taken:
+				claimant[alias] = i
+			default:
+				diags = append(diags, diag(ir.SeverityError, "pass/ambiguous-alias",
+					fmt.Sprintf("alias %q of property %q is a name property %q also answers to",
+						alias, p.ID, props[j].ID),
+					fmt.Sprintf("%s/properties/%d", id, i)))
+			}
+		}
+	}
+	return diags
+}
+
+// checkDuplicateMemberIDs reports an enum that gives two members one ID.
+//
+// A member is identified by its value in its enum, and a repeated value's ID ends
+// in its occurrence number, so a compiler following ir-design §4.5 never trips
+// this. A document that does has two members an emitter cannot tell apart,
+// which is what keying collision resolution by ID (emitter-design §4.12) rests
+// on not happening.
+func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, id := range liveTypeIDs(doc) {
+		enum, ok := doc.Types[id].(*ir.Enum)
+		if !ok {
+			continue
+		}
+		seen := make(map[ir.EnumMemberID]bool, len(enum.Members))
+		for i, m := range enum.Members {
+			if m.ID == "" {
+				continue
+			}
+			if seen[m.ID] {
+				at := fmt.Sprintf("%s/members/%d", id, i)
+				diags = append(diags, diag(ir.SeverityError, "pass/duplicate-enum-member-id",
+					fmt.Sprintf("enum %s has more than one member with id %q", id, m.ID), at))
+			}
+			seen[m.ID] = true
+		}
+	}
+	return diags
+}
+
 // effectiveWireName is the on-wire name of a property: its explicit WireName, or
 // its source name when no override is set.
 func effectiveWireName(p ir.Property) string {
@@ -690,45 +585,90 @@ func effectiveWireName(p ir.Property) string {
 	return p.Name.Source
 }
 
+// checkParams holds every reference an operation makes to a parameter — its
+// HTTP bindings, its pagination inputs and its idempotency token — to the
+// parameters it declares. decls is ir.DeclaredIDs(doc), read once per
+// validation for the dangling walk and this check alike.
+func checkParams(doc *ir.Document, decls []ir.IDDeclaration) []ir.Diagnostic {
+	declared := declaredParamIDs(decls)
+	return append(checkParamBindings(doc, declared), checkParamReferences(doc, declared)...)
+}
+
+// declaredParamIDs returns the ID of every parameter decls holds: an
+// operation's, and a field argument's (Property.Args) too, since the dangling
+// walk resolves a reference against both.
+func declaredParamIDs(decls []ir.IDDeclaration) map[ir.ParamID]bool {
+	paramClass := reflect.TypeFor[ir.ParamID]()
+	declared := map[ir.ParamID]bool{}
+	for _, d := range decls {
+		if d.Class == paramClass {
+			declared[ir.ParamID(d.ID)] = true
+		}
+	}
+	return declared
+}
+
+// danglingWalkSkips reports whether the dangling walk is silent on a reference
+// to id, so that naming no parameter of its own operation is reported here. The
+// walk resolves a declared ID, another operation's or a field argument's, and
+// skips an empty one; it reports one the document declares nowhere, once. Past
+// the walk's depth bound neither reports it, and ir/walk-truncated says why.
+func danglingWalkSkips(id ir.ParamID, declared map[ir.ParamID]bool) bool {
+	return id == "" || declared[id]
+}
+
 // checkParamBindings validates each HTTP binding's parameter bindings against
 // the operation's logical parameters.
-func checkParamBindings(doc *ir.Document) []ir.Diagnostic {
+func checkParamBindings(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		for i := range op.Bindings.HTTP {
-			diags = append(diags, checkHTTPParamBinding(op, i)...)
+			diags = append(diags, checkHTTPParamBinding(op, i, declared)...)
 		}
 	})
 	return diags
 }
 
-// checkHTTPParamBinding validates one HTTP binding: unknown parameter names are
-// errors, a param bound twice in one non-host location is an error, and an
-// unbound parameter is a warning (body-carried operations bind nothing).
-func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
+// paramLocation keys the per-location bound-once count: a parameter is
+// identified by its ID, not its name, so two parameters sharing a name never
+// count against each other.
+type paramLocation struct {
+	param    ir.ParamID
+	location ir.HTTPLocation
+}
+
+// checkHTTPParamBinding validates one HTTP binding: a parameter this operation
+// does not declare is an error unless the dangling walk reports it
+// (danglingWalkSkips), a param bound twice in one non-host location is an
+// error, and an unbound parameter is a warning (body-carried operations bind
+// nothing).
+func checkHTTPParamBinding(op ir.Operation, idx int, declared map[ir.ParamID]bool) []ir.Diagnostic {
 	b := op.Bindings.HTTP[idx]
 	where := fmt.Sprintf("%s/bindings/http/%d", op.ID, idx)
-	known := make(map[string]bool, len(op.Params))
+	names := make(map[ir.ParamID]string, len(op.Params))
 	for _, p := range op.Params {
-		known[p.Name.Source] = true
+		names[p.ID] = p.Name.Source
 	}
 	var diags []ir.Diagnostic
-	bound := make(map[string]int, len(op.Params))
-	perLocation := make(map[string]int, len(b.ParamBindings))
+	bound := make(map[ir.ParamID]int, len(op.Params))
+	perLocation := make(map[paramLocation]int, len(b.ParamBindings))
 	for _, pb := range b.ParamBindings {
-		if !known[pb.Param] {
-			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("binding on %s names unknown parameter %q", where, pb.Param), where))
+		name, own := names[pb.Param]
+		if !own {
+			if danglingWalkSkips(pb.Param, declared) {
+				diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+					fmt.Sprintf("binding on %s names parameter %q, which this operation does not declare", where, pb.Param), where))
+			}
 			continue
 		}
 		bound[pb.Param]++
 		if pb.Location == ir.HTTPLocationHost {
 			continue // host labels are additive; a param may fill several.
 		}
-		key := pb.Param + "\x00" + string(pb.Location)
+		key := paramLocation{param: pb.Param, location: pb.Location}
 		if perLocation[key]++; perLocation[key] == 2 {
 			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
-				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", pb.Param, pb.Location, where),
+				fmt.Sprintf("parameter %q is bound more than once in location %q on %s", name, pb.Location, where),
 				where))
 		}
 	}
@@ -737,10 +677,10 @@ func checkHTTPParamBinding(op ir.Operation, idx int) []ir.Diagnostic {
 
 // unboundParamWarnings reports each logical parameter that no binding placed on
 // the wire.
-func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) []ir.Diagnostic {
+func unboundParamWarnings(op ir.Operation, bound map[ir.ParamID]int, where string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, p := range op.Params {
-		if bound[p.Name.Source] == 0 {
+		if bound[p.ID] == 0 {
 			diags = append(diags, diag(ir.SeverityWarning, "pass/param-binding-mismatch",
 				fmt.Sprintf("parameter %q on %s is not bound to any HTTP location", p.Name.Source, where),
 				where))
@@ -749,24 +689,98 @@ func unboundParamWarnings(op ir.Operation, bound map[string]int, where string) [
 	return diags
 }
 
+// paramRef is one reference an operation makes to a parameter outside its HTTP
+// bindings, with the location it is reported at.
+type paramRef struct {
+	id    ir.ParamID
+	where string
+}
+
+// operationParamRefs lists the parameter references op carries besides its
+// bindings: the pagination inputs and the idempotency token. An absent input is
+// no reference, and neither is an empty token, which is how an operation that
+// is not token-keyed spells having none. An input with an empty ID is one.
+func operationParamRefs(op ir.Operation) []paramRef {
+	var refs []paramRef
+	if pg := op.Pagination; pg != nil {
+		if pg.InputCursor != nil {
+			refs = append(refs, paramRef{pg.InputCursor.Param, fmt.Sprintf("%s/pagination/inputCursor", op.ID)})
+		}
+		if pg.InputLimit != nil {
+			refs = append(refs, paramRef{pg.InputLimit.Param, fmt.Sprintf("%s/pagination/inputLimit", op.ID)})
+		}
+	}
+	if token := op.Idempotency.TokenParam; token != "" {
+		refs = append(refs, paramRef{token, fmt.Sprintf("%s/idempotency/tokenParam", op.ID)})
+	}
+	return refs
+}
+
+// checkParamReferences holds an operation's pagination inputs and idempotency
+// token to the parameters that operation declares.
+//
+// Another operation's parameter is a well-formed reference, so the registry walk
+// has nothing to say about it, while an emitter reads the pagination cursor off
+// the wrong operation's parameter. What the dangling walk reports is left to it
+// (danglingWalkSkips).
+func checkParamReferences(doc *ir.Document, declared map[ir.ParamID]bool) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	ir.ForEachOperation(doc, func(op ir.Operation) {
+		own := make(map[ir.ParamID]bool, len(op.Params))
+		for _, p := range op.Params {
+			own[p.ID] = true
+		}
+		for _, ref := range operationParamRefs(op) {
+			if own[ref.id] || !danglingWalkSkips(ref.id, declared) {
+				continue
+			}
+			diags = append(diags, diag(ir.SeverityError, "pass/param-binding-mismatch",
+				fmt.Sprintf("%s names parameter %q, which this operation does not declare", ref.where, ref.id),
+				ref.where))
+		}
+	})
+	return diags
+}
+
+// checkIdempotency reports an operation whose idempotency token disagrees with
+// its kind, which ir.Idempotency pairs: the token kind naming no TokenParam
+// leaves an emitter no parameter to carry the token, and a TokenParam on any
+// other kind is a token an emitter reading it alone would send unasked. Whether
+// the token names the operation's own parameter is checkParamReferences'.
+func checkIdempotency(doc *ir.Document) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	ir.ForEachOperation(doc, func(op ir.Operation) {
+		idem := op.Idempotency
+		hasToken := idem.TokenParam != ""
+		if hasToken == (idem.Kind == ir.IdempotencyToken) {
+			return
+		}
+		where := fmt.Sprintf("%s/idempotency", op.ID)
+		msg := fmt.Sprintf("%s is idempotent by token but names no token parameter", op.ID)
+		if hasToken {
+			msg = fmt.Sprintf("%s names token parameter %q under idempotency kind %q, which takes none",
+				op.ID, idem.TokenParam, idem.Kind)
+		}
+		diags = append(diags, diag(ir.SeverityError, "pass/idempotency-token-mismatch", msg, where))
+	})
+	return diags
+}
+
 // checkMessageBindings reports operations whose message binding uses a message
 // the channel it binds does not carry.
 //
-// Channel.Messages is the channel's contract — which messages may travel on it
-// (ir-design §8.3) — and an operation names the subset it uses. A binding naming
-// one outside that set is a well-formed reference: every id resolves, so the
-// reference walk has nothing to say, while an emitter generates a publisher for a
-// message the channel forbids. The code keeps the pass/ namespace for the reason
-// pass/discriminator-missing-variant does: this is a containment judgement the
-// pass owns outright, not a broken reference.
+// Channel.Messages is the channel's contract, which messages may travel on it
+// (ir-design §8.3), and an operation names the subset it uses. A binding naming
+// one outside that set is a well-formed reference, so the reference walk has
+// nothing to say, while an emitter generates a publisher for a message the
+// channel forbids. The code keeps the pass/ namespace: this is a containment
+// judgement the pass owns outright, not a broken reference.
 //
-// Channels are reached only by the reflective reference walk today, so this is
-// the first hand-written check to read doc.Channels; it enters through
-// forEachOperation like the other operation-scoped checks, and so inherits the
-// group-depth bound checkGroupWalkTruncated reports.
+// It enters through ir.ForEachOperation, so it inherits the group-depth bound that
+// checkGroupWalkTruncated reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		diags = append(diags, checkBoundMessages(doc, op)...)
 	})
 	return diags
@@ -828,7 +842,7 @@ func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
 // checkOneWay reports one-way operations that nonetheless declare responses.
 func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	forEachOperation(doc, func(op ir.Operation) {
+	ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.OneWay && len(op.Responses) > 0 {
 			diags = append(diags, diag(ir.SeverityError, "pass/oneway-with-responses",
 				fmt.Sprintf("operation %s is one-way but declares %d response(s)", op.ID, len(op.Responses)),
@@ -846,11 +860,11 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 // still returns "internally consistent". The sibling reference walk reports its
 // own cap the same way.
 func checkGroupWalkTruncated(doc *ir.Document) []ir.Diagnostic {
-	if !forEachOperation(doc, func(ir.Operation) {}) {
+	if !ir.ForEachOperation(doc, func(ir.Operation) {}) {
 		return nil
 	}
 	return []ir.Diagnostic{diag(ir.SeverityError, "ir/walk-truncated",
-		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", maxGroupDepth),
+		fmt.Sprintf("operation groups nest deeper than %d; some operations went unchecked", ir.MaxGroupDepth),
 		ir.DocumentPath)}
 }
 
@@ -886,13 +900,17 @@ func checkArgsOutsideGraphQL(doc *ir.Document) []ir.Diagnostic {
 
 // graphqlReachableTypes returns the set of type IDs transitively reachable from
 // the operations that carry a GraphQL binding. The traversal is iterative with a
-// visited set, so it terminates on cyclic type graphs.
+// visited set, so it terminates on cyclic type graphs. Operations are the roots
+// and keep the reflection walk, since ir.TypeEdges has no operation form; each
+// type after that is followed through ir.TypeEdges, which stops only where the
+// reflection walk has, and checkDanglingRefs reports that.
+//
 // It reports whether the operation walk truncated, since a caller cannot tell an
 // unreachable type from an unvisited one without it.
 func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 	seen := map[ir.TypeID]bool{}
 	var queue []ir.TypeID
-	truncated := forEachOperation(doc, func(op ir.Operation) {
+	truncated := ir.ForEachOperation(doc, func(op ir.Operation) {
 		if op.Bindings.GraphQL != nil {
 			queue = appendTypeIDs(queue, op)
 		}
@@ -904,17 +922,17 @@ func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 			continue
 		}
 		seen[id] = true
-		if td, ok := doc.Types[id]; ok {
-			queue = appendTypeIDs(queue, td)
-		}
+		queue = slices.AppendSeq(queue, ir.TypeEdges(doc.Types[id]))
 	}
 	return seen, truncated
 }
 
-// appendTypeIDs appends every TypeID reachable from root to dst. Truncation is
-// dropped rather than reported: this feeds reachability, where a truncated walk
-// can only under-report, and checkDanglingRefs already reports the same
-// truncation over the whole document.
+// appendTypeIDs appends every TypeID reachable from an operation root to dst. It
+// serves only graphqlReachableTypes's roots, since ir.TypeEdges covers type
+// definitions and has no operation form. Truncation is dropped rather than
+// reported: this feeds reachability, where a truncated walk can only
+// under-report, and checkDanglingRefs already reports the same truncation over
+// the whole document.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	sites, _ := collectTypeIDs(root, "")
 	for _, s := range sites {
@@ -923,61 +941,10 @@ func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	return dst
 }
 
-// forEachOperation invokes fn for every operation in the document, descending
-// nested operation groups up to maxGroupDepth.
-//
-// It reports whether the walk stopped at the cap before reaching every
-// operation, so a caller deciding something from what it saw can tell an absent
-// operation from an unvisited one.
-func forEachOperation(doc *ir.Document, fn func(ir.Operation)) bool {
-	truncated := false
-	for _, svc := range doc.Services {
-		if forEachGroupOperation(svc.Groups, 0, fn) {
-			truncated = true
-		}
-	}
-	return truncated
-}
-
-// forEachGroupOperation walks a group tree, invoking fn per operation.
-// forEachGroupOperation walks groups depth-first, reporting whether the bound
-// cut the descent short.
-func forEachGroupOperation(groups []ir.OperationGroup, depth int, fn func(ir.Operation)) bool {
-	if depth > maxGroupDepth {
-		// Only a non-empty slice is being skipped. Every leaf recurses once into
-		// its own empty Groups, so reporting the cap unconditionally would claim
-		// truncation for a walk that reached everything — at exactly the depth
-		// where the last operation still fits.
-		return len(groups) > 0
-	}
-	truncated := false
-	for _, g := range groups {
-		for _, op := range g.Operations {
-			fn(op)
-		}
-		if forEachGroupOperation(g.Groups, depth+1, fn) {
-			truncated = true
-		}
-	}
-	return truncated
-}
-
 // diag builds a Diagnostic located in the document rather than in a source.
 // node is an IR-space location — a stable ID, or a path through the document's
 // own fields as the reference walk spells it — so it is Provenance.Node, and
 // Source is ir.NoSource to stop renderers fabricating a file location for it.
 func diag(sev ir.Severity, code, message, node string) ir.Diagnostic {
 	return ir.NewDiagnostic(sev, code, message, ir.Provenance{Source: ir.NoSource, Node: node})
-}
-
-// sortedKeys returns the keys of a map in ascending order, giving every check
-// deterministic diagnostic ordering. Keys are IDs or slice indices, so ordering
-// them by value orders the diagnostics by the node they name.
-func sortedKeys[K cmp.Ordered, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
 }

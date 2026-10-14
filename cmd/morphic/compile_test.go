@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"io"
@@ -44,15 +45,12 @@ func TestRun_ParseWritesIRToFile(t *testing.T) {
 }
 
 // TestRun_SpecProblemsExitOne covers the classes of bad spec the pipeline
-// rejects before a compiler ever runs. Every one of them is a problem with the
-// file the user named, so every one is exit 1 with a coded diagnostic — the same
-// answer a bad `$ref` inside a spec the compiler does accept already gets.
+// rejects before a compiler ever runs. Each is a problem with the file the user
+// named, so each is exit 1 with a coded diagnostic, as a bad `$ref` inside an
+// accepted spec already is, located at that file although no document names it.
 //
-// Exit 2 is reserved for a misuse of the CLI and for I/O that failed, so a CI
-// wrapper can tell "your spec is broken" from "you invoked morphic wrong". A
-// spec the tool read and understood well enough to name the problem in is
-// neither of those, and reporting it as one made the compiler's own
-// openapi/unsupported-version diagnostic unreachable from the shipped binary.
+// Exit 2 is reserved for CLI misuse and failed I/O, so a CI wrapper can tell
+// "your spec is broken" from "you invoked morphic wrong".
 func TestRun_SpecProblemsExitOne(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -74,10 +72,11 @@ func TestRun_SpecProblemsExitOne(t *testing.T) {
 			code := run([]string{"compile", spec}, &stdout, &stderr)
 
 			assert.Equal(t, 1, code, "stderr: %s", stderr.String())
-			assert.Contains(t, stderr.String(), tt.code)
+			assert.Contains(t, stderr.String(), tt.code+" "+spec+": ",
+				"the bare path: the finding is about the file as a whole")
 			assert.Empty(t, stdout.String(), "no IR JSON for a spec that produced no document")
-			assert.NotContains(t, stderr.String(), "usage:",
-				"a bad spec is not a misuse of the CLI, so no usage block")
+			assert.NotContains(t, stderr.String(), "Try ",
+				"a bad spec is not a misuse of the CLI, so no pointer to help")
 		})
 	}
 }
@@ -115,18 +114,23 @@ func TestRun_UsageErrors(t *testing.T) {
 		name   string
 		args   []string
 		reason string
+		help   string // the command the hint points at
 	}{
-		{"unknown command", []string{"bogus"}, `unknown command "bogus"`},
-		{"help of unknown command", []string{"help", "bogus"}, `unknown command "bogus"`},
-		{"help of unknown command with help flag", []string{"help", "bogus", "--help"}, `unknown command "bogus"`},
-		{"help flag of unknown command", []string{"-h", "bogus"}, `unknown command "bogus"`},
-		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command"},
-		{"help flag with extra args", []string{"--help", "compile", "extra"}, "help accepts at most one command"},
-		{"help with extra args and help flag", []string{"help", "a", "b", "--help"}, "help accepts at most one command"},
-		{"unknown flag", []string{"compile", spec, "--bogus"}, "flag provided but not defined: -bogus"},
-		{"no spec file", []string{"compile"}, "compile requires exactly one spec file"},
-		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file"},
-		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`},
+		{"unknown command", []string{"bogus"}, `unknown command "bogus"`, "morphic"},
+		{"help of unknown command", []string{"help", "bogus"}, `unknown command "bogus"`, "morphic"},
+		{"help with extra args", []string{"help", "compile", "extra"}, "help accepts at most one command", "morphic"},
+		{"unknown flag", []string{"compile", spec, "--bogus"}, "unknown flag: --bogus", "morphic compile"},
+		{"single-dash long flag", []string{"compile", spec, "-fail-on=error"},
+			`long flags take two dashes: write "--fail-on=error", not "-fail-on=error"`, "morphic compile"},
+		{"flag without its value", []string{"compile", spec, "--fail-on"},
+			"flag needs an argument: --fail-on", "morphic compile"},
+		{"no spec file", []string{"compile"}, "compile requires exactly one spec file", "morphic compile"},
+		{"two spec files", []string{"compile", spec, spec}, "compile requires exactly one spec file", "morphic compile"},
+		{"bad fail-on", []string{"compile", spec, "--fail-on", "hint"}, `invalid --fail-on "hint"`, "morphic compile"},
+		{"explain with output", []string{"compile", spec, "--explain", "", "-o", "ir.json"},
+			"--explain writes no document, so --output has nothing to write", "morphic compile"},
+		{"repeated option", []string{"compile", spec, "--opt", "a=1", "--opt", "a=2"},
+			`option "a" set more than once`, "morphic compile"},
 	}
 
 	for _, tt := range tests {
@@ -137,10 +141,35 @@ func TestRun_UsageErrors(t *testing.T) {
 			assert.Equal(t, 2, run(tt.args, &stdout, &stderr))
 			assert.Empty(t, stdout.String(), "usage errors must never write to stdout")
 			assert.Contains(t, stderr.String(), tt.reason)
-			assert.Equal(t, 1, strings.Count(stderr.String(), "usage:"),
-				"exactly one usage block per misuse, got:\n%s", stderr.String())
+			assert.Contains(t, stderr.String(), `Try "`+tt.help+` --help" for usage.`,
+				"a misuse must point at the help of the command that was misused")
+			assert.Equal(t, 1, strings.Count(stderr.String(), "Try "),
+				"exactly one pointer to help per misuse, got:\n%s", stderr.String())
 		})
 	}
+}
+
+// TestRun_ExplainWithOutputWritesNothing pins what the refusal protects: the
+// request is rejected before any work, so the destination is neither created nor
+// replaced, where it was once accepted and quietly ignored.
+func TestRun_ExplainWithOutputWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+	out := filepath.Join(t.TempDir(), "ir.json")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"compile", spec, "--explain", "", "--output", out}, &stdout, &stderr)
+
+	assert.Equal(t, 2, code)
+	assert.Empty(t, stdout.String())
+	assert.NoFileExists(t, out)
+
+	// An empty --output is the default, not a destination, so it does not conflict.
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"compile", spec, "--explain", "", "--output", ""}, &stdout, &stderr)
+	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 }
 
 // groupingSpec tags its one operation "zoo" while its path starts with "a", so
@@ -164,7 +193,7 @@ func TestRun_CompilerOptionReachesTheCompiler(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", groupingSpec)
 
 	assert.Equal(t, "zoo", groupNameOf(t, spec), "the default groups by tag")
-	assert.Equal(t, "a", groupNameOf(t, spec, "-opt", "grouping=path-prefix"),
+	assert.Equal(t, "a", groupNameOf(t, spec, "--opt", "grouping=path-prefix"),
 		"the compiler option must reach the compiler")
 }
 
@@ -287,24 +316,24 @@ func TestRun_FileOutputIsCompact(t *testing.T) {
 
 // TestRun_PrettyRestoresIndentedFile pins the escape hatch, and pins it against
 // the bytes that were there before rather than against "looks indented": -o
-// -pretty must write exactly what stdout writes, which is the format -o itself
+// --pretty must write exactly what stdout writes, which is the format -o itself
 // used to write.
 func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
-	raw := compileToFile(t, spec, "-pretty")
+	raw := compileToFile(t, spec, "--pretty")
 
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 	assert.Empty(t, cmp.Diff(stdout.String(), string(raw)),
-		"-pretty must write the bytes stdout gets")
+		"--pretty must write the bytes stdout gets")
 }
 
 // TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
 // encoder it does not share: what compile prints is byte for byte what
 // irtest.WriteGolden writes for the same document, indentation and trailing
-// newline included. Comparing -pretty with stdout cannot show this, since both
+// newline included. Comparing --pretty with stdout cannot show this, since both
 // go through encodeDocument.
 func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	t.Parallel()
@@ -313,8 +342,9 @@ func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	require.Equal(t, 0, run([]string{"compile", spec}, &stdout, &stderr), "stderr: %s", stderr.String())
 
-	res, _, ok := runPipeline(spec, specOptions{}, io.Discard)
-	require.True(t, ok, "the pipeline must produce a document")
+	res, _, err := runPipeline(context.Background(), spec, specOptions{}, io.Discard)
+	require.NoError(t, err)
+	require.NotNil(t, res, "the pipeline must produce a document")
 	golden := filepath.Join(t.TempDir(), "doc.golden.json")
 	require.NoError(t, irtest.WriteGolden(golden, res.Document))
 	want, err := os.ReadFile(golden)
@@ -333,7 +363,7 @@ func TestRun_CompactOutputKeepsDocumentOrder(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", unsortedSpec)
 
 	compact := compileToFile(t, spec)
-	pretty := compileToFile(t, spec, "-pretty")
+	pretty := compileToFile(t, spec, "--pretty")
 
 	flattened := jsontext.Value(pretty).Clone()
 	require.NoError(t, flattened.Compact())

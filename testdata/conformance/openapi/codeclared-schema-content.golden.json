@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.12.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "CoDeclaredSchemaContent",
   "version": "1.0.0",
   "docs": {},
@@ -13,6 +45,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/default",
           "name": {
             "hint": "default"
           },
@@ -27,6 +60,7 @@
               "docs": {},
               "params": [
                 {
+                  "id": "param/openapi/paths/~1x/get/parameters/p/query",
                   "name": {
                     "source": "p",
                     "canonical": "p"
@@ -55,6 +89,7 @@
                   }
                 },
                 {
+                  "id": "param/openapi/paths/~1x/get/parameters/q/query",
                   "name": {
                     "source": "q",
                     "canonical": "q"
@@ -155,7 +190,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "p",
+                        "param": "param/openapi/paths/~1x/get/parameters/p/query",
                         "location": "query",
                         "wireName": "p",
                         "style": "form",
@@ -164,7 +199,7 @@
                         "contentType": "application/json"
                       },
                       {
-                        "param": "q",
+                        "param": "param/openapi/paths/~1x/get/parameters/q/query",
                         "location": "query",
                         "wireName": "q",
                         "style": "form",

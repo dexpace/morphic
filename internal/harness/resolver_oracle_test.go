@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -127,22 +128,16 @@ func pointerForms() []pointerForm {
 }
 
 // TestResolverOracle_RefusalMatchesResolverBehavior is the oracle. Across every
-// generated shape it holds the compiler to two things, in the two directions a
-// model of someone else's behavior can be wrong:
+// generated shape it holds the compiler to two things:
 //
-//   - A shape the resolver cannot survive must be refused. Letting one through
-//     is the bug this guard exists for: a hang, or a process taken down.
-//   - A shape the resolver resolves cleanly must not be refused. Refusing one is
-//     an over-refusal — a document that compiled yesterday and does not today.
+//   - A shape the resolver cannot survive (a hang or a crash) must be refused.
+//   - A shape the resolver resolves cleanly must not be refused.
 //
-// A shape the resolver survives but reports an error on binds neither way. The
-// document fails whichever path it takes, so refusing it early with a clearer
-// message and leaving the resolver to name it are both defensible, and that
-// choice belongs to the scan rather than to this oracle. The distinction is why
-// the helper reports what the resolver *said* rather than only that it returned:
-// an exact self-reference at a document position resolves with a
-// circular-reference error, and reading that as "fine" would have this oracle
-// demand an over-refusal be introduced.
+// A shape the resolver survives but reports an error on binds neither way: the
+// document fails on either path, so refusing it early is the scan's call. Hence
+// probe reports what the resolver said, not just that it returned: an exact
+// self-reference at a document position resolves with a circular-reference
+// error, and reading that as clean would demand an over-refusal.
 func TestResolverOracle_RefusalMatchesResolverBehavior(t *testing.T) {
 	t.Parallel()
 	if os.Getenv(probeEnv) != "" {
@@ -248,12 +243,9 @@ func TestResolverOracle_ProbeHelper(t *testing.T) {
 // reference. Other error diagnostics — an unresolved ref, a validation failure —
 // are not refusals of this kind and do not count.
 func hasCyclicRef(diags []ir.Diagnostic) bool {
-	for _, d := range diags {
-		if d.Code == "openapi/cyclic-ref" && d.Severity == ir.SeverityError {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == "openapi/cyclic-ref" && d.Severity == ir.SeverityError
+	})
 }
 
 // markerValue reads the value the helper printed for a marker.

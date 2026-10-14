@@ -2,10 +2,11 @@ package harness
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -108,8 +109,7 @@ var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
 // roundTrips for the same reason compile is one. A test swaps it to drive
 // Check's OutcomeRoundtrip classification directly, so that test does not
-// depend on which documents Verify lets through to this oracle — a pointer
-// cycle, for one, verifies clean and cannot be encoded (GitHub #573).
+// depend on which documents Verify lets through to this oracle.
 var roundTrip = roundTrips
 
 // roundTrips marshals doc, unmarshals into a fresh Document, re-marshals, and
@@ -159,20 +159,15 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 
 // Report renders results sorted by spec name into a stable multi-line summary:
 // one line per spec, plus one more for every newline a Detail carries, as the
-// round-trip oracle's does. Column widths are measured from the results being
-// rendered, so a spec path never runs into its outcome, and they line up on the
-// line each result begins.
+// round-trip oracle's does. Columns are sized from the results rendered, so a
+// spec path never runs into its outcome, and line up where each result begins.
 //
-// It copies its input, so the caller's slice order is preserved. The sort is
-// stable for the same reason irverify's is: nothing orders two results named
-// alike, so an unstable sort leaves them in an order the API does not specify
-// rather than the one the caller gave. Not a flaky one — sort.Slice is
-// deterministic for a given input — but one no caller can rely on, which is the
-// same thing a report promising a stable summary must not do.
+// It copies its input, so the caller's order is preserved. The sort is stable
+// so that results named alike keep the order the caller gave them, not an
+// unspecified one.
 func Report(results []Result) string {
-	sorted := make([]Result, len(results))
-	copy(sorted, results)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Spec < sorted[j].Spec })
+	sorted := slices.Clone(results)
+	slices.SortStableFunc(sorted, func(a, b Result) int { return cmp.Compare(a.Spec, b.Spec) })
 
 	specWidth, outcomeWidth := columnWidths(sorted)
 

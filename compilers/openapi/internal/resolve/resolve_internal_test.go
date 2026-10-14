@@ -2,13 +2,22 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -159,15 +168,346 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	assert.Equal(t, ids.NamedType(ids.Ptr("components", "schemas", "A~B")), id,
 		"and equals the ID the component was interned under")
 }
-func TestSameFile(t *testing.T) {
+
+// TestInternalPointer_InTheSourcesOwnContent pins which document parts name the
+// source in its own content: the resolver's reading, a document part joined
+// onto the directory of the file holding it and cleaned. A bare file name, a
+// part through the current directory or the parent, and the absolute path
+// however it is spelled all name it (GitHub #576). A part with a directory of
+// its own is joined onto the source's, so `dir/m.yaml` written in `dir/m.yaml`
+// names `dir/dir/m.yaml`, as the resolver reads it.
+func TestInternalPointer_InTheSourcesOwnContent(t *testing.T) {
 	t.Parallel()
-	sc := Scope{SelfPath: "dir/m.yaml"}
-	assert.True(t, sc.sameFile("dir/m.yaml"), "exact path")
-	assert.True(t, sc.sameFile("m.yaml"), "bare filename equal to our basename")
-	assert.False(t, sc.sameFile("other.yaml"))
-	assert.False(t, sc.sameFile("other/m.yaml"),
-		"a doc part with its own directory is a distinct path, not a basename match")
-	assert.False(t, Scope{}.sameFile("m.yaml"), "empty source path never matches")
+	for _, c := range []struct {
+		self, doc string
+		internal  bool
+	}{
+		{"dir/m.yaml", "m.yaml", true},
+		{"dir/m.yaml", "./m.yaml", true},
+		{"dir/m.yaml", "../dir/m.yaml", true},
+		{"dir/m.yaml", "sub/../m.yaml", true},
+		{"dir/m.yaml", "other.yaml", false},
+		{"dir/m.yaml", "other/m.yaml", false},
+		{"dir/m.yaml", "dir/m.yaml", false},
+		{"m.yaml", "./m.yaml", true},
+		{"./dir/m.yaml", "m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/./m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/other/../dir/m.yaml", true},
+		{"/abs/dir/m.yaml", "/abs/dir/other.yaml", false},
+		{"/abs/dir/m.yaml", "m.yaml", true},
+		{"https://example.com/api/m.yaml", "m.yaml", true},
+		{"https://example.com/api/m.yaml", "./m.yaml", true},
+		{"https://example.com/api/m.yaml", "https://example.com/api/m.yaml", true},
+		{"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", false},
+		{"https://example.com/api/m.yaml", "other.yaml", false},
+		{"", "m.yaml", false},
+		// A source path the resolver cannot place as a base (an invalid percent
+		// escape) names no document through a document part, as load reports.
+		{"dir%/m.yaml", "m.yaml", false},
+		{"100%.yaml", "100%.yaml", false},
+	} {
+		_, ok := Scope{SelfPath: c.self}.InternalPointer(c.doc + "#/components/schemas/A")
+		assert.Equal(t, c.internal, ok, "%q written in %q", c.doc, c.self)
+	}
+	_, ok := Scope{SelfPath: "dir/m.yaml"}.InternalPointer("#/components/schemas/A")
+	assert.True(t, ok, "a pointer alone names a position in the source's own content")
+	_, ok = Scope{}.InternalPointer("#/components/schemas/A")
+	assert.True(t, ok, "whatever the source is called")
+}
+
+// TestInternalPointer_ReadsOwnContentAsAForeignScopeHeldByTheSource pins that
+// there is one reading: a document part is judged the same in the source's own
+// content as in a Foreign scope whose holder is the source, for every
+// spelling. The two scopes differ in the base only.
+func TestInternalPointer_ReadsOwnContentAsAForeignScopeHeldByTheSource(t *testing.T) {
+	t.Parallel()
+	selves := []string{"dir/m.yaml", "m.yaml", "./dir/m.yaml", "/abs/dir/m.yaml", "https://example.com/api/m.yaml"}
+	docs := []string{
+		"m.yaml", "./m.yaml", "../dir/m.yaml", "sub/../m.yaml", "other.yaml", "other/m.yaml", "dir/m.yaml",
+		"/abs/dir/m.yaml", "/abs/dir/./m.yaml", "/abs/other/../dir/m.yaml", "/abs/dir//m.yaml",
+		"https://example.com/api/m.yaml", "https://example.com/api/./m.yaml", "../../m.yaml",
+	}
+	for _, self := range selves {
+		for _, doc := range docs {
+			ref := doc + "#/components/schemas/A"
+			_, own := Scope{SelfPath: self}.InternalPointer(ref)
+			_, foreign := Scope{SelfPath: self, Foreign: true, Holder: self}.InternalPointer(ref)
+			assert.Equal(t, foreign, own, "%q written in %q", doc, self)
+		}
+	}
+}
+
+// TestInternalPointer_InAForeignScope pins how a Foreign scope reads a
+// reference: against the document holding it, as the resolver does. A pointer
+// alone names a position there, and so does a document part naming another
+// file. One naming the source, however spelled from there, is internal, and
+// nothing is internal with no holder to read against, though read from the
+// working directory the last row would name the source.
+func TestInternalPointer_InAForeignScope(t *testing.T) {
+	t.Parallel()
+	const self = "spec.yaml"
+	for _, c := range []struct {
+		holder, ref string
+		internal    bool
+	}{
+		{"ext.yaml", "#/components/schemas/A", false},
+		{"ext.yaml", "spec.yaml#/components/schemas/A", true},
+		{"ext.yaml", "./spec.yaml#/components/schemas/A", true},
+		{"ext.yaml", "other.yaml#/components/schemas/A", false},
+		{"sub/ext.yaml", "../spec.yaml#/components/schemas/A", true},
+		{"sub/ext.yaml", "spec.yaml#/components/schemas/A", false},
+		{"https://example.com/ext.yaml", "spec.yaml#/components/schemas/A", false},
+		{"", "spec.yaml#/components/schemas/A", false},
+	} {
+		scope := Scope{SelfPath: self, Foreign: true, Holder: c.holder}
+		pointer, ok := scope.InternalPointer(c.ref)
+		assert.Equal(t, c.internal, ok, "%s from %s", c.ref, c.holder)
+		if c.internal {
+			assert.Equal(t, "/components/schemas/A", string(pointer))
+		}
+	}
+}
+
+// TestNamesHolder pins which references in a Foreign scope name a position in
+// the document holding them: a pointer alone, or a document part naming that
+// document. Outside a Foreign scope, none does.
+func TestNamesHolder(t *testing.T) {
+	t.Parallel()
+	scope := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "api/ext.yaml"}
+	for ref, want := range map[string]bool{
+		"#/components/schemas/A":            true,
+		"ext.yaml#/components/schemas/A":    true,
+		"spec.yaml#/components/schemas/A":   false,
+		"third.yaml#/components/schemas/A":  false,
+		"https://example.com/ext.yaml#/x/y": false,
+	} {
+		assert.Equal(t, want, scope.NamesHolder(ref), ref)
+	}
+	assert.False(t, Scope{SelfPath: "api/spec.yaml"}.NamesHolder("#/components/schemas/A"))
+	assert.False(t, Scope{SelfPath: "api/spec.yaml", Holder: "api/ext.yaml"}.NamesHolder("#/components/schemas/A"),
+		"a holder means nothing outside a Foreign scope")
+	unplaceable := Scope{SelfPath: "api/spec.yaml", Foreign: true, Holder: "http://[::1"}
+	assert.False(t, unplaceable.NamesHolder("#/components/schemas/A"), "a holder the resolver cannot place")
+}
+
+// TestSameDocument pins when the resolver reading one path reads the document
+// at another: the same spelling, or the same file however reached. A URL is
+// one document only as spelled, and an empty path names none.
+func TestSameDocument(t *testing.T) {
+	t.Parallel()
+	abs, err := filepath.Abs("api/spec.yaml")
+	require.NoError(t, err)
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"api/spec.yaml", "api/spec.yaml", true},
+		{"api/spec.yaml", "api/./sub/../spec.yaml", true},
+		{"api/spec.yaml", abs, true},
+		{"api/spec.yaml", "api/other.yaml", false},
+		{"api/x:/spec.yaml", "api/x://spec.yaml", true},
+		{"https://example.com/a.yaml", "https://example.com/a.yaml", true},
+		{"https://example.com/a.yaml", "https://example.com/./a.yaml", false},
+		{"file:/api/spec.yaml", "file:/api/./spec.yaml", false},
+		{"", "", false},
+	} {
+		assert.Equal(t, c.want, SameDocument(c.a, c.b), "%q %q", c.a, c.b)
+	}
+}
+
+// sameDocumentByWorkingDirectory is SameDocument's reading when every pair of
+// file paths is made absolute against the working directory: the reading the
+// quicker one must agree with.
+func sameDocumentByWorkingDirectory(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	if IsURL(a) || IsURL(b) {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	return errA == nil && errB == nil && absA == absB
+}
+
+// TestSameDocument_AgreesWithTheWorkingDirectoryReading pins that reading the
+// working directory only where it matters changes no answer. The grid is every
+// pair of spellings of two files and a directory, relative and absolute, with
+// parents climbing out of the working directory and back in, which cleaned
+// strings alone cannot equate. Each file is also spelled rooted without its
+// volume: on Windows that path is neither absolute nor below the directory,
+// and elsewhere, with no volume, it is the absolute spelling again. So only a
+// Windows run reaches that form here; the test for non-local Windows paths pins
+// it on any host.
+func TestSameDocument_AgreesWithTheWorkingDirectoryReading(t *testing.T) {
+	t.Parallel()
+	cwd, err := filepath.Abs(".")
+	require.NoError(t, err)
+	rooted := strings.TrimPrefix(cwd, filepath.VolumeName(cwd))
+	up := filepath.Join("..", filepath.Base(cwd))
+	names := []string{"spec.yaml", "api/spec.yaml", "other.yaml"}
+	forms := []string{"%s", "./%s", "api/../%s", "x/./../%s", up + "/%s", "../../%s"}
+	rest := []string{"", ".", "..", cwd, "https://example.com/spec.yaml", "https://example.com/./spec.yaml"}
+	paths := make([]string, 0, len(names)*len(forms)*5+len(rest))
+	for _, name := range names {
+		for _, form := range forms {
+			rel := strings.Replace(form, "%s", name, 1)
+			paths = append(paths, rel, filepath.Join(cwd, rel), cwd+"//"+rel, cwd+"/./"+rel,
+				filepath.Join(rooted, rel))
+		}
+	}
+	paths = append(paths, rest...)
+	for _, a := range paths {
+		for _, b := range paths {
+			assert.Equal(t, sameDocumentByWorkingDirectory(a, b), SameDocument(a, b), "%q %q", a, b)
+		}
+	}
+}
+
+// TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters pins when
+// SameDocument makes a path absolute, which reads the working directory: two
+// absolute paths, or two relative ones that stay below it, are compared as
+// cleaned and never read it, so a compile that names no document through an
+// absolute path has no ambient read. A relative path against an absolute one,
+// or one not below the directory, cannot be told apart without it.
+func TestSameDocument_ReadsTheWorkingDirectoryOnlyWhereItMatters(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		a, b  string
+		wd    string // the working directory the paths are made absolute against
+		same  bool
+		reads bool
+	}{
+		{"spec.yaml", "spec.yaml", "/abs", true, false},
+		{"spec.yaml", "./sub/../spec.yaml", "/abs", true, false},
+		{"spec.yaml", "other.yaml", "/abs", false, false},
+		{"api/spec.yaml", "api/sub/spec.yaml", "/abs", false, false},
+		{"/abs/spec.yaml", "/abs/./sub/../spec.yaml", "/elsewhere", true, false},
+		{"/abs/spec.yaml", "/abs/other.yaml", "/elsewhere", false, false},
+		{"https://example.com/a.yaml", "a.yaml", "/abs", false, false},
+		{"", "spec.yaml", "/abs", false, false},
+		{"spec.yaml", "/abs/spec.yaml", "/abs", true, true},
+		{"spec.yaml", "/abs/spec.yaml", "/elsewhere", false, true},
+		{"/abs/spec.yaml", "spec.yaml", "/abs", true, true},
+		{"../api/spec.yaml", "spec.yaml", "/abs/api", true, true},
+		{"../api/spec.yaml", "spec.yaml", "/abs/other", false, true},
+		{"..", ".", "/abs", false, true},
+		{"../a.yaml", "../b.yaml", "/abs", false, true},
+		{"../a.yaml", "../b.yaml", "", false, true}, // no working directory to read: neither is made absolute
+	} {
+		reads := 0
+		abs := func(p string) (string, error) {
+			reads++
+			if filepath.IsAbs(p) {
+				return filepath.Clean(p), nil
+			}
+			if c.wd == "" {
+				return "", errors.New("no working directory")
+			}
+			return filepath.Join(c.wd, p), nil
+		}
+
+		rules := systemRules()
+		rules.abs = abs
+
+		got := sameDocument(c.a, c.b, rules)
+
+		assert.Equal(t, c.same, got, "%q %q from %s", c.a, c.b, c.wd)
+		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
+	}
+}
+
+// TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths pins how
+// SameDocument treats the Windows paths that are neither absolute nor below the
+// working directory: one rooted without a volume, one naming a drive, a
+// reserved name. Each is made absolute before it is compared, so two spellings
+// of one file are one document. The table states what filepath documents for
+// Windows (IsAbs, IsLocal) and what Abs names, so the test checks how
+// SameDocument uses those answers on any host; only a Windows run of the grid
+// test checks the answers themselves.
+func TestSameDocument_ReadsTheWorkingDirectoryForNonLocalWindowsPaths(t *testing.T) {
+	t.Parallel()
+	// A path's reading on Windows with C:\specs the working directory: whether
+	// IsAbs and IsLocal accept it, and the file Abs names.
+	type reading struct {
+		abs, local bool
+		file       string
+	}
+	windows := map[string]reading{
+		`C:\specs\api.yaml`:   {abs: true, file: `C:\specs\api.yaml`},
+		`C:\specs\other.yaml`: {abs: true, file: `C:\specs\other.yaml`},
+		`api.yaml`:            {local: true, file: `C:\specs\api.yaml`},
+		`sub\api.yaml`:        {local: true, file: `C:\specs\sub\api.yaml`},
+		`\specs\api.yaml`:     {file: `C:\specs\api.yaml`},     // rooted, no volume
+		`C:sub\api.yaml`:      {file: `C:\specs\sub\api.yaml`}, // names a drive; the backslash makes IsURL read a file
+		`NUL`:                 {file: `\\.\NUL`},               // a reserved name
+	}
+	read := func(path string) reading {
+		r, ok := windows[path]
+		if !ok {
+			t.Errorf("path %q has no Windows reading in this test", path)
+		}
+		return r
+	}
+	for _, c := range []struct {
+		a, b  string
+		same  bool
+		reads bool
+	}{
+		{`\specs\api.yaml`, `api.yaml`, true, true},
+		{`api.yaml`, `\specs\api.yaml`, true, true},
+		{`C:sub\api.yaml`, `sub\api.yaml`, true, true},
+		{`sub\api.yaml`, `C:sub\api.yaml`, true, true},
+		{`\specs\api.yaml`, `C:\specs\api.yaml`, true, true},
+		{`NUL`, `api.yaml`, false, true},
+		{`api.yaml`, `sub\api.yaml`, false, false},
+		{`C:\specs\api.yaml`, `C:\specs\other.yaml`, false, false},
+	} {
+		require.Equal(t, c.same, read(c.a).file == read(c.b).file, "the table disagrees with the row %q %q", c.a, c.b)
+		reads := 0
+		rules := pathRules{
+			abs: func(path string) (string, error) {
+				reads++
+				return read(path).file, nil
+			},
+			isAbs:   func(path string) bool { return read(path).abs },
+			isLocal: func(path string) bool { return read(path).local },
+		}
+
+		got := sameDocument(c.a, c.b, rules)
+
+		assert.Equal(t, c.same, got, "%q %q", c.a, c.b)
+		assert.Equal(t, c.reads, reads > 0, "reads the working directory: %q %q", c.a, c.b)
+	}
+}
+
+// TestIsURL pins which locations name a document by URL, as the resolver
+// classifies them: those with a scheme before their first colon, whether or
+// not "//" follows it. A file path is no URL, even one holding "://" past a
+// directory named like a scheme, nor is a Windows drive before a backslash, or
+// a location the resolver cannot parse.
+func TestIsURL(t *testing.T) {
+	t.Parallel()
+	for location, want := range map[string]bool{
+		"https://example.com/spec.yaml": true,
+		"file:///api/spec.yaml":         true,
+		"file:/api/spec.yaml":           true,
+		"urn:example:spec":              true,
+		"x://spec.yaml":                 true,
+		"/api/x://spec.yaml":            false,
+		"./x://spec.yaml":               false,
+		"api/x://spec.yaml":             false,
+		"api/spec.yaml":                 false,
+		`C:\api\spec.yaml`:              false,
+		"":                              false,
+		"%zz":                           false,
+	} {
+		assert.Equal(t, want, IsURL(location), "%q", location)
+	}
 }
 
 func TestInternedID_ByPointerHit(t *testing.T) {
@@ -183,7 +523,7 @@ func TestInternedID_ByPointerHit(t *testing.T) {
 func TestInternedID_RegistryHit(t *testing.T) {
 	t.Parallel()
 	ts := compile.NewTypes()
-	// A node lives at the pointer-derived ID without a byPointer entry: internedID
+	// A node lives at the pointer-derived ID without a byPointer entry: InternedID
 	// still finds it through the type registry.
 	id := ids.AnonType(deepPointer)
 	ts.Register(id, &ir.Primitive{ID: id, Prim: ir.PrimString})
@@ -203,3 +543,582 @@ func TestInternedID_Miss(t *testing.T) {
 // deepPointer is a sub-schema coordinate, deep enough that no component-name
 // rule could classify it as a top-level declaration.
 const deepPointer = "/components/schemas/Obj/properties/inner"
+
+// TestScope_DeclaredAt pins which positions resolve: a schema position to the
+// very schema the document holds there, and every position holding no schema
+// to nil. That covers a non-schema object, an undeclared name, a keyword the
+// schema leaves unset (which the pointer walk reaches as a typed nil), raw YAML
+// under an extension key or in an enum, which only a $ref makes the resolver
+// parse, and a Scope with no Doc.
+func TestScope_DeclaredAt(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      enum: [{type: object}]
+      x-dog: {type: object}
+`))
+	require.NoError(t, err)
+	sc := Scope{Doc: doc}
+
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"),
+		"a schema position resolves to the declaration the document holds")
+
+	for pointer, why := range map[jsontext.Pointer]string{
+		"/info":                          "a non-schema position does not resolve",
+		"/components/schemas/Ghost":      "a position the document does not declare does not resolve",
+		"/components/schemas/Pet/not":    "a keyword the schema leaves unset does not resolve",
+		"/components/schemas/Pet/x-dog":  "raw YAML under an extension does not resolve",
+		"/components/schemas/Pet/enum/0": "raw YAML in an enum does not resolve",
+	} {
+		assert.Nil(t, sc.DeclaredAt(pointer), why)
+	}
+
+	assert.Nil(t, Scope{}.DeclaredAt("/components/schemas/Pet"), "a nil Doc resolves nothing")
+}
+
+// modelDoc is a document whose pointers ModelAt is asked about: schemas the
+// model holds, through properties, a $ref, an alias, a branch list and an
+// operation's responses, which it holds by value, and raw YAML under
+// extensions, one of them written twice. S's property "0" makes the library
+// retry that token as an index where the key leads nowhere below.
+const modelDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200": {$ref: '#/components/responses/R'}
+        default: {description: ok, content: {application/json: {schema: {type: object, x-k: {a: 1}}}}}
+components:
+  responses:
+    R: {description: r, content: {application/json: {schema: {type: string}}}}
+  schemas:
+    S:
+      type: object
+      properties:
+        p: {type: object, properties: {q: {type: string}}}
+        "0": {type: string}
+        "01": {type: integer}
+        "~2": {type: boolean}
+      allOf: [{type: object}, {$ref: '#/components/schemas/T'}]
+      x-ext: {k: {type: object}}
+    T: {$ref: '#/components/schemas/S'}
+    U: &u {type: string}
+    V: *u
+x-lib:
+  a: {b: {type: object}}
+  a: {b: {type: string}}
+  "0": {type: object}
+  list: [{type: object}]
+`
+
+// wholeModelAt reads the whole pointer in one library call: the answer ModelAt
+// must give though it reads the pointer a token at a time.
+func wholeModelAt(doc defs.Navigable, pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+	target, err := jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	if js, ok := target.(*oas3.JSONSchema[oas3.Referenceable]); ok && err == nil && js != nil {
+		return js
+	}
+	return nil
+}
+
+// modelPointers are the pointers modelDoc is asked about: the model's schemas,
+// raw YAML, an index token the library retries, no position, and a pointer the
+// library refuses, though a property is named by what its token decodes to.
+var modelPointers = []jsontext.Pointer{
+	"/components/schemas/S/properties/p/properties/q",
+	"/components/schemas/S/properties/0/properties/q",
+	"/components/schemas/S/properties/01",
+	"/components/schemas/S/allOf/1/properties/p",
+	"/components/schemas/S/allOf/2",
+	"/components/schemas/S/x-ext/k",
+	"/components/schemas/T/properties/p",
+	"/components/schemas/V",
+	"/components/schemas/Nope/properties/x",
+	"/x-lib/a/b",
+	"/x-lib/0/type",
+	"/x-lib/list/0",
+	"/paths/~1a/get/responses/default/content/application~1json/schema/x-k/a",
+	"/paths/~1a/get/responses/200/content/application~1json/schema",
+	"/info/title",
+	"/nope/x",
+	"/components/schemas/S/properties/~2",
+	"/",
+	"",
+}
+
+// TestScope_ModelAt_AnswersAsTheWholeReadDoes pins that reading a token at a
+// time answers as reading the pointer whole, for each of modelPointers and
+// each of its prefixes.
+func TestScope_ModelAt_AnswersAsTheWholeReadDoes(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+	require.NoError(t, err)
+	sc := Scope{Doc: doc}
+	found := 0
+	for _, pointer := range modelPointers {
+		for prefix := range prefixesOf(pointer) {
+			want := wholeModelAt(doc, prefix)
+			assert.Same(t, want, sc.ModelAt(prefix), "%q", prefix)
+			if want != nil {
+				found++
+			}
+		}
+	}
+	assert.Greater(t, found, 8, "the pointers reach schemas, not only nothing")
+}
+
+// prefixesOf yields pointer and each pointer it extends, longest first.
+func prefixesOf(pointer jsontext.Pointer) func(func(jsontext.Pointer) bool) {
+	return func(yield func(jsontext.Pointer) bool) {
+		for p := pointer; ; p = p.Parent() {
+			if !yield(p) || p == "" {
+				return
+			}
+		}
+	}
+}
+
+// TestScope_ReadsNoRawMappingAPointerPasses pins GitHub #778 for ModelAt, At
+// and Locate: none scans the mapping where a pointer leaves the model, the
+// object's own, nor any raw mapping below. Each such mapping is given a first
+// key that is no node, which the library's read of it faults on, as the whole
+// read shows.
+func TestScope_ReadsNoRawMappingAPointerPasses(t *testing.T) {
+	t.Parallel()
+	for _, at := range []struct{ mapping, pointer jsontext.Pointer }{
+		{"", "/x-lib/a/b"},
+		{"/x-lib", "/x-lib/a/b"},
+		{"/components/schemas/S", "/components/schemas/S/x-ext/k"},
+		{"/components/schemas/S/x-ext", "/components/schemas/S/x-ext/k"},
+	} {
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+		require.NoError(t, err)
+		mapping := builtAt(t, doc, at.mapping)
+		mapping.Content = append([]*yaml.Node{nil, {Kind: yaml.ScalarNode}}, mapping.Content...)
+
+		assert.Panics(t, func() { wholeModelAt(doc, at.pointer) }, "the whole read scans %q", at.mapping)
+		sc := Scope{Doc: doc, Ends: ReferenceEnd}
+		assert.NotPanics(t, func() {
+			assert.Nil(t, sc.ModelAt(at.pointer))
+			assert.False(t, sc.At(at.pointer).Foreign)
+			assert.Nil(t, sc.Locate(at.pointer).Model())
+		}, "%q", at.pointer)
+	}
+}
+
+// builtAt returns the mapping the model holds at pointer: raw YAML itself, or
+// the one the object there was built from.
+func builtAt(t *testing.T, doc *soa.OpenAPI, pointer jsontext.Pointer) *yaml.Node {
+	t.Helper()
+	switch v := walkTo(doc, pointer).(type) {
+	case *yaml.Node:
+		return v
+	case *oas3.JSONSchema[oas3.Referenceable]:
+		return v.GetSchema().GetRootNode()
+	case *soa.OpenAPI:
+		return v.GetRootNode()
+	default:
+		require.Failf(t, "no mapping", "%q holds %T", pointer, v)
+		return nil
+	}
+}
+
+// TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes pins the two pointers the
+// library reads by a rule of its own, on a document that is itself a schema,
+// the one kind whose root ModelAt can answer: "/" is the root, not the entry
+// keyed by the empty string, and "" is no pointer.
+func TestScope_ModelAt_ReadsThePointerAsTheLibraryDoes(t *testing.T) {
+	t.Parallel()
+	js := schemaFromYAML(t, "type: object\nproperties:\n  a: {type: string}\n")
+	sc := Scope{Doc: js}
+
+	assert.Same(t, js, sc.ModelAt("/"), "the root")
+	assert.Nil(t, sc.ModelAt(""), "no pointer")
+	for _, pointer := range []jsontext.Pointer{"/", "", "/properties/a", "/properties/a/", "/properties", "/~2"} {
+		assert.Same(t, wholeModelAt(js, pointer), sc.ModelAt(pointer), "%q", pointer)
+	}
+}
+
+// TestScope_Locate_ReadsTheScopeAsAtDoes pins that the scope Locate's one walk
+// reads a position in is At's, whose own walk notes references only up to a
+// schema, for each pointer of modelDoc and its prefixes, with nothing read as
+// a reference, every node, and the references the library resolves.
+func TestScope_Locate_ReadsTheScopeAsAtDoes(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(modelDoc))
+	require.NoError(t, err)
+	for _, ends := range []func(any) (End, bool){nil, elsewhere, ReferenceEnd} {
+		sc := Scope{Doc: doc, Ends: ends}
+		for _, base := range modelPointers {
+			for pointer := range prefixesOf(base) {
+				located := sc.Locate(pointer)
+				assert.Equal(t, pointer, located.Pointer())
+				want, got := sc.At(pointer), located.At()
+				assert.Equal(t, want.Foreign, got.Foreign, "%q", pointer)
+				assert.Equal(t, want.Holder, got.Holder, "%q", pointer)
+			}
+		}
+	}
+}
+
+// TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom pins a walk that
+// leaves the model at a reference, for raw YAML its target holds: the
+// reference is passed when the target holds the next token, as the resolver
+// steps past it into that YAML, and not when it holds nothing there. Holds,
+// asked of the target's mapping, answers in place of the library: as the
+// library's read of that mapping does, and what it answers is what is passed.
+func TestScopeAt_PassesAReferenceTheWalkLeavesTheModelFrom(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  responses:
+    R: {$ref: '#/components/responses/S'}
+    S: {description: s, x-foo: {a: 1}}
+`))
+	require.NoError(t, err)
+	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: "spec.yaml"})
+	require.NoError(t, err)
+	references := func(node any) (End, bool) {
+		if r, ok := node.(*soa.ReferencedResponse); ok && r.IsReference() {
+			return End{Document: "elsewhere", Path: "x.yaml"}, true
+		}
+		return End{}, false
+	}
+	library := func(raw *yaml.Node, token string) bool {
+		_, err := jsonpointer.GetTarget(raw, jsonpointer.JSONPointer("/"+jsonpointer.EscapeString(token)))
+		return err == nil
+	}
+	for _, holds := range []func(*yaml.Node, string) bool{nil, library} {
+		sc := Scope{Doc: doc, Ends: references, Holds: holds}
+		assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
+		assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
+		assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
+		assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
+	}
+
+	never := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return false }}
+	assert.False(t, never.At("/components/responses/R/x-foo/a").Foreign, "Holds, not the library, answers")
+	always := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return true }}
+	assert.True(t, always.At("/components/responses/R/x-nope").Foreign, "Holds, not the library, answers")
+	assert.False(t, always.At("/components/responses/S/x-foo").Foreign, "only a reference asks it")
+}
+
+// TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole pins what ModelAt
+// answers past an index the library retries: the token is read as a key with
+// the rest below it, and as an index once that fails, so the pointer names
+// what the library's whole read finds, here k past the index where the key's
+// 0 holds none, while references are still noted a step at a time.
+func TestScope_Locate_ReadsAnIndexTheLibraryRetriesWhole(t *testing.T) {
+	t.Parallel()
+	var built yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("{'0': {j: 5}}"), &built))
+	js := schemaFromYAML(t, "type: string\n")
+	doc := &indexedDoc{built: built.Content[0], schema: js}
+	for _, ends := range []func(any) (End, bool){nil, elsewhere} {
+		sc := Scope{Doc: doc, Ends: ends}
+		for _, pointer := range []jsontext.Pointer{"/0/k", "/0/j", "/0", "/1/k", "/0/k/type"} {
+			assert.Same(t, wholeModelAt(doc, pointer), sc.ModelAt(pointer), "%q", pointer)
+		}
+		assert.Same(t, js, sc.ModelAt("/0/k"), "the index answers k, which the mapping's 0 does not hold")
+		assert.Equal(t, ends != nil, sc.At("/0/k").Foreign, "the walk noted the document it stepped past")
+	}
+}
+
+// indexedDoc is a document that is no model and that the library reads by
+// index as well as by the mapping it was built from: that mapping's 0 holds j,
+// and its index 0 holds the schema under k.
+type indexedDoc struct {
+	built  *yaml.Node
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// GetRootNode returns the mapping the document was built from.
+func (d *indexedDoc) GetRootNode() *yaml.Node { return d.built }
+
+// NavigateWithIndex answers index 0 with a map holding the schema under k.
+func (d *indexedDoc) NavigateWithIndex(i int) (any, error) {
+	if i != 0 {
+		return nil, errors.New("no such index")
+	}
+	return map[string]any{"k": d.schema}, nil
+}
+
+// walkTo returns what the model holds at pointer, a step at a time.
+func walkTo(doc *soa.OpenAPI, pointer jsontext.Pointer) any {
+	var node any = doc
+	for token := range pointer.Tokens() {
+		node, _ = navigation.Step(node, token)
+	}
+	return node
+}
+
+// TestScope_DeclaredAt_TheModelAnswersFirst pins the order of DeclaredAt's two
+// sources: a schema the model declares at a pointer wins, even over one Mapped
+// holds there, which a $ref by the source's file name may have left a copy of,
+// whose own $refs nothing resolved. Mapped answers where the model declares no
+// schema, such as a position it holds as raw YAML (GitHub #757), and only
+// there is it asked.
+func TestScope_DeclaredAt_TheModelAnswersFirst(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet: {type: object}
+`))
+	require.NoError(t, err)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+
+	mapped := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
+	require.NotSame(t, pet, mapped, "the two sources must be told apart")
+
+	const raw = jsontext.Pointer("/x-lib/Cat")
+	var asked []jsontext.Pointer
+	answering := func(at jsontext.Pointer, js *oas3.JSONSchema[oas3.Referenceable]) func(jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+		return func(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Referenceable] {
+			asked = append(asked, pointer)
+			if pointer == at {
+				return js
+			}
+			return nil
+		}
+	}
+
+	sc := Scope{Doc: doc, Mapped: answering(raw, mapped)}
+	assert.Same(t, mapped, sc.DeclaredAt(raw), "a position only Mapped holds resolves to its answer")
+	assert.Same(t, pet, sc.DeclaredAt("/components/schemas/Pet"), "the model answers for its own declaration")
+	assert.Equal(t, []jsontext.Pointer{raw}, asked, "Mapped is asked only where the model declares no schema")
+
+	shadowed := Scope{Doc: doc, Mapped: answering("/components/schemas/Pet", mapped)}
+	assert.Same(t, pet, shadowed.DeclaredAt("/components/schemas/Pet"), "the model's own declaration wins over Mapped")
+
+	assert.Same(t, pet, Scope{Doc: doc}.DeclaredAt("/components/schemas/Pet"), "no Mapped leaves the model to answer")
+	assert.Nil(t, Scope{Doc: doc}.DeclaredAt(raw), "no Mapped and no declaration resolves nothing")
+}
+
+// TestScope_MappingPointer pins what a mapping value names. A pointer or a
+// declared component is InternalPointer's answer; a "#/$defs/..." value is the
+// definition read from its discriminator; and every value that cannot be read
+// so is refused: one with a document part, which load leaves to the resolver,
+// one into another document, one in a Scope with no Doc, one with no
+// discriminator, one whose discriminator this document's tree does not contain,
+// and one the rule finds nothing for.
+func TestScope_MappingPointer(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf: [{$ref: "#/$defs/cat"}]
+      discriminator: {propertyName: kind, mapping: {cat: "#/$defs/cat"}}
+      $defs:
+        cat: {type: object}
+`))
+	require.NoError(t, err)
+	pet, ok := doc.Components.Schemas.Get("Pet")
+	require.True(t, ok)
+	d := pet.GetSchema().GetDiscriminator()
+	require.NotNil(t, d)
+	sc := Scope{SelfPath: "spec.yaml", Doc: doc}
+
+	for value, want := range map[string]jsontext.Pointer{
+		"#/components/schemas/Pet": "/components/schemas/Pet",
+		"#/$defs/cat":              "/components/schemas/Pet/$defs/cat",
+	} {
+		got, ok := sc.MappingPointer(d, value)
+		assert.True(t, ok, value)
+		assert.Equal(t, want, got, value)
+	}
+
+	for value, why := range map[string]string{
+		"other.yaml#/A":        "a value into another document is refused",
+		"spec.yaml#/$defs/cat": "a document part is left to the resolver, as load leaves a $ref spelled so",
+		"#/$defs/missing":      "the rule finds no such definition",
+		"Pet":                  "a bare name names no pointer",
+	} {
+		_, ok := sc.MappingPointer(d, value)
+		assert.False(t, ok, why)
+	}
+
+	_, ok = (Scope{SelfPath: "spec.yaml"}).MappingPointer(d, "#/$defs/cat")
+	assert.False(t, ok, "no document to read from")
+	_, ok = sc.MappingPointer(nil, "#/$defs/cat")
+	assert.False(t, ok, "no discriminator to read a position from")
+	// A discriminator this document's tree does not contain has no position to
+	// read from. The document is a standalone schema with its own $defs, the one
+	// kind a missing position could still read a definition from.
+	standalone := Scope{SelfPath: "spec.yaml", Doc: schemaFromYAML(t, "$defs:\n  cat: {type: object}\n")}
+	_, ok = standalone.MappingPointer(&oas3.Discriminator{}, "#/$defs/cat")
+	assert.False(t, ok, "no position to read the pointer from")
+}
+
+// walkDoc is a document whose positions a walk reaches past a path item and an
+// operation's responses, which the model holds by value, into a schema,
+// through a response keyed by the empty string, and into an extension's value,
+// which the model holds as raw YAML.
+const walkDoc = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {responses: {"200": {description: ok}, default: {description: otherwise}}}}
+components:
+  schemas:
+    S: {type: object, properties: {p: {type: object, properties: {q: {type: string}}}}}
+  responses:
+    "": {description: keyed by the empty string}
+x-lib:
+  a: {b: {c: deep}}
+`
+
+// unmarshalWalkDoc parses walkDoc.
+func unmarshalWalkDoc(t *testing.T) *soa.OpenAPI {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(walkDoc))
+	require.NoError(t, err)
+	return doc
+}
+
+// elsewhere is an Ends that reads every node it is asked about as a reference
+// ending in another document, so any node a walk steps past shows.
+func elsewhere(any) (End, bool) { return End{Document: "elsewhere", Path: "x.yaml"}, true }
+
+// TestScopeAt_PassesAReferenceUnderADefaultResponse pins that the walk goes on
+// past an operation's responses, which the model holds by value: a default
+// response that is a reference is passed, as one under a status code is.
+func TestScopeAt_PassesAReferenceUnderADefaultResponse(t *testing.T) {
+	t.Parallel()
+	responses := func(node any) (End, bool) {
+		if _, ok := node.(*soa.ReferencedResponse); ok {
+			return End{Document: "elsewhere", Path: "x.yaml"}, true
+		}
+		return End{}, false
+	}
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: responses}
+	for _, code := range []string{"default", "200"} {
+		at := sc.At(jsontext.Pointer("/paths/~1a/get/responses/" + code + "/description"))
+		assert.True(t, at.Foreign, "the %s response is passed", code)
+		assert.Equal(t, "x.yaml", at.Holder, code)
+	}
+}
+
+// TestScopeAt_StopsAtASchema pins where the walk stops reading references: at
+// the first schema, since the resolver reads a schema's own $ref as a keyword,
+// so nothing past it is asked whether it is one.
+func TestScopeAt_StopsAtASchema(t *testing.T) {
+	t.Parallel()
+	asked := 0
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
+
+	assert.False(t, sc.At("/components/schemas/S/properties/p/properties/q").Foreign)
+	assert.Equal(t, 3, asked, "the document, its components and its schemas, then the schema stops it")
+}
+
+// TestScopeAt_StopsAtRawYAML pins the other place the walk stops: at a value
+// the model holds as raw YAML, which holds no reference the resolver resolved,
+// so a pointer into an extension costs one step rather than a key scan for
+// each token past it.
+func TestScopeAt_StopsAtRawYAML(t *testing.T) {
+	t.Parallel()
+	asked := 0
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: func(any) (End, bool) { asked++; return End{}, false }}
+
+	assert.False(t, sc.At("/x-lib/a/b/c").Foreign)
+	assert.Equal(t, 1, asked, "the document, then the extension's value stops it")
+
+	rawAsReference := func(node any) (End, bool) {
+		_, raw := node.(*yaml.Node)
+		return End{Document: "elsewhere", Path: "x.yaml"}, raw
+	}
+	at := Scope{Doc: unmarshalWalkDoc(t), Ends: rawAsReference}.At("/extensions/x-lib/a/b")
+	assert.False(t, at.Foreign, "raw YAML a field holds is passed by no walk, though Ends would read it as a reference")
+}
+
+// TestScopeAt_PassesOnlyWhatTheWalkStepsPast pins which nodes a walk passes:
+// those it steps past to the next token. One where the walk finds nothing more
+// is not passed, nor is the node the pointer ends at.
+func TestScopeAt_PassesOnlyWhatTheWalkStepsPast(t *testing.T) {
+	t.Parallel()
+	sc := Scope{Doc: unmarshalWalkDoc(t), Ends: elsewhere}
+
+	assert.False(t, sc.At("/nope/x").Foreign, "the walk finds nothing past the document")
+	assert.False(t, sc.At("").Foreign, "the pointer ends at the document")
+	past := sc.At("/paths/~1a")
+	assert.True(t, past.Foreign, "the walk steps past the document and its paths")
+	assert.Equal(t, "x.yaml", past.Holder)
+}
+
+// TestScopeAt_FollowsAtMostMaxRefChainRefs pins the bound on the $refs a walk
+// follows, each to where its chain ends: a chain ending back at a position its
+// own walk passes it again is followed maxRefChain times, then read as no
+// document's. Read as the source's own, content past the bound that another
+// document holds read its references against the source (GitHub #762).
+func TestScopeAt_FollowsAtMostMaxRefChainRefs(t *testing.T) {
+	t.Parallel()
+	doc := unmarshalWalkDoc(t)
+	turns := 0
+	sc := Scope{Doc: doc, Ends: func(node any) (End, bool) {
+		if _, ok := node.(*soa.ReferencedPathItem); !ok {
+			return End{}, false
+		}
+		turns++
+		return End{Document: doc, Pointer: "/paths/~1a/get"}, true
+	}}
+
+	past := sc.At("/paths/~1a/get")
+	assert.True(t, past.Foreign, "past the bound, no document's")
+	assert.Empty(t, past.Holder, "so no reference there names a document")
+	assert.Equal(t, maxRefChain, turns, "each turn follows one $ref")
+
+	turns = 0
+	past = sc.Locate("/paths/~1a/get").At()
+	assert.True(t, past.Foreign, "Locate's walk is the first of the same turns")
+	assert.Empty(t, past.Holder)
+	assert.Equal(t, maxRefChain, turns)
+}
+
+// TestScopeReached_AnEndInTheSourcesFileIsTheSources pins a hop that resolved
+// against the source's file read again rather than its model, as the resolver
+// reads it when the load phase does not hold the source: it is the source's
+// own content, under any spelling of its path, and not another document's.
+func TestScopeReached_AnEndInTheSourcesFileIsTheSources(t *testing.T) {
+	t.Parallel()
+	abs, err := filepath.Abs("dir/root.yaml")
+	require.NoError(t, err)
+	sc := Scope{SelfPath: "dir/root.yaml"}
+	for _, path := range []string{"dir/root.yaml", "dir/./root.yaml", "dir/x/../root.yaml", abs} {
+		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/components/pathItems/Own"})
+		assert.False(t, got.Foreign, path)
+		assert.Empty(t, got.Holder, path)
+	}
+	for _, path := range []string{"dir/other.yaml", "other/root.yaml", "https://example.com/dir/root.yaml"} {
+		got := sc.reached(End{Document: new(int), Path: path, Pointer: "/x"})
+		assert.True(t, got.Foreign, path)
+		assert.Equal(t, path, got.Holder, path)
+	}
+	none := Scope{}.reached(End{Document: new(int), Path: "dir/root.yaml", Pointer: "/x"})
+	assert.True(t, none.Foreign, "a scope with no source path names no source file")
+}
+
+// TestScopeAt_WithoutEndsPassesNothing pins a scope with no Ends: nothing can
+// be read as a reference, so every pointer names the source's own content.
+func TestScopeAt_WithoutEndsPassesNothing(t *testing.T) {
+	t.Parallel()
+	sc := Scope{Doc: unmarshalWalkDoc(t), Foreign: true, Holder: "x.yaml"}
+
+	got := sc.At("/paths/~1a/get")
+	assert.False(t, got.Foreign)
+	assert.Empty(t, got.Holder)
+}

@@ -1,5 +1,37 @@
 {
-  "irVersion": "0.6.0",
+  "irVersion": "0.12.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
   "name": "ExtensionPromotion",
   "version": "1.0.0",
   "docs": {},
@@ -13,6 +45,7 @@
       "docs": {},
       "groups": [
         {
+          "id": "g/default",
           "name": {
             "hint": "default"
           },
@@ -32,6 +65,7 @@
               },
               "params": [
                 {
+                  "id": "param/openapi/paths/~1x/get/parameters/legacy/query",
                   "name": {
                     "source": "legacy",
                     "canonical": "legacy"
@@ -142,7 +176,7 @@
                     "sharedRoute": false,
                     "paramBindings": [
                       {
-                        "param": "legacy",
+                        "param": "param/openapi/paths/~1x/get/parameters/legacy/query",
                         "location": "query",
                         "wireName": "legacy",
                         "style": "form",
@@ -266,6 +300,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Fixed/s:one",
           "name": {
             "source": "one",
             "canonical": "one"
@@ -277,6 +312,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Fixed/s:two",
           "name": {
             "source": "two",
             "canonical": "two"
@@ -431,6 +467,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Shade/s:light",
           "name": {
             "source": "light",
             "canonical": "light"
@@ -442,6 +479,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Shade/s:dark",
           "name": {
             "source": "dark",
             "canonical": "dark"
@@ -487,6 +525,7 @@
       "valueType": "string",
       "members": [
         {
+          "id": "e/openapi/components/schemas/Size/s:small",
           "name": {
             "source": "small",
             "canonical": "small"
@@ -498,6 +537,7 @@
           "docs": {}
         },
         {
+          "id": "e/openapi/components/schemas/Size/s:large",
           "name": {
             "source": "large",
             "canonical": "large"

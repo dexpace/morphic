@@ -1,10 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"io"
+	"maps"
 	"slices"
-	"sort"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -13,15 +14,11 @@ import (
 // type node interned there, the coordinates interned beneath it, and every
 // diagnostic stamped at it.
 //
-// It answers "why did my example disappear" from the emitted document alone.
-// Every hoisted node records the coordinate it came from in Provenance.Pointer,
-// so the coordinate-to-node relation the compiler builds during lowering is
-// recoverable afterwards without widening the compiler contract to expose the
-// walk's internal map.
-//
-// What it does not report is which reader filled which field. That would need
-// the annotation readers to be separable units, which they are not; claiming it
-// here would describe a compiler this is not.
+// It answers "why did my example disappear" from the emitted document alone:
+// every hoisted node records its coordinate in Provenance.Pointer, so the
+// coordinate-to-node relation is recoverable without widening the compiler
+// contract. It does not report which reader filled which field; the annotation
+// readers are not separable units.
 func explainDocument(w io.Writer, doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) {
 	shown := string(pointer)
 	if pointer == "" {
@@ -81,9 +78,10 @@ type coordinate struct {
 }
 
 // coordinatesBelow returns the coordinates strictly beneath pointer, in pointer
-// order. It is what makes a miss actionable: a schema that lowered to a shared
-// primitive owns no node at its own coordinate, and seeing what did intern below
-// it is the difference between "nothing happened here" and "the node moved".
+// order and, at one pointer, in ID order. It is what makes a miss actionable: a
+// schema that lowered to a shared primitive owns no node at its own coordinate,
+// and seeing what did intern below it is the difference between "nothing
+// happened here" and "the node moved".
 //
 // Beneath is RFC 6901 containment, so a coordinate sharing the query's text but
 // not its token boundary is not below it, and a trailing '/' is a token of its
@@ -101,7 +99,7 @@ func coordinatesBelow(doc *ir.Document, pointer jsontext.Pointer) []coordinate {
 			out = append(out, coordinate{pointer: p, id: id, kind: td.Kind()})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].pointer < out[j].pointer })
+	slices.SortStableFunc(out, func(a, b coordinate) int { return cmp.Compare(a.pointer, b.pointer) })
 	return out
 }
 
@@ -129,15 +127,12 @@ func stampedAt(prov ir.Provenance, pointer jsontext.Pointer) bool {
 }
 
 // sortedTypeIDs returns the registry's keys in sorted order so explain output is
-// deterministic (invariant 7).
+// deterministic (invariant 7): nodeAtPointer names the first node at a pointer,
+// and several can share one. A nil document, which a compile that produced none
+// passes, has no types.
 func sortedTypeIDs(doc *ir.Document) []ir.TypeID {
 	if doc == nil {
 		return nil
 	}
-	ids := make([]ir.TypeID, 0, len(doc.Types))
-	for id := range doc.Types {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
+	return slices.Sorted(maps.Keys(doc.Types))
 }

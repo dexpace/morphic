@@ -2,14 +2,15 @@ package ir
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strings"
 )
 
 // NoSource is the Source value for a node that addresses no input file. An IR
 // pass reporting on the document it was handed has no source to name, and a
 // shared primitive, reached by kind from every source, has no one source to
-// name. Every other index — 0 included — names a file the document actually
-// loaded, which would make a renderer fabricate a location.
+// name. Every other index — 0 included — names an input file that was actually
+// read, which would make a renderer fabricate a location.
 //
 // It is the only out-of-table Source value the IR declares: irverify accepts it
 // and reports every other index that addresses no declared source, so a producer
@@ -25,8 +26,9 @@ const NoSource = -1
 // column as a pointer fragment (GitHub #509), and no check could hold a pointer
 // to RFC 6901 while the same field admitted the other two (GitHub #511).
 type Provenance struct {
-	// Source indexes into Document.Sources, or is NoSource for a node that
-	// addresses no input file. Nothing else is in range.
+	// Source indexes into Document.Sources, or for a refused compile's finding
+	// into the table that document would have carried (ir-design §13), or is
+	// NoSource for a node that addresses no input file. Nothing else is in range.
 	Source int `json:"source"`
 	// Pointer is the RFC 6901 pointer to the construct inside Source. Empty
 	// locates nothing finer than the source itself: it is the pointer to the
@@ -98,12 +100,11 @@ func NewDiagnostic(sev Severity, code, message string, prov Provenance) Diagnost
 // from advisory warnings that must be carried forward, and to report the
 // offending diagnostic once a refusal is confirmed.
 func FirstError(diags []Diagnostic) (Diagnostic, bool) {
-	for _, d := range diags {
-		if d.Severity == SeverityError {
-			return d, true
-		}
+	i := slices.IndexFunc(diags, func(d Diagnostic) bool { return d.Severity == SeverityError })
+	if i < 0 {
+		return Diagnostic{}, false
 	}
-	return Diagnostic{}, false
+	return diags[i], true
 }
 
 // HasError reports whether diags contains at least one error-severity
@@ -115,9 +116,23 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
-// SourceInfo describes one input file of a Document.
+// SourceInfo describes one input file of a Document. The table a refused
+// compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
+	// Format names the format and version the file was read as, such as
+	// "openapi@3.2" or "overlay@1.0.0".
 	Format string `json:"format"`
-	Path   string `json:"path"`
-	Hash   string `json:"hash"`
+	// Path is the path the file was handed to the compiler under.
+	Path string `json:"path"`
+	// Hash is the hex SHA-256 of the file's bytes.
+	Hash string `json:"hash"`
+	// SelfURI is the URI the document declared for itself, OpenAPI's `$self`,
+	// as written: a relative reference is not resolved against Path. It is
+	// empty when the document declared none, and for an empty `$self`, which
+	// says the same: an empty reference resolves to the location it was read
+	// from (RFC 3986 §5.2.2), the location a document declaring none is known by.
+	//
+	// It is the value the compiler lowered, so a `$self` an overlay writes is
+	// recorded here, on the patched document's entry, not on the overlay's.
+	SelfURI string `json:"selfURI,omitempty"`
 }

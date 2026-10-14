@@ -275,9 +275,8 @@ func (a *Any) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 // Entries are decoded in ID order, so a registry with several bad entries names
 // the same one on every run.
 //
-// A JSON null is a no-op (#46): the registry is left as it was. Where that
-// differs from a plain map, a null decoded over a populated registry, the
-// Unmarshaler convention time.Time follows was chosen over the map's.
+// A JSON null leaves the registry as it was (#46), following the Unmarshaler
+// convention time.Time uses rather than a plain map's reset to nil.
 func (r *TypeRegistry) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	var rawByID map[TypeID]jsontext.Value
 	if err := json.UnmarshalDecode(dec, &rawByID); err != nil {

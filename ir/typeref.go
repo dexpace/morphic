@@ -1,17 +1,16 @@
 package ir
 
-// TypeRef references a TypeDef by ID and records whether this particular usage
-// admits null on the wire (ir-design §3.3). Nullability lives on the reference,
-// not the target type, because the same type is nullable in one position and not
-// another; combined with Property.Required it yields the four distinct
-// required/optional × nullable/non-null states.
+// TypeRef references a TypeDef by ID and records whether this usage admits null
+// on the wire (ir-design §3.3). Nullability lives on the reference, not the
+// target, since one type may be nullable in one position and not another; with
+// Property.Required it yields the four required/optional × nullable/non-null
+// states.
 //
-// A TypeRef carries no fact of the target's down with it. What a use site can
-// read without resolving Target is only what a compiler already merged onto the
-// carrier — a Property's or Parameter's Docs, Deprecation and Default, taken
-// from a $ref's target with use-site precedence. Everything else the target
-// declares, Constraints above all, is read from the target node itself
-// (ir-design §12.2).
+// A TypeRef carries nothing of its target. Without resolving Target, a use site
+// can read only what a compiler merged onto the carrier from a $ref's target,
+// with use-site precedence: a Property's or Parameter's Docs, Deprecation and
+// Default, and a Property's Visibility. Everything else, Constraints above all,
+// is read from the target node (ir-design §12.2).
 type TypeRef struct {
 	// Target identifies the referenced TypeDef in Document.Types. It is never
 	// empty: a position that admits no type holds a nil *TypeRef, so a TypeRef
