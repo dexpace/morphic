@@ -96,7 +96,7 @@ func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *te
 	t.Parallel()
 	doc, _ := parseSpec(t, defaultMapping32Spec)
 
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2")
+	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2", false)
 	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
 
 	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc))
@@ -119,7 +119,7 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
 	require.NotEmpty(t, atVersion, "the invalid schema is a finding at 3.2 too")
 
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2")
+	dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, "3.2", false)
 	for site := range atVersion {
 		assert.NotContains(t, dropped, site, "a real finding is never dropped as an artifact")
 	}
@@ -393,4 +393,34 @@ func TestLoad_IndexesAPatchedTreeAgain(t *testing.T) {
 	require.NotNil(t, got)
 	assert.False(t, diag.HasError(diags), "unexpected refusal: %+v", diags)
 	assert.Equal(t, 3, *built, "the source, the overlay document, then the tree the overlay left behind")
+}
+
+// TestLoad_A32KeywordBesideAPathItemRefIsNotAnInvalidSchema pins the
+// reconciliation over the fields beside a Path Item's $ref: a 3.2 keyword in a
+// schema written there is checked as the document's own schemas are, so the
+// finding only the library's 3.1 meta-schema raises is dropped there too.
+func TestLoad_A32KeywordBesideAPathItemRefIsNotAnInvalidSchema(t *testing.T) {
+	t.Parallel()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    put:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {petType: {type: string}}
+              discriminator: {propertyName: petType, defaultMapping: '#/components/schemas/Dog'}
+      responses: {"200": {description: ok}}
+  /b:
+    get: {responses: {"200": {description: ok}}}
+components:
+  schemas:
+    Dog: {type: object}
+`)}, Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
 }

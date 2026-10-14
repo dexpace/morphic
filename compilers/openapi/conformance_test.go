@@ -208,6 +208,7 @@ func conformanceCases() []conformanceCase {
 		{"param-style-matrix", assertParamStyleMatrix, []string{"param-styles"}},
 		{"param-querystring", assertParamQuerystring, nil},
 		{"querystring-forbidden-keywords", assertQuerystringForbiddenKeywords, nil},
+		{laterVersionCase, assertLaterVersionConstructs, nil},
 		{"param-xml-residue", assertParamXMLResidue, nil},
 		{"param-ref-inheritance", assertParamRefInheritance, []string{"defaults", "deprecation", "docs-summary-description"}},
 		{"header-content-schema", assertHeaderContentSchema, nil},

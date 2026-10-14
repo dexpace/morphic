@@ -98,19 +98,35 @@ func lowerMeta(c lowering.Ctx) (docMeta, []ir.Diagnostic) {
 	diags = append(diags, serverDiags...)
 
 	diags = append(diags, keepComponentMediaTypes(c, &m.Unmodeled)...)
+	diags = append(diags, keepJSONSchemaDialect(c, &m.Unmodeled)...)
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
+}
+
+// keepJSONSchemaDialect keeps the document's jsonSchemaDialect verbatim on the
+// document, with an info. It is the default `$schema` of the document's Schema
+// Objects, and the IR models no dialect, so it is kept as a schema's own
+// `$schema` is (annotation.DialectKeywords): ReasonOutOfScope, and every schema
+// read in the OpenAPI dialect whatever it names.
+func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+	at := ids.Ptr("jsonSchemaDialect")
+	node := nodeview.New().ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "jsonSchemaDialect")
+	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,
+		ir.ReasonOutOfScope, c.ProvenanceAt(at))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no "+
+			"dialect, so it is kept verbatim under Unmodeled and every schema is read in the OpenAPI dialect"))
 }
 
 // keepComponentMediaTypes keeps the components/mediaTypes map OpenAPI 3.2 adds
 // verbatim on the document, read as the parser reads it, at the entry and
-// pointer the components census would use, so the census leaves it alone. The parser models no such section
-// and this compiler does not resolve a reference into it yet (GitHub #856), so
-// the map has no IR home; below 3.2 the key is not the dialect's and the census
-// reports it as undefined.
+// pointer the components census would use, so the census leaves it alone. The
+// parser models no such section and this compiler does not resolve a reference
+// into it yet (GitHub #856), so the map has no IR home. It is kept at every
+// version, as load reports it below 3.2 (diag.LaterVersionConstruct).
 func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	if !c.Since32() {
-		return nil
-	}
 	view := nodeview.New()
 	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")
 	at := ids.Ptr("components", "mediaTypes")

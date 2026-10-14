@@ -1,0 +1,1286 @@
+{
+  "irVersion": "0.12.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "LaterVersionConstructs",
+  "version": "1.0.0",
+  "docs": {
+    "summary": "Constructs newer than the declared version."
+  },
+  "license": {
+    "name": "MIT",
+    "identifier": "MIT"
+  },
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "LaterVersionConstructs",
+        "canonical": "later_version_constructs"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/tags/catalog",
+          "name": {
+            "source": "catalog",
+            "canonical": "catalog"
+          },
+          "docs": {},
+          "groups": [
+            {
+              "id": "g/tags/books",
+              "name": {
+                "source": "books",
+                "canonical": "books"
+              },
+              "docs": {
+                "summary": "Books"
+              },
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1books/get",
+                  "name": {
+                    "source": "listBooks",
+                    "canonical": "list_books"
+                  },
+                  "docs": {},
+                  "params": [
+                    {
+                      "id": "param/openapi/paths/~1books/get/parameters/filter/querystring",
+                      "name": {
+                        "source": "filter",
+                        "canonical": "filter"
+                      },
+                      "type": {
+                        "target": "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1books/get/parameters/0"
+                      }
+                    }
+                  ],
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "payload": {
+                        "contents": [
+                          {
+                            "mediaType": "application/jsonl",
+                            "type": {
+                              "target": "t/prim/any",
+                              "nullable": false
+                            },
+                            "item": {
+                              "target": "t/openapi/components/schemas/Book",
+                              "nullable": false
+                            },
+                            "examples": [
+                              {
+                                "name": "one",
+                                "value": {
+                                  "kind": "object",
+                                  "object": [
+                                    {
+                                      "name": "title",
+                                      "value": {
+                                        "kind": "string",
+                                        "str": "Dune"
+                                      }
+                                    }
+                                  ]
+                                },
+                                "unmodeled": {
+                                  "openapi:serializedValue": {
+                                    "reason": "no_ir_home",
+                                    "value": "{\"title\":\"Dune\"}",
+                                    "provenance": {
+                                      "source": 0,
+                                      "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue"
+                                    }
+                                  }
+                                }
+                              }
+                            ],
+                            "unmodeled": {
+                              "openapi:description": {
+                                "reason": "no_ir_home",
+                                "value": "One book per line.",
+                                "provenance": {
+                                  "source": 0,
+                                  "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "summary": "The books.",
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "errors": [
+                    {
+                      "name": {
+                        "hint": "404"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 404,
+                            "to": 404
+                          }
+                        ]
+                      },
+                      "fault": "client",
+                      "docs": {
+                        "summary": "No such book.",
+                        "description": "not found"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "streaming": "server",
+                  "responseStream": {
+                    "events": {
+                      "target": "t/openapi/components/schemas/Book",
+                      "nullable": false
+                    },
+                    "requiresLength": false
+                  },
+                  "idempotency": {},
+                  "tags": [
+                    "books"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/books",
+                        "sharedRoute": false,
+                        "paramBindings": [
+                          {
+                            "param": "param/openapi/paths/~1books/get/parameters/filter/querystring",
+                            "location": "querystring",
+                            "wireName": "filter",
+                            "allowReserved": false,
+                            "contentType": "application/x-www-form-urlencoded"
+                          }
+                        ],
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1books/get"
+                  }
+                },
+                {
+                  "id": "op/openapi/paths/~1books/query",
+                  "name": {
+                    "source": "searchBooks",
+                    "canonical": "search_books"
+                  },
+                  "docs": {},
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "tags": [
+                    "books"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "QUERY",
+                        "uriTemplate": "/books",
+                        "sharedRoute": false,
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1books/query"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1books/post",
+              "name": {
+                "source": "addBooks",
+                "canonical": "add_books"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/mixed",
+                    "type": {
+                      "target": "t/prim/any",
+                      "nullable": false
+                    },
+                    "itemEncoding": {
+                      "contentTypes": [
+                        "text/plain"
+                      ],
+                      "multi": true,
+                      "filename": false
+                    }
+                  },
+                  {
+                    "mediaType": "multipart/related",
+                    "type": {
+                      "target": "t/prim/any",
+                      "nullable": false
+                    },
+                    "unmodeled": {
+                      "openapi:prefixEncoding": {
+                        "reason": "no_ir_home",
+                        "value": [
+                          {
+                            "contentType": "application/json"
+                          }
+                        ],
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/multipart~1related/prefixEncoding"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover": {
+                        "contentTypes": [
+                          "multipart/mixed"
+                        ],
+                        "multi": false,
+                        "filename": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/cover/encoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "page": {
+                            "contentType": "image/png"
+                          }
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding"
+                        }
+                      },
+                      "openapi:encoding/cover/itemEncoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "contentType": "image/png"
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding"
+                        }
+                      },
+                      "openapi:encoding/cover/prefixEncoding": {
+                        "reason": "no_ir_home",
+                        "value": [
+                          {
+                            "contentType": "image/png"
+                          }
+                        ],
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/prim/any",
+                      "nullable": false
+                    },
+                    "unmodeled": {
+                      "openapi:$ref": {
+                        "reason": "degraded_lowering",
+                        "value": "#/components/mediaTypes/Book",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+                        }
+                      },
+                      "openapi:description": {
+                        "reason": "no_ir_home",
+                        "value": "The book to add.",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "added"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/books",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/mixed",
+                      "multipart/related",
+                      "multipart/form-data",
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1books/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1books/additionalOperations/PURGE",
+              "name": {
+                "source": "purgeBooks",
+                "canonical": "purge_books"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "purged"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PURGE",
+                    "uriTemplate": "/books",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1books/additionalOperations/PURGE"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/bookAdded/post",
+              "name": {
+                "source": "bookAdded",
+                "canonical": "book_added"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true,
+                    "webhookName": "bookAdded"
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/bookAdded/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema",
+      "name": {
+        "hint": "filter"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/author",
+          "name": {
+            "source": "author",
+            "canonical": "author"
+          },
+          "wireName": "author",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1books/get/parameters/0/content/application~1x-www-form-urlencoded/schema/properties/author"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1books/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "add_books_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover",
+          "name": {
+            "source": "cover",
+            "canonical": "cover"
+          },
+          "wireName": "cover",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/schema/properties/cover"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Book": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Book",
+      "name": {
+        "source": "Book",
+        "canonical": "book"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Book"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Book/properties/title",
+          "name": {
+            "source": "title",
+            "canonical": "title"
+          },
+          "wireName": "title",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Book/properties/title"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Item": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Item",
+      "name": {
+        "source": "Item",
+        "canonical": "item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "nodeType": "element",
+        "wrapped": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Item"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Item/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Item/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Item/properties/kind",
+        "default": "t/openapi/components/schemas/Novel",
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Novel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Novel",
+      "name": {
+        "source": "Novel",
+        "canonical": "novel"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Novel"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Item",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Novel",
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "auth": {
+    "auth/openapi/components/securitySchemes/clientCert": {
+      "id": "auth/openapi/components/securitySchemes/clientCert",
+      "name": {
+        "source": "clientCert",
+        "canonical": "client_cert"
+      },
+      "kind": "mutual_tls",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/clientCert"
+      }
+    },
+    "auth/openapi/components/securitySchemes/device": {
+      "id": "auth/openapi/components/securitySchemes/device",
+      "name": {
+        "source": "device",
+        "canonical": "device"
+      },
+      "kind": "oauth2",
+      "docs": {},
+      "deprecation": {},
+      "flows": [
+        {
+          "kind": "device",
+          "authorizationURL": "https://auth.example.com/device",
+          "tokenURL": "https://auth.example.com/token"
+        }
+      ],
+      "oauth2MetadataURL": "https://auth.example.com/.well-known/oauth-authorization-server",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device"
+      }
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "source": "production",
+        "canonical": "production"
+      },
+      "urlTemplate": "https://api.example.com",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "books",
+      "docs": {
+        "summary": "Books"
+      },
+      "parent": "catalog",
+      "kind": "nav"
+    },
+    {
+      "name": "catalog",
+      "docs": {}
+    }
+  ],
+  "unmodeled": {
+    "openapi:components/mediaTypes": {
+      "reason": "no_ir_home",
+      "value": {
+        "Book": {
+          "schema": {
+            "$ref": "#/components/schemas/Book"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes"
+      }
+    },
+    "openapi:components/pathItems/Health": {
+      "reason": "no_ir_home",
+      "value": {
+        "get": {
+          "operationId": "health",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems/Health"
+      }
+    },
+    "openapi:jsonSchemaDialect": {
+      "reason": "out_of_scope",
+      "value": "https://spec.openapis.org/oas/3.1/dialect/base",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"$self\" of the OpenAPI Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/$self"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"jsonSchemaDialect\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"webhooks\" of the OpenAPI Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Info Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/info/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"identifier\" of the License Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/info/license/identifier"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"parent\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/parent"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"kind\" of the Tag Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/tags/0/kind"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"name\" of the Server Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0/name"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"query\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/query"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"additionalOperations\" of the Path Item Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/additionalOperations"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "value \"querystring\" of field \"in\" of the Parameter Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/parameters/0/in"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Response Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"description\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/itemSchema"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"dataValue\" of the Example Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/dataValue"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"serializedValue\" of the Example Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/404/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemEncoding\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1mixed/itemEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"prefixEncoding\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1related/prefixEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"encoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"prefixEncoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemEncoding\" of the Encoding Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"$ref\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"description\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"pathItems\" of the Components Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"mediaTypes\" of the Components Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"defaultMapping\" of the Discriminator Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Item/discriminator/defaultMapping"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"nodeType\" of the XML Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Item/xml/nodeType"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "value \"mutualTLS\" of field \"type\" of the Security Scheme Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/clientCert/type"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"oauth2MetadataUrl\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/oauth2MetadataUrl"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"deprecated\" of the Security Scheme Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/deprecated"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"deviceAuthorization\" of the OAuth Flows Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/device/flows/deviceAuthorization"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "serializedValue has no ir.Example home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/examples/one/serializedValue"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "a media type's description has no IR home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1related"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding encoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding prefixEncoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/prefixEncoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding itemEncoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/mediaTypes"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no dialect, so it is kept verbatim under Unmodeled and every schema is read in the OpenAPI dialect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "later-version-constructs.yaml",
+      "hash": "909692498bfb054ffb0ab0f6d45b219439a2a55bce31b9371eb847d77deb318c",
+      "selfURI": "https://example.com/api/openapi.yaml"
+    }
+  ]
+}

@@ -383,6 +383,16 @@ const (
 	// diagnostic. A code of its own rather than DegradedConstruct, because
 	// nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
+	// LaterVersionConstruct reports a field, or a value of one, that a later
+	// OpenAPI minor than the document declares added to the object it is written
+	// on. It is lowered as in a document declaring that minor, the reading that
+	// loses the least: from the lowering and this diagnostic a consumer can still
+	// set it aside, while from a verbatim copy it could not recover the lowering
+	// (ir-design §12).
+	//
+	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
+	// document is invalid for the version it declares, but it still lowers.
+	LaterVersionConstruct = "openapi/later-version-construct"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

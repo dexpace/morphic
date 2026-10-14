@@ -971,12 +971,9 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, anchors *schema.Ancho
 
 // responseSummary reads the summary OpenAPI 3.2 gives a Response Object, which
 // the parser's model names no member for (GitHub #615), and returns the keys it
-// read for the census to leave alone. Below 3.2 it reads nothing: the key is not
-// the dialect's there, and the census reports it as undefined.
+// read for the census to leave alone. It reads at every version, as load
+// reports the key below 3.2 (diag.LaterVersionConstruct).
 func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
-	if !c.Since32() {
-		return "", nil, nil
-	}
 	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.ProvenanceAt, rptr, "")
 	if !read {
 		return "", nil, diags

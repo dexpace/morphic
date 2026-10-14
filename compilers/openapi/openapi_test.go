@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -93,10 +95,10 @@ func TestParse_EndToEnd(t *testing.T) {
 }
 
 // TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
-// entry as written, at every minor, as other 3.2 fields the parser models are
-// read (GitHub #864 asks whether a document below 3.2 should be warned). A
-// relative URI is not resolved against the source's path, and an empty or null
-// `$self` records nothing, which is what declaring none records.
+// entry as written, at every minor, and is reported below 3.2 as a construct a
+// later version added, as every 3.2 field is. A relative URI is not resolved
+// against the source's path, and an empty or null `$self` records nothing,
+// which is what declaring none records.
 func TestParse_RecordsSelfURI(t *testing.T) {
 	t.Parallel()
 	const uri = "https://example.com/api/openapi.yaml"
@@ -125,6 +127,10 @@ func TestParse_RecordsSelfURI(t *testing.T) {
 			assert.False(t, ir.HasError(diags), "%+v", diags)
 			require.Len(t, doc.Sources, 1)
 			assert.Equal(t, tt.want, doc.Sources[0].SelfURI)
+			assert.Equal(t, tt.self != "" && tt.version != "3.2.0",
+				slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+					return d.Code == diag.LaterVersionConstruct && d.Provenance.Pointer == "/$self"
+				}))
 		})
 	}
 }

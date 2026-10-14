@@ -197,31 +197,6 @@ func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	}
 }
 
-// TestSince32_FollowsTheDeclaredVersion pins the one answer every raw-node
-// reader of a 3.2 field and its census ask (GitHub #615). A version nobody
-// recognizes answers false, so no reader runs on a dialect nothing describes.
-func TestSince32_FollowsTheDeclaredVersion(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		version string
-		want    bool
-	}{
-		{version: "3.0.3", want: false},
-		{version: "3.1.0", want: false},
-		{version: "3.2.0", want: true},
-		{version: "3.2.1", want: true},
-		{version: "4.0.0", want: false},
-		{version: "", want: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.version, func(t *testing.T) {
-			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.Since32())
-		})
-	}
-}
-
 // TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
 // references lives: a context and the scope it builds hold the same one, so a
 // resolution through any copy is visible to the compiler, and a zero context,

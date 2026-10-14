@@ -24,7 +24,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0), false)
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -40,7 +40,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0), false)
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0))
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -54,7 +54,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0), false)
+	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0))
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -209,39 +209,21 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid UTF-8")
 }
 
-// TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key of a 3.2
-// document this reader takes off the raw node: the library's XML model has no
-// field for `nodeType`, so a reader that consulted the model alone would drop
-// a declaration the document makes (GitHub #615). The census is told the key
-// was read, which is why the same fixture read as 3.1 warns below instead.
+// TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key this reader
+// takes off the raw node: the library's XML model has no field for the
+// `nodeType` OpenAPI 3.2 added, so a reader that consulted the model alone
+// would drop a declaration the document makes (GitHub #615). The census is
+// told the key was read, so it is not announced as undefined.
 func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
 
 	require.NotNil(t, got.XML)
 	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
 	assert.Equal(t, "attribute", got.XML.NodeType)
 	assert.Empty(t, diags, "a key the dialect defines is not announced as undefined")
-}
-
-// TestRead_NodeTypeBelow32IsCensused is the other side of the gate: below 3.2
-// the key is a misspelling rather than a field the dialect added, so nothing is
-// read into the IR and the census owes the warning.
-func TestRead_NodeTypeBelow32IsCensused(t *testing.T) {
-	t.Parallel()
-	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
-
-	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), false)
-
-	require.NotNil(t, got.XML)
-	assert.Empty(t, got.XML.NodeType, "3.1 defines no nodeType, so no field is filled")
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.UnknownObjectKey, diags[0].Code)
-	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/S/xml/nodeType"), diags[0].Provenance.Pointer,
-		"the warning names the key's own position")
 }
 
 // TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers applyNodeType's first
@@ -251,7 +233,7 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
 
 	assert.Nil(t, got.XML)
 	assert.Empty(t, diags)
@@ -284,7 +266,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
-			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0), true)
+			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
 			require.NotNil(t, got.XML)
 			assert.Equal(t, tc.nodeType, got.XML.NodeType)
 			if tc.kept == "" {
