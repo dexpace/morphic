@@ -208,7 +208,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, op)
 	pathPtr := ids.Ptr("paths", "/users/{id}")
 	opPtr := pathPtr + ids.Ptr("get")
-	merged := mergeParameters(appendSourced(nil, pi.GetParameters(), pathPtr, nil), op.GetParameters(), opPtr)
+	merged := mergeParameters(appendSourced(nil, pi.GetParameters(), pathPtr, nil, nil), op.GetParameters(), opPtr)
 	require.Len(t, merged, 2, "shared (name,in) collapses to one; op wins")
 	assert.Same(t, op.GetParameters()[0], merged[0].ref, "operation parameter overrides the path-item one")
 	assert.Equal(t, jsontext.Pointer("/paths/~1users~1{id}/get/parameters/0"), merged[0].pointer,

@@ -160,7 +160,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 		if !ok {
 			ref := b.GetRef().String()
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, bptr,
-				"unresolved allOf $ref %q%s", ref, namesHolderWhy(c, ref)))
+				"unresolved allOf $ref %q%s", ref, unresolvedWhy(c, ref, bptr)))
 			continue
 		}
 		bs := b.GetSchema()
@@ -735,9 +735,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // document itself, reported at the same severity as everywhere else, and the
 // info diagnostic beside it explains only the lowering.
 //
-// One in another document's content naming a position there says so, as
-// refTypeRef's report does (namesHolderWhy): that document may well declare
-// the position, so "nothing declared" would be false.
+// One in another document's content naming a position there, or one naming
+// the fields beside a path item's $ref, says so, as refTypeRef's report does
+// (unresolvedWhy): the position may well be declared, so "nothing declared"
+// would be false.
 func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
@@ -747,8 +748,8 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 			continue
 		}
 		why := " resolves to nothing this document declares"
-		if holder := namesHolderWhy(c, ref); holder != "" {
-			why = " is unresolved" + holder
+		if reason := unresolvedWhy(c, ref, pointer+ids.Ptr(key, strconv.Itoa(i))); reason != "" {
+			why = " is unresolved" + reason
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
@@ -1162,7 +1163,8 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
-				"discriminator mapping %q references unresolved schema %q%s", tag, target, namesHolderWhy(c, target)))
+				"discriminator mapping %q references unresolved schema %q%s", tag, target,
+				unresolvedWhy(c, target, pointer+ids.Ptr("discriminator"))))
 			continue
 		}
 		out[tag] = id
@@ -1185,7 +1187,8 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	if !ok {
 		return "", append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q%s", dm, namesHolderWhy(c, dm)))
+			"discriminator defaultMapping references unresolved schema %q%s", dm,
+			unresolvedWhy(c, dm, pointer+ids.Ptr("discriminator"))))
 	}
 	return id, diags
 }

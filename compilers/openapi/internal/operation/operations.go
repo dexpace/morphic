@@ -286,8 +286,9 @@ func mountPathItem(ts *compile.Types, anchors *schema.AnchorIndex, claims *opera
 	docs := slices.ContainsFunc(layers, func(l layer) bool { return len(pathOperations(l.item)) > 0 })
 	owner, diags := precedence(layers, docs)
 	params := itemParams(layers)
-	var mounted []mountedOp
-	for _, lo := range mountedOperations(layers) {
+	ops := mountedOperations(layers)
+	mounted := make([]mountedOp, 0, len(ops))
+	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op
 		opCtx := route
 		opCtx.method = po.method
@@ -1133,7 +1134,7 @@ type sourcedParam struct {
 // (issue #107).
 func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil)
+	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
@@ -1148,15 +1149,18 @@ func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParame
 }
 
 // appendSourced appends params to dst, pairing each with the pointer of its own
-// declaration position under base and skipping any whose (name, in) key is in
-// shadowed. A nil shadowed map reads as all-false, which is what the operation
-// side passes: operation parameters are never shadowed.
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer, shadowed map[string]bool) []sourcedParam {
+// declaration position under base and the scope in it is read in, and skipping
+// any whose (name, in) key is in shadowed. A nil shadowed map reads as
+// all-false, which is what the operation side passes: operation parameters are
+// never shadowed, and are read in the operation's own scope (a nil in).
+func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+	shadowed map[string]bool, in *resolve.Scope,
+) []sourcedParam {
 	for i, p := range params {
 		if key, ok := paramKey(p); ok && shadowed[key] {
 			continue
 		}
-		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i))})
+		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
 	}
 	return dst
 }

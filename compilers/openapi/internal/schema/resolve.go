@@ -157,18 +157,23 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	id, ok, diags := resolveSchemaRef(c, ts, anchors, depth, js, ref)
 	if !ok {
 		return ts.PrimRef(ir.PrimAny), append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-			"unresolved $ref %q%s", ref, namesHolderWhy(c, ref)))
+			"unresolved $ref %q%s", ref, unresolvedWhy(c, ref, pointer)))
 	}
 	return ir.TypeRef{Target: id, Nullable: refNullable(js)}, diags
 }
 
-// namesHolderWhy is the reason an unresolved reference reports when, in another
-// document's content, it names a position in that document (GitHub #762), and
-// empty for any other. The position may well exist there, so without it the
-// report reads as though the reference named nothing.
-func namesHolderWhy(c lowering.Ctx, ref string) string {
-	if c.RefScope().NamesHolder(ref) {
+// unresolvedWhy is the reason an unresolved reference written at site reports
+// when, in another document's content, it names a position in that document
+// (GitHub #762), or when it names the fields beside a path item's $ref, which
+// are refused (resolve.Scope.BesideWhy), and empty for any other. The position
+// may well exist, so without it the report reads as though it named nothing.
+func unresolvedWhy(c lowering.Ctx, ref string, site jsontext.Pointer) string {
+	scope := c.RefScope()
+	if scope.NamesHolder(ref) {
 		return ": it names a position in the other document holding it, which is not lowered"
+	}
+	if pointer, ok := scope.InternalPointer(ref); ok {
+		return scope.BesideWhy(site, pointer)
 	}
 	return ""
 }

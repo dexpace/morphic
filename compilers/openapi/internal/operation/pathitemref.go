@@ -247,13 +247,7 @@ func itemParams(layers []layer) []sourcedParam {
 	shadowed := map[string]bool{}
 	for _, l := range layers {
 		scope := l.in.RefScope()
-		for i, rp := range l.item.GetParameters() {
-			if key, ok := paramKey(rp); ok && shadowed[key] {
-				continue
-			}
-			params = append(params, sourcedParam{ref: rp, pointer: l.decl + ids.Ptr("parameters", strconv.Itoa(i)),
-				in: &scope})
-		}
+		params = appendSourced(params, l.item.GetParameters(), l.decl, shadowed, &scope)
 		for key := range shadowedKeys(l.item.GetParameters()) {
 			shadowed[key] = true
 		}

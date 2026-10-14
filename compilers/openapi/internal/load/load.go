@@ -275,6 +275,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 	diags = append(diags, resolveDiags...)
 	diags = append(diags, parameterRepeats(pointerAt(srcIndex, origin), sibs, walkSource(ctx, doc, sibs))...)
+	diags = append(diags, besideRefs(pointerAt(srcIndex, origin), sibs, walkSource(ctx, doc, sibs), resolveDiags)...)
 
 	return &Document{
 		Doc:     doc,

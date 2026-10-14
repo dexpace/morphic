@@ -32,6 +32,37 @@ const refKey = "$ref"
 type Siblings struct {
 	byNode map[*yaml.Node]int
 	list   []Sibling
+	// at holds every position the walk met a modelled use site at, an alias's
+	// included, with that use site's model.
+	at *sites
+}
+
+// sites is a trie of positions by token, so Beside reads a pointer in one pass
+// over its tokens, stopping at the first no position continues with: the work
+// is bounded by the depth of the use sites, however long the pointer is.
+type sites struct {
+	next map[string]*sites
+	// use is the position ending here and model its use site's model, when one
+	// does.
+	use   jsontext.Pointer
+	model int
+	ends  bool
+}
+
+// insert records model as the use site at site.
+func (n *sites) insert(site jsontext.Pointer, model int) {
+	for token := range site.Tokens() {
+		child, ok := n.next[token]
+		if !ok {
+			if n.next == nil {
+				n.next = map[string]*sites{}
+			}
+			child = &sites{}
+			n.next[token] = child
+		}
+		n = child
+	}
+	n.use, n.model, n.ends = site, model, true
 }
 
 // Sibling is the fields one use site writes beside its $ref: the Path Item they
@@ -39,6 +70,9 @@ type Siblings struct {
 type Sibling struct {
 	Item    *soa.PathItem
 	Pointer jsontext.Pointer
+	// written holds the keys the fields are written under, as the parser reads
+	// the mapping, `<<` merge keys expanded.
+	written map[string]bool
 }
 
 // Of returns the fields written beside rp's $ref, and false when rp is no
@@ -68,11 +102,30 @@ func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
 		return false
 	}
 	node := useSite(rp)
-	if _, met := s.byNode[node]; met || node == nil {
+	if _, met := s.byNode[node]; met {
 		return false
 	}
-	_, beside := withoutRef(node)
-	return beside
+	return writesBeside(node)
+}
+
+// Beside returns the use site, and the key written beside its $ref, that pointer
+// passes through: a position the walk met a modelled path item $ref at,
+// followed by one of the keys its fields are written under. The resolver reads
+// such a pointer through the $ref into the item it names, so it never reaches
+// the field the source writes there (GitHub #824), and the lowering declares
+// that field at the very pointer. ok is false for any other pointer.
+func (s Siblings) Beside(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool) {
+	n := s.at
+	for token := range pointer.Tokens() {
+		if n == nil {
+			break
+		}
+		if n.ends && s.list[n.model].written[token] {
+			return n.use, token, true
+		}
+		n = n.next[token]
+	}
+	return "", "", false
 }
 
 // useSite returns the mapping rp, which must not be nil, is written as, through
@@ -128,7 +181,7 @@ func unreported(errs, valErrs []error) []error {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
 ) (Siblings, []error, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}}
+	s := Siblings{byNode: map[*yaml.Node]int{}, at: &sites{}}
 	var errs []error
 	var faults []ir.Diagnostic
 	for next := 0; next <= len(s.list) && next < sourceindex.MaxIndexedNodes; next++ {
@@ -149,9 +202,9 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan
 
 // add models the fields rp's use site writes beside its $ref, at site, and
 // returns the findings the model build made. It does nothing for an rp that is
-// no reference, nor for a mapping already met or holding nothing beside the
-// $ref. A mapping the parser faulted on holds no model, and its fault is
-// returned as an error diagnostic instead.
+// no reference, nor for a mapping holding nothing beside the $ref; a mapping
+// already met is only noted at site. A mapping the parser faulted on holds no
+// model, and its fault is returned as an error diagnostic instead.
 func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem, build siblingBuild,
 	locate scan.Locator,
 ) ([]error, []ir.Diagnostic) {
@@ -159,7 +212,10 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 		return nil, nil
 	}
 	node := useSite(rp)
-	if _, seen := s.byNode[node]; seen || node == nil {
+	if i, seen := s.byNode[node]; seen {
+		if i >= 0 {
+			s.at.insert(site, i)
+		}
 		return nil, nil
 	}
 	fields, ok := withoutRef(node)
@@ -173,23 +229,37 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
 	}
 	s.byNode[node] = len(s.list)
-	s.list = append(s.list, Sibling{Item: item, Pointer: site})
+	s.at.insert(site, len(s.list))
+	s.list = append(s.list, Sibling{Item: item, Pointer: site, written: writtenKeys(fields)})
 	return errs, nil
+}
+
+// writtenKeys returns the keys the mapping fields, a use site less its $ref, is
+// written under, read as the parser reads it.
+func writtenKeys(fields *yaml.Node) map[string]bool {
+	pairs := nodeview.New().MappingPairs(fields)
+	written := make(map[string]bool, len(pairs))
+	for _, p := range pairs {
+		if p.Key != refKey {
+			written[p.Key] = true
+		}
+	}
+	return written
 }
 
 // withoutRef returns a copy of the mapping node less every pair keyed $ref,
 // spelled directly or through an alias as the library reads the key, and false
-// when that leaves nothing. The copy keeps node's position and the document's
+// when node is no mapping or that leaves nothing. The copy keeps node's position and the document's
 // own key and value nodes, so every finding and raw read lands where the source
 // writes it.
 func withoutRef(node *yaml.Node) (*yaml.Node, bool) {
-	if node.Kind != yaml.MappingNode {
+	if node == nil || node.Kind != yaml.MappingNode {
 		return nil, false
 	}
 	fields := *node
 	fields.Content = make([]*yaml.Node, 0, len(node.Content))
 	for i := 0; i+1 < len(node.Content); i += 2 {
-		if key := nodeview.Deref(node.Content[i]); key != nil && key.Value == refKey {
+		if isRefKey(node.Content[i]) {
 			continue
 		}
 		fields.Content = append(fields.Content, node.Content[i], node.Content[i+1])
@@ -198,6 +268,28 @@ func withoutRef(node *yaml.Node) (*yaml.Node, bool) {
 		return nil, false
 	}
 	return &fields, true
+}
+
+// writesBeside reports whether the mapping node holds a pair keyed other than
+// $ref, as withoutRef reads the keys. It stops at the first, so asking costs
+// nothing like the copy withoutRef makes.
+func writesBeside(node *yaml.Node) bool {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if !isRefKey(node.Content[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// isRefKey reports whether key spells $ref, directly or through an alias, as
+// the library reads a mapping's key.
+func isRefKey(key *yaml.Node) bool {
+	k := nodeview.Deref(key)
+	return k != nil && k.Value == refKey
 }
 
 // siblingModel builds the fields beside a $ref into a Path Item and validates it

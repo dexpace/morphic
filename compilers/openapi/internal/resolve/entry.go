@@ -110,7 +110,8 @@ const maxRefChain = 32
 // declaration addressable here: an inline entry, a reference that leaves this
 // document, or one that outruns maxRefChain. An alias pointer is never
 // returned on its own, since a one-key $ref object has no children to hoist,
-// but it is recorded in scope.Reached with every other hop in the source.
+// but scope.Reached records every hop in the source. A chain with a hop
+// scope.Beside refuses resolves to nothing.
 func ObjectAt[T, S any, R interface {
 	*S
 	Referenced[T, S]
@@ -135,6 +136,9 @@ func ObjectAt[T, S any, R interface {
 		target, ok := scope.InternalPointer(ref.GetReference().String())
 		if !ok {
 			break // another document: nothing addressable here, so usePtr stands
+		}
+		if scope.beside(target) {
+			return nil, usePtr // the resolver read past a field written there; load reported it
 		}
 		scope.Reached.note(target)
 		// The resolver reads the next hop against the document this one
