@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.11.0",
+  "irVersion": "0.12.0",
   "idSpaces": {
     "auth": [
       "openapi"

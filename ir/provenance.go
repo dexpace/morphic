@@ -116,9 +116,23 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
-// SourceInfo describes one input file of a Document.
+// SourceInfo describes one input file of a Document. The table a refused
+// compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
+	// Format names the format and version the file was read as, such as
+	// "openapi@3.2" or "overlay@1.0.0".
 	Format string `json:"format"`
-	Path   string `json:"path"`
-	Hash   string `json:"hash"`
+	// Path is the path the file was handed to the compiler under.
+	Path string `json:"path"`
+	// Hash is the hex SHA-256 of the file's bytes.
+	Hash string `json:"hash"`
+	// SelfURI is the URI the document declared for itself, OpenAPI's `$self`,
+	// as written: a relative reference is not resolved against Path. It is
+	// empty when the document declared none, and for an empty `$self`, which
+	// says the same: an empty reference resolves to the location it was read
+	// from (RFC 3986 §5.2.2), the location a document declaring none is known by.
+	//
+	// It is the value the compiler lowered, so a `$self` an overlay writes is
+	// recorded here, on the patched document's entry, not on the overlay's.
+	SelfURI string `json:"selfURI,omitempty"`
 }

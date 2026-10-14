@@ -155,7 +155,7 @@ const maxSchemaScanDepth = 512
 // compilers.SourceFormat, since nothing downstream ever read one.
 type Document struct {
 	Doc    *soa.OpenAPI  // parsed, reference-resolved document
-	Source ir.SourceInfo // format tag, path, content hash
+	Source ir.SourceInfo // the entry Document.Sources records for this source
 	// Targets holds the schema each discriminator mapping target names,
 	// resolved as a $ref to it is.
 	Targets MappingTargets
@@ -273,9 +273,10 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		Doc:     doc,
 		Targets: targets,
 		Source: ir.SourceInfo{
-			Format: "openapi@" + minor,
-			Path:   src.Path,
-			Hash:   parsed.Hash(),
+			Format:  "openapi@" + minor,
+			Path:    src.Path,
+			Hash:    parsed.Hash(),
+			SelfURI: doc.GetSelf(),
 		},
 		Overlay: origin,
 	}, diags, nil

@@ -240,6 +240,7 @@ func conformanceCases() []conformanceCase {
 		{"xml-nodetype-32", assertXMLNodeType32, nil},
 		{"nested-encoding-32", assertNestedEncoding32, []string{"multipart-encoding"}},
 		{"unreferenced-components", assertUnreferencedComponents, nil},
+		{"self-uri", assertSelfURI, nil},
 		{"extensions-x", assertExtensionsX, []string{"vendor-extensions"}},
 		{"inline-annotations", assertInlineAnnotations, []string{"vendor-extensions", "inline-anonymous"}},
 		{"inline-residue", assertInlineResidue, []string{"inline-anonymous"}},
@@ -3193,6 +3194,17 @@ func assertResponseExamples(t *testing.T, doc *ir.Document) {
 	require.Len(t, headers[0].Examples, 1)
 	require.NotNil(t, headers[0].Examples[0].Value)
 	assert.Equal(t, ir.BigVal("5"), headers[0].Examples[0].Value.Num)
+}
+
+// assertSelfURI pins that a declared `$self` reaches the source's entry rather
+// than a lowered node, since it says where one input document lives. The case
+// witnesses no matrix row: the rows are what an API can express, and the URI a
+// description gives itself is not part of the API it describes.
+func assertSelfURI(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	t.Helper()
+	require.Len(t, doc.Sources, 1)
+	assert.Equal(t, "openapi@3.2", doc.Sources[0].Format)
+	assert.Equal(t, "https://example.com/api/openapi.yaml", doc.Sources[0].SelfURI)
 }
 
 func assertDocsSummaryDesc(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

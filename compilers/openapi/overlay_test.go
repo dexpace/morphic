@@ -143,6 +143,37 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	assert.Empty(t, irverify.Verify(doc), "the second source entry keeps the document valid")
 }
 
+// TestCompile_OverlaySetsTheSpecsSelfURI pins where a `$self` an overlay writes
+// is recorded: on the spec's entry, replacing the one the spec declared. An
+// overlay is not an OpenAPI document and declares no `$self` of its own, so its
+// entry records none.
+func TestCompile_OverlaySetsTheSpecsSelfURI(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+$self: https://example.com/declared.yaml
+info: {title: Pets, version: "1"}
+paths: {}
+`
+	const patch = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $
+    update:
+      $self: https://example.com/patched.yaml
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	require.Len(t, doc.Sources, 2, "the spec and the overlay applied to it")
+	assert.Equal(t, "https://example.com/patched.yaml", doc.Sources[0].SelfURI)
+	assert.Empty(t, doc.Sources[1].SelfURI)
+}
+
 // TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic runs the two
 // document-level oracles over a patched compile.
 //
