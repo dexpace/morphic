@@ -78,25 +78,23 @@ paths:
 // nothing beside a $ref costs, which is nearly every mount: the context
 // lowering.Within gives its item, and the one-entry slice. A scope that Hops or
 // a sibling layer keeps takes the context's closures with it, so building one
-// for every mount cost each that much more, inline or one $ref away.
+// for every mount cost each that much more. The item is inline, since Within's
+// walk through a $ref allocates a varying count under the race detector.
 func TestPathItemLayers_AOneLayerMountCostsItsLayerAlone(t *testing.T) {
 	l, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {$ref: '#/paths/~1b'}
   /b:
     get: {responses: {"200": {description: OK}}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, path := range []string{"/b", "/a"} {
-		rp, ok := l.ctx.Doc.GetPaths().Get(path)
-		require.True(t, ok)
-		usePtr := jsontext.Pointer("/paths/~1" + path[1:])
-		pi, declPtr := resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
-		require.NotNil(t, pi)
+	rp, ok := l.ctx.Doc.GetPaths().Get("/b")
+	require.True(t, ok)
+	const usePtr = jsontext.Pointer("/paths/~1b")
+	pi, declPtr := resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
+	require.NotNil(t, pi)
 
-		within := testing.AllocsPerRun(20, func() { lowering.Within[soa.PathItem](l.ctx, rp).Siblings() })
-		layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, pi, usePtr, declPtr) })
-		assert.Equal(t, within+1, layers, "%s: Within's work and the one layer", path)
-	}
+	within := testing.AllocsPerRun(20, func() { lowering.Within[soa.PathItem](l.ctx, rp).Siblings() })
+	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, pi, usePtr, declPtr) })
+	assert.Equal(t, within+1, layers, "Within's work and the one layer")
 }
