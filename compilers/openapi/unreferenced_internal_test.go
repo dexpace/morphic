@@ -207,12 +207,12 @@ func TestUnreferencedComponents_MergeDepthBoundIsReported(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components"), "got %v", diags)
 }
 
-// TestComponentMediaTypes_KeptWholeAndNamedFor32 pins the components/mediaTypes
-// section while this compiler resolves nothing into it (GitHub #856): on 3.2,
-// which defines it, the map is kept whole with an info rather than called
-// undefined, merged in through `<<` or not; below 3.2 the census keeps it and
-// warns, as for any undefined key.
-func TestComponentMediaTypes_KeptWholeAndNamedFor32(t *testing.T) {
+// TestComponentMediaTypes_KeptWholeAtEveryVersion pins the components/mediaTypes
+// section while this compiler resolves nothing into it (GitHub #856): the map is
+// kept whole with an info rather than called undefined, merged in through `<<`
+// or not. Below 3.2, which does not define it, it is kept the same, and load
+// adds that the field is a later version's (GitHub #864).
+func TestComponentMediaTypes_KeptWholeAtEveryVersion(t *testing.T) {
 	t.Parallel()
 	const body = `paths: {}
 components:
@@ -225,21 +225,24 @@ components:
 `
 	for _, tc := range []struct {
 		name, version, body string
-		reason              ir.UnmodeledReason
-		code                string
-		sev                 ir.Severity
 	}{
-		{"3.2", "3.2.0", body, ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
-		{"3.2 merged in", "3.2.0", merged, ir.ReasonNoIRHome, diag.DegradedConstruct, ir.SeverityInfo},
-		{"3.1", "3.1.0", body, ir.ReasonOutOfScope, diag.UnknownObjectKey, ir.SeverityWarning},
+		{"3.2", "3.2.0", body},
+		{"3.2 merged in", "3.2.0", merged},
+		{"3.1", "3.1.0", body},
+		{"3.1 merged in", "3.1.0", merged},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\n"+tc.body)
 			kept, ok := doc.Unmodeled["openapi:components/mediaTypes"]
 			require.True(t, ok, "the section is kept whole")
-			assert.Equal(t, tc.reason, kept.Reason)
-			assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, tc.code, tc.sev, "/components/mediaTypes"))
+			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+			assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+				"/components/mediaTypes"))
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+			assert.Equal(t, tc.version != "3.2.0",
+				openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, "/components/mediaTypes"),
+				"a field merged in through `<<` is written as the parser reads it")
 		})
 	}
 }

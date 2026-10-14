@@ -3356,11 +3356,11 @@ tags:
 	require.Len(t, got[0].Groups[0].Operations, 1, "the badge tag first in the operation's tags changed nothing")
 }
 
-// TestResponses_SummaryIsReadFor32Only pins GitHub #615's Response.summary: the
-// 3.2 field reaches Docs.Summary, and below 3.2 the same key is still a key the
-// dialect does not define, so it keeps warning rather than being silently
-// suppressed.
-func TestResponses_SummaryIsReadFor32Only(t *testing.T) {
+// TestResponses_SummaryIsReadAtEveryVersion pins GitHub #615's
+// Response.summary: the 3.2 field reaches Docs.Summary and is not also kept
+// verbatim or called undefined, and below 3.2 it reads the same while load adds
+// that the field is a later version's (GitHub #864).
+func TestResponses_SummaryIsReadAtEveryVersion(t *testing.T) {
 	t.Parallel()
 	const body = `  /a:
     get:
@@ -3370,28 +3370,22 @@ func TestResponses_SummaryIsReadFor32Only(t *testing.T) {
           summary: The item was deleted
           description: Long form.
 `
-	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-`+body)
-	openapitest.RequireNoErrorDiags(t, diags32)
-	resp32 := openapitest.FindOp(t, doc32, "a").Responses[0]
-	assert.Equal(t, "The item was deleted", resp32.Docs.Summary)
-	assert.Equal(t, "Long form.", resp32.Docs.Description)
-	assert.NotContains(t, resp32.Unmodeled, "openapi:summary",
-		"a key the dialect defines is read, not also kept verbatim")
-	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey),
-		"3.2 defines the key, so the census must not call it undefined")
-
-	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-`+body)
-	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
-		"below 3.2 the key is undefined and the warning is owed")
-	resp31 := openapitest.FindOp(t, doc31, "a").Responses[0]
-	assert.Empty(t, resp31.Docs.Summary, "nothing is invented for a version without the field")
-	assert.Contains(t, resp31.Unmodeled, "openapi:summary")
+	for _, version := range []string{"3.2.0", "3.1.0", "3.0.3"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := lowerServiceSpec(t, "openapi: "+version+"\ninfo: {title: T, version: \"1\"}\npaths:\n"+body)
+			openapitest.RequireNoErrorDiags(t, diags)
+			resp := openapitest.FindOp(t, doc, "a").Responses[0]
+			assert.Equal(t, "The item was deleted", resp.Docs.Summary)
+			assert.Equal(t, "Long form.", resp.Docs.Description)
+			assert.NotContains(t, resp.Unmodeled, "openapi:summary",
+				"a key the reader took is read, not also kept verbatim")
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
+				"the census must not call the field undefined")
+			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
+				"/paths/~1a/get/responses/204/summary"))
+		})
+	}
 }
 
 // TestResponses_SummaryNoReaderTakesIsStillReported pins the two summaries the
@@ -3446,10 +3440,11 @@ components:
 	assert.Equal(t, "As a sees it", openapitest.FindOp(t, doc, "a").Responses[0].Docs.Summary)
 }
 
-// TestXML_NodeTypeIsReadFor32Only pins the 3.2 XML nodeType: ir.XMLHints.NodeType
-// already existed and its GoDoc already named the version, so this is the wiring
-// — and below 3.2 the key keeps the warning it always drew.
-func TestXML_NodeTypeIsReadFor32Only(t *testing.T) {
+// TestXML_NodeTypeIsReadAtEveryVersion pins the 3.2 XML nodeType:
+// ir.XMLHints.NodeType already existed and its GoDoc already named the version,
+// so this is the wiring. Below 3.2 it reads the same, and load adds that the
+// field is a later version's (GitHub #864).
+func TestXML_NodeTypeIsReadAtEveryVersion(t *testing.T) {
 	t.Parallel()
 	const body = `    S:
       type: object
@@ -3458,35 +3453,23 @@ func TestXML_NodeTypeIsReadFor32Only(t *testing.T) {
           type: string
           xml: {nodeType: text}
 `
-	doc32, _, diags32 := lowerServiceSpec(t, `openapi: 3.2.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-`+body)
-	openapitest.RequireNoErrorDiags(t, diags32)
-	model, ok := doc32.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
-	require.True(t, ok)
-	prop, ok := openapitest.PropsByWire(model.Properties)["n"]
-	require.True(t, ok)
-	require.NotNil(t, prop.XML)
-	assert.Equal(t, "text", prop.XML.NodeType)
-	assert.False(t, openapitest.HasDiag(diags32, diag.UnknownObjectKey))
-
-	doc31, _, diags31 := lowerServiceSpec(t, `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  schemas:
-`+body)
-	assert.True(t, openapitest.HasDiag(diags31, diag.UnknownObjectKey),
-		"below 3.2 the XML object defines no nodeType and the warning is owed")
-	model31, ok := doc31.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
-	require.True(t, ok)
-	prop31, ok := openapitest.PropsByWire(model31.Properties)["n"]
-	require.True(t, ok)
-	require.NotNil(t, prop31.XML)
-	assert.Empty(t, prop31.XML.NodeType)
+	for _, version := range []string{"3.2.0", "3.1.0", "3.0.3"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := lowerServiceSpec(t, "openapi: "+version+
+				"\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n"+body)
+			openapitest.RequireNoErrorDiags(t, diags)
+			model, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Model)
+			require.True(t, ok)
+			prop, ok := openapitest.PropsByWire(model.Properties)["n"]
+			require.True(t, ok)
+			require.NotNil(t, prop.XML)
+			assert.Equal(t, "text", prop.XML.NodeType)
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct,
+				"/components/schemas/S/properties/n/xml/nodeType"))
+		})
+	}
 }
 
 // TestContent_UnkeepableMediaTypeRefIsReported pins the media type $ref that
@@ -3509,25 +3492,18 @@ func TestContent_UnkeepableMediaTypeRefIsReported(t *testing.T) {
 }
 
 // TestContent_MediaTypeRefIsKeptNotFollowed pins a content entry written as a
-// Reference Object while this compiler does not follow one (GitHub #856). On
-// 3.2, which allows it, the $ref and the summary beside it are kept verbatim and
-// one warning says the entry lowered as written; below 3.2 the $ref is a key
-// the dialect does not define, and the census says so.
+// Reference Object while this compiler does not follow one (GitHub #856): the
+// $ref and the summary beside it are kept verbatim and one warning says the
+// entry lowered as written. Below 3.2, which does not allow it, it lowers the
+// same, and load adds that the construct is a later version's (GitHub #864).
 func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
 	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/$ref"
-	for _, tc := range []struct {
-		version string
-		reason  ir.UnmodeledReason
-		code    string
-	}{
-		{"3.2.0", ir.ReasonDegradedLowering, diag.DegradedConstruct},
-		{"3.1.0", ir.ReasonOutOfScope, diag.UnknownObjectKey},
-	} {
-		t.Run(tc.version, func(t *testing.T) {
+	for _, version := range []string{"3.2.0", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(tc.version, `  /a:
+			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(version, `  /a:
     get:
       operationId: a
       parameters:
@@ -3543,12 +3519,58 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 `))
 			op := openapitest.FirstOp(t, svc)
 			content := op.Responses[0].Payload.Contents[0]
-			assert.Equal(t, tc.reason, content.Unmodeled["openapi:$ref"].Reason)
+			assert.Equal(t, ir.ReasonDegradedLowering, content.Unmodeled["openapi:$ref"].Reason)
 			assert.Contains(t, content.Unmodeled, "openapi:summary", "nothing beside the $ref is dropped")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, at), "got %v", diags)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "got %v", diags)
 			require.Len(t, op.Params, 1)
-			assert.Equal(t, tc.reason, op.Params[0].Unmodeled["openapi:content/application~1json/$ref"].Reason)
-			assert.True(t, openapitest.HasDiagCodeAt(diags, tc.code, paramAt))
+			assert.Equal(t, ir.ReasonDegradedLowering, op.Params[0].Unmodeled["openapi:content/application~1json/$ref"].Reason)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, paramAt))
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+			later := version != "3.2.0"
+			assert.Equal(t, later, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, at))
+			assert.Equal(t, later, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, paramAt))
+		})
+	}
+}
+
+// TestContent_MediaTypeDescriptionIsKept pins the description OpenAPI 3.2 gives
+// a Media Type Object, which the bundled model names no field for and
+// ir.Content has no docs to hold: at a body's content and at a parameter's, it
+// is kept verbatim with an info rather than called undefined. Below 3.2 it is
+// kept the same, and load adds that the field is a later version's.
+func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
+	t.Parallel()
+	const at = "/paths/~1a/get/responses/200/content/application~1json/description"
+	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/description"
+	for _, version := range []string{"3.2.0", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := lowerServiceSpec(t, openapitest.PathsSpecVer(version, `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {description: A filter., schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {description: The body., schema: {type: string}}
+`))
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := openapitest.FirstOp(t, svc)
+			kept := op.Responses[0].Payload.Contents[0].Unmodeled["openapi:description"]
+			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+			assert.JSONEq(t, `"The body."`, string(kept.Value))
+			require.Len(t, op.Params, 1)
+			assert.Equal(t, ir.ReasonNoIRHome,
+				op.Params[0].Unmodeled["openapi:content/application~1json/description"].Reason)
+			openapitest.AssertInfoDiagAt(t, diags, at)
+			openapitest.AssertInfoDiagAt(t, diags, paramAt)
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
+			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, at))
 		})
 	}
 }

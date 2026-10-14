@@ -432,15 +432,66 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 	assert.Zero(t, visited, "a failed match ends the walk rather than skipping one item")
 }
 
-// TestMetaSchemaVersionArtifacts_OtherMinorsUntouched pins the gate: only 3.2
-// findings are reconciled, because the library defaults to the 3.1 meta-schema
-// and reconciling 3.0 changes what a 3.0 document reports rather than removing a
-// false positive.
-func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
+// TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater pins the gate below
+// 3.2: what is taken over there is the refusal of a keyword laterConstructs
+// reported, so with none reported nothing is reconciled and neither run is
+// made. With one reported, what is dropped is exactly that keyword's finding.
+func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseSpec(t, minimal31)
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
+	for _, version := range []string{"3.1.0", "3.0.3"} {
+		spec := strings.Replace(defaultMapping32Spec, "openapi: 3.2.0", "openapi: "+version, 1)
+		doc, _ := parseSpec(t, spec)
+		minor, ok := SupportedMinor(version)
+		require.True(t, ok)
+		assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, minor, false))
+
+		dropped := metaSchemaVersionArtifacts(t.Context(), doc, minor, true)
+		require.Len(t, dropped, 1, "the defaultMapping finding, and nothing else")
+		for site := range dropped {
+			assert.Equal(t, validation.RuleValidationInvalidSchema, site.rule)
+		}
+	}
+}
+
+// laterKeywordsSpec holds two schemas: B, whose discriminator names no
+// propertyName, which the 3.1 meta-schema requires and 3.2's does not, and A,
+// written after B so that what A adds moves none of B's findings. A's xml and
+// discriminator objects end with xml and disc.
+func laterKeywordsSpec(version, xml, disc string) string {
+	return "openapi: " + version + `
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    B:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {mapping: {a: '#/components/schemas/A'}}
+    A:
+      type: object
+      properties: {kind: {type: string}}
+      xml: {name: a` + xml + `}
+      discriminator: {propertyName: kind` + disc + `}
+`
+}
+
+// TestMetaSchemaVersionArtifacts_ALaterKeywordChangesNoOtherFinding pins what
+// the reconciliation below 3.2 takes over: the meta-schema's refusal of a 3.2
+// keyword, and nothing else the two meta-schemas disagree on. B's missing
+// propertyName is a finding of the declared version, which a 3.2 keyword
+// written in A must not drop.
+func TestMetaSchemaVersionArtifacts_ALaterKeywordChangesNoOtherFinding(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.1.0", "3.0.3"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			without := validationAt(t, laterKeywordsSpec(version, "", ""))
+			require.Len(t, without, 2, "the meta-schema's and the model's report of B's propertyName: %v", without)
+			assert.Equal(t, without, validationAt(t, laterKeywordsSpec(version, ", nodeType: element", "")))
+			assert.Equal(t, without, validationAt(t, laterKeywordsSpec(version, "",
+				", defaultMapping: '#/components/schemas/A'")))
+		})
+	}
 }
 
 // countErrorsAt counts the error-severity diagnostics carrying code. Severity is

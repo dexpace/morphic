@@ -362,19 +362,6 @@ func (c Ctx) Is30() bool {
 	return minor == "3.0"
 }
 
-// Since32 reports whether this document's dialect is OpenAPI 3.2 or a later
-// one, which define fields the parser's model has no member for: a Response
-// Object's summary, an XML Object's nodeType, an Encoding Object's nested
-// encodings and components/mediaTypes. Each is read off the raw node, and the
-// census must be told so (GitHub #615); one answer keeps the two agreeing. It
-// names a floor rather than one version, so a later dialect inherits the reads
-// rather than silently warning about its own fields again; an unrecognized
-// version answers false, as Is30 does.
-func (c Ctx) Since32() bool {
-	minor, ok := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return ok && minor != "3.0" && minor != "3.1"
-}
-
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
 //

@@ -56,18 +56,38 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	return payload, diags
 }
 
-// keepMediaTypeRef keeps a content entry written as a Reference Object, which
-// OpenAPI 3.2 allows and this compiler does not follow yet (GitHub #856): the
-// `$ref` verbatim at the census's own entry, with a warning that the entry
-// lowers as written, and the summary and description a Reference Object may
-// write beside it verbatim too. Below 3.2 a `$ref` there is not the dialect's,
-// and the census reports it as undefined.
-func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
+// keepMediaTypeFields keeps what OpenAPI 3.2 lets a Media Type Object write
+// and the parser's model names no field for, at the census's own entries, so
+// the census does not call it undefined: a `$ref` (keepMediaTypeRef), or else a
+// description (keepMediaTypeDescription). Both are read at every version, as
+// load reports them below 3.2 (diag.LaterVersionConstruct).
+func keepMediaTypeFields(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	root := media.GetRootNode()
-	ref := annotation.RawChildNode(root, "$ref")
-	if ref == nil || !c.Since32() {
-		return nil
+	if ref := annotation.RawChildNode(root, "$ref"); ref != nil {
+		return keepMediaTypeRef(c, u, root, ref, mediaPtr, scope)
 	}
+	return keepMediaTypeDescription(c, u, root, mediaPtr, scope)
+}
+
+// keepMediaTypeDescription keeps a Media Type Object's description verbatim,
+// with an info. ir.Content has no docs field, hence ReasonNoIRHome.
+func keepMediaTypeDescription(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
+	at := mediaPtr + ids.Ptr("description")
+	kept, diags := schema.PreserveNode(c, u, annotation.EntryKey(scope, "description"),
+		annotation.RawChildNode(root, "description"), ir.ReasonNoIRHome, at)
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+		"a media type's description has no IR home; kept verbatim under Unmodeled"))
+}
+
+// keepMediaTypeRef keeps a content entry written as a Reference Object, which
+// this compiler does not follow yet (GitHub #856): ref, the `$ref` written on
+// root, verbatim at the census's own entry, with a warning that the entry
+// lowers as written, and the summary and description a Reference Object may
+// write beside it verbatim too.
+func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, root, ref *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, sibling := range []string{"summary", "description"} {
 		_, siblingDiags := schema.PreserveNode(c, u, annotation.EntryKey(scope, sibling),
@@ -117,7 +137,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorIndex
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	diags = append(diags, keepMediaTypeRef(c, &content.Unmodeled, media, mediaPtr, "")...)
+	diags = append(diags, keepMediaTypeFields(c, &content.Unmodeled, media, mediaPtr, "")...)
 	return content, append(diags,
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
 }
@@ -417,18 +437,15 @@ func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 // its own, so each reaches the IR in no modelled form.
 var nestedEncodingFields = []string{"encoding", "prefixEncoding", "itemEncoding"}
 
-// nestedEncodings keeps the nested Encoding Objects a 3.2 document writes,
-// verbatim under the scope the part's own entries ride on, one info each
-// (GitHub #615). Recording them at the census's own key and pointer suppresses
-// the `unknown-object-key` warning on 3.2 while keeping it below 3.2, where
-// these keys are misspellings.
+// nestedEncodings keeps the nested Encoding Objects OpenAPI 3.2 lets an
+// encoding write, verbatim under the scope the part's own entries ride on, one
+// info each (GitHub #615). Recording them at the census's own key and pointer
+// keeps the census from calling them undefined, at every version, as load
+// reports them below 3.2 (diag.LaterVersionConstruct).
 //
 // ReasonNoIRHome, since PartEncoding could grow the fields. Nothing is lowered:
 // a part inside a part has no shape here, and keeping the source is lossless.
 func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) []ir.Diagnostic {
-	if !c.Since32() {
-		return nil
-	}
 	var diags []ir.Diagnostic
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)
@@ -614,7 +631,7 @@ func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
 			carrier, field.keyword, home))
 	}
-	diags = append(diags, keepMediaTypeRef(c, &unmodeled, media, mediaPtr, scope)...)
+	diags = append(diags, keepMediaTypeFields(c, &unmodeled, media, mediaPtr, scope)...)
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
 	return examples, unmodeled,

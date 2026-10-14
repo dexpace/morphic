@@ -96,7 +96,7 @@ func TestMetaSchemaVersionArtifacts_ReconcilesOnlyWhatTheTwoRunsDisagreeOn(t *te
 	t.Parallel()
 	doc, _ := parseSpec(t, defaultMapping32Spec)
 
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2")
+	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2", false)
 	assert.NotEmpty(t, dropped, "the 3.2-only keyword is a finding the library raises alone")
 
 	atVersion := schemaFindings(t.Context(), soa.Walk(t.Context(), doc))
@@ -119,7 +119,7 @@ func TestMetaSchemaVersionArtifacts_AFindingBothRunsRaiseIsKept(t *testing.T) {
 		validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &doc.OpenAPI}))
 	require.NotEmpty(t, atVersion, "the invalid schema is a finding at 3.2 too")
 
-	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2")
+	dropped := metaSchemaVersionArtifacts(t.Context(), doc, "3.2", false)
 	for site := range atVersion {
 		assert.NotContains(t, dropped, site, "a real finding is never dropped as an artifact")
 	}

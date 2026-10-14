@@ -183,10 +183,7 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 	version := doc.OpenAPI
 	minor, _ := SupportedMinor(version) // Load refused an unsupported version before resolving
 	return &reached{
-		opts: []validation.Option{
-			validation.WithContextObject(doc),
-			validation.WithContextObject(&oas3.ParentDocumentVersion{OpenAPI: &version}),
-		},
+		opts:     documentOptions(doc),
 		version:  version,
 		minor:    minor,
 		limit:    limit,
@@ -242,7 +239,7 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 	artifacts := v.artifacts(ctx, t.obj)
 	var diags []ir.Diagnostic
 	for _, f := range found {
-		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[findingSite(verr)]) {
+		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[siteOf(verr)]) {
 			continue
 		}
 		if key := keyOf(f, t.site); !v.reported[key] {
@@ -289,7 +286,7 @@ func (v *reached) remaining(doc string) int {
 // artifacts returns the sites of the schema findings obj's validation raises
 // only because the library checked a schema against the wrong meta-schema, the
 // reconciliation metaSchemaVersionArtifacts makes for the source's.
-func (v *reached) artifacts(ctx context.Context, obj any) map[string]bool {
+func (v *reached) artifacts(ctx context.Context, obj any) map[findingSite]bool {
 	if v.minor != metaSchemaReconciledMinor {
 		return nil
 	}
