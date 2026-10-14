@@ -116,7 +116,8 @@ func HasError(diags []Diagnostic) bool {
 	return ok
 }
 
-// SourceInfo describes one input file of a Document.
+// SourceInfo describes one input file of a Document. The table a refused
+// compile's findings index names files nothing read, so it sets Path alone.
 type SourceInfo struct {
 	// Format names the format and version the file was read as, such as
 	// "openapi@3.2" or "overlay@1.0.0".

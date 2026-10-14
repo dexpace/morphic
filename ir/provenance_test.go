@@ -139,7 +139,7 @@ func TestSourceInfo_JSONEncodesSelfURI(t *testing.T) {
 		want string
 	}{
 		{
-			name: "declared $self",
+			name: "a declared $self writes selfURI",
 			info: ir.SourceInfo{
 				Format:  "openapi@3.2",
 				Path:    "openapi.yaml",

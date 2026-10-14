@@ -93,8 +93,8 @@ func TestParse_EndToEnd(t *testing.T) {
 }
 
 // TestParse_RecordsSelfURI pins that a declared `$self` reaches the source's
-// entry as written, at every minor, as every 3.2 field the parser models is
-// read (GitHub #864 asks whether a minor below 3.2 should be warned). A
+// entry as written, at every minor, as other 3.2 fields the parser models are
+// read (GitHub #864 asks whether a document below 3.2 should be warned). A
 // relative URI is not resolved against the source's path, and an empty or null
 // `$self` records nothing, which is what declaring none records.
 func TestParse_RecordsSelfURI(t *testing.T) {
