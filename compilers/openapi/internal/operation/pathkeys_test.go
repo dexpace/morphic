@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -136,6 +137,30 @@ func TestPathKeys_FragmentIsLeftToGitHub602(t *testing.T) {
 			msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, tc.ptr)
 			assert.Equal(t, tc.msg, msg, "the fragment's own characters are not named")
 		})
+	}
+}
+
+// TestPathKeys_KeyIsReadWhateverItsItemLowers pins that a key is judged before
+// its path item resolves: one whose $ref resolves to nothing, one holding an
+// empty item and one whose item declares no operation are each reported,
+// though none reaches the IR as a binding.
+func TestPathKeys_KeyIsReadWhateverItsItemLowers(t *testing.T) {
+	t.Parallel()
+	spec := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  "a b": {$ref: '#/components/pathItems/missing'}
+  "c d": {}
+  "e f":
+    parameters: [{name: x, in: query, schema: {type: string}}]
+components: {pathItems: {}}
+`
+	_, _, diags := lowerServiceSpec(t, spec)
+	require.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/paths/a b"),
+		"the $ref must be the unresolved one this case is about; got %+v", diags)
+	for _, ptr := range []string{"/paths/a b", "/paths/c d", "/paths/e f"} {
+		msg := openapitest.DiagMessageAt(t, diags, diag.InvalidPathKey, ir.SeverityWarning, ptr)
+		assert.Contains(t, msg, `does not begin with "/"; contains " "`)
 	}
 }
 
