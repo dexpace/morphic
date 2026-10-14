@@ -2254,18 +2254,20 @@ lowers without what it names. A Media Type Object's `description` is kept the sa
 **A construct a later minor adds.** A document may write a field, or one value of a field, that a
 later minor of its format added to the object it sits on: a `name` on an OpenAPI 3.1 Server Object,
 `in: querystring` on a 3.0 Parameter Object. It lowers exactly as in a document declaring the minor
-that added it, and is reported once, at its own key, as `openapi/later-version-construct`. The
-format gives the construct no other meaning, so the lowering asserts nothing the document does not
-write, and it loses the least: from the lowering and the diagnostic a consumer can still set the
-construct aside, while from a verbatim copy it could not rebuild the operation a `query` key
-declares. It is a warning, as `unknown-object-key` is — an OpenAPI object's key set is closed, so
-the document is invalid for the version it declares, but it still lowers — and a consumer that wants
-it refused has `--fail-on warning`. The rule covers constructs a minor *added*, including the
-Reference Object's `summary` and `description`, which 3.1 added and which §12.2 folds at every
-version: 3.0 admits no key beside a `$ref` and says one SHALL be ignored, so a 3.0 document writing
-one is warned that it was read as 3.1 reads it. A keyword whose meaning differs between minors, such
-as `exclusiveMinimum`, follows the declared one, and a keyword a later minor removed is another
-question (GitHub #632).
+that added it, and is reported once, at its own key, as `openapi/later-version-construct`. That
+reading loses the least: from the lowering and the diagnostic a consumer can still set the construct
+aside, while from a verbatim copy it could not rebuild the operation a `query` key declares. Except
+in the one case set out below, the declared minor gives the construct no meaning at all, so the
+lowering asserts nothing the document does not write. It is a warning, as `unknown-object-key` is —
+an OpenAPI object's key set is closed, so the document is invalid for the version it declares, but
+it still lowers — and a consumer that wants it refused has `--fail-on warning`. The rule covers
+constructs a minor *added*, including the Reference Object's `summary` and `description`, which 3.1
+added and which §12.2 folds at every version. That is the one case: 3.0 admits no key beside a
+`$ref` and says one SHALL be ignored, so a 3.0 document writing one is warned that it was read as
+3.1 reads it. Beside a schema's `$ref` 3.1 admits any keyword, which no row of the table expresses,
+so a 3.0 schema's `$ref` siblings are GitHub #871's question. A keyword whose meaning differs
+between minors, such as `exclusiveMinimum`, follows the declared one, and a keyword a later minor
+removed is another question (GitHub #632).
 
 Whether a construct is a later minor's is asked in one place: the load phase holds every object the
 source writes to one table of what each minor added, and no lowering asks it, so no field's
@@ -2273,8 +2275,9 @@ treatment can depend on whether the parser happens to model it. Where the parser
 construct itself — a Path Item's `additionalOperations` below 3.2, a schema keyword the 3.1
 meta-schema forbids — the compiler takes the refusal over, and where refusing made the parser skip
 checking what the construct holds, as inside `additionalOperations`, runs those checks itself. The
-table covers the source document; the minor that governs a document a reference reaches is GitHub
-#839's to settle, and a JSON Schema 2020-12 keyword in a 3.0 schema is GitHub #820's.
+table and the takeover both cover the source document: in a document a reference reaches, the
+parser's own treatment stands, and the minor that governs such a document is GitHub #839's to
+settle. A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub #820's.
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no

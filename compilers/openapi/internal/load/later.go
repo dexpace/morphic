@@ -226,8 +226,9 @@ func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 
 // referenceOf names a model written as a $ref a Reference Object, with the
 // mapping the $ref is written on. A Path Item's $ref is a field of the Path
-// Item, beside which its own fields stand, and a schema's is a JSON Schema
-// keyword (GitHub #820), so neither is a Reference Object.
+// Item, beside which its own fields stand, so it is none. A schema's is one in
+// 3.0, but 3.1 admits any keyword beside it, which no row expresses (GitHub
+// #871), so it is judged as none here.
 func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
 	switch w.(type) {
 	case *soa.ReferencedPathItem, *oas3.JSONSchema[oas3.Referenceable]:

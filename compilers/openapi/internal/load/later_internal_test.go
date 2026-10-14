@@ -207,7 +207,7 @@ components:
 
 // referenceSiblingsSpec writes summary or description beside a $ref at every
 // position a Reference Object stands, beside a Path Item's $ref, whose own
-// fields those are, and beside a schema's, which is a JSON Schema keyword.
+// fields those are, and beside a schema's, which GitHub #871 owns.
 const referenceSiblingsSpec = `info: {title: T, version: "1"}
 paths:
   /a:
@@ -257,7 +257,8 @@ components:
 // Object's summary and description, which 3.1 added: below 3.1 each is reported
 // at its own key at every position a Reference Object stands, though the
 // lowering folds it over the target's docs at every version (ir-design §12.2).
-// A Path Item's $ref and a schema's are not Reference Objects.
+// A Path Item's $ref is not a Reference Object, and a schema's is not judged
+// here (GitHub #871).
 func TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	t.Parallel()
 	got := laterAt(t, "openapi: 3.0.3\n"+referenceSiblingsSpec)
