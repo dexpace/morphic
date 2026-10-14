@@ -2866,9 +2866,10 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
 	assertWebhookGroupIsAHint(t, doc)
 
-	// Keys a template reader would misread: braces that are part of the name,
-	// and the empty key. Neither declares an operationId, so the hint is built
-	// from the method and the key.
+	// Two keys a URI template would misstate: braces that belong to the event's
+	// name, and the empty key, which names nothing. Neither declares an
+	// operationId, so the hint is built from the method and the key.
+	ops := allOperations(doc)
 	for _, hook := range []struct {
 		id        ir.OpID
 		key, hint string
@@ -2876,7 +2877,6 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{"op/openapi/webhooks/{tenant}.created/post", "{tenant}.created", "post_tenant_created"},
 		{"op/openapi/webhooks//post", "", "post"},
 	} {
-		ops := allOperations(doc)
 		i := slices.IndexFunc(ops, func(op ir.Operation) bool { return op.ID == hook.id })
 		require.GreaterOrEqual(t, i, 0, "the webhook keyed %q is mounted", hook.key)
 		require.Len(t, ops[i].Bindings.HTTP, 1)
