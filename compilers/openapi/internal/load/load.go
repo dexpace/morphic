@@ -506,11 +506,12 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 //
 // The library defaults to the 3.1 meta-schema when no version reaches schema
 // validation (jsonschema/oas3/validation.go), so a 3.1 document is checked
-// correctly by accident and needs no reconciling. A 3.0 document is mis-checked
-// in the other direction, and is deliberately left alone: the 3.0 meta-schema
-// words the same defect differently and raises findings 3.1 does not, so
-// reconciling it is a change to what a 3.0 document reports rather than the
-// removal of a false positive, and belongs to its own change.
+// correctly by accident. A 3.0 document is mis-checked in the other direction,
+// and is deliberately left alone: the 3.0 meta-schema words the same defect
+// differently and raises findings 3.1 does not, so reconciling it is a change
+// to what a 3.0 document reports rather than the removal of a false positive,
+// and belongs to its own change. Below this minor, only the refusal of a
+// keyword it added is reconciled (metaSchemaVersionArtifacts).
 const metaSchemaReconciledMinor = "3.2"
 
 // metaSchemaVersionArtifacts returns the schema findings the library raised
@@ -539,8 +540,8 @@ func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, minor str
 	return artifacts
 }
 
-// schemaArtifacts returns the findings sites schema validation raises over the
-// walk as the library checks and not when checked at version (see
+// schemaArtifacts returns the sites of the findings schema validation raises
+// over the walk as the library checks and not when checked at version (see
 // metaSchemaVersionArtifacts). walk is called once per run, so each run gets a
 // walk of its own.
 func schemaArtifacts(ctx context.Context, walk func() iter.Seq[soa.WalkItem], version string) map[findingSite]bool {
