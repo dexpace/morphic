@@ -45,6 +45,7 @@ paths:
               itemSchema: {$ref: '#/components/schemas/Book'}
               examples:
                 one: {dataValue: {title: Dune}, serializedValue: '{"title":"Dune"}'}
+        "404": {$ref: '#/components/responses/NotFound', summary: No such book.}
     post:
       operationId: addBooks
       requestBody:
@@ -63,6 +64,7 @@ paths:
                 itemEncoding: {contentType: image/png}
           application/json:
             $ref: '#/components/mediaTypes/Book'
+            description: The book to add.
       responses: {"201": {description: added}}
 webhooks:
   bookAdded:
@@ -75,6 +77,8 @@ components:
       get:
         operationId: health
         responses: {"200": {description: ok}}
+  responses:
+    NotFound: {description: not found}
   mediaTypes:
     Book:
       schema: {$ref: '#/components/schemas/Book'}

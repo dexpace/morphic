@@ -42,6 +42,10 @@ func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.True(t, ok)
 	assert.Equal(t, ir.HTTPLocationQuerystring, list.Bindings.HTTP[0].ParamBindings[0].Location)
 	assert.Equal(t, "The books.", list.Responses[0].Docs.Summary)
+	require.Len(t, list.Errors, 1)
+	assert.Equal(t, ir.Docs{Summary: "No such book.", Description: "not found"}, list.Errors[0].Docs,
+		"a Reference Object's summary folds over the target's docs, as in 3.1")
+	assert.Equal(t, ir.ReasonOutOfScope, doc.Unmodeled["openapi:jsonSchemaDialect"].Reason)
 
 	item, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/Item")].(*ir.Model)
 	require.True(t, ok)

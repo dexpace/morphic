@@ -13,6 +13,7 @@ import (
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -56,6 +57,8 @@ var laterFixtureSites = map[addition]jsontext.Pointer{
 	{oauthFlowsObject, "deviceAuthorization", "", "3.2"}:   "/components/securitySchemes/device/flows/deviceAuthorization",
 	{discriminatorObject, "defaultMapping", "", "3.2"}:     "/components/schemas/Item/discriminator/defaultMapping",
 	{xmlObject, "nodeType", "", "3.2"}:                     "/components/schemas/Item/xml/nodeType",
+	{referenceObject, "summary", "", "3.1"}:                "/paths/~1books/get/responses/404/summary",
+	{referenceObject, "description", "", "3.1"}:            "/paths/~1books/post/requestBody/content/application~1json/description",
 }
 
 // cookieStyle is the one addition laterFixture does not write: the bundled
@@ -200,6 +203,101 @@ components:
 		"/components/parameters/Unused/in",
 		"/components/responses/Ok/summary",
 	}, slices.Sorted(maps.Keys(got)))
+}
+
+// referenceSiblingsSpec writes summary or description beside a $ref at every
+// position a Reference Object stands, beside a Path Item's $ref, whose own
+// fields those are, and beside a schema's, which is a JSON Schema keyword.
+const referenceSiblingsSpec = `info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {$ref: '#/components/parameters/P', description: d}
+      requestBody: {$ref: '#/components/requestBodies/B', description: d}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X: {$ref: '#/components/headers/H', description: d}
+          links:
+            l: {$ref: '#/components/links/L', description: d}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/S', description: d}
+              examples:
+                e: {$ref: '#/components/examples/E', summary: s}
+        "201": {$ref: '#/components/responses/R', summary: s}
+      callbacks:
+        c: {$ref: '#/components/callbacks/C', summary: s}
+  /b: {$ref: '#/paths/~1a', summary: s}
+components:
+  schemas:
+    S: {type: string}
+  parameters:
+    P: {name: p, in: query, schema: {type: string}}
+  requestBodies:
+    B: {content: {text/plain: {schema: {type: string}}}}
+  headers:
+    H: {schema: {type: string}}
+  links:
+    L: {operationId: g}
+  examples:
+    E: {value: 1}
+  responses:
+    R: {description: r}
+  callbacks:
+    C: {'{$request.body#/u}': {post: {responses: {"200": {description: ok}}}}}
+  securitySchemes:
+    K: {type: apiKey, name: k, in: header}
+    Alias: {$ref: '#/components/securitySchemes/K', description: d}
+`
+
+// TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys pins the Reference
+// Object's summary and description, which 3.1 added: below 3.1 each is reported
+// at its own key at every position a Reference Object stands, though the
+// lowering folds it over the target's docs at every version (ir-design §12.2).
+// A Path Item's $ref and a schema's are not Reference Objects.
+func TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
+	t.Parallel()
+	got := laterAt(t, "openapi: 3.0.3\n"+referenceSiblingsSpec)
+	assert.Equal(t, []jsontext.Pointer{
+		"/components/securitySchemes/Alias/description",
+		"/paths/~1a/get/callbacks/c/summary",
+		"/paths/~1a/get/parameters/0/description",
+		"/paths/~1a/get/requestBody/description",
+		"/paths/~1a/get/responses/200/content/application~1json/examples/e/summary",
+		"/paths/~1a/get/responses/200/headers/X/description",
+		"/paths/~1a/get/responses/200/links/l/description",
+		"/paths/~1a/get/responses/201/summary",
+	}, slices.Sorted(maps.Keys(got)))
+	for at, message := range got {
+		assert.Contains(t, message, "of the Reference Object was added in OpenAPI 3.1", at)
+	}
+	assert.Empty(t, laterAt(t, "openapi: 3.1.0\n"+referenceSiblingsSpec))
+}
+
+// bareReference is a $ref model with no core to read, and coredReference one
+// whose core holds no mapping: shapes no library model takes, which ownRoot
+// must still answer for rather than fault on.
+type (
+	bareReference  struct{}
+	coredReference struct{ core any }
+)
+
+func (bareReference) GetRootNode() *yaml.Node  { return nil }
+func (bareReference) IsReference() bool        { return true }
+func (coredReference) GetRootNode() *yaml.Node { return nil }
+func (coredReference) IsReference() bool       { return true }
+func (r coredReference) GetCoreAny() any       { return r.core }
+
+// TestOwnRoot_AModelWithNoReadableCoreHasNone pins ownRoot's two guards: a $ref
+// whose own mapping cannot be read is judged on no keys, so nothing is reported
+// for it, rather than on the target's.
+func TestOwnRoot_AModelWithNoReadableCoreHasNone(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, ownRoot(bareReference{}))
+	assert.Nil(t, ownRoot(coredReference{core: 42}))
 }
 
 // TestLaterConstructs_ARefIsNotJudgedOnceResolved pins the $ref guard where it

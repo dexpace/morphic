@@ -165,6 +165,26 @@
                       }
                     }
                   ],
+                  "errors": [
+                    {
+                      "name": {
+                        "hint": "404"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 404,
+                            "to": 404
+                          }
+                        ]
+                      },
+                      "fault": "client",
+                      "docs": {
+                        "summary": "No such book.",
+                        "description": "not found"
+                      }
+                    }
+                  ],
                   "oneWay": false,
                   "streaming": "server",
                   "responseStream": {
@@ -369,6 +389,14 @@
                         "provenance": {
                           "source": 0,
                           "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+                        }
+                      },
+                      "openapi:description": {
+                        "reason": "no_ir_home",
+                        "value": "The book to add.",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
                         }
                       }
                     }
@@ -857,6 +885,14 @@
         "source": 0,
         "pointer": "/components/pathItems/Health"
       }
+    },
+    "openapi:jsonSchemaDialect": {
+      "reason": "out_of_scope",
+      "value": "https://spec.openapis.org/oas/3.1/dialect/base",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect"
+      }
     }
   },
   "diagnostics": [
@@ -1016,6 +1052,15 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
+      "message": "field \"summary\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/get/responses/404/summary"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
       "message": "field \"itemEncoding\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.2 document",
       "provenance": {
         "source": 0,
@@ -1065,6 +1110,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"description\" of the Reference Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
       }
     },
     {
@@ -1210,13 +1264,22 @@
         "source": 0,
         "pointer": "/components/mediaTypes"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no dialect, so it is kept verbatim under Unmodeled and every schema is read in the OpenAPI dialect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/jsonSchemaDialect"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.0",
       "path": "later-version-constructs.yaml",
-      "hash": "d735afba82cc8873714947e366c72d6a246cc505207fe6465d778cf71bc521ed",
+      "hash": "909692498bfb054ffb0ab0f6d45b219439a2a55bce31b9371eb847d77deb318c",
       "selfURI": "https://example.com/api/openapi.yaml"
     }
   ]

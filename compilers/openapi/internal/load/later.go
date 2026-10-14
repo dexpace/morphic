@@ -36,6 +36,7 @@ const (
 	oauthFlowsObject     = "OAuth Flows Object"
 	discriminatorObject  = "Discriminator Object"
 	xmlObject            = "XML Object"
+	referenceObject      = "Reference Object"
 )
 
 // addition is one construct an OpenAPI minor after 3.0 added to an object: a
@@ -56,11 +57,10 @@ func (a addition) inSchema() bool {
 
 // additions is every construct OpenAPI 3.1 and 3.2 added to an object, a
 // schema's own keywords aside (GitHub #820). It is the difference between the
-// specification's published schemas of consecutive minors, less two keys no
-// minor added. A Reference Object's summary and description are keys 3.0
-// defines as ignored (GitHub #866). A Header Object's allowReserved is the
-// Parameter Object's, which every minor's text gives a header though the 3.1
-// schema omits it; where it applies is GitHub #628's question.
+// specification's published schemas of consecutive minors, less a Header
+// Object's allowReserved: that is the Parameter Object's, which every minor's
+// text gives a header though the 3.1 schema omits it, and where it applies is
+// GitHub #628's question.
 var additions = []addition{
 	{openAPIObject, "jsonSchemaDialect", "", "3.1"},
 	{openAPIObject, "webhooks", "", "3.1"},
@@ -94,6 +94,8 @@ var additions = []addition{
 	{oauthFlowsObject, "deviceAuthorization", "", "3.2"},
 	{discriminatorObject, "defaultMapping", "", "3.2"},
 	{xmlObject, "nodeType", "", "3.2"},
+	{referenceObject, "summary", "", "3.1"},
+	{referenceObject, "description", "", "3.1"},
 }
 
 // laterReport is what laterConstructs found: one diagnostic per construct, and
@@ -127,13 +129,9 @@ func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa
 		if object == openAPIObject {
 			site = "" // the walk spells the root "/", which names the key ""
 		}
-		for _, pair := range view.MappingPairs(root) {
-			for _, a := range pending {
-				if a.object == object && a.key == pair.Key && a.writtenAs(pair.Val) {
-					out.diags = append(out.diags, laterDiag(at(site.AppendToken(pair.Key)), a, declared))
-					out.inSchema = out.inSchema || a.inSchema()
-				}
-			}
+		for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
+			out.diags = append(out.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
+			out.inSchema = out.inSchema || a.inSchema()
 		}
 		return nil
 	})
@@ -147,6 +145,28 @@ func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa
 // or none for a version the compiler does not read, which Load refuses first.
 func addedAfter(declared string) []addition {
 	return slices.DeleteFunc(slices.Clone(additions), func(a addition) bool { return !before(declared, a.since) })
+}
+
+// writtenOn returns the pending additions pairs write, the effective pairs of one
+// object. A Media Type Object written as a $ref, which 3.2 allows, is a
+// Reference Object: its $ref is the Media Type's addition, and every key beside
+// it is the Reference Object's.
+func writtenOn(object string, pairs []nodeview.Pair, pending []addition) []addition {
+	asReference := object == mediaTypeObject &&
+		slices.ContainsFunc(pairs, func(p nodeview.Pair) bool { return p.Key == "$ref" })
+	var out []addition
+	for _, pair := range pairs {
+		owner := object
+		if asReference && pair.Key != "$ref" {
+			owner = referenceObject
+		}
+		for _, a := range pending {
+			if a.object == owner && a.key == pair.Key && a.writtenAs(pair.Val) {
+				out = append(out, a)
+			}
+		}
+	}
+	return out
 }
 
 // before reports whether declared is a version the compiler reads whose minor
@@ -189,12 +209,12 @@ type referenceWrapper interface {
 
 // laterObject names the object a walked model is, for the objects additions
 // has rows for, with the mapping its keys are written on. A model written as a
-// $ref names none: its siblings are a Reference Object's, not the object's.
+// $ref is the Reference Object (referenceOf), never the object it names.
 func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 	object := plainObject(m)
 	if w, ok := m.(referenceWrapper); ok {
 		if w.IsReference() {
-			return "", nil, false
+			return referenceOf(w)
 		}
 		object = wrappedObject(w)
 	}
@@ -202,6 +222,33 @@ func laterObject(m rootNoder) (string, *yaml.Node, bool) {
 		return "", nil, false
 	}
 	return object, nodeview.DocumentRoot(m.GetRootNode()), true
+}
+
+// referenceOf names a model written as a $ref a Reference Object, with the
+// mapping the $ref is written on. A Path Item's $ref is a field of the Path
+// Item, beside which its own fields stand, and a schema's is a JSON Schema
+// keyword (GitHub #820), so neither is a Reference Object.
+func referenceOf(w referenceWrapper) (string, *yaml.Node, bool) {
+	switch w.(type) {
+	case *soa.ReferencedPathItem, *oas3.JSONSchema[oas3.Referenceable]:
+		return "", nil, false
+	default:
+		return referenceObject, nodeview.DocumentRoot(ownRoot(w)), true
+	}
+}
+
+// ownRoot is the mapping a $ref is written on, which the reference's core holds:
+// the model's own GetRootNode answers with the target's.
+func ownRoot(w referenceWrapper) *yaml.Node {
+	holder, ok := w.(interface{ GetCoreAny() any })
+	if !ok {
+		return nil
+	}
+	core, ok := holder.GetCoreAny().(rootNoder)
+	if !ok {
+		return nil
+	}
+	return core.GetRootNode()
 }
 
 // wrappedObject names the object a model that may stand for a $ref is, or ""
