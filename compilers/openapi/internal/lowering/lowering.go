@@ -128,7 +128,7 @@ type Ctx struct {
 	// WithLoaded and nil in a context given none. It sits behind one pointer
 	// because RefScope copies the whole context into a closure for every
 	// reference a lowering reads, and with it every word the context holds.
-	loaded *loaded
+	loaded *loadResult
 
 	// typePositions remembers each answer TypePosition read. Copies share it on
 	// purpose, as they share defsReader: an answer reads only the document and
@@ -143,12 +143,12 @@ type Ctx struct {
 	reached *resolve.Reached
 }
 
-// loaded is the load phase's answers a context reads (see WithLoaded): the
-// fields its path items write beside their $refs, and the readings RefScope
+// loadResult holds what a context reads of the load phase (see WithLoaded): the
+// fields the path items write beside their $refs, and the readings RefScope
 // hands every scope over them and over the schemas the document's
 // discriminator mapping targets name. The readings are bound once, here:
 // binding them in RefScope would allocate each time.
-type loaded struct {
+type loadResult struct {
 	siblings load.Siblings
 	// reads holds those readings in the scope fields they fill: Mapped, Built
 	// and Holds over the mapping targets, Beside and Writes over siblings.
@@ -248,7 +248,7 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // one without the other. The copy remembers no TypePosition answer of c's,
 // which read c's targets.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loaded{siblings: doc.Siblings, reads: resolve.Scope{Mapped: doc.Targets.At, Built: doc.Targets.Built,
+	c.loaded = &loadResult{siblings: doc.Siblings, reads: resolve.Scope{Mapped: doc.Targets.At, Built: doc.Targets.Built,
 		Holds: doc.Targets.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes}}
 	c.typePositions = map[typePositionKey]typePositionAt{}
 	return c

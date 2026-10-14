@@ -59,8 +59,9 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathIt
 	if !resolve.Chained[soa.PathItem](rp) {
 		return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
 	}
-	// A scope a layer or Hops keeps outlives the call, taking the context's
-	// closures with it, so each is read where it is kept, not for every mount.
+	// A scope a layer or Hops keeps outlives the call, and with it the closure
+	// over a copy of the context it holds, so each is read where it is kept,
+	// not for every mount.
 	for _, hop := range resolve.Hops[soa.PathItem](use.RefScope(), rp) {
 		visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
 		last = hop.Ref
