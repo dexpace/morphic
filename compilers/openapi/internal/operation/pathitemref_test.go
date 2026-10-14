@@ -617,7 +617,7 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken),
 		"the referent's key is not written, so nothing is left to say it was dropped")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning,
-		"/paths/~1a/parameters/0"), `the parameter "dup" in query here`, "a parameter is named as written")
+		"/paths/~1a/parameters/0"), `the parameter "dup" in query is declared here`, "a parameter is named as written")
 	require.Len(t, getA.Params, 1, "the referent's parameter is not lowered beside the use site's")
 	assert.Equal(t, ir.TypeID("t/prim/string"), getA.Params[0].Type.Target, "the use site's is the one kept")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/parameters/0"), getA.Params[0].Provenance.Pointer)
@@ -1020,7 +1020,9 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 	var collided []string
 	for _, d := range diags {
 		if d.Code == diag.PathItemRefCollision {
-			collided = append(collided, string(d.Provenance.Pointer)+" "+d.Message[strings.Index(d.Message, "declares at ")+len("declares at "):strings.Index(d.Message, ";")])
+			_, other, _ := strings.Cut(d.Message, "and again at ")
+			other, _, _ = strings.Cut(other, " in the item")
+			collided = append(collided, string(d.Provenance.Pointer)+" "+other)
 		}
 	}
 	slices.Sort(collided)
@@ -1230,7 +1232,7 @@ paths:
 	require.NotNil(t, doc)
 
 	message := openapitest.DiagMessageAt(t, diags, diag.PathItemRefCollision, ir.SeverityWarning, "/paths/~1a/get")
-	assert.Contains(t, message, "at ./item.yaml#/get;", "the position is the fragment of the document named")
+	assert.Contains(t, message, "again at ./item.yaml#/get in", "the position is the fragment of the document named")
 }
 
 // TestPathItemRefSiblings_AnAliasDeclaresAtItsOwnPosition pins where an alias

@@ -30,8 +30,12 @@ const refKey = "$ref"
 // source, so their references resolve, and their findings are reported, as the
 // document's own are. The zero value holds none.
 type Siblings struct {
-	byNode map[*yaml.Node]int
-	list   []Sibling
+	// byNode is each modelled use site's index in list, by the mapping it is
+	// written as, and faulted each use site the parser faulted on, whose fault
+	// is reported once.
+	byNode  map[*yaml.Node]int
+	faulted map[*yaml.Node]bool
+	list    []Sibling
 	// at holds every position the walk met a modelled use site at, an alias's
 	// included, with that use site's model.
 	at *sites
@@ -87,7 +91,7 @@ func (s Siblings) Of(rp *soa.ReferencedPathItem) (Sibling, bool) {
 		return Sibling{}, false
 	}
 	i, ok := s.byNode[useSite(rp)]
-	if !ok || i < 0 {
+	if !ok {
 		return Sibling{}, false
 	}
 	return s.list[i], true
@@ -102,7 +106,7 @@ func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
 		return false
 	}
 	node := useSite(rp)
-	if _, met := s.byNode[node]; met {
+	if _, met := s.byNode[node]; met || s.faulted[node] {
 		return false
 	}
 	return writesBeside(node)
@@ -181,19 +185,23 @@ func unreported(errs, valErrs []error) []error {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
 ) (Siblings, []error, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}, at: &sites{}}
+	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{}}
 	var errs []error
 	var faults []ir.Diagnostic
-	for next := 0; next <= len(s.list) && next < sourceindex.MaxIndexedNodes; next++ {
-		if next > 0 {
-			items = s.walkOf(ctx, next-1)
-		}
-		if _, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
+	search := func(items iter.Seq[soa.WalkItem]) bool {
+		_, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
 			built, fault := s.add(ctx, site, rp, build, locate)
 			errs = append(errs, built...)
 			faults = append(faults, fault...)
 			return nil
-		}); err != nil {
+		})
+		return err == nil
+	}
+	if !search(items) {
+		return s, errs, faults
+	}
+	for i := 0; i < len(s.list) && i < sourceindex.MaxIndexedNodes; i++ {
+		if !search(s.modelWalk(ctx, i)) {
 			break
 		}
 	}
@@ -212,10 +220,11 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 		return nil, nil
 	}
 	node := useSite(rp)
+	if s.faulted[node] {
+		return nil, nil
+	}
 	if i, seen := s.byNode[node]; seen {
-		if i >= 0 {
-			s.at.insert(site, i)
-		}
+		s.at.insert(site, i)
 		return nil, nil
 	}
 	fields, ok := withoutRef(node)
@@ -224,7 +233,7 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 	}
 	item, errs, err := build(ctx, fields)
 	if err != nil {
-		s.byNode[node] = -1 // met, so the fault is reported once
+		s.faulted[node] = true
 		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, locate(node),
 			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
 	}
@@ -309,10 +318,11 @@ func siblingModel(doc *soa.OpenAPI) siblingBuild {
 	}
 }
 
-// walkOf returns the walk of the i-th model, located where its use site writes
-// it, less the wrapper the walk starts from, which the source does not write.
-// A model found inside it is not entered: siblingsFrom queues each in turn.
-func (s Siblings) walkOf(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
+// modelWalk returns the walk of the i-th model, located where its use site
+// writes it, less the wrapper the walk starts from, which the source does not
+// write. A model found inside it is not entered: siblingsFrom queues each in
+// turn.
+func (s Siblings) modelWalk(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
 	prefix := locationOf(s.list[i].Pointer)
 	start := &soa.ReferencedPathItem{Object: s.list[i].Item}
 	return func(yield func(soa.WalkItem) bool) {
@@ -339,7 +349,7 @@ func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.
 // interleaved yields items and, after each $ref whose fields were modelled where
 // the walk meets it, that model's walk, interleaved alike. The open walks are a
 // stack rather than a recursion, and each model is entered once, at the one
-// position it was found at, so the stack holds at most one walk per model.
+// position it was found at, so the stack never holds more walks than models.
 func (s Siblings) interleaved(ctx context.Context, items iter.Seq[soa.WalkItem]) iter.Seq[soa.WalkItem] {
 	return func(yield func(soa.WalkItem) bool) {
 		var open []func() (soa.WalkItem, bool)
@@ -364,7 +374,7 @@ func (s Siblings) interleaved(ctx context.Context, items iter.Seq[soa.WalkItem])
 				return
 			}
 			if i, entered := s.entry(item); entered {
-				push(s.walkOf(ctx, i))
+				push(s.modelWalk(ctx, i))
 			}
 		}
 	}
@@ -373,14 +383,11 @@ func (s Siblings) interleaved(ctx context.Context, items iter.Seq[soa.WalkItem])
 // entry returns the model of the fields beside the $ref item is, when item is
 // met at the position that model was found at.
 func (s Siblings) entry(item soa.WalkItem) (int, bool) {
-	if len(s.list) == 0 {
-		return 0, false
-	}
 	at, entered := 0, false
 	// Match returns only what its matcher does, and this one never fails.
 	_ = item.Match(soa.Matcher{ReferencedPathItem: func(rp *soa.ReferencedPathItem) error {
 		i, ok := s.byNode[useSite(rp)]
-		entered = ok && i >= 0 && s.list[i].Pointer == jsontext.Pointer(item.Location.ToJSONPointer())
+		entered = ok && s.list[i].Pointer == jsontext.Pointer(item.Location.ToJSONPointer())
 		at = i
 		return nil
 	}})

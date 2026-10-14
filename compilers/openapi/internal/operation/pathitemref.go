@@ -131,17 +131,17 @@ func itemConstructs(l layer, docs bool) []itemConstruct {
 	}
 	for _, f := range pathItemDocFields {
 		if docs && declaresText(l.item, f.keyword) {
-			add(constructDoc, f.keyword, f.keyword, ids.Ptr(f.keyword))
+			add(constructDoc, f.keyword, "the "+f.keyword, ids.Ptr(f.keyword))
 		}
 	}
 	if len(l.item.GetServers()) > 0 {
-		add(constructServers, "", "servers", ids.Ptr("servers"))
+		add(constructServers, "", "the servers list", ids.Ptr("servers"))
 	}
 	for _, name := range extensionNames(l.item) {
-		add(constructExtension, name, "an extension named "+strconv.Quote(name), ids.Ptr(name))
+		add(constructExtension, name, "the extension "+strconv.Quote(name), ids.Ptr(name))
 	}
 	for _, key := range slices.Sorted(slices.Values(undeclaredPathItemKeys(l.item))) {
-		add(constructKey, key, "an undeclared key named "+strconv.Quote(key), ids.Ptr(key))
+		add(constructKey, key, "the undeclared key "+strconv.Quote(key), ids.Ptr(key))
 	}
 	for i, rp := range l.item.GetParameters() {
 		if key, ok := paramKey(rp); ok {
@@ -216,8 +216,8 @@ func precedence(layers []layer, docs bool) (owners, []ir.Diagnostic) {
 			for j := i + 1; j < len(layers); j++ {
 				if other, ok := first[j][d.key]; ok {
 					diags = append(diags, l.in.DiagAt(ir.SeverityWarning, diag.PathItemRefCollision, l.decl+d.rel,
-						"the field beside the path item's $ref declares %s here, which the path item it references "+
-							"also declares at %s; the declaration here is the one kept at this mount",
+						"%s is declared here, beside the path item's $ref, and again at %s in the item it "+
+							"references; OpenAPI leaves which applies undefined, and this mount keeps the one declared here",
 						d.label, layers[j].name+string(other.rel)))
 				}
 			}
