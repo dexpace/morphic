@@ -198,7 +198,8 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if ctx.Err() != nil {
 			return diags
 		}
-		// Before the item resolves: the key is the document's whatever it names.
+		// Judged before its item resolves: a key is a path or not, whatever
+		// the item turns out to be.
 		diags = append(diags, pathKeyDiags(c, path)...)
 		layers, found := pathItemLayers(c, rp, ids.Ptr("paths", path))
 		if layers == nil {

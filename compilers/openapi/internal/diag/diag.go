@@ -404,7 +404,8 @@ const (
 	//
 	// Warning, as InvalidStatusKey is: the key is used as written, and an error
 	// would stop harness.Check before later findings. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read.
+	// #602's to report, so nothing from it on is read, and matching the
+	// expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 )
 

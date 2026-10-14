@@ -29,7 +29,7 @@ func TestPathKeyDefects(t *testing.T) {
 		{name: "root", key: "/"},
 		{name: "segments", key: "/a/b"},
 		{name: "trailing slash", key: "/a/"},
-		{name: "every literal pchar", key: "/aZ09-._~!$&'()*+,;=:@"},
+		{name: "each class of literal pchar", key: "/aZ09-._~!$&'()*+,;=:@"},
 		{name: "pct-encoded either case", key: "/a/%2F%2f%20%41"},
 		{name: "expression", key: "/a/{id}"},
 		{name: "adjacent expressions", key: "/{a}{b}"},
