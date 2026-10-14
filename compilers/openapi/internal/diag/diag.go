@@ -396,16 +396,15 @@ const (
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.
 	LaterVersionConstruct = "openapi/later-version-construct"
-	// InvalidPathKey reports a Paths Object key that is not a path: one that
-	// omits the leading "/" (required at every version, so not version-gated),
-	// carries a "?" (RFC 3986 §3.4: the query is not the path; OpenAPI uses in:
-	// query), or holds a character outside RFC 3986 §3.3's pchar set plus "/" and
-	// the "{}" of path templating.
+	// InvalidPathKey reports a Paths Object key that is not a path template by
+	// OpenAPI's grammar, the ABNF of 3.2.0 §4.8.2 read at every version: no
+	// leading "/", a character a path admits only percent-encoded, a brace
+	// outside a template expression, an expression used twice, an empty segment,
+	// or a query. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key still lowers as written
-	// (invariant 2), and an error would stop harness.Check before later findings.
-	// A "#" in the key is silent here: GitHub #602 strips and reports it, and a
-	// key needs one report, not two.
+	// Warning, as InvalidStatusKey is: the key is used as written, and an error
+	// would stop harness.Check before later findings. A "#" fragment is GitHub
+	// #602's to report, so nothing from it on is read.
 	InvalidPathKey = "openapi/invalid-path-key"
 )
 
