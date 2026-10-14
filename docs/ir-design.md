@@ -944,7 +944,8 @@ treatment is stated rather than assumed:
   identifies every type by a synthetic ID derived from its source pointer rather than by `$id`
   (§3), and describes one API surface rather than a resource graph, so it has no dialect axis and
   none is coming: they are kept verbatim under `ReasonOutOfScope`, and `$id` is explicitly *not*
-  honoured as a base URI for reference resolution. `$comment` is dropped outright — 2020-12 §8.3
+  honoured as a base URI for reference resolution. An OpenAPI document's `jsonSchemaDialect`, the
+  default `$schema` of its schemas, is kept on the document the same way. `$comment` is dropped outright — 2020-12 §8.3
   forbids presenting it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a
   reference target rather than carried as content — it is what lets a `$dynamicRef` expand.
   `$anchor` is currently neither: Milestone 1 resolves same-document JSON pointers only, so a
