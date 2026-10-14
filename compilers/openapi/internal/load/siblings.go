@@ -272,9 +272,7 @@ func writtenKeys(fields *yaml.Node) map[string]bool {
 	pairs := nodeview.New().MappingPairs(fields)
 	written := make(map[string]bool, len(pairs))
 	for _, p := range pairs {
-		if p.Key != refKey {
-			written[p.Key] = true
-		}
+		written[p.Key] = true
 	}
 	return written
 }
