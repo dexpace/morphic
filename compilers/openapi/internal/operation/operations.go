@@ -198,12 +198,10 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, ts *compile.Types, anchors 
 		if ctx.Err() != nil {
 			return diags
 		}
-		pathPtr := ids.Ptr("paths", path)
-		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, pathPtr)
-		if pi == nil {
+		layers, found := pathItemLayers(c, rp, ids.Ptr("paths", path))
+		if layers == nil {
 			continue
 		}
-		layers, found := pathItemLayers(c, rp, pi, pathPtr, declPtr)
 		diags = append(diags, found...)
 		diags = append(diags, lowerPathItem(c, ts, anchors, claims, groups, svc, path, layers)...)
 	}
@@ -241,11 +239,10 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, ancho
 			return diags
 		}
 		hookPtr := ids.Ptr("webhooks", name)
-		pi, declPtr := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, hookPtr)
-		if pi == nil {
+		layers, found := pathItemLayers(c, rp, hookPtr)
+		if layers == nil {
 			continue
 		}
-		layers, found := pathItemLayers(c, rp, pi, hookPtr, declPtr)
 		diags = append(diags, found...)
 		route := opContext{key: name, isWebhook: true, withCallbacks: true}
 		mounted, hookDiags := mountPathItem(ts, anchors, claims, layers, hookPtr, route, &svc.Unmodeled)
@@ -1068,12 +1065,10 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {
 			exprStr := string(expr)
-			usePtr := cbDecl + ids.Ptr(exprStr)
-			pi, piDecl := resolve.ObjectAt[soa.PathItem](c.RefScope(), rp, usePtr)
-			if pi == nil {
+			layers, found := pathItemLayers(c, rp, cbDecl+ids.Ptr(exprStr))
+			if layers == nil {
 				continue
 			}
-			layers, found := pathItemLayers(c, rp, pi, usePtr, piDecl)
 			diags = append(diags, found...)
 			mount := parent.mount + ids.Ptr("callbacks", cbName, exprStr)
 			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(ts, anchors, claims, layers, mount, exprStr, inferred)

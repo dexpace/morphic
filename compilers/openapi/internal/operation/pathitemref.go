@@ -30,12 +30,15 @@ type layer struct {
 	in   lowering.Ctx
 }
 
-// pathItemLayers returns the layers of the path item rp names at usePtr, read
-// in use, whose chain ends at pi, declared at declPtr. The fields beside a $ref
-// of the chain that the load phase did not model are reported rather than
-// dropped in silence (see unreadFields).
-func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathItem, usePtr, declPtr jsontext.Pointer,
-) ([]layer, []ir.Diagnostic) {
+// pathItemLayers returns the layers of the path item rp, written at usePtr and
+// read in use, or none when it resolves to nothing. The fields beside a $ref of
+// its chain that the load phase did not model are reported rather than dropped
+// in silence (see unreadFields).
+func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) ([]layer, []ir.Diagnostic) {
+	pi, declPtr := resolve.ObjectAt[soa.PathItem](use.RefScope(), rp, usePtr)
+	if pi == nil {
+		return nil, nil
+	}
 	sibs := use.Siblings()
 	var layers []layer
 	var diags []ir.Diagnostic
@@ -56,15 +59,14 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, pi *soa.PathIt
 	}
 	visit(rp, usePtr, string(usePtr), use.RefScope().Foreign) // an alias's own position, as for an inline item
 	last := rp
-	if !resolve.Chained[soa.PathItem](rp) {
-		return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
-	}
-	// A scope a layer or Hops keeps outlives the call, and with it the closure
-	// over a copy of the context it holds, so each is read where it is kept,
-	// not for every mount.
-	for _, hop := range resolve.Hops[soa.PathItem](use.RefScope(), rp) {
-		visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
-		last = hop.Ref
+	if resolve.Chained[soa.PathItem](rp) {
+		// A scope a layer or Hops keeps outlives the call, and with it the
+		// closure over a copy of the context it holds, so each is read where it
+		// is kept, not for every mount.
+		for _, hop := range resolve.Hops[soa.PathItem](use.RefScope(), rp) {
+			visit(hop.Ref, "", string(last.GetReference()), hop.Foreign)
+			last = hop.Ref
+		}
 	}
 	return append(layers, referent(use, rp, last, pi, declPtr, layers)), diags
 }

@@ -54,9 +54,7 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 	rp, ok := l.ctx.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
-	usePtr := jsontext.Pointer("/paths/~1a")
-	pi, declPtr := resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
-	require.NotNil(t, pi)
+	const usePtr = jsontext.Pointer("/paths/~1a")
 
 	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
 		use := l.ctx.WithLoaded(&load.Document{})
@@ -66,8 +64,9 @@ paths:
 			use = use.InScope(scope)
 		}
 
-		_, found := pathItemLayers(use, rp, pi, usePtr, declPtr)
+		layers, found := pathItemLayers(use, rp, usePtr)
 
+		require.NotEmpty(t, layers, "foreign %t: the item still mounts", foreign)
 		require.Len(t, found, 1, "foreign %t: the use site's fields, and no hop's", foreign)
 		assert.Equal(t, diag.DegradedConstruct, found[0].Code)
 		assert.Contains(t, found[0].Message, want, "foreign %t", foreign)
@@ -75,8 +74,8 @@ paths:
 }
 
 // TestPathItemLayers_AOneLayerMountCostsItsLayerAlone pins what a mount with
-// nothing beside a $ref costs, which is nearly every mount: the context
-// lowering.Within gives its item, and the one-entry slice. A scope that Hops or
+// nothing beside a $ref costs, which is nearly every mount: resolving its item,
+// the context lowering.Within gives that item, and the one-entry slice. A scope that Hops or
 // a sibling layer keeps takes its closure over a copy of the context with it,
 // so building one for every mount cost each that much more. The item is inline,
 // since Within's walk through a $ref allocates a varying count under the race
@@ -92,10 +91,11 @@ paths:
 	rp, ok := l.ctx.Doc.GetPaths().Get("/b")
 	require.True(t, ok)
 	const usePtr = jsontext.Pointer("/paths/~1b")
-	pi, declPtr := resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
-	require.NotNil(t, pi)
 
-	within := testing.AllocsPerRun(20, func() { lowering.Within[soa.PathItem](l.ctx, rp).Siblings() })
-	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, pi, usePtr, declPtr) })
-	assert.Equal(t, within+1, layers, "Within's work and the one layer")
+	within := testing.AllocsPerRun(20, func() {
+		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
+		lowering.Within[soa.PathItem](l.ctx, rp).Siblings()
+	})
+	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, usePtr) })
+	assert.Equal(t, within+1, layers, "the item's resolution, Within's work and the one layer")
 }
