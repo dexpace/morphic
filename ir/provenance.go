@@ -36,8 +36,9 @@ type Provenance struct {
 	// shared primitive, is on NoSource rather than at the root of one.
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
 	// Position is where the construct starts inside Source, for a finding made
-	// before the construct has a pointer — on a raw node, or in a part of the
-	// source no pointer reaches.
+	// on a raw node: beside the node's Pointer when the tree holds it, alone for
+	// a part of the source no pointer reaches and for the document's top-level
+	// mapping, whose pointer is the empty one.
 	Position Position `json:"position,omitzero"`
 	// Node locates a finding in the IR rather than in a source: a stable ID, or a
 	// path through the document's own fields, for what an IR pass reports about

@@ -311,7 +311,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		self := newSourceDocument(path, []byte(spec), root, nil)
+		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
 		opts := Options{AllowExternalRefs: allow}
 		var reader *external
 		if allow {
@@ -385,7 +385,7 @@ func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		root, _, err := decodeStream([]byte(spec))
 		require.NoError(t, err)
 
-		self := newSourceDocument("root.yaml", []byte(spec), root, nil)
+		self := newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
 
 		assert.Equal(t, c.holdless, self.holdless, c.name)
 		assert.Equal(t, !c.holdless, len(self.keys()) > 0, "%s: held under its keys unless it spells $id", c.name)
@@ -407,7 +407,7 @@ func TestNewSourceDocument_ASourceWritingMoreRefsThanTheGuardReadsIsNotHeld(t *t
 				&yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"})
 		}
 
-		self := newSourceDocument("root.yaml", nil, root, nil)
+		self := newSourceDocument("root.yaml", nil, root, nil, newSourceTree(0, overlay.Origin{}, root))
 
 		assert.Equal(t, n > maxHeldRefs, self.holdless, "%d $refs", n)
 	}
@@ -639,7 +639,7 @@ func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil)))
+		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))))
 
 		reader.hold(t.Context(), Siblings{})
 

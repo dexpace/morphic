@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
@@ -570,5 +571,46 @@ func TestUnmarshal_ExpandsAliasesIntoTheModel(t *testing.T) {
 		assert.GreaterOrEqual(t, next, 4*prev,
 			"one more declared line at depth %d, at least four times the model", depth)
 		prev = next
+	}
+}
+
+// TestLoad_AFindingOnASourceNodeCarriesItsPointer pins that a finding on a node
+// of the source is placed at the node's JSON pointer as well as its position
+// (GitHub #803), the source it came from included. A node written under a
+// `<<` merge key keeps its position and has no pointer: the pairs it merges
+// are held at other pointers. A mapping that merely holds a merge keeps its own.
+func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
+	t.Parallel()
+	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+	const (
+		required = "openapi/validation/validation-required-field"
+		allowed  = "openapi/validation/validation-allowed-values"
+		inline   = header + "paths:\n  /x:\n    get:\n      parameters:\n        - %s\n      responses: {\"200\": {description: ok}}\n"
+	)
+	for _, c := range []struct {
+		name, spec, marker, code string
+		pointer                  jsontext.Pointer
+	}{
+		{"a mapping", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s: {type: oauth2}\n",
+			"{type: oauth2}", required, "/components/securitySchemes/s"},
+		{"a value", fmt.Sprintf(inline, "{name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, "/paths/~1x/get/parameters/0/in"},
+		{"a value under a merge key", fmt.Sprintf(inline, "<<: {name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, ""},
+		{"a mapping holding a merge key", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s:\n      <<: {type: oauth2}\n",
+			"<<: {type: oauth2}", required, "/components/securitySchemes/s"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			line, col := markerPosition(t, c.spec, c.marker)
+
+			_, diags, err := Load(t.Context(), 2, openapitest.SourceOf(c.spec), Options{})
+
+			require.NoError(t, err)
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, c.code, diags[0].Code)
+			assert.Empty(t, cmp.Diff(ir.Provenance{Source: 2, Pointer: c.pointer, Position: ir.Position{Line: line, Column: col}},
+				diags[0].Provenance))
+		})
 	}
 }

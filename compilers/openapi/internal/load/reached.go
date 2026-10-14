@@ -11,7 +11,6 @@ import (
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
@@ -19,32 +18,40 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// reached validates what a reference brings in from another document, or from
-// the source read as one, holding it to the checks the source's own objects get
-// (GitHub #545): the library validates a reference as its $ref alone.
+// reached validates what a reference reaches that the source's own validation
+// never checked, as the source's objects are checked: an object in another
+// document (GitHub #545), or one in the source outside its model, such as under
+// an x-* key, or read as another kind (GitHub #759, #872). The library
+// validates a reference as its $ref alone.
 //
-// Only what a reference reaches is validated: a shared file of components is
-// used a piece at a time, and a finding in a piece nothing lowers would fail a
-// compile over content it never read. Each finding is reported once (see
-// checkAll), and what validation spans is charged to a budget (see charge).
+// Only what a reference reaches is validated: a finding in a piece of a shared
+// file nothing lowers would fail a compile over content it never read. Each
+// finding is reported once (see checkAll), and what validation spans is charged
+// to a budget (see charge).
 type reached struct {
+	doc     *soa.OpenAPI
 	opts    []validation.Option
 	version string
 	minor   string
 	limit   int
+	// tree places a finding about a node of the source, and the later
+	// version's constructs an object reached there writes (see later).
+	tree sourceTree
 	// reported holds every finding already reported (see keyOf), the source's
 	// own validation's included.
 	reported map[findingKey]bool
+	// warned holds every later-version warning already reported: an object
+	// inside another reached one is walked again (see checkAll).
+	warned map[ir.Diagnostic]bool
 	// spent is the node count charged to each document so far.
 	spent map[string]int
 	// over names the documents whose budget has been reported crossed.
 	over map[string]bool
 }
 
-// reachedTarget is an object the source's references reach in another
-// document, or in the source read as one: the least pointer among the $refs
-// reaching it, the object and the node it was built from, the document it is
-// in, as findingPlace names it, and whether that is the source.
+// reachedTarget is an object the source's references reach: the least pointer
+// among the $refs reaching it, the object and the node it was built from, the
+// document it is in, as findingPlace names it, and whether that is the source.
 type reachedTarget struct {
 	site     jsontext.Pointer
 	obj      any
@@ -61,21 +68,23 @@ type targetKey struct {
 	kind reflect.Type
 }
 
-// validateReached validates every object a resolved reference in doc brings
-// in from another document, or from the source read as one (see targetOf), and
-// reports each finding once, at a $ref that reaches it (see reached). A finding
-// known, the source's own validation's, is not reported again: a node a $ref
-// reads as another kind holds what the source declares inside it.
+// validateReached validates every object a resolved reference in doc reaches
+// that the source's own validation did not (see targetOf and dropDeclared), and
+// reports each finding once, where reachedFinding places it. A finding known,
+// the source's own validation's, is not reported again: a node a $ref reads as
+// another kind holds what the source declares inside it. The source is walked
+// with the fields beside its path item $refs, which it validated as its own.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	opts Options, known map[findingKey]bool,
+	targets MappingTargets, opts Options, self sourceDocument,
 ) []ir.Diagnostic {
-	checks := newReached(doc, opts)
-	maps.Copy(checks.reported, known)
-	return checkReached(ctx, at, walkSource(ctx, doc, sibs), checks)
+	checks := newReached(doc, opts, self.tree)
+	maps.Copy(checks.reported, self.found)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets.resolved, checks)
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
-// can hand it one yielding a reference no real document builds.
+// can hand it one yielding a reference no real document builds. resolved are
+// the references the walk does not show (see MappingTargets.resolved).
 //
 // The library's validation faults on shapes it did not expect as its resolver
 // does, so reading the walk and validating each run behind a barrier. A panic
@@ -83,20 +92,26 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // nothing is validated, since the targets read so far need not hold each one's
 // least $ref.
 func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
-	items iter.Seq[soa.WalkItem], checks *reached,
+	items iter.Seq[soa.WalkItem], resolved []siteRef, checks *reached,
 ) []ir.Diagnostic {
 	targets := map[targetKey]reachedTarget{}
-	site, err := eachReference(items, "validation", func(site jsontext.Pointer, r resolvable) error {
+	add := func(site jsontext.Pointer, r resolvable) {
 		t, ok := targetOf(site, r)
 		if !ok {
-			return nil
+			return
 		}
 		key := targetKey{node: t.node, kind: reflect.TypeOf(t.obj)}
 		if prev, seen := targets[key]; !seen || site < prev.site {
 			targets[key] = t
 		}
+	}
+	site, err := eachReference(items, "validation", func(site jsontext.Pointer, r resolvable) error {
+		add(site, r)
 		return nil
 	})
+	if err == nil {
+		site, err = eachResolved(resolved, add)
+	}
 	if err == nil {
 		site, err = dropDeclared(items, targets)
 	}
@@ -106,21 +121,25 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	return checks.checkAll(ctx, at, targets)
 }
 
-// targetOf returns the object the reference at site reaches, or false when it
-// reaches none to validate: its chain ends on no object (reachedObject), or in
-// the source through internal $refs alone, left to the source's own validation
-// (GitHub #567). An internal $ref whose chain leaves the source reaches an
-// object as an external one does.
-//
-// A chain that names a document and ends in the source read the source as that
-// document, so it can reach raw YAML, or a node read as another kind, which the
-// source's validation never checked (see dropDeclared).
-func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
-	c := resolutionChain(r)
-	t := c.trail()
-	if t.endsInSource && !namesDocument(r, c) {
-		return reachedTarget{}, false
+// eachResolved calls visit with each of resolved, behind the barrier
+// eachReference puts around a walk: a panic stops it, reported at the site
+// being visited.
+func eachResolved(resolved []siteRef, visit func(jsontext.Pointer, resolvable)) (site jsontext.Pointer, err error) {
+	defer recovered(&err, "validation")
+	for _, r := range resolved {
+		site = r.site
+		visit(r.site, r.ref)
 	}
+	return "", nil
+}
+
+// targetOf returns the object the reference at site reaches, or false when its
+// chain ends on no object (reachedObject). A chain that ends in the source is a
+// target too, whatever its $refs spell: it can reach raw YAML, such as an x-*
+// key's value, or a node read as another kind, neither of which the source's
+// validation checked. What that validation did check, dropDeclared drops.
+func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
+	t := resolutionChain(r).trail()
 	obj, node, ok := reachedObject(r)
 	if !ok {
 		return reachedTarget{}, false
@@ -128,26 +147,10 @@ func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
 	return reachedTarget{site: site, obj: obj, node: node, doc: findingPlace(t), inSource: t.endsInSource}, true
 }
 
-// namesDocument reports whether a hop of the resolution c records for ref was
-// a $ref with a document part: the first is ref's own, and each later one the
-// reference the hop before it reached.
-func namesDocument(ref resolvable, c chain) bool {
-	if ref.GetReference().GetURI() != "" {
-		return true
-	}
-	for _, rec := range c.records {
-		next, ok := rec.object.(interface{ GetReference() references.Reference })
-		if ok && next.GetReference().GetURI() != "" {
-			return true
-		}
-	}
-	return false
-}
-
 // dropDeclared drops each target in the source that the source's own
 // validation covered: an object its model declares, reached as the kind it is
-// declared as, which the source reported on already (GitHub #759). It walks
-// items, the source's models, only when some target is in the source.
+// declared as, which the source reported on already (GitHub #759, #872). It
+// walks items, the source's models, only when some target is in the source.
 func dropDeclared(items iter.Seq[soa.WalkItem], targets map[targetKey]reachedTarget) (jsontext.Pointer, error) {
 	inSource := false
 	for _, t := range targets {
@@ -174,8 +177,8 @@ func dropDeclared(items iter.Seq[soa.WalkItem], targets map[targetKey]reachedTar
 // under opts' node and alias budgets; either one unbounded leaves the charge
 // unbounded. It validates with the options the source's validation passes
 // down: the root document, which a security requirement cannot be checked
-// without, and its version.
-func newReached(doc *soa.OpenAPI, opts Options) *reached {
+// without, and its version. tree is the source's (see reachedFinding).
+func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree) *reached {
 	limit := 0
 	if opts.MaxSourceNodes > 0 && opts.MaxAliasSurplus > 0 {
 		limit = opts.MaxSourceNodes + opts.MaxAliasSurplus
@@ -183,20 +186,23 @@ func newReached(doc *soa.OpenAPI, opts Options) *reached {
 	version := doc.OpenAPI
 	minor, _ := SupportedMinor(version) // Load refused an unsupported version before resolving
 	return &reached{
+		doc:      doc,
+		tree:     tree,
 		opts:     documentOptions(doc),
 		version:  version,
 		minor:    minor,
 		limit:    limit,
 		reported: map[findingKey]bool{},
+		warned:   map[ir.Diagnostic]bool{},
 		spent:    map[string]int{},
 		over:     map[string]bool{},
 	}
 }
 
 // checkAll validates each target in the order of its site, and reports its
-// findings. A finding already reported was reported at a lesser $ref, so each
-// lands at the least $ref whose object's validation draws it, and a budget is
-// crossed at the same object, whatever the declaration order.
+// findings. A finding already reported was reported for a lesser $ref, so one
+// placed at a $ref lands at the least whose object's validation draws it, and
+// a budget is crossed at the same object, whatever the declaration order.
 //
 // An object inside one validated before it is validated, and charged, again
 // (GitHub #571): a container spans more than its model reads, such as an
@@ -218,33 +224,42 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 	}()
 	for _, t := range order {
 		site = t.site
-		diags = append(diags, v.check(ctx, at(t.site), t)...)
+		diags = append(diags, v.check(ctx, at, t)...)
 	}
 	return diags
 }
 
-// check validates t's object and reports what it finds at site. Findings are
-// reconciled as the source's are (dropped, and the wrong-meta-schema
-// artifacts), and one at a node already reported is not reported again, as the
-// source reports a finding once however many references share its node.
-func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
+// check validates t's object and reports what it finds at t's site. Findings
+// are reconciled as the source's are (dropped, the wrong-meta-schema
+// artifacts, and a later version's constructs, see later), and one at a node
+// already reported is not reported again, as the source reports a finding once
+// however many references share its node.
+func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) []ir.Diagnostic {
+	site := at(t.site)
 	if d, over := v.charge(site, t.doc, t.node); over {
 		return d
 	}
 
+	later := v.later(ctx, at, t)
 	found := validateObject(ctx, t.obj, v.opts)
-	if len(found) == 0 {
-		return nil
+	if later.additionalOperations {
+		found = ownAdditionalOperations(ctx, v.doc, Siblings{}, reachedWalk(ctx, t.obj), found)
 	}
-	artifacts := v.artifacts(ctx, t.obj)
+	artifacts := v.artifacts(ctx, t.obj, later.inSchema)
 	var diags []ir.Diagnostic
+	for _, d := range later.diags {
+		if !v.warned[d] {
+			v.warned[d] = true
+			diags = append(diags, d)
+		}
+	}
 	for _, f := range found {
 		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[siteOf(verr)]) {
 			continue
 		}
 		if key := keyOf(f, t.site); !v.reported[key] {
 			v.reported[key] = true
-			diags = append(diags, reachedFinding(site, t.doc, f))
+			diags = append(diags, reachedFinding(v.tree, site, t.doc, f))
 		}
 	}
 	return diags
@@ -285,12 +300,26 @@ func (v *reached) remaining(doc string) int {
 
 // artifacts returns the sites of the schema findings obj's validation raises
 // only because the library checked a schema against the wrong meta-schema, the
-// reconciliation metaSchemaVersionArtifacts makes for the source's.
-func (v *reached) artifacts(ctx context.Context, obj any) map[findingSite]bool {
-	if v.minor != metaSchemaReconciledMinor {
-		return nil
+// reconciliation metaSchemaVersionArtifacts makes for the source's. later says
+// whether later reported a keyword inside a schema of obj.
+func (v *reached) artifacts(ctx context.Context, obj any, later bool) map[findingSite]bool {
+	return versionArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return reachedWalk(ctx, obj) },
+		v.version, v.minor, later)
+}
+
+// later reports the constructs a minor later than the document's added that
+// t's object writes, at the pointers they are written at, when the source's
+// tree holds the object: the source's walk never reaches it, so laterConstructs
+// would not otherwise judge it, and its refusals would stand where the same
+// object written inline draws a warning (GitHub #872). Another document's
+// content, which the tree does not hold, is GitHub #839's.
+func (v *reached) later(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) laterReport {
+	base, ok := v.tree.pointer(t.node)
+	if !ok {
+		return laterReport{}
 	}
-	return schemaArtifacts(ctx, func() iter.Seq[soa.WalkItem] { return reachedWalk(ctx, obj) }, v.version)
+	return laterConstructs(func(p jsontext.Pointer) ir.Provenance { return at(base + p) },
+		reachedWalk(ctx, t.obj), v.version)
 }
 
 // reachedObject returns the object a reference names and the node it was built
@@ -338,9 +367,8 @@ func validateObject(ctx context.Context, obj any, opts []validation.Option) []er
 	return o.Validate(ctx, opts...)
 }
 
-// reachedWalk returns the walk over obj, for the reconciliation of its schema
-// findings. An example, a link and a security scheme hold no schema, so there
-// is nothing to reconcile in one.
+// reachedWalk returns the walk over obj, for the reconciliation of its findings
+// and the later version's constructs it writes.
 //
 // Each kind is walked through a Reference wrapper holding it inline. The
 // library's Walk dispatches on the started type, and its registry has no entry
@@ -363,6 +391,12 @@ func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 		return soa.Walk(ctx, &soa.ReferencedResponse{Object: o})
 	case *soa.Callback:
 		return soa.Walk(ctx, &soa.ReferencedCallback{Object: o})
+	case *soa.Example:
+		return soa.Walk(ctx, &soa.ReferencedExample{Object: o})
+	case *soa.Link:
+		return soa.Walk(ctx, &soa.ReferencedLink{Object: o})
+	case *soa.SecurityScheme:
+		return soa.Walk(ctx, &soa.ReferencedSecurityScheme{Object: o})
 	default:
 		return func(func(soa.WalkItem) bool) {}
 	}

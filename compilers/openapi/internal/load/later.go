@@ -116,11 +116,12 @@ type laterReport struct {
 // The lowering reads each at every version; only this asks which minor added
 // one.
 //
-// items is walkSource's walk, which visits each object the source holds once,
+// items is walkSource's walk, visiting each object the source holds once,
 // where it is written, not through a $ref, whether anything lowers it or not,
-// the fields beside a Path Item's $ref included. It holds none of another
-// document (GitHub #839) and none under an x- key a $ref reaches (#872). A
-// panic in the walk is reported at the model reached.
+// the fields beside a Path Item's $ref included; or the walk over an object a
+// $ref reaches in the source outside the model (reached.later, GitHub #872).
+// Neither holds another document's (GitHub #839). A panic in the walk is
+// reported at the model reached.
 func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) laterReport {
 	pending := addedAfter(declared)
 	if len(pending) == 0 {
@@ -133,8 +134,8 @@ func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa
 		if !ok {
 			return nil
 		}
-		if object == openAPIObject {
-			site = "" // the walk spells the root "/", which names the key ""
+		if site == "/" {
+			site = "" // a walk spells its root "/", which names the key ""
 		}
 		for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
 			out.diags = append(out.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
@@ -321,8 +322,8 @@ func plainObject(model rootNoder) string {
 // reported the field, which the compiler lowers at every version, the refusal is
 // dropped and the library's own checks run on every path item whose model holds
 // such operations, refused or not. items is walkSource's walk, a model of the
-// fields beside a $ref read where it is walked from. A panic in the walk or a
-// check is returned as a finding.
+// fields beside a $ref read where it is walked from, or a reached object's,
+// which meets none. A panic in the walk or a check is a finding.
 func ownAdditionalOperations(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, items iter.Seq[soa.WalkItem],
 	valErrs []error,
 ) []error {

@@ -32,6 +32,18 @@ type MappingTargets struct {
 	byPointer map[jsontext.Pointer]*schemaRef
 	built     map[jsontext.Pointer]*schemaRef
 	reads     *treeReads
+	// resolved holds every reference resolved here that the document's walk
+	// does not show, for validateReached to validate what each reaches as it
+	// does a walked $ref's (GitHub #872).
+	resolved []siteRef
+}
+
+// siteRef is a reference the load phase resolved, and the site it is read at:
+// a mapping target's least entry, or where a $ref inside an object built from
+// raw YAML is written.
+type siteRef struct {
+	site jsontext.Pointer
+	ref  resolvable
 }
 
 // At returns the schema a mapping target resolved to at pointer, or nil.
@@ -103,6 +115,8 @@ type mappings struct {
 	order     []jsontext.Pointer
 	byPointer map[jsontext.Pointer]*target
 	out       map[jsontext.Pointer]*schemaRef
+	// nested holds each $ref resolveNested resolved, where it is written.
+	nested []siteRef
 	// work counts the steps taken, against limit. resolutions counts the
 	// positions resolved: one each, however many entries name it.
 	work, limit, resolutions int
@@ -116,11 +130,12 @@ type arrival struct {
 }
 
 // target is a position mapping entries name: the least entry naming it, and,
-// once resolved, what its resolution drew and the nodes it reached that hold
-// no schema (see noSchemaNodes).
+// once resolved, the reference it was resolved as, what its resolution drew
+// and the nodes it reached that hold no schema (see noSchemaNodes).
 type target struct {
 	least    jsontext.Pointer
 	resolved bool
+	ref      *schemaRef
 	trail    trail
 	found    []error
 	noSchema map[*yaml.Node]bool
@@ -137,9 +152,16 @@ func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveO
 		out: map[jsontext.Pointer]*schemaRef{}, limit: maxMappingWork}
 }
 
-// targets returns what resolve resolved.
+// targets returns what resolve resolved. Each target's reference is placed at
+// its least entry, which is final only once every entry has been read.
 func (m *mappings) targets() MappingTargets {
-	return MappingTargets{byPointer: m.out, built: m.built, reads: m.reads}
+	resolved := slices.Clone(m.nested)
+	for _, pointer := range m.order {
+		if t := m.byPointer[pointer]; t.resolved {
+			resolved = append(resolved, siteRef{site: t.least, ref: t.ref})
+		}
+	}
+	return MappingTargets{byPointer: m.out, built: m.built, reads: m.reads, resolved: resolved}
 }
 
 // see notes a model the walk reached at site: a discriminator's entries are
@@ -354,7 +376,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	if declared := firstSchema(c); declared != nil {
 		m.out[pointer] = declared
 	}
-	t.resolved, t.trail, t.found, t.noSchema = true, c.trail(), vErrs, noSchemaNodes(c)
+	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, c.trail(), vErrs, noSchemaNodes(c)
 	if err == nil {
 		m.enqueue(t.least, c)
 	}
@@ -431,6 +453,7 @@ func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, si
 	}
 	c := resolutionChain(js)
 	found.noteEntry(site, c.trail(), vErrs, noSchemaNodes(c))
+	m.nested = append(m.nested, siteRef{site: site, ref: js})
 	if err == nil {
 		m.enqueue(site, c)
 	}

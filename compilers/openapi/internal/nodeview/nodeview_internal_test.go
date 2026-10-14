@@ -851,3 +851,38 @@ func linksAbove(n *yaml.Node, links int) *yaml.Node {
 	}
 	return n
 }
+
+// TestKeyOf_KeysAPairAsTheParserDoes pins the key KeyOf gives a raw pair key:
+// a `<<` merge key, the library's own predicate, names none; a scalar tagged
+// !!merge with any other value, and an alias standing in for `<<`, are
+// ordinary keys; an alias key names the scalar it stands for; and a key that is
+// no scalar, aliased or not, or no node at all, names none.
+func TestKeyOf_KeysAPairAsTheParserDoes(t *testing.T) {
+	t.Parallel()
+	tagged := ynode.Scalar("tagged")
+	tagged.Tag = "!!merge"
+	tests := []struct {
+		name string
+		raw  *yaml.Node
+		key  string
+		own  bool
+	}{
+		{"a plain key", ynode.Scalar("a"), "a", true},
+		{"a merge key", ynode.Merge(), "", false},
+		{"a key tagged !!merge that is not <<", tagged, "tagged", true},
+		{"an alias key", ynode.Alias(ynode.Scalar("named")), "named", true},
+		{"an alias standing in for <<", ynode.Alias(ynode.Merge()), "<<", true},
+		{"a mapping key", ynode.Map(ynode.Scalar("k"), ynode.Scalar("v")), "", false},
+		{"an alias to a mapping", ynode.Alias(ynode.Map()), "", false},
+		{"no node", nil, "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			key, own := KeyOf(tc.raw)
+
+			assert.Equal(t, tc.key, key)
+			assert.Equal(t, tc.own, own)
+		})
+	}
+}
