@@ -3990,7 +3990,7 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // mapping names it, or a $ref nested in such an object does (GitHub #872):
 // each construct OpenAPI 3.2 added draws its warning once, at the pointer it is
 // written at, and the parser's own finding about a scheme reached that way is
-// reported at the $ref that reaches it.
+// placed where its field is written, as for the scheme written inline (#879).
 func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	const later = "openapi/later-version-construct"

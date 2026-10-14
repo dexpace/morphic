@@ -245,7 +245,7 @@ it sees. Changes made together in one bump are listed together under it.
 - **0.12.0** — `SourceInfo` gained `SelfURI`, the URI a document declared for itself (OpenAPI 3.2
   `$self`), which the OpenAPI compiler had dropped. A consumer pinned to 0.11.0 finds no `selfURI`
   and cannot tell what URI a document gave itself.
-- **0.13.0** — three changes to auth (§9) and one to what a provenance position means (§13):
+- **0.13.0** — changes to auth (§9) and to what a provenance position means (§13):
   - `OAuthFlow.Scopes` became a list of `{name, description}` in source order, where it was a map
     from name to description that sorted them. A consumer pinned to 0.12.0 expects an object and
     cannot decode the list.
@@ -1994,13 +1994,13 @@ type AuthScheme struct {
 }
 
 type OAuthFlow struct {
-    Kind             string // authorization_code | client_credentials | implicit | password | device
-    AuthorizationURL string // the device flow's deviceAuthorizationUrl rides it
-    TokenURL         string
-    RefreshURL       string
-    Scopes           []OAuthScope // source order
-    TokenEndpointAuthMethods []string // IANA "OAuth Token Endpoint Authentication Methods" values
-    Unmodeled        Unmodeled
+    Kind                     string       // authorization_code | client_credentials | implicit | password | device
+    AuthorizationURL         string       // the device flow's deviceAuthorizationUrl rides it
+    TokenURL                 string
+    RefreshURL               string
+    Scopes                   []OAuthScope // source order, each name once
+    TokenEndpointAuthMethods []string     // IANA "OAuth Token Endpoint Authentication Methods" values
+    Unmodeled                Unmodeled
 }
 
 type OAuthScope struct { Name, Description string }

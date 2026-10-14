@@ -732,7 +732,8 @@ components:
 // TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid pins what a node
 // a $ref reads as another kind holds: what the source declares inside it, here
 // a header's schema, whose finding the source's own validation reported. That
-// finding is not reported again at the $ref (GitHub #759).
+// finding is reported once, by the source, and not again for the $ref (GitHub
+// #759).
 func TestResolve_ANodeReadAsAnotherKindReportsNothingTheSourceDid(t *testing.T) {
 	t.Parallel()
 	_, diags := loadExternal(t, t.TempDir(), `openapi: 3.1.0

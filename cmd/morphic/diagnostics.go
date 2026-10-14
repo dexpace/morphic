@@ -18,11 +18,11 @@ func renderDiagnostics(w io.Writer, res *engine.Result) {
 	}
 }
 
-// location renders the "where" of a diagnostic line, leading space included:
-// " <path>#<pointer>" for a pointer, " <path>:<line>:<column>" for a position
-// (the form editors and terminals turn into a link), both as
-// " <path>:<line>:<column> (#<pointer>)", " <path>" for the source as a whole,
-// and the bare node for an IR-space node, the first of these that applies.
+// location renders the "where" of a diagnostic line, leading space included,
+// as the first of these that applies: " <path>:<line>:<column> (#<pointer>)"
+// for a position and a pointer, the position first so editors link it;
+// " <path>#<pointer>" for a pointer; " <path>:<line>:<column>" for a position;
+// " <path>" for the source as a whole; and the bare node for an IR-space node.
 //
 // sources is the run's table, which a refused compile has too. A locator whose
 // index names no entry in it is spelled without a path, and a finding naming

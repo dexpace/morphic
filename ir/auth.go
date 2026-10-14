@@ -111,14 +111,14 @@ type OAuthFlow struct {
 	// RefreshURL is the token-refresh endpoint.
 	RefreshURL string `json:"refreshURL,omitempty"`
 	// Scopes are the flow's scopes in source order, which documentation and
-	// consent screens show as the author wrote them.
+	// consent screens show as the author wrote them, each name once.
 	Scopes []OAuthScope `json:"scopes,omitempty"`
 	// TokenEndpointAuthMethods are the ways a client may authenticate to the
 	// token endpoint, spelled as the IANA "OAuth Token Endpoint Authentication
 	// Methods" registry spells them (client_secret_basic, client_secret_post,
 	// private_key_jwt, …; RFC 8414 token_endpoint_auth_methods_supported). The
-	// registry is open, so a value outside it is kept as written. Empty means
-	// the source does not say.
+	// registry is open, so a value outside it is kept as written. It is a set,
+	// none blank and none repeated; empty means the source does not say.
 	TokenEndpointAuthMethods []string `json:"tokenEndpointAuthMethods,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
