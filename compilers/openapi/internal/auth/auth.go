@@ -220,7 +220,9 @@ func flowsMissing(ss *soa.SecurityScheme) bool {
 //
 // decl places it, not entry: a flowless declaration is a fact about the text at
 // decl, and a $ref entry holds no flows either way. The message names no entry,
-// so the copies every alias of one declaration draws dedup to one report.
+// so the copies every alias of one declaration draws dedup to one report. A
+// declaration in another document has no pointer here, so each entry naming it
+// carries its own copy, as every finding placed at decl does (GitHub #874).
 func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
 		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+

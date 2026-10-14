@@ -3877,9 +3877,9 @@ func assertSchemeDetail(t *testing.T, doc *ir.Document) {
 }
 
 // assertOAuth2NoFlow pins where a flowless oauth2 declaration is reported: once,
-// at the declaration, however many aliases reach it, and never for a scheme
-// whose metadata URL states its endpoints or that declares a flow. Every entry
-// interns either way (GitHub #646).
+// at the declaration, however many of the document's aliases reach it, and
+// never for a scheme whose metadata URL states its endpoints or that declares a
+// flow. Every entry interns either way (GitHub #646).
 func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	const code = "openapi/oauth2-no-flow"
