@@ -40,7 +40,7 @@ type reached struct {
 	// reported holds every finding already reported (see keyOf), the source's
 	// own validation's included.
 	reported map[findingKey]bool
-	// warned holds every later version's construct already reported: an object
+	// warned holds every later-version warning already reported: an object
 	// inside another reached one is walked again (see checkAll).
 	warned map[ir.Diagnostic]bool
 	// spent is the node count charged to each document so far.
