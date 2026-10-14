@@ -113,7 +113,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 			diags = append(diags, tupleDiags...)
 			return t
 		}
-		if s.GetItems() == nil && c.IsOpenAPI30() {
+		if s.GetItems() == nil && c.Is30() {
 			// A 3.0 document states the array form through items alone, so a
 			// schema that writes none declares an array without saying what its
 			// elements are (GitHub #650). The element type is the top type

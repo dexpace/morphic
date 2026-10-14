@@ -161,21 +161,21 @@ func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
 	assert.False(t, c.DeclaresAuth(""))
 }
 
-// TestIsOpenAPI30_TheZeroContextReadsAs2020 pins that a context with no
-// document answers false rather than panicking: the accessor reaches through
-// the document pointer, and half this file drives the type as a Ctx literal.
-func TestIsOpenAPI30_TheZeroContextReadsAs2020(t *testing.T) {
+// TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
+// answers false rather than panicking: the accessor reaches through the
+// document pointer, and half this file drives the type as a Ctx literal.
+func TestIs30_TheZeroContextReadsAs2020(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	assert.False(t, c.IsOpenAPI30(),
+	assert.False(t, c.Is30(),
 		"no document names no dialect, which falls back to 2020-12")
 }
 
-// TestIsOpenAPI30_FollowsTheDialect pins which documents read as OpenAPI 3.0.
+// TestIs30_FollowsTheDeclaredVersion pins which documents read as OpenAPI 3.0.
 // A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
 // turns a boolean exclusiveMinimum into a numeric bound and silences a missing
 // `items`, and the reverse warns on every 3.1 array that omits `items`.
-func TestIsOpenAPI30_FollowsTheDialect(t *testing.T) {
+func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
@@ -192,7 +192,7 @@ func TestIsOpenAPI30_FollowsTheDialect(t *testing.T) {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.IsOpenAPI30())
+			assert.Equal(t, tc.want, c.Is30())
 		})
 	}
 }
