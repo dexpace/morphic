@@ -63,6 +63,121 @@ func compileWith(t *testing.T, opts openapi.Options) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
+// TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter pins the
+// duplicate-server-name rule against the tree the overlay produced rather than
+// the bytes on disk. Each repeat is reported at itself, naming the first
+// holder, and credited to the document that wrote that entry, as any finding at
+// a pointer is: the overlay for an entry it appended, the base for the ones it
+// wrote, though an overlay renaming an earlier entry joins them.
+func TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter(t *testing.T) {
+	t.Parallel()
+	type report struct {
+		at, first string
+		source    int
+	}
+	tests := []struct {
+		name, base, patch string
+		want              []report
+		names             []string // each lowered server's declared name
+	}{
+		{
+			name: "the overlay appends an entry repeating the base's name",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://prod.example.com
+    name: prod
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - url: https://prod-mirror.example.com
+        name: prod
+`,
+			want:  []report{{at: "/servers/1/name", first: "/servers/0/name", source: 1}},
+			names: []string{"prod", "prod"},
+		},
+		{
+			name: "the overlay renames an entry ahead of a repeat the base writes",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
+    name: prod
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers[0]
+    update: {name: prod}
+`,
+			want: []report{
+				{at: "/servers/1/name", first: "/servers/0/name", source: 0},
+				{at: "/servers/2/name", first: "/servers/0/name", source: 0},
+			},
+			names: []string{"prod", "prod", "prod"},
+		},
+		{
+			name: "the overlay appends two entries sharing a name",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - {url: https://a.example.com, name: prod}
+      - {url: https://b.example.com, name: prod}
+`,
+			want:  []report{{at: "/servers/2/name", first: "/servers/1/name", source: 1}},
+			names: []string{"dev", "prod", "prod"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(tc.base)}},
+				compilers.Options{FormatOptions: openapi.Options{
+					Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tc.patch)},
+				}})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+
+			var got []report
+			for _, d := range diags {
+				if d.Code != diag.DuplicateServerName {
+					continue
+				}
+				assert.Equal(t, ir.SeverityWarning, d.Severity)
+				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
+				first, _, _ = strings.Cut(first, ";")
+				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.Source})
+			}
+			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
+
+			names := make([]string, 0, len(doc.Servers))
+			for _, s := range doc.Servers {
+				names = append(names, s.Name.Source)
+			}
+			assert.Equal(t, tc.names, names, "every server lowered, each with the name the document wrote")
+		})
+	}
+}
+
 // propertyProvenance finds the named property of the named component schema and
 // returns the provenance the compiler stamped on it.
 func propertyProvenance(t *testing.T, doc *ir.Document, schema, property string) ir.Provenance {
