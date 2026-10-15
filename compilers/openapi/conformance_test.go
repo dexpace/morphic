@@ -1315,9 +1315,11 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 	// that does, along a nullable reference or a Base.
 	nullable, ok := propByWire(login, "nullable")
 	require.True(t, ok)
+	assert.False(t, nullable.Secret, "the node holds it, not a copy on the use")
 	assert.Equal(t, ir.TypeRef{Target: namedID("Pw"), Nullable: true}, nullable.Type)
 	wrapped, ok := propByWire(login, "wrapped")
 	require.True(t, ok)
+	assert.False(t, wrapped.Secret, "the node holds it, not a copy on the use")
 	m, ok := doc.Types[wrapped.Type.Target].(*ir.Model)
 	require.True(t, ok, "an allOf over one $ref is a model")
 	require.NotNil(t, m.Base)
@@ -1360,6 +1362,12 @@ func assertSecretNodes(t *testing.T, doc *ir.Document) {
 	tokens, ok := doc.Types[namedID("Tokens")].(*ir.List)
 	require.True(t, ok)
 	requireSensitiveAlias(t, doc, tokens.Elem.Target, namedID("Plain"), "items beside a $ref")
+
+	either, ok := doc.Types[namedID("Either")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, either.Variants, 2)
+	requireSensitiveAlias(t, doc, either.Variants[0].Type.Target, ir.PrimTypeID(ir.PrimString), "union branch")
+	assert.False(t, either.Sensitive, "the branch is redacted, not the union")
 
 	assert.Equal(t, ir.KindLiteral, requireSensitive(t, doc, namedID("Code"), "const").Kind())
 	requireSensitiveAlias(t, doc, namedID("Opaque"), ir.PrimTypeID(ir.PrimAny), "untyped")
