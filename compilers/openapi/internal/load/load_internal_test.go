@@ -111,7 +111,7 @@ paths:
 
 // TestLoad_ParameterUniquenessIsTheCompilers pins compilerOwned's second
 // member: the library's report of an inline repeat is dropped, and the
-// compiler's own (parameterRepeats) is the one report, at the repeat. As for
+// compiler's own (paramRepeats) is the one report, at the repeat. As for
 // operationIds, the test first confirms the library raises its finding for the
 // fixture, or a library that stopped would leave this passing with nothing
 // dropped.
@@ -434,7 +434,7 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 }
 
 // TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater pins the gate below
-// 3.2: what is taken over there is the refusal of a keyword laterConstructs
+// 3.2: what is taken over there is the refusal of a keyword versionCheck
 // reported, so with none reported nothing is reconciled and neither run is
 // made. With one reported, what is dropped is exactly that keyword's finding.
 func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {

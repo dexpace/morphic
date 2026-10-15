@@ -138,7 +138,7 @@ func codes() []string {
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
-		diag.DuplicateStatusKey, diag.DuplicateParameter,
+		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,
 		diag.InvalidMethodKey, diag.DegradedConstruct,
 		diag.CompositionLowering, diag.DynamicRefExpanded, diag.ConflictingRedecl,
 		diag.DisjointVisibility,
@@ -149,7 +149,8 @@ func codes() []string {
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
-		diag.InvalidLocationKeyword, diag.MissingArrayItems, diag.LaterVersionConstruct,
+		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
+		diag.MissingArrayItems, diag.LaterVersionConstruct,
 	}
 }
 

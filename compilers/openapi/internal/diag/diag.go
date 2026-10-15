@@ -165,6 +165,17 @@ const (
 	//
 	// Error, as the parser's report was.
 	DuplicateParameter = "openapi/duplicate-parameter"
+	// DuplicateServerName reports a servers list entry whose name an earlier
+	// entry in the same list already has, compared as written, at the repeat's
+	// name. Load checks every list the source writes, the document's, a path
+	// item's or an operation's, lowered or not, but none only a $ref reaches
+	// (GitHub #880). Both entries are kept, though a consumer keying servers by
+	// name cannot tell them apart. Names equal only once canonicalized, and URL
+	// hints, are not reported: an emitter uniquifies them.
+	//
+	// Warning, where DuplicateParameter is an error: OpenAPI 3.2 calls the name
+	// "an optional unique string" with no RFC 2119 keyword.
+	DuplicateServerName = "openapi/duplicate-server-name"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's
@@ -388,6 +399,15 @@ const (
 	// Warning, not the error style gets: that is the parser's own validation
 	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
+	// InapplicableLocationKeyword reports a Parameter Object's allowReserved
+	// written where its document's version gives it no effect, at the keyword.
+	// Before 3.2 that is path, header or cookie: those versions apply it to
+	// in: query alone. 3.2 applies it wherever the value is percent-encoded,
+	// which leaves out a header and a cookie in style cookie. A code of its own,
+	// apart from InvalidLocationKeyword, because no MUST is broken: the keyword
+	// simply has no effect, and a consumer may weigh that differently. A
+	// warning, and the value lowers as declared (invariant 2).
+	InapplicableLocationKeyword = "openapi/inapplicable-location-keyword"
 	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
 	// lowers as it would in 3.1, where `items` is optional: a List's element is

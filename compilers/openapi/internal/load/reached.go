@@ -34,13 +34,13 @@ type reached struct {
 	version string
 	minor   string
 	limit   int
-	// tree places a finding about a node of the source, and the later
-	// version's constructs an object reached there writes (see later).
+	// tree places a finding about a node of the source, and what the version
+	// check finds in an object reached there (see checkVersion).
 	tree sourceTree
 	// reported holds every finding already reported (see keyOf), the source's
 	// own validation's included.
 	reported map[findingKey]bool
-	// warned holds every later-version warning already reported: an object
+	// warned holds every version-check warning already reported: an object
 	// inside another reached one is walked again (see checkAll).
 	warned map[ir.Diagnostic]bool
 	// spent is the node count charged to each document so far.
@@ -232,8 +232,8 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 // check validates t's object and reports what it finds at t's site. Findings
 // are reconciled as the source's are (dropped, the wrong-meta-schema
 // artifacts, the REQUIRED-field rule's, and a later version's constructs, see
-// later), and one at a node already reported is not reported again, as the
-// source reports a finding once however many references share its node. A
+// checkVersion), and one at a node already reported is not reported again, as
+// the source reports a finding once however many references share its node. A
 // panic finding the REQUIRED-field rule's artifacts is reported at t's site,
 // as checkAll reports one in validation.
 func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) []ir.Diagnostic {
@@ -242,15 +242,15 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 		return d
 	}
 
-	later := v.later(ctx, at, t)
+	checked := v.checkVersion(ctx, at, t)
 	found := validateObject(ctx, t.obj, v.opts)
-	if later.additionalOperations {
+	if checked.additionalOperations {
 		found = ownAdditionalOperations(ctx, v.doc, Siblings{}, reachedWalk(ctx, t.obj), found)
 	}
-	artifacts := v.artifacts(ctx, t.obj, later.inSchema)
+	artifacts := v.artifacts(ctx, t.obj, checked.inSchema)
 	required := findRequiredArtifacts(ctx, found, reachedWalk(ctx, t.obj), v.version, v.opts).reportedAt(t.site)
 	diags := required.faults(at)
-	for _, d := range later.diags {
+	for _, d := range checked.diags {
 		if !v.warned[d] {
 			v.warned[d] = true
 			diags = append(diags, d)
@@ -311,19 +311,18 @@ func (v *reached) artifacts(ctx context.Context, obj any, later bool) map[findin
 		v.version, v.minor, later)
 }
 
-// later reports the constructs a minor later than the document's added that
-// t's object writes, at the pointers they are written at, when the source's
-// tree holds the object: the source's walk never reaches it, so laterConstructs
-// would not otherwise judge it, and its refusals would stand where the same
-// object written inline draws a warning (GitHub #872). Another document's
-// content, which the tree does not hold, is GitHub #839's.
-func (v *reached) later(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) laterReport {
-	base, ok := v.tree.pointer(t.node)
+// checkVersion runs versionCheck over t's object, walked where the source's
+// tree writes it, when the tree holds the object: the source's walk never
+// reaches it, so it would not otherwise be judged, and its refusals would stand
+// where the same object written inline draws a warning (GitHub #872). Another
+// document's content, which the tree does not hold, is GitHub #839's.
+func (v *reached) checkVersion(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget,
+) versionReport {
+	pointer, ok := v.tree.pointer(t.node)
 	if !ok {
-		return laterReport{}
+		return versionReport{}
 	}
-	return laterConstructs(func(p jsontext.Pointer) ir.Provenance { return at(base + p) },
-		reachedWalk(ctx, t.obj), v.version)
+	return versionCheck(at, locatedWalk(reachedWalk(ctx, t.obj), pointer), v.version)
 }
 
 // reachedObject returns the object a reference names and the node it was built

@@ -294,7 +294,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 }
 
 // validated returns the source's validation findings, with what the library
-// refuses of a construct a later minor added taken over (laterConstructs,
+// refuses of a construct a later minor added taken over (versionCheck,
 // ownAdditionalOperations), and the diagnostics they and that check report.
 // The findings the library raises only by checking against the wrong
 // meta-schema, or by misreading what OpenAPI requires (requiredArtifacts), are
@@ -302,27 +302,27 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, locate scan.Locator, doc *soa.OpenAPI,
 	sibs Siblings, valErrs []error, minor string,
 ) ([]error, []ir.Diagnostic) {
-	later := laterConstructs(at, walkSource(ctx, doc, sibs), doc.OpenAPI)
-	if later.additionalOperations {
+	checked := versionCheck(at, walkSource(ctx, doc, sibs), doc.OpenAPI)
+	if checked.additionalOperations {
 		valErrs = ownAdditionalOperations(ctx, doc, sibs, walkSource(ctx, doc, sibs), valErrs)
 	}
-	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, sibs, minor, later.inSchema)
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, sibs, minor, checked.inSchema)
 	required := findRequiredArtifacts(ctx, valErrs, walkSource(ctx, doc, sibs), doc.OpenAPI, documentOptions(doc))
 	diags := findings(locate, valErrs, func(verr validation.Error) bool {
 		return wrongMetaSchema[siteOf(verr)] || required.excuses(verr)
 	})
 	diags = append(diags, required.faults(at)...)
-	return valErrs, append(diags, later.diags...)
+	return valErrs, append(diags, checked.diags...)
 }
 
 // sourceChecks runs the rules the compiler checks over the resolved source:
-// the repeats of a parameter list, and the references refused for reading past
-// a path item $ref into the fields beside it, less any resolved already
-// reports (see besideRefs).
+// the repeats of a parameter or servers list, and the references refused for
+// reading past a path item $ref into the fields beside it, less any resolved
+// already reports (see besideRefs).
 func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
-	diags := parameterRepeats(at, sibs, walkSource(ctx, doc, sibs))
+	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs))
 	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs), resolved)...)
 }
 
@@ -358,8 +358,8 @@ func dropped(verr validation.Error) bool {
 //
 // Parameter uniqueness: the library reads only inline entries, so a repeat
 // through a $ref went unreported, and beside the compiler's own report an
-// inline repeat drew two errors. parameterRepeats checks every list the source
-// writes, its $refs resolved (#634, #840).
+// inline repeat drew two errors. listRepeats checks every parameter list the
+// source writes, its $refs resolved (#634, #840).
 func compilerOwned(verr validation.Error) bool {
 	return verr.Rule == validation.RuleValidationOperationIdUnique ||
 		verr.Rule == validation.RuleValidationOperationParameters
@@ -556,7 +556,7 @@ const metaSchemaReconciledMinor = "3.2"
 // so every schema is checked against the 3.1 meta-schema. Validating every
 // schema twice, at 3.2 and as the library does, isolates where the two
 // disagree, each a false finding in a 3.2 document. In an older one, where
-// later says laterConstructs reported a keyword 3.2 added, only the refusal of
+// later says versionCheck reported a keyword 3.2 added, only the refusal of
 // a keyword is taken over: a propertyName 3.2 stopped requiring is a missing
 // field, and binds the declared version.
 func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, minor string, later bool,
