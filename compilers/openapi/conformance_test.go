@@ -181,7 +181,7 @@ func conformanceCases() []conformanceCase {
 		{"empty-enum", assertEmptyEnum, nil},
 		{"missing-array-items", assertMissingArrayItems, nil},
 		{"scalar-format", assertScalarFormat, []string{"custom-scalars"}},
-		{"secret-format", assertSecretFormat, nil},
+		{"secret-format", assertSecretFormat, []string{"redaction"}},
 		{"encoding-byte", assertEncodingByte, []string{"encoding-hints"}},
 		{"content-vocabulary", assertContentVocabulary, []string{"encoding-hints"}},
 		{"xml-hints", assertXMLHints, nil},

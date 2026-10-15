@@ -17,6 +17,7 @@ optionality-vs-nullability	Optionality vs nullability distinct
 defaults	Defaults
 constraints	Constraints (min/max/pattern…)
 visibility	readOnly/writeOnly / visibility
+redaction	Redaction of sensitive values
 recursive-types	Recursive types
 maps	Maps / additionalProperties
 tuples	Tuples
