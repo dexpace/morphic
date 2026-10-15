@@ -1011,6 +1011,25 @@ func TestObject_ComposedMapReportsItsRequiredOnce(t *testing.T) {
 	assert.Equal(t, []string{diag.UnattachableRequired}, codes)
 }
 
+// TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf branch
+// declaring a property as a map and another declaring it as a model is no
+// conflicting redeclaration: both are objects, and one instance can satisfy
+// both. Comparing node kinds alone reported it, and only in the order where
+// the model was built first, so the spec runs in both orders.
+func TestObject_MapRedeclaredAsAModelIsNoConflict(t *testing.T) {
+	t.Parallel()
+	const (
+		a      = "    A: {type: object, properties: {b: {$ref: '#/components/schemas/B'}}}\n"
+		b      = "    B:\n      allOf:\n        - properties: {m: {type: object, additionalProperties: {type: string}}}\n        - properties: {m: {$ref: '#/components/schemas/A'}}\n"
+		inline = "    C:\n      allOf:\n        - properties: {meta: {type: object, additionalProperties: {type: string}}}\n        - properties: {meta: {type: object, properties: {a: {type: string}}}}\n"
+	)
+	for _, src := range []string{a + b + inline, inline + b + a} {
+		_, diags := parseFull(t, openapitest.ComponentSpec(src))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, conflictDiags(diags), "a map and a model can describe one object")
+	}
+}
+
 // TestObject_CatchAllBesideAnotherFactStaysModel pins the other side of the map
 // rule: a catch-all beside any other member fact is a Model's AdditionalProps,
 // and an object that writes no additionalProperties states no catch-all at all.
@@ -1028,6 +1047,7 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 		{"properties", `{type: object, properties: {a: {type: string}}, additionalProperties: true}`, anyRef},
 		{"patterns", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: {type: string}}`,
 			&ir.AdditionalProps{Value: strRef, Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
+		// Inert beside a catch-all in JSON Schema, but still read as a closure (#862).
 		{"closed after composition", `{type: object, additionalProperties: {type: string}, unevaluatedProperties: false}`,
 			&ir.AdditionalProps{Value: strRef}},
 		{"discriminator", `{type: object, additionalProperties: {type: string}, discriminator: {propertyName: kind}}`,

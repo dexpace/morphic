@@ -1132,8 +1132,9 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // map and nothing else, else m (ir-design §4.6). It reads the built Model
 // rather than the schema, so a keyword that comes to fill a Model field keeps
 // the position a Model without a second predicate to update. A composed union
-// variant and a false schema skip it, since neither can be a map: one always
-// holds its branch as a Base or a Mixin, and the other is closed.
+// variant and a false schema skip it: one always holds its branch as a Base or
+// Mixin, and the other is closed. An inert `unevaluatedProperties: false`
+// beside a catch-all still closes a model, keeping it one until #862.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt

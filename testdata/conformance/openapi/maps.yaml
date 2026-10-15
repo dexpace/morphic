@@ -17,7 +17,8 @@ components:
       additionalProperties: {type: string}
       minProperties: 1
       maxProperties: 10
-    # A catch-all beside any other member fact stays a Model's AdditionalProps.
+    # Anything a map cannot hold keeps the object a Model: a pattern-scoped
+    # value, a declared property, a closure.
     PatternMap:
       type: object
       patternProperties:

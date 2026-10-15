@@ -465,7 +465,18 @@ func (g *Merger) differentTypeKind(a, b ir.TypeRef) bool {
 	if !aok || !bok {
 		return false
 	}
-	return at.Kind() != bt.Kind()
+	return objectKind(at.Kind()) != objectKind(bt.Kind())
+}
+
+// objectKind folds a MapT into the Model kind: both are objects, and one
+// instance can satisfy a map and a struct at once. Which of the two a position
+// lowers to depends on what else it declares about its members (ir-design
+// §4.6), not on a shape that could contradict the other.
+func objectKind(k ir.TypeKind) ir.TypeKind {
+	if k == ir.KindMap {
+		return ir.KindModel
+	}
+	return k
 }
 
 // isStructuralType reports whether ref targets a type that can never be a
