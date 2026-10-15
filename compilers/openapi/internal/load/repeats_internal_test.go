@@ -334,20 +334,28 @@ components:
 			},
 		},
 		{
-			name: "the fields beside a path item $ref, which an alias mounts again",
+			name: "the fields beside a path item $ref and their operation, which an alias mounts again",
 			src: head + `paths:
   /a: &use
     $ref: "#/components/pathItems/P"
     servers:
       - {url: https://a.example.com, name: b}
       - {url: https://b.example.com, name: b}
+    get:
+      servers:
+        - {url: https://c.example.com, name: o}
+        - {url: https://d.example.com, name: o}
+      responses: {"200": {description: ok}}
   /b: *use
 components:
   pathItems:
     P:
-      get: ` + operation + `
+      put: ` + operation + `
 `,
-			want: map[jsontext.Pointer]string{"/paths/~1a/servers/1/name": nameRepeat("b", "/paths/~1a/servers/0/name")},
+			want: map[jsontext.Pointer]string{
+				"/paths/~1a/servers/1/name":     nameRepeat("b", "/paths/~1a/servers/0/name"),
+				"/paths/~1a/get/servers/1/name": nameRepeat("o", "/paths/~1a/get/servers/0/name"),
+			},
 		},
 		{
 			name: "a 3.1 document",
