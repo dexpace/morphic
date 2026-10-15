@@ -49,15 +49,15 @@ type requiredArtifacts struct {
 	// at holds the nodes the rule's findings are artifacts at.
 	at map[*yaml.Node]bool
 	// echoes holds the URL check's findings only an empty default draws.
-	echoes map[echo]bool
+	echoes map[urlFinding]bool
 	// fault is the panic that stopped the walk at site, which excuses nothing.
 	fault error
 	site  jsontext.Pointer
 }
 
-// echo identifies a finding of a server's URL check by its node and what it
-// says: the check anchors every finding at the url, one per variable.
-type echo struct {
+// urlFinding identifies a finding of a server's URL check by its node and what
+// it says: the check anchors every finding at the url, one per variable.
+type urlFinding struct {
 	node    *yaml.Node
 	message string
 }
@@ -68,7 +68,7 @@ func (r requiredArtifacts) excuses(verr validation.Error) bool {
 	case validation.RuleValidationRequiredField:
 		return r.at[verr.Node]
 	case validation.RuleValidationInvalidSyntax:
-		return r.echoes[echo{node: verr.Node, message: validationMessage(verr)}]
+		return r.echoes[urlFinding{node: verr.Node, message: validationMessage(verr)}]
 	default:
 		return false
 	}
@@ -112,7 +112,7 @@ func findRequiredArtifacts(ctx context.Context, found []error, items iter.Seq[so
 	if !slices.ContainsFunc(found, ofTheRule) {
 		return requiredArtifacts{}
 	}
-	c := requiredClaims{artifact: map[*yaml.Node]bool{}, own: map[*yaml.Node]bool{}, echoes: map[echo]bool{}}
+	c := requiredClaims{nodes: newClaims[*yaml.Node](), urls: newClaims[urlFinding]()}
 	site, err := eachModel(items, "required-field check", func(_ jsontext.Pointer, m any) error {
 		c.read(ctx, m, version, opts)
 		for _, held := range unwalked(m) {
@@ -123,8 +123,7 @@ func findRequiredArtifacts(ctx context.Context, found []error, items iter.Seq[so
 	if err != nil {
 		return requiredArtifacts{fault: err, site: site}
 	}
-	maps.DeleteFunc(c.artifact, func(n *yaml.Node, _ bool) bool { return c.own[n] })
-	return requiredArtifacts{at: c.artifact, echoes: c.echoes}
+	return requiredArtifacts{at: c.nodes.excused(), echoes: c.urls.excused()}
 }
 
 // ofTheRule reports whether err is a finding of the REQUIRED-field rule.
@@ -133,40 +132,70 @@ func ofTheRule(err error) bool {
 	return ok && verr.Rule == validation.RuleValidationRequiredField
 }
 
-// requiredClaims records whether each node a model is read at holds an
-// artifact of the model's (artifact) or may hold a finding of its own (own).
+// requiredClaims holds what the models read claim of the nodes the rule's
+// findings anchor at and of the URL check's findings.
 //
 // Through a YAML alias one mapping can be read as two kinds, and a missing
 // field of either is anchored at the mapping, so every mapping a model is built
-// from is claimed. So is every value the library refuses empty, as an
-// artifact's where it is admitted and the model's own where not, since a merge
-// key can give a path and a query parameter one name node.
+// from is claimed. So is every value the library refuses empty, an artifact's
+// where admitted and the model's own where not, since a merge key can give a
+// path and a query parameter one name node; and every URL check finding, since
+// one can give two servers one url.
 type requiredClaims struct {
-	artifact, own map[*yaml.Node]bool
-	echoes        map[echo]bool
+	nodes claims[*yaml.Node]
+	urls  claims[urlFinding]
 }
 
-// read claims the nodes m was built from.
+// read claims what m was built from.
 func (c requiredClaims) read(ctx context.Context, m any, version string, opts []validation.Option) {
 	root, ok := builtFrom(m)
 	if !ok {
 		return
 	}
-	if relaxed(m, version) {
-		c.artifact[root] = true
-	} else {
-		c.own[root] = true
-	}
+	c.nodes.claim(root, relaxed(m, version))
 	admitted, refused := emptyValues(m, version)
 	for _, n := range admitted {
-		c.artifact[n] = true
+		c.nodes.claim(n, true)
 	}
 	for _, n := range refused {
-		c.own[n] = true
+		c.nodes.claim(n, false)
 	}
 	if s, ok := m.(*soa.Server); ok {
-		maps.Copy(c.echoes, emptyDefaultEchoes(ctx, s, opts))
+		echoes, stand := urlEchoes(ctx, s, opts)
+		for f := range echoes {
+			c.urls.claim(f, true)
+		}
+		for f := range stand {
+			c.urls.claim(f, false)
+		}
 	}
+}
+
+// claims records, per key a finding is matched by, whether a read holds an
+// artifact there (artifact) and whether one may hold a finding of its own
+// there (own). Two reads can share a key, and a finding there cannot be told
+// apart by which read raised it.
+type claims[K comparable] struct{ artifact, own map[K]bool }
+
+// newClaims returns claims with none recorded.
+func newClaims[K comparable]() claims[K] {
+	return claims[K]{artifact: map[K]bool{}, own: map[K]bool{}}
+}
+
+// claim records a read's claim on k: an artifact's, or a finding's of its own.
+func (c claims[K]) claim(k K, artifact bool) {
+	if artifact {
+		c.artifact[k] = true
+		return
+	}
+	c.own[k] = true
+}
+
+// excused returns the keys every read claiming them claims as an artifact's.
+func (c claims[K]) excused() map[K]bool {
+	out := maps.Clone(c.artifact)
+	maps.DeleteFunc(out, func(k K, _ bool) bool { return c.own[k] })
+	return out
 }
 
 // unwalked returns what m holds that the library's walk does not visit, though
@@ -315,23 +344,23 @@ func emptyContent(rb *soa.RequestBody) []*yaml.Node {
 	return []*yaml.Node{c.Content.GetValueNodeOrRoot(c.GetRootNode())}
 }
 
-// emptyDefaultEchoes returns the findings s's URL check draws only because a
-// variable's default is written as the empty string, which the check reads as
-// no default (resolveServerVariables, openapi/server.go): what it finds at the
-// url, less what it still finds with each such default filled. The two runs are
-// one check over one URL, so a finding both draw reads alike in each. The check
-// of the URL the empty defaults complete, which that finding cuts short, is not
-// run in its place.
-func emptyDefaultEchoes(ctx context.Context, s *soa.Server, opts []validation.Option) map[echo]bool {
-	if !writesEmptyDefault(s) {
-		return nil
-	}
+// urlEchoes returns the findings s's URL check draws at its url, split in two:
+// those it draws only because a variable's default is written as the empty
+// string, which the check reads as no default (resolveServerVariables,
+// openapi/server.go), and those it draws with each such default filled, which
+// stand. The runs are one check over one URL, so a finding both draw reads
+// alike in each. The check of the URL the empty defaults complete, which an
+// echo cuts short, is not run in its place.
+func urlEchoes(ctx context.Context, s *soa.Server, opts []validation.Option) (echoes, stand map[urlFinding]bool) {
 	c := s.GetCore()
 	url := c.URL.GetValueNodeOrRoot(c.GetRootNode())
-	echoes := urlFindings(ctx, serverWith(s, (*soa.ServerVariable).GetDefault), url, opts)
-	still := urlFindings(ctx, serverWith(s, filled), url, opts)
-	maps.DeleteFunc(echoes, func(e echo, _ bool) bool { return still[e] })
-	return echoes
+	stand = urlFindings(ctx, serverWith(s, filled), url, opts)
+	if !writesEmptyDefault(s) {
+		return nil, stand
+	}
+	echoes = urlFindings(ctx, serverWith(s, (*soa.ServerVariable).GetDefault), url, opts)
+	maps.DeleteFunc(echoes, func(f urlFinding, _ bool) bool { return stand[f] })
+	return echoes, stand
 }
 
 // writesEmptyDefault reports whether a variable of s writes its default as the
@@ -373,12 +402,12 @@ func serverWith(s *soa.Server, write func(*soa.ServerVariable) string) *soa.Serv
 
 // urlFindings validates s under opts and returns its URL check's findings,
 // those of the invalid-syntax rule at url.
-func urlFindings(ctx context.Context, s *soa.Server, url *yaml.Node, opts []validation.Option) map[echo]bool {
-	out := map[echo]bool{}
+func urlFindings(ctx context.Context, s *soa.Server, url *yaml.Node, opts []validation.Option) map[urlFinding]bool {
+	out := map[urlFinding]bool{}
 	for _, err := range s.Validate(ctx, opts...) {
 		if verr, ok := asValidationError(err); ok &&
 			verr.Rule == validation.RuleValidationInvalidSyntax && verr.Node == url {
-			out[echo{node: verr.Node, message: validationMessage(verr)}] = true
+			out[urlFinding{node: verr.Node, message: validationMessage(verr)}] = true
 		}
 	}
 	return out

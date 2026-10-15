@@ -392,12 +392,31 @@ paths: {}
 	assert.Contains(t, required[0], "serverVariable.default")
 	assert.Len(t, loadedFindings(t, src, validation.RuleValidationAllowedValues), 1,
 		"d's empty default is not one of its enum")
+
+	doc, _ := parsedModel(t, src)
+	echoes, stand := urlEchoes(t.Context(), doc.Servers[0], documentOptions(doc))
+	assert.Equal(t, []string{
+		"server variable `a` has no default value", "server variable `d` has no default value",
+	}, urlMessages(echoes))
+	assert.Equal(t, []string{
+		"server variable `b` is not defined", "server variable `c` has no default value",
+	}, urlMessages(stand))
 }
 
-// TestRequired_AServerWithEveryDefaultWrittenIsNotValidatedAgain pins that the
-// URL check is run again only for a server writing an empty default: one
-// writing none draws its findings as the library does.
-func TestRequired_AServerWithEveryDefaultWrittenIsNotValidatedAgain(t *testing.T) {
+// urlMessages returns what each of found says, sorted.
+func urlMessages(found map[urlFinding]bool) []string {
+	out := make([]string, 0, len(found))
+	for f := range found {
+		out = append(out, f.message)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestRequired_AServerWritingNoEmptyDefaultDrawsNoEcho pins that the URL check
+// runs a second time only for a server writing an empty default: what one
+// writing none draws all stands, as the library draws it.
+func TestRequired_AServerWritingNoEmptyDefaultDrawsNoEcho(t *testing.T) {
 	t.Parallel()
 	src := `openapi: 3.1.1
 info: {title: T, version: "1"}
@@ -405,10 +424,44 @@ servers: [{url: "https://h/{a}/{b}", variables: {a: {default: x}}}]
 paths: {}
 `
 	doc, _ := parsedModel(t, src)
-	assert.Nil(t, emptyDefaultEchoes(t.Context(), doc.Servers[0], documentOptions(doc)))
+	echoes, stand := urlEchoes(t.Context(), doc.Servers[0], documentOptions(doc))
+	assert.Nil(t, echoes)
+	assert.Len(t, stand, 1, "b is not defined")
 	want := libraryFindings(t, src, validation.RuleValidationInvalidSyntax)
 	require.Len(t, want, 1)
 	assert.Equal(t, want, loadedFindings(t, src, validation.RuleValidationInvalidSyntax))
+}
+
+// TestRequired_AURLAMergeKeySharesKeepsWhatAnyServerRaisesThere pins the
+// claims on the URL check's findings: a merge key gives two servers one url
+// node, and the check words a missing default as it words an empty one, so
+// the echo is excused only where every server reading the url draws it as one.
+// The server missing its default comes first, as a claim the later server
+// overwrote would excuse it.
+func TestRequired_AURLAMergeKeySharesKeepsWhatAnyServerRaisesThere(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.1\ninfo: {title: T, version: \"1\"}\nx-s: &s {url: \"https://h/{v}\"}\nservers:\n"
+	const empty = "  - {<<: *s, variables: {v: {default: \"\"}}}\n"
+	for _, tc := range []struct {
+		name, servers string
+		stands        bool
+	}{
+		{"a missing default", "  - {<<: *s, variables: {v: {description: none}}}\n" + empty, true},
+		{"every default empty", empty + empty, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := head + tc.servers + "paths: {}\n"
+			library := libraryFindings(t, src, validation.RuleValidationInvalidSyntax)
+			require.Len(t, library, 2, "one per server, at the url the merge key shares")
+			require.Equal(t, strings.Fields(library[0])[0], strings.Fields(library[1])[0])
+			var want []string
+			if tc.stands {
+				want = library
+			}
+			assert.Equal(t, want, loadedFindings(t, src, validation.RuleValidationInvalidSyntax))
+		})
+	}
 }
 
 // TestRequired_ValidatingAgainChangesNothingTheServerHolds pins that the URL
@@ -426,7 +479,8 @@ paths: {}
 	b, _ := s.Variables.Get("b")
 	valid := []bool{s.Valid, a.Valid, b.Valid}
 
-	require.NotEmpty(t, emptyDefaultEchoes(t.Context(), s, documentOptions(doc)))
+	echoes, _ := urlEchoes(t.Context(), s, documentOptions(doc))
+	require.NotEmpty(t, echoes)
 	assert.Empty(t, a.Default)
 	assert.Equal(t, "x", b.Default)
 	assert.Equal(t, valid, []bool{s.Valid, a.Valid, b.Valid})

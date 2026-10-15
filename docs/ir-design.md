@@ -1554,7 +1554,9 @@ type Parameter struct {
 }
 
 type Payload struct {
-    Contents []Content            // one per media type / message schema — all kept
+    Contents []Content            // one per media type / message schema — all kept; none for a
+                                  // request body declaring no media type, which OpenAPI's
+                                  // schemas admit
     Required *bool                // true = the body must be sent, false = it may be omitted;
                                   // nil = the source format does not express body optionality.
                                   // Three states, not two: a format that expresses it treats an
