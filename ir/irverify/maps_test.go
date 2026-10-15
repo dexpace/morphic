@@ -50,3 +50,39 @@ func pathsOf(vs []irverify.Violation, code string) []string {
 	}
 	return out
 }
+
+// TestCheckMapKeys_ReportsAStringKeySpelledOut pins ir/map-key-string: a map
+// or catch-all naming the string primitive as its key is reported at that
+// key, since a nil Key already states string keys. A nil key, another key type
+// and a nullable string key are not, and neither is a nil registry entry.
+func TestCheckMapKeys_ReportsAStringKeySpelledOut(t *testing.T) {
+	t.Parallel()
+	str := ir.TypeRef{Target: "t/prim/string"}
+	for _, tc := range []struct {
+		name string
+		td   ir.TypeDef
+		want []string
+	}{
+		{"a map spelling its string key", &ir.MapT{Key: &str, Value: str}, []string{"types[t/x].Key"}},
+		{"a catch-all spelling its string key", &ir.Model{
+			Properties:      []ir.Property{{ID: "p/x/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: str}},
+			AdditionalProps: &ir.AdditionalProps{Key: &str, Value: str},
+		}, []string{"types[t/x].AdditionalProps.Key"}},
+		{"a map with a nil key", &ir.MapT{Value: str}, nil},
+		{"a map keyed by another type", &ir.MapT{Key: &ir.TypeRef{Target: "t/prim/int64"}, Value: str}, nil},
+		{"a map keyed by a nullable string", &ir.MapT{Key: &ir.TypeRef{Target: str.Target, Nullable: true}, Value: str}, nil},
+		{"a model with no catch-all", &ir.Model{}, nil},
+		{"a nil map", (*ir.MapT)(nil), nil},
+		{"a nil model", (*ir.Model)(nil), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if !ir.IsNilTypeDef(tc.td) {
+				tc.td.Common().ID = "t/x"
+			}
+			doc := &ir.Document{Types: ir.TypeRegistry{"t/x": tc.td}}
+
+			assert.Equal(t, tc.want, pathsOf(irverify.Verify(doc), "ir/map-key-string"))
+		})
+	}
+}

@@ -180,7 +180,7 @@ type WireIDRange struct {
 type AdditionalProps struct {
 	// Value is the value schema for catch-all properties.
 	Value TypeRef `json:"value"`
-	// Key is the key schema; nil = string keys.
+	// Key is the key schema; nil = string keys, the one spelling of them.
 	Key *TypeRef `json:"key,omitzero"`
 	// Patterns are key-pattern-scoped value schemas (JSON Schema patternProperties).
 	Patterns []PatternProps `json:"patterns,omitempty"`
@@ -340,7 +340,8 @@ type List struct {
 // producer.
 type MapT struct {
 	TypeCommon
-	// Key is the key type; nil = string keys, as for AdditionalProps.Key.
+	// Key is the key type; nil = string keys, the one spelling of them, as for
+	// AdditionalProps.Key.
 	Key *TypeRef `json:"key,omitzero"`
 	// Value is the value type.
 	Value TypeRef `json:"value"`
