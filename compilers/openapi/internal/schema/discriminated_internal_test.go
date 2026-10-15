@@ -18,9 +18,10 @@ import (
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"model missing": {"t/owner": &ir.Union{ID: "t/owner"}},
-		"no model":      {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
-		"owner missing": {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
+		"model missing":          {"t/owner": &ir.Union{ID: "t/owner"}},
+		"no model":               {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
+		"owner missing":          {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
+		"owner of a map missing": {"t/ghost": &ir.MapT{ID: "t/ghost"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -33,4 +34,17 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 		})
 	}
+}
+
+// TestBesideUnionDiscriminator_LeavesASettledMapAlone pins the second
+// settlement for one model: the first moved the discriminator and left a MapT,
+// so the second has nothing to settle and reports nothing.
+func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
+	t.Parallel()
+	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
+	reg := ir.TypeRegistry{"t/owner": &ir.Union{ID: "t/owner"}, "t/pet": mt}
+	d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
+
+	assert.Empty(t, d.Settle(reg))
+	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
 }

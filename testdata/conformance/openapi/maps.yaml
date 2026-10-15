@@ -3,13 +3,30 @@ info: {title: Maps, version: "1.0.0"}
 paths: {}
 components:
   schemas:
+    # A map and nothing else is a MapT, whose nil Key is a string key.
     OpenMap:
       type: object
       additionalProperties: {type: integer}
+    # `true` is the empty schema, so it types the values as the top type.
+    AnyMap:
+      type: object
+      additionalProperties: true
+    # Entry bounds bound the map, not a property set it does not have.
+    BoundedMap:
+      type: object
+      additionalProperties: {type: string}
+      minProperties: 1
+      maxProperties: 10
+    # A catch-all beside any other member fact stays a Model's AdditionalProps.
     PatternMap:
       type: object
       patternProperties:
         "^x-": {type: string}
+    OpenRecord:
+      type: object
+      properties:
+        a: {type: string}
+      additionalProperties: true
     ClosedRecord:
       type: object
       properties:

@@ -551,12 +551,12 @@ snapshot pins the whole lowering deterministically.
 | Step | Reads (un-lowered IR fact) | Lowers to (Go example) | IR ref |
 |---|---|---|---|
 | `ResolveScalarChains` | `Scalar.Base` chain, `Constraints`, `Encoding` | nearest representable base + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
-| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; non-string map key → custom-key map or diagnostic | §4.6 |
+| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `Properties`, `Relations`, `AdditionalProps`, `Additional`, `Positional` | struct (+embeds), catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
 | `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit | §5.1; INV8 |
-| `LowerConstraints` | `Constraints` on properties/scalars/lists | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
+| `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
 | `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}` | sealed interface + marker method + concrete variants | §4.4; INV2 |
 | `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` + typed factories | §4.3–§4.4 |
 | `LowerOpenEnums` | `Enum.Closed`, `ValueType`, `Members`, `Flags`, `FallbackMember` | closed → typed consts; open → `string`+consts+`Unknown(raw)`; flags → bitset | §4.5 |
@@ -731,8 +731,9 @@ tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decod
 ### 4.9 Containers, scalars, external types
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
-  composes cleanly; constrained lists keep their bounds; `List.Encoding` (packed/expanded) reaches
-  the serializer; non-string map keys are handled or diagnosed; tuples become positional structs
+  composes cleanly; constrained lists and maps keep their bounds; `List.Encoding` (packed/expanded)
+  reaches the serializer; a nil `MapT.Key` is a string key, and a non-string one is handled or
+  diagnosed; tuples become positional structs
   whose positions past `Constraints.MinItems` are optional and whose `Rest`, when present, is a
   trailing slice.
 - **Scalars**: `ResolveScalarChains` walks `Base` transitively, accumulating

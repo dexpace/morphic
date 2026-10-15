@@ -6,3 +6,7 @@ components:
     Color:
       type: string
       enum: [red, green, blue]
+    # One member is still an Enum: the count never decides the kind.
+    Pinned:
+      type: string
+      enum: [only]

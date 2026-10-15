@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.13.0",
+  "irVersion": "0.14.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -216,7 +216,7 @@
       "inputOnly": false
     },
     "t/anon/components/schemas/Maps/properties/": {
-      "kind": "model",
+      "kind": "map",
       "id": "t/anon/components/schemas/Maps/properties/",
       "name": {
         "hint": "empty"
@@ -228,15 +228,10 @@
         "source": 0,
         "pointer": "/components/schemas/Maps/properties/"
       },
-      "additionalProps": {
-        "value": {
-          "target": "t/anon/components/schemas/Maps/properties//additionalProperties",
-          "nullable": false
-        }
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
+      "value": {
+        "target": "t/anon/components/schemas/Maps/properties//additionalProperties",
+        "nullable": false
+      }
     },
     "t/anon/components/schemas/Maps/properties//additionalProperties": {
       "kind": "model",

@@ -667,9 +667,9 @@ func lower(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s
 }
 
 // censusKeywords are the keywords whose IR home depends on what the position
-// lowered to: a Model carries properties, a List an element type and
-// collection bounds, a Literal a value, an Enum a member set, a Model or Union
-// a discriminator. keywordHome asks the built node which a position kept.
+// lowered to: a Model's properties, a Model's or MapT's catch-all, a List's
+// element type and bounds, a Literal's value, an Enum's members, a Model's or
+// Union's discriminator. keywordHome asks the built node which a position kept.
 //
 // Annotations, validation-only and use-site keywords, content vocabulary and
 // value constraints have their own keepers.
@@ -697,8 +697,13 @@ var censusKeywords = []string{
 // a null-only `type`.
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
-	case "properties", "patternProperties", "additionalProperties", "required":
-		return isKind(td, ir.KindModel)
+	case "properties", "patternProperties", "additionalProperties":
+		// A MapT homes all three: its Value is the catch-all, and it is a map
+		// only because the other two declared no member (ir.AsMap).
+		return isKind(td, ir.KindModel) || isKind(td, ir.KindMap)
+	case "required":
+		// A MapT has no key to require, so it homes only an empty list.
+		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(s.GetRequired()) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "maxItems", "minItems", "uniqueItems":
@@ -801,7 +806,7 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 // about it. Any, External and keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
-	case *ir.Model:
+	case *ir.Model, *ir.MapT:
 		return st == oas3.SchemaTypeObject
 	case *ir.List, *ir.Tuple:
 		return st == oas3.SchemaTypeArray
@@ -824,17 +829,19 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 // over it (hoistDeclarationHome), so a constraint that missed the field reaches
 // none anywhere.
 //
-// Having the field is not filling it, so a Scalar or Model is asked whether it
-// is non-nil; lowerModel and lowerAllOf fill a Model's the same way (GitHub
-// #407). A List or Tuple is absent because lowerArray and buildTuple fill their
-// Constraints from collectionConstraints, whose collection bounds
-// valueConstraintKeywords excludes, so no value constraint reaches either
-// however full the field looks.
+// Having the field is not filling it, so a Scalar, Model or MapT is asked
+// whether it is non-nil; lowerModel and lowerAllOf fill a Model's, and so its
+// MapT's, the same way (GitHub #407). A List or Tuple is absent because
+// lowerArray and buildTuple fill theirs from collectionConstraints, whose
+// collection bounds valueConstraintKeywords excludes, so no value constraint
+// reaches either however full the field looks.
 func constraintsHome(td ir.TypeDef) bool {
 	switch n := td.(type) {
 	case *ir.Scalar:
 		return n.Constraints != nil
 	case *ir.Model:
+		return n.Constraints != nil
+	case *ir.MapT:
 		return n.Constraints != nil
 	default:
 		// Every other kind has no Constraints field, or holds only collection
@@ -930,7 +937,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(string(pointer))
-	unhomed := unhomedKeywords(s, td, d.skipped)
+	unhomed := unhomedKeywords(s, td, censusHandled(d))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
@@ -947,6 +954,18 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
+}
+
+// censusHandled names the census keywords another reader at a position whose
+// election d records accounts for: the families passed over, which
+// recordSkippedFamilies keeps, and where allOf won, what the composition reads
+// (compositionCensusHandled). A map an allOf leaves would otherwise report its
+// `required` twice.
+func censusHandled(d dispatch) []string {
+	if d.won != "allOf" {
+		return d.skipped
+	}
+	return append(slices.Clone(d.skipped), compositionCensusHandled...)
 }
 
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
@@ -1082,7 +1101,8 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return id, diags
 }
 
-// lowerModel hoists an object schema as a Model. This task lowers only the
+// lowerModel hoists an object schema as a Model, or as a MapT when the object
+// is a map and nothing else (objectNode). This task lowers only the
 // property shape (name, type, required) and the property-set cardinality; a
 // later pass fills the rest. It reads no annotations: attachDeclaredAnnotations
 // does that for every destination.
@@ -1103,9 +1123,22 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		if d != nil {
 			m.Discriminator = d
 		}
-		return m
+		return objectNode(m)
 	})
 	return id, diags
+}
+
+// objectNode is the node an object lowering yields: the MapT m is when it is a
+// map and nothing else, else m (ir-design §4.6). It reads the built Model
+// rather than the schema, so a keyword that comes to fill a Model field keeps
+// the position a Model without a second predicate to update. A composed union
+// variant and a false schema skip it, since neither can be a map: one always
+// holds its branch as a Base or a Mixin, and the other is closed.
+func objectNode(m *ir.Model) ir.TypeDef {
+	if mt, ok := ir.AsMap(m); ok {
+		return mt
+	}
+	return m
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
@@ -1341,13 +1374,18 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 
 // fillAdditional lowers additionalProperties, patternProperties, and
 // unevaluatedProperties into the model's openness and catch-all shape.
+//
+// `additionalProperties: true` types the catch-all as the top type, as `{}`
+// does: the two are one schema in JSON Schema, and both state that members
+// beyond the declared ones are allowed. Only an absent keyword leaves the
+// openness unspecified.
 func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer, hint string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
 	switch {
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
-	case ap != nil && !ap.IsBool():
+	case ap != nil:
 		ref, refDiags := Ref(c, ts, anchors, depth, ap, pointer+ids.Ptr("additionalProperties"), compile.SubHint(hint, "value"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: ref}

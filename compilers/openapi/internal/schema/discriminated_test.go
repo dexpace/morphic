@@ -152,6 +152,61 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 	}
 }
 
+// mapPet declares Pet as a map beside its union: a catch-all is its only member
+// fact other than the discriminator.
+const mapPet = "    Pet:\n      type: object\n      additionalProperties: {type: string}\n" +
+	"      discriminator: {propertyName: kind}\n" + petBranches
+
+// TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves pins that a discriminator
+// moving off a body whose one other member fact is its catch-all leaves a map,
+// which is a MapT, as it is when no discriminator is written (ir-design §4.6).
+func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+dog) {
+		assertMovedToMap(t, typeByName(doc, "Pet"))
+	}
+}
+
+// TestDiscriminatorBesideUnion_SettlesAMapAReferenceBuiltFirst is
+// TestDiscriminatorBesideUnion_SettlesAPositionAReferenceBuiltFirst over a map
+// body. Of the two settlements deferred for the position, the first moves the
+// discriminator and leaves the MapT; the second finds that map and leaves it.
+func TestDiscriminatorBesideUnion_SettlesAMapAReferenceBuiltFirst(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/pet"
+	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
+	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
+		"          additionalProperties: {type: string}\n          discriminator: {propertyName: kind}\n" +
+		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n"
+	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
+		assertMovedToMap(t, doc.Types["t/anon"+at])
+		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
+			"not a subtype", "one move, reported once")
+	}
+}
+
+// assertMovedToMap requires td to be the MapT a map body is once its
+// discriminator has moved, holding the union and the discriminator verbatim.
+func assertMovedToMap(t *testing.T, td ir.TypeDef) {
+	t.Helper()
+	mt, ok := td.(*ir.MapT)
+	require.True(t, ok, "got %T", td)
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, mt.Value)
+	assert.Contains(t, mt.Unmodeled, "openapi:oneOf", "the union is kept beside it")
+	assert.Contains(t, mt.Unmodeled, "openapi:discriminator", "and the discriminator with it")
+}
+
+// TestDiscriminatorBesideUnion_KeepsARoutingMapAModel pins the other outcome:
+// a discriminator every route of which is a subtype stays, and a model that is
+// a hierarchy's base is no map, whatever else it declares.
+func TestDiscriminatorBesideUnion_KeepsARoutingMapAModel(t *testing.T) {
+	t.Parallel()
+	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, subtypes) {
+		assertStayed(t, doc)
+		assert.NotNil(t, petModel(t, doc).AdditionalProps, "the catch-all stays beside the discriminator")
+	}
+}
+
 // TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype pins the case the
 // model keeps its discriminator beside a kept union: every route is a subtype,
 // at any distance and however it is spelled. A branch no name reaches, inline

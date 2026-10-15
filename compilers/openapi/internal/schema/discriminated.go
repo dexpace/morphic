@@ -94,9 +94,15 @@ type besideUnionDiscriminator struct {
 // It moves only what it could copy (GitHub #144). One with no raw node to copy,
 // merged in through a `<<` the raw readers miss (GitHub #395), stays on the
 // model rather than vanish, where pass/validate reports the routes it fails.
+//
+// A move that leaves a map and nothing else swaps in its MapT (ir.AsMap),
+// which a later settlement for the same model leaves alone.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	m, isModel := reg[d.model].(*ir.Model)
 	owner := reg[d.owner]
+	if _, settled := reg[d.model].(*ir.MapT); settled && !ir.IsNilTypeDef(owner) {
+		return nil
+	}
+	m, isModel := reg[d.model].(*ir.Model)
 	if !isModel || m == nil || ir.IsNilTypeDef(owner) {
 		return []ir.Diagnostic{d.c.DiagAt(ir.SeverityError, diag.InternalInvariant, d.pointer,
 			"internal: %q is no model or %q is not registered, so the discriminator settlement deferred for them is not taken",
@@ -111,6 +117,9 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		return diags
 	}
 	m.Discriminator = nil
+	if mt, isMap := ir.AsMap(m); isMap {
+		reg[d.model] = mt
+	}
 	return append(diags, d.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"the discriminator routes to a type that is not a subtype of the model holding it, so it cannot "+
 			"stay there; kept verbatim under Unmodeled beside the union it was written for"))
