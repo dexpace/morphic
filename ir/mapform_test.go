@@ -64,27 +64,38 @@ func TestAsMap_RefusesWhatIsNoMap(t *testing.T) {
 	}
 }
 
-// TestAsMap_EveryOtherModelFieldIsMoreThanAMap sets each Model field AsMap
-// does not carry, one at a time, on a map, and requires the result to stay a
-// Model. It reads the fields off the type, so a field added to Model joins the
-// sweep, and fails it until AsMap either carries it or refuses it.
-func TestAsMap_EveryOtherModelFieldIsMoreThanAMap(t *testing.T) {
+// TestAsMap_EveryUncarriedFieldIsMoreThanAMap sets each field of a Model and
+// of its catch-all that AsMap does not carry, one at a time, on a map, and
+// requires the result to stay a Model. It reads the fields off the types, so a
+// field added to either joins the sweep, and fails it until AsMap carries it or
+// refuses it rather than dropping it.
+func TestAsMap_EveryUncarriedFieldIsMoreThanAMap(t *testing.T) {
 	t.Parallel()
-	carried := map[string]bool{"TypeCommon": true, "AdditionalProps": true, "Constraints": true}
-	for field := range reflect.TypeFor[ir.Model]().Fields() {
-		name := field.Name
-		if carried[name] {
-			continue
+	for _, s := range []struct {
+		typ     reflect.Type
+		carried map[string]bool
+		of      func(*ir.Model) reflect.Value
+	}{
+		{reflect.TypeFor[ir.Model](), map[string]bool{"TypeCommon": true, "AdditionalProps": true, "Constraints": true},
+			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m).Elem() }},
+		{reflect.TypeFor[ir.AdditionalProps](), map[string]bool{"Key": true, "Value": true},
+			func(m *ir.Model) reflect.Value { return reflect.ValueOf(m.AdditionalProps).Elem() }},
+	} {
+		for field := range s.typ.Fields() {
+			name := s.typ.Name() + "." + field.Name
+			if s.carried[field.Name] {
+				continue
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				m := mapModel()
+				setNonZero(t, s.of(m).FieldByName(field.Name))
+
+				_, ok := ir.AsMap(m)
+
+				assert.False(t, ok, "a model setting %s states more than a map does", name)
+			})
 		}
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			m := mapModel()
-			setNonZero(t, reflect.ValueOf(m).Elem().FieldByName(name))
-
-			_, ok := ir.AsMap(m)
-
-			assert.False(t, ok, "a model setting %s states more than a map does", name)
-		})
 	}
 }
 
