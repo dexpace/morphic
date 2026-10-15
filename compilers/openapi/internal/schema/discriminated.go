@@ -99,7 +99,7 @@ type besideUnionDiscriminator struct {
 // hold (rehome); a later settlement leaves the map alone.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	owner := reg[d.owner]
-	if _, settled := reg[d.model].(*ir.MapT); settled && !ir.IsNilTypeDef(owner) {
+	if mt, settled := reg[d.model].(*ir.MapT); settled && mt != nil && !ir.IsNilTypeDef(owner) {
 		return nil
 	}
 	m, isModel := reg[d.model].(*ir.Model)

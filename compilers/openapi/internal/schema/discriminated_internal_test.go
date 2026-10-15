@@ -12,9 +12,9 @@ import (
 )
 
 // TestBesideUnionDiscriminator_ReportsWhatItCannotSettle pins that a settlement
-// whose model is missing or is no model, or whose union's node is missing, is
+// whose model is missing, nil or no model, or whose union's node is missing, is
 // announced rather than skipped: the discriminator it was deferred for would
-// otherwise be settled nowhere, unremarked.
+// otherwise be settled nowhere, unremarked. A nil map is no settled one.
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
@@ -22,6 +22,8 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 		"no model":               {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
 		"owner missing":          {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
 		"owner of a map missing": {"t/ghost": &ir.MapT{ID: "t/ghost"}},
+		"nil model":              {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.Model)(nil)},
+		"nil map":                {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.MapT)(nil)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
