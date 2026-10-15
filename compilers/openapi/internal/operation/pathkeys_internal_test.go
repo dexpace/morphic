@@ -1,6 +1,8 @@
 package operation
 
 import (
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -157,4 +159,43 @@ func TestIsHexDigit(t *testing.T) {
 			t.Errorf("isHexDigit(%#x) = %v, want %v", c, got, want)
 		}
 	}
+}
+
+// FuzzPathKeyDefects_AgreesWithTheABNF holds the scanner to the 3.2.0 §4.8.2
+// ABNF transcribed as a regular expression, so a reader can check the grammar
+// against the specification line by line rather than through the scanner. The
+// path is the key up to its first "?" or "#" outside an expression; a key is
+// clean exactly when that path matches, uses no expression twice, and no query
+// follows it.
+func FuzzPathKeyDefects_AgreesWithTheABNF(f *testing.F) {
+	const (
+		pchar   = `(?:[A-Za-z0-9\-._~!$&'()*+,;=:@]|%[0-9A-Fa-f]{2})`
+		expr    = `\{[^{}]+\}`
+		segment = `(?:` + pchar + `|` + expr + `)+`
+	)
+	template := regexp.MustCompile(`^/(?:` + segment + `/)*(?:` + segment + `)?$`)
+	exprs := regexp.MustCompile(expr)
+	pathPart := regexp.MustCompile(`^(?:` + expr + `|[^?#])*`)
+	for _, seed := range []string{"", "/", "a", "/a/{id}", "/{a}{b}", "/a/{x y}", "/{a/b}", "//a", "/a/%2",
+		"/a{b", "/a}", "/{}", "/{a{b}}", "/u/{id}/i/{id}", "/é", "/a?x", "/a#f", "/a/{x?y}", "/a/{x?"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, key string) {
+		p := pathPart.FindString(key)
+		query := strings.HasPrefix(key[len(p):], "?")
+		names := exprs.FindAllString(p, -1)
+		used := len(names)
+		slices.Sort(names)
+		clean := template.MatchString(p) && len(slices.Compact(names)) == used && !query
+
+		got := pathKeyDefects(key)
+		if clean != (len(got) == 0) {
+			t.Fatalf("key %q: ABNF clean=%v, defects=%q", key, clean, got)
+		}
+		if reported := slices.ContainsFunc(got, func(d string) bool {
+			return strings.HasPrefix(d, "carries the query ")
+		}); reported != query {
+			t.Fatalf("key %q: query after the path=%v, reported=%v", key, query, reported)
+		}
+	})
 }
