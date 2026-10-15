@@ -930,7 +930,8 @@ holds every document to the same function (`ir/map-as-model`). The conversion ke
 `TypeCommon` — its ID, name, docs and unmodeled entries — and takes the catch-all's key and value
 and the model's `Constraints`, which on a map bound how many entries an instance may carry. What a
 map has no field for is kept the way any keyword without a home is: an OpenAPI `required` naming
-keys stays verbatim (§4.8), and `propertyNames` stays the validation-only entry §4.7 makes it, since
+keys stays verbatim (§4.8), also where a discriminator's move makes the object a map after its
+census ran, and `propertyNames` stays the validation-only entry §4.7 makes it, since
 it constrains keys without being a key type. An `allOf` that leaves a map is the exception so far:
 the composition reads its `required` itself and reports each name it cannot attach without keeping
 it, as it does for a model (#896).

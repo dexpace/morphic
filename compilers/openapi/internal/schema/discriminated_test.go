@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -164,6 +165,8 @@ func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	t.Parallel()
 	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+dog) {
 		assertMovedToMap(t, typeByName(doc, "Pet"))
+		assert.Empty(t, censusReports(doc.Diagnostics, "/components/schemas/Pet"),
+			"the map holds all the census asked about, and the move keeps the discriminator itself")
 	}
 }
 
@@ -176,13 +179,74 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceBuiltFirst(t *testing.T) 
 	const at = "/components/schemas/Holder/properties/pet"
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
 	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
-		"          additionalProperties: {type: string}\n          discriminator: {propertyName: kind}\n" +
+		"          additionalProperties: {type: string}\n          required: [a]\n          discriminator: {propertyName: kind}\n" +
 		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
 		assertMovedToMap(t, doc.Types["t/anon"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
 			"not a subtype", "one move, reported once")
+		assert.Contains(t, doc.Types["t/anon"+at].Common().Unmodeled, "openapi:required")
+		assert.Equal(t, []string{requiredHomeless}, censusReports(doc.Diagnostics, at), "kept once, reported once")
 	}
+}
+
+// TestDiscriminatorBesideUnion_MapKeepsARequiredList pins the keyword a move
+// takes a home from. The census ran while the discriminator kept the body a
+// Model, which holds `required`; the MapT the move leaves cannot, so the
+// settlement keeps the list verbatim and reports it once, as the census does at
+// a plain map. An allOf reports its own `required` as unattachable, so the
+// settlement adds nothing there, and a variant of a multi-typed body ran no
+// census (GitHub #852), so the settlement starts none for it.
+func TestDiscriminatorBesideUnion_MapKeepsARequiredList(t *testing.T) {
+	t.Parallel()
+	const (
+		body    = "      additionalProperties: {type: string}\n      required: [a]\n      discriminator: {propertyName: kind}\n" + petBranches
+		pointer = "/components/schemas/Pet"
+	)
+	for _, tc := range []struct {
+		name, pet   string
+		node        ir.TypeID
+		census      []string
+		composition int
+	}{
+		{"plain", "    Pet:\n      type: object\n" + body, componentID("Pet"), []string{requiredHomeless}, 0},
+		{"composed", "    Pet:\n      allOf: [{type: object}]\n" + body, componentID("Pet"), nil, 1},
+		{"variant", "    Pet:\n      type: [object, string]\n" + body, "t/anon" + pointer + "/type/0", nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range discriminatedOrders(t, "3.1.0", tc.pet, cat+dog) {
+				mt, ok := doc.Types[tc.node].(*ir.MapT)
+				require.True(t, ok, "the move leaves a map; got %T", doc.Types[tc.node])
+				entry, kept := mt.Unmodeled["openapi:required"]
+				require.Equal(t, tc.census != nil, kept)
+				if kept {
+					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+					assert.JSONEq(t, `["a"]`, string(entry.Value))
+				}
+				assert.Equal(t, tc.census, censusReports(doc.Diagnostics, pointer))
+				assert.Equal(t, tc.composition, openapitest.CountDiagsAt(doc.Diagnostics, diag.UnattachableRequired, ir.SeverityInfo))
+			}
+		})
+	}
+}
+
+// requiredHomeless is the census report of a `required` list a map cannot
+// hold, naming that keyword alone.
+const requiredHomeless = `this position lowered to a node of kind "map", which has no home for required declared ` +
+	"beside it; kept verbatim under Unmodeled"
+
+// censusReports returns the messages of the census reports made at pointer,
+// each naming the keywords that position kept for want of a home.
+func censusReports(diags []ir.Diagnostic, pointer jsontext.Pointer) []string {
+	var out []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == pointer &&
+			strings.HasPrefix(d.Message, "this position lowered to ") {
+			out = append(out, d.Message)
+		}
+	}
+	return out
 }
 
 // assertMovedToMap requires td to be the MapT a map body is once its
