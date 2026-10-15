@@ -29,7 +29,7 @@ paths:
         "200": {description: ""}
 components:
   securitySchemes:
-    key: {type: apiKey, name: "", in: header}
+    key: {type: apiKey, name: "", in: query}
     oidc: {type: openIdConnect, openIdConnectUrl: ""}
     oauth:
       type: oauth2

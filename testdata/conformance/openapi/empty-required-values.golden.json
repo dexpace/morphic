@@ -172,7 +172,7 @@
       },
       "kind": "apiKey",
       "docs": {},
-      "in": "header",
+      "in": "query",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/key"
@@ -258,7 +258,7 @@
     {
       "format": "openapi@3.0",
       "path": "empty-required-values.yaml",
-      "hash": "8514eef0cf883c98b1b02b955d3c74e870dd2591aa394b1eeb7aeb4dbfb0650e"
+      "hash": "6c9d3fcbd208738414761c48b41da336b59ebfc799f8dbda021776a11e2c2d6c"
     }
   ]
 }

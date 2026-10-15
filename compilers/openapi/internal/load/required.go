@@ -216,11 +216,10 @@ func relaxed(m any, version string) bool {
 // ones the declared version admits, and the rest.
 //
 // A field every minor's schema types as a bare string or map is admitted
-// unless the specification refuses the value otherwise: a path parameter's
-// name must match a template expression, none of which the empty string
-// names, and 3.2's server URL grammar requires a character. An enumerated
-// field, such as a parameter's in, is never admitted; a null is a type
-// mismatch.
+// unless the specification, or a grammar it cites, refuses the value: a name
+// sent outside the query (parameterValues, schemeValues), an HTTP scheme, and
+// from 3.2 a server URL, whose grammar requires a character. An enumerated
+// field is never admitted; a null is a type mismatch.
 func emptyValues(m any, version string) (admitted, refused []*yaml.Node) {
 	switch v := m.(type) {
 	case *soa.Info:
@@ -246,8 +245,7 @@ func emptyValues(m any, version string) (admitted, refused []*yaml.Node) {
 		c := v.GetObject().GetCore()
 		return blanks(c, c.Description), nil
 	case *soa.ReferencedSecurityScheme:
-		c := v.GetObject().GetCore()
-		return blanks(c, c.Name, c.Scheme, c.OpenIdConnectUrl), append(blanks(c, c.Type), blanks(c, c.In)...)
+		return schemeValues(v.GetObject())
 	case *soa.OAuthFlow:
 		c := v.GetCore()
 		return blanks(c, c.AuthorizationURL, c.TokenURL, c.DeviceAuthorizationURL), nil
@@ -259,14 +257,31 @@ func emptyValues(m any, version string) (admitted, refused []*yaml.Node) {
 }
 
 // parameterValues is emptyValues for a parameter: its name is admitted empty
-// unless it names a path parameter, and its in never is.
+// only in the query, where the form encoding names a value with the empty
+// string, or as the querystring, whose name is never sent. A path parameter's
+// name must match a template expression, and a header's or a cookie's is a
+// token (RFC 9110, RFC 6265): none of these is empty. Its in never is.
 func parameterValues(p *soa.Parameter) (admitted, refused []*yaml.Node) {
 	c := p.GetCore()
 	name, in := blanks(c, c.Name), blanks(c, c.In)
-	if p.GetIn() == soa.ParameterInPath {
-		return nil, append(name, in...)
+	if where := p.GetIn(); where == soa.ParameterInQuery || where == soa.ParameterInQueryString {
+		return name, in
 	}
-	return name, in
+	return nil, append(name, in...)
+}
+
+// schemeValues is emptyValues for a security scheme: an API key's name is
+// admitted empty only in the query, as a query parameter's is, and an OpenID
+// Connect URL as a relative reference. An HTTP scheme is an RFC 9110 token,
+// which is never empty, and the type and in are enumerated.
+func schemeValues(s *soa.SecurityScheme) (admitted, refused []*yaml.Node) {
+	c := s.GetCore()
+	admitted = blanks(c, c.OpenIdConnectUrl)
+	refused = append(blanks(c, c.Type), blanks(c, c.In, c.Scheme)...)
+	if s.GetIn() == soa.SecuritySchemeInQuery {
+		return append(admitted, blanks(c, c.Name)...), refused
+	}
+	return admitted, append(refused, blanks(c, c.Name)...)
 }
 
 // blanks returns the node of each of fields written as the empty string, as

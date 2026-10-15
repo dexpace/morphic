@@ -83,11 +83,12 @@ func TestRequired_AnEmptyValueTheSpecificationAdmitsIsNoFinding(t *testing.T) {
 		{"document externalDocs url", info + "externalDocs: {url: \"\"}\npaths: {}\n"},
 		{"tag externalDocs url", info + "tags: [{name: t, externalDocs: {url: \"\"}}]\npaths: {}\n"},
 		{"operation externalDocs url", info + op + "      externalDocs: {url: \"\"}\n" + ok},
-		{"parameter name", info + op + "      parameters: [{name: \"\", in: query, schema: {type: string}}]\n" + ok},
+		{"query parameter name", info + op + "      parameters: [{name: \"\", in: query, schema: {type: string}}]\n" + ok},
+		{"querystring parameter name", info + op + "      parameters: [{name: \"\", in: querystring, " +
+			"content: {application/x-www-form-urlencoded: {schema: {type: object}}}}]\n" + ok},
 		{"response description", info + op + "      responses: {\"200\": {description: \"\"}}\n"},
 		{"request body content", info + op + "      requestBody: {content: {}}\n" + ok},
-		{"apiKey name", scheme("{type: apiKey, name: \"\", in: header}")},
-		{"http scheme", scheme("{type: http, scheme: \"\"}")},
+		{"query apiKey name", scheme("{type: apiKey, name: \"\", in: query}")},
 		{"openIdConnectUrl", scheme("{type: openIdConnect, openIdConnectUrl: \"\"}")},
 		{"implicit authorizationUrl", scheme("{type: oauth2, flows: {implicit: {authorizationUrl: \"\", scopes: {}}}}")},
 		{"password tokenUrl", scheme("{type: oauth2, flows: {password: {tokenUrl: \"\", scopes: {}}}}")},
@@ -167,13 +168,26 @@ func TestRequired_EverySpellingOfTheEmptyStringIsAdmitted(t *testing.T) {
 
 // TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused pins the empty values
 // no minor admits, so the library's finding stands, worded as it words it: an
-// enumerated field, whose values never include the empty string, and a path
-// parameter's name, which must match a template expression none of which the
-// empty string names.
+// enumerated field, whose values never include the empty string, a path
+// parameter's name, which must match a template expression, and a name sent in
+// a header or a cookie, or an HTTP scheme, each a token of the RFC the
+// specification cites.
 func TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused(t *testing.T) {
 	t.Parallel()
 	const info = "info: {title: T, version: \"1\"}\n"
+	param := func(in string) string {
+		return info + "paths:\n  /p:\n    get:\n      parameters: [{name: \"\", in: " + in +
+			", schema: {type: string}}]\n      responses: {\"200\": {description: ok}}\n"
+	}
+	scheme := func(s string) string {
+		return info + "paths: {}\ncomponents: {securitySchemes: {s: " + s + "}}\n"
+	}
 	for _, tc := range []struct{ name, doc string }{
+		{"header parameter name", param("header")},
+		{"cookie parameter name", param("cookie")},
+		{"header apiKey name", scheme("{type: apiKey, name: \"\", in: header}")},
+		{"cookie apiKey name", scheme("{type: apiKey, name: \"\", in: cookie}")},
+		{"http scheme", scheme("{type: http, scheme: \"\"}")},
 		{"path parameter name", info + "paths:\n  /p/{x}:\n    get:\n" +
 			"      parameters: [{name: \"\", in: path, required: true, schema: {type: string}}]\n" +
 			"      responses: {\"200\": {description: ok}}\n"},

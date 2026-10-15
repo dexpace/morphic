@@ -2337,13 +2337,15 @@ server URL check repeats that reading for a variable's `default`. The load phase
 findings wherever the parser makes them: in the source, in an object a `$ref` reaches outside the
 model, and in another document, which is held to the source's declared minor as its schemas'
 findings are until GitHub #839 settles which minor governs it. Nothing else is dropped. An empty
-value the specification refuses otherwise stands: an enumerated field (a Parameter's `in`, a
-security scheme's `type`), a path parameter's `name`, which must match a template expression and
-none is named by the empty string, and a server `url` from 3.2, whose server URL grammar requires a
-character. A field left out below the minor that relaxed it stands too, as does a `null`, and so
-does every finding at a node two reads share through a YAML alias or merge key, unless what each
-read raises there is one of those dropped. The objects a later minor's construct holds are held to
-the declared minor like any other (GitHub #622).
+value the specification, or a grammar it cites, refuses stands: an enumerated field (a Parameter's
+`in`, a security scheme's `type`); a path parameter's `name`, which must match a template
+expression, none of which the empty string names; a name sent in a header or a cookie, by a
+parameter or an API key, and an HTTP `scheme`, each a token of RFC 9110 or RFC 6265; and a server
+`url` from 3.2, whose server URL grammar requires a character. A name sent in the query, or a
+`querystring` parameter's, which is never sent, is admitted. A field left out below the minor that
+relaxed it stands too, as does a `null`, and so does every finding at a node two reads share through
+a YAML alias or merge key, unless what each read raises there is one of those dropped. The objects a
+later minor's construct holds are held to the declared minor like any other (GitHub #622).
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no
