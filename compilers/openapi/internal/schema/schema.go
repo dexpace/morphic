@@ -283,14 +283,14 @@ func declaresPositionScoped(s *oas3.Schema) bool {
 		annotation.DeclaresAny(s, annotation.DialectKeywords)
 }
 
-// declaresAnnotations reports whether s carries documentation, deprecation, XML
-// hints, vendor extensions, or examples — the five TypeCommon fields
+// declaresAnnotations reports whether s carries documentation, deprecation, a
+// redaction, XML hints, vendor extensions, or examples — the TypeCommon fields
 // attachDeclaredAnnotations fills.
 func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated(s, nil) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated(s, nil) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
@@ -760,6 +760,12 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // itself. With no type declared there was no pairing to make and nothing read it,
 // and a node of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
+	// The redaction format names no shape, so no node kind is its home: the
+	// annotation readers hold it, as Sensitive on the node the position owns or
+	// Secret on its carrier, and verbatim at a parameter, which has no field.
+	if annotation.DeclaresRedaction(s) {
+		return true
+	}
 	switch n := td.(type) {
 	case *ir.Scalar:
 		return n.Encoding != nil
@@ -1152,8 +1158,8 @@ func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.Raw
 }
 
 // FillPropertyDetail enriches a property from its schema: the property-scoped
-// facts a type node has no field for (default, visibility, secrecy,
-// constraints), then the declaration's annotations. Annotations present at a
+// facts a type node has no field for (default, visibility, constraints), then
+// the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (ir-design §14).
 //
 // Constraints stay unconditional: ir.Property is the only home every property
@@ -1168,9 +1174,6 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	tgt := resolve.TargetSchema(js, ref)
 	def, diags := DefaultOf(c, ref, tgt, pointer)
 	p.Default = def
-	if ref.GetFormat() == "password" {
-		p.Secret = true
-	}
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
@@ -1218,6 +1221,9 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	p.Docs = a.Docs
 	if a.Deprecated {
 		p.Deprecation = &ir.Deprecation{}
+	}
+	if a.Sensitive {
+		p.Secret = true
 	}
 	if a.XML != nil {
 		p.XML = a.XML
@@ -1309,6 +1315,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	common.Docs = a.Docs
 	if a.Deprecated {
 		common.Deprecation = &ir.Deprecation{}
+	}
+	if a.Sensitive {
+		common.Sensitive = true
 	}
 	if a.XML != nil {
 		common.XML = a.XML
@@ -1408,6 +1417,9 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 // also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
+	if annotation.DeclaresRedaction(s) {
+		format = "" // a redaction, not a shape: the annotation readers hold it
+	}
 	if st == oas3.SchemaTypeString && format == "byte" {
 		return hoistScalar(c, ts, anchors, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer, hint)
 	}
@@ -1960,6 +1972,9 @@ func (w *anchorWalk) charge(depth int) bool {
 // the integral values, which no primitive narrower than integer holds. Any
 // pairing absent here hoists a Scalar that keeps the format, byte excepted:
 // scalarTypeID reads it before the table, as base64-encoded bytes.
+//
+// No row maps to the kind its bare type selects, which would leave the format
+// nowhere (TestFormatTable_EveryRowDistinguishesTheBareType).
 var formatTable = map[string]ir.PrimKind{
 	"string":            ir.PrimString,
 	"string/date":       ir.PrimDate,
@@ -1969,7 +1984,6 @@ var formatTable = map[string]ir.PrimKind{
 	"string/uri":        ir.PrimURL,
 	"string/date-time":  ir.PrimDatetimeOffset,
 	"string/binary":     ir.PrimBytes,
-	"string/password":   ir.PrimString,
 	"integer":           ir.PrimInteger,
 	"integer/int8":      ir.PrimInt8,
 	"integer/int16":     ir.PrimInt16,

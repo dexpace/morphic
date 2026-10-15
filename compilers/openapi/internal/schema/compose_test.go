@@ -127,6 +127,41 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
 }
 
+// TestAllOf_RedeclarationOrsSecret pins that a redaction one branch writes
+// survives the fold in both declaration orders, and that it costs the fold
+// nothing else: `format: password` names no shape, so both declarations share
+// the bare string's target and every detail folds rather than the losing one
+// being dropped whole (the order-dependent drop GitHub #782 tracks for a
+// format that does name one).
+func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
+	t.Parallel()
+	secret := "            token: {type: string, format: password}\n"
+	bounded := "            token: {type: string, minLength: 3, description: the token}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second string }{
+		{"password first", secret, bounded},
+		{"password second", bounded, secret},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
+				branch + tc.first + branch + tc.second)
+			doc, diags := lowerSpec(t, spec)
+			assert.Empty(t, diags, "nothing conflicts")
+			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+			require.True(t, ok, "Tokenish should be a model")
+			require.Len(t, m.Properties, 1, "token reconciles to a single property")
+			tok := m.Properties[0]
+			assert.True(t, tok.Secret, "either branch's redaction makes the merged field secret")
+			assert.Equal(t, ir.TypeID("t/prim/string"), tok.Type.Target, "both branches share the target")
+			require.NotNil(t, tok.Constraints, "the other branch's bound is folded, not dropped")
+			assert.Equal(t, new(int64(3)), tok.Constraints.MinLength)
+			assert.Equal(t, "the token", tok.Docs.Description)
+			assert.Empty(t, tok.Unmodeled, "no declaration was kept as a loser")
+		})
+	}
+}
+
 func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	t.Parallel()
 	// Two branches describe the same field differently. The first declaration in

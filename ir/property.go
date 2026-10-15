@@ -110,7 +110,9 @@ type Property struct {
 	// EventPayload marks the raw frame payload member (Smithy @eventPayload);
 	// mutually exclusive with EventHeader, at most one per model.
 	EventPayload bool `json:"eventPayload"`
-	// Secret requests redaction in logs/docs (TypeSpec @secret, format:password).
+	// Secret requests that this use's value be redacted in logs and docs
+	// (TypeSpec @secret, OpenAPI format:password). A value whose type is
+	// TypeCommon.Sensitive is redacted whether or not it is set.
 	Secret bool `json:"secret"`
 	// XML is the XML wire shape when it diverges from the JSON-implied shape.
 	XML *XMLHints `json:"xml,omitzero"`

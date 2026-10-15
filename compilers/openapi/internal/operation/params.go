@@ -219,6 +219,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if a.XML != nil {
 		diags = append(diags, preserveParamXML(c, param, s, pointer)...)
 	}
+	diags = append(diags, preserveParamRedaction(c, param, s, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
 	// Last, per schema.PreserveUnknownKeywords: it keeps only the keywords no
 	// reader above it kept, and everything annotation.Read recorded is already on
@@ -238,6 +239,26 @@ func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, point
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
+	}
+	return diags
+}
+
+// preserveParamRedaction keeps a parameter schema's `format: password`
+// verbatim: ir.Parameter is the one annotation carrier with no redaction field,
+// where a type node has Sensitive and a property Secret. Only the format this
+// site writes is kept; a referent's redaction is already Sensitive on the
+// referent's own node, which the parameter's type reaches. ReasonNoIRHome, since
+// the IR can close the gap by adding the field (GitHub #578).
+func preserveParamRedaction(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if !annotation.DeclaresRedaction(s) {
+		return nil
+	}
+	at := pointer + ids.Ptr("format")
+	kept, diags := schema.PreserveSchemaKeyword(c, &param.Unmodeled, s, "format", ir.ReasonNoIRHome, at)
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"parameter schema format: password asks for redaction, which has no ir.Parameter home; "+
+				"kept verbatim under Unmodeled"))
 	}
 	return diags
 }

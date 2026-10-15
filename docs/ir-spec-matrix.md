@@ -39,6 +39,7 @@ the ones the next compiler will be first to bind to.
 | `defaults` | Defaults | ✅ | ✅ | ✅ | ✅ | ✅ args + input fields | ✅ | ✅ proto2 | ⚠ record fields |
 | `constraints` | Constraints (min/max/pattern…) | ✅ | ✅ | ✅ decorators | ✅ traits | ⚠ directives (convention only) | ✅ | ⚠ protovalidate | ⚠ ranges, bit sizes |
 | `visibility` | readOnly/writeOnly / visibility | ✅ | ✅ readOnly | ✅ @visibility classes | — | ✅ input vs output types | ⚠ (JSON Schema readOnly) | — | — |
+| `redaction` | Redaction of sensitive values | ✅ format: password | ✅ format: password | ✅ @secret | ✅ @sensitive | — | ⚠ format: password (OpenAPI's; AsyncAPI defines none) | ✅ debug_redact | — |
 | `recursive-types` | Recursive types | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `maps` | Maps / additionalProperties | ✅ | ✅ | ✅ Record | ✅ map | — | ✅ | ✅ map | ✅ :=/=> |
 | `tuples` | Tuples | ✅ prefixItems (3.1) | — | ✅ | — | — | ✅ | — | ✅ native |

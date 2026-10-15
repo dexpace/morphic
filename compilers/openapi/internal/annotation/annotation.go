@@ -1,6 +1,6 @@
 // Package annotation reads the documentation-adjacent facts a schema or a
-// carrier declares — descriptions, deprecation, visibility, XML hints,
-// extensions — and the validation-only JSON Schema keywords the IR keeps
+// carrier declares — descriptions, deprecation, redaction, visibility, XML
+// hints, extensions — and the validation-only JSON Schema keywords the IR keeps
 // verbatim rather than models.
 //
 // It exists because those two jobs share one question: given a $ref, does the
@@ -606,9 +606,26 @@ func RawChildNodes(root *yaml.Node) map[string]*yaml.Node {
 type Set struct {
 	Docs       ir.Docs
 	Deprecated bool
-	XML        *ir.XMLHints
-	Examples   []ir.Example
-	Unmodeled  ir.Unmodeled
+	// Sensitive is a redaction the site or its referent asks for
+	// (DeclaresRedaction). A type node holds it as Sensitive and a property as
+	// Secret; a parameter has no field for it (GitHub #578).
+	Sensitive bool
+	XML       *ir.XMLHints
+	Examples  []ir.Example
+	Unmodeled ir.Unmodeled
+}
+
+// redactionFormat is the one format OpenAPI defines that names no shape: its
+// format table gives it as a hint to obscure the value.
+const redactionFormat = "password"
+
+// DeclaresRedaction reports whether s asks for its value to be redacted, by
+// writing `format: password`. It is honoured whatever type s declares: the
+// table lists it for strings, but hiding a value no one needed hidden is the
+// safe reading. It is an annotation rather than a (type, format) pairing, so
+// the shape a position lowers to is read without it.
+func DeclaresRedaction(s *oas3.Schema) bool {
+	return s.GetFormat() == redactionFormat
 }
 
 // Read reads every site-local annotation at st.
@@ -626,6 +643,7 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 
 	FillCarrierDocs(&out.Docs, st.Node, referent)
 	out.Deprecated = EffectiveDeprecated(st.Node, referent)
+	out.Sensitive = DeclaresRedaction(st.Node) || DeclaresRedaction(referent)
 	out.XML = XMLHints(st.Node.GetXML())
 
 	examples, exDiags := schemaExamplesAt(st.Node, pointer, locate)
