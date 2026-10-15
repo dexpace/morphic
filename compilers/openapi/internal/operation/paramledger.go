@@ -22,7 +22,7 @@ type paramSlot struct {
 // never the iteration order of a map.
 //
 // A repeat in a list the source writes is load's to report, once, where it is
-// written (parameterRepeats). One in another document's content, which that
+// written (paramRepeats). One in another document's content, which that
 // walk does not reach, is reported here, at the entry it was lowered from.
 type paramLedger struct {
 	mount   jsontext.Pointer
