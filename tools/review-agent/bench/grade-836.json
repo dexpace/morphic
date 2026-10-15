@@ -1,0 +1,74 @@
+{
+ "pr": 836,
+ "agent": "v1",
+ "defects": [
+  {
+   "id": "D1",
+   "desc": "findCommand (new in cmd/morphic/dashes.go) returned cobra's root command and every argument alongside found=false, so a caller skipping the check would read a plausible command; comma-ok helper should return nil, nil, false",
+   "truth_sha": "6bbc620e",
+   "verdict": "partial",
+   "review_quote": "findCommand returns a non-nil `target` alongside `false`, which the caller ignores. Not a defect."
+  },
+  {
+   "id": "D2",
+   "desc": "references_internal_test.go failure report ran to ~150 columns and read \"reported N failure(s) and: err\", misdescribing what the library's resolution returned",
+   "truth_sha": "8ed8074b",
+   "verdict": "caught",
+   "review_quote": "the new failure message calls validation errors \"failures\" and prints \"0 failure(s)\" next to a real failure ... Every message prints \"and: <nil>\" when there is none."
+  }
+ ],
+ "non_defects": [
+  {
+   "truth_sha": "57d238ba",
+   "reason": "Planned continuation / new scope: removes nolintlint, the two nolint scripts and their gate steps once no directive remains (authored one second after the initial commit). Not a fix to a defect in the initial commit."
+  },
+  {
+   "truth_sha": "34311cd0",
+   "reason": "New scope: adds an archtest that parses comments and refuses nolint/revive/lint:ignore directives."
+  },
+  {
+   "truth_sha": "aaeb9332",
+   "reason": "Continuation (drops make nolint now that archtest covers it); the inaccurate exclusions-block comment it corrects was introduced by 57d238ba, not the initial commit (df615a30's .golangci.yml has no such comment)."
+  },
+  {
+   "truth_sha": "3e1bbbf2",
+   "reason": "Fixes a comment and adds rows in the archtest introduced by later commit 34311cd0."
+  },
+  {
+   "truth_sha": "15f8e0d8",
+   "reason": "Refines the warn-unused comment introduced by later commit aaeb9332."
+  },
+  {
+   "truth_sha": "f32b094a",
+   "reason": "Fixes the failure message/doc of the archtest introduced by later commit 34311cd0."
+  }
+ ],
+ "extras": [
+  {
+   "finding": "Commit subject runs over 72 chars once GitHub appends the PR number (73 with ' (#999)')",
+   "class": "unverifiable",
+   "why": "The commit subject itself is 66 chars and within the commit cap; the rule applies to the PR title, which the reviewer did not see. The PR's final title ('build: refuse lint suppression comments rather than check them') measures 69 with ' (#836)', so whatever the initial title was, it is not what lands, and no commit addresses it."
+  },
+  {
+   "finding": "findCommand's doc says false/'Cobra reports that itself' only when cobra finds no command, but help and completion take that path and cobra reports no not-found; the rationale is restated three times within 35 lines",
+   "class": "valid-extra",
+   "why": "Probed at df615a30: 'morphic help -version' and 'morphic completion bash -version' fall through the !found return and end in pflag's 'unknown shorthand flag' error, not a not-found report, so the doc's 'Cobra reports that itself when it runs' is false for those commands. 6bbc620e rewrote this doc and kept the claim. Minor doc imprecision, but real."
+  },
+  {
+   "finding": "Question: is switching on any(e) an acceptable way to evade errorlint, given nothing now re-checks it the way nolintlint checked //nolint",
+   "class": "unverifiable",
+   "why": "A design question rather than a defect; no repo rule forbids the any(e) spelling, and the author kept it through the final branch state (load.go still switches on any(e) at f32b094a). Whether it should be an exclusions rule instead is a judgment call the truth does not settle."
+  },
+  {
+   "finding": "No committed test pins asValidationError's hand-walk against a speakeasy-wrapped validation.Error (errors.As mutant stays green)",
+   "class": "pre-existing",
+   "why": "The hand-walk and TestAsValidationError's unwrapped-only cases predate this commit, which only respelled the switch; the reviewer correctly labelled it pre-existing."
+  },
+  {
+   "finding": "TestDetectCycles_MergeChainPastBoundStaysFastAndWarns flaked on its 10s wall-clock limit under -race",
+   "class": "pre-existing",
+   "why": "Untouched package; timing flake unrelated to the commit, labelled pre-existing by the reviewer."
+  }
+ ],
+ "missed_patterns": "The reviewer saw that findCommand hands back a non-nil command and arguments alongside found=false and waived it because the only caller ignores them. Its instructions should say that a comma-ok or (value, error) helper must return zero values on the failure path whatever its current callers do, and that 'the caller ignores it' is not a reason to decline. It should also check new or edited lines for length and readability (here a 150-column t.Errorf format string), not only for whether the wording is accurate."
+}

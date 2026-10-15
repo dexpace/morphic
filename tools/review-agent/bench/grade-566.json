@@ -1,0 +1,89 @@
+{
+ "pr": 566,
+ "agent": "v1",
+ "defects": [
+  {
+   "id": "D1",
+   "desc": "The initial commit makes nodeview.InternalPointer refuse every '#name' fragment, so the pre-parse cycle scan drops $anchor edges the resolver does follow. A pure-$ref cycle through $anchor kills the process with an unrecoverable stack overflow. The #523 repro plus '$anchor: x-s' on A was refused as cyclic-ref at BASE and crashes at the initial commit. fafdb087 adds an over-approximating $anchor/$id/$defs reach check and refuses it again. Verified with built binaries: BASE exit 1 cyclic-ref, initial commit 'fatal error: stack overflow', fafdb087 exit 1 cyclic-ref. The plain anchor self-cycle crashed at BASE too and is also refused at fafdb087.",
+   "truth_sha": "fafdb087",
+   "verdict": "caught",
+   "review_quote": "the cycle scan no longer sees `#name` edges, but the resolver follows some of them, so an anchor-based pure-$ref cycle kills the process with a fatal stack overflow. One shape the scan refused before this commit now crashes."
+  }
+ ],
+ "non_defects": [
+  {
+   "truth_sha": "750d27db",
+   "reason": "New scope and the PR's own titular change: it reads a $defs pointer from its own schema (#557). The $defs collapse existed before the initial commit, which did not introduce or touch it."
+  },
+  {
+   "truth_sha": "574b2302",
+   "reason": "Merge of main into the branch, reacting to main moving (#541 and #563 squash-landed, plus #562, #564 and #565)."
+  },
+  {
+   "truth_sha": "890493ac",
+   "reason": "Fixes defects in code that 750d27db introduced: the cubic defs lookup, unreported dangling $defs refs, fragmentOf and MappingPointer, which do not exist at 3515599f. None of it was present in the initial commit."
+  },
+  {
+   "truth_sha": "3db5b01b",
+   "reason": "Fixes memory growth in defs.Reader, which a later commit introduced."
+  },
+  {
+   "truth_sha": "5d9fb192",
+   "reason": "Merge of main (#567) into the branch."
+  },
+  {
+   "truth_sha": "6e1a8ff4",
+   "reason": "A refactor of the defs reader and its callers, introduced later, with no behaviour change."
+  },
+  {
+   "truth_sha": "f858a05c",
+   "reason": "Test coverage for the later $defs rule in operations and callbacks; continuation of the new scope."
+  },
+  {
+   "truth_sha": "02c3e00d",
+   "reason": "Fixes quadratic per-reference GetJSONPointer searches in the defs rule, which a later commit introduced."
+  },
+  {
+   "truth_sha": "1f296071",
+   "reason": "Pins $defs behaviour in aliased and merged schemas, with a positions.go tweak. Both belong to the later defs rule."
+  }
+ ],
+ "extras": [
+  {
+   "finding": "nit: the TestDetectCycles_AnchorFragmentIsNotWalked doc comment gives each case the other's job (the pointer twin is said to fail on a revert of the leading-'/' refusal)",
+   "class": "valid-extra",
+   "why": "Confirmed by mutation at 3515599f: replacing the leading-'/' check with `if false` fails the anchor case and passes the pointer twin, the opposite of what the comment says. No truth commit in this PR touches it. #541's landed version (add31b04) rewrote the comment exactly as the review proposed."
+  },
+  {
+   "finding": "nit: the commit message and test doc claim the two fragment readers agree on every same-document fragment and name one documented exception, but 'spec.yaml#/a' (self-named) disagrees: scan=(\"\",false), lower=(\"/a\",true)",
+   "class": "valid-extra",
+   "why": "Reproduced with a probe test at 3515599f, which gave exactly that output. '##/a' is a second spelling of the bare-'#' exception. The divergence is harmless because the resolver rejects the self-named form, but the universal claim is inaccurate. Low severity, and the truth never fixed it."
+  },
+  {
+   "finding": "suggestion: the 'load.go's resolveDiag, a separate issue' comment in TestCompile_NonUTF8FragmentReachesNoIdentifier cites no issue; file one and cite #N",
+   "class": "valid-extra",
+   "why": "The site really was defective: it points to an issue that does not exist. The diagnosis was wrong, though. #541's landed version rewrote the comment to say diag.Newf scrubs the byte to U+FFFD by design, so the right fix was to correct the comment, not to file a defect. It counts as a real comment flaw, but following the review's advice would have filed a non-issue."
+  },
+  {
+   "finding": "pre-existing: pure-$ref cycles through $anchor overflow the stack at BASE too (A: {$anchor: a, $ref: '#a'})",
+   "class": "pre-existing",
+   "why": "Verified: the BASE binary also dies with 'fatal error: stack overflow' on this spec. It is the same mechanism as D1 and is fixed by fafdb087 (#526, #546)."
+  },
+  {
+   "finding": "pre-existing: a multipart body whose $ref does not resolve emits an encoding key that pass.Validate rejects (ir/encoding-key-unknown-property)",
+   "class": "unverifiable",
+   "why": "Running the CLI with validation on a dangling multipart $ref at BASE gave only unresolved-ref errors and no encoding-key diagnostic, probably because validation does not run after error diagnostics. I did not run pass.Validate directly, so the claim is unconfirmed."
+  },
+  {
+   "finding": "pre-existing: library resolver errors are located at the document root ('spec.yaml#') with no site",
+   "class": "pre-existing",
+   "why": "Observed at BASE: 'mp.yaml#: not found -- key Missing not found in sequencedmap.Map'. The initial commit did not introduce it."
+  },
+  {
+   "finding": "pre-existing: nodeview and resolve comments cite speakeasy v1.24.0 while go.mod pins v1.25.2",
+   "class": "pre-existing",
+   "why": "Confirmed: go.mod pins v1.25.2 and the v1.24.0 citations are on lines the initial commit's diff does not change. The citation is stale but harmless, and the commit did not introduce it."
+  }
+ ],
+ "missed_patterns": "The review caught the one defect the truth fixed in the initial commit, with a reproduced regression, so nothing was missed. One finding was weak: the review assumed an unexplained leftover in a test comment was a standing defect to file. Instead, the reviewer should check whether the behaviour is deliberate, for example a scrubbing helper like diag.Newf, before recommending an issue. Where it is deliberate, the fix is to correct the comment."
+}

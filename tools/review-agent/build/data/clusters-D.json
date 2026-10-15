@@ -1,0 +1,355 @@
+{
+  "group": "D",
+  "clusters": [
+    {
+      "key": "shared-node-attributes-from-declaration",
+      "title": "Derive every attribute of a shared node from its own declaration, never from the first route to reach it",
+      "rule": "When a node can be interned or named by more than one route (its declaration, an outside $ref, a composition branch, an {X, null} collapse), every attribute written on it -- name hint, owner, home -- must come from the node's own location through the same normaliser every route uses. A value taken from the enclosing schema, the use site, or the raw caller hint makes the IR depend on which route lowered first.",
+      "why": "Shared components lowered first by a reference took that reference's hint, raw or un-neutralised, so two declaration orders produced different documents with no diagnostic and pass/validate clean on both.",
+      "probe": "For each new or touched interning path, write a spec where an outside $ref reaches the node before its declaration and one where it comes after, compile both and cmp.Diff the full documents including hints; also grep every writer of the field and confirm each routes through the same normaliser.",
+      "claude_md": "Order-dependence needs a two-order diff.",
+      "finding_ids": ["F0076", "F0212", "F0520", "F0641", "F0708", "F0754", "F0755"],
+      "exemplars": ["F0076", "F0520", "F0641"]
+    },
+    {
+      "key": "two-order-diff-every-reachable-construct",
+      "title": "Run a two-order diff for every construct reachable by two routes, and never let fixture order hide a defect",
+      "rule": "Any lowering that reuses interned results, merges operands, or resolves a lookup a collection can name twice must be compiled with declaration (or operand) order swapped and the documents diffed. A fixture declared in the one order that dodges a known order bug must cite the filed issue, and an order dependence left standing must be named in the code and PR body.",
+      "why": "Single-order tests pass on both orders of a colliding lowering, so inline-position homes, mapping keys, allOf visibility intersections and refused-pointer reuse all drifted with declaration order while the suite stayed green.",
+      "probe": "Copy the PR's fixtures, reverse component/path/mapping-key/allOf-operand order, compile both, cmp.Diff the documents and diagnostic lists; then revert the fix and confirm the reversed-order case reddens.",
+      "claude_md": "A fixture's own declaration order is part of the test.",
+      "finding_ids": ["F0146", "F0361", "F0606", "F0720", "F0727"],
+      "exemplars": ["F0146", "F0727", "F0720"]
+    },
+    {
+      "key": "memo-only-path-independent-results",
+      "title": "Cache only results that cannot depend on the path or depth that computed them",
+      "rule": "A memo or shared view that outlives one walk may store a verdict only when that verdict is complete and independent of the entry path: never memoise a result computed under a truncation/depth bound, a chain verdict that passed through a reference, or a shallow expansion later served to a deeper walk.",
+      "why": "A node first reached near the depth cap was truncated and then skipped on a shallow revisit, and a shared nodeview served a shallow memo to a deeper walk, so refs vanished and refusals fired by declaration order.",
+      "probe": "Construct a node reachable both deep (near the cap) and shallow, compile with each reached first, and diff the collected refs and diagnostics; for any shared memo, run the two-order diff with the memo shared and with it disabled.",
+      "claude_md": "",
+      "finding_ids": ["F0051", "F0296", "F0566"],
+      "exemplars": ["F0051", "F0566"]
+    },
+    {
+      "key": "finding-placement-declaration-independent",
+      "title": "Place and identify each finding by a declaration-independent key, not by walk order or position",
+      "rule": "When several sites can draw the same diagnostic, choose the reported site by a stable key (least pointer, the declaration itself), never by which claim lowered first or second or by walk order. When comparing findings across a permutation, identify them by code, message and structural pointer, never by line:col.",
+      "why": "operationId conflicts, reached-validation findings and budget crossings moved when two paths were reversed, which morphic-harness flagged as order dependence; an oracle keyed on line:col reported every permutation as a difference.",
+      "probe": "Reverse the paths or $refs that reach the finding's target, recompile, and diff the diagnostic list (code, message, pointer); it must be identical.",
+      "claude_md": "Order-dependence needs a two-order diff.",
+      "finding_ids": ["F0316", "F0742", "F0774", "F0781"],
+      "exemplars": ["F0742", "F0774", "F0781"]
+    },
+    {
+      "key": "iterate-and-sort-by-stable-key",
+      "title": "Never let map iteration, concurrent completion or string sorting decide an order",
+      "rule": "Any walk, decode, selection or test table that reads a Go map must iterate in sorted key order; results from concurrent parses must not be ordered by token.Pos; sort by numeric fields or source order, never by a formatted string that embeds numbers.",
+      "why": "Randomised map order changed recorded paths, the first decode error, the node explain printed and subtest order between runs; token.Pos depended on which parse finished first; \"file:14\" sorted before \"file:6\".",
+      "probe": "grep the diff for `range` over maps and sort.Slice/slices.Sort on strings; run the affected test or command with -count=50 and compare outputs; add a case with two candidates sharing a key and assert which one is chosen.",
+      "claude_md": "maps emitted in sorted-key order",
+      "finding_ids": ["F0107", "F0701", "F0826", "F0838", "F0862", "F0870"],
+      "exemplars": ["F0107", "F0838", "F0870"]
+    },
+    {
+      "key": "escape-separators-in-composite-keys",
+      "title": "Escape document-supplied names as single segments when building a scoped key",
+      "rule": "When a key or scope is built by joining source-supplied names with a separator, escape the separator inside each name through one shared function and scope each entry by its full source path; never interpolate a raw name.",
+      "why": "Form-part, callback and root keys containing \"/\" read as two segments and collided with another object's key, and Unmodeled entries written by sibling objects into one map overwrote each other by lowering order.",
+      "probe": "Add a fixture whose property, form-part or callback name contains the separator (\"a/b\") alongside a real nested a.b, and two sub-objects writing the same key into one shared map; compile and assert both entries survive with distinct keys.",
+      "claude_md": "",
+      "finding_ids": ["F0501", "F0524", "F0619"],
+      "exemplars": ["F0501", "F0524"]
+    },
+    {
+      "key": "derived-identity-must-be-injective",
+      "title": "Make every source-to-ID derivation injective and give minted nodes their own namespace",
+      "rule": "A derived ID or lookup key must never let two distinct sources map to one value: synthesized nodes take IDs in a namespace no source pointer can produce, registries refuse a second distinct key deriving the same ID, lookups use the declaring package's namespace, and lossy byte conversions are either injective or guarded by a pinned upstream refusal.",
+      "why": "A union variant interned at a pointer a $ref also names raced for it silently, a coordinate-keyed registry overwrote one node with another, U+FFFD rewriting could give two keys one pointer, and a flat bare-name table matched another package's method.",
+      "probe": "For each new ID derivation, construct two distinct sources that could collide (a $ref to the minted pointer, two non-UTF-8 keys, two packages with the same type name) and assert the registry either keeps both or emits an error; round-trip a non-UTF-8 key through the token builder and require the same bytes back.",
+      "claude_md": "a minted node needs a namespace of its own.",
+      "finding_ids": ["F0105", "F0225", "F0615", "F0713", "F0821"],
+      "exemplars": ["F0105", "F0225", "F0713"]
+    },
+    {
+      "key": "one-reader-per-syntax",
+      "title": "Call the consumer's own parser instead of keeping a second copy, or differential-test the two",
+      "rule": "When a pre-scan, validator or helper parses the same string (pointer, fragment, URI) that a downstream resolver later reads, it must call the resolver's own normalisation and acceptance rule; any second hand-rolled copy must be deleted or pinned by a shared input table and a differential fuzz target.",
+      "why": "The cycle scan read trailing spaces, percent-escapes and non-pointer fragments differently from the resolver, so it missed real self-references (stack overflow) or refused valid documents as cycles.",
+      "probe": "grep for every hand-rolled split of '#', '/' or percent-decoding in the touched packages; feed a table of edge fragments (\"#x-s\", \"# /a\", \"%2F\", non-pointer fragments) to both readers and diff their answers.",
+      "claude_md": "",
+      "finding_ids": ["F0297", "F0307", "F0712", "F0729"],
+      "exemplars": ["F0297", "F0307", "F0729"]
+    },
+    {
+      "key": "mirror-library-read-rules-exactly",
+      "title": "When a model mirrors a library's read, match its duplicate-key, alias, cap and token rules exactly",
+      "rule": "A pre-scan, index or stepped reader standing in for a library read must reproduce that library's rules: last-key-wins on duplicates, following YAML aliases and merge keys, no cap the library lacks, by-value model fields only, and leaving retried index tokens to the whole read. Build a differential case for every token kind the library treats specially.",
+      "why": "First-key-wins pre-scans let a redeclared self-reference reach the resolver's stack overflow, an anchor index missed alias-reached declarations, and a stepped walk missed references a whole read reaches, while an invented cap made valid deep specs exit 1.",
+      "probe": "For each special case (duplicate key in both positions, alias, merge key, retried index, by-value struct, deep chain past your cap) diff the mirror's answer against the library's whole read on a fixture, and confirm the fixture actually produces that token kind.",
+      "claude_md": "",
+      "finding_ids": ["F0057", "F0176", "F0529", "F0803", "F0807", "F0808", "F0811", "F0813"],
+      "exemplars": ["F0057", "F0529", "F0807"]
+    },
+    {
+      "key": "pointer-and-uri-edge-tokens",
+      "title": "Enumerate RFC 6901 and URI edge tokens for every pointer helper",
+      "rule": "Every helper that splits, walks or keys on a JSON Pointer or URI fragment must handle the empty token (only the leading one is a split artifact), the lone \"/\" per the caller's meaning (reference root versus empty-keyed member), escaped tokens, and percent-decoding exactly once.",
+      "why": "Skipping every empty token hid an $id, reading \"/\" as root where the position meant the empty key mis-scoped boundaries, and matching an un-decoded fragment against $dynamicAnchor left escaped references Unmodeled.",
+      "probe": "Run each pointer helper over a table of \"\", \"/\", \"/a//b\", \"/a/\", \"~0\", \"~1\", percent-escaped and hex-case variants, and diff each against the library's read and against the unescaped spelling.",
+      "claude_md": "",
+      "finding_ids": ["F0448", "F0557", "F0565", "F0812"],
+      "exemplars": ["F0557", "F0812", "F0448"]
+    },
+    {
+      "key": "ref-document-part-identity",
+      "title": "Compare a $ref's document part by its normalised full path and resolve its fragment in that document",
+      "rule": "When deciding whether a reference names this document, normalise both paths (./, directory prefixes) and compare the full relative path, never the basename; when deriving a pointer from a $ref, split off the document part and resolve the fragment in the document it names.",
+      "why": "A basename match treated a same-named file in another directory as a self-reference, ./spec.yaml self-references reported false conflicts, and a multipart encoding key minted an identity for a property in another document.",
+      "probe": "Add fixtures with sub/spec.yaml referencing spec.yaml, a self-reference spelled ./spec.yaml#/..., and an external $ref used as an encoding key; compile and check each resolves to the intended document.",
+      "claude_md": "",
+      "finding_ids": ["F0028", "F0197", "F0743"],
+      "exemplars": ["F0028", "F0743"]
+    },
+    {
+      "key": "resolve-to-true-target",
+      "title": "Follow reference chains to their end, inside their scope, and derive key and value from that one target",
+      "rule": "Any consumer that reads through a reference or alias must follow the bounded chain to its end (not one hop), stop at every keyword that opens a new scope ($id), adopt a walked pointer only if its final node exists in this document, and derive a key and the value it addresses from the same resolved target.",
+      "why": "One-hop resolution hoisted aliases under pointers that addressed nothing and made pass.Validate reject valid annotated hierarchies; an encoding key and its body came from different hops; $dynamicRef looked through an $id boundary.",
+      "probe": "For every resolving path touched, add a two-hop alias chain, an alias chain that leaves the document midway, and a nested $id between the reference and its anchor; compile and inspect the IR pointers and diagnostics.",
+      "claude_md": "",
+      "finding_ids": ["F0073", "F0075", "F0175", "F0177", "F0209"],
+      "exemplars": ["F0073", "F0175", "F0209"]
+    },
+    {
+      "key": "graph-walk-cycle-handling",
+      "title": "Mark the start node visited and refuse a cycle where the edge is created",
+      "rule": "A graph walk with a visited set must mark the start node before its first expansion, and a lowering that mints a reference edge must refuse a cycle at the point it creates the edge rather than rely on a later pass that may not walk it.",
+      "why": "An ancestor walk returned the start as its own ancestor on a composition cycle, and $dynamicRef expansion could close an alias loop no check walked, leaving an IR an emitter would follow forever.",
+      "probe": "Add a fixture where the start of the walk is on a cycle (a schema whose mapping names itself, an expansion that loops back) and assert a refusal diagnostic and a finite IR.",
+      "claude_md": "deep/cyclic specs are normal inputs, not edge cases",
+      "finding_ids": ["F0178", "F0605"],
+      "exemplars": ["F0178", "F0605"]
+    },
+    {
+      "key": "explicit-guard-not-incidental",
+      "title": "Own every refusal and bound explicitly; never rely on a dependency or another bug to provide it",
+      "rule": "A boundary check must be the compiler's own explicit check, not a dependency failing or a misreading that happens to refuse. When deleting or loosening a path that declined some inputs or incidentally bounded recursion, add the explicit bound or refusal in the same change and re-probe every input class the old path handled.",
+      "why": "A self-$anchor reference crashed the process with a stack overflow on main because only a misreading refused one shape; lifting an anchor skip let a fixture grow past 57 GB; deleting a byte scan exposed prose files claimed as broken specs.",
+      "probe": "Probe the dependency directly with the input class you rely on it to refuse; revert the incidental guard and run its covered inputs under a memory/time limit (ulimit, -timeout) on both sides of any old size threshold.",
+      "claude_md": "validate at every public boundary",
+      "finding_ids": ["F0223", "F0693", "F0732", "F0759"],
+      "exemplars": ["F0223", "F0732", "F0759"]
+    },
+    {
+      "key": "no-panic-on-nil-or-zero",
+      "title": "Validate nil, typed-nil and zero-value inputs before dereferencing, and keep sibling helpers equally nil-safe",
+      "rule": "Exported functions, checkers and sweeps must test every argument and collection element for nil (including typed-nil) before calling a method on it, an exported type's zero value must be usable, a new accessor or sweep must match the nil handling of its siblings, and a per-item panic barrier must not stop the loop over the rest.",
+      "why": "A report-only verifier panicked on a nil TypeDef, Register called Formats on a nil compiler, a zero-value Registry panicked on its nil map, and one missing object stopped validation of every later object.",
+      "probe": "Write a test that passes nil, a typed-nil and a zero-value struct to every new exported function, accessor and sweep, and plants a nil element in each collection the walker visits; require findings or errors, never a panic.",
+      "claude_md": "no panics escaping a package",
+      "finding_ids": ["F0020", "F0273", "F0454", "F0455", "F0526", "F0791"],
+      "exemplars": ["F0020", "F0454", "F0455"]
+    },
+    {
+      "key": "check-every-failure-signal",
+      "title": "Read every ok flag, error and exit status, and report an impossible miss instead of returning silently",
+      "rule": "Every failure signal -- a comma-ok flag, an invariant-guaranteed lookup miss, a shell command's exit status in a Makefile recipe -- must be checked and surfaced as a diagnostic or a stopped recipe; never continue on a value whose failure was ignored.",
+      "why": "Callers returned silently when an interned node was missing, dropping docs and examples with no diagnostic; discarding an ok flag would have produced a tag no component answers to; an unchecked mktemp ran the whole suite with an empty -coverprofile.",
+      "probe": "grep the diff for `_ :=`, `, _ =`, bare `return` in lookup-miss branches and unchecked command substitutions in recipes; force each failure (delete the node, make mktemp fail via TMPDIR=/nonexistent) and confirm a diagnostic or non-zero exit.",
+      "claude_md": "comma-ok on every type assertion",
+      "finding_ids": ["F0097", "F0718", "F0841"],
+      "exemplars": ["F0097", "F0841"]
+    },
+    {
+      "key": "every-spelling-the-grammar-allows",
+      "title": "Fixture every official spelling of a construct and require identical results",
+      "rule": "For each construct a change reads, enumerate the spellings the governing spec admits -- case-insensitive tokens in another case, tilde and backtick fences, tables without outer pipes, a $ref versus a YAML alias for the same reuse -- and require the same IR, severities and exit codes for each.",
+      "why": "A capitalised Basic scheme degraded to custom auth unnoticed, tilde-fenced examples were read as tables, pipe-less GFM tables escaped every check, and one operation reuse exited 0 or 1 depending on its spelling.",
+      "probe": "For each construct touched, add a fixture per alternative spelling, compile all, and diff IR plus the full diagnostic list and exit code across spellings.",
+      "claude_md": "",
+      "finding_ids": ["F0281", "F0477", "F0482", "F0741"],
+      "exemplars": ["F0281", "F0482", "F0741"]
+    },
+    {
+      "key": "exact-token-grammar",
+      "title": "Validate a fixed-shape token at every character and its escape-of-escape, and dispatch keyword forms on the dialect",
+      "rule": "When validating a fixed-shape token, check its length and every character position; when splitting on an escapable delimiter, honour the escape character's own escaping; when a keyword's form depends on the dialect, dispatch on the dialect and report the other dialect's form rather than accepting it.",
+      "why": "A wildcard status check read two of three characters and admitted 1XY and 9XX, a backslash-escaped backslash before a pipe merged two cells, and a boolean exclusiveMinimum under 2020-12 was silently accepted as a degenerate bound.",
+      "probe": "Write rejected spellings for each length and each character position, a cell containing \\\\|, and each bound keyword in the other dialect's form; compile and confirm each is reported, not lowered.",
+      "claude_md": "Never accept garbage silently.",
+      "finding_ids": ["F0034", "F0351", "F0479"],
+      "exemplars": ["F0351", "F0034"]
+    },
+    {
+      "key": "cover-every-version-location-and-level",
+      "title": "Enumerate the spec versions, locations and override levels a rule depends on, and fixture each",
+      "rule": "When a value's source or legality varies by spec version, parameter location or declaration level, list every value of that axis and test it: a name from a 3.2-only field needs a 3.0/3.1 fallback, every IR entity kind needs a naming channel, the most specific override level wins, a default must be legal at its exact location, and fixtures must respect the format's co-location prohibitions.",
+      "why": "Every 3.0/3.1 server and every response reached the IR nameless, operation-level servers were dropped in favour of the superseded path-item list, a querystring parameter got an invented style the spec forbids, and a fixture violated 3.2's querystring rule.",
+      "probe": "Compile one document per supported spec version and one declaring the keyword at both path-item and operation level; grep the IR for empty names per entity kind and check each emitted default keyword against the spec's legal set for that location.",
+      "claude_md": "",
+      "finding_ids": ["F0345", "F0346", "F0394", "F0474", "F0575"],
+      "exemplars": ["F0345", "F0394", "F0575"]
+    },
+    {
+      "key": "null-member-handling",
+      "title": "Strip null into nullability and derive attributes from the surviving members, testing null in every position",
+      "rule": "When a spelling encodes nullability as a list member (type arrays, enum members), move the null into the nullability bit, derive kinds from the surviving members, and test null first, middle and last; a shared nullability predicate must also be tested on a schema whose enum or sibling excludes null.",
+      "why": "A nullable enum in the 3.1 type-array spelling degraded to a union of literals, a leading null fixed the member kind so the enum degraded, and references admitted null that the enum forbade.",
+      "probe": "Compile {type:[string,null], enum:[null,a]}, the same with null last, and {type:[string,null], enum:[a,b]}; assert an Enum kind, correct nullability per reference, and no degradation diagnostic.",
+      "claude_md": "Optionality ≠ nullability.",
+      "finding_ids": ["F0368", "F0369", "F0373"],
+      "exemplars": ["F0368", "F0369", "F0373"]
+    },
+    {
+      "key": "unmodeled-reason-and-typed-home",
+      "title": "Lower into the typed field the IR has, honour design-promised lowerings, and pick the Unmodeled reason by the IR's actual strength",
+      "rule": "Before preserving a keyword raw, check the IR for a typed field; when the design doc promises a lowering plus fallback, compile each promised case; classify a preserved entry by whether the IR reflects it weaker, stronger or not at all, and test the classification on the construct's most common real-world form.",
+      "why": "itemEncoding was preserved raw despite a typed field, $dynamicRef lowered silently to any against §4.7, an open tuple was tagged no_ir_home, and a required-narrowing oneOf was tagged degraded_lowering so validation emitters skipped it.",
+      "probe": "For each keyword the change preserves, grep ir/ for a field that holds it; compile each case the design doc names for the construct and assert the promised IR kind and UnmodeledReason, never the top type.",
+      "claude_md": "Every `Unmodeled` entry records *why* it was kept (`UnmodeledReason`)",
+      "finding_ids": ["F0098", "F0133", "F0145", "F0162"],
+      "exemplars": ["F0133", "F0162", "F0145"]
+    },
+    {
+      "key": "ir-public-contract-settled",
+      "title": "Settle public IR names, omission conventions and closed-set validation before merge",
+      "rule": "A public IR field's name is settled in the PR that adds it; when a field's type changes, every field that held the old type is re-checked against the design doc's omission convention (nil pointer versus empty value); a string-encoded closed set is validated on decode with a test tying every constant to the validator.",
+      "why": "Deferring a field name to an issue turned a free rename into a breaking change, two optional references used \"\" for none against the documented nil-pointer rule, and an invented PreserveReason round-tripped unroutably.",
+      "probe": "grep the diff for new exported IR fields and \"tracked separately\"/\"follow-up\" notes; decode a document with an unknown enum string and require an error; check every changed-type field's omitzero/pointer shape against docs/ir-design.md.",
+      "claude_md": "Field names and struct shapes in it are the contract",
+      "finding_ids": ["F0116", "F0149", "F0828"],
+      "exemplars": ["F0116", "F0149", "F0828"]
+    },
+    {
+      "key": "drop-constant-parameters",
+      "title": "Remove a parameter every call site sets to the same or a derivable value",
+      "rule": "In the change that introduces a helper's callers, delete any parameter that every call passes identically or that is derivable from another argument.",
+      "why": "keepKeyword's label always equalled its keyword and multipleOf's formatter always received one keyword, so the parameters carried no choice and invited divergence.",
+      "probe": "For each new or changed unexported function, list its call sites (grep or LSP references) and compare the argument values per parameter.",
+      "claude_md": "",
+      "finding_ids": ["F0228", "F0239"],
+      "exemplars": ["F0228", "F0239"]
+    },
+    {
+      "key": "minimal-immutable-exports",
+      "title": "Export only what production code needs, and never export or return a writable internal collection",
+      "rule": "Do not export a package-level slice or map, or return an unexported map from an accessor; expose a copy-returning function or a narrow predicate instead. A symbol only tests read goes in export_test.go.",
+      "why": "Exporting residueKeywords and returning the auth map let any importer rewrite what every schema position preserves, and MaxRefChain widened the API for a test alone.",
+      "probe": "For each newly exported identifier, grep non-test consumers; for each exported var or accessor of map/slice type, write a test that mutates the result and checks the package state is unchanged.",
+      "claude_md": "copy slices/maps at API boundaries; no mutable globals",
+      "finding_ids": ["F0269", "F0275", "F0280"],
+      "exemplars": ["F0269", "F0275", "F0280"]
+    },
+    {
+      "key": "json-decoder-fixed-point",
+      "title": "Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms",
+      "rule": "A custom decoder must detect JSON literals by decoded value, not raw bytes, and must not allocate on null; decode-encode-decode of null, padded null and the empty form must be stable.",
+      "why": "TypeRegistry allocated an empty map on null, and again on \" null \", so Document.Types became non-nil and the round trip never settled.",
+      "probe": "For each UnmarshalJSONFrom touched, decode \"null\", \" null \", \"{}\", re-encode, decode again, and cmp.Diff the two decoded values.",
+      "claude_md": "The whole `Document` round-trips through JSON",
+      "finding_ids": ["F0354", "F0355"],
+      "exemplars": ["F0354", "F0355"]
+    },
+    {
+      "key": "archtest-rules-reach-exactly",
+      "title": "Make audit matches exact, and plant a sibling or same-named path to prove each rule reaches",
+      "rule": "An allowlist or skip rule must match full paths exactly unless a wildcard is written, and every in-module import -- including testdata fixtures under an audited tree -- is part of the graph the rules must cover.",
+      "why": "A segment-prefix match let compilers/graphql pass as compilers/openapi's sibling, a basename skip left nested irtest/irverify directories audited by nothing, and a testdata fixture's sibling import was missing from the allowlist.",
+      "probe": "Plant a forbidden import from a package sharing the allowed prefix, a same-named directory at another depth, and a testdata fixture importing a sibling; run go test ./internal/archtest and confirm each reddens.",
+      "claude_md": "A check that runs is not a check that reaches.",
+      "finding_ids": ["F0213", "F0214", "F0873"],
+      "exemplars": ["F0213", "F0214"]
+    },
+    {
+      "key": "measure-size-caps",
+      "title": "Measure function length and doc-comment words on every touched symbol before pushing",
+      "rule": "After each edit, count the lines of every function touched against the 70-line cap and the words of every doc comment against the 100-word cap, and split or trim before pushing rather than waiting for a linter that may not flag it.",
+      "why": "A test-case constructor reached 600+ lines, Load went to 71 lines, and amplification-constant comments ran ~92 lines restating the same figures.",
+      "probe": "Run golangci-lint with funlen and go test ./internal/archtest -run TestDocComments on the branch; for test files the linter excludes, measure function length with a script over the diff.",
+      "claude_md": "no function may exceed 70 lines or a cognitive complexity of 20",
+      "finding_ids": ["F0063", "F0083", "F0670"],
+      "exemplars": ["F0083", "F0670", "F0063"]
+    },
+    {
+      "key": "cheap-guard-before-expensive-work",
+      "title": "Put the cheap guard first and build strings, allocations and derivations only on the branch that uses them",
+      "rule": "Order pure predicates cheapest and most-often-false first, keep early-return guards ahead of sorts and allocations, check the cache before deriving the uncached value, build pointer or diagnostic strings only on the failure path, allocate maps on first write, and stop a pointer read at the first token where the answer cannot appear.",
+      "why": "Every $ref site allocated a discarded slice, every example built an unused pointer string, a moved sort ran on every no-op call (twice, once via a merge of main), and a warm cache hit paid two map lookups.",
+      "probe": "Benchmark with -benchmem the no-op and success paths of each touched hot function before and after the change (and again after merging main), and require allocs/op not to rise.",
+      "claude_md": "",
+      "finding_ids": ["F0065", "F0070", "F0071", "F0637", "F0638", "F0657", "F0668", "F0790", "F0809"],
+      "exemplars": ["F0065", "F0657", "F0668"]
+    },
+    {
+      "key": "no-quadratic-rescans",
+      "title": "Hoist, cache or index work repeated per item, and pin every superlinear shape with a doubling test",
+      "rule": "Inside a per-item or per-child loop, index the mapping read rather than scanning it, hoist parent-scoped work out of the child loop, and cache a materialised expansion instead of recomputing it per read; keep every input shape that ever went superlinear as a committed doubling test.",
+      "why": "Recomputing a merge-key closure per read took a 3200-line document 41 seconds, a path item's census ran once per operation, and several shapes that were superlinear in earlier revisions exhausted a budget and crashed.",
+      "probe": "Generate the input at N and 2N (paths, operations, merge-chain depth) and time or count work; assert the ratio stays near 2, and keep that generator in the suite.",
+      "claude_md": "",
+      "finding_ids": ["F0049", "F0658", "F0745", "F0765"],
+      "exemplars": ["F0049", "F0658", "F0765"]
+    },
+    {
+      "key": "justify-perf-with-real-measurement",
+      "title": "Justify a performance change end to end on the motivating input and every caller, not a best-case microbenchmark",
+      "rule": "Before shipping a cache or index, histogram its builds and reads per build over the committed corpus, benchmark every caller of the changed read path at its real access pattern, and measure a full compile of the input class that motivated it.",
+      "why": "A key index cost more than the scan for 99.5% of real mappings, slowed a build-and-discard caller 1.34-1.50x, and its benchmark measured a shape no caller has while the end-to-end compile showed no gain.",
+      "probe": "Instrument build and read counts over testdata/, run each caller's benchmark before and after, and time a full morphic compile of the motivating spec class with benchstat.",
+      "claude_md": "Prefer proving a claim over asserting it",
+      "finding_ids": ["F0627", "F0628", "F0632"],
+      "exemplars": ["F0627", "F0632"]
+    },
+    {
+      "key": "budget-accounting-sound",
+      "title": "Give each bound its own name and size, charge it where the work lands, and make zero-cost units count",
+      "rule": "A resource bound must be sized to the quantity it protects (not borrowed from recursion depth), must not be spent on a speed structure when it is a hang guard, must bound the allocation itself rather than trim afterwards, must charge the document where the work lands, and must charge a minimum for zero-unit entries.",
+      "why": "Reusing maxCycleDepth let a 180 KB spec retain 2.2 GB, charging an index to the pair memo halved the anti-hang guard, empty mappings were indexed for free past the budget, and a two-document chain escaped its bound.",
+      "probe": "For each budget touched, write an adversarial input that maximises the charged quantity (empty mappings, long chains across two documents, many keys) under a tight limit and measure RSS/allocations; confirm the cap trips.",
+      "claude_md": "Bounded everything.",
+      "finding_ids": ["F0052", "F0623", "F0629", "F0656", "F0782"],
+      "exemplars": ["F0052", "F0629", "F0656"]
+    },
+    {
+      "key": "every-loop-and-test-bounded",
+      "title": "Give every loop over untrusted input an explicit cap and every hang-prone test a timeout",
+      "rule": "Every loop that walks a caller-supplied path or rescans matching lines of untrusted input carries a named bound, timed against an adversarial input that maximises matches, and any test whose regression mode is a hang runs under an explicit -timeout.",
+      "why": "A copied pointer walk lost its segment bound, a per-line openapi: reparse spent 760 ms on a crafted file after a 273 ms parse, and a refusal regression would have stalled the coverage run instead of failing it.",
+      "probe": "grep new for loops over input-derived collections for a cap constant; generate the worst-case input and time it against the plain parse; confirm the test script passes -timeout.",
+      "claude_md": "Every loop, queue, retry, buffer, and timeout has an explicit limit.",
+      "finding_ids": ["F0304", "F0559", "F0695"],
+      "exemplars": ["F0559", "F0695"]
+    },
+    {
+      "key": "nondeterministic-tests-proven-stable",
+      "title": "Loop timing-, scheduling- and race-sensitive tests many times before committing them",
+      "rule": "A timing ratio must interleave its two measurements and separate the growth rates well beyond noise (including under -race); a reach test for a goroutine or race check must be run hundreds of times to record its false-pass rate; helpers that type-check several packages in one load run repeatedly under -race.",
+      "why": "Sequential timing and a ratio allowance of 3 against a separation of 2 failed CI on noise, a planted goroutine check passed intermittently, and go/types raced on a shared import in a fraction of runs.",
+      "probe": "Run the new test with -count=200 (and -race) under taskset on a loaded machine and record the failure rate; it must be zero for a pass and one hundred percent for its planted defect.",
+      "claude_md": "",
+      "finding_ids": ["F0688", "F0723", "F0762", "F0885"],
+      "exemplars": ["F0688", "F0762", "F0723"]
+    },
+    {
+      "key": "hermetic-scripts-and-fixtures",
+      "title": "Isolate scripts and fixtures from shared paths, global config and make -j",
+      "rule": "Scripts write profiles and temp files to per-run paths, fixtures that run git isolate from global and system config, and a Makefile target whose steps must be ordered or share files declares .NOTPARALLEL or runs them in one recipe.",
+      "why": "A fixed cover.out let concurrent runs corrupt each other's statement counts, a global gpgsign setting failed fixture commits, and make -j ran fuzz into testdata/ while coverage read it.",
+      "probe": "Run the target twice concurrently, under make -j8, and with GIT_CONFIG_GLOBAL pointing at a config enabling commit.gpgsign; outputs must match a serial clean run.",
+      "claude_md": "",
+      "finding_ids": ["F0290", "F0486", "F0596"],
+      "exemplars": ["F0290", "F0486", "F0596"]
+    },
+    {
+      "key": "misc-unclusterable",
+      "title": "Probe the boundary cases of comparisons, refusals, classifications and restated rules",
+      "rule": "One-offs: a correctness-deciding comparison must be total over every literal the grammar admits; a refusal on a candidate count must first check whether the candidates agree; classify an object by probing it with an unknown key rather than by shape; restate an enforced rule from its enforcing test's table.",
+      "why": "big.Rat fell back on huge exponents and weakened a bound, negotiated streams lost their Events, the components object's fixed fields were never censused, and the README misstated the archtest layering rule.",
+      "probe": "Feed extreme literals to the comparison, a two-candidate agreeing case to the refusal, an unknown key to each object handler, and diff documented rules against internal/archtest's rules map.",
+      "claude_md": "",
+      "finding_ids": ["F0398", "F0516", "F0618", "F0798"],
+      "exemplars": ["F0398", "F0516"]
+    }
+  ]
+}

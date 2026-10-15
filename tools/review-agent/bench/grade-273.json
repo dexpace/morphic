@@ -1,0 +1,92 @@
+{
+ "pr": 273,
+ "agent": "v1",
+ "defects": [
+  {
+   "id": "D1",
+   "desc": "Requirement pointer's option index unpinned: every test's broken option sat at index 0, so spelling every option's index as 0 left the suite green",
+   "truth_sha": "a6144cfb",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D2",
+   "desc": "Operation-level pointer base (decl vs mount) unpinned: only inline path operations were tested, so passing the mount pointer for a $ref'd path item survived; webhook/callback carriers also unpinned",
+   "truth_sha": "a6144cfb",
+   "verdict": "caught",
+   "review_quote": "M6: every operation-level test uses an inline path item, where mount and decl are the same pointer. ... Nothing would notice a regression to the mount pointer (`/paths/~1a/get/security/0`, which addresses no node)."
+  },
+  {
+   "id": "D3",
+   "desc": "Cost of collapsing a fully dropped list to nil left unstated: an operation whose every option drops inherits the service default (or reads unauthenticated with none), misstating the source",
+   "truth_sha": "a6144cfb",
+   "verdict": "caught",
+   "review_quote": "When an operation's only option is broken, the fix collapses `Operation.Auth` to nil, and nil means \"inherit the service default\". ... That may be the right trade-off, but the code and the commit say the inversion is gone, and they don't state this limitation."
+  },
+  {
+   "id": "D4",
+   "desc": "Doc claim that a multi-member option reports each bad name was unpinned: replacing continue with break left the suite green",
+   "truth_sha": "23dcce82",
+   "verdict": "caught",
+   "review_quote": "M5 contradicts the doc comment's claim: \"every unresolved member is still diagnosed individually ... so a multi-member option reports each of its bad names\". No test has two bad members."
+  },
+  {
+   "id": "D5",
+   "desc": "A non-object security entry arrives as an empty option and still lowers to the empty-option (no-auth-is-fine) encoding; the out-of-scope sibling (#284) was not recorded, and the nil guard is not its site",
+   "truth_sha": "23dcce82",
+   "verdict": "partial",
+   "review_quote": "A `null` security entry still lowers to the empty-option encoding. That is the same \"broken requirement becomes no-auth-is-fine\" mechanism, at the branch this commit edited and newly pinned"
+  },
+  {
+   "id": "D6",
+   "desc": "Requirement diagnostic says \"references undeclared scheme\" even when the scheme is declared but its $ref fails to resolve, contradicting the document",
+   "truth_sha": "a913b4ad",
+   "verdict": "caught",
+   "review_quote": "the message \"references undeclared scheme %q\" is false when the scheme *is* declared but its `$ref` fails to resolve (p9: ... \u2192 `\u2026undeclared scheme \"k\"`)."
+  },
+  {
+   "id": "D7",
+   "desc": "A securitySchemes entry whose $ref resolves to nothing gets no sited diagnostic: moving the pointer to the requirement removed the only report at /components/securitySchemes/<name>, and an unreferenced broken entry is dropped silently",
+   "truth_sha": "a913b4ad",
+   "verdict": "partial",
+   "review_quote": "Before this commit the pointer `/components/securitySchemes/k` named the real defect site for that cause, and now it names the requirement instead."
+  }
+ ],
+ "non_defects": [
+  {
+   "truth_sha": "db7c125c",
+   "reason": "Stylistic rewording of two doc comments; neither old phrasing was inaccurate, only awkward"
+  },
+  {
+   "truth_sha": "72af7d31",
+   "reason": "Refines the note 23dcce82 added (a later commit's own wording), not anything in the initial commit"
+  },
+  {
+   "truth_sha": "bc191ebc",
+   "reason": "Fixes an over-broad report introduced by a913b4ad (a later commit) for null/scalar scheme entries"
+  }
+ ],
+ "extras": [
+  {
+   "finding": "suggestion: point the unresolved-scheme diagnostic at the member key (/security/0/ghost1) rather than the shared requirement pointer",
+   "class": "false-positive",
+   "why": "The shared requirement-level pointer is the documented design in lowerSecurityRequirement's doc comment at the initial commit; the truth kept it and pinned it (23dcce82 asserts both members at /security/0). A preference, not a defect."
+  },
+  {
+   "finding": "nit: the new pointer tests use firstDiagAt, so they don't pin severity or the full diagnostic set",
+   "class": "false-positive",
+   "why": "Severity and the exactly-once count on the same code path are already pinned by sibling tests (OneUndeclaredMember, PartialListDrop use countDiagsAt with SeverityError). The review showed no surviving mutant, and the truth never changed these assertions."
+  },
+  {
+   "finding": "nit: the commit message calls a collapsed list \"no default declared\" at both levels, but at operation level nil means inherit",
+   "class": "valid-extra",
+   "why": "Accurate: the initial commit body says nil (\"no default declared\") for both levels, while the code doc says \"inherits the enclosing default\". It is minor, and the PR title and squash body were later rewritten anyway."
+  },
+  {
+   "finding": "pre-existing: the loader's own diagnostic for an unresolvable scheme $ref carries an empty pointer",
+   "class": "pre-existing",
+   "why": "Reference-resolution provenance in the load phase, which the commit does not touch. Truth cites it as #235 and leaves it open."
+  }
+ ],
+ "missed_patterns": "The reviewer listed surviving mutants for the pointer's base but never mutated its other component, the option index. A test whose fixtures only ever put the case at index 0 can't tell a correctly carried index from a constant. Add an instruction: for every pointer or path the diff builds, mutate each component separately (base, each index, each key), and confirm a fixture puts the case at a non-zero or non-default position. Also, when a reviewer blames a branch for a behaviour, it should confirm the input actually reaches that branch (here, whether a YAML null arrives as nil) before naming the site. And a defect the diff exposes or aggravates should be reported as in scope, not set aside as pre-existing."
+}

@@ -1,0 +1,81 @@
+{
+ "pr": 136,
+ "agent": "v2",
+ "defects": [],
+ "non_defects": [
+  {
+   "truth_sha": "206b23fe",
+   "reason": "New scope: a separate silent failure (forEachGroupOperation truncating at maxGroupDepth without reporting) in pre-existing code the initial commit did not touch. The mechanism is different from the nil-TypeDef fix, and the PR title announces it as one of the 'three silent failures'."
+  },
+  {
+   "truth_sha": "7b7931b2",
+   "reason": "New scope: an empty-vs-nil preserved payload guard in compilers/openapi. The initial commit only touched pass/."
+  },
+  {
+   "truth_sha": "9a72c6f0",
+   "reason": "Planned continuation: decomposition step four (the compilers/compile framework)."
+  },
+  {
+   "truth_sha": "6213c589",
+   "reason": "Planned continuation: decomposition step six (compile --explain)."
+  },
+  {
+   "truth_sha": "c9267b62",
+   "reason": "Fixes a test-coverage gap in the --explain subtree listing that 6213c589 introduced, not the initial commit."
+  },
+  {
+   "truth_sha": "35100322",
+   "reason": "Planned continuation: decomposition step five (merge engine extraction)."
+  },
+  {
+   "truth_sha": "30d55c9e",
+   "reason": "Planned continuation: decomposition step three (site annotations read in one place)."
+  },
+  {
+   "truth_sha": "c96027f3",
+   "reason": "Fixes missing boundary assertions in the compile registry that 9a72c6f0 introduced, not the initial commit."
+  },
+  {
+   "truth_sha": "7f801980",
+   "reason": "Fixes an off-by-one in the truncation signal that 206b23fe introduced, not the initial commit."
+  }
+ ],
+ "extras": [
+  {
+   "finding": "Validate still panics on a typed-nil *ir.Model reached through a model discriminator's mapping (isSubtype dereferences sub.Base after a comma-ok that a typed nil passes), so the mechanism the commit claims to close is still open.",
+   "class": "valid-extra",
+   "why": "Reproduced at 861fe727. validDoc() with t/m.Discriminator.Mapping{x: t/nil} and Types[t/nil]=(*ir.Model)(nil) makes pass.Validate panic with a nil pointer dereference. No truth commit touches isSubtype. It was rewritten on main later, outside this PR."
+  },
+  {
+   "finding": "Comments and the commit body state counts and universals the code contradicts: 'four kinds' (only Model/Union were matched), 'four checks' (three named), and 'every walk over doc.Types screens' (collectRefs, graphqlReachableTypes and isSubtype do not).",
+   "class": "valid-extra",
+   "why": "Confirmed in the diff. checkNilTypes says 'dereferenced the four kinds it did match', but only the *ir.Union and *ir.Model arms dereference. The isNilTypeDef comment claims every walk screens through it, which isSubtype contradicts. This is the derive-counts rule in CLAUDE.md. The comment survived the whole PR unfixed."
+  },
+  {
+   "finding": "The new test asserts only that ir/nil-type is present, so mutants of severity, pointer and duplicate emission survive.",
+   "class": "valid-extra",
+   "why": "The test uses assert.Contains on codes only. By inspection, severity, pointer and count are unasserted, so those mutants survive as described. CLAUDE.md's 'break what a test claims to catch' backs this."
+  },
+  {
+   "finding": "The squashed subject would come to 73 characters with the PR number appended.",
+   "class": "false-positive",
+   "why": "The reviewer conditioned this on the commit subject being the PR title. The actual PR title is 'Finish the compiler decomposition and fix three silent failures', so this commit's subject never becomes the squashed subject."
+  },
+  {
+   "finding": "The ir/nil-type pointer 'types[t/nil]' is spelled neither as a stable ID nor as the reference walk spells paths, contrary to diag's doc comment.",
+   "class": "valid-extra",
+   "why": "diag's comment at pass/validate.go:475-478 names only those two forms. The new pointer copies irverify's Violation.Path form instead. It is a real doc/contract mismatch, though minor."
+  },
+  {
+   "finding": "The per-kind table in TestValidate_NilTypeDefIsReportedNotPanicked is a hand-written kind list that no completeness test holds to the kind set.",
+   "class": "valid-extra",
+   "why": "At 861fe727 no TestTypeDef_HandWrittenKindListsAreComplete existed. Main later added one (ir/typedef_completeness_test.go) for exactly this class of list, which confirms the concern was real."
+  },
+  {
+   "finding": "isNilTypeDef is duplicated byte for byte in pass and irverify.",
+   "class": "false-positive",
+   "why": "The layering forces the duplication (pass and irverify each import only ir), and no repo rule bans it. The reviewer only asks for a comment. This is a preference, not a defect."
+  }
+ ],
+ "missed_patterns": "The truth contained no post-initial fixes to defects in the initial commit. Every later commit was new scope, planned decomposition steps, or a fix to a later commit, so there was nothing to miss. The reviewer should check the PR title and scope before raising squash-subject nits, because a multi-commit PR's title is not the first commit's subject. It should also drop duplication 'suggestions' that the layering forces and no rule forbids."
+}
