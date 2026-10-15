@@ -1,0 +1,19 @@
+openapi: 3.2.0
+# Two fields OpenAPI stopped requiring: an Operation's responses (3.1) and a
+# Response's description (3.2). Each is left out, and none is a finding
+# (GitHub #622).
+info: {title: RelaxedRequiredFields, version: "1.0.0"}
+paths:
+  /events:
+    post:
+      operationId: sendEvent
+    get:
+      operationId: listEvents
+      responses:
+        "200": {headers: {X-Count: {schema: {type: integer}}}}
+        "404": {$ref: '#/components/responses/NotFound'}
+components:
+  responses:
+    NotFound:
+      content:
+        application/json: {schema: {type: object}}

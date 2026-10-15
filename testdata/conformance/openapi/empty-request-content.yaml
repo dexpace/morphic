@@ -1,0 +1,27 @@
+openapi: 3.2.0
+# A request body whose content map is empty: every minor's schema admits it,
+# and 3.2 says the map SHOULD hold an entry. The body is kept, naming no media
+# type, and reported once at each declaration (GitHub #622).
+info: {title: EmptyRequestContent, version: "1.0.0"}
+paths:
+  /inline:
+    post:
+      operationId: postInline
+      requestBody:
+        description: A body naming no media type.
+        required: true
+        x-origin: inline
+        content: {}
+      responses: {"204": {description: done}}
+  /shared:
+    post:
+      operationId: postShared
+      requestBody: {$ref: '#/components/requestBodies/Empty'}
+      responses: {"204": {description: done}}
+    put:
+      operationId: putShared
+      requestBody: {$ref: '#/components/requestBodies/Empty'}
+      responses: {"204": {description: done}}
+components:
+  requestBodies:
+    Empty: {content: {}}

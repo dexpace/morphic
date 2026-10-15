@@ -296,6 +296,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 // validated returns the source's validation findings, with what the library
 // refuses of a construct a later minor added taken over (laterConstructs,
 // ownAdditionalOperations), and the diagnostics they and that check report.
+// The findings the library raises only by checking against the wrong
+// meta-schema, or by misreading what OpenAPI requires (requiredArtifacts), are
+// not reported.
 func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, locate scan.Locator, doc *soa.OpenAPI,
 	sibs Siblings, valErrs []error, minor string,
 ) ([]error, []ir.Diagnostic) {
@@ -303,7 +306,12 @@ func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, loc
 	if later.additionalOperations {
 		valErrs = ownAdditionalOperations(ctx, doc, sibs, walkSource(ctx, doc, sibs), valErrs)
 	}
-	diags := findings(ctx, locate, doc, sibs, valErrs, minor, later.inSchema)
+	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, sibs, minor, later.inSchema)
+	required := findRequiredArtifacts(ctx, valErrs, walkSource(ctx, doc, sibs), doc.OpenAPI, documentOptions(doc))
+	diags := findings(locate, valErrs, func(verr validation.Error) bool {
+		return wrongMetaSchema[siteOf(verr)] || required.excuses(verr)
+	})
+	diags = append(diags, required.faults(at)...)
 	return valErrs, append(diags, later.diags...)
 }
 
@@ -319,19 +327,12 @@ func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, 
 }
 
 // findings converts the model build's validation errors into diagnostics,
-// dropping the two kinds that are library artifacts rather than spec problems —
-// a numeric literal Morphic captures losslessly anyway, and a schema finding
-// raised only because the library checked against the wrong meta-schema — and
-// the findings of a rule the compiler checks itself. later says whether
-// laterConstructs reported a construct inside a schema (metaSchemaVersionArtifacts).
-func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, sibs Siblings, valErrs []error, minor string,
-	later bool,
-) []ir.Diagnostic {
-	wrongMetaSchema := metaSchemaVersionArtifacts(ctx, doc, sibs, minor, later)
+// less those the compiler drops wherever the library makes them (dropped) and
+// those artifact says the library raised for this document alone.
+func findings(locate scan.Locator, valErrs []error, artifact func(validation.Error) bool) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(valErrs))
 	for _, ve := range valErrs {
-		if verr, ok := asValidationError(ve); ok &&
-			(dropped(verr) || wrongMetaSchema[siteOf(verr)]) {
+		if verr, ok := asValidationError(ve); ok && (dropped(verr) || artifact(verr)) {
 			continue
 		}
 		diags = append(diags, validationDiag(locate, ve))

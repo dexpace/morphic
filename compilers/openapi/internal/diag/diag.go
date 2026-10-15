@@ -295,6 +295,16 @@ const (
 	// what the document said, and refusing would drop the entry's text. A warning,
 	// like ReservedHeaderName, since the document lowers whole.
 	OAuth2NoFlow = "openapi/oauth2-no-flow"
+	// EmptyRequestContent reports a request body whose content map is empty, at
+	// the map. Every minor's schema admits it, and OpenAPI 3.2 says the map
+	// SHOULD hold an entry, leaving a body with none implementation-defined
+	// (GitHub #622). The body lowers to a Payload with no Contents, keeping
+	// whether it must be sent, its description and its x-*. A content the
+	// parser finds missing is the parser's to report.
+	//
+	// A warning, as OAuth2NoFlow is: the document lowers whole, but states no
+	// way to send the body.
+	EmptyRequestContent = "openapi/empty-request-content"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//

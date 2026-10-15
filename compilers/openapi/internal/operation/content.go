@@ -916,7 +916,10 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	payload, diags := lowerPayload(c.NamingByReferenceAt(usePtr, bodyPtr), ts, anchors, rb.GetContent(),
 		bodyPtr, ids.DeclarationHint(bodyPtr, requestBodyHint(src)))
 	if payload == nil {
-		return diags
+		// A body lowering no media type is still the body: whether it must be
+		// sent, its description and its x-* stay on a Payload with no Contents.
+		payload = &ir.Payload{}
+		diags = append(diags, emptyContentDiags(c, rb, bodyPtr)...)
 	}
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
@@ -924,11 +927,7 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	payload.Docs = resolve.UseDocs[soa.RequestBody](src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
-	// field is read directly — as XMLHints already reads its own. Both reads sit
-	// after the payload guard because ir.Payload is the body's only carrier: a
-	// request body declaring no content lowers to nothing to hang them on, and
-	// OpenAPI makes content REQUIRED there, so such a body is a defect in the
-	// document rather than a shape this compiler has to place.
+	// field is read directly — as XMLHints already reads its own.
 	bodyExt, bodyExtDiags := schema.ExtensionsOf(c, rb.Extensions, bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
@@ -936,6 +935,17 @@ func lowerRequestBody(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorI
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags
+}
+
+// emptyContentDiags reports rb's content map written empty, at the map, or
+// nothing; the design record is on diag.EmptyRequestContent. The condition is
+// the parser's own for reading the map as missing, which the load phase drops.
+func emptyContentDiags(c lowering.Ctx, rb *soa.RequestBody, bodyPtr jsontext.Pointer) []ir.Diagnostic {
+	if !rb.GetCore().Content.Present || rb.GetContent().Len() != 0 {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyRequestContent, bodyPtr+ids.Ptr("content"),
+		"request body's content map is empty, so it names no media type to send the body as")}
 }
 
 // contentTypeKeys returns a content map's media-type keys in source order —

@@ -1,0 +1,41 @@
+openapi: 3.0.3
+# Every REQUIRED field each minor's schema types as a bare string, written as
+# the empty string. The schema admits each, so none is a finding, and each
+# lowers as written (GitHub #622).
+info:
+  title: ""
+  version: ""
+  license: {name: ""}
+externalDocs: {url: ""}
+servers:
+  - url: ""
+  - url: "https://{region}.example.com{base}"
+    variables:
+      region: {default: eu}
+      base: {default: ""}
+tags:
+  - name: ""
+    externalDocs: {url: ""}
+security:
+  - key: []
+paths:
+  /items:
+    get:
+      operationId: listItems
+      tags: [""]
+      externalDocs: {url: ""}
+      parameters:
+        - {name: "", in: query, schema: {type: string}}
+      responses:
+        "200": {description: ""}
+components:
+  securitySchemes:
+    key: {type: apiKey, name: "", in: header}
+    oidc: {type: openIdConnect, openIdConnectUrl: ""}
+    oauth:
+      type: oauth2
+      flows:
+        implicit: {authorizationUrl: "", scopes: {}}
+        password: {tokenUrl: "", scopes: {}}
+        clientCredentials: {tokenUrl: "", scopes: {}}
+        authorizationCode: {authorizationUrl: "", tokenUrl: "", scopes: {}}
