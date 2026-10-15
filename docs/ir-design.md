@@ -2336,11 +2336,14 @@ as an empty map, as missing, where every minor's schema types the field as a bar
 server URL check repeats that reading for a variable's `default`. The load phase drops those
 findings wherever the parser makes them: in the source, in an object a `$ref` reaches outside the
 model, and in another document, which is held to the source's declared minor as its schemas'
-findings are until GitHub #839 settles which minor governs it. Nothing else is dropped. An
-enumerated field written empty (a Parameter's `in`, a security scheme's `type`), a field left out
-below the minor that relaxed it, and a `null` all stand. So does every finding at a mapping a YAML
-alias reads as two kinds, unless what each kind raises there is one of those dropped. The objects a
-later minor's construct holds are held to the declared minor like any other (GitHub #622).
+findings are until GitHub #839 settles which minor governs it. Nothing else is dropped. An empty
+value the specification refuses otherwise stands: an enumerated field (a Parameter's `in`, a
+security scheme's `type`), a path parameter's `name`, which must match a template expression and
+none is named by the empty string, and a server `url` from 3.2, whose server URL grammar requires a
+character. A field left out below the minor that relaxed it stands too, as does a `null`, and so
+does every finding at a node two reads share through a YAML alias or merge key, unless what each
+read raises there is one of those dropped. The objects a later minor's construct holds are held to
+the declared minor like any other (GitHub #622).
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no

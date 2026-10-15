@@ -26,6 +26,11 @@ const (
 	descriptionOptionalSince = "3.2" // a Response Object's description
 )
 
+// nonEmptyServerURLSince is the minor whose server URL grammar first refuses
+// the empty string: 3.2's server-url-template is one or more literals or
+// variables (emptyValues).
+const nonEmptyServerURLSince = "3.2"
+
 // filledDefault stands in for a server variable's empty default when its
 // server's URL check is run again (emptyDefaultEchoes). Any value but the
 // empty string is one the check reads as a default.
@@ -38,7 +43,7 @@ const filledDefault = "default"
 // The rule departs from the specification twice. It requires at every version
 // a field a later minor stopped requiring (relaxed). And it reads a field
 // written as the empty string, or an empty map, as missing, where every minor's
-// schema admits the value (admittedEmpty). The server URL check repeats the
+// schema admits the value (emptyValues). The server URL check repeats the
 // second reading for a variable's default (emptyDefaultEchoes).
 type requiredArtifacts struct {
 	// at holds the nodes the rule's findings are artifacts at.
@@ -133,9 +138,9 @@ func ofTheRule(err error) bool {
 //
 // Through a YAML alias one mapping can be read as two kinds, and a missing
 // field of either is anchored at the mapping, so every mapping a model is built
-// from is claimed. A string field's value is claimed only as an artifact's: an
-// alias gives each read its own node, and a merge key shares one only between
-// fields of one name, which admittedEmpty admits for every kind or none.
+// from is claimed. So is every value the library refuses empty, as an
+// artifact's where it is admitted and the model's own where not, since a merge
+// key can give a path and a query parameter one name node.
 type requiredClaims struct {
 	artifact, own map[*yaml.Node]bool
 	echoes        map[echo]bool
@@ -152,8 +157,12 @@ func (c requiredClaims) read(ctx context.Context, m any, version string, opts []
 	} else {
 		c.own[root] = true
 	}
-	for _, n := range admittedEmpty(m) {
+	admitted, refused := emptyValues(m, version)
+	for _, n := range admitted {
 		c.artifact[n] = true
+	}
+	for _, n := range refused {
+		c.own[n] = true
 	}
 	if s, ok := m.(*soa.Server); ok {
 		maps.Copy(c.echoes, emptyDefaultEchoes(ctx, s, opts))
@@ -202,44 +211,62 @@ func relaxed(m any, version string) bool {
 	}
 }
 
-// admittedEmpty returns where m writes a field as the empty string, or as an
-// empty map, that every minor's schema types as a bare string or map, as the
-// library anchors its finding that the field is missing. An enumerated field,
-// such as a Parameter's in, is not admitted: no minor's enumeration holds the
-// empty string. Neither is a value written null, which the library reads as a
-// type mismatch.
-func admittedEmpty(m any) []*yaml.Node {
+// emptyValues returns where m writes as the empty string, or an empty map, a
+// field the library then reads as missing, as it anchors that finding: the
+// ones the declared version admits, and the rest.
+//
+// A field every minor's schema types as a bare string or map is admitted
+// unless the specification refuses the value otherwise: a path parameter's
+// name must match a template expression, none of which the empty string
+// names, and 3.2's server URL grammar requires a character. An enumerated
+// field, such as a parameter's in, is never admitted; a null is a type
+// mismatch.
+func emptyValues(m any, version string) (admitted, refused []*yaml.Node) {
 	switch v := m.(type) {
 	case *soa.Info:
 		c := v.GetCore()
-		return blanks(c, c.Title, c.Version)
+		return blanks(c, c.Title, c.Version), nil
 	case *soa.License:
-		return blanks(v.GetCore(), v.GetCore().Name)
+		return blanks(v.GetCore(), v.GetCore().Name), nil
 	case *soa.Server:
-		return blanks(v.GetCore(), v.GetCore().URL)
+		url := blanks(v.GetCore(), v.GetCore().URL)
+		if atLeast(version, nonEmptyServerURLSince) {
+			return nil, url
+		}
+		return url, nil
 	case *soa.ServerVariable:
-		return blanks(v.GetCore(), v.GetCore().Default)
+		return blanks(v.GetCore(), v.GetCore().Default), nil
 	case *soa.Tag:
-		return blanks(v.GetCore(), v.GetCore().Name)
+		return blanks(v.GetCore(), v.GetCore().Name), nil
 	case *oas3.ExternalDocumentation:
-		return blanks(v.GetCore(), v.GetCore().URL)
+		return blanks(v.GetCore(), v.GetCore().URL), nil
 	case *soa.ReferencedParameter:
-		c := v.GetObject().GetCore()
-		return blanks(c, c.Name)
+		return parameterValues(v.GetObject())
 	case *soa.ReferencedResponse:
 		c := v.GetObject().GetCore()
-		return blanks(c, c.Description)
+		return blanks(c, c.Description), nil
 	case *soa.ReferencedSecurityScheme:
 		c := v.GetObject().GetCore()
-		return blanks(c, c.Name, c.Scheme, c.OpenIdConnectUrl)
+		return blanks(c, c.Name, c.Scheme, c.OpenIdConnectUrl), append(blanks(c, c.Type), blanks(c, c.In)...)
 	case *soa.OAuthFlow:
 		c := v.GetCore()
-		return blanks(c, c.AuthorizationURL, c.TokenURL, c.DeviceAuthorizationURL)
+		return blanks(c, c.AuthorizationURL, c.TokenURL, c.DeviceAuthorizationURL), nil
 	case *soa.ReferencedRequestBody:
-		return emptyContent(v.GetObject())
+		return emptyContent(v.GetObject()), nil
 	default:
-		return nil
+		return nil, nil
 	}
+}
+
+// parameterValues is emptyValues for a parameter: its name is admitted empty
+// unless it names a path parameter, and its in never is.
+func parameterValues(p *soa.Parameter) (admitted, refused []*yaml.Node) {
+	c := p.GetCore()
+	name, in := blanks(c, c.Name), blanks(c, c.In)
+	if p.GetIn() == soa.ParameterInPath {
+		return nil, append(name, in...)
+	}
+	return name, in
 }
 
 // blanks returns the node of each of fields written as the empty string, as

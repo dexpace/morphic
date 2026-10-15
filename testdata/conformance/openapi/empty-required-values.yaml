@@ -1,7 +1,6 @@
 openapi: 3.0.3
-# Every REQUIRED field each minor's schema types as a bare string, written as
-# the empty string. The schema admits each, so none is a finding, and each
-# lowers as written (GitHub #622).
+# REQUIRED fields written as the empty string, each of which a 3.0 document
+# admits: none is a finding, and each lowers as written (GitHub #622).
 info:
   title: ""
   version: ""

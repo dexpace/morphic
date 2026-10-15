@@ -258,7 +258,7 @@
     {
       "format": "openapi@3.0",
       "path": "empty-required-values.yaml",
-      "hash": "42aa8c912f0787bf68ae4a777706871bd6d4ccd31194df34252ec2fdbd6f9304"
+      "hash": "8514eef0cf883c98b1b02b955d3c74e870dd2591aa394b1eeb7aeb4dbfb0650e"
     }
   ]
 }

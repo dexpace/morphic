@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,12 +61,12 @@ func diagsUnder(diags []ir.Diagnostic, rule string) []string {
 	return out
 }
 
-// TestRequired_AnEmptyValueTheSchemaAdmitsIsNoFinding pins each field every
-// minor's schema types as a bare string or map, which the library reads as
-// missing when it is written empty (GitHub #622). Each case first confirms
-// the library raises the finding, so a library that stopped would not leave
-// the case passing with nothing dropped.
-func TestRequired_AnEmptyValueTheSchemaAdmitsIsNoFinding(t *testing.T) {
+// TestRequired_AnEmptyValueTheSpecificationAdmitsIsNoFinding pins each field
+// every minor admits empty, which the library reads as missing when it is
+// written so (GitHub #622). Each case first confirms the library raises the
+// finding, so a library that stopped would not leave the case passing with
+// nothing dropped.
+func TestRequired_AnEmptyValueTheSpecificationAdmitsIsNoFinding(t *testing.T) {
 	t.Parallel()
 	const info = "info: {title: T, version: \"1\"}\n"
 	const op = "paths:\n  /p:\n    post:\n      operationId: o\n"
@@ -77,7 +78,6 @@ func TestRequired_AnEmptyValueTheSchemaAdmitsIsNoFinding(t *testing.T) {
 		{"info title", "info: {title: \"\", version: \"1\"}\npaths: {}\n"},
 		{"info version", "info: {title: T, version: \"\"}\npaths: {}\n"},
 		{"license name", "info: {title: T, version: \"1\", license: {name: \"\"}}\npaths: {}\n"},
-		{"server url", info + "servers: [{url: \"\"}]\npaths: {}\n"},
 		{"server variable default", info + "servers: [{url: \"https://h/{v}\", variables: {v: {default: \"\"}}}]\npaths: {}\n"},
 		{"tag name", info + "tags: [{name: \"\"}]\npaths: {}\n"},
 		{"document externalDocs url", info + "externalDocs: {url: \"\"}\npaths: {}\n"},
@@ -165,13 +165,18 @@ func TestRequired_EverySpellingOfTheEmptyStringIsAdmitted(t *testing.T) {
 	}
 }
 
-// TestRequired_AnEnumeratedFieldWrittenEmptyIsStillRefused pins the fields no
-// minor admits empty: each enumerates its values, and none holds the empty
-// string, so the library's finding stands, worded as it words it.
-func TestRequired_AnEnumeratedFieldWrittenEmptyIsStillRefused(t *testing.T) {
+// TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused pins the empty values
+// no minor admits, so the library's finding stands, worded as it words it: an
+// enumerated field, whose values never include the empty string, and a path
+// parameter's name, which must match a template expression none of which the
+// empty string names.
+func TestRequired_AnEmptyValueNoMinorAdmitsIsStillRefused(t *testing.T) {
 	t.Parallel()
 	const info = "info: {title: T, version: \"1\"}\n"
 	for _, tc := range []struct{ name, doc string }{
+		{"path parameter name", info + "paths:\n  /p/{x}:\n    get:\n" +
+			"      parameters: [{name: \"\", in: path, required: true, schema: {type: string}}]\n" +
+			"      responses: {\"200\": {description: ok}}\n"},
 		{"parameter in", info + "paths:\n  /p:\n    get:\n      parameters: [{name: q, in: \"\", schema: {type: string}}]\n" +
 			"      responses: {\"200\": {description: ok}}\n"},
 		{"security scheme type", info + "paths: {}\ncomponents: {securitySchemes: {s: {type: \"\"}}}\n"},
@@ -185,6 +190,79 @@ func TestRequired_AnEnumeratedFieldWrittenEmptyIsStillRefused(t *testing.T) {
 				require.NotEmpty(t, want)
 				assert.Equal(t, want, loadedFindings(t, src, validation.RuleValidationRequiredField))
 			})
+		}
+	}
+}
+
+// TestRequired_AnEmptyServerURLFollowsTheDeclaredVersion pins the one empty
+// value a minor stopped admitting: a server URL, which 3.0 and 3.1 let be a
+// relative reference and 3.2's server URL grammar requires a character of.
+func TestRequired_AnEmptyServerURLFollowsTheDeclaredVersion(t *testing.T) {
+	t.Parallel()
+	const doc = "info: {title: T, version: \"1\"}\nservers: [{url: \"\"}]\npaths: {}\n"
+	for _, version := range versions {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: " + version + "\n" + doc
+			library := libraryFindings(t, src, validation.RuleValidationRequiredField)
+			require.Len(t, library, 1)
+			var want []string
+			if atLeast(version, nonEmptyServerURLSince) {
+				want = library
+			}
+			assert.Equal(t, want, loadedFindings(t, src, validation.RuleValidationRequiredField))
+		})
+	}
+}
+
+// TestRequired_AValueAMergeKeySharesIsExcusedOnlyWhereEveryReadAdmitsIt pins
+// the claims on a value: a merge key gives a path and a query parameter one
+// name node, and the library anchors each one's finding there. The query
+// parameter's is an artifact, the path parameter's is not, and the two cannot
+// be told apart at the node, so both stand.
+func TestRequired_AValueAMergeKeySharesIsExcusedOnlyWhereEveryReadAdmitsIt(t *testing.T) {
+	t.Parallel()
+	src := `openapi: 3.1.1
+info: {title: T, version: "1"}
+x-unnamed: &unnamed {name: "", schema: {type: string}}
+paths:
+  /p/{x}:
+    get:
+      parameters:
+        - {<<: *unnamed, in: path, required: true}
+        - {<<: *unnamed, in: query}
+      responses: {"200": {description: ok}}
+`
+	want := libraryFindings(t, src, validation.RuleValidationRequiredField)
+	require.Len(t, want, 2, "one finding per parameter, at the node the merge key shares")
+	require.Equal(t, strings.Fields(want[0])[0], strings.Fields(want[1])[0])
+	assert.Equal(t, want, loadedFindings(t, src, validation.RuleValidationRequiredField))
+}
+
+// TestRequired_AnEmptyValueAnOverlayWritesIsJudgedAlike pins that a value the
+// caller's overlay writes empty is judged as one the source writes is, placed
+// at the overlay that wrote it.
+func TestRequired_AnEmptyValueAnOverlayWritesIsJudgedAlike(t *testing.T) {
+	t.Parallel()
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.1
+info: {title: T, version: "1"}
+paths: {/p: {get: {responses: {"200": {description: ok}}}}}
+`)}
+	ov := &overlay.Options{Data: []byte(`overlay: 1.0.0
+info: {title: O, version: "1"}
+actions:
+  - {target: $.info, update: {title: ""}}
+  - {target: '$.paths["/p"].get.responses["200"]', update: {description: ""}}
+  - {target: '$.paths["/p"].get', update: {parameters: [{name: "", in: path, required: true, schema: {type: string}}]}}
+`)}
+	_, diags, err := Load(t.Context(), 0, src, Options{Overlay: ov, OverlaySrcIndex: 1})
+	require.NoError(t, err)
+	got := diagsUnder(diags, validation.RuleValidationRequiredField)
+	require.Len(t, got, 1, "the path parameter's empty name alone stands: %v", got)
+	assert.Contains(t, got[0], "parameter.name")
+	for _, d := range diags {
+		if d.Code == diag.Validation+"/"+validation.RuleValidationRequiredField {
+			assert.Equal(t, 1, d.Provenance.Source, "placed at the overlay")
 		}
 	}
 }
