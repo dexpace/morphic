@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.13.0",
+  "irVersion": "0.14.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -310,7 +310,7 @@
       }
     },
     "t/openapi/components/schemas/CodeIndex": {
-      "kind": "model",
+      "kind": "map",
       "id": "t/openapi/components/schemas/CodeIndex",
       "name": {
         "source": "CodeIndex",
@@ -323,15 +323,10 @@
         "source": 0,
         "pointer": "/components/schemas/CodeIndex"
       },
-      "additionalProps": {
-        "value": {
-          "target": "t/anon/components/schemas/CodeIndex/additionalProperties",
-          "nullable": false
-        }
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
+      "value": {
+        "target": "t/anon/components/schemas/CodeIndex/additionalProperties",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/Codes": {
       "kind": "list",

@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.13.0",
+  "irVersion": "0.14.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -49,6 +49,49 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/AnyMap": {
+      "kind": "map",
+      "id": "t/openapi/components/schemas/AnyMap",
+      "name": {
+        "source": "AnyMap",
+        "canonical": "any_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AnyMap"
+      },
+      "value": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/BoundedMap": {
+      "kind": "map",
+      "id": "t/openapi/components/schemas/BoundedMap",
+      "name": {
+        "source": "BoundedMap",
+        "canonical": "bounded_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedMap"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 1,
+        "maxProps": 10
+      }
+    },
     "t/openapi/components/schemas/ClosedAfter": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ClosedAfter",
@@ -146,7 +189,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/OpenMap": {
-      "kind": "model",
+      "kind": "map",
       "id": "t/openapi/components/schemas/OpenMap",
       "name": {
         "source": "OpenMap",
@@ -159,9 +202,57 @@
         "source": 0,
         "pointer": "/components/schemas/OpenMap"
       },
+      "value": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/OpenRecord": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OpenRecord",
+      "name": {
+        "source": "OpenRecord",
+        "canonical": "open_record"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OpenRecord"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OpenRecord/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OpenRecord/properties/a"
+          }
+        }
+      ],
       "additionalProps": {
         "value": {
-          "target": "t/prim/integer",
+          "target": "t/prim/any",
           "nullable": false
         }
       },
@@ -252,7 +343,7 @@
     {
       "format": "openapi@3.1",
       "path": "maps.yaml",
-      "hash": "0ab24bc13fb49177947f82f3bcde7b4959b203ad2b427d5fc065d8618740cb6c"
+      "hash": "80b768b595ead6337557f683bce1b9755ab21f093822456a793a8a5e5819f9a7"
     }
   ]
 }

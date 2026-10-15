@@ -79,7 +79,7 @@ func (w *edgeWalk) def(td TypeDef) {
 		w.ref(&t.Elem)
 		w.encoding(t.Encoding)
 	case *MapT:
-		w.ref(&t.Key)
+		w.ref(t.Key)
 		w.ref(&t.Value)
 	case *Tuple:
 		w.refs(t.Elems)

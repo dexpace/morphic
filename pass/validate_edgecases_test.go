@@ -52,7 +52,7 @@ func TestValidate_DanglingRefsAcrossContainerKinds(t *testing.T) {
 	}
 	doc.Types["t/map"] = &ir.MapT{
 		ID:    "t/map",
-		Key:   ir.TypeRef{Target: "t/ghost-key"},
+		Key:   &ir.TypeRef{Target: "t/ghost-key"},
 		Value: ir.TypeRef{Target: "t/ghost-val"},
 	}
 	doc.Types["t/tuple"] = &ir.Tuple{

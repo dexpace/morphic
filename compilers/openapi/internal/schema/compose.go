@@ -34,7 +34,8 @@ import (
 //
 // Value constraints written beside the allOf (minProperties, maxProperties,
 // ...) are read as lowerModel reads a plain object's, so they land on the same
-// field instead of falling to Unmodeled (GitHub #407).
+// field instead of falling to Unmodeled (GitHub #407). A composition that
+// leaves only a catch-all is a map, as a plain object's is (objectNode).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
@@ -54,15 +55,16 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 		tag, tagDiags := subtypeDiscriminatorValue(c, ts, s, common.ID, pointer)
 		m.DiscriminatorValue = tag
 		diags = append(diags, tagDiags...)
-		return m
+		return objectNode(m)
 	})
 	return id, diags
 }
 
-// branchCensusHandled names the census keywords an allOf $ref branch's own
-// composition reads, so the branch census leaves them alone: applyCompositionRequired
-// ORs every branch's required list onto the composed model.
-var branchCensusHandled = []string{"required"}
+// compositionCensusHandled names the census keywords an allOf composition
+// reads itself, so neither the census of a $ref branch nor that of the composed
+// position reports them again: applyCompositionRequired ORs every required list
+// onto the composed model and reports each name it cannot attach.
+var compositionCensusHandled = []string{"required"}
 
 // requiredEntry is one `required` name declared somewhere in an allOf
 // composition, paired with the pointer of the schema that declared it (an
@@ -142,7 +144,7 @@ func diagUnattachableRequired(c lowering.Ctx, m *ir.Model, e requiredEntry) ir.D
 // A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
 // that homeDeclaration hoists there, and the composition points at it (GitHub
 // #143). The census every $ref site runs keeps what the alias cannot model,
-// except `required` (branchCensusHandled); a co-declared oneOf/anyOf is kept
+// except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -164,7 +166,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth in
 			continue
 		}
 		bs := b.GetSchema()
-		unhomed := refSiteUnhomedKeywords(bs, branchCensusHandled)
+		unhomed := refSiteUnhomedKeywords(bs, compositionCensusHandled)
 		hasUnion := declaresUnion(bs)
 		ref, homeDiags := homeDeclaration(c, ts, anchors, bs, ir.TypeRef{Target: id}, bptr, branchHint(b, i), annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
 		diags = append(diags, homeDiags...)

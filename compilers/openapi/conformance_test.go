@@ -1126,6 +1126,9 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
 }
 
+// assertEnumString pins a string enum and its one-member form, which is an
+// Enum as well: an `enum` keyword lowers to an Enum whatever its member count,
+// and only `const` lowers to a Literal (ir-design §4.5).
 func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	e, ok := doc.Types[namedID("Color")].(*ir.Enum)
 	require.True(t, ok)
@@ -1134,6 +1137,13 @@ func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, e.Members, 3)
 	assert.Equal(t, "red", e.Members[0].Value.Str)
 	assert.Equal(t, "blue", e.Members[2].Value.Str)
+
+	pinned, ok := doc.Types[namedID("Pinned")].(*ir.Enum)
+	require.True(t, ok, "a one-member enum is an Enum; got %T", doc.Types[namedID("Pinned")])
+	assert.Equal(t, ir.PrimString, pinned.ValueType)
+	assert.True(t, pinned.Closed)
+	require.Len(t, pinned.Members, 1)
+	assert.Equal(t, "only", pinned.Members[0].Value.Str)
 }
 
 func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -2097,16 +2107,33 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, namedID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
 }
 
+// assertMaps pins ir-design §4.6's line between the two map shapes: an object
+// whose one member fact is its catch-all is a MapT, carrying its value type and
+// entry bounds, and a catch-all beside anything else is a Model's
+// AdditionalProps. An explicit `true` types the catch-all as the top type in
+// either.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	om, ok := doc.Types[namedID("OpenMap")].(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, om.AdditionalProps)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), om.AdditionalProps.Value.Target)
+	i64 := func(v int64) *int64 { return &v }
+	for name, want := range map[string]*ir.MapT{
+		"OpenMap":    {Value: ir.TypeRef{Target: "t/prim/integer"}},
+		"AnyMap":     {Value: ir.TypeRef{Target: "t/prim/any"}},
+		"BoundedMap": {Value: ir.TypeRef{Target: "t/prim/string"}, Constraints: &ir.Constraints{MinProps: i64(1), MaxProps: i64(10)}},
+	} {
+		mt, ok := doc.Types[namedID(name)].(*ir.MapT)
+		require.True(t, ok, "%s is a map and nothing else; got %T", name, doc.Types[namedID(name)])
+		assert.Nil(t, mt.Key, "%s has string keys", name)
+		assert.Equal(t, want.Value, mt.Value, name)
+		assert.Empty(t, cmp.Diff(want.Constraints, mt.Constraints), name)
+	}
 	pm, ok := doc.Types[namedID("PatternMap")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, pm.AdditionalProps)
 	require.Len(t, pm.AdditionalProps.Patterns, 1)
 	assert.Equal(t, "^x-", pm.AdditionalProps.Patterns[0].Pattern)
+	rec, ok := doc.Types[namedID("OpenRecord")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, rec.AdditionalProps, "an explicit true is a catch-all, not an unwritten keyword")
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/any"}, rec.AdditionalProps.Value)
 	cr, ok := doc.Types[namedID("ClosedRecord")].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.AdditionalClosed, cr.Additional)

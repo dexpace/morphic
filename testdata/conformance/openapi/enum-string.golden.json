@@ -1,5 +1,5 @@
 {
-  "irVersion": "0.13.0",
+  "irVersion": "0.14.0",
   "idSpaces": {
     "auth": [
       "openapi"
@@ -104,6 +104,38 @@
       ],
       "closed": true,
       "flags": false
+    },
+    "t/openapi/components/schemas/Pinned": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Pinned",
+      "name": {
+        "source": "Pinned",
+        "canonical": "pinned"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pinned"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Pinned/s:only",
+          "name": {
+            "source": "only",
+            "canonical": "only"
+          },
+          "value": {
+            "kind": "string",
+            "str": "only"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     }
   },
   "servers": [
@@ -119,7 +151,7 @@
     {
       "format": "openapi@3.1",
       "path": "enum-string.yaml",
-      "hash": "458911e5605f5143aabebcaf22aeab647bce86a4f5692953e17e14a94832ea15"
+      "hash": "ec6ea94ac4f8c68364f454c3e888d7686c89cfb9a80218d33dc95ebdb0a1c4c9"
     }
   ]
 }

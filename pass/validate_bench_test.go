@@ -246,7 +246,7 @@ func buildGraphQLDoc(b *testing.B) *ir.Document {
 		case 2:
 			doc.Types[id] = &ir.List{TypeCommon: common, Elem: pick()}
 		case 3:
-			doc.Types[id] = &ir.MapT{TypeCommon: common, Key: ir.TypeRef{Target: str}, Value: pick()}
+			doc.Types[id] = &ir.MapT{TypeCommon: common, Value: pick()}
 		case 4:
 			doc.Types[id] = &ir.Union{TypeCommon: common, Variants: []ir.Variant{
 				{Type: pick()}, {Type: pick()}, {Type: pick()},

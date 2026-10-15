@@ -138,7 +138,9 @@ type Model struct {
 	// Mixins is composition without subtyping (Smithy mixins, TypeSpec spread,
 	// extra allOf entries).
 	Mixins []TypeRef `json:"mixins,omitempty"`
-	// AdditionalProps is a map-like catch-all alongside declared properties.
+	// AdditionalProps is the catch-all for members beside the model's declared
+	// structure. A catch-all with nothing beside it is a MapT, never a Model
+	// (AsMap).
 	AdditionalProps *AdditionalProps `json:"additionalProps,omitzero"`
 	// Additional is the openness of the property set.
 	Additional AdditionalMode `json:"additional,omitempty"`
@@ -172,12 +174,13 @@ type WireIDRange struct {
 	To int `json:"to"`
 }
 
-// AdditionalProps describes a model's map-like catch-all for undeclared
-// properties (ir-design §4.3).
+// AdditionalProps describes a model's catch-all for undeclared properties
+// (ir-design §4.3). It types the members beside a model's declared structure; a
+// map that declares nothing else is a MapT.
 type AdditionalProps struct {
 	// Value is the value schema for catch-all properties.
 	Value TypeRef `json:"value"`
-	// Key is the key schema; nil = string keys.
+	// Key is the key schema; nil = string keys, the one spelling of them.
 	Key *TypeRef `json:"key,omitzero"`
 	// Patterns are key-pattern-scoped value schemas (JSON Schema patternProperties).
 	Patterns []PatternProps `json:"patterns,omitempty"`
@@ -330,14 +333,21 @@ type List struct {
 	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
-// MapT is a keyed collection (Record/additionalProperties-only/proto map)
-// (ir-design §4.6).
+// MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf
+// map, an OpenAPI object whose only statement about its members is
+// additionalProperties (ir-design §4.6). A catch-all beside any other member
+// fact stays a Model's AdditionalProps; AsMap draws that line for every
+// producer.
 type MapT struct {
 	TypeCommon
-	// Key is the key type.
-	Key TypeRef `json:"key"`
+	// Key is the key type; nil = string keys, the one spelling of them, as for
+	// AdditionalProps.Key.
+	Key *TypeRef `json:"key,omitzero"`
 	// Value is the value type.
 	Value TypeRef `json:"value"`
+	// Constraints bounds how many entries an instance may carry (JSON Schema
+	// minProperties/maxProperties, Smithy @length on a map).
+	Constraints *Constraints `json:"constraints,omitzero"`
 }
 
 // Tuple is a positional sequence: a type for each leading position, then the
@@ -356,8 +366,9 @@ type Tuple struct {
 	Constraints *Constraints `json:"constraints,omitzero"`
 }
 
-// Literal is a single constant value used as a type (const, single-value enum,
-// discriminator pin) (ir-design §4.6).
+// Literal is a single constant value used as a type: JSON Schema const, a
+// TypeSpec literal type, an Erlang atom (ir-design §4.6). An enum of one member
+// is an Enum, never a Literal (ir-design §4.5).
 type Literal struct {
 	TypeCommon
 	// Value is the constant value.

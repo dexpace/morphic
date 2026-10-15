@@ -59,6 +59,25 @@ func TestDifferentTypeKind_UnresolvableTargetIsNotAConflict(t *testing.T) {
 		"an unresolvable target is not treated as a differing kind")
 }
 
+// TestDifferentTypeKind_MapAndModelAreOneObjectKind pins that a map and a model
+// are no differing kinds: both are objects, so a redeclaration naming one
+// beside the other is satisfiable. Kinds that are different shapes still
+// differ, a map against a list included.
+func TestDifferentTypeKind_MapAndModelAreOneObjectKind(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/map":   &ir.MapT{ID: "t/map"},
+		"t/model": &ir.Model{ID: "t/model"},
+		"t/list":  &ir.List{ID: "t/list"},
+	})
+	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
+
+	assert.False(t, g.differentTypeKind(ref("t/map"), ref("t/model")), "map against model")
+	assert.False(t, g.differentTypeKind(ref("t/model"), ref("t/map")), "model against map")
+	assert.True(t, g.differentTypeKind(ref("t/map"), ref("t/list")), "map against list")
+	assert.True(t, g.differentTypeKind(ref("t/list"), ref("t/model")), "list against model")
+}
+
 // Every BigVal keyword rests on the same magnitude comparison, so it is driven
 // here over the literals that comparison has to get right: one value
 // under two spellings, and two values that genuinely differ — mostly at a

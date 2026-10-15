@@ -42,7 +42,7 @@ func sampleDocument(t *testing.T) ir.Document {
 		&ir.Union{Exclusive: true},
 		&ir.Enum{ValueType: "string", Closed: true},
 		&ir.List{Elem: ir.TypeRef{Target: "t/p/string"}},
-		&ir.MapT{Key: ir.TypeRef{Target: "t/p/string"}, Value: ir.TypeRef{Target: "t/p/string"}},
+		&ir.MapT{Key: &ir.TypeRef{Target: "t/p/string"}, Value: ir.TypeRef{Target: "t/p/string"}},
 		&ir.Tuple{Elems: []ir.TypeRef{{Target: "t/p/string"}}},
 		&ir.Literal{Value: ir.Value{Kind: ir.ValueString, Str: "fixed"}},
 		&ir.External{Identity: "erlang:pid"},

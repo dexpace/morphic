@@ -1,7 +1,7 @@
 package ir
 
 // Constraints restricts the admissible values of a scalar, model, list, tuple,
-// string, or numeric type (ir-design §5.3). Numeric bounds are
+// map, string, or numeric type (ir-design §5.3). Numeric bounds are
 // arbitrary-precision decimal strings, never float64.
 //
 // A Constraints is position-scoped: it holds only what its position declared,
@@ -56,9 +56,9 @@ type Constraints struct {
 	MaxItems *int64 `json:"maxItems,omitzero"`
 	// UniqueItems requires distinct collection elements.
 	UniqueItems bool `json:"uniqueItems"`
-	// MinProps is the minimum number of properties.
+	// MinProps is the minimum number of a model's properties or a map's entries.
 	MinProps *int64 `json:"minProps,omitzero"`
-	// MaxProps is the maximum number of properties.
+	// MaxProps is the maximum number of a model's properties or a map's entries.
 	MaxProps *int64 `json:"maxProps,omitzero"`
 }
 

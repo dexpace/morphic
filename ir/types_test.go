@@ -114,7 +114,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "map",
 			td:   &ir.MapT{},
-			want: `{"kind":"map","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"key":{"target":"","nullable":false},"value":{"target":"","nullable":false}}`,
+			want: `{"kind":"map","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"value":{"target":"","nullable":false}}`,
 		},
 		{
 			name: "tuple",
@@ -267,9 +267,10 @@ func TestList_PopulatedRoundTrip(t *testing.T) {
 func TestMapT_PopulatedRoundTrip(t *testing.T) {
 	t.Parallel()
 	want := &ir.MapT{
-		TypeCommon: populatedTypeCommon("t/map/Attrs"),
-		Key:        ir.TypeRef{Target: "t/prim/string"},
-		Value:      populatedTypeRef(),
+		TypeCommon:  populatedTypeCommon("t/map/Attrs"),
+		Key:         &ir.TypeRef{Target: "t/prim/int64"},
+		Value:       populatedTypeRef(),
+		Constraints: populatedConstraints(),
 	}
 	assertTypeDefRoundTrip(t, want)
 }

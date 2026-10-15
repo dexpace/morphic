@@ -83,8 +83,6 @@ LongRunning.PollingOperation
 LongRunning.PollingType
 LongRunning.ResultPath
 MapT.Key
-MapT.TypeCommon
-MapT.Value
 Message.Bindings
 Message.ContentType
 Message.CorrelationID

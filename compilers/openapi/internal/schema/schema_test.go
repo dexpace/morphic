@@ -655,18 +655,17 @@ func TestLower_PropertyNamesPreserved(t *testing.T) {
 	doc, diags := lowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	m, ok := typeByName(doc, "Codes").(*ir.Model)
-	require.True(t, ok)
-	entry, ok := m.Unmodeled["openapi:propertyNames"]
-	require.True(t, ok, "propertyNames kept verbatim; got %v", m.Unmodeled)
+	mt, ok := typeByName(doc, "Codes").(*ir.MapT)
+	require.True(t, ok, "a map and nothing else is a MapT; got %T", typeByName(doc, "Codes"))
+	entry, ok := mt.Unmodeled["openapi:propertyNames"]
+	require.True(t, ok, "propertyNames kept verbatim; got %v", mt.Unmodeled)
 	assert.JSONEq(t, `{"type":"string","pattern":"^[a-z]+$"}`, string(entry.Value))
 	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo))
 
 	// The keyword constrains keys only: the map's value lowering is untouched.
-	require.NotNil(t, m.AdditionalProps)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
-	assert.Nil(t, m.AdditionalProps.Key, "a key *constraint* is not a key type")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), mt.Value.Target)
+	assert.Nil(t, mt.Key, "a key *constraint* is not a key type")
 }
 
 func TestLower_PropertyDetailRichSchema(t *testing.T) {
@@ -916,17 +915,157 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 }
 
-func TestModel_AdditionalPropertiesSchema(t *testing.T) {
+// TestObject_MapAndNothingElseLowersToMapT pins ir-design §4.6 at the
+// lowering: an object whose one member fact is its catch-all is a MapT with
+// string keys, however it is spelled, and reports nothing. `true` and `{}` are
+// one schema, so they lower alike; the entry bounds land on the map; an empty
+// property, pattern or required list declares no member; and an allOf that
+// composes nothing structural leaves a map as a plain object does.
+func TestObject_MapAndNothingElseLowersToMapT(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    S:
+	i64 := func(v int64) *int64 { return &v }
+	for _, tc := range []struct {
+		name, schema string
+		value        ir.TypeID
+		bounds       *ir.Constraints
+	}{
+		{"typed", `{type: object, additionalProperties: {type: integer}}`, "t/prim/integer", nil},
+		{"true", `{type: object, additionalProperties: true}`, "t/prim/any", nil},
+		{"empty schema", `{type: object, additionalProperties: {}}`, "t/prim/any", nil},
+		{"no members", `{type: object, properties: {}, patternProperties: {}, required: [], additionalProperties: {type: string}}`,
+			"t/prim/string", nil},
+		{"nullable", `{type: [object, "null"], additionalProperties: {type: string}}`, "t/prim/string", nil},
+		{"bounded", `{type: object, additionalProperties: {type: string}, minProperties: 1, maxProperties: 5}`,
+			"t/prim/string", &ir.Constraints{MinProps: i64(1), MaxProps: i64(5)}},
+		{"composed", `{allOf: [{type: object}], additionalProperties: {type: string}}`, "t/prim/string", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec("    S: "+tc.schema+"\n"))
+			assert.Empty(t, diags, "a map holds everything the position declared")
+			mt, ok := doc.Types[componentID("S")].(*ir.MapT)
+			require.True(t, ok, "a map and nothing else is a MapT; got %T", doc.Types[componentID("S")])
+			assert.Nil(t, mt.Key, "JSON object keys are strings, which a nil Key states")
+			assert.Equal(t, ir.TypeRef{Target: tc.value}, mt.Value)
+			assert.Empty(t, cmp.Diff(tc.bounds, mt.Constraints))
+		})
+	}
+}
+
+// TestObject_MapKeepsItsDeclaration pins that converting to a MapT keeps what
+// the position declared about the type: its docs, deprecation and extensions
+// ride on TypeCommon unchanged.
+func TestObject_MapKeepsItsDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
       type: object
-      additionalProperties: {type: integer}
-`)
-	doc, diags := lowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	require.NotNil(t, m.AdditionalProps)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), m.AdditionalProps.Value.Target)
+      description: Labels by key.
+      deprecated: true
+      x-owner: platform
+      additionalProperties: {type: string}
+`))
+	assert.Empty(t, diags)
+	mt, ok := doc.Types[componentID("S")].(*ir.MapT)
+	require.True(t, ok, "got %T", doc.Types[componentID("S")])
+	assert.Equal(t, "Labels by key.", mt.Docs.Description)
+	assert.NotNil(t, mt.Deprecation)
+	assert.Contains(t, mt.Unmodeled, "openapi:x-owner")
+}
+
+// TestObject_MapKeepsARequiredListVerbatim pins the one census keyword a MapT
+// cannot hold: a map requires no key, so `required` naming one is kept verbatim
+// and announced rather than dropped.
+func TestObject_MapKeepsARequiredListVerbatim(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(`    S:
+      type: object
+      required: [a]
+      additionalProperties: {type: string}
+`))
+	mt, ok := doc.Types[componentID("S")].(*ir.MapT)
+	require.True(t, ok, "got %T", doc.Types[componentID("S")])
+	entry, kept := mt.Unmodeled["openapi:required"]
+	require.True(t, kept, "required has no home on a map, so it is kept verbatim")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `["a"]`, string(entry.Value))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		"required", "the keeping is announced once, naming the keyword")
+}
+
+// TestObject_ComposedMapReportsItsRequiredOnce pins the allOf counterpart: the
+// composition reads the position's `required` itself and reports each name it
+// cannot attach, so the census of the map it leaves does not report the
+// keyword a second time.
+func TestObject_ComposedMapReportsItsRequiredOnce(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpec(t, openapitest.ComponentSpec(
+		"    S: {allOf: [{type: object}], additionalProperties: {type: string}, required: [a]}\n"))
+	_, ok := doc.Types[componentID("S")].(*ir.MapT)
+	require.True(t, ok, "got %T", doc.Types[componentID("S")])
+	var codes []string
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/components/schemas/S" {
+			codes = append(codes, d.Code)
+		}
+	}
+	assert.Equal(t, []string{diag.UnattachableRequired}, codes)
+}
+
+// TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf branch
+// declaring a property as a map and another declaring it as a model is no
+// conflicting redeclaration: both are objects, and one instance can satisfy
+// both. Comparing node kinds alone reported it, and only in the order where
+// the model was built first, so the spec runs in both orders.
+func TestObject_MapRedeclaredAsAModelIsNoConflict(t *testing.T) {
+	t.Parallel()
+	const (
+		a      = "    A: {type: object, properties: {b: {$ref: '#/components/schemas/B'}}}\n"
+		b      = "    B:\n      allOf:\n        - properties: {m: {type: object, additionalProperties: {type: string}}}\n        - properties: {m: {$ref: '#/components/schemas/A'}}\n"
+		inline = "    C:\n      allOf:\n        - properties: {meta: {type: object, additionalProperties: {type: string}}}\n        - properties: {meta: {type: object, properties: {a: {type: string}}}}\n"
+	)
+	for _, src := range []string{a + b + inline, inline + b + a} {
+		_, diags := parseFull(t, openapitest.ComponentSpec(src))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, conflictDiags(diags), "a map and a model can describe one object")
+	}
+}
+
+// TestObject_CatchAllBesideAnotherFactStaysModel pins the other side of the map
+// rule: a catch-all beside any other member fact is a Model's AdditionalProps,
+// and an object that writes no additionalProperties states no catch-all at all.
+// An explicit `true` beside properties types the catch-all as the top type, as
+// `{}` would, rather than reading as unwritten.
+func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
+	t.Parallel()
+	const base = "    B: {type: object, properties: {b: {type: string}}}\n"
+	anyRef := &ir.AdditionalProps{Value: ir.TypeRef{Target: "t/prim/any"}}
+	strRef := ir.TypeRef{Target: "t/prim/string"}
+	for _, tc := range []struct {
+		name, schema string
+		catchAll     *ir.AdditionalProps
+	}{
+		{"properties", `{type: object, properties: {a: {type: string}}, additionalProperties: true}`, anyRef},
+		{"patterns", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: {type: string}}`,
+			&ir.AdditionalProps{Value: strRef, Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
+		// Inert beside a catch-all in JSON Schema, but still read as a closure (#862).
+		{"closed after composition", `{type: object, additionalProperties: {type: string}, unevaluatedProperties: false}`,
+			&ir.AdditionalProps{Value: strRef}},
+		{"discriminator", `{type: object, additionalProperties: {type: string}, discriminator: {propertyName: kind}}`,
+			&ir.AdditionalProps{Value: strRef}},
+		{"base", `{allOf: [{$ref: '#/components/schemas/B'}], additionalProperties: {type: string}}`,
+			&ir.AdditionalProps{Value: strRef}},
+		{"unwritten", `{type: object}`, nil},
+		{"closed", `{type: object, additionalProperties: false}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpec(t, openapitest.ComponentSpec(base+"    S: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Empty(t, cmp.Diff(tc.catchAll, m.AdditionalProps))
+		})
+	}
 }
 
 func TestModel_PatternPropertiesOrder(t *testing.T) {

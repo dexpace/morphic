@@ -103,10 +103,10 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // and every enum the compiler builds is closed, so without the promotion the
 // extension changed nothing an emitter or a differ could read.
 //
-// The three schemas are the three answers the reading has: the convention's own
+// The schemas are the three answers the reading has: the convention's own
 // spelling opens the enum, an explicit false declines to, and an enum that
 // names no such key is untouched — the last so that the first is a promotion
-// rather than a compiler that stopped closing enums.
+// rather than a compiler that stopped closing enums. Tier opens one member.
 func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	tests := []struct {
@@ -115,6 +115,7 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		inferred string
 	}{
 		{"Size", false, "extension-promotion"},
+		{"Tier", false, "extension-promotion"},
 		{"Shade", true, ""},
 		{"Fixed", true, ""},
 	}
