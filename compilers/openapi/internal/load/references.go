@@ -96,12 +96,12 @@ type resolution struct {
 	// sibs is what the source writes beside its path items' $refs, walked
 	// after doc as the rest of the source.
 	sibs Siblings
-	// version and validation are the source's declared version and what its
+	// version and validateOpts are the source's declared version and what its
 	// validation hands each object, which a resolution's findings are judged by
 	// (unrequired), in another document as well, as a reached schema's are
 	// (GitHub #839).
-	version    string
-	validation []validation.Option
+	version      string
+	validateOpts []validation.Option
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
@@ -120,7 +120,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		reader.hold(ctx, sibs)
 	}
 	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs,
-		version: doc.OpenAPI, validation: documentOptions(doc),
+		version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
 			tree: self.tree}}
@@ -178,7 +178,7 @@ func (p *resolution) unrequired(site jsontext.Pointer, r resolvable, vErrs []err
 	if !ok {
 		return vErrs
 	}
-	required := findRequiredArtifacts(p.ctx, vErrs, reachedWalk(p.ctx, obj), p.version, p.validation).reportedAt(site)
+	required := findRequiredArtifacts(p.ctx, vErrs, reachedWalk(p.ctx, obj), p.version, p.validateOpts).reportedAt(site)
 	p.failures = append(p.failures, required.faults(p.at)...)
 	return required.without(vErrs)
 }

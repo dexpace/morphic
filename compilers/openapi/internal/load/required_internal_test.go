@@ -414,8 +414,8 @@ func urlMessages(found map[urlFinding]bool) []string {
 }
 
 // TestRequired_AServerWritingNoEmptyDefaultDrawsNoEcho pins that the URL check
-// runs a second time only for a server writing an empty default: what one
-// writing none draws all stands, as the library draws it.
+// runs as written only for a server writing an empty default: what one writing
+// none draws all stands, as the library draws it.
 func TestRequired_AServerWritingNoEmptyDefaultDrawsNoEcho(t *testing.T) {
 	t.Parallel()
 	src := `openapi: 3.1.1

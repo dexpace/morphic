@@ -335,7 +335,8 @@ func isEmptyString[T string | *string](v T) bool {
 }
 
 // emptyContent returns where rb writes its content as an empty map, which every
-// minor's schema admits, on the condition the library reads as missing.
+// minor's schema admits, on the condition the library reads as missing. The
+// lowering warns on the same condition (diag.EmptyRequestContent).
 func emptyContent(rb *soa.RequestBody) []*yaml.Node {
 	c := rb.GetCore()
 	if !c.Content.Present || rb.GetContent().Len() != 0 {

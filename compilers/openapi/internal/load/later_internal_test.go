@@ -463,8 +463,9 @@ paths:
 
 // unreadOpsSpec writes an operation the parser cannot read whole, as its
 // responses is no object, so the library raises no refusal of the field below
-// 3.2 and checks nothing inside it either. A missing responses would do the
-// same, but is a finding only below 3.1 (relaxed).
+// 3.2 and checks nothing inside it either. A missing responses would leave it
+// unread as well, but is a finding below 3.1 alone (relaxed), and the cases
+// compare every minor.
 const unreadOpsSpec = `info: {title: T, version: "1"}
 paths:
   /x:
