@@ -170,7 +170,7 @@ const (
 	// name. Load checks every list the source writes, the document's, a path
 	// item's or an operation's, lowered or not, but none only a $ref reaches
 	// (GitHub #880). Both entries are kept, though a consumer keying servers by
-	// name cannot tell them apart. Names equal once canonicalized, and URL
+	// name cannot tell them apart. Names equal only once canonicalized, and URL
 	// hints, are not reported: an emitter uniquifies them.
 	//
 	// Warning, where DuplicateParameter is an error: OpenAPI 3.2 calls the name

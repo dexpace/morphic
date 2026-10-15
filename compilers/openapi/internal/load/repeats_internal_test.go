@@ -181,10 +181,13 @@ func TestListRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 
 // serverRepeatsAt loads src and returns each openapi/duplicate-server-name it
 // draws, keyed by the pointer it is reported at, with the message as the value.
+// A refused load fails the test rather than returning none: the check never
+// ran on it.
 func serverRepeatsAt(t *testing.T, src string) map[jsontext.Pointer]string {
 	t.Helper()
-	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{})
+	loaded, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{})
 	require.NoError(t, err)
+	require.NotNil(t, loaded, "load refused the document: %+v", diags)
 	got := map[jsontext.Pointer]string{}
 	for _, d := range diags {
 		if d.Code == diag.DuplicateServerName {
@@ -331,20 +334,28 @@ components:
 			},
 		},
 		{
-			name: "the fields beside a path item $ref, which an alias mounts again",
+			name: "the fields beside a path item $ref and their operation, which an alias mounts again",
 			src: head + `paths:
   /a: &use
     $ref: "#/components/pathItems/P"
     servers:
       - {url: https://a.example.com, name: b}
       - {url: https://b.example.com, name: b}
+    get:
+      servers:
+        - {url: https://c.example.com, name: o}
+        - {url: https://d.example.com, name: o}
+      responses: {"200": {description: ok}}
   /b: *use
 components:
   pathItems:
     P:
-      get: ` + operation + `
+      put: ` + operation + `
 `,
-			want: map[jsontext.Pointer]string{"/paths/~1a/servers/1/name": nameRepeat("b", "/paths/~1a/servers/0/name")},
+			want: map[jsontext.Pointer]string{
+				"/paths/~1a/servers/1/name":     nameRepeat("b", "/paths/~1a/servers/0/name"),
+				"/paths/~1a/get/servers/1/name": nameRepeat("o", "/paths/~1a/get/servers/0/name"),
+			},
 		},
 		{
 			name: "a 3.1 document",
@@ -398,20 +409,25 @@ paths: {}
 `,
 		},
 		{
+			// Each list holds two entries, or it would be passed over unread.
 			name: "one name in the lists of the document, a path item and two operations",
 			src: head + `servers:
   - {url: https://a.example.com, name: prod}
+  - {url: https://b.example.com, name: dev}
 paths:
   /x:
     servers:
-      - {url: https://b.example.com, name: prod}
+      - {url: https://c.example.com, name: eu}
+      - {url: https://d.example.com, name: prod}
     get:
       servers:
-        - {url: https://c.example.com, name: prod}
+        - {url: https://e.example.com, name: prod}
+        - {url: https://f.example.com, name: us}
       responses: {"200": {description: ok}}
     put:
       servers:
-        - {url: https://d.example.com, name: prod}
+        - {url: https://g.example.com, name: prod}
+        - {url: https://h.example.com, name: dev}
       responses: {"200": {description: ok}}
 `,
 		},
