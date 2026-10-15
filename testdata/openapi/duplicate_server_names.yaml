@@ -1,19 +1,22 @@
 # Each way, and each place, a servers list repeats a name: the document's list
-# by a second entry writing it, an alias mounting the first entry again and a
-# merge key carrying one name into two; a path item's list; and an operation's.
-# Each raises the openapi/duplicate-server-name warning, and this fixture puts
-# it under the corpus order-invariance sweep. The document's last entry differs
-# from its first only in case, and the path's lists reuse the document's names:
+# by a second entry writing it, an alias mounting an entry again and a merge key
+# carrying a name into another; two path items' lists; and an operation's. Each
+# raises the openapi/duplicate-server-name warning. The document's last entry
+# differs from its first only in case, and the paths' lists reuse its names:
 # neither is a repeat.
+#
+# Every anchor sits in the servers sequence ahead of its aliases. Reversing the
+# mappings keeps it there, so the order-invariance oracle can ask about this
+# document; an anchor in a mapping the reversal moves below an alias makes it
+# decline (GitHub #403).
 openapi: 3.2.0
 info: {title: t, version: "1"}
-x-base: &b {name: edge}
 servers:
   - &prod {url: https://prod.example.com, name: prod}
   - {url: https://prod-mirror.example.com, name: prod}
   - *prod
-  - {<<: *b, url: https://edge-a.example.com}
-  - {<<: *b, url: https://edge-b.example.com}
+  - &edge {url: https://edge-a.example.com, name: edge}
+  - {<<: *edge, url: https://edge-b.example.com}
   - {url: https://staging.example.com, name: Prod}
 paths:
   /pets:
@@ -24,4 +27,10 @@ paths:
       servers:
         - {url: https://us.example.com, name: edge}
         - {url: https://us-mirror.example.com, name: edge}
+      responses: {"200": {description: ok}}
+  /owners:
+    servers:
+      - {url: https://ap.example.com, name: ap}
+      - {url: https://ap-mirror.example.com, name: ap}
+    get:
       responses: {"200": {description: ok}}
