@@ -269,7 +269,7 @@ demonstrably needed:
 
 ```go
 type OpPlan struct {
-    HasBody         bool             // Operation.Request != nil
+    HasBody         bool             // Operation.Request != nil; its Contents may be empty
     Idempotency     IdempotencyKind  // from Operation.Idempotency — a declared fact
     ParamShape      ParamShape       // positional | options-bag — Inferred, injectable (§3.5)
     Return          ReturnShape      // model | void | list-of-models(elementwise) | stream

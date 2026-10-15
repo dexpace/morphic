@@ -730,9 +730,77 @@ func TestContent_SequentialAndEmptyBody(t *testing.T) {
 	assert.Equal(t, []string{"application/json"}, c.ItemEncoding.ContentTypes)
 	assert.True(t, c.ItemEncoding.Multi, "itemEncoding governs a repeated tail")
 
-	// Empty request-body content yields no Request payload.
+	// Empty request-body content lowers to a body naming no media type.
 	empty := openapitest.FindOp(t, doc, "emptyBody")
-	assert.Nil(t, empty.Request)
+	require.NotNil(t, empty.Request)
+	assert.Empty(t, empty.Request.Contents)
+}
+
+// TestLowerRequestBody_AnEmptyContentKeepsTheBody pins a request body whose
+// content map is empty (GitHub #622): it lowers to a Payload naming no media
+// type, keeping whether it must be sent, its description and its x-*, and is
+// reported once, at the map of the declaration every use shares. A content
+// left out keeps the body too, and is the parser's to report.
+func TestLowerRequestBody_AnEmptyContentKeepsTheBody(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /inline:
+    post:
+      operationId: inline
+      requestBody: {description: the body, required: true, x-note: kept, content: {}}
+      responses: {"204": {description: none}}
+  /shared:
+    post:
+      operationId: sharedPost
+      requestBody: {$ref: '#/components/requestBodies/Empty'}
+      responses: {"204": {description: none}}
+    put:
+      operationId: sharedPut
+      requestBody: {$ref: '#/components/requestBodies/Empty'}
+      responses: {"204": {description: none}}
+  /missing:
+    post:
+      operationId: missing
+      requestBody: {description: no content field}
+      responses: {"204": {description: none}}
+  /typed:
+    post:
+      operationId: typed
+      requestBody: {content: {text/plain: {schema: {type: string}}}}
+      responses: {"204": {description: none}}
+components:
+  requestBodies:
+    Empty: {content: {}}
+`)
+	inline := openapitest.FindOp(t, doc, "inline")
+	require.NotNil(t, inline.Request)
+	assert.Empty(t, inline.Request.Contents)
+	assert.Equal(t, new(true), inline.Request.Required)
+	assert.Equal(t, "the body", inline.Request.Docs.Description)
+	assert.Contains(t, inline.Request.Unmodeled, "openapi:x-note")
+	assert.Empty(t, inline.Bindings.HTTP[0].RequestContentTypes)
+	for _, name := range []string{"sharedPost", "sharedPut", "missing"} {
+		op := openapitest.FindOp(t, doc, name)
+		require.NotNil(t, op.Request, name)
+		assert.Empty(t, op.Request.Contents, name)
+		assert.Equal(t, new(false), op.Request.Required, name)
+	}
+
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.EmptyRequestContent {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	slices.Sort(at)
+	assert.Equal(t, []jsontext.Pointer{"/components/requestBodies/Empty/content", "/paths/~1inline/post/requestBody/content"}, at)
+	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.Validation+"/validation-required-field" &&
+			d.Provenance.Pointer == "/paths/~1missing/post/requestBody"
+	}), "the parser reports the content left out: %+v", diags)
 }
 
 // encodingSpec declares one form part per position an Encoding Object reaches:

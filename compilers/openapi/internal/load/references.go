@@ -9,6 +9,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	"github.com/speakeasy-api/openapi/validation"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
@@ -95,6 +96,12 @@ type resolution struct {
 	// sibs is what the source writes beside its path items' $refs, walked
 	// after doc as the rest of the source.
 	sibs Siblings
+	// version and validateOpts are the source's declared version and what its
+	// validation hands each object, which a resolution's findings are judged by
+	// (unrequired), in another document as well, as a reached schema's are
+	// (GitHub #839).
+	version      string
+	validateOpts []validation.Option
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
@@ -113,6 +120,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		reader.hold(ctx, sibs)
 	}
 	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs,
+		version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
 			tree: self.tree}}
@@ -155,10 +163,24 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.R
 	c := resolutionChain(r)
 	p.targets.enqueue(site, c)
 	t := c.trail()
-	p.found.note(site, t, vErrs)
+	p.found.note(site, t, p.unrequired(site, r, vErrs))
 	if err != nil {
 		p.failures = append(p.failures, failureDiag(p.at(site), ref, t, err))
 	}
+}
+
+// unrequired returns vErrs, the findings resolving r at site drew, less the
+// REQUIRED-field rule's artifacts in the object r reached (requiredArtifacts),
+// and reports a panic finding them at site. A schema's resolution draws no
+// artifact of the rule, but is judged alike rather than told apart.
+func (p *resolution) unrequired(site jsontext.Pointer, r resolvable, vErrs []error) []error {
+	obj, _, ok := reachedObject(r)
+	if !ok {
+		return vErrs
+	}
+	required := findRequiredArtifacts(p.ctx, vErrs, reachedWalk(p.ctx, obj), p.version, p.validateOpts).reportedAt(site)
+	p.failures = append(p.failures, required.faults(p.at)...)
+	return required.without(vErrs)
 }
 
 // fail reports the fault a walk ended on, at the reference it ended at, and

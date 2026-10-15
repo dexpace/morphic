@@ -1,0 +1,232 @@
+{
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "RelaxedRequiredFields",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "RelaxedRequiredFields",
+        "canonical": "relaxed_required_fields"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1events/get",
+              "name": {
+                "source": "listEvents",
+                "canonical": "list_events"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1events/get/responses/200/headers/X-Count",
+                      "name": {
+                        "source": "X-Count",
+                        "canonical": "x_count"
+                      },
+                      "wireName": "X-Count",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1events/get/responses/200/headers/X-Count"
+                      }
+                    }
+                  ],
+                  "docs": {}
+                }
+              ],
+              "errors": [
+                {
+                  "name": {
+                    "hint": "404"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 404,
+                        "to": 404
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/responses/NotFound/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "fault": "client",
+                  "docs": {}
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1events/post",
+              "name": {
+                "source": "sendEvent",
+                "canonical": "send_event"
+              },
+              "docs": {},
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/events",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1events/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/responses/NotFound/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/NotFound/content/application~1json/schema",
+      "name": {
+        "hint": "not_found"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/NotFound/content/application~1json/schema"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    }
+  },
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "relaxed-required-fields.yaml",
+      "hash": "909aaa5474e4d6916838e82208a94e110c6ee817d70707fc1f6454567a487e17"
+    }
+  ]
+}

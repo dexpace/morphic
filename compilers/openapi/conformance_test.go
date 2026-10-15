@@ -250,6 +250,9 @@ func conformanceCases() []conformanceCase {
 		{"servers-variables", assertServersVariables, []string{"servers"}},
 		{"security-schemes", assertSecuritySchemes, []string{"auth-schemes"}},
 		{"oauth2-no-flow", assertOAuth2NoFlow, nil},
+		{"empty-required-values", assertEmptyRequiredValues, nil},
+		{"relaxed-required-fields", assertRelaxedRequiredFields, nil},
+		{"empty-request-content", assertEmptyRequestContent, nil},
 		{"oauth-flow-fields", assertOAuthFlowFields, []string{"auth-schemes"}},
 		{"reached-outside-model", assertReachedOutsideModel, nil},
 		{"security-or-and", assertSecurityOrAnd, []string{"per-op-auth"}},
@@ -4030,6 +4033,98 @@ func assertOAuth2NoFlow(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Equal(t, 2, n, "two flowless declarations, two reports: %+v", diags)
 	assert.Equal(t, "https://example.com/.well-known/oauth-authorization-server",
 		byPointer["/components/securitySchemes/metadataOnly"].OAuth2MetadataURL, "the control's metadata URL is kept")
+}
+
+// assertNoParserFinding requires that the parser's validation reported nothing
+// about the document, which is what the required-field cases below are about.
+func assertNoParserFinding(t *testing.T, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, d := range diags {
+		assert.False(t, strings.HasPrefix(d.Code, diag.Validation+"/"), "unexpected parser finding: %+v", d)
+	}
+}
+
+// assertEmptyRequiredValues pins that a REQUIRED field written as the empty
+// string, which every minor's schema admits, is no finding and lowers as
+// written: the empty server URL, the parameter the document named "", and each
+// security scheme with an empty name or URL (GitHub #622).
+func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	assertNoParserFinding(t, diags)
+	require.Len(t, doc.Servers, 2)
+	assert.Empty(t, doc.Servers[0].URLTemplate)
+	require.Len(t, doc.Servers[1].Variables, 2)
+	assert.Equal(t, "base", doc.Servers[1].Variables[1].Name)
+
+	ops := allOperations(doc)
+	require.Len(t, ops, 1)
+	require.Len(t, ops[0].Params, 1)
+	assert.Equal(t, ir.Naming{Hint: "empty"}, ops[0].Params[0].Name, "the empty name is minted a hint")
+	require.Len(t, ops[0].Responses, 1)
+	assert.Empty(t, ops[0].Responses[0].Docs.Description)
+
+	require.Len(t, doc.Auth, 3, "every scheme interns")
+	assert.Len(t, doc.Auth["auth/openapi/components/securitySchemes/oauth"].Flows, 4)
+	assert.Equal(t, ir.AuthKindAPIKey, doc.Auth["auth/openapi/components/securitySchemes/key"].Kind)
+	assert.Equal(t, ir.AuthKindOpenIDConnect, doc.Auth["auth/openapi/components/securitySchemes/oidc"].Kind)
+}
+
+// assertRelaxedRequiredFields pins the two fields a minor stopped requiring,
+// left out of a 3.2 document: an operation declaring no responses lowers with
+// none, and a response declaring no description lowers undocumented, inline
+// and as a component alike (GitHub #622).
+func assertRelaxedRequiredFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	assertNoParserFinding(t, diags)
+	byName := map[string]ir.Operation{}
+	for _, op := range allOperations(doc) {
+		byName[op.Name.Source] = op
+	}
+	send := byName["sendEvent"]
+	assert.Empty(t, send.Responses, "no responses declared, none lowered")
+	assert.Empty(t, send.Errors)
+
+	list := byName["listEvents"]
+	require.Len(t, list.Responses, 1)
+	assert.Empty(t, list.Responses[0].Docs.Description)
+	assert.Len(t, list.Responses[0].Headers, 1)
+	require.Len(t, list.Errors, 1, "the component response lowers at its status")
+	assert.Empty(t, list.Errors[0].Docs.Description)
+	require.NotNil(t, list.Errors[0].Payload)
+}
+
+// assertEmptyRequestContent pins a request body whose content map is empty: it
+// lowers to a Payload naming no media type that keeps whether it must be sent,
+// its description and its x-*, and is warned once at each declaration,
+// whichever operations share it (GitHub #622).
+func assertEmptyRequestContent(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	const code = "openapi/empty-request-content"
+	byName := map[string]ir.Operation{}
+	for _, op := range allOperations(doc) {
+		byName[op.Name.Source] = op
+	}
+	inline := byName["postInline"].Request
+	require.NotNil(t, inline)
+	assert.Empty(t, inline.Contents)
+	assert.Equal(t, new(true), inline.Required)
+	assert.Equal(t, "A body naming no media type.", inline.Docs.Description)
+	assert.Contains(t, inline.Unmodeled, "openapi:x-origin")
+	for _, name := range []string{"postShared", "putShared"} {
+		shared := byName[name].Request
+		require.NotNil(t, shared, name)
+		assert.Empty(t, shared.Contents, name)
+	}
+	n := 0
+	for _, d := range diags {
+		if d.Code == code {
+			n++
+		}
+	}
+	assert.Equal(t, 2, n, "two declarations, two reports: %+v", diags)
+	for _, at := range []string{"/paths/~1inline/post/requestBody/content", "/components/requestBodies/Empty/content"} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, code, at), at)
+	}
 }
 
 // assertOAuthFlowFields pins that a URL written on a flow whose kind does not

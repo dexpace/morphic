@@ -1,0 +1,249 @@
+{
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "EmptyRequestContent",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "EmptyRequestContent",
+        "canonical": "empty_request_content"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1inline/post",
+              "name": {
+                "source": "postInline",
+                "canonical": "post_inline"
+              },
+              "docs": {},
+              "request": {
+                "required": true,
+                "docs": {
+                  "description": "A body naming no media type."
+                },
+                "unmodeled": {
+                  "openapi:x-origin": {
+                    "reason": "vendor_extension",
+                    "value": "inline",
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1inline/post/requestBody/x-origin"
+                    }
+                  }
+                }
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "done"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/inline",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1inline/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1shared/put",
+              "name": {
+                "source": "putShared",
+                "canonical": "put_shared"
+              },
+              "docs": {},
+              "request": {
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "done"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/shared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1shared/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1shared/post",
+              "name": {
+                "source": "postShared",
+                "canonical": "post_shared"
+              },
+              "docs": {},
+              "request": {
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "done"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/shared",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1shared/post"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/empty-request-content",
+      "message": "request body's content map is empty, so it names no media type to send the body as",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1inline/post/requestBody/content"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/empty-request-content",
+      "message": "request body's content map is empty, so it names no media type to send the body as",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/Empty/content"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "empty-request-content.yaml",
+      "hash": "793e1dd68bf0cf3d652af4c754aecd5707d52e4698bd303917c2437f51fa5df4"
+    }
+  ]
+}
