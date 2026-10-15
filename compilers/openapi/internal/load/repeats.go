@@ -16,11 +16,11 @@ import (
 // what an earlier entry of the same list is identified by: a parameter's name
 // and location (paramRepeats), or a server's name (serverRepeats).
 //
-// items is walkSource's walk, which visits each list once where it is written,
-// lowered or not, and never through a $ref, so a list only a $ref reaches is
-// not checked (GitHub #880). The lists beside a path item's $ref are sibs's
-// model's, checked where that model is walked from. A panic in the walk is
-// reported at the model it reached.
+// items is walkSource's walk, which visits each list where the source writes
+// it, lowered or not, and again wherever a YAML alias mounts it, but never
+// through a $ref, so a list only a $ref reaches is not checked (GitHub #880).
+// The lists beside a path item's $ref are sibs's model's (writtenItem). A
+// panic in the walk is reported at the model it reached.
 func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -52,8 +52,9 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items i
 
 // writtenItem returns the path item whose lists rp writes at site: its own
 // object, or the model of the fields beside its $ref when site is the position
-// that model was found at, so an alias reaching those fields again is not
-// checked twice. A $ref with nothing beside it writes no list.
+// that model was found at. The model's operations are walked from there alone,
+// so its own lists are checked there alone too, wherever else an alias mounts
+// it. A $ref with nothing beside it writes no list.
 func writtenItem(rp *soa.ReferencedPathItem, sibs Siblings, site jsontext.Pointer) (*soa.PathItem, bool) {
 	if !rp.IsReference() {
 		return rp.GetObject(), true
