@@ -32,12 +32,12 @@ func pathKeyDiags(c lowering.Ctx, key string) []ir.Diagnostic {
 		key, strings.Join(defects, "; "))}
 }
 
-// pathKeyDefects returns a phrase for each rule of the path-template grammar
-// key breaks, in a fixed order, or nil when it breaks none. The grammar is the
-// ABNF of 3.2.0 §4.8.2, read at every version: 3.0 and 3.1 describe path
-// templating only in prose (§3.2), and a maintainer of the specification
-// states that a 3.x minor cannot restrict it further
-// (OAI/OpenAPI-Specification#5062).
+// pathKeyDefects returns a phrase for each path templating rule key breaks, in
+// a fixed order, or nil when it breaks none. The rules are those of 3.2.0
+// §4.8.2, its ABNF and its ban on using an expression twice, read at every
+// version: 3.0 and 3.1 describe path templating only in prose (§3.2), and a
+// maintainer of the specification states that a 3.x minor cannot restrict it
+// further (OAI/OpenAPI-Specification#5062).
 //
 // Only the path is read. A "?" ends it in a query, and a "#" in a fragment,
 // which GitHub #602 owns, so nothing after a "#" is judged.
@@ -47,8 +47,8 @@ func pathKeyDefects(key string) []string {
 	return s.defects()
 }
 
-// pathKeyScan is one left-to-right reading of a Paths key, recording the rules
-// of the path-template grammar it breaks.
+// pathKeyScan is one left-to-right reading of a Paths key, recording the path
+// templating rules it breaks.
 type pathKeyScan struct {
 	key string
 	// query is the query the key carries, from its "?" to any "#", or "".

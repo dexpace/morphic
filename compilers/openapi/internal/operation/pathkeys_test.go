@@ -89,11 +89,11 @@ func TestPathKeys_ValidKeysAreNotReported(t *testing.T) {
 	}
 }
 
-// TestPathKeys_EveryVersionReadsOneGrammar pins that the grammar is not
-// version-gated. The key breaks the two rules only 3.2.0 states, an empty
-// segment and an expression used twice, so a check gated to that version's
-// text would pass over it in 3.0 and 3.1.
-func TestPathKeys_EveryVersionReadsOneGrammar(t *testing.T) {
+// TestPathKeys_RulesAreNotVersionGated pins that every version is read by the
+// same rules. The key breaks the two only 3.2.0 states, an empty segment and
+// an expression used twice, so a check gated to that version's text would pass
+// over it in 3.0 and 3.1.
+func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
 		t.Run(version, func(t *testing.T) {

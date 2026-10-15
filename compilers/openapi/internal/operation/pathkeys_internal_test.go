@@ -19,7 +19,7 @@ const (
 )
 
 // TestPathKeyDefects pins the classifier behind diag.InvalidPathKey rule by
-// rule: each row is a class of key the grammar admits or refuses, with the
+// rule: each row is a class of key the rules admit or refuse, with the
 // phrases it must draw, so a rule widened or narrowed by one class reddens here.
 func TestPathKeyDefects(t *testing.T) {
 	t.Parallel()
