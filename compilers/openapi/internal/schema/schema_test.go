@@ -5403,6 +5403,30 @@ func TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns(t *testing.T) {
 	}
 }
 
+// TestRedactionFormat_HoistsAnAliasWhereTheShapeOwnsNone pins the hoist at a
+// position with neither a carrier nor a node of its own: array items whose
+// shape is the shared primitive own an alias over it to hold the redaction,
+// while items writing none keep the primitive.
+func TestRedactionFormat_HoistsAnAliasWhereTheShapeOwnsNone(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Secrets: {type: array, items: {type: string, format: password}}\n"+
+			"    Plain: {type: array, items: {type: string}}\n"))
+	assert.Empty(t, diags)
+
+	secrets, ok := typeByName(doc, "Secrets").(*ir.List)
+	require.True(t, ok)
+	item, ok := doc.Types[secrets.Elem.Target].(*ir.Scalar)
+	require.True(t, ok, "the items own an alias")
+	assert.True(t, item.Sensitive)
+	require.NotNil(t, item.Base)
+	assert.Equal(t, ir.TypeID("t/prim/string"), item.Base.Target)
+
+	plain, ok := typeByName(doc, "Plain").(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), plain.Elem.Target, "no redaction, no alias")
+}
+
 // TestRedactionFormat_APropertyOwningNoNodeIsSecret pins the carrier half: a
 // property whose schema keeps the shared primitive holds the redaction itself,
 // as it holds the schema's docs, and no node is hoisted at its pointer. A
