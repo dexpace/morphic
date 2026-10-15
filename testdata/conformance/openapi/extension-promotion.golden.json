@@ -552,6 +552,51 @@
       "closed": false,
       "flags": false
     },
+    "t/openapi/components/schemas/Tier": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Tier",
+      "name": {
+        "source": "Tier",
+        "canonical": "tier"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": [
+            "basic"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tier/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tier",
+        "inferred": "extension-promotion"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Tier/s:basic",
+          "name": {
+            "source": "basic",
+            "canonical": "basic"
+          },
+          "value": {
+            "kind": "string",
+            "str": "basic"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": false,
+      "flags": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -629,7 +674,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "d6cc084d89a9e2626e827271c565b828da3241cbf77c658fd57868a02954ff19"
+      "hash": "b4f4ef5897514c40206596d8d69ec51963b381a2f5ce96f49e7b4b69ec1d62a5"
     }
   ]
 }

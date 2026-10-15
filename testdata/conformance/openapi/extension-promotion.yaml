@@ -43,6 +43,11 @@ components:
       type: string
       enum: [small, large]
       x-extensible-enum: [small, large]
+    # One member opens as two do: a Literal could not say the set is open.
+    Tier:
+      type: string
+      enum: [basic]
+      x-extensible-enum: [basic]
     Shade:
       type: string
       enum: [light, dark]
