@@ -5380,6 +5380,7 @@ func TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns(t *testing.T) {
 		{"const", "{const: abc, format: password}", ir.KindLiteral, ""},
 		{"object", "{type: object, properties: {a: {type: string}}, format: password}", ir.KindModel, ""},
 		{"array", "{type: array, items: {type: string}, format: password}", ir.KindList, ""},
+		{"tuple", "{type: array, prefixItems: [{type: string}], format: password}", ir.KindTuple, ""},
 		{"multi-typed", "{type: [string, integer], format: password}", ir.KindUnion, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
