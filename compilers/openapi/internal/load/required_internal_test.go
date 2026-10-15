@@ -367,7 +367,7 @@ paths:
 // TestRequired_AnEmptyDefaultDrawsNoURLFinding pins the URL check's echo of an
 // empty default: the check reads it as none and says so once per use, at the
 // url, beside its findings of a variable no default or declaration backs,
-// which stand.
+// which stand. urlEchoes tells the two apart.
 func TestRequired_AnEmptyDefaultDrawsNoURLFinding(t *testing.T) {
 	t.Parallel()
 	src := `openapi: 3.1.1

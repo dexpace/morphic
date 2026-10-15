@@ -32,8 +32,8 @@ const (
 const nonEmptyServerURLSince = "3.2"
 
 // filledDefault stands in for a server variable's empty default when its
-// server's URL check is run again (emptyDefaultEchoes). Any value but the
-// empty string is one the check reads as a default.
+// server's URL check is run again (urlEchoes). Any value but the empty string
+// is one the check reads as a default.
 const filledDefault = "default"
 
 // requiredArtifacts holds what the library's REQUIRED-field rule finds that the
@@ -44,7 +44,7 @@ const filledDefault = "default"
 // a field a later minor stopped requiring (relaxed). And it reads a field
 // written as the empty string, or an empty map, as missing, where every minor's
 // schema admits the value (emptyValues). The server URL check repeats the
-// second reading for a variable's default (emptyDefaultEchoes).
+// second reading for a variable's default (urlEchoes).
 type requiredArtifacts struct {
 	// at holds the nodes the rule's findings are artifacts at.
 	at map[*yaml.Node]bool
@@ -103,9 +103,9 @@ func (r requiredArtifacts) faults(at func(jsontext.Pointer) ir.Provenance) []ir.
 // of the rule, items is not walked: an empty default's URL echo never comes
 // alone, since the default draws the rule's finding beside it.
 //
-// A node is excused only where no model the walk reads there may hold a finding
-// of its own (requiredClaims), and a walk that panics excuses nothing, since a
-// model it never reached may hold one.
+// A node, or a URL check finding, is excused only where no model the walk
+// reads may hold a finding of its own there (requiredClaims), and a walk that
+// panics excuses nothing, since a model it never reached may hold one.
 func findRequiredArtifacts(ctx context.Context, found []error, items iter.Seq[soa.WalkItem], version string,
 	opts []validation.Option,
 ) requiredArtifacts {

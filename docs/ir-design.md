@@ -2348,7 +2348,7 @@ parameter or an API key, and an HTTP `scheme`, each a token of RFC 9110 or RFC 6
 `url` from 3.2, whose server URL grammar requires a character. A name sent in the query, or a
 `querystring` parameter's, which is never sent, is admitted. A field left out below the minor that
 relaxed it stands too, as does a `null`, and so does every finding at a node two reads share through
-a YAML alias or merge key, unless what each read raises there is one of those dropped. The objects a
+a YAML alias or merge key, unless every read there draws one of those dropped there. The objects a
 later minor's construct holds are held to the declared minor like any other (GitHub #622).
 
 **A component entry nothing references.** A compiler lowers a component where a reference
