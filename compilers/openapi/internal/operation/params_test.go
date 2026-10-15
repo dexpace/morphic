@@ -712,6 +712,81 @@ func TestParams_SchemaXMLHintsStayOnAnOwnedNode(t *testing.T) {
 		"and nothing is announced as homeless")
 }
 
+const paramRedactionSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      parameters:
+        - {name: q, in: query, schema: {type: string, format: password}}
+        - name: c
+          in: query
+          content:
+            text/plain:
+              schema: {type: string, format: password}
+        - {name: beside, in: query, schema: {$ref: '#/components/schemas/Plain', format: password}}
+        - {name: ref, in: query, schema: {$ref: '#/components/schemas/Pw'}}
+        - {name: pick, in: query, schema: {type: string, enum: [a, b], format: password}}
+        - {name: id, in: query, schema: {type: string, format: uuid}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pw: {type: string, format: password}
+    Plain: {type: string}
+`
+
+// TestParams_SchemaRedactionKeptUnderUnmodeled covers the one carrier with no
+// redaction field: ir.Parameter has neither Property.Secret nor a node of its
+// own, so a `format: password` its schema writes is kept verbatim and announced
+// rather than dropped (GitHub #578), at the keyword itself, inline, beside a
+// $ref and in a content-style parameter alike.
+func TestParams_SchemaRedactionKeptUnderUnmodeled(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := lowerServiceSpec(t, paramRedactionSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	for _, tc := range []struct{ param, schemaPtr string }{
+		{"q", "/paths/~1x/get/parameters/0/schema"},
+		{"c", "/paths/~1x/get/parameters/1/content/text~1plain/schema"},
+		{"beside", "/paths/~1x/get/parameters/2/schema"},
+	} {
+		t.Run(tc.param, func(t *testing.T) {
+			t.Parallel()
+			entry, ok := params[tc.param].Unmodeled["openapi:format"]
+			require.True(t, ok, "a redaction with no Parameter field is kept raw, not dropped")
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+			assert.JSONEq(t, `"password"`, string(entry.Value), "kept verbatim")
+			assert.Equal(t, jsontext.Pointer(tc.schemaPtr+"/format"), entry.Provenance.Pointer,
+				"located at the format keyword itself")
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/format"),
+				"redaction", "and announced once, at the same keyword the entry locates")
+		})
+	}
+	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"one announcement per parameter that keeps it, and none for the others")
+}
+
+// TestParams_SchemaRedactionStaysOnANode is the other half: a parameter whose
+// type is a Sensitive node, its own or a referent's, keeps no second copy.
+func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := lowerServiceSpec(t, paramRedactionSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	assert.NotContains(t, params["id"].Unmodeled, "openapi:format", "a format naming a shape is no redaction")
+	for _, name := range []string{"ref", "pick"} {
+		p := params[name]
+		node, ok := doc.Types[p.Type.Target]
+		require.True(t, ok, "%s: its type is a node", name)
+		assert.True(t, node.Common().Sensitive, "%s: the node holds the redaction", name)
+		assert.NotContains(t, p.Unmodeled, "openapi:format", "%s: so the parameter keeps no copy", name)
+	}
+}
+
 const paramVisibilitySpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

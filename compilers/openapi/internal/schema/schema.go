@@ -283,14 +283,14 @@ func declaresPositionScoped(s *oas3.Schema) bool {
 		annotation.DeclaresAny(s, annotation.DialectKeywords)
 }
 
-// declaresAnnotations reports whether s carries documentation, deprecation, XML
-// hints, vendor extensions, or examples — the five TypeCommon fields
+// declaresAnnotations reports whether s carries documentation, deprecation, a
+// redaction, XML hints, vendor extensions, or examples — the TypeCommon fields
 // attachDeclaredAnnotations fills.
 func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated(s, nil) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated(s, nil) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
@@ -755,12 +755,17 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 }
 
 // formatHome reports whether the position's `format` reached a field. A Scalar
-// hoisted for it carries it in Encoding, as byte, password and an unknown format
-// each hoist one. A pairing formatTable knows still selects a primitive, and
-// only pairings whose kind differs from the bare type's are listed, so the kind
-// is the fact's home. With no type declared there was no pairing to read, and a
-// node of any other kind has no Encoding field at all.
+// hoisted for it carries it in Encoding; a (type, format) pairing formatTable
+// knows selects a primitive, which carries the pairing in the primitive kind
+// itself. With no type declared there was no pairing to make and nothing read it,
+// and a node of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
+	// The redaction format names no shape, so no node kind is its home: the
+	// annotation readers hold it, as Sensitive on the node the position owns or
+	// Secret on its carrier, and verbatim at a parameter, which has no field.
+	if annotation.DeclaresRedaction(s) {
+		return true
+	}
 	switch n := td.(type) {
 	case *ir.Scalar:
 		return n.Encoding != nil
@@ -1153,8 +1158,8 @@ func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) func() (ir.Raw
 }
 
 // FillPropertyDetail enriches a property from its schema: the property-scoped
-// facts a type node has no field for (default, visibility, secrecy,
-// constraints), then the declaration's annotations. Annotations present at a
+// facts a type node has no field for (default, visibility, constraints), then
+// the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (ir-design §14).
 //
 // Constraints stay unconditional: ir.Property is the only home every property
@@ -1169,15 +1174,6 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex,
 	tgt := resolve.TargetSchema(js, ref)
 	def, diags := DefaultOf(c, ref, tgt, pointer)
 	p.Default = def
-	// The referent is read beside the use site for the reason §14 reads one for
-	// any other declaration-scoped, use-binding fact (annotation.EffectiveVisibility,
-	// fillPropertyDefault): a $ref to a redaction schema states the redaction at
-	// the use, and the reference node's own format is empty. A use reaching the
-	// node through a wrapper is MarkSecretUses' to mark, once the node exists.
-	if ref.GetFormat() == redactionFormat ||
-		(tgt != nil && tgt.GetFormat() == redactionFormat) {
-		p.Secret = true
-	}
 	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, ts, anchors, p, ref, tgt, pointer)...)
@@ -1225,6 +1221,9 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorI
 	p.Docs = a.Docs
 	if a.Deprecated {
 		p.Deprecation = &ir.Deprecation{}
+	}
+	if a.Sensitive {
+		p.Secret = true
 	}
 	if a.XML != nil {
 		p.XML = a.XML
@@ -1277,13 +1276,13 @@ func DefaultOf(c lowering.Ctx, s, tgt *oas3.Schema, pointer jsontext.Pointer) (*
 
 // fillPropertyConstraints attaches the property's scalar constraints, and the
 // co-declared bound keyword that reached none of them, to the property itself.
-// ir.Property is the one home every property has: its schema is read through
-// CarriedRef and hoists no node unless a format needs one, and even then the
-// property keeps its own copy.
+// ir.Property is the carrier at this position: a property's schema is read
+// through CarriedRef, so it hoists no node of its own to hold either.
 //
-// It reads ref alone, never the $ref target: bounds conjoin rather than
-// override, so merging a referent's bound here would publish the wider one as
-// the whole truth. It stays on the referenced node (ir-design §12.2).
+// It reads ref alone and never the $ref target, which is why no tgt reaches it:
+// bounds conjoin rather than override, so a referent's bound merged here under
+// use-site precedence would publish the wider of the two as the whole truth. It
+// stays on the node the reference points at instead (ir-design §12.2).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, pointer)
 	p.Constraints = cons
@@ -1291,15 +1290,17 @@ func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, p
 }
 
 // attachDeclaredAnnotations records every annotation s declares on the type
-// node pointer owns, the one structural home they have (ir.TypeCommon). It is
-// their sole reader and runs above lower()'s dispatch, so a new lowering
-// destination cannot forget them (GitHub #114).
+// node pointer owns, the one structural home they have (ir.TypeCommon).
 //
-// A body reduced to a shared primitive owns no node, and its annotations stay
-// with the declaring property (FillPropertyDetail); one that hoisted a node (a
-// Model, an Enum, a format's Scalar) keeps them there. Ownership is checked
-// before conversion because callers cover a pointer in either order, and only
-// the one that finds a node may emit conversion diagnostics.
+// It is the sole reader of declaration-scoped annotations and runs above
+// lower()'s dispatch: every declaration reaches it through schemaBody or an
+// alias fallback, so a new lowering destination cannot forget to read them
+// (GitHub #114).
+//
+// A schema whose body reduced to a shared primitive owns no node; its
+// annotations stay with the declaring property (FillPropertyDetail). Ownership
+// is checked before conversion because callers cover a pointer in either order,
+// and only the one that finds a node may emit conversion diagnostics.
 func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
@@ -1314,6 +1315,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 	common.Docs = a.Docs
 	if a.Deprecated {
 		common.Deprecation = &ir.Deprecation{}
+	}
+	if a.Sensitive {
+		common.Sensitive = true
 	}
 	if a.XML != nil {
 		common.XML = a.XML
@@ -1405,17 +1409,6 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth i
 	return t, diags
 }
 
-// redactionFormat is the one OpenAPI format stating how a value is handled
-// rather than what shape it has: the value must be redacted. No PrimKind can
-// hold it, since a primitive is shared by every declaration of its type, so a
-// position writing it hoists a Scalar carrying Sensitive and the verbatim
-// spelling in Encoding.Name, as byte and an unknown format do.
-//
-// Property.Secret has two writers. FillPropertyDetail reads the format on the
-// declaration, which the allOf fold OR-s across redeclarations; MarkSecretUses
-// reads the lowered node, catching a use that reaches it through a wrapper.
-const redactionFormat = "password"
-
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via formatTable: a
 // known pairing interns the shared primitive; byte, a pairing the table does
 // not list, and the 2020-12 content vocabulary each hoist a named Scalar
@@ -1424,13 +1417,11 @@ const redactionFormat = "password"
 // also resolves to.
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer, hint string) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
+	if annotation.DeclaresRedaction(s) {
+		format = "" // a redaction, not a shape: the annotation readers hold it
+	}
 	if st == oas3.SchemaTypeString && format == "byte" {
 		return hoistScalar(c, ts, anchors, depth, s, ir.PrimBytes, "base64", new(ir.PrimString), pointer, hint)
-	}
-	// Keyed on the format rather than on the string type, so `format: password`
-	// on a non-string type and on a union variant states the same redaction.
-	if format == redactionFormat {
-		return hoistScalar(c, ts, anchors, depth, s, baseForType(st), format, nil, pointer, hint)
 	}
 	key := string(st)
 	if format != "" {
@@ -1459,7 +1450,6 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth 
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, hint, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(base)
-		common.Sensitive = formatName == redactionFormat
 		enc, encDiags := scalarEncoding(c, ts, anchors, depth, s, formatName, &common, pointer, hint)
 		diags = append(diags, encDiags...)
 		if wire != nil {
@@ -1981,9 +1971,10 @@ func (w *anchorWalk) charge(depth int) bool {
 // decimal and decimal128 map under number alone: under integer they admit only
 // the integral values, which no primitive narrower than integer holds. Any
 // pairing absent here hoists a Scalar that keeps the format, byte excepted:
-// scalarTypeID reads it before the table, as base64-encoded bytes. A row may
-// only map to a kind its bare type does not select, or the format would be
-// unreadable (TestFormatTable_EveryRowDistinguishesTheBareType, GitHub #579).
+// scalarTypeID reads it before the table, as base64-encoded bytes.
+//
+// No row maps to the kind its bare type selects, which would leave the format
+// nowhere (TestFormatTable_EveryRowDistinguishesTheBareType).
 var formatTable = map[string]ir.PrimKind{
 	"string":            ir.PrimString,
 	"string/date":       ir.PrimDate,

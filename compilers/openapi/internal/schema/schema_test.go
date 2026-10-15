@@ -5359,58 +5359,79 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 	assert.Empty(t, propertyOf(t, doc, "Holder", "low").Unmodeled)
 }
 
-// TestRedactionFormat_HoistsASensitiveScalar pins what a `format: password`
-// schema position lowers to: a Scalar of its own, over the bare type's primitive,
-// carrying Sensitive (the IR's whole-type redaction field) and the source token
-// verbatim in Encoding.Name. The shared primitive cannot hold the fact — it is
-// interned once per kind and reused by every declaration of that type — so the
-// position hoists, exactly as byte and an unknown format do (GitHub #579).
-func TestRedactionFormat_HoistsASensitiveScalar(t *testing.T) {
+// TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns pins that
+// `format: password` is an annotation rather than a shape: the position lowers
+// as it would without it, and the node it owns, of any kind, is Sensitive. A
+// position whose shape is the shared primitive owns an alias over it instead,
+// with no Encoding, since a redaction names none. Nothing is reported: the
+// format reached its field everywhere (GitHub #579).
+func TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    Pw: {type: string, format: password}\n"+
-			"    Holder: {type: object, properties: {token: {type: string, format: password}}}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
+	for _, tc := range []struct {
+		name, schema string
+		kind         ir.TypeKind
+		base         ir.TypeID // the alias's base, for a Scalar
+	}{
+		{"string", "{type: string, format: password}", ir.KindScalar, "t/prim/string"},
+		{"integer", "{type: integer, format: password}", ir.KindScalar, "t/prim/integer"},
+		{"untyped", "{format: password}", ir.KindScalar, "t/prim/any"},
+		{"nullable", "{type: [string, 'null'], format: password}", ir.KindScalar, "t/prim/string"},
+		{"enum", "{type: string, enum: [a, b], format: password}", ir.KindEnum, ""},
+		{"const", "{const: abc, format: password}", ir.KindLiteral, ""},
+		{"object", "{type: object, properties: {a: {type: string}}, format: password}", ir.KindModel, ""},
+		{"array", "{type: array, items: {type: string}, format: password}", ir.KindList, ""},
+		{"multi-typed", "{type: [string, integer], format: password}", ir.KindUnion, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    Secret: "+tc.schema+"\n"))
+			assert.Empty(t, diags, "the format reached its field, so nothing is kept or reported")
 
-	pw, ok := typeByName(doc, "Pw").(*ir.Scalar)
-	require.True(t, ok, "a component writing the format owns a Scalar")
-	assert.True(t, pw.Sensitive, "whole-type redaction")
-	require.NotNil(t, pw.Encoding)
-	assert.Equal(t, "password", pw.Encoding.Name, "the source token verbatim")
-	require.NotNil(t, pw.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), pw.Base.Target, "over the bare type's primitive")
-
-	// The inline property position: the per-use carrier beside a node of its own.
-	token := propertyOf(t, doc, "Holder", "token")
-	assert.True(t, token.Secret, "the property carries the per-use form beside it")
-	assert.NotEqual(t, ir.TypeID("t/prim/string"), token.Type.Target,
-		"the position hoists rather than staying on the shared primitive")
-	sc, ok := doc.Types[token.Type.Target].(*ir.Scalar)
-	require.True(t, ok)
-	assert.True(t, sc.Sensitive)
+			node := typeByName(doc, "Secret")
+			require.NotNil(t, node)
+			assert.Equal(t, tc.kind, node.Kind())
+			assert.True(t, node.Common().Sensitive, "whole-type redaction")
+			assert.NotContains(t, node.Common().Unmodeled, "openapi:format")
+			sc, ok := node.(*ir.Scalar)
+			if !ok {
+				return
+			}
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, tc.base, sc.Base.Target, "the shape it would have had without the format")
+			assert.Nil(t, sc.Encoding, "a redaction is no encoding")
+		})
+	}
 }
 
-// TestRedactionFormat_PredicateIsTheFormatNotTheType pins that the arm keys on
-// `format` rather than on `string`: the same format on a non-string type states
-// the same redaction.
-func TestRedactionFormat_PredicateIsTheFormatNotTheType(t *testing.T) {
+// TestRedactionFormat_APropertyOwningNoNodeIsSecret pins the carrier half: a
+// property whose schema keeps the shared primitive holds the redaction itself,
+// as it holds the schema's docs, and no node is hoisted at its pointer. A
+// property whose schema owns a node leaves it on the node, one home per
+// declaration, as fillPropertyAnnotations draws the line.
+func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    Secret: {type: integer, format: password}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
+		"    Holder:\n      type: object\n      properties:\n"+
+			"        token: {type: string, format: password, description: the token}\n"+
+			"        choice: {type: string, enum: [a, b], format: password}\n"))
+	assert.Empty(t, diags)
 
-	sc, ok := typeByName(doc, "Secret").(*ir.Scalar)
-	require.True(t, ok, "a non-string type writing the format still hoists")
-	assert.True(t, sc.Sensitive)
-	require.NotNil(t, sc.Encoding)
-	assert.Equal(t, "password", sc.Encoding.Name)
-	require.NotNil(t, sc.Base)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), sc.Base.Target, "over the bare type's own primitive")
+	token := propertyOf(t, doc, "Holder", "token")
+	assert.True(t, token.Secret)
+	assert.Equal(t, ir.TypeID("t/prim/string"), token.Type.Target, "the shape is the bare string's")
+	assert.Equal(t, "the token", token.Docs.Description, "the docs stay on the property")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Holder/properties/token"),
+		"no node is hoisted for the redaction at a carrier")
+
+	choice := propertyOf(t, doc, "Holder", "choice")
+	assert.False(t, choice.Secret, "the enum node holds it")
+	assert.True(t, doc.Types[choice.Type.Target].Common().Sensitive)
 }
 
 // TestFillPropertyDetail_SecretFollowsTheReferent pins both sides of the $ref
-// read: a property referencing a redaction schema is secret at the use, and one
-// referencing a plain string component stays not secret.
+// read: a property referencing a redaction schema is secret at the use, as it
+// is deprecated when its referent is (ir-design §14), and one referencing a
+// plain string component stays not secret.
 func TestFillPropertyDetail_SecretFollowsTheReferent(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -5426,14 +5447,15 @@ func TestFillPropertyDetail_SecretFollowsTheReferent(t *testing.T) {
 		"a $ref to a plain component stays not secret")
 }
 
-// TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins invariant 3 for the
-// new hoist: the fact lands on the position's own node and never on
-// t/prim/string, which every other plain string declaration resolves to.
+// TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins invariant 3: the
+// fact lands on the position's own node and never on t/prim/string, which every
+// other plain string declaration resolves to.
 func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Pw: {type: string, format: password}\n"+
-			"    Plain: {type: string}\n"))
+			"    Plain: {type: string}\n"+
+			"    Holder: {type: object, properties: {token: {type: string, format: password}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	assert.False(t, typeByName(doc, "Plain").Common().Sensitive)
@@ -5442,45 +5464,22 @@ func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	assert.False(t, shared.Common().Sensitive, "the shared primitive is never sensitive")
 }
 
-// TestRedactionFormat_BesideContentEncoding pins the one hoist where the format
-// is not Encoding.Name: contentEncoding names the encoding, so the format is kept
-// verbatim under Unmodeled and reported, while Sensitive still holds.
+// TestRedactionFormat_BesideContentEncoding pins that the two keywords no longer
+// compete for Encoding.Name: contentEncoding names the encoding, and the
+// redaction is Sensitive, so neither is kept verbatim or reported.
 func TestRedactionFormat_BesideContentEncoding(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Encoded: {type: string, format: password, contentEncoding: base64, contentMediaType: text/plain}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags)
 
 	sc, ok := typeByName(doc, "Encoded").(*ir.Scalar)
 	require.True(t, ok)
-	assert.True(t, sc.Sensitive, "the redaction does not depend on which keyword names the encoding")
+	assert.True(t, sc.Sensitive)
 	require.NotNil(t, sc.Encoding)
-	assert.Equal(t, "base64", sc.Encoding.Name, "contentEncoding wins Encoding.Name")
-	assert.Contains(t, sc.Unmodeled, "openapi:format", "the format is kept verbatim beside it")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Encoded/format"),
-		"the format beside contentEncoding is reported where it was written")
-}
-
-// TestRedactionFormat_BesideEnumOrConstIsNotSensitive pins a recorded limit
-// rather than a goal: an enum or a const lowers to an Enum or a Literal, which
-// keeps the format verbatim and is not Sensitive (GitHub #607, #668). The
-// property beside it still reads the format itself, so it stays secret.
-func TestRedactionFormat_BesideEnumOrConstIsNotSensitive(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(
-		"    Holder:\n      type: object\n      properties:\n"+
-			"        choice: {type: string, format: password, enum: [a]}\n"+
-			"        fixed: {type: string, format: password, const: abc}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-
-	for _, wire := range []string{"choice", "fixed"} {
-		p := propertyOf(t, doc, "Holder", wire)
-		assert.True(t, p.Secret, "%s: the property reads its own format", wire)
-		node, ok := doc.Types[p.Type.Target]
-		require.True(t, ok, wire)
-		assert.False(t, node.Common().Sensitive, "%s: no Scalar to carry it (#607, #668)", wire)
-		assert.Contains(t, node.Common().Unmodeled, "openapi:format", "%s: kept verbatim", wire)
-	}
+	assert.Equal(t, "base64", sc.Encoding.Name)
+	assert.Equal(t, "text/plain", sc.Encoding.MediaType)
+	assert.NotContains(t, sc.Unmodeled, "openapi:format")
 }
 
 // TestSchemaRef_ToAPointerEndingInSlashLowersWhatTheResolverBuilt pins that a

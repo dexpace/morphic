@@ -90,11 +90,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	t.Parallel()
 	// The bare declaration comes first and the richer one second: reconciliation
 	// must still surface every optional detail, so branch order never loses
-	// information (the reverse of the forkee documented-first shape). The richer
-	// branch writes no format because a format that hoists a node of its own
-	// changes the branch's type target, and the fold then drops the declaration
-	// rather than folding its details (GitHub #782). The secrecy half of that is
-	// TestAllOf_RedeclarationOrsSecret.
+	// information (the reverse of the forkee documented-first shape).
 	spec := openapitest.ComponentSpec(`    Tokenish:
       allOf:
         - type: object
@@ -105,6 +101,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
           properties:
             token:
               type: string
+              format: password
               description: the access token
               default: none
               minLength: 1
@@ -120,6 +117,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 
 	tok := m.Properties[0]
 	assert.True(t, tok.Required, "required in the richer branch => required on the merged property")
+	assert.True(t, tok.Secret, "secrecy (format:password) adopted from the richer branch")
 	assert.Equal(t, "the access token", tok.Docs.Description, "description adopted whichever branch carries it")
 	require.NotNil(t, tok.Default, "default adopted from the richer branch")
 	require.NotNil(t, tok.Constraints, "constraints adopted from the richer branch")
@@ -129,42 +127,37 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
 }
 
-// TestAllOf_RedeclarationOrsSecret pins the one property field a redeclaration
-// OR-s rather than folds: a redaction requested by either branch survives the
-// merge whichever declaration the type fold keeps (reconcileProperty). The two
-// branches no longer share a target once one of them writes `format: password`,
-// which hoists a Scalar of its own, so the shape fold drops the losing
-// declaration and keeps it verbatim rather than folding its details, silently
-// and in an order-dependent way (GitHub #782). Once that is fixed, this case
-// should assert the folded fields as well.
+// TestAllOf_RedeclarationOrsSecret pins that a redaction one branch writes
+// survives the fold in both declaration orders, and that it costs the fold
+// nothing else: `format: password` names no shape, so both declarations share
+// the bare string's target and every detail folds rather than the losing one
+// being dropped whole (the order-dependent drop GitHub #782 tracks for a
+// format that does name one).
 func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ name, branches string }{
-		{"password first", `        - type: object
-          properties:
-            token: {type: string, format: password}
-        - type: object
-          properties:
-            token: {type: string}
-`},
-		{"password second", `        - type: object
-          properties:
-            token: {type: string}
-        - type: object
-          properties:
-            token: {type: string, format: password}
-`},
+	secret := "            token: {type: string, format: password}\n"
+	bounded := "            token: {type: string, minLength: 3, description: the token}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct{ name, first, second string }{
+		{"password first", secret, bounded},
+		{"password second", bounded, secret},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" + tc.branches)
+			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
+				branch + tc.first + branch + tc.second)
 			doc, diags := lowerSpec(t, spec)
-			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, "nothing conflicts")
 			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 			require.True(t, ok, "Tokenish should be a model")
 			require.Len(t, m.Properties, 1, "token reconciles to a single property")
-			assert.True(t, m.Properties[0].Secret,
-				"either branch's format:password makes the merged field secret, %s", tc.name)
+			tok := m.Properties[0]
+			assert.True(t, tok.Secret, "either branch's redaction makes the merged field secret")
+			assert.Equal(t, ir.TypeID("t/prim/string"), tok.Type.Target, "both branches share the target")
+			require.NotNil(t, tok.Constraints, "the other branch's bound is folded, not dropped")
+			assert.Equal(t, new(int64(3)), tok.Constraints.MinLength)
+			assert.Equal(t, "the token", tok.Docs.Description)
+			assert.Empty(t, tok.Unmodeled, "no declaration was kept as a loser")
 		})
 	}
 }

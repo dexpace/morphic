@@ -105,8 +105,8 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 // to a primitive kind the pairing itself distinguishes, because a row mapping to
 // the kind the bare type selects makes the pairing unreadable — the position
 // resolves to the shared primitive and nothing anywhere records the format. A
-// format whose kind does not differ must be absent from the table and hoist a
-// node instead, as byte, password and an unknown format do.
+// format whose kind does not differ must be absent from the table, to hoist a
+// node as byte and an unknown format do, or be read elsewhere, as password is.
 func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 	t.Parallel()
 	for key, prim := range formatTable {
@@ -119,7 +119,7 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 		assert.NotEqual(t, bare, prim,
 			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
 				"reaches no field once the position resolves to the shared primitive; "+
-				"a format whose kind does not differ must hoist a node instead", key, prim, typ)
+				"a format whose kind does not differ must not be a row", key, prim, typ)
 	}
 }
 

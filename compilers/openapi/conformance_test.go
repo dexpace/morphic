@@ -1234,19 +1234,14 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, sc.Constraints.MinLength)
 	assert.Equal(t, int64(4), *sc.Constraints.MinLength)
 
-	// format: password is a redaction request about how the value is handled, so
-	// it hoists a Scalar of its own carrying Sensitive and the verbatim spelling,
-	// and the property that writes it keeps Property.Secret beside that node.
+	// format: password is a redaction request about a use of the value, so it
+	// lands on the property rather than on the shared encoding node, and names
+	// no shape: the property's type is the bare string's (secret-format covers
+	// every other position).
 	token, ok := propByWire(h, "token")
 	require.True(t, ok)
-	assert.True(t, token.Secret, "the property that writes it is secret at the use")
-	secret, ok := doc.Types[token.Type.Target].(*ir.Scalar)
-	require.True(t, ok, "password no longer stays on the shared primitive")
-	assert.True(t, secret.Sensitive, "whole-type redaction")
-	require.NotNil(t, secret.Encoding)
-	assert.Equal(t, "password", secret.Encoding.Name, "the source token verbatim")
-	require.NotNil(t, secret.Base)
-	assert.Equal(t, ir.TypeID("t/prim/string"), secret.Base.Target, "over the bare type's primitive")
+	assert.True(t, token.Secret)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), token.Type.Target)
 
 	// An integer width selects its primitive whichever numeric type carries it.
 	for wire, want := range map[string]ir.PrimKind{"small": ir.PrimInt8, "count": ir.PrimUint32} {
@@ -1266,126 +1261,169 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "double", ws.Encoding.Name)
 }
 
-// assertSecretFormat pins where a `format: password` position's fact lands: a
-// Scalar of its own carrying Sensitive, the verbatim spelling and the bounds
-// written beside it at every scalar position, and Property.Secret wherever a
-// property or a header is the carrier, through any wrapper. It reads the nodes
-// rather than the golden's bytes, so a node that moved to another position
-// while keeping the same fields still fails (GitHub #579).
-func assertSecretFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	// The named component every reference resolves to, carrying its own bound.
-	requireSecretScalar(t, doc, namedID("Pw"), "component schema")
-	requireLengthBounds(t, doc, namedID("Pw"), new(int64(8)), nil, "component schema")
+// assertSecretFormat pins where `format: password` lands at every position the
+// compiler reaches: Sensitive on the node a position owns, whatever its kind;
+// Property.Secret at a property or header owning none; and verbatim on a
+// parameter, which has no field. It reads the nodes rather than the golden's
+// bytes, so a fact that moved to another carrier still fails (GitHub #579).
+func assertSecretFormat(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	pw := requireSensitiveAlias(t, doc, namedID("Pw"), ir.PrimTypeID(ir.PrimString), "component schema")
+	require.NotNil(t, pw.Constraints, "the bound written beside the format stays on the node")
+	assert.Equal(t, new(int64(8)), pw.Constraints.MinLength)
 
-	login, ok := doc.Types[namedID("Login")].(*ir.Model)
-	require.True(t, ok, "Login is a model")
+	assertSecretCarriers(t, doc)
+	assertSecretNodes(t, doc)
+	assertSecretOperation(t, doc, diags)
 
-	// Inline property: Property.Secret beside the hoisted node.
-	inline, ok := propByWire(login, "inline")
+	// The guard: a bare string keeps the shared primitive, which no
+	// declaration's redaction may reach (invariant 3).
+	plain, ok := propByWire(secretModel(t, doc, "Login"), "plain")
 	require.True(t, ok)
-	assert.True(t, inline.Secret, "the inline property is secret")
-	requireSecretScalar(t, doc, inline.Type.Target, "inline property schema")
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), plain.Type.Target)
+	assert.False(t, plain.Secret)
+	assert.False(t, doc.Types[ir.PrimTypeID(ir.PrimString)].Common().Sensitive)
+	assert.False(t, doc.Types[namedID("Plain")].Common().Sensitive, "a referent beside which a use wrote it")
+}
 
-	// Property via $ref: Secret from the referent, which carries the node.
-	viaRef, ok := propByWire(login, "viaRef")
-	require.True(t, ok)
-	assert.True(t, viaRef.Secret, "a $ref to a redaction schema is secret at the use")
-	assert.Equal(t, namedID("Pw"), viaRef.Type.Target, "it resolves to the component")
-
-	// The wrappers: each reaches the Sensitive node through a nullable ref or a
-	// Base chain, and each use is secret all the same.
-	for _, wire := range []string{"nullable", "wrapped", "viaAlias"} {
-		p, ok := propByWire(login, wire)
-		require.True(t, ok, wire)
-		assert.True(t, p.Secret, "%s: a use reaching the node through a wrapper is secret", wire)
+// assertSecretCarriers covers the properties of Login that own no node, where
+// Property.Secret is the home, and the wrappers whose type reaches the
+// Sensitive node instead.
+func assertSecretCarriers(t *testing.T, doc *ir.Document) {
+	login := secretModel(t, doc, "Login")
+	for _, tc := range []struct {
+		wire   string
+		target ir.TypeID
+	}{
+		{"inline", ir.PrimTypeID(ir.PrimString)},
+		{"pin", ir.PrimTypeID(ir.PrimInteger)},
+		{"viaRef", namedID("Pw")},      // inherited from the referent, as deprecated is
+		{"viaAlias", namedID("Chain")}, // from the end of the $ref chain
+		{"beside", namedID("Plain")},   // written beside the $ref, binding the use
+	} {
+		p, ok := propByWire(login, tc.wire)
+		require.True(t, ok, tc.wire)
+		assert.True(t, p.Secret, "%s: the property is the carrier", tc.wire)
+		assert.Equal(t, tc.target, p.Type.Target, "%s: the redaction names no shape", tc.wire)
 	}
+	inline, _ := propByWire(login, "inline")
+	assert.Equal(t, "shown on the property", inline.Docs.Description, "no node takes the docs away")
 
-	// Array items.
-	arr, ok := propByWire(login, "arr")
+	// A wrapper's own schema writes no redaction; its type reaches the node
+	// that does, along a nullable reference or a Base.
+	nullable, ok := propByWire(login, "nullable")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Pw"), Nullable: true}, nullable.Type)
+	wrapped, ok := propByWire(login, "wrapped")
+	require.True(t, ok)
+	m, ok := doc.Types[wrapped.Type.Target].(*ir.Model)
+	require.True(t, ok, "an allOf over one $ref is a model")
+	require.NotNil(t, m.Base)
+	assert.Equal(t, namedID("Pw"), m.Base.Target)
+	chain, ok := doc.Types[namedID("Chain")].(*ir.Scalar)
+	require.True(t, ok, "an alias component is a Scalar")
+	require.NotNil(t, chain.Base)
+	assert.Equal(t, namedID("Pw"), chain.Base.Target)
+
+	// A property whose schema owns a node leaves the redaction on it.
+	pick, ok := propByWire(login, "pick")
+	require.True(t, ok)
+	assert.False(t, pick.Secret, "one home per declaration")
+	assert.Equal(t, ir.KindEnum, requireSensitive(t, doc, pick.Type.Target, "enum property").Kind())
+}
+
+// assertSecretNodes covers the positions with no carrier: each owns a node, an
+// alias over the bare type where the shape alone would own none.
+func assertSecretNodes(t *testing.T, doc *ir.Document) {
+	arr, ok := propByWire(secretModel(t, doc, "Login"), "arr")
 	require.True(t, ok)
 	list, ok := doc.Types[arr.Type.Target].(*ir.List)
-	require.True(t, ok, "arr hoists a list")
-	requireSecretScalar(t, doc, list.Elem.Target, "array items")
-	requireLengthBounds(t, doc, list.Elem.Target, nil, new(int64(64)), "array items")
+	require.True(t, ok)
+	items := requireSensitiveAlias(t, doc, list.Elem.Target, ir.PrimTypeID(ir.PrimString), "array items")
+	require.NotNil(t, items.Constraints)
+	assert.Equal(t, new(int64(64)), items.Constraints.MaxLength)
 
-	// additionalProperties and patternProperties.
-	bag, ok := doc.Types[namedID("Bag")].(*ir.Model)
-	require.True(t, ok, "Bag is a model")
+	bag := secretModel(t, doc, "Bag")
 	require.NotNil(t, bag.AdditionalProps)
-	requireSecretScalar(t, doc, bag.AdditionalProps.Value.Target, "additionalProperties")
+	requireSensitiveAlias(t, doc, bag.AdditionalProps.Value.Target, ir.PrimTypeID(ir.PrimString), "additionalProperties")
 	require.Len(t, bag.AdditionalProps.Patterns, 1)
-	requireSecretScalar(t, doc, bag.AdditionalProps.Patterns[0].Value.Target, "patternProperties")
+	requireSensitiveAlias(t, doc, bag.AdditionalProps.Patterns[0].Value.Target, ir.PrimTypeID(ir.PrimString),
+		"patternProperties")
 
-	// prefixItems.
 	pair, ok := doc.Types[namedID("Pair")].(*ir.Tuple)
-	require.True(t, ok, "prefixItems hoists a tuple")
+	require.True(t, ok)
 	require.Len(t, pair.Elems, 1)
-	requireSecretScalar(t, doc, pair.Elems[0].Target, "prefixItems")
+	requireSensitiveAlias(t, doc, pair.Elems[0].Target, ir.PrimTypeID(ir.PrimString), "prefixItems")
 
+	tokens, ok := doc.Types[namedID("Tokens")].(*ir.List)
+	require.True(t, ok)
+	requireSensitiveAlias(t, doc, tokens.Elem.Target, namedID("Plain"), "items beside a $ref")
+
+	assert.Equal(t, ir.KindLiteral, requireSensitive(t, doc, namedID("Code"), "const").Kind())
+	requireSensitiveAlias(t, doc, namedID("Opaque"), ir.PrimTypeID(ir.PrimAny), "untyped")
+	encoded, ok := requireSensitive(t, doc, namedID("Encoded"), "beside contentEncoding").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, encoded.Encoding)
+	assert.Equal(t, "base64", encoded.Encoding.Name, "contentEncoding alone names the encoding")
+}
+
+// assertSecretOperation covers the parameters, bodies and headers.
+func assertSecretOperation(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "login")
 	require.True(t, ok)
 
-	// A header parameter's schema, inline, and a query parameter's, via $ref.
 	token, ok := paramByName(op, "X-Token")
 	require.True(t, ok)
-	requireSecretScalar(t, doc, token.Type.Target, "header parameter schema")
-	requireLengthBounds(t, doc, token.Type.Target, new(int64(12)), nil, "header parameter schema")
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), token.Type.Target, "a parameter owns no node for it")
+	assert.Equal(t, "the session token", token.Docs.Description)
+	require.Contains(t, token.Unmodeled, "openapi:format", "ir.Parameter has no field (GitHub #578)")
+	assert.Equal(t, ir.ReasonNoIRHome, token.Unmodeled["openapi:format"].Reason)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/paths/~1login/post/parameters/0/schema/format"))
 	key, ok := paramByName(op, "api_key")
 	require.True(t, ok)
-	assert.Equal(t, namedID("Pw"), key.Type.Target, "the query parameter resolves to the component")
+	assert.Equal(t, namedID("Pw"), key.Type.Target, "a referent's redaction is its own node's")
+	assert.NotContains(t, key.Unmodeled, "openapi:format")
 
-	// Request and response content schemas.
-	requireSecretScalar(t, doc, openapitest.BodyTarget(t, op.Request), "request content schema")
+	str := ir.PrimTypeID(ir.PrimString)
+	requireSensitiveAlias(t, doc, openapitest.BodyTarget(t, op.Request), str, "request content schema")
 	require.Len(t, op.Responses, 1)
-	requireSecretScalar(t, doc, openapitest.BodyTarget(t, op.Responses[0].Payload), "response content schema")
+	requireSensitiveAlias(t, doc, openapitest.BodyTarget(t, op.Responses[0].Payload), str, "response content schema")
 
-	// A response header: Property.Secret beside the node, and through a
-	// nullable reference to the component.
 	require.Len(t, op.Responses[0].Headers, 2)
 	header := op.Responses[0].Headers[0]
-	assert.True(t, header.Secret, "the response header is secret")
-	requireSecretScalar(t, doc, header.Type.Target, "response header schema")
-	maybe := op.Responses[0].Headers[1]
-	assert.True(t, maybe.Secret, "a nullable reference to a redaction schema is secret")
-	assert.Equal(t, ir.TypeRef{Target: namedID("Pw"), Nullable: true}, maybe.Type)
-
-	// The guard: a bare string still targets the shared primitive, which stays
-	// not sensitive — the redaction must never leak onto the node every
-	// declaration of the type shares (invariant 3).
-	plain, ok := propByWire(login, "plain")
-	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/string"), plain.Type.Target,
-		"a plain string keeps the shared primitive")
-	assert.False(t, plain.Secret, "and asks for no redaction")
-	prim, ok := doc.Types[ir.TypeID("t/prim/string")]
-	require.True(t, ok, "the shared string primitive is registered")
-	assert.False(t, prim.Common().Sensitive, "the shared primitive is never sensitive")
+	assert.True(t, header.Secret, "a header is a property carrier")
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), header.Type.Target)
+	assert.Equal(t, ir.TypeRef{Target: namedID("Pw"), Nullable: true}, op.Responses[0].Headers[1].Type)
 }
 
-// requireSecretScalar requires the node at id to be the Scalar a
-// `format: password` position hoists, over the bare type's own primitive.
-func requireSecretScalar(t *testing.T, doc *ir.Document, id ir.TypeID, position string) {
+// secretModel returns the secret-format component name as a Model.
+func secretModel(t *testing.T, doc *ir.Document, name string) *ir.Model {
+	t.Helper()
+	m, ok := doc.Types[namedID(name)].(*ir.Model)
+	require.True(t, ok, "%s is a model", name)
+	return m
+}
+
+// requireSensitive requires the node at id to exist and be Sensitive.
+func requireSensitive(t *testing.T, doc *ir.Document, id ir.TypeID, position string) ir.TypeDef {
 	t.Helper()
 	node, ok := doc.Types[id]
 	require.True(t, ok, "%s: nothing is interned at %s", position, id)
-	sc, ok := node.(*ir.Scalar)
-	require.True(t, ok, "%s: the position hoists a Scalar of its own", position)
-	assert.True(t, sc.Sensitive, "%s: whole-type redaction", position)
-	require.NotNil(t, sc.Encoding, "%s: the format reaches Encoding", position)
-	assert.Equal(t, "password", sc.Encoding.Name, "%s: the source token verbatim", position)
-	require.NotNil(t, sc.Base, "%s: a base to ride", position)
-	assert.Equal(t, ir.TypeID("t/prim/string"), sc.Base.Target, "%s: over the bare type's primitive", position)
+	assert.True(t, node.Common().Sensitive, "%s: whole-type redaction", position)
+	return node
 }
 
-// requireLengthBounds requires the Scalar at id to carry the length bounds the
-// position wrote beside its format: a hoisting format must not drop them.
-func requireLengthBounds(t *testing.T, doc *ir.Document, id ir.TypeID, minLen, maxLen *int64, position string) {
+// requireSensitiveAlias requires the node at id to be the Sensitive alias a
+// redaction hoists where the shape alone owns no node: a Scalar over base,
+// with no encoding, since a redaction is none.
+func requireSensitiveAlias(t *testing.T, doc *ir.Document, id, base ir.TypeID, position string) *ir.Scalar {
 	t.Helper()
-	sc, ok := doc.Types[id].(*ir.Scalar)
-	require.True(t, ok, "%s: a Scalar at %s", position, id)
-	require.NotNil(t, sc.Constraints, "%s: the bounds written beside the format", position)
-	assert.Equal(t, minLen, sc.Constraints.MinLength, "%s: minLength", position)
-	assert.Equal(t, maxLen, sc.Constraints.MaxLength, "%s: maxLength", position)
+	sc, ok := requireSensitive(t, doc, id, position).(*ir.Scalar)
+	require.True(t, ok, "%s: a Scalar", position)
+	require.NotNil(t, sc.Base, "%s: a base", position)
+	assert.Equal(t, base, sc.Base.Target, "%s: over its shape", position)
+	assert.Nil(t, sc.Encoding, "%s: the redaction is no encoding", position)
+	return sc
 }
 
 // assertXMLHints covers the XML wire shape, whose hints attach at two carriers

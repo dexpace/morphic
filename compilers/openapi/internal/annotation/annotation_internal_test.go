@@ -47,6 +47,35 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	assert.False(t, got.Deprecated)
 }
 
+// TestAnnotations_RedactionFromTheSiteOrItsReferent pins how Read decides
+// Sensitive. A reference site inherits its referent's redaction, as it inherits
+// deprecation, and a format of its own cannot lift it: the two conjoin, and
+// only a redaction is ever stated. A declaration consults no referent at all.
+func TestAnnotations_RedactionFromTheSiteOrItsReferent(t *testing.T) {
+	t.Parallel()
+	password, byteFormat := &oas3.Schema{Format: new("password")}, &oas3.Schema{Format: new("byte")}
+	for _, tc := range []struct {
+		name string
+		site Site
+		want bool
+	}{
+		{"the site writes it", Site{Kind: Reference, Node: password}, true},
+		{"the referent writes it", Site{Kind: Reference, Node: &oas3.Schema{}, Referent: password}, true},
+		{"another format at the site", Site{Kind: Reference, Node: byteFormat, Referent: password}, true},
+		{"a declaration's stray referent", Site{Kind: Declaration, Node: &oas3.Schema{}, Referent: password}, false},
+		{"another format alone", Site{Kind: Reference, Node: byteFormat}, false},
+		{"neither", Site{Kind: Reference, Node: &oas3.Schema{}, Referent: &oas3.Schema{}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, diags := Read(tc.site, "/p", sourced(0))
+			assert.Empty(t, diags)
+			assert.Equal(t, tc.want, got.Sensitive)
+		})
+	}
+	assert.False(t, DeclaresRedaction(nil), "a missing schema asks for nothing")
+}
+
 func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 	t.Parallel()
 	node := &oas3.Schema{
