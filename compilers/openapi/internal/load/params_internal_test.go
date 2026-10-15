@@ -205,32 +205,40 @@ func reservedIn(t *testing.T, diags []ir.Diagnostic) map[jsontext.Pointer]string
 	return got
 }
 
-// TestReservedApplies_FollowsEachMinorsText holds the predicate to the text of
-// each minor at every location and the styles that differ there: before 3.2,
-// in: query alone; in 3.2, every location and style that percent-encodes,
-// which leaves out a header and a cookie in style cookie. A querystring is the
-// lowering's to report, and an in OpenAPI does not define the parser's.
-func TestReservedApplies_FollowsEachMinorsText(t *testing.T) {
+// TestReservedIgnored_FollowsEachMinorsText holds the verdict and the place it
+// names to the text of each minor, at every location and the styles that
+// differ there: before 3.2, in: query alone applies; in 3.2, every location
+// and style that percent-encodes, which leaves out a header and a cookie in
+// style cookie. A style is named only where it decides. A querystring is the
+// lowering's to report, and an in or style OpenAPI does not define the
+// parser's. "" is a place the keyword applies.
+func TestReservedIgnored_FollowsEachMinorsText(t *testing.T) {
 	t.Parallel()
 	const cookie = serializationStyleCookie
 	tests := []struct {
 		in    soa.ParameterIn
 		style soa.SerializationStyle
-		want  map[string]bool // by minor
+		want  map[string]string // by minor
 	}{
-		{soa.ParameterInQuery, soa.SerializationStyleForm, map[string]bool{"3.0": true, "3.1": true, "3.2": true}},
-		{soa.ParameterInQuery, soa.SerializationStyleDeepObject, map[string]bool{"3.0": true, "3.1": true, "3.2": true}},
-		{soa.ParameterInQueryString, "", map[string]bool{"3.0": true, "3.1": true, "3.2": true}},
-		{soa.ParameterInPath, soa.SerializationStyleSimple, map[string]bool{"3.0": false, "3.1": false, "3.2": true}},
-		{soa.ParameterInPath, soa.SerializationStyleMatrix, map[string]bool{"3.0": false, "3.1": false, "3.2": true}},
-		{soa.ParameterInHeader, soa.SerializationStyleSimple, map[string]bool{"3.0": false, "3.1": false, "3.2": false}},
-		{soa.ParameterInCookie, soa.SerializationStyleForm, map[string]bool{"3.0": false, "3.1": false, "3.2": true}},
-		{soa.ParameterInCookie, cookie, map[string]bool{"3.0": false, "3.1": false, "3.2": false}},
-		{"body", "", map[string]bool{"3.0": true, "3.1": true, "3.2": true}},
+		{soa.ParameterInQuery, soa.SerializationStyleForm, map[string]string{}},
+		{soa.ParameterInQuery, soa.SerializationStyleDeepObject, map[string]string{}},
+		{soa.ParameterInQuery, cookie, map[string]string{}},
+		{soa.ParameterInQueryString, "", map[string]string{}},
+		{soa.ParameterInPath, soa.SerializationStyleSimple, map[string]string{"3.0": "in=path", "3.1": "in=path"}},
+		{soa.ParameterInPath, soa.SerializationStyleMatrix, map[string]string{"3.0": "in=path", "3.1": "in=path"}},
+		{soa.ParameterInHeader, soa.SerializationStyleSimple,
+			map[string]string{"3.0": "in=header", "3.1": "in=header", "3.2": "in=header"}},
+		{soa.ParameterInHeader, cookie, map[string]string{"3.0": "in=header", "3.1": "in=header", "3.2": "in=header"}},
+		{soa.ParameterInCookie, soa.SerializationStyleForm, map[string]string{"3.0": "in=cookie", "3.1": "in=cookie"}},
+		{soa.ParameterInCookie, cookie,
+			map[string]string{"3.0": "in=cookie", "3.1": "in=cookie", "3.2": "in=cookie with style=cookie"}},
+		{"body", "", map[string]string{}},
 	}
 	for _, tc := range tests {
 		for _, minor := range supportedMinors {
-			assert.Equal(t, tc.want[minor], reservedApplies(minor, tc.in, tc.style), "%s in=%s style=%s", minor, tc.in, tc.style)
+			place, ignored := reservedIgnored(minor, tc.in, tc.style)
+			assert.Equal(t, tc.want[minor], place, "%s in=%s style=%s", minor, tc.in, tc.style)
+			assert.Equal(t, tc.want[minor] != "", ignored, "%s in=%s style=%s", minor, tc.in, tc.style)
 		}
 	}
 }
@@ -250,10 +258,11 @@ paths:
 }
 
 // TestReservedFinding_ReportsWhereTheVersionGivesNoEffect pins what is reported
-// and what is said, one row per version and location: presence rather than
-// truth, so a declared false is reported, and the message names the location,
-// the minor and that minor's own rule. The parser's refusal of style cookie
-// (GitHub #389) stands beside the report and is not this rule's.
+// and what is said, through Load, in rows across the minors and locations:
+// presence rather than truth, so a declared false is reported, and the message
+// names the location, the minor and that minor's own rule. The parser's
+// refusal of style cookie (GitHub #389) stands beside the report and is not
+// this rule's.
 func TestReservedFinding_ReportsWhereTheVersionGivesNoEffect(t *testing.T) {
 	t.Parallel()
 	const (
@@ -294,6 +303,34 @@ func TestReservedFinding_ReportsWhereTheVersionGivesNoEffect(t *testing.T) {
 			assert.Equal(t, want, reservedAt(t, reservedVersionSpec(tc.version, tc.line)))
 		})
 	}
+}
+
+// TestReservedFinding_AnEntryHoldingNoObjectIsNotRead pins the guard for an
+// entry that is not a mapping, null included, which the parser refuses and
+// models with no object: reading one would fault the version check.
+func TestReservedFinding_AnEntryHoldingNoObjectIsNotRead(t *testing.T) {
+	t.Parallel()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters:
+      - ~
+    get:
+      parameters:
+        - ~
+        - 7
+        - [a]
+      responses: {"200": {description: ok}}
+components:
+  parameters:
+    N: ~
+`)}, Options{})
+	require.NoError(t, err)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "version check panicked")
+	}
+	assert.Empty(t, reservedIn(t, diags))
 }
 
 // reservedSitesSpec declares allowReserved outside query at every place a

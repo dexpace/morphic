@@ -2327,7 +2327,9 @@ document is GitHub #839's to settle. An object a `$ref` reaches in the source ou
 such as under an `x-` key, is held to the table and the takeover as one the model holds is, and
 reported at the pointers it is written at (GitHub #872). The fields beside a Path Item's `$ref` are
 modelled and walked with the source, so they are held to both as the source's own objects are
-(#577). A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub #820's.
+(#577). The same pass, with the same reach, judges a Parameter Object's `allowReserved` against
+where the declared minor applies it (§14). A JSON Schema 2020-12 keyword in a 3.0 schema is GitHub
+#820's.
 
 **A component entry nothing references.** A compiler lowers a component where a reference
 finds it, so an entry no reference reaches lowers nowhere — no node, no `Unmodeled` entry, no

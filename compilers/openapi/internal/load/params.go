@@ -79,7 +79,7 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referenc
 }
 
 // reservedFinding reports a Parameter Object's allowReserved written where
-// OpenAPI minor, the document's, gives it no effect (reservedApplies), at the
+// OpenAPI minor, the document's, gives it no effect (reservedIgnored), at the
 // keyword. Presence is reported, not truth, as at in: querystring: a declared
 // false has no effect either. model is one versionCheck walks, written at
 // site; a $ref is judged where its target is written. The parameter is read
@@ -93,36 +93,36 @@ func reservedFinding(at func(jsontext.Pointer) ir.Provenance, site jsontext.Poin
 	}
 	p := rp.GetObject()
 	if p == nil || p.AllowReserved == nil {
-		return ir.Diagnostic{}, false
+		return ir.Diagnostic{}, false // an entry that is not a mapping holds no object
 	}
-	in, style := p.GetIn(), p.GetStyle()
-	if reservedApplies(minor, in, style) {
+	place, ignored := reservedIgnored(minor, p.GetIn(), p.GetStyle())
+	if !ignored {
 		return ir.Diagnostic{}, false
 	}
 	return diag.Newf(ir.SeverityWarning, diag.InapplicableLocationKeyword, at(site.AppendToken("allowReserved")),
 		"parameter field allowReserved has no effect for %s in OpenAPI %s, which applies it %s; lowered as declared",
-		reservedPlace(minor, in, style), minor, reservedScope(minor)), true
+		place, minor, reservedScope(minor)), true
 }
 
-// reservedApplies reports whether OpenAPI minor gives allowReserved an effect
-// at in, serialized in style. Before 3.2 it applies to in: query alone; 3.2
-// applies it wherever the value is percent-encoded, which leaves out a header
-// and a cookie in style cookie.
+// reservedIgnored reports whether OpenAPI minor gives allowReserved no effect
+// at in, serialized in style, and names that place for the message. Before 3.2
+// it applies to in: query alone. 3.2 applies it wherever the value is
+// percent-encoded, which leaves out a header, and a cookie in style cookie, the
+// one place a style decides.
 //
-// It applies at in: querystring as far as this rule goes: 3.2 forbids it
-// there, which the lowering reports as diag.InvalidLocationKeyword (GitHub
-// #885), so one keyword draws one warning. An in OpenAPI does not define is
-// the parser's to refuse.
-func reservedApplies(minor string, in soa.ParameterIn, style soa.SerializationStyle) bool {
-	switch in {
-	case soa.ParameterInPath:
-		return !before(minor, "3.2")
-	case soa.ParameterInHeader:
-		return false
-	case soa.ParameterInCookie:
-		return !before(minor, "3.2") && style != serializationStyleCookie
+// A querystring is outside this rule: 3.2 forbids the keyword there, which the
+// lowering reports as diag.InvalidLocationKeyword (GitHub #885), so one keyword
+// draws one warning. An in or style OpenAPI does not define is the parser's to
+// refuse.
+func reservedIgnored(minor string, in soa.ParameterIn, style soa.SerializationStyle) (string, bool) {
+	before32 := before(minor, "3.2")
+	switch {
+	case in == soa.ParameterInHeader, before32 && (in == soa.ParameterInPath || in == soa.ParameterInCookie):
+		return "in=" + string(in), true
+	case in == soa.ParameterInCookie && style == serializationStyleCookie:
+		return "in=cookie with style=cookie", true
 	default:
-		return true
+		return "", false
 	}
 }
 
@@ -130,15 +130,6 @@ func reservedApplies(minor string, in soa.ParameterIn, style soa.SerializationSt
 // without percent-encoding it. The parser names no constant for it (GitHub
 // #389).
 const serializationStyleCookie soa.SerializationStyle = "cookie"
-
-// reservedPlace names where a reported allowReserved is written: its in, with
-// the style where that, not the in, leaves the keyword without effect.
-func reservedPlace(minor string, in soa.ParameterIn, style soa.SerializationStyle) string {
-	if !before(minor, "3.2") && in == soa.ParameterInCookie && style == serializationStyleCookie {
-		return "in=cookie with style=cookie"
-	}
-	return "in=" + string(in)
-}
 
 // reservedScope says where OpenAPI minor applies allowReserved.
 func reservedScope(minor string) string {

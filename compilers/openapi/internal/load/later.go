@@ -138,7 +138,7 @@ func versionCheck(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.Wa
 		if d, found := reservedFinding(at, site, model, minor); found {
 			out.diags = append(out.diags, d)
 		}
-		out.later(at, site, model, view, pending, declared)
+		out.addLater(at, site, model, view, pending, declared)
 		return nil
 	})
 	if err != nil {
@@ -147,9 +147,9 @@ func versionCheck(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.Wa
 	return out
 }
 
-// later records each of pending, the constructs a minor later than the
+// addLater adds each of pending, the constructs a minor later than the
 // declared version added, that model writes at site, at the key writing it.
-func (r *versionReport) later(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, model rootNoder,
+func (r *versionReport) addLater(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, model rootNoder,
 	view *nodeview.View, pending []addition, declared string,
 ) {
 	if len(pending) == 0 {

@@ -103,8 +103,10 @@ func locatedWalk(items iter.Seq[soa.WalkItem], pointer jsontext.Pointer) iter.Se
 
 // locationOf returns the walk location that renders as pointer. The first token
 // is a field and each later one a key, because a location renders its first
-// field without a separator and every key with one; a use site's first token
-// is never empty, since it names a field of the OpenAPI Object.
+// field without a separator and every key with one. The first token is never
+// empty, which a field would drop: a use site's names a field of the OpenAPI
+// Object, and a reached object's a top-level key, which the resolver never
+// reads as empty (speakeasy openapi v1.25.5 takes "#/" for the document).
 func locationOf(pointer jsontext.Pointer) soa.Locations {
 	var loc soa.Locations
 	for token := range pointer.Tokens() {
