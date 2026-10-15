@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -1010,4 +1012,414 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
+}
+
+// inTreeFixture holds each shape of node whose pointer InTree answers: keys that
+// need escaping, a sequence, an anchor with an alias to it, and a `<<` merge
+// spelled inline and through an alias.
+const inTreeFixture = `plain: 1
+a/b: 2
+c~d: 3
+~1: 4
+a~/b: 5
+seq:
+  - first
+  - k: v
+anchored: &base
+  p: 1
+copy: *base
+merged:
+  <<: {m: 1}
+  own: 2
+aliased:
+  <<: *base
+  own: 3
+named: &nm renamed
+*nm : 6
+!!merge tagged: 7
+`
+
+// decodeTree decodes inTreeFixture afresh into the document node a parse gives
+// the compiler, so no case shares nodes with another.
+func decodeTree(t *testing.T) *yaml.Node {
+	t.Helper()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(inTreeFixture), &doc), "the fixture must decode")
+	return &doc
+}
+
+// memberOf returns the key and value nodes of the member of mapping m named
+// key, read straight off Content so the lookup shares nothing with InTree.
+func memberOf(t *testing.T, m *yaml.Node, key string) (k, v *yaml.Node) {
+	t.Helper()
+	require.Equal(t, yaml.MappingNode, m.Kind, "looking up %q in a non-mapping", key)
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i], m.Content[i+1]
+		}
+	}
+	require.Failf(t, "no such member", "%q", key)
+	return nil, nil
+}
+
+// valueAt follows path from doc's content: a key into a mapping, a decimal
+// index into a sequence. It does not follow an alias.
+func valueAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
+	t.Helper()
+	n := doc.Content[0]
+	for _, step := range path {
+		if n.Kind == yaml.SequenceNode {
+			i, err := strconv.Atoi(step)
+			require.NoError(t, err)
+			n = n.Content[i]
+			continue
+		}
+		_, n = memberOf(t, n, step)
+	}
+	return n
+}
+
+// keyAt is valueAt for the key of the last member on path.
+func keyAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
+	t.Helper()
+	k, _ := memberOf(t, valueAt(t, doc, path[:len(path)-1]...), path[len(path)-1])
+	return k
+}
+
+// TestInTree_PointsAtEachKindOfNode pins the pointer a finding on each kind of
+// node carries, whether the tree is rooted at its document node or at the
+// content: a key shares its member's pointer, a sequence item is its index,
+// tokens are RFC 6901-escaped, an alias is a leaf indexed where it is written
+// while its target keeps the anchor's pointer, and nothing under a `<<` merge
+// key has one. A pair is keyed as the parser keys it: an alias key by the
+// scalar it names, a !!merge-tagged key other than `<<` as written. Every row
+// keeps its position.
+func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		node    func(t *testing.T, doc *yaml.Node) *yaml.Node
+		pointer jsontext.Pointer
+	}{
+		"the document node": {func(_ *testing.T, doc *yaml.Node) *yaml.Node { return doc }, ""},
+		"the document's content": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc)
+		}, ""},
+		"a mapping value": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "plain")
+		}, "/plain"},
+		"a mapping key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "plain")
+		}, "/plain"},
+		"a key holding a slash": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "a/b")
+		}, "/a~1b"},
+		"a key holding a tilde": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "c~d")
+		}, "/c~0d"},
+		"a key spelling an escape": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "~1")
+		}, "/~01"},
+		"a key holding a tilde and a slash": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "a~/b")
+		}, "/a~0~1b"},
+		"a sequence item": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "seq", "0")
+		}, "/seq/0"},
+		"a mapping in a sequence": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "seq", "1")
+		}, "/seq/1"},
+		"a value in a mapping in a sequence": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "seq", "1", "k")
+		}, "/seq/1/k"},
+		"a key in a mapping in a sequence": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "seq", "1", "k")
+		}, "/seq/1/k"},
+		"an anchored mapping": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "anchored")
+		}, "/anchored"},
+		"an alias is indexed where it is written": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "copy")
+		}, "/copy"},
+		"an alias's target is indexed at its anchor": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "copy").Alias
+		}, "/anchored"},
+		"a member of an anchor": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "anchored", "p")
+		}, "/anchored/p"},
+		"a mapping holding a merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "merged")
+		}, "/merged"},
+		"the merge key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "merged", "<<")
+		}, ""},
+		"the mapping a merge key holds": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "merged", "<<")
+		}, ""},
+		"a value under a merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "merged", "<<", "m")
+		}, ""},
+		"a key under a merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "merged", "<<", "m")
+		}, ""},
+		"a member beside a merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "merged", "own")
+		}, "/merged/own"},
+		"an alias a merge key holds": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "aliased", "<<")
+		}, ""},
+		"a member beside an aliased merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "aliased", "own")
+		}, "/aliased/own"},
+		"a value under an alias key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "nm")
+		}, "/renamed"},
+		"an alias key": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return keyAt(t, doc, "nm")
+		}, "/renamed"},
+		"a value under a key tagged !!merge": {func(t *testing.T, doc *yaml.Node) *yaml.Node {
+			return valueAt(t, doc, "tagged")
+		}, "/tagged"},
+	}
+	for name, tt := range tests {
+		for rooted, root := range map[string]func(*yaml.Node) *yaml.Node{
+			"at the document": func(doc *yaml.Node) *yaml.Node { return doc },
+			"at its content":  func(doc *yaml.Node) *yaml.Node { return doc.Content[0] },
+		} {
+			t.Run(name+", "+rooted, func(t *testing.T) {
+				t.Parallel()
+				doc := decodeTree(t)
+				node := tt.node(t, doc)
+				want := ir.Provenance{
+					Source:   3,
+					Pointer:  tt.pointer,
+					Position: ir.Position{Line: node.Line, Column: node.Column},
+				}
+
+				got := InTree(3, Pointers(root(doc)))(node)
+
+				assert.Empty(t, cmp.Diff(want, got))
+				assert.NotZero(t, got.Position, "a parsed node has a position")
+			})
+		}
+	}
+}
+
+// TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone pins the answers that
+// are not a position in the tree: a node the tree does not hold, as one built
+// elsewhere or by hand, has its position and no pointer; no node names the
+// source alone; and no tree leaves the position alone. A node's identity, not
+// its value, decides whether the tree holds it.
+func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		root func(t *testing.T) *yaml.Node
+		node func(t *testing.T) *yaml.Node
+		want ir.Provenance
+	}{
+		"a node built by hand": {
+			root: decodeTree,
+			node: func(*testing.T) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Value: "1", Line: 5, Column: 6} },
+			want: ir.Provenance{Source: 3, Position: ir.Position{Line: 5, Column: 6}},
+		},
+		"an equal node of another tree": {
+			root: decodeTree,
+			node: func(t *testing.T) *yaml.Node { return valueAt(t, decodeTree(t), "plain") },
+			want: ir.Provenance{Source: 3, Position: ir.Position{Line: 1, Column: 8}},
+		},
+		"no node": {
+			root: decodeTree,
+			node: func(*testing.T) *yaml.Node { return nil },
+			want: ir.Provenance{Source: 3},
+		},
+		"no tree": {
+			root: func(*testing.T) *yaml.Node { return nil },
+			node: func(*testing.T) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Line: 2, Column: 3} },
+			want: ir.Provenance{Source: 3, Position: ir.Position{Line: 2, Column: 3}},
+		},
+		"no tree and no node": {
+			root: func(*testing.T) *yaml.Node { return nil },
+			node: func(*testing.T) *yaml.Node { return nil },
+			want: ir.Provenance{Source: 3},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := InTree(3, Pointers(tt.root(t)))(tt.node(t))
+
+			assert.Empty(t, cmp.Diff(tt.want, got))
+		})
+	}
+}
+
+// stepsWithin indexes root under a limit of exactly the nodes it holds,
+// requiring the walk to have indexed them all: one that entered a node twice
+// would spend the limit before it ran out of nodes, so it reports itself cut
+// short rather than walking on.
+func stepsWithin(t *testing.T, root *yaml.Node, nodes int) map[*yaml.Node]step {
+	t.Helper()
+	steps, complete := stepsIn(root, nodes)
+	require.True(t, complete, "the walk entered more than the tree's %d nodes", nodes)
+	return steps
+}
+
+// TestStepsIn_IndexesEachNodeOnce pins that the index holds every node of a
+// hand-built tree once, at the step that first reaches it, whatever the tree
+// shape: a node placed twice is indexed where it is first written, a ladder of
+// mappings each holding the next twice is walked once per rung, and a node
+// inside its own Content ends the walk. Entering a node twice would make the
+// shared node's step the later one, and spend the limit stepsWithin sets on
+// the cycle, which reports the walk cut short.
+func TestStepsIn_IndexesEachNodeOnce(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a node placed twice", func(t *testing.T) {
+		t.Parallel()
+		shared := ynode.Scalar("v")
+		first, second := ynode.Scalar("a"), ynode.Scalar("b")
+		root := ynode.Map(first, shared, second, shared)
+
+		steps := stepsWithin(t, root, 4)
+
+		assert.Equal(t, jsontext.Pointer("/a"), pointerOf(steps, shared), "indexed where it is first written")
+		for name, n := range map[string]*yaml.Node{"the root": root, "a key": first, "the other key": second} {
+			_, indexed := steps[n]
+			assert.True(t, indexed, name)
+		}
+		assert.Len(t, steps, 4, "the root, two keys and the shared value")
+	})
+
+	t.Run("a ladder of nodes each placed twice", func(t *testing.T) {
+		t.Parallel()
+		const rungs = 20
+		leaf := ynode.Scalar("leaf")
+		rung := leaf
+		for range rungs {
+			rung = ynode.Map(ynode.Scalar("a"), rung, ynode.Scalar("b"), rung)
+		}
+
+		steps := stepsWithin(t, rung, 1+3*rungs)
+
+		assert.Equal(t, jsontext.Pointer(strings.Repeat("/a", rungs)), pointerOf(steps, leaf))
+		assert.Len(t, steps, 1+3*rungs, "each rung is indexed once, with its two keys and the leaf")
+	})
+
+	t.Run("a mapping inside its own Content", func(t *testing.T) {
+		t.Parallel()
+		key := ynode.Scalar("self")
+		root := ynode.Map(key, nil)
+		root.Content[1] = root
+
+		steps := stepsWithin(t, root, 2)
+
+		assert.Equal(t, jsontext.Pointer(""), pointerOf(steps, root), "the root stays the root")
+		assert.Equal(t, jsontext.Pointer("/self"), pointerOf(steps, key))
+		assert.Len(t, steps, 2)
+	})
+
+	t.Run("a sequence inside its own Content", func(t *testing.T) {
+		t.Parallel()
+		item := ynode.Scalar("x")
+		root := ynode.Seq(item, nil)
+		root.Content[1] = root
+
+		steps := stepsWithin(t, root, 2)
+
+		assert.Equal(t, jsontext.Pointer("/0"), pointerOf(steps, item))
+		assert.Equal(t, jsontext.Pointer(""), pointerOf(steps, root))
+		assert.Len(t, steps, 2)
+	})
+}
+
+// TestStepsIn_StopsAtItsLimit pins the bound on the walk: past limit nodes it
+// enters no more, reports itself cut short, and leaves each node it did index
+// with its own pointer, so a node past the bound is located by position alone.
+// An empty document node holds nothing to walk, and is indexed whole.
+func TestStepsIn_StopsAtItsLimit(t *testing.T) {
+	t.Parallel()
+	first, second := ynode.Scalar("v1"), ynode.Scalar("v2")
+	root := ynode.Map(ynode.Scalar("a"), first, ynode.Scalar("b"), second)
+
+	steps, complete := stepsIn(root, 3)
+	assert.False(t, complete, "five nodes do not fit a limit of three")
+	assert.Len(t, steps, 3)
+	_, indexed := steps[second]
+	assert.False(t, indexed, "the walk enters nothing past its limit")
+	got := []jsontext.Pointer{pointerOf(steps, root), pointerOf(steps, second)}
+	assert.Equal(t, []jsontext.Pointer{"", ""}, got)
+
+	steps, complete = stepsIn(root, 5)
+	assert.True(t, complete, "five nodes fit a limit of five")
+	assert.Equal(t, jsontext.Pointer("/b"), pointerOf(steps, second))
+
+	empty := &yaml.Node{Kind: yaml.DocumentNode}
+	steps, complete = stepsIn(empty, 1)
+	assert.True(t, complete)
+	assert.Equal(t, map[*yaml.Node]step{empty: {}}, steps)
+	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
+		InTree(0, Pointers(empty))(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
+		"a node of no tree, asked of an empty document, is located by position alone")
+}
+
+// TestInTree_AllocatesInTheTreesSizeNotItsPointers pins the cost of locating a
+// node: one long key over many children allocates in proportion to the nodes,
+// not to the key once per node. It builds the locator, asks about one deep
+// node, and holds the bytes allocated to 32 MiB. The index holds a holder and
+// a token per node and the one pointer asked for spells the key once, while a
+// pointer stored per node spells it for every node beneath the key: a copy
+// per child alone is 256 MiB.
+//
+// It is not parallel: a parallel test would allocate during the measurement.
+func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
+	const (
+		keyLen   = 1 << 16
+		children = 4096
+		bound    = 32 << 20
+	)
+	require.Less(t, bound, children*keyLen, "the bound must be under what a stored pointer per value allocates")
+	longKey := strings.Repeat("k", keyLen)
+	var deep *yaml.Node
+	members := make([]*yaml.Node, 0, 2*children)
+	for i := range children {
+		deep = ynode.Scalar("v")
+		members = append(members, ynode.Scalar("c"+strconv.Itoa(i)), ynode.Map(ynode.Scalar("leaf"), deep))
+	}
+	root := ynode.Map(ynode.Scalar(longKey), ynode.Map(members...))
+	want := jsontext.Pointer("/" + longKey + "/c" + strconv.Itoa(children-1) + "/leaf")
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	locate := InTree(0, Pointers(root))
+	got := locate(deep)
+	runtime.ReadMemStats(&after)
+	runtime.KeepAlive(root)
+
+	assert.True(t, got.Pointer == want, "the pointer asked for is %d bytes, want %d", len(got.Pointer), len(want))
+	alloc := after.TotalAlloc - before.TotalAlloc
+	assert.Less(t, alloc, uint64(bound), "indexing the tree and asking for one pointer allocated %d bytes", alloc)
+}
+
+// TestPointers_SaysWhetherTheTreeHoldsTheNode pins the answer a caller other
+// than InTree reads: the node's pointer and that the tree holds it, the
+// document's own content included at "", and no pointer, held by nothing, for
+// a node another tree holds or for a nil node or root.
+func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
+	t.Parallel()
+	value := ynode.Scalar("v")
+	root := ynode.Map(ynode.Scalar("k"), value)
+	pointer := Pointers(root)
+
+	type answer struct {
+		pointer jsontext.Pointer
+		held    bool
+	}
+	ask := func(f func(*yaml.Node) (jsontext.Pointer, bool), n *yaml.Node) answer {
+		p, held := f(n)
+		return answer{p, held}
+	}
+	assert.Equal(t, answer{"/k", true}, ask(pointer, value))
+	assert.Equal(t, answer{"", true}, ask(pointer, root), "the root is held, at the whole document")
+	assert.Equal(t, answer{"", false}, ask(pointer, ynode.Scalar("v")), "an equal node of another tree is not")
+	assert.Equal(t, answer{"", false}, ask(pointer, nil))
+	assert.Equal(t, answer{"", false}, ask(Pointers(nil), value))
 }

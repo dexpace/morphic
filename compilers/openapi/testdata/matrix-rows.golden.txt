@@ -20,6 +20,7 @@ visibility	readOnly/writeOnly / visibility
 recursive-types	Recursive types
 maps	Maps / additionalProperties
 tuples	Tuples
+tuple-rest	Tuple elements past the positional ones
 literal-types	Literal types
 operation-grouping	Operations grouped by service/interface
 resource-hierarchy	Resource hierarchy (CRUDL)

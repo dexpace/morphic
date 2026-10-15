@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
@@ -76,8 +77,8 @@ func TestLoad_ValidationErrorsBecomeDiagnostics(t *testing.T) {
 // The fixture is the alias form, which the library reads as a repeat, and the
 // test first confirms the library does raise its finding for it. Without that,
 // a library that stopped raising it would leave this passing with nothing
-// dropped. TestLoad_DuplicateParameterStillReported is the control: without it,
-// this would pass just as well if findings dropped every finding.
+// dropped. TestLoad_UnownedRuleStillReported is the control: without it, this
+// would pass just as well if findings dropped every finding.
 func TestLoad_OperationIDUniquenessIsTheCompilers(t *testing.T) {
 	t.Parallel()
 	const aliasedOperationID = `openapi: 3.1.0
@@ -108,12 +109,13 @@ paths:
 		"the library's finding never reaches a diagnostic: %+v", diags)
 }
 
-// TestLoad_DuplicateParameterStillReported is the control for
-// TestLoad_OperationIDUniquenessIsTheCompilers: compilerOwned names one rule,
-// not every validation error the library raises inside an operation, so a
-// duplicated parameter, a defect the compiler has no rule of its own for, must
-// still surface.
-func TestLoad_DuplicateParameterStillReported(t *testing.T) {
+// TestLoad_ParameterUniquenessIsTheCompilers pins compilerOwned's second
+// member: the library's report of an inline repeat is dropped, and the
+// compiler's own (paramRepeats) is the one report, at the repeat. As for
+// operationIds, the test first confirms the library raises its finding for the
+// fixture, or a library that stopped would leave this passing with nothing
+// dropped.
+func TestLoad_ParameterUniquenessIsTheCompilers(t *testing.T) {
 	t.Parallel()
 	const duplicateParameter = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -125,10 +127,43 @@ paths:
         - {name: q, in: query, schema: {type: integer}}
       responses: {"200": {description: ok}}
 `
+	root, _, err := decodeStream([]byte(duplicateParameter))
+	require.NoError(t, err)
+	releaseAnchors(root)
+	_, valErrs, err := unmarshal(t.Context(), []byte(duplicateParameter), root)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(valErrs, func(e error) bool {
+		verr, ok := asValidationError(e)
+		return ok && verr.Rule == validation.RuleValidationOperationParameters
+	}), "the library raises its own finding for the fixture: %v", valErrs)
+
 	src := compilers.Source{Path: "spec.yaml", Data: []byte(duplicateParameter)}
 	_, diags, err := Load(t.Context(), 0, src, Options{})
 	require.NoError(t, err)
-	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+	assert.Zero(t, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationOperationParameters),
+		"the library's finding never reaches a diagnostic: %+v", diags)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.DuplicateParameter), "%+v", diags)
+}
+
+// TestLoad_UnownedRuleStillReported is the control for the two tests above:
+// compilerOwned names two rules, not every validation error the library raises
+// inside an operation, so a path parameter not marked required, a defect the
+// compiler has no rule of its own for, must still surface.
+func TestLoad_UnownedRuleStillReported(t *testing.T) {
+	t.Parallel()
+	const optionalPathParameter = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a/{id}:
+    get:
+      parameters:
+        - {name: id, in: path, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(optionalPathParameter)}
+	_, diags, err := Load(t.Context(), 0, src, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, countErrorsAt(diags, diag.Validation+"/"+validation.RuleValidationRequiredField),
 		"a rule the compiler does not own must still surface: %+v", diags)
 }
 
@@ -398,15 +433,66 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 	assert.Zero(t, visited, "a failed match ends the walk rather than skipping one item")
 }
 
-// TestMetaSchemaVersionArtifacts_OtherMinorsUntouched pins the gate: only 3.2
-// findings are reconciled, because the library defaults to the 3.1 meta-schema
-// and reconciling 3.0 changes what a 3.0 document reports rather than removing a
-// false positive.
-func TestMetaSchemaVersionArtifacts_OtherMinorsUntouched(t *testing.T) {
+// TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater pins the gate below
+// 3.2: what is taken over there is the refusal of a keyword versionCheck
+// reported, so with none reported nothing is reconciled and neither run is
+// made. With one reported, what is dropped is exactly that keyword's finding.
+func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseSpec(t, minimal31)
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.1"))
-	assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, "3.0"))
+	for _, version := range []string{"3.1.0", "3.0.3"} {
+		spec := strings.Replace(defaultMapping32Spec, "openapi: 3.2.0", "openapi: "+version, 1)
+		doc, _ := parseSpec(t, spec)
+		minor, ok := SupportedMinor(version)
+		require.True(t, ok)
+		assert.Nil(t, metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, minor, false))
+
+		dropped := metaSchemaVersionArtifacts(t.Context(), doc, Siblings{}, minor, true)
+		require.Len(t, dropped, 1, "the defaultMapping finding, and nothing else")
+		for site := range dropped {
+			assert.Equal(t, validation.RuleValidationInvalidSchema, site.rule)
+		}
+	}
+}
+
+// laterKeywordsSpec holds two schemas: B, whose discriminator names no
+// propertyName, which the 3.1 meta-schema requires and 3.2's does not, and A,
+// written after B so that what A adds moves none of B's findings. A's xml and
+// discriminator objects end with xml and disc.
+func laterKeywordsSpec(version, xml, disc string) string {
+	return "openapi: " + version + `
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    B:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator: {mapping: {a: '#/components/schemas/A'}}
+    A:
+      type: object
+      properties: {kind: {type: string}}
+      xml: {name: a` + xml + `}
+      discriminator: {propertyName: kind` + disc + `}
+`
+}
+
+// TestMetaSchemaVersionArtifacts_ALaterKeywordChangesNoOtherFinding pins what
+// the reconciliation below 3.2 takes over: the meta-schema's refusal of a 3.2
+// keyword, and nothing else the two meta-schemas disagree on. B's missing
+// propertyName is a finding of the declared version, which a 3.2 keyword
+// written in A must not drop.
+func TestMetaSchemaVersionArtifacts_ALaterKeywordChangesNoOtherFinding(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.1.0", "3.0.3"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			without := validationAt(t, laterKeywordsSpec(version, "", ""))
+			require.Len(t, without, 2, "the meta-schema's and the model's report of B's propertyName: %v", without)
+			assert.Equal(t, without, validationAt(t, laterKeywordsSpec(version, ", nodeType: element", "")))
+			assert.Equal(t, without, validationAt(t, laterKeywordsSpec(version, "",
+				", defaultMapping: '#/components/schemas/A'")))
+		})
+	}
 }
 
 // countErrorsAt counts the error-severity diagnostics carrying code. Severity is
@@ -485,5 +571,46 @@ func TestUnmarshal_ExpandsAliasesIntoTheModel(t *testing.T) {
 		assert.GreaterOrEqual(t, next, 4*prev,
 			"one more declared line at depth %d, at least four times the model", depth)
 		prev = next
+	}
+}
+
+// TestLoad_AFindingOnASourceNodeCarriesItsPointer pins that a finding on a node
+// of the source is placed at the node's JSON pointer as well as its position
+// (GitHub #803), the source it came from included. A node written under a
+// `<<` merge key keeps its position and has no pointer: the pairs it merges
+// are held at other pointers. A mapping that merely holds a merge keeps its own.
+func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
+	t.Parallel()
+	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
+	const (
+		required = "openapi/validation/validation-required-field"
+		allowed  = "openapi/validation/validation-allowed-values"
+		inline   = header + "paths:\n  /x:\n    get:\n      parameters:\n        - %s\n      responses: {\"200\": {description: ok}}\n"
+	)
+	for _, c := range []struct {
+		name, spec, marker, code string
+		pointer                  jsontext.Pointer
+	}{
+		{"a mapping", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s: {type: oauth2}\n",
+			"{type: oauth2}", required, "/components/securitySchemes/s"},
+		{"a value", fmt.Sprintf(inline, "{name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, "/paths/~1x/get/parameters/0/in"},
+		{"a value under a merge key", fmt.Sprintf(inline, "<<: {name: q, in: sideways, schema: {type: string}}"),
+			"sideways", allowed, ""},
+		{"a mapping holding a merge key", header + "paths: {}\ncomponents:\n  securitySchemes:\n    s:\n      <<: {type: oauth2}\n",
+			"<<: {type: oauth2}", required, "/components/securitySchemes/s"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			line, col := markerPosition(t, c.spec, c.marker)
+
+			_, diags, err := Load(t.Context(), 2, openapitest.SourceOf(c.spec), Options{})
+
+			require.NoError(t, err)
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, c.code, diags[0].Code)
+			assert.Empty(t, cmp.Diff(ir.Provenance{Source: 2, Pointer: c.pointer, Position: ir.Position{Line: line, Column: col}},
+				diags[0].Provenance))
+		})
 	}
 }

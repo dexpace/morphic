@@ -66,7 +66,7 @@ func TestEngine_RunResultSourcesOverTheCorpus(t *testing.T) {
 	for _, path := range corpusSpecFiles(t, "../testdata") {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
-			res, err := eng.Run(t.Context(), path, engine.RunOptions{SkipValidate: true})
+			res, err := eng.Run(t.Context(), path, engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
 			require.NoError(t, err)
 			require.NotNil(t, res)
 			assertSourcesInvariant(t, path, res)

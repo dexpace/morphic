@@ -18,6 +18,10 @@ import (
 // in the production API that no production caller reads.
 const MaxRefChain = maxRefChain
 
+// Found exposes the answer ObjectAt hands Scope.refuses, whose nil case no
+// resolution a test can build reaches.
+func Found[S any](obj *S) any { return found(obj) }
+
 // WholeModelAt exposes the reading ModelAt is held to, so the corpus test in
 // package resolve_test compares against the same one as this package's tests:
 // two copies could drift apart with every test still green.

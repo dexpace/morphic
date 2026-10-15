@@ -208,3 +208,78 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "invalid UTF-8")
 }
+
+// TestRead_NodeTypeIsReadFromTheRawXMLObject pins the one key this reader
+// takes off the raw node: the library's XML model has no field for the
+// `nodeType` OpenAPI 3.2 added, so a reader that consulted the model alone
+// would drop a declaration the document makes (GitHub #615). The census is
+// told the key was read, so it is not announced as undefined.
+func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+
+	require.NotNil(t, got.XML)
+	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
+	assert.Equal(t, "attribute", got.XML.NodeType)
+	assert.Empty(t, diags, "a key the dialect defines is not announced as undefined")
+}
+
+// TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers applyNodeType's first
+// branch. `nodeType` is written inside the xml object, so a schema declaring no
+// xml object has no position the key could sit at — and no hints to carry it.
+func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: string\n")
+
+	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+
+	assert.Nil(t, got.XML)
+	assert.Empty(t, diags)
+}
+
+// TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
+// on 3.2: one of the five node types the specification defines. Anything else is
+// kept verbatim under the xml object's scope with a warning, an attribute flag
+// the nodeType contradicts is kept the same way rather than overwritten, and a
+// nodeType merged in through `<<` keeps the census's report.
+func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		xml      string
+		nodeType string
+		kept     string // the Unmodeled key expected, "" for none
+		code     string // the diagnostic expected at the key, "" for none
+	}{
+		{"defined", "{nodeType: cdata}", "cdata", "", ""},
+		{"null", "{nodeType: ~}", "", "", ""},
+		{"null beside attribute", "{attribute: true, nodeType: ~}", "attribute", "", ""},
+		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
+		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
+			"openapi:xml/attribute", diag.DegradedConstruct},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "", "", diag.UnknownKeyUnreachable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
+			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+			require.NotNil(t, got.XML)
+			assert.Equal(t, tc.nodeType, got.XML.NodeType)
+			if tc.kept == "" {
+				assert.Empty(t, got.Unmodeled)
+			} else {
+				assert.Equal(t, ir.ReasonDegradedLowering, got.Unmodeled[tc.kept].Reason)
+			}
+			if tc.code == "" {
+				assert.Empty(t, diags)
+				return
+			}
+			require.Len(t, diags, 1, "got %v", diags)
+			assert.Equal(t, tc.code, diags[0].Code)
+		})
+	}
+}

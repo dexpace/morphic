@@ -14,6 +14,7 @@ package resolve
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -77,6 +78,100 @@ type Scope struct {
 	// target was built from. Answered from an index, it spares the scan of that
 	// mapping the library makes (GitHub #778); nil asks the library.
 	Holds func(raw *yaml.Node, token string) bool
+	// Reached records each position in the source a reference ObjectAt follows
+	// resolves to; nil records nothing.
+	Reached *Reached
+	// Beside returns the path item use site, and the key written beside its
+	// $ref, that a pointer in the source passes through (load.Siblings.Beside).
+	// The resolver reads such a pointer through the $ref, so a reference landing
+	// there is refused rather than interning what it found at the pointer the
+	// field written there is declared at (GitHub #824). Nil refuses none.
+	Beside func(jsontext.Pointer) (use jsontext.Pointer, key string, ok bool)
+	// Writes reports whether obj is the field written beside a path item $ref
+	// at a pointer, held or copied (load.Siblings.Writes): an answer ObjectAt
+	// takes although Beside names its pointer. Nil writes none.
+	Writes func(pointer jsontext.Pointer, obj any) bool
+}
+
+// refuses reports whether ObjectAt refuses answer, the object the resolver
+// found at pointer: one Beside names, unless Writes says it is the field
+// written there.
+func (s Scope) refuses(pointer jsontext.Pointer, answer any) bool {
+	return s.beside(pointer) && (s.Writes == nil || !s.Writes(pointer, answer))
+}
+
+// beside reports whether pointer is one Beside refuses.
+func (s Scope) beside(pointer jsontext.Pointer) bool {
+	if s.Beside == nil {
+		return false
+	}
+	_, _, ok := s.Beside(pointer)
+	return ok
+}
+
+// BesideWhy returns the reason a reference written at site, naming pointer,
+// reports when Beside refuses it, and "" for any other. A "#/$defs/..." pointer
+// names a definition read from where it is written, so it is refused when site
+// is in the fields beside a $ref; any other pointer when it lands there itself.
+func (s Scope) BesideWhy(site, pointer jsontext.Pointer) string {
+	if s.Beside == nil {
+		return ""
+	}
+	if defs.IsPointer(pointer) {
+		if use, key, ok := s.Beside(site); ok {
+			return ": " + DefsBesideReason(use, key)
+		}
+		return ""
+	}
+	if use, key, ok := s.Beside(pointer); ok {
+		return ": it reaches " + string(pointer) + "; " + BesideReason(use, key)
+	}
+	return ""
+}
+
+// BesideReason says why a reference reaching the fields beside the path item
+// $ref at use, under key, is left unresolved, in one phrasing for every report.
+func BesideReason(use jsontext.Pointer, key string) string {
+	return fmt.Sprintf("the path item $ref at %s has %q written beside it, and the resolver reads a pointer "+
+		"through that $ref into the item it names, not into the field written there, so the reference is left "+
+		"unresolved (GitHub #824)", use, key)
+}
+
+// DefsBesideReason is BesideReason for a "#/$defs/..." pointer written in the
+// fields beside the path item $ref at use, which names a definition there too.
+func DefsBesideReason(use jsontext.Pointer, key string) string {
+	return "it is written in the fields beside a path item $ref, as is any definition it can name; " +
+		BesideReason(use, key)
+}
+
+// Reached records the positions in the source a lowering resolved a reference
+// to, each hop of a chain included: the declarations the IR carries through
+// their uses rather than on a node of their own (GitHub #616).
+//
+// No lowering reads it. The compiler asks it once the last lowering has
+// returned, so what it holds cannot change a lowering's answer, and as a set it
+// cannot depend on the order lowerings ran in. That is why sharing it between
+// copies of a context is safe, as sharing a memo is.
+type Reached struct {
+	at map[jsontext.Pointer]bool
+}
+
+// NewReached returns an empty record.
+func NewReached() *Reached {
+	return &Reached{at: map[jsontext.Pointer]bool{}}
+}
+
+// Has reports whether a lowering resolved a reference to pointer. A nil record
+// has recorded nothing.
+func (r *Reached) Has(pointer jsontext.Pointer) bool {
+	return r != nil && r.at[pointer]
+}
+
+// note records pointer, unless r is nil.
+func (r *Reached) note(pointer jsontext.Pointer) {
+	if r != nil {
+		r.at[pointer] = true
+	}
 }
 
 // InSource returns s for reading what the source holds, which is never
@@ -279,11 +374,13 @@ func (s Scope) reader() *defs.Reader {
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
 // the document does not have (GitHub #557). ok is false for a reference into
-// another document and for a $defs pointer the rule finds nothing for.
+// another document, for a $defs pointer the rule finds nothing for, and for any
+// other pointer Beside refuses. A $defs pointer written beside a path item's
+// $ref is held unresolved by load, so no schema it could name reaches here.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(ref)); !held {
 		return "", false // left to the resolver, as load leaves it: see load.heldRefs
@@ -296,18 +393,18 @@ func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string
 // pointer it names, which for a "#/$defs/..." value is the definition read from
 // the discriminator d that holds it (defs.Reader.MappingTarget), as a $ref in
 // the same schema reads one (GitHub #557). ok is false for a value into another
-// document, for a $defs value the rule finds nothing for, and for no
-// discriminator.
+// document, for a $defs value the rule finds nothing for, for no discriminator,
+// and for a pointer Beside refuses.
 func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(value)
 	if !ok || !defs.IsPointer(pointer) {
-		return pointer, ok
+		return pointer, ok && !s.beside(pointer)
 	}
 	if _, held := defs.PointerOf(references.Reference(value)); !held {
 		return "", false
 	}
 	_, at, found := s.reader().MappingTarget(d, pointer)
-	return at, found
+	return at, found && !s.beside(at)
 }
 
 // DeclaredAt returns the schema declared at a same-document pointer, found the
@@ -420,14 +517,28 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 // as spelled, and an empty path names none.
 //
 // The working directory is read only to tell a relative path from an absolute
-// one, or one climbing out of it.
+// one, or from one not below it (filepath.IsLocal).
 func SameDocument(a, b string) bool {
-	return sameDocument(a, b, filepath.Abs)
+	return sameDocument(a, b, systemRules())
 }
 
-// sameDocument is SameDocument with the way to make a path absolute handed in,
-// so a test can count how often the working directory is read.
-func sameDocument(a, b string, abs func(string) (string, error)) bool {
+// pathRules is how the file system reads a path. A test hands in another
+// system's reading, so the Windows forms are checked on any host.
+type pathRules struct {
+	abs     func(path string) (string, error) // against the working directory
+	isAbs   func(path string) bool
+	isLocal func(path string) bool
+}
+
+// systemRules returns filepath's reading of a path on this system.
+func systemRules() pathRules {
+	return pathRules{abs: filepath.Abs, isAbs: filepath.IsAbs, isLocal: filepath.IsLocal}
+}
+
+// sameDocument is SameDocument with the file system's reading handed in, so a
+// test can count how often the working directory is read, and read paths as
+// another system does.
+func sameDocument(a, b string, rules pathRules) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -441,28 +552,25 @@ func sameDocument(a, b string, abs func(string) (string, error)) bool {
 	if a == b {
 		return true
 	}
-	if sameAnchor(a, b) {
+	if sameAnchor(a, b, rules) {
 		return false
 	}
-	absA, errA := abs(a)
-	absB, errB := abs(b)
+	absA, errA := rules.abs(a)
+	absB, errB := rules.abs(b)
 	return errA == nil && errB == nil && absA == absB
 }
 
 // sameAnchor reports whether two cleaned paths mean the same wherever the
 // working directory is, so that when they differ they name different files:
-// both absolute, or both relative and below it.
-func sameAnchor(a, b string) bool {
-	if filepath.IsAbs(a) != filepath.IsAbs(b) {
+// both absolute, or both below it. Below is filepath.IsLocal, which on Windows
+// also refuses a path rooted without a volume (\a\b), one naming a drive
+// (C:a\b) and a reserved name (NUL): none is absolute, and each is made so
+// before it is compared.
+func sameAnchor(a, b string, rules pathRules) bool {
+	if rules.isAbs(a) != rules.isAbs(b) {
 		return false
 	}
-	return filepath.IsAbs(a) || !climbs(a) && !climbs(b)
-}
-
-// climbs reports whether a cleaned relative path leaves the directory it is
-// relative to.
-func climbs(clean string) bool {
-	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	return rules.isAbs(a) || rules.isLocal(a) && rules.isLocal(b)
 }
 
 // IsURL reports whether location names a document by URL rather than as a

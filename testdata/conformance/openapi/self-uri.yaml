@@ -1,0 +1,4 @@
+openapi: 3.2.0
+info: {title: SelfURI, version: "1.0.0"}
+$self: https://example.com/api/openapi.yaml
+paths: {}

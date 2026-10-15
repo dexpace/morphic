@@ -74,8 +74,7 @@ func exitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	var ee *exitError
-	if errors.As(err, &ee) {
+	if ee, ok := errors.AsType[*exitError](err); ok {
 		return ee.code
 	}
 	return exitFailure
@@ -100,13 +99,11 @@ func reportError(w io.Writer, err error) {
 // when err is not a misuse. A refusal cobra made before any command was chosen
 // carries no path, and points at morphic itself.
 func usageHint(err error) string {
-	var ee *exitError
-	if errors.As(err, &ee) {
+	if _, ok := errors.AsType[*exitError](err); ok {
 		return ""
 	}
 	path := "morphic"
-	var ue *usageError
-	if errors.As(err, &ue) {
+	if ue, ok := errors.AsType[*usageError](err); ok {
 		path = ue.path
 	}
 	return fmt.Sprintf("Try %q for usage.", path+" --help")

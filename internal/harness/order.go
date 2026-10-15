@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -104,7 +104,7 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 		out = append(out, fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d",
 			d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

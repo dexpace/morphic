@@ -49,7 +49,7 @@ components:
 func TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2, "one held reference per schema")
 	for _, r := range refs {
 		assert.NotNil(t, r.target, "the rule finds each schema's own definition")
@@ -62,7 +62,7 @@ func TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 func TestHeldRefs_NoDefsPointerAnywhereCollectsNothing(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, minimal31)
-	assert.Nil(t, heldRefs(t.Context(), doc, defs.NewReader(doc)))
+	assert.Nil(t, heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)))
 }
 
 // deepDefsDoc is a component nested depth levels deep, with the "#/$defs/m"
@@ -91,7 +91,7 @@ func TestHeldRefs_ShareOneReader(t *testing.T) {
 	doc, _ := buildDoc(t, deepDefsDoc(depth))
 	rule := defs.NewReader(doc)
 
-	refs := heldRefs(t.Context(), doc, rule)
+	refs := heldRefs(t.Context(), doc, Siblings{}, rule)
 
 	require.Len(t, refs, depth)
 	for _, r := range refs {
@@ -108,7 +108,7 @@ func TestHeldRefs_ShareOneReader(t *testing.T) {
 func TestHeldRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	require.Len(t, heldRefs(t.Context(), doc, defs.NewReader(doc)), 2, "the model holds two such references")
+	require.Len(t, heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)), 2, "the model holds two such references")
 
 	stack := []*yaml.Node{doc.GetRootNode()}
 	for len(stack) > 0 {
@@ -119,7 +119,7 @@ func TestHeldRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 		}
 		stack = append(stack, n.Content...)
 	}
-	assert.Nil(t, heldRefs(t.Context(), doc, defs.NewReader(doc)), "a tree spelling none is not walked")
+	assert.Nil(t, heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)), "a tree spelling none is not walked")
 }
 
 // TestWithDefsHeld_HoldsDuringFAndRestoresAfter pins the hold-and-restore
@@ -128,7 +128,7 @@ func TestHeldRefs_ReadsTheTreeToDecideWhetherToWalk(t *testing.T) {
 func TestWithDefsHeld_HoldsDuringFAndRestoresAfter(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	var duringHold []*references.Reference
@@ -156,7 +156,7 @@ func TestWithDefsHeld_HoldsDuringFAndRestoresAfter(t *testing.T) {
 func TestWithDefsHeld_RestoresEvenWhenFPanics(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	func() {
@@ -178,7 +178,7 @@ func TestWithDefsHeld_RestoresEvenWhenFPanics(t *testing.T) {
 // external reader.
 func heldPass(t *testing.T, doc *soa.OpenAPI) *resolution {
 	t.Helper()
-	return newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, sourceDocument{path: "spec.yaml"}, Options{}, nil)
+	return newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, sourceDocument{path: "spec.yaml"}, Options{}, nil)
 }
 
 // TestResolveHeld_ResolvesToTheRulesTarget drives the success path end to end:
@@ -189,7 +189,7 @@ func heldPass(t *testing.T, doc *soa.OpenAPI) *resolution {
 func TestResolveHeld_ResolvesToTheRulesTarget(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 
 	pass := heldPass(t, doc)
@@ -229,7 +229,7 @@ components:
         p: {$ref: "#/$defs/n"}
 `
 	doc, _ := buildDoc(t, spec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 1)
 	require.Nil(t, refs[0].target, "no $defs exists anywhere for the rule to find")
 
@@ -284,7 +284,7 @@ components:
 func TestResolveHeld_ConcretePointerMismatchIsReportedAsWritten(t *testing.T) {
 	t.Parallel()
 	doc, _ := buildDoc(t, twoDefsSpec)
-	refs := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	refs := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, refs, 2)
 	refs[0].at = "/does/not/exist"
 
@@ -315,7 +315,7 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Empty(t, site, "stopped before reaching any reference")
 
-	held := heldRefs(t.Context(), doc, defs.NewReader(doc))
+	held := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, held, 2)
 	held[1].written = nil // resolving the second then dereferences nothing
 	site, err = pass.resolveHeld(held)

@@ -1,0 +1,272 @@
+{
+  "irVersion": "0.13.0",
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "TagsGrouping32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TagsGrouping32",
+        "canonical": "tags_grouping_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/tags/catalog",
+          "name": {
+            "source": "catalog",
+            "canonical": "catalog"
+          },
+          "docs": {
+            "description": "Everything the library holds"
+          },
+          "groups": [
+            {
+              "id": "g/tags/books",
+              "name": {
+                "source": "books",
+                "canonical": "books"
+              },
+              "docs": {
+                "description": "Book operations"
+              },
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1books/get",
+                  "name": {
+                    "source": "listBooks",
+                    "canonical": "list_books"
+                  },
+                  "docs": {},
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "tags": [
+                    "beta",
+                    "books"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/books",
+                        "sharedRoute": false,
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1books/get"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "g/tags/magazines",
+              "name": {
+                "source": "magazines",
+                "canonical": "magazines"
+              },
+              "docs": {},
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1magazines/get",
+                  "name": {
+                    "source": "listMagazines",
+                    "canonical": "list_magazines"
+                  },
+                  "docs": {},
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "tags": [
+                    "magazines"
+                  ],
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/magazines",
+                        "sharedRoute": false,
+                        "checksumRequired": false,
+                        "isWebhook": false
+                      }
+                    ]
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1magazines/get"
+                  }
+                }
+              ]
+            }
+          ],
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1catalog/get",
+              "name": {
+                "source": "showCatalog",
+                "canonical": "show_catalog"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "catalog"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/catalog",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1catalog/get"
+              }
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": [
+    {
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {}
+    }
+  ],
+  "tagDefs": [
+    {
+      "name": "books",
+      "docs": {
+        "description": "Book operations"
+      },
+      "parent": "catalog",
+      "kind": "nav"
+    },
+    {
+      "name": "catalog",
+      "docs": {
+        "description": "Everything the library holds"
+      },
+      "kind": "nav"
+    },
+    {
+      "name": "beta",
+      "docs": {},
+      "kind": "badge"
+    },
+    {
+      "name": "magazines",
+      "docs": {},
+      "parent": "catalog",
+      "kind": "nav"
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "tags-grouping-32.yaml",
+      "hash": "5eec6d006229fedb82970cd1b68e0d83f3f7d0b8d5b56e7ce51d5b83cde7836c"
+    }
+  ]
+}

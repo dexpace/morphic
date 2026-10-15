@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/dexpace/morphic/internal/harness"
 )
@@ -44,10 +45,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 // exitCode returns 1 when any result is not OutcomeOK, otherwise 0.
 func exitCode(results []harness.Result) int {
-	for _, r := range results {
-		if r.Outcome != harness.OutcomeOK {
-			return 1
-		}
+	if slices.ContainsFunc(results, func(r harness.Result) bool { return r.Outcome != harness.OutcomeOK }) {
+		return 1
 	}
 	return 0
 }

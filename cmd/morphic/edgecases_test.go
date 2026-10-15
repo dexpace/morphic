@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -402,9 +403,14 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 			want: "error openapi/bad spec.yaml:5: m\n",
 		},
 		{
-			name: "pointer and position together: the pointer wins",
+			name: "pointer and position together: the link leads and the pointer follows",
 			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5, Column: 1}},
-			want: "error openapi/bad spec.yaml#/paths/~1x: m\n",
+			want: "error openapi/bad spec.yaml:5:1 (#/paths/~1x): m\n",
+		},
+		{
+			name: "pointer and a line alone",
+			prov: ir.Provenance{Source: 0, Pointer: "/paths/~1x", Position: ir.Position{Line: 5}},
+			want: "error openapi/bad spec.yaml:5 (#/paths/~1x): m\n",
 		},
 		{
 			name: "a node beside a source: the file is printed, not the node",
@@ -425,6 +431,11 @@ func TestRenderDiagnostics_WithAndWithoutSourcePath(t *testing.T) {
 			name: "an unresolvable source with a pointer prints the pointer bare",
 			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x"},
 			want: "error openapi/bad /paths/~1x: m\n",
+		},
+		{
+			name: "an unresolvable source with both prints them bare",
+			prov: ir.Provenance{Source: 99, Pointer: "/paths/~1x", Position: ir.Position{Line: 9, Column: 7}},
+			want: "error openapi/bad 9:7 (#/paths/~1x): m\n",
 		},
 		{
 			name: "nothing at all prints no location",
@@ -863,4 +874,63 @@ func TestWriteParsed_ToStdoutWritesNothingForABadDocument(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "marshal ir document")
 	assert.Empty(t, stdout.String(), "a document that will not marshal must leave stdout empty")
+}
+
+// danglingDocCompiler lowers to a Document with a dangling type ref and no
+// compiler diagnostics, so the only thing that can report it is the validate
+// pass.
+type danglingDocCompiler struct{ nilDocCompiler }
+
+func (danglingDocCompiler) Compile(context.Context, []compilers.Source, compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	return &ir.Document{
+		Name:  "Dangling",
+		Types: ir.TypeRegistry{},
+		Services: []ir.Service{{
+			ID: "s/x",
+			Groups: []ir.OperationGroup{{
+				Operations: []ir.Operation{{
+					ID: "op/x",
+					Errors: []ir.ErrorCase{{
+						Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/missing"}}}},
+					}},
+				}},
+			}},
+		}},
+	}, nil, nil
+}
+
+// TestRun_PassFlagsSilenceTheValidatePass pins that --skip-validate and
+// --disable-pass validate each turn the pass off end to end, on both commands:
+// the document's dangling ref fails the run by default and goes unreported
+// under either flag.
+func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	newEngine = func() (*engine.Engine, error) { return engine.NewWith(danglingDocCompiler{}) }
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	commands := [][]string{
+		{"compile", spec, "-o", filepath.Join(t.TempDir(), "ir.json")},
+		{"validate", spec},
+	}
+	tests := []struct {
+		flags []string
+		want  int
+	}{
+		{nil, exitFindings},
+		{[]string{"--skip-validate"}, 0},
+		{[]string{"--disable-pass", "validate"}, 0},
+	}
+	for _, command := range commands {
+		for _, tt := range tests {
+			var stdout, stderr bytes.Buffer
+			args := slices.Concat(command, tt.flags)
+
+			code := run(args, &stdout, &stderr)
+
+			assert.Equal(t, tt.want, code, "%v: stderr %q", args, stderr.String())
+			assert.Equal(t, tt.want == exitFindings, strings.Contains(stderr.String(), "ir/dangling-type-ref"),
+				"%v: stderr %q", args, stderr.String())
+		}
+	}
 }

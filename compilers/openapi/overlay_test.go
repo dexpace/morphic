@@ -63,6 +63,121 @@ func compileWith(t *testing.T, opts openapi.Options) (*ir.Document, []ir.Diagnos
 	return doc, diags
 }
 
+// TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter pins the
+// duplicate-server-name rule against the tree the overlay produced rather than
+// the bytes on disk. Each repeat is reported at itself, naming the first
+// holder, and credited to the document that wrote that entry, as any finding at
+// a pointer is: the overlay for an entry it appended, the base for the ones it
+// wrote, though an overlay renaming an earlier entry joins them.
+func TestCompile_OverlayServerNameRepeatsAreCreditedToTheirWriter(t *testing.T) {
+	t.Parallel()
+	type report struct {
+		at, first string
+		source    int
+	}
+	tests := []struct {
+		name, base, patch string
+		want              []report
+		names             []string // each lowered server's declared name
+	}{
+		{
+			name: "the overlay appends an entry repeating the base's name",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://prod.example.com
+    name: prod
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - url: https://prod-mirror.example.com
+        name: prod
+`,
+			want:  []report{{at: "/servers/1/name", first: "/servers/0/name", source: 1}},
+			names: []string{"prod", "prod"},
+		},
+		{
+			name: "the overlay renames an entry ahead of a repeat the base writes",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+  - url: https://a.example.com
+    name: prod
+  - url: https://b.example.com
+    name: prod
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers[0]
+    update: {name: prod}
+`,
+			want: []report{
+				{at: "/servers/1/name", first: "/servers/0/name", source: 0},
+				{at: "/servers/2/name", first: "/servers/0/name", source: 0},
+			},
+			names: []string{"prod", "prod", "prod"},
+		},
+		{
+			name: "the overlay appends two entries sharing a name",
+			base: `openapi: 3.2.0
+info: {title: Pets, version: "1"}
+servers:
+  - url: https://dev.example.com
+    name: dev
+paths: {}
+`,
+			patch: `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $.servers
+    update:
+      - {url: https://a.example.com, name: prod}
+      - {url: https://b.example.com, name: prod}
+`,
+			want:  []report{{at: "/servers/2/name", first: "/servers/1/name", source: 1}},
+			names: []string{"dev", "prod", "prod"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(tc.base)}},
+				compilers.Options{FormatOptions: openapi.Options{
+					Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(tc.patch)},
+				}})
+			require.NoError(t, err)
+			require.NotNil(t, doc, "compile refused: %+v", diags)
+
+			var got []report
+			for _, d := range diags {
+				if d.Code != diag.DuplicateServerName {
+					continue
+				}
+				assert.Equal(t, ir.SeverityWarning, d.Severity)
+				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
+				first, _, _ = strings.Cut(first, ";")
+				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.Source})
+			}
+			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
+
+			names := make([]string, 0, len(doc.Servers))
+			for _, s := range doc.Servers {
+				names = append(names, s.Name.Source)
+			}
+			assert.Equal(t, tc.names, names, "every server lowered, each with the name the document wrote")
+		})
+	}
+}
+
 // propertyProvenance finds the named property of the named component schema and
 // returns the provenance the compiler stamped on it.
 func propertyProvenance(t *testing.T, doc *ir.Document, schema, property string) ir.Provenance {
@@ -141,6 +256,37 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	// declared entry, so an overlay index minted without the Sources entry to
 	// match is a dangling reference here rather than a plausible-looking one.
 	assert.Empty(t, irverify.Verify(doc), "the second source entry keeps the document valid")
+}
+
+// TestCompile_OverlaySetsTheSpecsSelfURI pins where a `$self` an overlay writes
+// is recorded: on the spec's entry, replacing the one the spec declared. An
+// overlay is not an OpenAPI document and declares no `$self` of its own, so its
+// entry records none.
+func TestCompile_OverlaySetsTheSpecsSelfURI(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+$self: https://example.com/declared.yaml
+info: {title: Pets, version: "1"}
+paths: {}
+`
+	const patch = `overlay: 1.0.0
+info: {title: Patch, version: "1"}
+actions:
+  - target: $
+    update:
+      $self: https://example.com/patched.yaml
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{
+			Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	require.Len(t, doc.Sources, 2, "the spec and the overlay applied to it")
+	assert.Equal(t, "https://example.com/patched.yaml", doc.Sources[0].SelfURI)
+	assert.Empty(t, doc.Sources[1].SelfURI)
 }
 
 // TestCompile_AnOverlaidDocumentRoundTripsAndIsDeterministic runs the two
@@ -643,11 +789,13 @@ actions:
 // what keeps the table below honest about which map an entry actually landed
 // on instead of merely one it could have.
 func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
-	entryType := reflect.TypeFor[ir.UnmodeledEntry]()
 	out := map[string]ir.UnmodeledEntry{}
 	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Type() == entryType && v.CanInterface() {
-			out[path] = v.Interface().(ir.UnmodeledEntry)
+		if !v.CanInterface() {
+			return true
+		}
+		if entry, ok := reflect.TypeAssert[ir.UnmodeledEntry](v); ok {
+			out[path] = entry
 		}
 		return true
 	})
@@ -856,10 +1004,10 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 // call paths provenanceSpec cannot reach. annotation.Constraints keeps a 3.0
 // exclusiveMinimum or exclusiveMaximum that has no bound beside it to modify,
 // which only a 3.0 document reads as a modifier: for a component schema
-// (schema.go schemaConstraints) and for a parameter's schema (params.go
-// fillParamSchema). And a oneOf that will not render is reported rather than
-// kept (schema.go preserveBranchSets), which is an error a clean fixture cannot
-// carry.
+// (schema.go hoistDeclarationHome) and for a parameter's schema (params.go
+// fillParamSchema), each through schema.ConstraintsOf. And a oneOf that will
+// not render is reported rather than kept (schema.go preserveBranchSets), which
+// is an error a clean fixture cannot carry.
 func TestCompile_OverlayIsCreditedWithAKeptModifierAndAnUnkeptBranchSet(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.0.3
@@ -906,7 +1054,7 @@ actions:
 	entries := unmodeledEntriesByPath(doc)
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
-		"a component schema's kept modifier (schema.go schemaConstraints)")
+		"a component schema's kept modifier (schema.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")

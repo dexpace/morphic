@@ -1,7 +1,7 @@
-// Package pass hosts Morphic's IR-to-IR passes: pure analyses and transforms
-// that consume an [ir.Document] and emit diagnostics. They import only the ir
-// package. A pass has no package-level mutable state and no I/O, and reports
-// spec-level problems as [ir.Diagnostic] values.
+// Package pass hosts Morphic's IR-to-IR passes, each a [Pass]: pure analyses
+// and transforms over an [ir.Document]. They import only the ir package. A pass
+// has no package-level mutable state and no I/O, and reports spec-level problems
+// as [ir.Diagnostic] values.
 //
 // # Diagnostic codes
 //

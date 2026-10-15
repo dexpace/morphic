@@ -31,11 +31,11 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*soa.OpenAPI, *resu
 	releaseAnchors(tree)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs)
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree))
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	reader.work.limit = limit
-	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, self, opts, &reader).run(doc)
+	_, diags := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader).run(doc)
 	return doc, reader.work, diags
 }
 
