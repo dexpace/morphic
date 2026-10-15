@@ -294,17 +294,17 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 }
 
 // validated returns the source's validation findings, with what the library
-// refuses of a construct a later minor added taken over (laterConstructs,
+// refuses of a construct a later minor added taken over (versionCheck,
 // ownAdditionalOperations), and the diagnostics they and that check report.
 func validated(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, locate scan.Locator, doc *soa.OpenAPI,
 	sibs Siblings, valErrs []error, minor string,
 ) ([]error, []ir.Diagnostic) {
-	later := laterConstructs(at, walkSource(ctx, doc, sibs), doc.OpenAPI)
-	if later.additionalOperations {
+	checked := versionCheck(at, walkSource(ctx, doc, sibs), doc.OpenAPI)
+	if checked.additionalOperations {
 		valErrs = ownAdditionalOperations(ctx, doc, sibs, walkSource(ctx, doc, sibs), valErrs)
 	}
-	diags := findings(ctx, locate, doc, sibs, valErrs, minor, later.inSchema)
-	return valErrs, append(diags, later.diags...)
+	diags := findings(ctx, locate, doc, sibs, valErrs, minor, checked.inSchema)
+	return valErrs, append(diags, checked.diags...)
 }
 
 // sourceChecks runs the rules the compiler checks over the resolved source:
@@ -323,7 +323,7 @@ func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, 
 // a numeric literal Morphic captures losslessly anyway, and a schema finding
 // raised only because the library checked against the wrong meta-schema — and
 // the findings of a rule the compiler checks itself. later says whether
-// laterConstructs reported a construct inside a schema (metaSchemaVersionArtifacts).
+// versionCheck reported a construct inside a schema (metaSchemaVersionArtifacts).
 func findings(ctx context.Context, locate scan.Locator, doc *soa.OpenAPI, sibs Siblings, valErrs []error, minor string,
 	later bool,
 ) []ir.Diagnostic {
@@ -555,7 +555,7 @@ const metaSchemaReconciledMinor = "3.2"
 // so every schema is checked against the 3.1 meta-schema. Validating every
 // schema twice, at 3.2 and as the library does, isolates where the two
 // disagree, each a false finding in a 3.2 document. In an older one, where
-// later says laterConstructs reported a keyword 3.2 added, only the refusal of
+// later says versionCheck reported a keyword 3.2 added, only the refusal of
 // a keyword is taken over: a propertyName 3.2 stopped requiring is a missing
 // field, and binds the declared version.
 func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, minor string, later bool,

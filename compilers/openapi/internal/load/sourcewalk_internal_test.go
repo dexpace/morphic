@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	typed "github.com/dexpace/morphic/internal/decls"
 )
@@ -87,9 +89,9 @@ func callsObject(pkg *typed.Package, fun ast.Expr, obj types.Object) bool {
 	return pkg.Info.Uses[ident] == obj
 }
 
-// TestLocationOf_RendersThePointer pins the round trip a sibling walk relies on
-// for every site it reports: the location rendered back is the pointer, escapes
-// and empty tokens included.
+// TestLocationOf_RendersThePointer pins the round trip a located walk relies
+// on for every site it reports: the location rendered back is the pointer,
+// escapes and empty tokens past the first included.
 func TestLocationOf_RendersThePointer(t *testing.T) {
 	t.Parallel()
 	for _, p := range []jsontext.Pointer{
@@ -97,9 +99,82 @@ func TestLocationOf_RendersThePointer(t *testing.T) {
 		"/paths/~1a~0b/put/callbacks/cb/{$request.body#~1url}",
 		"/paths//get",
 		"/webhooks/hook",
+		"/x-a~1b~0c/X",
 	} {
 		assert.Equal(t, string(p), string(locationOf(p).ToJSONPointer()))
 	}
+}
+
+// TestLocationOf_NoReachedObjectHasAnEmptyFirstToken pins the premise that
+// lets locationOf render a reached object: the resolver takes "#/" for the
+// document, not for a top-level key "", so no $ref reaches an object whose
+// pointer starts with an empty token, which a located walk would render one
+// segment short. Were it to, this parameter would be judged at
+// "/allowReserved" rather than "//allowReserved".
+func TestLocationOf_NoReachedObjectHasAnEmptyFirstToken(t *testing.T) {
+	t.Parallel()
+	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - $ref: '#/'
+      responses: {"200": {description: ok}}
+"": {name: h, in: header, allowReserved: true, schema: {type: string}}
+`)}, Options{})
+	require.NoError(t, err)
+	unresolved := false
+	for _, d := range diags {
+		unresolved = unresolved || d.Code == diag.UnresolvedRef && d.Provenance.Pointer == "/paths/~1a/get/parameters/0"
+	}
+	assert.True(t, unresolved, "the $ref reaches the document, which is no parameter")
+	assert.Empty(t, reservedIn(t, diags))
+}
+
+// locatedSpec writes a path item whose walk meets a map key first, its method.
+const locatedSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`
+
+// TestLocatedWalk_PlacesAWalkUnderItsObject pins what a walk started at an
+// object other than the document renders once located: the object itself at
+// the pointer, and what it holds beneath it, its method included, where alone
+// the walk renders "//get".
+func TestLocatedWalk_PlacesAWalkUnderItsObject(t *testing.T) {
+	t.Parallel()
+	item := modelOf(t, locatedSpec).Paths.GetOrZero("/a").GetObject()
+	var sites []string
+	for wi := range locatedWalk(reachedWalk(t.Context(), item), "/x-paths/X") {
+		sites = append(sites, string(wi.Location.ToJSONPointer()))
+	}
+	require.NotEmpty(t, sites)
+	assert.Equal(t, "/x-paths/X", sites[0])
+	assert.Contains(t, sites, "/x-paths/X/get")
+	assert.Contains(t, sites, "/x-paths/X/get/parameters/0")
+	for _, site := range sites {
+		assert.True(t, strings.HasPrefix(site, "/x-paths/X"), site)
+		assert.NotContains(t, site, "//", site)
+	}
+}
+
+// TestLocatedWalk_StopsWhenTheReaderDoes pins that a reader leaving early ends
+// the walk: a range loop handed another item after it broke panics.
+func TestLocatedWalk_StopsWhenTheReaderDoes(t *testing.T) {
+	t.Parallel()
+	item := modelOf(t, locatedSpec).Paths.GetOrZero("/a").GetObject()
+	read := 0
+	for range locatedWalk(reachedWalk(t.Context(), item), "/x-paths/X") {
+		read++
+		break
+	}
+	assert.Equal(t, 1, read)
 }
 
 // TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem pins the order every

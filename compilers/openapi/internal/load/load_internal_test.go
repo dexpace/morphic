@@ -434,7 +434,7 @@ func TestMatchSchemas_StopsOnMatchError(t *testing.T) {
 }
 
 // TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater pins the gate below
-// 3.2: what is taken over there is the refusal of a keyword laterConstructs
+// 3.2: what is taken over there is the refusal of a keyword versionCheck
 // reported, so with none reported nothing is reconciled and neither run is
 // made. With one reported, what is dropped is exactly that keyword's finding.
 func TestMetaSchemaVersionArtifacts_OlderMinorsOnlyWhenLater(t *testing.T) {
