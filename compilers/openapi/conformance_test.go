@@ -1237,10 +1237,9 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, sc.Constraints.MinLength)
 	assert.Equal(t, int64(4), *sc.Constraints.MinLength)
 
-	// format: password is a redaction request about a use of the value, so it
-	// lands on the property rather than on the shared encoding node, and names
-	// no shape: the property's type is the bare string's (secret-format covers
-	// every other position).
+	// format: password asks for the value to be redacted and names no shape, so
+	// a property whose schema owns no node holds it, and its type is the bare
+	// string's (secret-format covers every other position).
 	token, ok := propByWire(h, "token")
 	require.True(t, ok)
 	assert.True(t, token.Secret)
@@ -1278,8 +1277,8 @@ func assertSecretFormat(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertSecretNodes(t, doc)
 	assertSecretOperation(t, doc, diags)
 
-	// The guard: a bare string keeps the shared primitive, which no
-	// declaration's redaction may reach (invariant 3).
+	// The guard: a bare string keeps the shared primitive, and a shared node
+	// never carries one declaration's annotations (GitHub #116).
 	plain, ok := propByWire(secretModel(t, doc, "Login"), "plain")
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), plain.Type.Target)
@@ -1308,7 +1307,8 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 		assert.True(t, p.Secret, "%s: the property is the carrier", tc.wire)
 		assert.Equal(t, tc.target, p.Type.Target, "%s: the redaction names no shape", tc.wire)
 	}
-	inline, _ := propByWire(login, "inline")
+	inline, ok := propByWire(login, "inline")
+	require.True(t, ok)
 	assert.Equal(t, "shown on the property", inline.Docs.Description, "no node takes the docs away")
 
 	// A wrapper's own schema writes no redaction; its type reaches the node
@@ -1424,8 +1424,8 @@ func requireSensitive(t *testing.T, doc *ir.Document, id ir.TypeID, position str
 	return node
 }
 
-// requireSensitiveAlias requires the node at id to be the Sensitive alias a
-// redaction hoists where the shape alone owns no node: a Scalar over base,
+// requireSensitiveAlias requires the node at id to be a Sensitive alias: the
+// Scalar over base a position owns where its shape alone is that shared base,
 // with no encoding, since a redaction is none.
 func requireSensitiveAlias(t *testing.T, doc *ir.Document, id, base ir.TypeID, position string) *ir.Scalar {
 	t.Helper()

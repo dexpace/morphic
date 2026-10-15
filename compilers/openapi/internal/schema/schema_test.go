@@ -5362,9 +5362,9 @@ func TestCoDeclaredBound_ASingleKeywordKeepsNothing(t *testing.T) {
 // TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns pins that
 // `format: password` is an annotation rather than a shape: the position lowers
 // as it would without it, and the node it owns, of any kind, is Sensitive. A
-// position whose shape is the shared primitive owns an alias over it instead,
-// with no Encoding, since a redaction names none. Nothing is reported: the
-// format reached its field everywhere (GitHub #579).
+// component whose shape is a shared primitive owns an alias over it, as every
+// component does, with no Encoding, since a redaction names none. Nothing is
+// reported: the format reached its field everywhere (GitHub #579).
 func TestRedactionFormat_SensitiveOnWhateverNodeThePositionOwns(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -5449,7 +5449,9 @@ func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 
 	choice := propertyOf(t, doc, "Holder", "choice")
 	assert.False(t, choice.Secret, "the enum node holds it")
-	assert.True(t, doc.Types[choice.Type.Target].Common().Sensitive)
+	node, ok := doc.Types[choice.Type.Target]
+	require.True(t, ok)
+	assert.True(t, node.Common().Sensitive)
 }
 
 // TestFillPropertyDetail_SecretFollowsTheReferent pins both sides of the $ref
@@ -5471,9 +5473,10 @@ func TestFillPropertyDetail_SecretFollowsTheReferent(t *testing.T) {
 		"a $ref to a plain component stays not secret")
 }
 
-// TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins invariant 3: the
-// fact lands on the position's own node and never on t/prim/string, which every
-// other plain string declaration resolves to.
+// TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins that the fact lands
+// on the position's own node and never on t/prim/string, which every other
+// plain string declaration resolves to: a shared node never carries one
+// declaration's annotations (GitHub #116).
 func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(

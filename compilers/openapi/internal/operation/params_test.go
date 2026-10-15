@@ -770,16 +770,20 @@ func TestParams_SchemaRedactionKeptUnderUnmodeled(t *testing.T) {
 }
 
 // TestParams_SchemaRedactionStaysOnANode is the other half: a parameter whose
-// type is a Sensitive node, its own or a referent's, keeps no second copy.
+// type is a Sensitive node, its own or a referent's, keeps no second copy, and
+// one writing a format that names a shape keeps nothing.
 func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
 	t.Parallel()
 	doc, svc, diags := lowerServiceSpec(t, paramRedactionSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
-	assert.NotContains(t, params["id"].Unmodeled, "openapi:format", "a format naming a shape is no redaction")
+	id, ok := params["id"]
+	require.True(t, ok)
+	assert.NotContains(t, id.Unmodeled, "openapi:format", "a format naming a shape is no redaction")
 	for _, name := range []string{"ref", "pick"} {
-		p := params[name]
+		p, ok := params[name]
+		require.True(t, ok, name)
 		node, ok := doc.Types[p.Type.Target]
 		require.True(t, ok, "%s: its type is a node", name)
 		assert.True(t, node.Common().Sensitive, "%s: the node holds the redaction", name)
