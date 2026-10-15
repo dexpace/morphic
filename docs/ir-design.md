@@ -262,7 +262,8 @@ it sees. Changes made together in one bump are listed together under it.
   - `MapT.Key` became a pointer, nil for string keys as `AdditionalProps.Key` is, and `MapT` gained
     `Constraints`, the bound on how many entries an instance may carry. A consumer pinned to 0.13.0
     decodes a map with no `key` to a reference naming no type, and reads no entry bound. A nil key
-    is the one spelling of a string key on either: one naming the `string` primitive is rejected.
+    is the one spelling of a string key on either, and `irverify` rejects one naming the `string`
+    primitive.
   - `additionalProperties: true` became a catch-all typed by the top type, as `{}` already was,
     where it had lowered to nothing, like an absent keyword. A consumer pinned to 0.13.0 reads a
     model writing `true` beside its properties as stating nothing about the rest.
@@ -934,10 +935,10 @@ holds every document to the same function (`ir/map-as-model`). The conversion ke
 and the model's `Constraints`, which on a map bound how many entries an instance may carry. What a
 map has no field for is kept the way any keyword without a home is: an OpenAPI `required` naming
 keys stays verbatim (§4.8), also where a discriminator's move makes the object a map after its
-census ran, and `propertyNames` stays the validation-only entry §4.7 makes it, since
-it constrains keys without being a key type. An `allOf` that leaves a map is the exception so far:
-the composition reads its `required` itself and reports each name it cannot attach without keeping
-it, as it does for a model (#896).
+census ran, and `propertyNames` stays the validation-only entry §4.7 makes it, since it constrains
+keys without being a key type. An `allOf` that leaves a map is the exception so far: the
+composition reads its `required` itself and reports each name it cannot attach without keeping it,
+as it does for a model (#896).
 
 **`true` writes a catch-all; an absent keyword does not.** In JSON Schema,
 `additionalProperties: true` is the empty schema, so it types the catch-all as the top type exactly

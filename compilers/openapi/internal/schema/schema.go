@@ -1378,8 +1378,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, anchors *Ancho
 //
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
-// beyond the declared ones are allowed. Only an absent keyword leaves the
-// openness unspecified.
+// beyond the declared ones are allowed. Only an absent keyword writes no
+// catch-all. Neither spelling touches Additional, which this sets only for
+// `false` and `unevaluatedProperties: false`.
 func fillAdditional(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer, hint string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
