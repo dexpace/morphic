@@ -145,12 +145,13 @@ func codes() []string {
 		diag.AliasAmplification, diag.BudgetExceeded,
 		diag.UnattachableRequired, diag.InternalInvariant,
 		diag.DuplicateOperationID, diag.ConflictingOperationID, diag.PathItemRefCollision,
-		diag.IncompleteSecurityScheme, diag.OAuth2NoFlow,
+		diag.IncompleteSecurityScheme, diag.OAuth2NoFlow, diag.EmptyRequestContent,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct,
+		diag.InvalidPathKey,
 	}
 }
 

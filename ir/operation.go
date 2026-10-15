@@ -117,7 +117,9 @@ type Parameter struct {
 // Payload is the body/message content of a request, response, or message
 // (ir-design §7.2). All media types are kept.
 type Payload struct {
-	// Contents holds one entry per media type / message schema — all kept.
+	// Contents holds one entry per media type / message schema — all kept. A
+	// request body declaring no media type, which OpenAPI's schemas admit, has
+	// none.
 	Contents []Content `json:"contents,omitempty"`
 	// Required states whether the message must be sent: true = the body is
 	// mandatory, false = it may be omitted. nil = the source format does not

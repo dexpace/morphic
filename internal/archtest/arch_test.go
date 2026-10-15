@@ -130,8 +130,9 @@ var rules = map[string][]string{
 	// reaches resolve to read which mapping values name a position in the source
 	// as the lowering will, and the library's pointer walk, directly and through
 	// navigation, to tell a hop that walked a document's bytes and to walk a
-	// document as it does. It reaches nothing that lowers — at this point there
-	// is no document to lower.
+	// document as it does, and the library's ordered map to validate a server
+	// again over copies of its variables. It reaches nothing that lowers — at
+	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
@@ -147,6 +148,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/references",
+		"github.com/speakeasy-api/openapi/sequencedmap",
 		"github.com/speakeasy-api/openapi/validation",
 		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and

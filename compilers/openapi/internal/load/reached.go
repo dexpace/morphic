@@ -231,9 +231,11 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 
 // check validates t's object and reports what it finds at t's site. Findings
 // are reconciled as the source's are (dropped, the wrong-meta-schema
-// artifacts, and a later version's constructs, see checkVersion), and one at a
-// node already reported is not reported again, as the source reports a finding
-// once however many references share its node.
+// artifacts, the REQUIRED-field rule's, and a later version's constructs, see
+// checkVersion), and one at a node already reported is not reported again, as
+// the source reports a finding once however many references share its node. A
+// panic finding the REQUIRED-field rule's artifacts is reported at t's site,
+// as checkAll reports one in validation.
 func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	site := at(t.site)
 	if d, over := v.charge(site, t.doc, t.node); over {
@@ -246,7 +248,8 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 		found = ownAdditionalOperations(ctx, v.doc, Siblings{}, reachedWalk(ctx, t.obj), found)
 	}
 	artifacts := v.artifacts(ctx, t.obj, checked.inSchema)
-	var diags []ir.Diagnostic
+	required := findRequiredArtifacts(ctx, found, reachedWalk(ctx, t.obj), v.version, v.opts).reportedAt(t.site)
+	diags := required.faults(at)
 	for _, d := range checked.diags {
 		if !v.warned[d] {
 			v.warned[d] = true
@@ -254,7 +257,8 @@ func (v *reached) check(ctx context.Context, at func(jsontext.Pointer) ir.Proven
 		}
 	}
 	for _, f := range found {
-		if verr, ok := asValidationError(f); ok && (dropped(verr) || artifacts[siteOf(verr)]) {
+		if verr, ok := asValidationError(f); ok &&
+			(dropped(verr) || artifacts[siteOf(verr)] || required.excuses(verr)) {
 			continue
 		}
 		if key := keyOf(f, t.site); !v.reported[key] {

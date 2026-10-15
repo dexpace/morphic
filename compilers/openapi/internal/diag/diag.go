@@ -306,6 +306,16 @@ const (
 	// what the document said, and refusing would drop the entry's text. A warning,
 	// like ReservedHeaderName, since the document lowers whole.
 	OAuth2NoFlow = "openapi/oauth2-no-flow"
+	// EmptyRequestContent reports a request body whose content map is empty, at
+	// the map. Every minor's schema admits it, and OpenAPI 3.2 says the map
+	// SHOULD hold an entry, leaving a body with none implementation-defined
+	// (GitHub #622). The body lowers to a Payload with no Contents, keeping
+	// whether it must be sent, its description and its x-*. A content the
+	// parser finds missing is the parser's to report.
+	//
+	// A warning, as OAuth2NoFlow is: the document lowers whole, but states no
+	// way to send the body.
+	EmptyRequestContent = "openapi/empty-request-content"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//
@@ -416,6 +426,17 @@ const (
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.
 	LaterVersionConstruct = "openapi/later-version-construct"
+	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
+	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
+	// "/", a character a path admits only percent-encoded, a brace outside a
+	// template expression, an expression used twice, an empty segment, or a
+	// query. One warning per key names each, at the key's path item.
+	//
+	// Warning, as InvalidStatusKey is: the key is used as written, and an error
+	// would stop harness.Check before later findings. A "#" fragment is GitHub
+	// #602's to report, so nothing from it on is read, and matching the
+	// expressions to path parameters is #640's.
+	InvalidPathKey = "openapi/invalid-path-key"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

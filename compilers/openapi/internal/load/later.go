@@ -202,6 +202,13 @@ func before(declared, since string) bool {
 	return ok && slices.Index(supportedMinors, minor) < slices.Index(supportedMinors, since)
 }
 
+// atLeast reports whether declared is a version the compiler reads whose minor
+// is since or later, a minor in supportedMinors.
+func atLeast(declared, since string) bool {
+	minor, ok := SupportedMinor(declared)
+	return ok && slices.Index(supportedMinors, minor) >= slices.Index(supportedMinors, since)
+}
+
 // writtenAs reports whether val is a value the addition names: any value for an
 // added field, the one scalar for an added value.
 func (a addition) writtenAs(val *yaml.Node) bool {
