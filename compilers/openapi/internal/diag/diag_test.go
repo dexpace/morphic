@@ -149,7 +149,8 @@ func codes() []string {
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
-		diag.InvalidLocationKeyword, diag.MissingArrayItems, diag.LaterVersionConstruct,
+		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
+		diag.MissingArrayItems, diag.LaterVersionConstruct,
 	}
 }
 

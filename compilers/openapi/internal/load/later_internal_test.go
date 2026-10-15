@@ -65,7 +65,7 @@ var laterFixtureSites = map[addition]jsontext.Pointer{
 
 // cookieStyle is the one addition laterFixture does not write: the bundled
 // parser refuses it at every version (GitHub #389), and the corpus takes no
-// document with an error. TestLaterConstructs_TheCookieStyle covers it.
+// document with an error. TestVersionCheck_TheCookieStyle covers it.
 var cookieStyle = addition{parameterObject, "style", "cookie", "3.2"}
 
 // laterAt loads src and returns each openapi/later-version-construct it draws,
@@ -119,10 +119,10 @@ func TestAdditions_EachIsReportedBelowItsMinorOnly(t *testing.T) {
 	}
 }
 
-// TestLaterConstructs_TheCookieStyle covers the addition the fixture cannot
+// TestVersionCheck_TheCookieStyle covers the addition the fixture cannot
 // write: a cookie style is reported below 3.2 beside the parser's own refusal
 // of it, which stands at every version (GitHub #389).
-func TestLaterConstructs_TheCookieStyle(t *testing.T) {
+func TestVersionCheck_TheCookieStyle(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1c/get/parameters/0/style"
 	for _, version := range []string{"3.1.0", "3.2.0"} {
@@ -143,11 +143,11 @@ paths:
 	}
 }
 
-// TestLaterConstructs_AValueIsMatchedAsTheParserReadsIt pins a value addition to
+// TestVersionCheck_AValueIsMatchedAsTheParserReadsIt pins a value addition to
 // the one value it names: another value of the field is not reported, and the
 // value is read through an alias or a `<<` merge as the parser reads it, so a
 // spelling the document writes elsewhere still counts.
-func TestLaterConstructs_AValueIsMatchedAsTheParserReadsIt(t *testing.T) {
+func TestVersionCheck_AValueIsMatchedAsTheParserReadsIt(t *testing.T) {
 	t.Parallel()
 	got := laterAt(t, `openapi: 3.0.3
 info: {title: T, version: "1"}
@@ -176,13 +176,13 @@ components:
 	}, slices.Sorted(maps.Keys(got)))
 }
 
-// TestLaterConstructs_AnObjectIsJudgedWhereItIsWritten pins the reach of the
+// TestVersionCheck_AnObjectIsJudgedWhereItIsWritten pins the reach of the
 // walk: an object is visited where it is written, so a component two
 // references reach is reported once, at the component, and a component nothing
 // references is reported all the same. A key beside a $ref belongs to the
 // Reference Object, not to the object it names, so it is not read as that
 // object's field: 3.1 gives a Reference Object a summary.
-func TestLaterConstructs_AnObjectIsJudgedWhereItIsWritten(t *testing.T) {
+func TestVersionCheck_AnObjectIsJudgedWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 	got := laterAt(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -255,13 +255,13 @@ components:
     Alias: {$ref: '#/components/securitySchemes/K', description: d}
 `
 
-// TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys pins the Reference
+// TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys pins the Reference
 // Object's summary and description, which 3.1 added: below 3.1 each is reported
 // at its own key at every position a Reference Object stands, though the
 // lowering folds it over the target's docs at every version (ir-design §12.2).
 // A Path Item's $ref is not a Reference Object, and a schema's is not judged
 // here (GitHub #871).
-func TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
+func TestVersionCheck_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	t.Parallel()
 	got := laterAt(t, "openapi: 3.0.3\n"+referenceSiblingsSpec)
 	assert.Equal(t, []jsontext.Pointer{
@@ -280,11 +280,11 @@ func TestLaterConstructs_AReferenceObjectIsJudgedOnItsOwnKeys(t *testing.T) {
 	assert.Empty(t, laterAt(t, "openapi: 3.1.0\n"+referenceSiblingsSpec))
 }
 
-// TestLaterConstructs_APathItemRefIsJudgedOnTheFieldsBesideIt pins a Path
+// TestVersionCheck_APathItemRefIsJudgedOnTheFieldsBesideIt pins a Path
 // Item's $ref: the keys written beside it are the Path Item's own fields, so a
 // later minor's is reported there, where it is written, whether or not
 // anything lowers it (GitHub #577), and one every minor defines is not.
-func TestLaterConstructs_APathItemRefIsJudgedOnTheFieldsBesideIt(t *testing.T) {
+func TestVersionCheck_APathItemRefIsJudgedOnTheFieldsBesideIt(t *testing.T) {
 	t.Parallel()
 	const spec = `info: {title: T, version: "1"}
 paths:
@@ -334,11 +334,11 @@ func TestOwnRoot_AModelWithNoReadableCoreHasNone(t *testing.T) {
 	assert.Nil(t, ownRoot(coredReference{core: 42}))
 }
 
-// TestLaterConstructs_ARefIsNotJudgedOnceResolved pins the $ref guard where it
+// TestVersionCheck_ARefIsNotJudgedOnceResolved pins the $ref guard where it
 // has work to do. Load asks before references resolve, when a $ref holds no
 // object; once resolved, a $ref's root node is its target's, and judging it
 // would report the target's keys again, at every $ref reaching them.
-func TestLaterConstructs_ARefIsNotJudgedOnceResolved(t *testing.T) {
+func TestVersionCheck_ARefIsNotJudgedOnceResolved(t *testing.T) {
 	t.Parallel()
 	loaded, _, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -354,23 +354,36 @@ components:
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
-	got := laterConstructs(at, soa.Walk(t.Context(), loaded.Doc), loaded.Doc.OpenAPI)
+	got := versionCheck(at, soa.Walk(t.Context(), loaded.Doc), loaded.Doc.OpenAPI)
 	require.Len(t, got.diags, 1)
 	assert.Equal(t, jsontext.Pointer("/components/responses/Ok/summary"), got.diags[0].Provenance.Pointer)
 }
 
-// TestLaterConstructs_AWalkThatPanicsIsReported pins the barrier around the
+// TestVersionCheck_AWalkThatPanicsIsReported pins the barrier around the
 // walk, as listRepeats has one: a panic is an error at the model reached.
-func TestLaterConstructs_AWalkThatPanicsIsReported(t *testing.T) {
+func TestVersionCheck_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
 	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
-	got := laterConstructs(at, panics, "3.1.0")
+	got := versionCheck(at, panics, "3.1.0")
 	require.Len(t, got.diags, 1)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)
 	assert.Equal(t, diag.Validation, got.diags[0].Code)
 	assert.Contains(t, got.diags[0].Message, "version check panicked: walk fault")
 	assert.False(t, got.inSchema)
+}
+
+// TestVersionCheck_AVersionNotReadIsHeldToNothing pins the guard Load makes
+// unreachable by refusing such a version first: no minor names a rule, so a
+// header's allowReserved, reported at every minor read, is not reported.
+func TestVersionCheck_AVersionNotReadIsHeldToNothing(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseSpec(t, reservedVersionSpec("3.1.0", "{name: h, in: header, allowReserved: true, schema: {type: string}}"))
+	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
+	for _, version := range []string{"3.1.0", "4.0.0", ""} {
+		got := versionCheck(at, soa.Walk(t.Context(), doc), version)
+		assert.Equal(t, version == "3.1.0", len(got.diags) == 1, version)
+	}
 }
 
 // TestAddedAfter_FollowsTheDeclaredMinor pins which rows a version is held to:
@@ -470,7 +483,7 @@ paths:
 `
 
 // validationAt loads src and returns the library findings it reports, as
-// "code line:column" lines, with what laterConstructs adds left out.
+// "code line:column" lines, with what versionCheck adds left out.
 func validationAt(t *testing.T, src string) []string {
 	t.Helper()
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, Options{})
@@ -543,12 +556,12 @@ func TestOwnAdditionalOperations_AWalkThatPanicsIsReported(t *testing.T) {
 	}))
 }
 
-// TestLaterConstructs_ReadsInsideTheFieldsBesideAPathItemRef pins that the
+// TestVersionCheck_ReadsInsideTheFieldsBesideAPathItemRef pins that the
 // check reads what the fields beside a Path Item's $ref hold, as it reads an
 // inline item's: a 3.2 itemSchema in an operation written there is reported
 // where it is written, once. The library's walk of the document alone never
 // reaches that operation.
-func TestLaterConstructs_ReadsInsideTheFieldsBesideAPathItemRef(t *testing.T) {
+func TestVersionCheck_ReadsInsideTheFieldsBesideAPathItemRef(t *testing.T) {
 	t.Parallel()
 	_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -575,7 +588,7 @@ paths:
 }
 
 // TestOwnAdditionalOperations_FieldsTheParserFaultedOnAreLeftAlone pins the
-// takeover's one way out when laterConstructs reported the field: the fields
+// takeover's one way out when versionCheck reported the field: the fields
 // beside a $ref that write it could not be modelled, so no model holds the
 // operations, nothing is checked or dropped, and the fault stands for them.
 func TestOwnAdditionalOperations_FieldsTheParserFaultedOnAreLeftAlone(t *testing.T) {
@@ -593,7 +606,7 @@ paths:
 `)
 	sibs, _, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
 	require.Len(t, faults, 1, "the fields beside the $ref are not modelled")
-	require.True(t, laterConstructs(pointerAt(0, overlay.Origin{}), walkSource(t.Context(), doc, sibs),
+	require.True(t, versionCheck(pointerAt(0, overlay.Origin{}), walkSource(t.Context(), doc, sibs),
 		doc.OpenAPI).additionalOperations, "the field is reported off the $ref's own mapping")
 
 	got := ownAdditionalOperations(t.Context(), doc, sibs, walkSource(t.Context(), doc, sibs), valErrs)

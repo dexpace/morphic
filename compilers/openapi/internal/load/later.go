@@ -61,8 +61,9 @@ func (a addition) inSchema() bool {
 // (oas/3.0/schema/2024-10-18, 3.1/schema/2025-09-15, 3.2/schema/2025-09-17,
 // and the 3.1 and 3.2 meta-schemas for the Discriminator and XML rows), less a
 // Header Object's allowReserved: that is the Parameter Object's, which every
-// minor's text gives a header though the 3.1 schema omits it, and where it
-// applies is GitHub #628's question.
+// minor's text gives a header though the 3.1 schema omits it. No minor applies
+// it at a header, and the library models no such field, so the lowering keeps
+// it verbatim as an unknown key.
 var additions = []addition{
 	{openAPIObject, "jsonSchemaDialect", "", "3.1"},
 	{openAPIObject, "webhooks", "", "3.1"},
@@ -100,55 +101,70 @@ var additions = []addition{
 	{referenceObject, "description", "", "3.1"},
 }
 
-// laterReport is what laterConstructs found: one diagnostic per construct, and
+// versionReport is what versionCheck found: one diagnostic per finding, and
 // whether any reported construct is one whose refusal by the library this
 // package takes over, a keyword inside a schema (metaSchemaVersionArtifacts)
 // or a Path Item's additionalOperations (ownAdditionalOperations). A takeover
 // runs only where its construct was reported, so no refusal is dropped without
 // the warning that replaces it.
-type laterReport struct {
+type versionReport struct {
 	diags                          []ir.Diagnostic
 	inSchema, additionalOperations bool
 }
 
-// laterConstructs reports each construct a minor later than the declared
-// version added to the object it is written on (diag.LaterVersionConstruct).
-// The lowering reads each at every version; only this asks which minor added
-// one.
+// versionCheck judges each object items holds against the declared version:
+// a construct a later minor added (diag.LaterVersionConstruct), and a
+// Parameter Object's allowReserved that version gives no effect
+// (reservedFinding). The lowering reads both alike at every version, so only
+// this asks. A version Load refuses is held to nothing.
 //
-// items is walkSource's walk, visiting each object the source holds once,
-// where it is written, not through a $ref, whether anything lowers it or not,
-// the fields beside a Path Item's $ref included; or the walk over an object a
-// $ref reaches in the source outside the model (reached.later, GitHub #872).
-// Neither holds another document's (GitHub #839). A panic in the walk is
-// reported at the model reached.
-func laterConstructs(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) laterReport {
-	pending := addedAfter(declared)
-	if len(pending) == 0 {
-		return laterReport{}
+// items visits each object once where it is written, never through a $ref:
+// walkSource's walk, lowered or not, or the walk over an object a $ref reaches
+// in the source outside the model (reached.checkVersion). Neither holds
+// another document's (GitHub #839). A panic in the walk is reported at the
+// model reached.
+func versionCheck(at func(jsontext.Pointer) ir.Provenance, items iter.Seq[soa.WalkItem], declared string) versionReport {
+	minor, ok := SupportedMinor(declared)
+	if !ok {
+		return versionReport{}
 	}
+	pending := addedAfter(declared)
 	view := nodeview.New()
-	var out laterReport
+	var out versionReport
 	site, err := eachModel(items, "version check", func(site jsontext.Pointer, model rootNoder) error {
-		object, root, ok := laterObject(model)
-		if !ok {
-			return nil
-		}
 		if site == "/" {
 			site = "" // a walk spells its root "/", which names the key ""
 		}
-		for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
-			out.diags = append(out.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
-			out.inSchema = out.inSchema || a.inSchema()
-			out.additionalOperations = out.additionalOperations ||
-				a.object == pathItemObject && a.key == "additionalOperations"
+		if d, found := reservedFinding(at, site, model, minor); found {
+			out.diags = append(out.diags, d)
 		}
+		out.addLater(at, site, model, view, pending, declared)
 		return nil
 	})
 	if err != nil {
 		out.diags = append(out.diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
 	}
 	return out
+}
+
+// addLater adds each of pending, the constructs a minor later than the
+// declared version added, that model writes at site, at the key writing it.
+func (r *versionReport) addLater(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, model rootNoder,
+	view *nodeview.View, pending []addition, declared string,
+) {
+	if len(pending) == 0 {
+		return // as in any 3.2 document: no object's mapping need be read
+	}
+	object, root, ok := laterObject(model)
+	if !ok {
+		return
+	}
+	for _, a := range writtenOn(object, view.MappingPairs(root), pending) {
+		r.diags = append(r.diags, laterDiag(at(site.AppendToken(a.key)), a, declared))
+		r.inSchema = r.inSchema || a.inSchema()
+		r.additionalOperations = r.additionalOperations ||
+			a.object == pathItemObject && a.key == "additionalOperations"
+	}
 }
 
 // addedAfter returns the additions a minor later than the declared version made,
@@ -318,7 +334,7 @@ func plainObject(model rootNoder) string {
 
 // ownAdditionalOperations takes over the library's handling of a Path Item's
 // additionalOperations below the minor its model is current to (modelMinor),
-// where it refuses the field and checks nothing inside it. Where laterConstructs
+// where it refuses the field and checks nothing inside it. Where versionCheck
 // reported the field, which the compiler lowers at every version, the refusal is
 // dropped and the library's own checks run on every path item whose model holds
 // such operations, refused or not. items is walkSource's walk, a model of the
