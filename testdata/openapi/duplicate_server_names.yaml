@@ -1,9 +1,9 @@
-# Each way, and each place, a servers list repeats a name: the document's list
-# by a second entry writing it, an alias mounting an entry again and a merge key
-# carrying a name into another; two path items' lists; and an operation's. Each
-# raises the openapi/duplicate-server-name warning. The document's last entry
-# differs from its first only in case, and the paths' lists reuse its names:
-# neither is a repeat.
+# The document's servers list repeats a name in each way YAML can write one: a
+# second entry writing it, an alias mounting an entry again, and a merge key
+# carrying a name into another. Two path items' lists and an operation's repeat
+# one too. Each repeat raises the openapi/duplicate-server-name warning. The
+# document's last entry differs from its first only in case, and /pets reuses
+# the document's names in lists of its own: neither is a repeat.
 #
 # Every anchor sits in the servers sequence ahead of its aliases. Reversing the
 # mappings keeps it there, so the order-invariance oracle can ask about this
