@@ -165,6 +165,17 @@ const (
 	//
 	// Error, as the parser's report was.
 	DuplicateParameter = "openapi/duplicate-parameter"
+	// DuplicateServerName reports a servers list entry whose name an earlier
+	// entry in the same list already has, compared as written, at the repeat's
+	// name. Load checks every list the source writes, the document's, a path
+	// item's or an operation's, lowered or not, but none only a $ref reaches
+	// (GitHub #880). Both entries are kept, though a consumer keying servers by
+	// name cannot tell them apart. Names equal once canonicalized, and URL
+	// hints, are not reported: an emitter uniquifies them.
+	//
+	// Warning, where DuplicateParameter is an error: OpenAPI 3.2 calls the name
+	// "an optional unique string" with no RFC 2119 keyword.
+	DuplicateServerName = "openapi/duplicate-server-name"
 	// InvalidMethodKey reports an additionalOperations key that names no method:
 	// the empty string. The operation still lowers, binding the key as written, so
 	// nothing the entry declares is lost — what is reported is that the binding's

@@ -1,0 +1,27 @@
+# Each way, and each place, a servers list repeats a name: the document's list
+# by a second entry writing it, an alias mounting the first entry again and a
+# merge key carrying one name into two; a path item's list; and an operation's.
+# Each raises the openapi/duplicate-server-name warning, and this fixture puts
+# it under the corpus order-invariance sweep. The document's last entry differs
+# from its first only in case, and the path's lists reuse the document's names:
+# neither is a repeat.
+openapi: 3.2.0
+info: {title: t, version: "1"}
+x-base: &b {name: edge}
+servers:
+  - &prod {url: https://prod.example.com, name: prod}
+  - {url: https://prod-mirror.example.com, name: prod}
+  - *prod
+  - {<<: *b, url: https://edge-a.example.com}
+  - {<<: *b, url: https://edge-b.example.com}
+  - {url: https://staging.example.com, name: Prod}
+paths:
+  /pets:
+    servers:
+      - {url: https://eu.example.com, name: prod}
+      - {url: https://eu-mirror.example.com, name: prod}
+    get:
+      servers:
+        - {url: https://us.example.com, name: edge}
+        - {url: https://us-mirror.example.com, name: edge}
+      responses: {"200": {description: ok}}

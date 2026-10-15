@@ -360,7 +360,7 @@ components:
 }
 
 // TestVersionCheck_AWalkThatPanicsIsReported pins the barrier around the
-// walk, as parameterRepeats has one: a panic is an error at the model reached.
+// walk, as listRepeats has one: a panic is an error at the model reached.
 func TestVersionCheck_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
