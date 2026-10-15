@@ -1723,10 +1723,11 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // TestResolve_AReachedObjectIsHeldToTheLaterVersionTable pins that an object
 // a $ref reaches in the source outside its model draws what the same object
 // written inline draws in an older document: a warning for each construct a
-// later minor added, at the pointer it is written at, with the library's
-// refusal of it taken over, and an additionalOperations' operations checked.
-// An object reached both itself and inside another reached object draws each
-// warning once. A 3.2 document draws none; another document's object keeps the
+// later minor added, at the pointer it is written at, even beneath a path
+// item's method or a callback's expression, with the library's refusal of it
+// taken over, and an additionalOperations' operations checked. An object
+// reached both itself and inside another reached object draws each warning
+// once. A 3.2 document draws none; another document's object keeps the
 // library's own reading (GitHub #839).
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
@@ -1757,6 +1758,15 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 				"responses: {\"200\": {description: ok}}}\n",
 			[]string{"/x-paths/A/additionalOperations" + later,
 				"/x-paths/A/additionalOperations/PURGE/parameters/0/in openapi/validation/validation-allowed-values"}},
+		{"an operation of a path item, under its method", "3.1.0",
+			"paths:\n  /a: {$ref: '#/x-paths/A'}\nx-paths:\n  A:\n" +
+				"    get: {responses: {\"200\": {description: ok, summary: S}}}\n",
+			[]string{"/x-paths/A/get/responses/200/summary" + later}},
+		{"an operation of a callback, under its expression", "3.1.0",
+			"paths:\n  /a:\n    get:\n      callbacks: {cb: {$ref: '#/x-cb/C'}}\n" +
+				"      responses: {\"200\": {description: ok}}\nx-cb:\n  C:\n" +
+				"    '{$request.body#/u}': {post: {responses: {\"200\": {description: ok, summary: S}}}}\n",
+			[]string{"/x-cb/C/{$request.body#~1u}/post/responses/200/summary" + later}},
 		{"an object reached inside another reached one, warned once", "3.1.0",
 			"paths: {}\ncomponents:\n  schemas:\n    Ref: {$ref: '#/x-lib/Pet'}\n" +
 				"    Inner: {$ref: '#/x-lib/Pet/properties/kind'}\n    Cat: {type: object}\n" +

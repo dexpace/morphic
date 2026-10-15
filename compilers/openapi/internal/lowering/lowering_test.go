@@ -197,45 +197,6 @@ func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
 	}
 }
 
-// TestDialectMinor_TheZeroContextNamesNoDialect completes the set the two
-// accessors above start: every reader on this type answers on a context with
-// nothing in it. This is the one that reaches through the document pointer, so
-// it is the one that would panic instead — and a test holding a Ctx literal is
-// not a hypothetical, it is how half this file drives the type.
-func TestDialectMinor_TheZeroContextNamesNoDialect(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.Empty(t, c.DialectMinor(), "no document names no dialect")
-}
-
-// TestDialectMinor_FollowsTheDocument pins the minor version every per-keyword
-// dialect question compares against. Reading a 3.0 document as 3.1 silently
-// changes what an exclusive bound means and which locations allowReserved is
-// reported at, and neither misreading fails to parse.
-func TestDialectMinor_FollowsTheDocument(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		version string
-		want    string
-	}{
-		{version: "3.0.0", want: "3.0"},
-		{version: "3.0.3", want: "3.0"},
-		{version: "3.1.0", want: "3.1"},
-		{version: "3.1.1", want: "3.1"},
-		{version: "3.2.0", want: "3.2"},
-		{version: "4.0.0", want: ""},
-		{version: "3.1", want: "3.1"},
-		{version: "", want: ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.version, func(t *testing.T) {
-			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.DialectMinor())
-		})
-	}
-}
-
 // TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
 // references lives: a context and the scope it builds hold the same one, so a
 // resolution through any copy is visible to the compiler, and a zero context,

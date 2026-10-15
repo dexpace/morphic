@@ -389,19 +389,6 @@ func (c Ctx) Is30() bool {
 	return minor == "3.0"
 }
 
-// DialectMinor returns the OpenAPI minor version this document is written in —
-// "3.0", "3.1" or "3.2" — or "" when it names none this compiler recognizes.
-// Callers compare it themselves, so each per-keyword dialect question costs a
-// comparison at its use rather than another method here.
-//
-// The version is read through its accessor, so a context with no document
-// answers "" rather than panicking, which is how the other readers behave on a
-// zero value.
-func (c Ctx) DialectMinor() string {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor
-}
-
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
 //

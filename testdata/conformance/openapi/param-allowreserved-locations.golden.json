@@ -233,7 +233,7 @@
     {
       "severity": "warning",
       "code": "openapi/inapplicable-location-keyword",
-      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "message": "parameter field allowReserved has no effect for in=path in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1reports~1{id}/get/parameters/0/allowReserved"
@@ -242,7 +242,7 @@
     {
       "severity": "warning",
       "code": "openapi/inapplicable-location-keyword",
-      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "message": "parameter field allowReserved has no effect for in=header in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1reports~1{id}/get/parameters/1/allowReserved"
@@ -251,7 +251,7 @@
     {
       "severity": "warning",
       "code": "openapi/inapplicable-location-keyword",
-      "message": "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared",
+      "message": "parameter field allowReserved has no effect for in=cookie in OpenAPI 3.1, which applies it to in=query alone; lowered as declared",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1reports~1{id}/get/parameters/2/allowReserved"

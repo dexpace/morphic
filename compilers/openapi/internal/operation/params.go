@@ -78,7 +78,6 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, anchors *schema.AnchorInd
 	media, diags := fillParamType(c, ts, anchors, &param, &binding, p, pptr, name)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
 	diags = append(diags, querystringKeywordDiags(c, in, p, pptr)...)
-	diags = append(diags, allowReservedLocationDiag(c, in, p, pptr)...)
 	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
 }
 
@@ -107,32 +106,6 @@ func querystringKeywordDiags(c lowering.Ctx, in soa.ParameterIn, p *soa.Paramete
 			"parameter field allowReserved is not allowed for in=querystring; lowered as declared"))
 	}
 	return diags
-}
-
-// allowReservedLocationDiag reports allowReserved at path, header or cookie in
-// an OpenAPI 3.0 or 3.1 document, where the keyword belongs to in: query alone.
-// Presence fires, not truth, as in querystringKeywordDiags, which keeps
-// in: querystring so one pointer never draws two warnings.
-//
-// 3.2 is silent here, though it narrows the keyword to locations and styles
-// that percent-encode, which excludes in: header and style: cookie; that rule
-// is not reported. A parameter reached through an external $ref is judged by
-// the root document's version and reported at its use-site pointer.
-func allowReservedLocationDiag(c lowering.Ctx, in soa.ParameterIn, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
-	if p.AllowReserved == nil {
-		return nil
-	}
-	if minor := c.DialectMinor(); minor != "3.0" && minor != "3.1" {
-		return nil
-	}
-	switch in {
-	case soa.ParameterInPath, soa.ParameterInHeader, soa.ParameterInCookie:
-	default:
-		return nil
-	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.InapplicableLocationKeyword,
-		pptr+ids.Ptr("allowReserved"),
-		"parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared")}
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —

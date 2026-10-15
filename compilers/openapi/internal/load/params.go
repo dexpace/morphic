@@ -77,3 +77,73 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referenc
 	}
 	return diags
 }
+
+// reservedFinding reports a Parameter Object's allowReserved written where
+// OpenAPI minor, the document's, gives it no effect (reservedApplies), at the
+// keyword. Presence is reported, not truth, as at in: querystring: a declared
+// false has no effect either. model is one versionCheck walks, written at
+// site; a $ref is judged where its target is written. The parameter is read
+// through the model, as the lowering reads it, so the value the warning says
+// is lowered as declared is the one the binding holds.
+func reservedFinding(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, model any, minor string,
+) (ir.Diagnostic, bool) {
+	rp, ok := model.(*soa.ReferencedParameter)
+	if !ok || rp.IsReference() {
+		return ir.Diagnostic{}, false
+	}
+	p := rp.GetObject()
+	if p == nil || p.AllowReserved == nil {
+		return ir.Diagnostic{}, false
+	}
+	in, style := p.GetIn(), p.GetStyle()
+	if reservedApplies(minor, in, style) {
+		return ir.Diagnostic{}, false
+	}
+	return diag.Newf(ir.SeverityWarning, diag.InapplicableLocationKeyword, at(site.AppendToken("allowReserved")),
+		"parameter field allowReserved has no effect for %s in OpenAPI %s, which applies it %s; lowered as declared",
+		reservedPlace(minor, in, style), minor, reservedScope(minor)), true
+}
+
+// reservedApplies reports whether OpenAPI minor gives allowReserved an effect
+// at in, serialized in style. Before 3.2 it applies to in: query alone; 3.2
+// applies it wherever the value is percent-encoded, which leaves out a header
+// and a cookie in style cookie.
+//
+// It applies at in: querystring as far as this rule goes: 3.2 forbids it
+// there, which the lowering reports as diag.InvalidLocationKeyword (GitHub
+// #885), so one keyword draws one warning. An in OpenAPI does not define is
+// the parser's to refuse.
+func reservedApplies(minor string, in soa.ParameterIn, style soa.SerializationStyle) bool {
+	switch in {
+	case soa.ParameterInPath:
+		return !before(minor, "3.2")
+	case soa.ParameterInHeader:
+		return false
+	case soa.ParameterInCookie:
+		return !before(minor, "3.2") && style != serializationStyleCookie
+	default:
+		return true
+	}
+}
+
+// serializationStyleCookie is the cookie style 3.2 added, which writes a value
+// without percent-encoding it. The parser names no constant for it (GitHub
+// #389).
+const serializationStyleCookie soa.SerializationStyle = "cookie"
+
+// reservedPlace names where a reported allowReserved is written: its in, with
+// the style where that, not the in, leaves the keyword without effect.
+func reservedPlace(minor string, in soa.ParameterIn, style soa.SerializationStyle) string {
+	if !before(minor, "3.2") && in == soa.ParameterInCookie && style == serializationStyleCookie {
+		return "in=cookie with style=cookie"
+	}
+	return "in=" + string(in)
+}
+
+// reservedScope says where OpenAPI minor applies allowReserved.
+func reservedScope(minor string) string {
+	if before(minor, "3.2") {
+		return "to in=query alone"
+	}
+	return "only where the value is percent-encoded"
+}

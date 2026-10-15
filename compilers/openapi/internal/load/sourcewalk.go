@@ -75,13 +75,24 @@ func (s Siblings) entry(item soa.WalkItem) (int, bool) {
 // write. A model found inside it is not entered: siblingsFrom queues each in
 // turn.
 func (s Siblings) modelWalk(ctx context.Context, i int) iter.Seq[soa.WalkItem] {
-	prefix := locationOf(s.list[i].Pointer)
 	start := &soa.ReferencedPathItem{Object: s.list[i].Item}
-	return func(yield func(soa.WalkItem) bool) {
+	return locatedWalk(func(yield func(soa.WalkItem) bool) {
 		for item := range soa.Walk(ctx, start) {
-			if len(item.Location) == 0 {
-				continue
+			if len(item.Location) > 0 && !yield(item) {
+				return
 			}
+		}
+	}, s.list[i].Pointer)
+}
+
+// locatedWalk returns items, a walk started from an object other than the
+// document, with each location placed under pointer, where the source writes
+// that object. Rendered alone, such a location is wrong wherever it starts at
+// a map key, such as a path item's method: it renders "//get" for "/get".
+func locatedWalk(items iter.Seq[soa.WalkItem], pointer jsontext.Pointer) iter.Seq[soa.WalkItem] {
+	prefix := locationOf(pointer)
+	return func(yield func(soa.WalkItem) bool) {
+		for item := range items {
 			item.Location = append(slices.Clip(prefix), item.Location...)
 			if !yield(item) {
 				return

@@ -365,19 +365,27 @@ const (
 	// than error because the document is otherwise lowered whole, and the entry
 	// that did survive is in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
-	// InvalidLocationKeyword reports explode or allowReserved at in: querystring,
-	// at the keyword's coordinate. OpenAPI 3.2 says they MUST NOT be used there,
-	// and the bundled parser checks that for style but not for these (GitHub
-	// #408). The value still lowers (invariant 2). Warning, not the error style
-	// gets: that is the parser's own refusal, whereas here the compiler has
-	// already kept the value.
+	// InvalidLocationKeyword reports explode or allowReserved at in: querystring.
+	// OpenAPI 3.2 binds the whole query string from the parameter's content there
+	// and states its serialization through the media type alone, so neither
+	// keyword has anything left to qualify.
+	//
+	// The bundled parser enforces this for style at that location but not for
+	// these two (GitHub #408), so the compiler reports the gap itself. The value
+	// still lowers as declared: dropping stated content is an emitter's call
+	// (invariant 2).
+	//
+	// Warning, not the error style gets: that is the parser's own validation
+	// refusal, whereas here the compiler has already kept the value.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
-	// InapplicableLocationKeyword reports allowReserved at path, header or cookie
-	// in an OpenAPI 3.0 or 3.1 document, at the keyword's coordinate: those
-	// dialects apply it to in: query alone. A code of its own, apart from
-	// InvalidLocationKeyword, because the document breaks no MUST here; the
-	// keyword simply has no effect, and a consumer may weigh that differently.
-	// A warning, and the value lowers as declared (invariant 2).
+	// InapplicableLocationKeyword reports a Parameter Object's allowReserved
+	// written where its document's version gives it no effect, at the keyword.
+	// Before 3.2 that is path, header or cookie: those versions apply it to
+	// in: query alone. 3.2 applies it wherever the value is percent-encoded,
+	// which leaves out a header and a cookie in style cookie. A code of its own,
+	// apart from InvalidLocationKeyword, because no MUST is broken: the keyword
+	// simply has no effect, and a consumer may weigh that differently. A
+	// warning, and the value lowers as declared (invariant 2).
 	InapplicableLocationKeyword = "openapi/inapplicable-location-keyword"
 	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It

@@ -2140,7 +2140,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	// "path" is a query parameter in this 3.1 document, the one location the
 	// keyword belongs to before 3.2 — so a declaration of it, which the
 	// assertion above pins, is not the off-query case the warning reports.
-	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InvalidLocationKeyword, ir.SeverityWarning),
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InapplicableLocationKeyword, ir.SeverityWarning),
 		"a 3.1 query declaration of allowReserved stays silent")
 
 	assertAllowEmptyValueKept(t, op)
@@ -2464,12 +2464,11 @@ func assertQuerystringForbiddenKeywords(t *testing.T, doc *ir.Document, diags []
 			"/paths/~1b/get/parameters/0/allowReserved"))
 }
 
-// assertParamAllowReservedLocations pins diag.InapplicableLocationKeyword:
-// OpenAPI 3.0/3.1 apply allowReserved to in: query
+// assertParamAllowReservedLocations pins diag.InapplicableLocationKeyword
+// through the whole compile: OpenAPI 3.1 applies allowReserved to in: query
 // alone, so a path, header or cookie declaration is reported at the keyword's
-// own pointer while a query declaration — the location the keyword belongs to —
-// stays silent. Every declared value still lowers as declared, and only the
-// three off-query declarations are reported, in source order.
+// own pointer, a declared false among them, while a query declaration stays
+// silent. Every declared value still lowers as declared.
 func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "report")
 	require.True(t, ok)
@@ -2485,25 +2484,21 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 	assert.False(t, byParam["session"].AllowReserved, "a declared false is kept as false")
 	assert.True(t, byParam["q"].AllowReserved, "a query declaration lowers as declared")
 
-	// One warning per off-query declaration, in source order, each at the
-	// keyword's own coordinate — and none for the query control.
-	const message = "parameter field allowReserved only applies to in=query before OpenAPI 3.2; lowered as declared"
-	var warned []string
+	const rule = " in OpenAPI 3.1, which applies it to in=query alone; lowered as declared"
+	want := map[string]string{
+		"/paths/~1reports~1{id}/get/parameters/0/allowReserved": "parameter field allowReserved has no effect for in=path" + rule,
+		"/paths/~1reports~1{id}/get/parameters/1/allowReserved": "parameter field allowReserved has no effect for in=header" + rule,
+		"/paths/~1reports~1{id}/get/parameters/2/allowReserved": "parameter field allowReserved has no effect for in=cookie" + rule,
+	}
+	got := map[string]string{}
 	for _, d := range diags {
-		if d.Code == diag.InapplicableLocationKeyword && d.Severity == ir.SeverityWarning {
-			warned = append(warned, string(d.Provenance.Pointer))
+		if d.Code == diag.InapplicableLocationKeyword {
+			assert.Equal(t, ir.SeverityWarning, d.Severity)
+			assert.NotContains(t, got, string(d.Provenance.Pointer), "one declaration, one report")
+			got[string(d.Provenance.Pointer)] = d.Message
 		}
 	}
-	pointers := []string{
-		"/paths/~1reports~1{id}/get/parameters/0/allowReserved",
-		"/paths/~1reports~1{id}/get/parameters/1/allowReserved",
-		"/paths/~1reports~1{id}/get/parameters/2/allowReserved",
-	}
-	assert.Equal(t, pointers, warned, "one warning per off-query declaration, in source order")
-	for _, pointer := range pointers {
-		assert.Equal(t, message,
-			openapitest.DiagMessageAt(t, diags, diag.InapplicableLocationKeyword, ir.SeverityWarning, pointer))
-	}
+	assert.Equal(t, want, got)
 }
 
 // assertParamRefInheritance pins ir-design §14 at a parameter whose schema is a
