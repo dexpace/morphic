@@ -416,6 +416,17 @@ const (
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.
 	LaterVersionConstruct = "openapi/later-version-construct"
+	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
+	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
+	// "/", a character a path admits only percent-encoded, a brace outside a
+	// template expression, an expression used twice, an empty segment, or a
+	// query. One warning per key names each, at the key's path item.
+	//
+	// Warning, as InvalidStatusKey is: the key is used as written, and an error
+	// would stop harness.Check before later findings. A "#" fragment is GitHub
+	// #602's to report, so nothing from it on is read, and matching the
+	// expressions to path parameters is #640's.
+	InvalidPathKey = "openapi/invalid-path-key"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

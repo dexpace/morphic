@@ -151,6 +151,7 @@ func codes() []string {
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct,
+		diag.InvalidPathKey,
 	}
 }
 
