@@ -1245,7 +1245,8 @@ type Property struct {
     EventPayload bool              // member is the *raw* frame payload — blob/string as bytes,
                                    // structure as protocol document (Smithy @eventPayload).
                                    // Mutually exclusive with EventHeader; at most one per model.
-    Secret     bool                // redact in logs/docs (TypeSpec @secret, format:password)
+    Secret     bool                // redact in logs/docs (TypeSpec @secret, format:password); a value whose
+                                   // type is TypeCommon.Sensitive is redacted whether or not it is set
     XML        *XMLHints           // XML wire shape when it diverges from the JSON-implied shape
     Examples   []Example           // property-level examples (TypeSpec @example, OpenAPI)
     Docs       Docs

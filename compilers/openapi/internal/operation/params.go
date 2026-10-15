@@ -247,8 +247,8 @@ func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, point
 // verbatim: ir.Parameter is the one annotation carrier with no redaction field,
 // where a type node has Sensitive and a property Secret. Only the format this
 // site writes is kept; a referent's redaction is already Sensitive on the
-// referent's own node, which is the parameter's type. ReasonNoIRHome, since the
-// IR can close the gap by adding the field (GitHub #578).
+// referent's own node, which the parameter's type reaches. ReasonNoIRHome, since
+// the IR can close the gap by adding the field (GitHub #578).
 func preserveParamRedaction(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !annotation.DeclaresRedaction(s) {
 		return nil
