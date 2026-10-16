@@ -344,6 +344,75 @@ func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 	assert.True(t, ok, "reordering a source-ordered collection is the permutation, not a defect: %s", detail)
 }
 
+// numbers builds an object value whose members are numbers, in the order
+// given: name, value, name, value.
+func numbers(pairs ...string) ir.Value {
+	v := ir.Value{Kind: ir.ValueObject}
+	for i := 0; i+1 < len(pairs); i += 2 {
+		v.Object = append(v.Object, ir.Field{Name: pairs[i], Value: ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal(pairs[i+1])}})
+	}
+	return v
+}
+
+// objectValuedModel is a model whose property default and two unnamed examples
+// are object values, written as the source declares them or with every object's
+// members reversed, which is what reversing the source does to them (#683).
+func objectValuedModel(reversed bool, defaultX string) *ir.Document {
+	def := numbers("x", defaultX, "y", "2")
+	first, second := numbers("x", "1", "y", "4"), numbers("x", "2", "y", "3")
+	nested := ir.Value{Kind: ir.ValueList, List: []ir.Value{numbers("a", "1", "b", "2")}}
+	if reversed {
+		def = numbers("y", "2", "x", defaultX)
+		first, second = numbers("y", "4", "x", "1"), numbers("y", "3", "x", "2")
+		nested = ir.Value{Kind: ir.ValueList, List: []ir.Value{numbers("b", "2", "a", "1")}}
+	}
+	return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{
+		ID:         "t/x/A",
+		Examples:   []ir.Example{{Value: &first}, {Value: &second}, {Value: &nested}},
+		Properties: []ir.Property{{ID: "p/x/a", WireName: "a", Default: &def}},
+	}}}
+}
+
+// TestDiffOrderInvariants_ReorderedObjectMembersAreNotAFinding pins #683. The
+// two examples sort in opposite orders once their members are reversed, so
+// comparing their members as written pairs each with the other one.
+func TestDiffOrderInvariants_ReorderedObjectMembersAreNotAFinding(t *testing.T) {
+	t.Parallel()
+	detail, ok := diffOrderInvariants(objectValuedModel(false, "1"), objectValuedModel(true, "1"), nil)
+	assert.True(t, ok, "reversing an object value's members is the permutation, not a defect: %s", detail)
+}
+
+// TestDiffOrderInvariants_ChangedObjectMemberIsAFinding holds the sorting to
+// what it may forgive: a member whose value changed still differs.
+func TestDiffOrderInvariants_ChangedObjectMemberIsAFinding(t *testing.T) {
+	t.Parallel()
+	detail, ok := diffOrderInvariants(objectValuedModel(false, "1"), objectValuedModel(true, "9"), nil)
+	assert.False(t, ok)
+	assert.Contains(t, detail, "type registry depends on declaration order")
+}
+
+// TestCanonicalValue_StopsAtTheDepthBound covers the bound: a value nested past
+// maxReverseDepth comes back as it is, while one within it is put in name order.
+func TestCanonicalValue_StopsAtTheDepthBound(t *testing.T) {
+	t.Parallel()
+	deep := numbers("b", "2", "a", "1")
+	for range maxReverseDepth + 1 {
+		deep = ir.Value{Kind: ir.ValueList, List: []ir.Value{deep}}
+	}
+
+	innermost := canonicalValue(deep, 0)
+	for range maxReverseDepth + 1 {
+		require.Len(t, innermost.List, 1)
+		innermost = innermost.List[0]
+	}
+	require.Len(t, innermost.Object, 2)
+	assert.Equal(t, "b", innermost.Object[0].Name, "a value past the bound is left as written")
+
+	shallow := canonicalValue(numbers("b", "2", "a", "1"), 0)
+	require.Len(t, shallow.Object, 2)
+	assert.Equal(t, "a", shallow.Object[0].Name, "a value within the bound is put in name order")
+}
+
 // TestOrderInvariant_ReachesTheCorpus is the reachability guard. The oracle
 // declines silently on a source it cannot permute, so a rewrite that refused
 // everything would leave the corpus sweep green while checking nothing.

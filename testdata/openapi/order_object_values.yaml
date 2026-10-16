@@ -1,0 +1,21 @@
+# Object values with more than one member, for the order-invariance oracle
+# (#683). Reversing the source reverses each object's members, which
+# Value.Object keeps in source order by design, so the oracle must not read
+# that as order-dependence. The two unnamed examples sort in opposite orders
+# once their members are reversed, which is the case that pairs them crosswise
+# if members are compared as written.
+openapi: 3.1.0
+info: {title: Object values, version: "1"}
+paths: {}
+components:
+  schemas:
+    Settings:
+      type: object
+      properties:
+        flags:
+          type: object
+          additionalProperties: {type: boolean}
+          default: {key1: true, key2: false}
+      examples:
+        - {x: 1, y: 4}
+        - {x: 2, y: 3}

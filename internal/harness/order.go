@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -69,9 +70,9 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 // that lost what a second declaration wrote. Operations, responses and content
 // types follow source order (invariant #7), so are not compared.
 //
-// Properties, pattern properties and named examples inside a type are sorted
-// by identity, not ignored: a changed property still differs, a moved one does
-// not.
+// Properties, pattern properties, named examples and an object value's members
+// are sorted by identity, not ignored: a changed property still differs, a
+// moved one does not.
 func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic) (string, bool) {
 	if a, b := len(first.Types), len(second.Types); a != b {
 		return fmt.Sprintf("permuted source interns %d types against %d", b, a), false
@@ -111,19 +112,60 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 // sourceOrderedCollections orders the collections a mapping's entry order
 // decides, so comparing two permutations of one document does not report their
 // own permutation.
+//
+// An object value's members are among them: the rewrite reverses a default's
+// or an example's mapping like any other, and Value.Object keeps source order
+// on purpose (#683). A member name is unique within its object, because
+// reverseMappings refuses a mapping that declares a key twice.
 func sourceOrderedCollections() []cmp.Option {
 	return []cmp.Option{
 		cmpopts.SortSlices(func(a, b ir.Property) bool { return a.ID < b.ID }),
 		cmpopts.SortSlices(func(a, b ir.PatternProps) bool { return a.Pattern < b.Pattern }),
 		cmpopts.SortSlices(func(a, b ir.Example) bool { return renderExample(a) < renderExample(b) }),
+		cmpopts.SortSlices(func(a, b ir.Field) bool { return a.Name < b.Name }),
 	}
 }
 
 // renderExample gives an example a total order for sorting. Name alone will not
 // do: the singular `example` keyword carries none, so two of them would tie and
 // the sort would not be a strict weak ordering.
+//
+// The value is rendered with its members in name order. Rendered as written,
+// two unnamed examples could sort one way in each arm and be compared crosswise.
 func renderExample(e ir.Example) string {
-	return fmt.Sprintf("%s\x00%s\x00%v", e.Name, e.ExternalURL, e.Value)
+	v := e.Value
+	if v != nil {
+		canonical := canonicalValue(*v, 0)
+		v = &canonical
+	}
+	return fmt.Sprintf("%s\x00%s\x00%v", e.Name, e.ExternalURL, v)
+}
+
+// canonicalValue returns v with every object's members in name order, at every
+// depth. A list keeps its order, which no permutation changes. A value nested
+// past maxReverseDepth is returned as it is: reverseMappings refuses a source
+// that deep, so the oracle never compares one.
+func canonicalValue(v ir.Value, depth int) ir.Value {
+	if depth > maxReverseDepth {
+		return v
+	}
+	if len(v.List) > 0 {
+		list := make([]ir.Value, len(v.List))
+		for i, item := range v.List {
+			list[i] = canonicalValue(item, depth+1)
+		}
+		v.List = list
+	}
+	if len(v.Object) > 0 {
+		fields := make([]ir.Field, len(v.Object))
+		for i, f := range v.Object {
+			f.Value = canonicalValue(f.Value, depth+1)
+			fields[i] = f
+		}
+		slices.SortStableFunc(fields, func(a, b ir.Field) int { return strings.Compare(a.Name, b.Name) })
+		v.Object = fields
+	}
+	return v
 }
 
 // reencodeMappings returns src parsed and re-encoded with its entry order
