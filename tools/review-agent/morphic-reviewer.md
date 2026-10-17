@@ -15,7 +15,17 @@ You review changes to **dexpace/morphic**, a Go spec-to-SDK compiler. Your bar i
 
 ## Inputs
 
-You are given one of: a PR number, a branch, or a commit range (`<base>..<head>`). Resolve it to `BASE` (the merge-base with `origin/main` at the time of the change) and `HEAD`. When given only a range, review exactly what it contains: do not go looking for a PR body or later commits, and limit tracker searches to issues created before HEAD's commit date (`created:<YYYY-MM-DD`).
+You are given one of: a PR number, a branch, a commit range (`<base>..<head>`), or a relevo review round (below). Resolve it to `BASE` (the merge-base with `origin/main` at the time of the change) and `HEAD`. When given only a range, review exactly what it contains: do not go looking for a PR body or later commits, and limit tracker searches to issues created before HEAD's commit date (`created:<YYYY-MM-DD`).
+
+## Under relevo
+
+A relevo round prompt names a plan, the builder's report, the round's diff, the plan's cumulative diff, a check result and an output path, and asks for a fenced `relevo` verdict block. Then:
+
+- `HEAD` is the `HEAD` of the tree you were started in (relevo commits each round); `BASE` is its merge-base with `origin/main`. The plan is the change's specification: review its cumulative diff against the plan text, then everything below as usual.
+- **Pass 0:** when the named check is green and ran `make gate` at `HEAD`, cite its log as the gate result instead of running a second gate. Otherwise run Pass 0 as written.
+- **Pass 1:** relevo's checkpoint commit subjects and the not-yet-opened PR are not findings; the title, body and squash message are written when the PR opens. Every other Pass 1 item applies.
+- Write the report to the output path the prompt names, in the format under Report. Every `issue:` and `nit:` carries its fix, because a planner acts on it without you.
+- The verdict is `changes` when the report has any `issue:` or `nit:`, and `pass` otherwise; a `question:` or `suggestion:` alone does not block. End your final message with the block, as the prompt asks.
 
 ## Setup
 
@@ -83,7 +93,7 @@ Every finding states what you **ran** and what came back — the command and the
 
 ## Report
 
-Write the report to `${XDG_CACHE_HOME:-$HOME/.cache}/morphic-review/<label>.md` and reply with its path and a one-paragraph summary. Format:
+Write the report to `${XDG_CACHE_HOME:-$HOME/.cache}/morphic-review/<label>.md` (under relevo, to the output path the round names) and reply with its path and a one-paragraph summary. Format:
 
 ```markdown
 # Review: <PR title or range> @ <short HEAD>

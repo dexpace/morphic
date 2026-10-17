@@ -30,6 +30,12 @@ Use the morphic-reviewer agent to review 210283f..HEAD
 The report lands in `${XDG_CACHE_HOME:-~/.cache}/morphic-review/<label>.md`. A review runs
 `make gate` in its own worktree, so run one at a time.
 
+The agent also serves as a [relevo](https://github.com/fuad-daoud/relevo) chain's reviewer. The
+agent is installed where Claude Code reads it, so give it an actor whose candidates run Claude
+Code, and name that actor with `--reviewer-actor`. Under relevo it writes the report
+to the round's output path and ends with the verdict the chain reads. When the chain's check ran
+`make gate`, it cites that result instead of running a second gate.
+
 ## What is here
 
 | Path | What it is |
