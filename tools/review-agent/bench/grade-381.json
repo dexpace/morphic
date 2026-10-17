@@ -1,0 +1,94 @@
+{
+ "pr": 381,
+ "agent": "v1",
+ "defects": [
+  {
+   "id": "D1",
+   "desc": "The new block merge had no test and the script could not be driven over a crafted profile (go test ran unconditionally), so no CI step exercised the merge or its conflict arm",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "caught",
+   "review_quote": "suggestion: nothing CI runs exercises the merge or the NumStmt-conflict arm ... One option: a small fixture-driven check that feeds the awk crafted profiles and runs in the gate job"
+  },
+  {
+   "id": "D2",
+   "desc": "A conflicting statement count printed its message only to stderr and set -e aborted before any summary, so it was the one failure with nothing on stdout",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D3",
+   "desc": "Comment claimed every block lands three times after go clean -testcache; with a cold build cache (CI's usual state) each block lands once, so the universal count was wrong and was replaced with the mechanism",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D4",
+   "desc": "Counts merged by max with four lines defending max over sum, though nothing reads the result as anything but zero/non-zero; the merge should record only whether some fragment ran the block",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D5",
+   "desc": "Comment's 'added 2 to the total and 1 to the hits' holds only for a one-statement block; an N-statement block added 2N and N",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D6",
+   "desc": "Comment read as though repeated fragments are one run's data re-emitted; they need not be (cmd/go merges a cached fragment before rejecting it as expired), so a block only a stale replayed fragment covered counts as covered, unstated",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "caught",
+   "review_quote": "The comment justifies max with \"the repeats are one run's data re-emitted\". That is false for the very case the commit names. ... the fragment appended at each key comes from the previous, cached run. It is appended before the expiry check rejects it. ... Taking the max across runs means any block the old run reached counts as covered, whatever the reported run did."
+  },
+  {
+   "id": "D7",
+   "desc": "Merged profile re-emitted through three further passes (filter, total, list) where one sorted pass does all three",
+   "truth_sha": "b1c7a5c6",
+   "verdict": "missed",
+   "review_quote": ""
+  },
+  {
+   "id": "D8",
+   "desc": "The failure listing's sort was not pinned to LC_ALL=C, so the comment 'same failure reads the same way on every run' was false across machines and the 25-block cap could show disjoint subsets (pre-existing, present in the initial commit, fixed in this PR)",
+   "truth_sha": "24af67c6",
+   "verdict": "caught",
+   "review_quote": "`sort` at `scripts/check-coverage.sh:74` (and the BASE equivalent) runs without `LC_ALL=C`, so \"the same failure reads the same way on every run\" holds only within one locale"
+  }
+ ],
+ "non_defects": [
+  {
+   "truth_sha": "a921dba3",
+   "reason": "Zero-statement blocks listed beside a pass is a regression the commit attributes to b1c7a5c6's single-pass rewrite; the missing mode: header and wrong field-count reads were unreachable until b1c7a5c6 added the profile argument (the script always read a profile go test had just written). Fixes defects introduced or made reachable by a later commit, plus verifier growth."
+  },
+  {
+   "truth_sha": "04a8b7b6",
+   "reason": "Hardens the verifier script added in b1c7a5c6 (a case whose profile was never built passed); defect in later-added code."
+  },
+  {
+   "truth_sha": "a867c475",
+   "reason": "Lists the coverage-counting check added to the gate in b1c7a5c6 in CLAUDE.md and README; continuation of a later commit's new gate step."
+  }
+ ],
+ "extras": [
+  {
+   "finding": "Comment states cmd/go internals (tryCacheWithID, two keys, merge before expiry check) without naming the Go version it was read at",
+   "class": "valid-extra",
+   "why": "Backed by the catalog rule probe-dependency-behaviour-at-version drawn from maintainer fixes; the comment at 5d7ac495 describes toolchain internals with no version, and the final state (a867c475) still names none. Minor, never fixed by the truth."
+  },
+  {
+   "finding": "README.md:196 says the script enforces 100% 'overall and per package', but it never enforced a per-package gate",
+   "class": "pre-existing",
+   "why": "Verified: README.md:196 at 5d7ac495 carries the claim and the script (base and head) only totals statements; the line predates this commit and is still present after the PR."
+  },
+  {
+   "finding": "cover_file defaults to the fixed relative path cover.out, so concurrent runs in one checkout share it; max-merge would also hide duplication from that source",
+   "class": "pre-existing",
+   "why": "The COVER_FILE default exists in the base script unchanged; real but not introduced here and marginal."
+  }
+ ],
+ "missed_patterns": "The reviewer probed the mechanism deeply but blessed the commit's own prose sentence by sentence without testing each universal and arithmetic claim: instruct it to check every quantified statement in a comment ('every block lands three times', 'added 2 to the total and 1 to the hits') against the opposite cache state and an N-statement block, not only the case the author measured. It also listed a failure path as clean on exit code alone; require checking that every failure arm reports on stdout with a summary like its siblings. Finally, ask whether a design choice the comment defends (max vs sum) matters at all to what the result is used for, and flag defended-but-irrelevant distinctions and redundant re-passes over the same data as simplifications."
+}

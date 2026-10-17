@@ -1,0 +1,131 @@
+{
+ "pr": 564,
+ "agent": "v2",
+ "defects": [],
+ "non_defects": [
+  {
+   "truth_sha": "ff688ad1",
+   "reason": "Planned continuation: this is the stacked #529 work, which landed on main as #561 (0764ccea). The initial commit names this exact limitation in its message and in positionHint's doc: under /paths the subtree a reference interns keeps the reference's names. Its second change covers two references into a region beneath not under /paths, which falls inside that stated /paths-subtree limitation. That case is also pre-existing: the ff688ad1 fixture pointer_hint_cross_path_undeclared.yaml is order-dependent on both ebaa7d22^ and ebaa7d22 when run through morphic-harness."
+  },
+  {
+   "truth_sha": "9dfbd6df",
+   "reason": "New scope: the PR's own subject, resolving a discriminator mapping to an inline subtype (#530). The initial commit does not touch mappings."
+  },
+  {
+   "truth_sha": "83d2dce1",
+   "reason": "Reaction to main moving: expectations changed by #531 and #549 after the merge from main."
+  },
+  {
+   "truth_sha": "da5fd2a4",
+   "reason": "Fixes a test gap in DeclaredAt, which 9dfbd6df introduced (a later commit)."
+  },
+  {
+   "truth_sha": "ec6a1f9a",
+   "reason": "Fixes doc and comment wording in the mapping code that 9dfbd6df added (a later commit)."
+  },
+  {
+   "truth_sha": "e9b161d9",
+   "reason": "Adds corpus coverage for the mapping hoist that 9dfbd6df added (a later commit)."
+  },
+  {
+   "truth_sha": "c9bfdca9",
+   "reason": "Pins diagnostics from the mapping hoist that 9dfbd6df added (a later commit)."
+  },
+  {
+   "truth_sha": "208f0942",
+   "reason": "Fixes TestResolveMappingTarget_Branches, which 9dfbd6df added (a later commit)."
+  },
+  {
+   "truth_sha": "f1754f7e",
+   "reason": "Fixes resolve-package docs that 9dfbd6df made stale when DeclaredAt arrived (a later commit)."
+  },
+  {
+   "truth_sha": "e73f0da4",
+   "reason": "Fixes a test gap in DeclaredAt, which 9dfbd6df introduced (a later commit)."
+  },
+  {
+   "truth_sha": "890e2a4f",
+   "reason": "Links an issue in a mapping test that 9dfbd6df added (a later commit)."
+  },
+  {
+   "truth_sha": "bdc63a9b",
+   "reason": "Pre-existing #749: NodeAt reporting a node still being built as present with a nil node. Not introduced by the initial commit. 736f03d7's fixture panics on ebaa7d22^ as well as on ebaa7d22, verified with morphic-harness. The work arrives here because the mapping hoist (9dfbd6df) newly reaches the crash."
+  },
+  {
+   "truth_sha": "5f214099",
+   "reason": "Pre-existing #749 crash in reference hoisting, in code the initial commit did not change. The parent build panics on the same fixture."
+  },
+  {
+   "truth_sha": "736f03d7",
+   "reason": "Corpus fixture for the pre-existing #749 crash."
+  },
+  {
+   "truth_sha": "44c584bd",
+   "reason": "Fixes tests that 5f214099 added (a later commit)."
+  },
+  {
+   "truth_sha": "ff5df623",
+   "reason": "Rewraps a doc line that a later commit edited."
+  },
+  {
+   "truth_sha": "83117f91",
+   "reason": "Refactor that merges $ref and mapping resolution, both added by 9dfbd6df (a later commit). Behaviour is unchanged."
+  },
+  {
+   "truth_sha": "cfaaf9e5",
+   "reason": "Cleans up registeredNode's pre-existing `return td` miss. The initial commit did not touch it, and 5f214099 had just added the other miss."
+  },
+  {
+   "truth_sha": "1b549290",
+   "reason": "Restructures the two-order tests that 9dfbd6df and 5f214099 added (later commits)."
+  }
+ ],
+ "extras": [
+  {
+   "finding": "issue: ir-design.md's new normative sentence and targetHint's lead claim an alias or variant takes its target node's hint, which is false for a $ref target under /paths. There positionHint declines and refHint falls back to the last token.",
+   "class": "valid-extra",
+   "why": "Real at ebaa7d22. TestRefHint_Shapes' own row 'a pointer outside components falls back to its last token' wants 'items', while the declaration names the node response_item. No commit in this PR touches the sentence; even after ff688ad1, refHint yields schema_item. #553's merged version (5638dd62) scoped both ir-design.md and targetHint's doc with a /paths exception (#729)."
+  },
+  {
+   "finding": "issue: maxTargetHintHops' comment says reaching the cap means a document the cycle scan let through. In fact a legal 70-link acyclic chain of branch $refs compiles clean and falls back to positional names with no diagnostic.",
+   "class": "valid-extra",
+   "why": "Reproduced at ebaa7d22: morphic compile -skip-validate on p4_chain70 exits 0 with no diagnostics. Its variant hints include 7 variant_0, where the 10-link control gives all 't'. #553's merged comment was rewritten to say an acyclic chain longer than the cap is legal and is named by where the walk stops. This PR's truth never touched it."
+  },
+  {
+   "finding": "issue: guards with no reddening test: referencedBranch's branch check (M12), positionHint's components/schemas root checks (M16/M17), keyedSchemaMaps 'definitions'/'dependencies' (M5/M5b), and targetHint's name!=\"\" guard (M11).",
+   "class": "valid-extra",
+   "why": "Verified M5 at ebaa7d22: dropping \"definitions\" from keyedSchemaMaps leaves ./compilers/openapi/internal/schema and ./compilers/openapi green. #553's merged TestPositionHint_Shapes added rows for definitions/items, dependencies/items and /components/responses/..., which are the rows the review asked for. This PR's truth never added them."
+  },
+  {
+   "finding": "issue: TestPureRefPosition_IsNamedByItsDeclarationInBothOrders credits the recorded hint ('The recorded hint fixes it') for rows positionHint already holds. Disabling the record leaves every row green. The /components/responses, /components/pathItems and shared-primitive shapes have no committed witness.",
+   "class": "valid-extra",
+   "why": "The test doc overclaims what it pins. #553's merged doc was rewritten to 'Two things now hold each row, and either alone keeps it green... Only the second reaches under /paths'. This PR's truth never fixed it."
+  },
+  {
+   "finding": "issue: TestSubSchemaHint_Fallbacks says neither fallback is reachable by a full compile, but both are (instrumented with p9_fallbacks). Also, subSchemaHint's `if ok { return hint }` after targetHint is redundant (an equivalent mutant).",
+   "class": "valid-extra",
+   "why": "The redundant branch disappeared only incidentally, in ff688ad1's #529 rewrite of subSchemaHint. ff688ad1 kept the false 'Neither row a full compile reaches' claim. #553's merged version deleted the test. The review's reachability claim rests on its own instrumentation and was not rerun here, but the redundancy follows from the code."
+  },
+  {
+   "finding": "question: a $ref to another union's inline branch is now hinted variant_N, which can duplicate a sibling's positional hint (p18: [variant_0, variant_0]).",
+   "class": "unverifiable",
+   "why": "Posed as a design question. ir-design.md has no uniqueness rule for Variant.Name, and the parent build could already collide. No rule makes it a defect, and nothing in the truth or in #553 decided it."
+  },
+  {
+   "finding": "nit: schema_test.go:2201 names structuralRole, a function this commit deleted (it became the structuralRoles map).",
+   "class": "valid-extra",
+   "why": "Confirmed at ebaa7d22: `git grep structuralRole\\b` hits only that comment line. The stale reference is gone in #553's merged version."
+  },
+  {
+   "finding": "nit: TestRefHint_Shapes cites #520 for percent-decoding a non-pointer reference, but #520 is about pointer fragments.",
+   "class": "false-positive",
+   "why": "#520 concerns a percent-encoded non-UTF-8 byte in a $ref fragment reaching an IR identifier. The cited UTF-8 check on percent-decoding guards exactly that. main still cites #520 at the same non-pointer decoding site (compose.go:1104, 'a reference whose fragment spells no pointer ... not UTF-8 (GitHub #520)'), and #553 kept the cite."
+  },
+  {
+   "finding": "nit: test comments say 'On main these read ...' and 'the order that was wrong on main', which go false once merged.",
+   "class": "valid-extra",
+   "why": "Once merged, 'main' refers to this code, so the comments become false. #553's merged schema_test.go no longer carries them. This is a low-severity wording defect, but a real one."
+  }
+ ],
+ "missed_patterns": "None of this PR's later commits fix a defect introduced by the initial commit. They are stacked continuation (#529, #530), fixes to later commits, or a pre-existing crash, so recall here is not measurable. The one adjacent gap: the review endorsed positionHint's claim that 'only the reference reaches' unwalked positions without probing two references at different depths into such a region under /paths. It also never probed reference-before-declaration where the target's body refers back above it, which reaches a node still being built (#749, a panic on the parent and on the initial commit alike). Instruction change: when a change touches reference-driven interning or naming, probe (a) two references at different depths into a region no declaration lowers, under both /components and /paths, and (b) a reference lowered before its declaration whose target refers back to an ancestor. Report such pre-existing failures under Pre-existing."
+}

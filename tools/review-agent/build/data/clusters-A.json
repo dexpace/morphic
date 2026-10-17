@@ -1,0 +1,681 @@
+{
+ "group": "A",
+ "clusters": [
+  {
+   "key": "sweep-old-name-after-rename-or-delete",
+   "title": "Retarget every comment, test name and doc that names a renamed, moved or deleted symbol",
+   "rule": "When a diff renames, moves, deletes or replaces a function, type, receiver, table, call path or mechanism, every doc comment, test name, package doc and docs/ page that names the old symbol or describes the old mechanism must be rewritten in the same change. A package doc is a claim about the package's current contents and must be re-read after code moves out.",
+   "why": "Comments here outlive the code they describe: they pointed at deleted functions (intern, fillParamDefault), removed receivers (l.ctx) and replaced resolvers, sending readers to code that no longer exists.",
+   "probe": "For every identifier the diff removes or renames (git diff main -U0 | grep '^-' for func/type names), run git grep -n '<oldName>' over *.go, docs/, README.md and CLAUDE.md on the final tree; any hit outside the diff's own deletions is a finding. Repeat for the old mechanism's vocabulary (e.g. 'go/ast', 'parse', '..').",
+   "claude_md": "",
+   "finding_ids": [
+    "F0074",
+    "F0131",
+    "F0246",
+    "F0248",
+    "F0270",
+    "F0271",
+    "F0293",
+    "F0441",
+    "F0539",
+    "F0770",
+    "F0820",
+    "F0840",
+    "F0846",
+    "F0849",
+    "F0872"
+   ],
+   "exemplars": [
+    "F0248",
+    "F0849",
+    "F0293"
+   ]
+  },
+  {
+   "key": "sweep-comments-a-behaviour-change-falsifies",
+   "title": "When behaviour or a contract changes, rewrite every comment that states the old behaviour",
+   "rule": "A change that alters what code does (effect turned into a return value, a new refusal or error class, a new emitter of a diagnostic, a new detector, a new caller, a retired premise) must sweep the package for comments asserting the old behaviour, especially those using only, never, the single, the one, records or reports. Preconditions in doc comments are re-checked against every call site, including callers added in the same diff.",
+   "why": "Converted functions kept saying they 'record' diagnostics they now return, and 'the single append point' / 'the only way' claims survived the change that made them false, so the doc contract contradicted the code.",
+   "probe": "From the diff, list each behavioural verb that changed (record->return, refuse->report, dropped->lowered) and each new caller or class; git grep -nE 'only|never|single|the one|records|reports|refus' in the touched packages and read each hit against the new code. For a precondition comment, list callers with gopls references / git grep '<func>(' and check each, including new ones.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0186",
+    "F0250",
+    "F0253",
+    "F0265",
+    "F0301",
+    "F0323",
+    "F0620",
+    "F0661",
+    "F0804",
+    "F0805",
+    "F0824",
+    "F0830"
+   ],
+   "exemplars": [
+    "F0250",
+    "F0265",
+    "F0830"
+   ]
+  },
+  {
+   "key": "update-normative-docs-in-same-change",
+   "title": "Update the normative doc row, plan or gate list that a change makes untrue, in the same change",
+   "rule": "When a change ships a lowering, diagnostic, Unmodeled key, degradation case, gate step or resequenced item, the docs/*.md row, README section, planning document or status line that describes it must be updated in the same change, and every clause of that row re-checked, not only the one the fix named.",
+   "why": "ir-design.md and the spec matrix are the contract; when they lag the code (a missing warning, an unnamed key, a 'not yet implemented' status beside landed rows, a gate list missing a step) contributors build against a false spec.",
+   "probe": "For each new diagnostic code, Unmodeled key, gate step or lowering in the diff, git grep docs/ README.md CLAUDE.md for a neighbouring code/key/step name and confirm the new one sits beside it; for each doc row the diff touches, re-run the case for every clause of that row on the final tree.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0216",
+    "F0249",
+    "F0384",
+    "F0396",
+    "F0432",
+    "F0487",
+    "F0500",
+    "F0602"
+   ],
+   "exemplars": [
+    "F0432",
+    "F0500",
+    "F0602"
+   ]
+  },
+  {
+   "key": "recheck-against-final-tree",
+   "title": "Re-review the final tree after review fixes or a merge of main",
+   "rule": "After review fixes land or main is merged in, re-review the branch as it will merge: re-run the probes that comments and the PR body cite on the merged tree, re-diff every semantic change main made to files the branch touches, and rewrite any PR-body or comment claim the later commits changed.",
+   "why": "Merges here silently dropped main's wider change in a conflict, left comments asserting behaviour main had changed, and left PR bodies stating facts a later commit falsified; unreviewed fixes merged as if reviewed.",
+   "probe": "After git merge main, run git diff <merge-base>..main -- <files the branch touches> and confirm each hunk survives in HEAD; re-run each command quoted in the PR body and comments on HEAD and diff its output against the quote; re-read the PR body top to bottom against git diff main...HEAD.",
+   "claude_md": "Review the **final** state, not an intermediate one.",
+   "finding_ids": [
+    "F0144",
+    "F0465",
+    "F0621",
+    "F0646",
+    "F0867"
+   ],
+   "exemplars": [
+    "F0867",
+    "F0646",
+    "F0621"
+   ]
+  },
+  {
+   "key": "no-maintained-counts-or-state-in-prose",
+   "title": "Delete hand-maintained counts, issue states and versions from comments and docs",
+   "rule": "A comment or doc must not state a count of fields, cases, packages, rules, refusals, policies or commits, nor an issue's open/closed state, unless the number is derived by a command named beside it or pinned to a revision; name the members or the mechanism instead, and never put a count next to the list it counts.",
+   "why": "Every such count in this repo went stale silently ('thirteen' internal packages when there were fourteen, 'four residual shapes' when there were five, 'one of the two' policies after a third merged in), and no test can catch prose.",
+   "probe": "git diff main...HEAD | grep -nE '^\\+.*\\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|[0-9]+)\\b' over comments and docs; for each hit, derive the number from the code (ls, grep -c, go list) and either replace it with the command or delete it.",
+   "claude_md": "Derive counts; never maintain them.",
+   "finding_ids": [
+    "F0089",
+    "F0119",
+    "F0120",
+    "F0121",
+    "F0143",
+    "F0154",
+    "F0190",
+    "F0302",
+    "F0328",
+    "F0415",
+    "F0421",
+    "F0513",
+    "F0555",
+    "F0717",
+    "F0793"
+   ],
+   "exemplars": [
+    "F0415",
+    "F0121",
+    "F0513"
+   ]
+  },
+  {
+   "key": "no-hand-enumerated-growing-sets",
+   "title": "Do not enumerate in a comment the members of a set the code already holds",
+   "rule": "A doc comment must not list the callers, cases, invariants, reference classes or categories of a set that code defines; state the property or rule that derives membership and point at the source of truth. A list that is kept must cover the whole set.",
+   "why": "Enumerations went stale the moment a case was added (irverify's invariant parenthetical after three checks landed, the reference-class lists behind the literal) or listed a subset that read as the whole (four categories for fourteen exports).",
+   "probe": "For each list in a changed comment, find the code that defines the set (table literal, switch, exported identifiers via go doc -all) and diff the comment's members against it; any missing member, or any list that duplicates a code literal, is a finding.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0095",
+    "F0277",
+    "F0403",
+    "F0542"
+   ],
+   "exemplars": [
+    "F0542",
+    "F0403",
+    "F0277"
+   ]
+  },
+  {
+   "key": "single-source-no-restatement",
+   "title": "Point at the one definition instead of restating a fact, table, version or rationale",
+   "rule": "A fact that has a single definition (README's milestone table, go.mod's go directive, a coverage result, a rationale documented beside its mechanism, a canonical example) must be linked, generated or referenced, never copied into a second place; the same sentence stated twice in one comment is also a defect.",
+   "why": "Copies drifted from their source: the README's Go version and badge disagreed with go.mod, a hard-coded 100% badge could never go red, and duplicated examples and rationales diverged between files.",
+   "probe": "For each literal version, metric, table or rationale paragraph the diff adds, git grep for the same fact elsewhere (go.mod, README tables, the mechanism's own comment); if a source exists, replace the copy with a pointer or generated value. For a badge or status, confirm something can make it fail.",
+   "claude_md": "Restating it here would only give it a second place to rot",
+   "finding_ids": [
+    "F0263",
+    "F0445",
+    "F0459",
+    "F0509",
+    "F0722",
+    "F0799",
+    "F0890"
+   ],
+   "exemplars": [
+    "F0799",
+    "F0459",
+    "F0445"
+   ]
+  },
+  {
+   "key": "derive-inventories-from-the-tree",
+   "title": "Derive package, file, import and feature lists in docs from the tree, not memory",
+   "rule": "Prose that lists packages, docs files, import edges, allowlists, oracle stages, method implementers or implemented passes must be derived from the tree, the archtest rules map, the checker's body or the import graph, and must mark planned items as planned rather than presenting them beside built ones.",
+   "why": "Layout and inventory prose here omitted real packages, named a directory an issue was removing, listed unbuilt passes as present, and understated harness.Check's oracles, sending readers to rebuild mechanisms that already existed.",
+   "probe": "Run git ls-files '*/*.go' | xargs -n1 dirname | sort -u, ls docs/, go list -deps, and read archtest's rules map and harness.Check's body; diff each against the doc's list. For each listed pass or feature, grep for its exported entry point.",
+   "claude_md": "Read them off the tree",
+   "finding_ids": [
+    "F0200",
+    "F0236",
+    "F0245",
+    "F0294",
+    "F0413",
+    "F0416",
+    "F0417",
+    "F0446",
+    "F0447",
+    "F0797",
+    "F0884"
+   ],
+   "exemplars": [
+    "F0416",
+    "F0884",
+    "F0797"
+   ]
+  },
+  {
+   "key": "tooling-claims-match-the-gate",
+   "title": "Check claims about scripts, CI, linters and caps against what they actually execute",
+   "rule": "A doc or comment that says what a script, CI step, action, linter or metric does (what it groups by, what it counts, whether it is generated, what order it runs in, what it puts on PATH) must be checked against the code path or a run of it, and any command quoted in docs must be copied from the gate step it mirrors and run verbatim on the branch it describes.",
+   "why": "README claimed per-package coverage while the script computes one global total, documented a gofmt form the gate does not run, called a hand-written test 'generated', and a CI comment's false PATH claim caused a second linter install.",
+   "probe": "Run every command a changed doc quotes, verbatim, and compare its output to the gate's; read the script or action entrypoint for each 'enforces/counts/runs every' claim and name exceptions (e.g. lint is not a Makefile target); for CI environment claims, print the environment inside a job.",
+   "claude_md": "for the step list rather than restating it here",
+   "finding_ids": [
+    "F0244",
+    "F0292",
+    "F0414",
+    "F0443",
+    "F0444",
+    "F0488",
+    "F0490",
+    "F0595"
+   ],
+   "exemplars": [
+    "F0444",
+    "F0443",
+    "F0595"
+   ]
+  },
+  {
+   "key": "universal-claims-enumerate-every-site",
+   "title": "Check every 'never/always/only/every/none' claim against every site it quantifies over",
+   "rule": "Before a comment, assertion message or normative doc asserts an absolute (never, always, only, the only, every, read by nothing, nothing modelled behind, validated once), enumerate every caller, return path, producer, position, route and member it quantifies over and check each; otherwise scope the claim to the sites checked or name the exceptions. A field's doc must describe what every writer of that field actually writes.",
+   "why": "Absolute claims written from one representative case were false at other sites: 'read by nothing' while constraints.go read it, 'never reports a spec-level problem' with three reachable paths, a field contract no producer obeyed.",
+   "probe": "For each absolute word in a changed comment, list the quantified sites mechanically (git grep writers of the field, gopls callers, every return statement, every composition position such as allOf/anyOf/items) and probe one input per site through the compiler, reading the full diagnostic list; one counterexample means narrow or delete the claim.",
+   "claude_md": "Counts and universals in prose are where this repo's errors concentrate",
+   "finding_ids": [
+    "F0069",
+    "F0087",
+    "F0088",
+    "F0090",
+    "F0122",
+    "F0136",
+    "F0138",
+    "F0140",
+    "F0164",
+    "F0211",
+    "F0235",
+    "F0371",
+    "F0383",
+    "F0402",
+    "F0499",
+    "F0504",
+    "F0610",
+    "F0788"
+   ],
+   "exemplars": [
+    "F0087",
+    "F0235",
+    "F0211"
+   ]
+  },
+  {
+   "key": "doc-names-every-outcome",
+   "title": "Name every branch, outcome and uncovered input in a function's or option's contract",
+   "rule": "A doc comment on a function, type, option or diagnostic must name every outcome its branches produce (each failure condition in the lead sentence, each grade of a strict mode, each live error arm, what happens at the limit) and every input class that breaks a stated guarantee, not only the important or common case.",
+   "why": "Contracts that named one outcome made live branches read as dead code, hid that strict mode reports without refusing, and promised once-per-node or order-independent behaviour without naming the re-read and declaration-order cases that break it.",
+   "probe": "For each changed doc comment, list the function's return paths and switch arms and map each to a sentence in the comment; any unmapped path is a finding. For a guarantee, construct the worst-case input (multi-line, re-read through another $ref, swapped declaration order) and run it.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0335",
+    "F0336",
+    "F0370",
+    "F0376",
+    "F0534",
+    "F0772",
+    "F0789",
+    "F0806"
+   ],
+   "exemplars": [
+    "F0370",
+    "F0376",
+    "F0789"
+   ]
+  },
+  {
+   "key": "doc-verbs-match-the-body",
+   "title": "Check each verb and flow word in a doc comment against the body and call sites",
+   "rule": "Every verb a doc comment uses about its function (checks, records, caches, reads once, intersects, passes, copies) and every ordering word (above, before) must match what the body does today and how call sites use it; describe what is returned and what is left to callers, and state a formal grammar or type check with the exact acceptance condition the code implements.",
+   "why": "Comments described memoization the function lacked, a check it delegates to callers, a value flow that did not exist yet, set intersection where keys are adopted, and a grammar with digits* where the code requires a digit.",
+   "probe": "Read the changed doc comment verb by verb next to the function body; for flow words, list call sites with git grep and trace the real call order; for a stated grammar or type rule, write a table test with the boundary input (zero digits, defined vs predeclared type) and confirm it agrees with the comment.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0045",
+    "F0240",
+    "F0274",
+    "F0363",
+    "F0374",
+    "F0406",
+    "F0878"
+   ],
+   "exemplars": [
+    "F0363",
+    "F0406",
+    "F0374"
+   ]
+  },
+  {
+   "key": "probe-behaviour-claims-by-running-the-input",
+   "title": "Run the exact input a comment describes before stating what it lowers to, drops or fails as",
+   "rule": "A comment, test comment, design-doc sentence or PR body that says what a specific input does (lowers to X, is dropped, reaches a branch, deadlocks, is unsatisfiable, is order-independent, would fail these cases) must be backed by compiling or running that literal input, in both declaration orders where order is claimed; pin the observed value in a test where it can drift.",
+   "why": "Claims written from the code's shape were wrong when executed: 1XY lowered to the defined 1XX range, a 'deadlock' was a stack overflow, maxLength 10 and 20 intersect, and an 'unreachable' branch was reachable via a YAML merge key.",
+   "probe": "Compile the input named in the comment (go run ./cmd/morphic or the harness) and read the emitted IR and full diagnostic list; for order claims swap declaration order and cmp.Diff the documents; for 'unreachable', try merge keys, aliases and inline vs $ref positions; for 'would fail', actually run the alternative.",
+   "claude_md": "Probe, don't read.",
+   "finding_ids": [
+    "F0042",
+    "F0043",
+    "F0118",
+    "F0167",
+    "F0300",
+    "F0344",
+    "F0352",
+    "F0364",
+    "F0377",
+    "F0431",
+    "F0535",
+    "F0740",
+    "F0847"
+   ],
+   "exemplars": [
+    "F0352",
+    "F0300",
+    "F0431"
+   ]
+  },
+  {
+   "key": "verify-the-stated-reason",
+   "title": "Test the reason a comment gives, not just its verdict, by removing the cited guard",
+   "rule": "When a comment credits a guard, call, set, value or missing symbol with a reason (this check distinguishes X, the set terminates cycles, the value is incidental, the IR cannot hold this, a repeat matches twice), verify the reason itself: remove the guard and rerun the cited input, trace consumers of the 'incidental' value, grep for the 'missing' symbol. A correct verdict with a false reason is still a defect.",
+   "why": "Comments here credited a redundant directory guard, justified a visited set by cycles the depth cap already handled, named IR blockers that ir.LongRunning already modelled, and presented an unrecorded asymmetry as code intent.",
+   "probe": "Comment out the guard or call the comment credits, rerun the input the comment cites, and see whether the stated effect appears; if the input still passes, the citation is wrong. For a named blocker, git grep the symbol; for an 'incidental' value, list every branch that reads it.",
+   "claude_md": "Disagreement has to enter from outside: a planted mutation, a probe",
+   "finding_ids": [
+    "F0150",
+    "F0243",
+    "F0353",
+    "F0428",
+    "F0450",
+    "F0470",
+    "F0547",
+    "F0597",
+    "F0603",
+    "F0856"
+   ],
+   "exemplars": [
+    "F0603",
+    "F0243",
+    "F0470"
+   ]
+  },
+  {
+   "key": "claims-that-two-things-agree",
+   "title": "Check 'same', 'distinct' and 'shared' claims on both sides with differing inputs",
+   "rule": "When a comment says two traversals cover the same set, two code paths behave alike, two inputs share a behaviour, two derivations yield distinct results, or several input forms have the same effect, check each side separately, on non-fresh destinations and on inputs that differ only in what the derivation drops, and cite the code path for each.",
+   "why": "Parity checked on one side or on a fresh value hid divergences: a populated destination decoded differently, URL templates differing only in punctuation collided, and only one of two directive spellings actually suppressed nothing.",
+   "probe": "Write a two-row probe per claimed equivalence: run both paths on a pre-populated value, both input spellings, and a pair of inputs differing only in characters the canonicalisation drops; cmp.Diff the results.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0337",
+    "F0348",
+    "F0357",
+    "F0426",
+    "F0599"
+   ],
+   "exemplars": [
+    "F0357",
+    "F0348",
+    "F0599"
+   ]
+  },
+  {
+   "key": "doc-agrees-with-itself",
+   "title": "Reconcile a doc's summary line, headers and universals with its own rows and sentences",
+   "rule": "Within one doc, comment, table or PR body, a status line, section header, category split or universal sentence must agree with the rows and sentences beside it; after adding a row or rule, re-read the surrounding paragraph and headers for contradiction, including against the invariants the doc itself defines.",
+   "why": "Docs here said 'not yet implemented' beside rows marked landed, filed a non-refused row under the refused header, said aliases are held to 'none of that' right after a rule they are held to, and made a name part of an ID contrary to invariant 3.",
+   "probe": "After editing a table or paragraph, re-read every header, status line and universal in the same section against each row; grep the same input across sibling tables (e.g. divergence tables vs corpus comments) and confirm they classify it the same way.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0230",
+    "F0313",
+    "F0325",
+    "F0326",
+    "F0411",
+    "F0422",
+    "F0556",
+    "F0831"
+   ],
+   "exemplars": [
+    "F0230",
+    "F0326",
+    "F0556"
+   ]
+  },
+  {
+   "key": "prove-safety-arguments-in-every-direction",
+   "title": "Test a safety, idempotence, neutrality or stability argument in every direction it can fail",
+   "rule": "A comment or design claim that a refactor is behaviour-neutral, a mismatch fails safely, a rewrite is a fixed point, a sort is stable, or a derived cache never exceeds its source must be checked in each direction (lost, won, unknown; neighbouring elements the rewrite changes; equal keys; every gate condition of the source), and a derived gate should reuse the source's result rather than a copied admission test.",
+   "why": "Partial arguments hid real bugs: a family that wins the election was dropped silently, sort.Slice broke a promised stable order, a copied memo gate dropped a condition, and unifying three disagreeing grammar copies was called neutral.",
+   "probe": "Enumerate the outcomes the argument covers and write one test per direction (mismatch that wins vs loses, equal sort keys, a rune after the split, the source cache's other gate). For neutrality, run the unified and old versions over the corpus and diff the IR.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0203",
+    "F0380",
+    "F0533",
+    "F0585",
+    "F0626"
+   ],
+   "exemplars": [
+    "F0380",
+    "F0626",
+    "F0533"
+   ]
+  },
+  {
+   "key": "external-claims-checked-at-source",
+   "title": "Verify claims about specs, libraries, toolchains and standards at the source, with a version",
+   "rule": "A comment or doc that states what an external spec, standard, library, Go toolchain feature or third-party codebase does must be checked against that source's text or a probe of it, cite the section number or dependency version it was read at, and name the component that actually consumes the input.",
+   "why": "Claims from memory were wrong: the yaml.v3 alias budget never fires on node decode, json/v2 still sits behind goexperiment, a resolver handles some anchor fragments, wrong spec section numbers, and a prior-art survey written without reading oagen's source.",
+   "probe": "For each external claim in the diff, open the dependency source at the go.mod version (go mod download -json; read the file) or the spec section, or write a one-off probe calling the library with the cited input; confirm the citation carries a version or section and names the reader actually used (e.g. speakeasy, not yaml.v3).",
+   "claude_md": "",
+   "finding_ids": [
+    "F0003",
+    "F0004",
+    "F0054",
+    "F0096",
+    "F0135",
+    "F0391",
+    "F0425",
+    "F0671",
+    "F0673",
+    "F0715",
+    "F0716",
+    "F0733",
+    "F0792"
+   ],
+   "exemplars": [
+    "F0671",
+    "F0715",
+    "F0733"
+   ]
+  },
+  {
+   "key": "test-claims-match-reach",
+   "title": "Make a test's name, comment and witness labels state only what its assertions reach",
+   "rule": "A test name, test comment, witness label or coverage justification must describe what the assertions actually check and which inputs actually run: count skipped versus exercised inputs, confirm a named witness produces the outcome in its golden, check the matrix status for every row a fixture claims, and check that a timeout or guard is not negated by another test of the same input.",
+   "why": "Sweeps implied coverage of fixtures the compiler declined, conformance specs claimed rows their goldens did not show, a test name asserted a property nothing checked, and a 10s bound protected nothing because the fixture ran unbounded elsewhere.",
+   "probe": "Plant the defect the test claims to catch and watch it go red; for a sweep, print counts of skipped vs checked inputs; for a witness label, grep the golden for the construct; for a timeout, grep the suite for other tests compiling the same fixture.",
+   "claude_md": "a test that passes without asserting what its name claims",
+   "finding_ids": [
+    "F0125",
+    "F0137",
+    "F0332",
+    "F0424",
+    "F0469",
+    "F0476",
+    "F0512",
+    "F0515",
+    "F0546",
+    "F0636"
+   ],
+   "exemplars": [
+    "F0469",
+    "F0137",
+    "F0424"
+   ]
+  },
+  {
+   "key": "pr-claims-match-evidence",
+   "title": "State in PR bodies and commits only the verification results actually observed",
+   "rule": "A PR body or commit message must report what was observed on the final tree: a fix it says landed must be in the diff, a mutation result must name the sites it was run at with per-site outcomes, and 'all routes' or 'dropped everywhere' must come from probing each route; generalising one probed site to its mechanism is an overclaim.",
+   "why": "PR bodies here claimed fixes that had not landed, 'all six went red' when one did not, and that a pair was dropped on mounted items when it survived on every mounted operation.",
+   "probe": "Before pushing, re-run each mutation and probe quoted in the body against the final test files and paste the observed output; for any 'every/all routes' sentence, list routes in code and run one input per route.",
+   "claude_md": "Prefer proving a claim over asserting it",
+   "finding_ids": [
+    "F0022",
+    "F0151",
+    "F0511",
+    "F0653",
+    "F0667"
+   ],
+   "exemplars": [
+    "F0511",
+    "F0151",
+    "F0653"
+   ]
+  },
+  {
+   "key": "measure-before-quantifying",
+   "title": "Back every performance, memory or noise figure with a measurement on the claimed workload",
+   "rule": "Do not claim a speedup, memory bound, noise immunity or quantified effect until a before/after measurement on the claimed workload shows it; a count bound described as a memory bound must be measured in retained bytes, and measured figures belong in the PR description with their revision, not in source comments where they go stale.",
+   "why": "A per-walk view was kept for a benefit that never reproduced, a shared count bound let retained memory grow 3.4 times, and a 'no leverage' timing claim was disproved by a CI failure.",
+   "probe": "Run go test -bench and a heap profile after runtime.GC on the stated workload before and after; compare retained bytes per charged unit; run timing tests under taskset load and record spread. Any number in a changed source comment is moved to the PR body.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0405",
+    "F0489",
+    "F0564",
+    "F0625",
+    "F0689"
+   ],
+   "exemplars": [
+    "F0625",
+    "F0564",
+    "F0689"
+   ]
+  },
+  {
+   "key": "record-deliberate-gaps-in-code",
+   "title": "Record a deliberate gap, wide exemption or missing policy switch in the code with its issue",
+   "rule": "When a change deliberately leaves something undone (an exemption wider than its reason, an unconditional report where invariant 6 would want a policy switch, declined parts of an issue), state it on the code that holds the gap, name the tracker issue, and use Refs rather than Closes for a partially addressed issue.",
+   "why": "Gaps recorded only in a PR body or presented as settled carve-outs are invisible to the next reader, and Closes retired an issue whose two largest items were deliberately declined.",
+   "probe": "For each exemption, skip or unconditional branch in the diff, check the comment beside it names its extent and an issue; for each Closes #N in the body, read the issue's items and confirm every one is done.",
+   "claude_md": "A limitation that is deliberately out of scope must be stated in the code and in the PR body",
+   "finding_ids": [
+    "F0390",
+    "F0392",
+    "F0631"
+   ],
+   "exemplars": [
+    "F0631",
+    "F0390"
+   ]
+  },
+  {
+   "key": "pointer-token-names-decoded-and-total",
+   "title": "Decode pointer tokens and test name derivation for every position kind and escape",
+   "rule": "A name, hint or wire value derived from a JSON pointer or $ref token must be unescaped (RFC 6901 and percent-encoding) where extracted, must not use indexed or keyword-like tokens (0, items, properties) as the node's name, must branch on inline versus component targets, must never return empty for non-empty input, and word separators must be the complement of the word class rather than an enumerated list.",
+   "why": "Raw tokens leaked into the IR: Cat/Dog became discriminatorValue Cat~1Dog, union variants were named '0' or 'items', invalid UTF-8 fragments hinted 'empty', and punctuation survived into canonical words.",
+   "probe": "Compile a fixture whose schema names contain ~, /, %, non-UTF-8 bytes and structural keywords (items, properties, allOf), referenced both inline and via $ref, as union variants and allOf branches; read every Naming, hint and discriminatorValue in the IR.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0206",
+    "F0705",
+    "F0706",
+    "F0707",
+    "F0710",
+    "F0734",
+    "F0756"
+   ],
+   "exemplars": [
+    "F0705",
+    "F0756",
+    "F0734"
+   ]
+  },
+  {
+   "key": "synthesized-name-channel-and-independence",
+   "title": "Keep synthesized names in the hint channel, with canonical words, independent of unrelated content",
+   "rule": "A name the compiler invents must be recorded as a hint rather than a source-declared name, must carry canonical words so emitters need not segment it, and must depend only on its own position, not on whether unrelated schemas reference that position; a new verifier check must be run over the whole committed corpus before merging.",
+   "why": "A synthesized group name was recorded as API-author-declared, a webhook group shipped with no canonical words, and hints under /paths changed with unrelated references, which a two-order diff does not catch.",
+   "probe": "Run go run ./cmd/morphic-harness testdata/ after adding a naming check; add a fixture pair differing only by an unrelated $ref to the position and cmp.Diff the names; inspect Naming.Source vs hint fields for every synthesized node.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0231",
+    "F0232",
+    "F0612"
+   ],
+   "exemplars": [
+    "F0232",
+    "F0612"
+   ]
+  },
+  {
+   "key": "no-identifier-collisions",
+   "title": "Grep the package and file for a name before binding it, including tests and imports",
+   "rule": "Before naming a type, local or parameter, grep the enclosing function, package and its test files for an existing binding of that identifier and for an import of that name; when renaming to fix a collision, include test files in the sweep.",
+   "why": "One identifier carried three meanings (ctx), a same-typed shadow would have silently changed output, and test locals shadowed the go/types import or reintroduced a collision production code had just removed.",
+   "probe": "git grep -nw '<newName>' in the package including _test.go files and check import lists; enable the linter rules (e.g. importShadow / predeclared) that enforce the styleguide's shadowing rule and run make lint.",
+   "claude_md": "never shadow builtins or imports",
+   "finding_ids": [
+    "F0241",
+    "F0255",
+    "F0266",
+    "F0267",
+    "F0861"
+   ],
+   "exemplars": [
+    "F0255",
+    "F0861",
+    "F0241"
+   ]
+  },
+  {
+   "key": "identifier-says-what-it-holds",
+   "title": "Name a constant or local for what its value actually is, never by a script counter",
+   "rule": "An identifier must describe what it holds: no counter-generated names (kept0, keptDiags1) left from a rewrite script, and no name whose noun contradicts its value (a prefix with a trailing separator named a path).",
+   "why": "Script-numbered locals meant nothing and restarted per file, giving unrelated sites the same name; a mismatched constant name misleads every reader of derived values.",
+   "probe": "git diff main...HEAD | grep -nE '^\\+.*\\b[a-zA-Z]+[0-9]+\\b\\s*:?=' for numbered locals; for each new constant, compare its name's noun with its literal value.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0254",
+    "F0875"
+   ],
+   "exemplars": [
+    "F0254",
+    "F0875"
+   ]
+  },
+  {
+   "key": "comment-references-resolve",
+   "title": "Make every name and cross-reference in a comment resolve to one visible target",
+   "rule": "Every identifier, test name, field name and in-comment cross-reference ('for that reason', 'see above') must resolve to exactly one existing target visible from the comment's package: no function locals in GoDoc, no constants from packages above, no nonexistent tests, and owner-qualified field names when a short name is ambiguous.",
+   "why": "Comments pointed at tests that do not exist, at locals the API reader cannot see, at a constant in a higher layer, and used 'Auth' for two fields reaching opposite conclusions.",
+   "probe": "For each identifier in a changed comment, git grep -nw it in the package (and go doc the package) to confirm it exists and is visible; for each cited test, go test -list '<Name>' ./... must print it; for each cross-reference phrase, read the referent sentence.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0072",
+    "F0238",
+    "F0358",
+    "F0367",
+    "F0508",
+    "F0583"
+   ],
+   "exemplars": [
+    "F0583",
+    "F0367",
+    "F0072"
+   ]
+  },
+  {
+   "key": "commit-and-pr-message-form",
+   "title": "Check commit subjects, PR titles and bodies against the message rules before first push",
+   "rule": "Every commit subject and the PR title must be Conventional Commits, imperative, at most 72 characters (the title at most 72 including the appended ' (#NNN)'); a breaking commit carries ! and explains the break in its own body; PR bodies carry no tool attribution or session artifacts.",
+   "why": "Over-length subjects and prose titles land on main via squash and cannot be fixed without rewriting a pushed branch; a break marked only in the PR title is invisible in branch history.",
+   "probe": "git log --format=%s main..HEAD | awk 'length($0)>72'; printf '%s (#999)' \"<title>\" | wc -c; grep the title against ^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\\(.+\\))?!?: ; grep the body for 'Generated with' lines other than the required attribution.",
+   "claude_md": "The PR title is the commit subject.",
+   "finding_ids": [
+    "F0006",
+    "F0059",
+    "F0147",
+    "F0199",
+    "F0858"
+   ],
+   "exemplars": [
+    "F0858",
+    "F0199",
+    "F0006"
+   ]
+  },
+  {
+   "key": "diff-contains-only-in-scope-files",
+   "title": "Keep the diff to in-scope files and keep scratch notes out of the tree",
+   "rule": "Every changed path must belong to the PR's stated scope; session planning docs and working notes must be ignored before the first commit that would add them, and an ignore rule may be removed only after confirming local tools no longer generate those paths.",
+   "why": "Design-only PRs carried go.mod changes, plans and temporary rewrite notes were committed toward main, and a removed .claude/ ignore entry had to be restored.",
+   "probe": "git diff --stat main...HEAD and match each path to the PR title; git ls-files docs/ | grep -iE 'plan|notes|rewrite|superpowers'; for a removed .gitignore line, git status --ignored before and after.",
+   "claude_md": "Keep PRs scoped to one logical change",
+   "finding_ids": [
+    "F0001",
+    "F0007",
+    "F0148",
+    "F0460"
+   ],
+   "exemplars": [
+    "F0007",
+    "F0148",
+    "F0001"
+   ]
+  },
+  {
+   "key": "misc-unclusterable",
+   "title": "Genuine one-offs",
+   "rule": "Run make gate after mechanical rewrites; consult the tracker before settling a line a change forced; render edited doc comments with go doc.",
+   "why": "Each slipped past a different single check: linter-only leftovers from go fix, a recorded decision settled as a side effect, and escaped quotes rendering literally in godoc.",
+   "probe": "make gate after go fix; gh issue list --search '<file or symbol>' for any forced line; go doc <pkg>.<Symbol> for each edited doc comment.",
+   "claude_md": "",
+   "finding_ids": [
+    "F0191",
+    "F0233",
+    "F0378"
+   ],
+   "exemplars": [
+    "F0233",
+    "F0378"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,689 @@
+{
+  "group": "C",
+  "clusters": [
+    {
+      "key": "sweep-every-site-of-the-mechanism",
+      "title": "Fix the mechanism at every site that runs it, not only where it was noticed",
+      "rule": "When a diff fixes a defect, adds a guard, sanitizer or check, or closes an issue, name the mechanism and grep every code site that runs it (sibling hoisters, other callers of the old helper, the parallel request/reply set, every registry, every channel of the same text); fix each in the same PR or state the uncovered site in code and PR body. An issue's own site list and a single-instance framing are claims to check against the code, not the scope.",
+      "why": "The pointer-collision fix left the same collision standing in the inline-position hoist, and same-mechanism sites deferred to follow-up issues kept the defect live on main while the PR claimed it closed.",
+      "probe": "Before push, write the mechanism as a grep (the helper name, the literal, the guard shape) and run it across the tree; for each hit either show the fix or plant the reproducer at that site and watch it go red.",
+      "claude_md": "Sweep every site of the mechanism before closing it.",
+      "finding_ids": [
+        "F0011",
+        "F0031",
+        "F0038",
+        "F0058",
+        "F0066",
+        "F0084",
+        "F0194",
+        "F0202",
+        "F0219",
+        "F0343",
+        "F0429",
+        "F0433",
+        "F0437",
+        "F0458",
+        "F0502",
+        "F0519",
+        "F0537",
+        "F0548",
+        "F0561",
+        "F0655",
+        "F0697",
+        "F0746",
+        "F0810",
+        "F0869"
+      ],
+      "exemplars": [
+        "F0202",
+        "F0066",
+        "F0697"
+      ]
+    },
+    {
+      "key": "same-construct-at-every-position",
+      "title": "Lower the same source construct at every position that can hold it and diff",
+      "rule": "When a change lowers, preserves or reports a keyword or rule at one schema position, enumerate every position the spec lets it appear (named declaration, inline, property, parameter, header, allOf branch, beside a $ref, composed body, nested object, under an x- extension) and make each one reach the same path or record what it cannot carry. A carrier type with no field for a keyword must record it as residue.",
+      "why": "One construct lowered two ways depending on where it appeared, and parameter, header and nested-object positions silently dropped keywords the property position kept.",
+      "probe": "Compile one fixture that writes the same construct (with a sibling keyword and an x- key) at every position, then diff the IR and the diagnostic list per position; any position that loses something is the missed site.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0036",
+        "F0102",
+        "F0156",
+        "F0157",
+        "F0159",
+        "F0181",
+        "F0195",
+        "F0215",
+        "F0220",
+        "F0393",
+        "F0496",
+        "F0573",
+        "F0617",
+        "F0643",
+        "F0721"
+      ],
+      "exemplars": [
+        "F0156",
+        "F0195",
+        "F0393"
+      ]
+    },
+    {
+      "key": "every-input-route-reaches-the-guard",
+      "title": "Make every input route reach the new guard, path or oracle",
+      "rule": "When a guard, transformation, validation or new branch is applied on one route into a consumer, list every other route into it (external $ref documents, overlays, callbacks, direct versus behind a $ref, harness oracles that take no options) and confirm each reaches it, or state the uncovered route where the next reader will see it.",
+      "why": "The anchor release and alias refusals protected only the root document, so overlays and externally referenced documents still crashed or lost entries with exit 0, and the harness oracles never saw the overlay path.",
+      "probe": "Run the same negative fixture through each route (wrap it in an external $ref, apply it as an overlay, reach it through a callback) and diff the diagnostics and IR against the direct compile.",
+      "claude_md": "A check that runs is not a check that reaches.",
+      "finding_ids": [
+        "F0339",
+        "F0647",
+        "F0685",
+        "F0698",
+        "F0758",
+        "F0778",
+        "F0780"
+      ],
+      "exemplars": [
+        "F0758",
+        "F0685",
+        "F0778"
+      ]
+    },
+    {
+      "key": "twin-diff-every-accepted-keyword",
+      "title": "Prove each keyword the reader accepts changes the output",
+      "rule": "Every source keyword or field a change reads, lists, documents or comments on must reach a typed field, an Unmodeled entry or a diagnostic. A scanner list, a field doc comment naming a keyword as its home, or a census comment saying the rest is captured is a claim to test, not evidence.",
+      "why": "Fields such as allowReserved, propertyNames, minItems and x-* on most objects compiled to byte-identical IR with or without them, which breaks the lossless-by-default invariant with a clean exit.",
+      "probe": "For each keyword in the vocabulary, compile two specs that differ only in that keyword and diff the IR plus diagnostics; byte-identical output is a silent drop. Enumerate the keywords from the source schema, not a hand-picked sample.",
+      "claude_md": "Compile the input; inspect the emitted IR *and* the full diagnostic list.",
+      "finding_ids": [
+        "F0002",
+        "F0108",
+        "F0160",
+        "F0161",
+        "F0494",
+        "F0495",
+        "F0507",
+        "F0522",
+        "F0652"
+      ],
+      "exemplars": [
+        "F0495",
+        "F0507",
+        "F0161"
+      ]
+    },
+    {
+      "key": "yaml-alias-anchor-merge-spellings",
+      "title": "Probe every raw-YAML reader with alias, anchor, merge-key, tag and quoted spellings",
+      "rule": "Any code that reads raw YAML nodes or mirrors the parser's rules must resolve aliases, anchors, merge keys and tags the way the parser does, and must not treat quoted or aliased non-special spellings as special. Prefer the raw node or the library call over a hand-written copy of the rule.",
+      "why": "Readers matched keys by raw node text or skipped anchor-valued pairs, so aliased, anchored or merged entries were dropped with exit 0, while quoted '<<' keys raised a false cycle.",
+      "probe": "Feed each touched reader a fixture set: key as alias, value as alias, anchored entry, '<<' merge, quoted '<<', !!merge tag; diff IR and diagnostics against the plain spelling.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0050",
+        "F0183",
+        "F0319",
+        "F0523",
+        "F0525",
+        "F0664",
+        "F0696",
+        "F0860"
+      ],
+      "exemplars": [
+        "F0696",
+        "F0523",
+        "F0050"
+      ]
+    },
+    {
+      "key": "every-spelling-of-one-concept",
+      "title": "Cover every spelling the spec allows for one concept",
+      "rule": "When a change reads a concept the source can spell several ways (keyword nullability versus a null union branch, schema versus content, ASCII versus non-ASCII twins, both orders of an adjacency), write one case per spelling and assert they lower and diagnose identically.",
+      "why": "The null-spelling fix handled keyword spellings only, so a null oneOf branch dropped Nullable at every reference, and a header written with content lowered as untyped.",
+      "probe": "Build a table of equivalent spellings for the concept and assert identical IR and diagnostic codes across the table; re-run every twin pair after any reader changes.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0064",
+        "F0218",
+        "F0586",
+        "F0731"
+      ],
+      "exemplars": [
+        "F0064",
+        "F0218"
+      ]
+    },
+    {
+      "key": "merge-each-field-by-rule-in-both-orders",
+      "title": "Merge redeclared fields per attribute and test both orders",
+      "rule": "A merge or reconciliation of duplicate declarations, or two writers into one field or map, needs an explicit rule for every field of the struct; never keep one side wholesale, never assign a zero value over another source's value, and never skip a shared-map write because some other construct already holds the key.",
+      "why": "Reconciliation kept the first allOf branch's constraints and visibility wholesale, so the result depended on branch order and later branches' keywords vanished with no diagnostic.",
+      "probe": "List the struct's fields beside the merge and point at the rule for each; then compile complementary keys from each side in both declaration orders and cmp.Diff the documents.",
+      "claude_md": "Order-dependence needs a two-order diff.",
+      "finding_ids": [
+        "F0009",
+        "F0040",
+        "F0103",
+        "F0360",
+        "F0518",
+        "F0528"
+      ],
+      "exemplars": [
+        "F0009",
+        "F0040",
+        "F0360"
+      ]
+    },
+    {
+      "key": "test-co-declared-keywords-together",
+      "title": "Decide and test the combination when keywords co-occur",
+      "rule": "When a lowering reads several keywords that may be co-declared (prefixEncoding with itemEncoding, readOnly with writeOnly, minimum with exclusiveMinimum, allOf with oneOf, explode with an empty style, siblings a rewrite target cannot carry), test the pair directly; a dropped partner goes to Unmodeled or a diagnostic, never only into a message.",
+      "why": "Ordered early-return guards and single-path lowerings kept one keyword of a pair, so {minimum:10,exclusiveMinimum:0} and {minimum:10} compiled byte-identical.",
+      "probe": "For each keyword pair the code reads, compile the pair, each keyword alone and neither, and diff all four documents; two identical outputs for different inputs is the drop.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0099",
+        "F0134",
+        "F0179",
+        "F0457",
+        "F0505",
+        "F0576"
+      ],
+      "exemplars": [
+        "F0505",
+        "F0457",
+        "F0099"
+      ]
+    },
+    {
+      "key": "fast-paths-carry-what-the-shared-path-does",
+      "title": "Make every early return, fast path and carrier constructor carry the shared path's data",
+      "rule": "When a helper returns early (existing owner, interned node, zero children) or a new construct builds its carrier inline or calls a shared constructor, check it applies everything the main path applies: every argument at every call site, every fill function, every hook.",
+      "why": "An early return on an existing owner and an interning short-circuit skipped the constraint path, and an inline-built header Property skipped the detail filler, dropping docs, extensions and constraints silently.",
+      "probe": "List every return before the shared step and every call site of the constructor; write a case that reaches each with the node already present or the child count zero, and diff against the main path.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0101",
+        "F0128",
+        "F0180",
+        "F0570",
+        "F0571",
+        "F0642",
+        "F0644"
+      ],
+      "exemplars": [
+        "F0571",
+        "F0180",
+        "F0642"
+      ]
+    },
+    {
+      "key": "derive-lists-from-their-source",
+      "title": "Derive any list that mirrors code instead of maintaining it by hand",
+      "rule": "A hand-written list of fields, carriers, packages, classes or keys that mirrors a type graph, a writer, or the tree must be derived from it (reflection, AST, the writer's own result) or diffed against it by a test that fails in both directions.",
+      "why": "A hand-written reference-field list drifted behind the IR and an announcement predicate restated the writer's construct list and omitted parameters, so new members went unchecked or unannounced with the suite green.",
+      "probe": "Add a member to the source (an IR field, a writer construct, a package) in a scratch edit without touching the list and confirm a test reddens; remove one from the list and confirm the same.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0100",
+        "F0158",
+        "F0289",
+        "F0404",
+        "F0584",
+        "F0649",
+        "F0659"
+      ],
+      "exemplars": [
+        "F0100",
+        "F0659",
+        "F0584"
+      ]
+    },
+    {
+      "key": "verifier-reaches-every-reference-and-id-class",
+      "title": "Check every reference position and every ID class, not a subset",
+      "rule": "A validator or verifier over references or IDs must cover every position a reference can occupy (map keys, PropIDs, plain int indices) and every ID class and node class the document holds, derived from the type graph rather than from the data a fixture happens to contain.",
+      "why": "Dangling rename targets, channel, message and PropID references, and malformed operation IDs verified clean because the walk saw only TypeIDs or only registry-reached nodes.",
+      "probe": "Plant a dangling or malformed value in each reference-bearing field and each ID class in turn and assert a violation fires for each; a field whose plant stays green is uncovered.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0010",
+        "F0115",
+        "F0132",
+        "F0163",
+        "F0172",
+        "F0198",
+        "F0387",
+        "F0822"
+      ],
+      "exemplars": [
+        "F0163",
+        "F0132",
+        "F0387"
+      ]
+    },
+    {
+      "key": "verifier-rejects-every-degenerate-value",
+      "title": "Give every field a check that rejects its zero, empty and malformed values",
+      "rule": "For each field a consumer reads or routes on, the verifier must have a production read site that rejects its empty, null, absent, mismatched-kind and malformed values, read from the unfiltered source and mirroring every refusal the encoder makes.",
+      "why": "Empty keys and reasons, an absent irVersion, unread Aliases, digitless numbers and ill-formed UTF-8 all verified clean, so a verified document could still fail to encode or misroute.",
+      "probe": "For each field of the struct under check, write the zero, empty, null and wrong-kind variants and assert each yields a violation; encode every document that verifies clean.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0114",
+        "F0123",
+        "F0333",
+        "F0452",
+        "F0453",
+        "F0463",
+        "F0543",
+        "F0725",
+        "F0737",
+        "F0738",
+        "F0739",
+        "F0833"
+      ],
+      "exemplars": [
+        "F0463",
+        "F0543",
+        "F0725"
+      ]
+    },
+    {
+      "key": "no-silent-fallback-to-a-valid-looking-value",
+      "title": "Report malformed or unusable input instead of mapping it to a valid-looking value",
+      "rule": "A parser fallback, default switch arm or sentinel must never turn unreadable, forbidden or unusable input into a value that looks deliberate ({0,0} status, empty AuthRequirement, guessed kind, empty method); emit a diagnostic and a no-value result, and switch over closed enums without a guessing default.",
+      "why": "A typo'd responses key arrived as a declared default and a malformed security entry granted public access, both with no diagnostic.",
+      "probe": "Compile each malformed or forbidden spelling the parser can meet and diff its IR against the deliberate spelling; identical IR or an empty diagnostic list is the defect.",
+      "claude_md": "Never accept garbage silently.",
+      "finding_ids": [
+        "F0196",
+        "F0349",
+        "F0350",
+        "F0366",
+        "F0430",
+        "F0461",
+        "F0581"
+      ],
+      "exemplars": [
+        "F0461",
+        "F0350",
+        "F0196"
+      ]
+    },
+    {
+      "key": "diagnostic-text-names-what-fired",
+      "title": "Make each diagnostic's message, code and severity match the case that fired",
+      "rule": "Every branch, position and failure cause of a diagnostic needs wording true for that branch: name the specific cause, the earlier duplicate, the unit it counts and the correct repair; reuse a code only when its documented meaning fits; set severity from what the input means.",
+      "why": "Messages described allOf branches for sibling positions, blamed the wrong failure direction, rendered blank slots, and reused a code whose documented meaning consumers select on.",
+      "probe": "Trigger every branch and severity of the diagnostic, including zero-valued inputs and both directions of a symmetric check, and read each rendered message against the fixture.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0033",
+        "F0041",
+        "F0067",
+        "F0111",
+        "F0169",
+        "F0311",
+        "F0464",
+        "F0517",
+        "F0536",
+        "F0549",
+        "F0551",
+        "F0560",
+        "F0747"
+      ],
+      "exemplars": [
+        "F0041",
+        "F0464",
+        "F0169"
+      ]
+    },
+    {
+      "key": "diagnostic-provenance-names-the-real-site",
+      "title": "Point every diagnostic at the node and document it is about",
+      "rule": "A diagnostic's provenance must name its own site (not the document root or the holding node), resolve to a node that exists, use a source index the table holds, name the document the position was read from, and keep distinct sibling sites distinct so deduplication cannot merge them.",
+      "why": "Root-stamped notices for several unmounted items deduplicated into one naming none, and chained $ref findings sent readers to a line in the wrong file.",
+      "probe": "Resolve every emitted pointer through the parsed source in a test; compile two sibling instances and assert two distinct diagnostics; exercise the diagnostic behind a chained $ref and an overlay graft.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0068",
+        "F0645",
+        "F0654",
+        "F0665",
+        "F0669",
+        "F0728",
+        "F0749",
+        "F0750",
+        "F0760",
+        "F0767",
+        "F0768"
+      ],
+      "exemplars": [
+        "F0645",
+        "F0767",
+        "F0728"
+      ]
+    },
+    {
+      "key": "announce-kept-only-after-the-write",
+      "title": "Decide a kept/dropped announcement from what was written",
+      "rule": "A diagnostic that says something was kept, preserved or dropped must be decided from the output that was actually written, after the write succeeded; a rebuild that replaces a node must retract the superseded build's diagnostics and Unmodeled entries.",
+      "why": "Warnings claimed a preservation that never happened when a conversion failed or a merge key hid the construct from the raw reader.",
+      "probe": "Force the write to fail (bad YAML-to-JSON value, merge-key-supplied construct) and assert the 'kept' diagnostic disappears; diff the Unmodeled map against what each announcement claims.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0217",
+        "F0648",
+        "F0666",
+        "F0763"
+      ],
+      "exemplars": [
+        "F0648",
+        "F0217"
+      ]
+    },
+    {
+      "key": "one-defect-one-finding",
+      "title": "Produce exactly one finding per defect",
+      "rule": "When a new check overlaps an existing one (a generalised check, an overriding reader, a scanner over delimiter runs), retire or suppress the overlap for the whole class in the same change.",
+      "why": "A bad numeric bound and an ill-formed string each drew two reports, inflating counts and confusing which check owns the defect.",
+      "probe": "Plant each defect the overlapping checks cover and assert the diagnostic or violation list holds exactly one entry for it.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0032",
+        "F0593",
+        "F0726"
+      ],
+      "exemplars": [
+        "F0726",
+        "F0032"
+      ]
+    },
+    {
+      "key": "check-stays-silent-on-valid-input",
+      "title": "Pair every new check with must-stay-silent fixtures for valid input",
+      "rule": "A conflict detector, refusal or structural guard must flag only what it can prove wrong: test satisfiable narrowings, opaque types, every valid spelling a spec version allows, indirections the compiler unwraps, and file kinds it never reads, and run it over the corpus before merge.",
+      "why": "New checks rejected legal multipart bodies and valid 3.0 boolean bounds, and warned on allOf narrowings that are satisfiable.",
+      "probe": "For each check write a must-fire and a must-stay-silent fixture, including alias/$ref indirection and every valid spec-version spelling, then run morphic-harness over testdata and require no new diagnostics.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0035",
+        "F0039",
+        "F0044",
+        "F0174",
+        "F0483",
+        "F0880"
+      ],
+      "exemplars": [
+        "F0174",
+        "F0039",
+        "F0035"
+      ]
+    },
+    {
+      "key": "bounded-walk-reports-truncation",
+      "title": "Report when a cap is hit and never draw negative conclusions from a truncated walk",
+      "rule": "A bounded traversal or helper that stops at its cap must surface that (finding, flag consumed at every call site, failing test), a checker's cap must be at least the producer's, and a not-found answer from a truncated walk is not a not-declared claim.",
+      "why": "Truncated walks let the oracle call a document clean, reported valid deep references as dangling, and flagged legitimately deep defaults as truncated.",
+      "probe": "Build a document at the producer's maximum depth and one past the checker's cap; assert the first is clean and the second reports truncation; grep callers for discarded truncation returns.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0012",
+        "F0016",
+        "F0330",
+        "F0388",
+        "F0819"
+      ],
+      "exemplars": [
+        "F0012",
+        "F0388",
+        "F0016"
+      ]
+    },
+    {
+      "key": "loaders-fail-when-they-read-less",
+      "title": "Fail when a loader or parser reads less than it was asked to",
+      "rule": "A source loader, package loader or document parser must error when its result is smaller than its input: a pattern matching nothing, a build-excluded file, a test-only package, or a line it cannot place.",
+      "why": "Checkers reported clean on code they never saw, and the matrix reader dropped every row below an unexpected line.",
+      "probe": "Feed the loader a pattern matching nothing, a build-tagged file, a test-only package and a malformed line mid-table, and assert each errors rather than returning a shorter result.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0468",
+        "F0863",
+        "F0864",
+        "F0865"
+      ],
+      "exemplars": [
+        "F0864",
+        "F0468"
+      ]
+    },
+    {
+      "key": "every-return-path-delivers-diagnostics",
+      "title": "Prove every return path and caller delivers its diagnostics",
+      "rule": "When a function's diagnostics must survive every return path or every caller, add a test per path and caller that fails when that report is removed; before deleting a diagnostic as redundant, show the other stage reaches every case including early exits and panics.",
+      "why": "A refusal path omitted the stream-drop report and callers could drop the operation-extension warning with no test failing.",
+      "probe": "Delete the report on each return path and each caller in turn and confirm a test reddens.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0251",
+        "F0672",
+        "F0773"
+      ],
+      "exemplars": [
+        "F0672",
+        "F0773"
+      ]
+    },
+    {
+      "key": "plant-a-defect-in-every-branch",
+      "title": "Plant a defect in every branch, member and skip path a test claims to cover",
+      "rule": "For each action, branch, nested member, non-first family member, skip path, sub-shape and downstream output a change touches, there must be a test that reddens when that one is broken; a guard pinned in one check does not pin its siblings.",
+      "why": "Guards and reachability checks covered one arm or one column, so removing a sibling guard or breaking a second column left the suite green.",
+      "probe": "Mutate each branch or member in turn (delete the guard, corrupt column N, skip the second arm) and run the suite; record any mutation that survives.",
+      "claude_md": "Break what a test claims to catch.",
+      "finding_ids": [
+        "F0305",
+        "F0318",
+        "F0327",
+        "F0338",
+        "F0427",
+        "F0440",
+        "F0472",
+        "F0541",
+        "F0785"
+      ],
+      "exemplars": [
+        "F0541",
+        "F0318",
+        "F0472"
+      ]
+    },
+    {
+      "key": "character-predicate-witness-per-class",
+      "title": "Witness each character class a text predicate decides",
+      "rule": "A predicate over text (cased, blank, invisible) must be tested against the producer's exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable, Zs, caseless letters), not a hand-picked sample.",
+      "why": "unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and filler-only aliases pass as non-blank.",
+      "probe": "Generate one witness per class and per producer output and assert the predicate's verdict on each.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0017",
+        "F0544",
+        "F0550"
+      ],
+      "exemplars": [
+        "F0544",
+        "F0550"
+      ]
+    },
+    {
+      "key": "probe-the-real-external-tool",
+      "title": "Run the real external tool on a planted input before relying on it",
+      "rule": "When a script or check depends on a linter, jq, git output, the go command or a CI action, plant the construct and run the real tool from an unrelated directory as CI runs it: clean files, disabled linters, null arrays, colons in paths, CRLF, exported env vars.",
+      "why": "nolint directives naming disabled or unknown linters passed silently, jq exited 0 with a shrunk set, and a setup-go bump spammed GOTOOLCHAIN warnings in every step.",
+      "probe": "Plant each directive or data shape in a scratch file, run the tool and the check against it from a different cwd, and compare their verdicts form by form.",
+      "claude_md": "Probe, don't read.",
+      "finding_ids": [
+        "F0588",
+        "F0589",
+        "F0590",
+        "F0591",
+        "F0592",
+        "F0594",
+        "F0600",
+        "F0794",
+        "F0795"
+      ],
+      "exemplars": [
+        "F0588",
+        "F0591",
+        "F0795"
+      ]
+    },
+    {
+      "key": "cache-and-dedup-keys-carry-full-identity",
+      "title": "Key every cache, visited set and dedup on the full identity",
+      "rule": "A visited set, cache, skip or identity key must include everything that distinguishes the reading (node plus role or kind, the spec's own uniqueness key, the canonical URL); a change to cache admission or reuse must reproduce the first answer, diagnostics included.",
+      "why": "A shared visited set hid a node's second role, a URL respelling missed the cache, and cache reuse turned an error into a warning.",
+      "probe": "Compile the same node read two ways, the same URL respelled, and a fixture across the cache-budget boundary, and diff both IR and diagnostic codes.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0056",
+        "F0473",
+        "F0624",
+        "F0764",
+        "F0766",
+        "F0786"
+      ],
+      "exemplars": [
+        "F0056",
+        "F0764",
+        "F0766"
+      ]
+    },
+    {
+      "key": "source-scanners-match-every-form",
+      "title": "Key static source checks on every syntactic form, ideally the resolved type",
+      "rule": "An AST or grep check over Go source must match every form the language and codebase use: value and pointer receivers, method values, functions passed as values, aliases, every selector base, go statements and .Go calls, every write form and every constructor of an identity type.",
+      "why": "Recursion and dependency pins went blind to value receivers and method values, and a grep audit reported clean while missing both planted writes.",
+      "probe": "Plant one instance of each form the check must catch in a scratch package and confirm each reddens; prefer keying on go/types over selector text.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0262",
+        "F0264",
+        "F0466",
+        "F0614",
+        "F0724",
+        "F0827",
+        "F0866",
+        "F0877",
+        "F0879"
+      ],
+      "exemplars": [
+        "F0466",
+        "F0879",
+        "F0724"
+      ]
+    },
+    {
+      "key": "price-every-reader-of-a-cost",
+      "title": "Measure every reader of the same scan before calling a cost removed",
+      "rule": "When a fix removes a quadratic or width-cost scan at one site, grep every reader that walks the same nodes, including reads the resolver never runs, and measure each at scale.",
+      "why": "The walk was indexed while PureRefTarget and other raw-YAML readers kept scanning every pair, so the compile stayed quadratic.",
+      "probe": "Build an n-wide fixture, time or count work at each read site for two values of n, and confirm the growth is linear everywhere.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0622",
+        "F0800",
+        "F0814"
+      ],
+      "exemplars": [
+        "F0622",
+        "F0800"
+      ]
+    },
+    {
+      "key": "renames-grep-the-old-spelling-everywhere",
+      "title": "Grep the old name or literal as a substring across code, comments, tests and docs",
+      "rule": "After a rename, move or single-source constant, grep the old token as a plain substring (not a whole word) across the whole tree, docs and comments included, and route every remaining literal through the canonical spelling.",
+      "why": "Compound identifiers, unqualified call sites, design docs and a fuzz seed loader kept the old name or literal after the change claimed one spelling.",
+      "probe": "git grep -n '<old token>' over the tree after the change and justify each remaining hit.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0130",
+        "F0168",
+        "F0242",
+        "F0331",
+        "F0538"
+      ],
+      "exemplars": [
+        "F0168",
+        "F0242"
+      ]
+    },
+    {
+      "key": "docs-restating-a-fact-move-with-it",
+      "title": "Update every doc copy of a fact the change alters, derived from the tree",
+      "rule": "When a change moves packages, adds a command, departs from a design item or corrects a fact, grep every document and checklist that states it and fix each in the same PR; derive lists from ls, the package tree, or the Makefile rather than memory.",
+      "why": "Layout tables in README, CLAUDE.md and architecture.md drifted apart, and a pre-flight list omitted the 100% coverage gate.",
+      "probe": "Diff each documented list against its derivation (ls docs/*.md, git ls-files package dirs, Makefile gate targets) and grep docs for a sibling entry the new one should join.",
+      "claude_md": "Restating it here would only give it a second place to rot",
+      "finding_ids": [
+        "F0201",
+        "F0204",
+        "F0259",
+        "F0295",
+        "F0418",
+        "F0419",
+        "F0423",
+        "F0843"
+      ],
+      "exemplars": [
+        "F0295",
+        "F0419",
+        "F0201"
+      ]
+    },
+    {
+      "key": "re-sweep-after-merging-main",
+      "title": "Re-run the branch's claims over the tree after merging main",
+      "rule": "After merging main into a branch, re-run every sweep, invariant and widened check the branch relies on over the merged tree, since merged-in code can reintroduce what the branch removed or predate its rule.",
+      "why": "A merge brought a fifth copy of builders the PR claimed were defined once, and goldens that had never passed the naming grammar.",
+      "probe": "After each merge, rerun the duplicate-definition grep and the invariant over every golden, not only the files the branch touched.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0521",
+        "F0607",
+        "F0868"
+      ],
+      "exemplars": [
+        "F0607",
+        "F0521"
+      ]
+    },
+    {
+      "key": "misc-unclusterable",
+      "title": "One-off defects without a shared mechanism",
+      "rule": "Validate caller arguments before a recover boundary, produce every byte before truncating a destination, never pass a verbatim channel through float64, keep an earlier stage's exit code, and check a library record's shape before treating it as a walk step.",
+      "why": "Each lets a caller or I/O mistake masquerade as a spec problem or silently corrupt preserved data.",
+      "probe": "Force the failure each guards against (nil context, marshal error, out-of-range literal, unwritable output, base-only resolver record) and assert the outcome names the real cause.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0013",
+        "F0106",
+        "F0322",
+        "F0438",
+        "F0769"
+      ],
+      "exemplars": [
+        "F0106",
+        "F0322"
+      ]
+    }
+  ]
+}

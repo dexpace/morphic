@@ -1,0 +1,585 @@
+{
+  "group": "E",
+  "clusters": [
+    {
+      "key": "delete-unreachable-code",
+      "title": "Delete branches, guards, conjuncts and parameters that no input can reach or change",
+      "rule": "A fallback branch, recover, nil guard, guard conjunct or parameter is only kept if some real input reaches it and changes an outcome; check the producer's invariant or the dependency's contract before adding one. If none does, delete it (and say why in a comment) rather than covering it with a hand-built test.",
+      "why": "A branch no input can redden reads as a live constraint, pads the 100% coverage gate with fake tests, and survives every mutation, so it hides what the code actually guarantees.",
+      "probe": "For each new defensive branch or conjunct, replace its condition with true/false (or delete it) and run the package tests plus the golden corpus; if nothing moves, it is dead. Read the library contract (e.g. protocompile recovers panics, descriptor Options() never nil) before guarding.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0008",
+        "F0024",
+        "F0025",
+        "F0229",
+        "F0660",
+        "F0848",
+        "F0598"
+      ],
+      "exemplars": [
+        "F0229",
+        "F0848",
+        "F0024"
+      ]
+    },
+    {
+      "key": "coverage-gate-on-final-tree",
+      "title": "Run the 100% coverage gate on the final tree before pushing or claiming it holds",
+      "rule": "Every new branch ships with the test that executes it, in the same change, and the gate is run on the exact tree being pushed before a PR body says it holds. A new package needs its own test file, because coverage is attributed per package test binary.",
+      "why": "One uncovered statement fails CI; pushing below the gate forces a follow-up commit and makes any PR-body claim that the gate holds false.",
+      "probe": "Run `make coverage` (scripts/check-coverage.sh, statement count, not the rounded percentage) on the final commit; for a new package confirm it has a _test.go of its own; grep the PR body for coverage claims and match them to that run.",
+      "claude_md": "Coverage is a gate at exactly 100%, not a target.",
+      "finding_ids": [
+        "F0019",
+        "F0027",
+        "F0037",
+        "F0060",
+        "F0609"
+      ],
+      "exemplars": [
+        "F0027",
+        "F0609",
+        "F0060"
+      ]
+    },
+    {
+      "key": "every-branch-held-by-a-test",
+      "title": "Hold every exit, guard and guarantee with a test that fails when it is removed",
+      "rule": "Line coverage is not holding: each exit of the function a PR rests on, each rejection branch, and each named guarantee needs a test that reddens, by name, when that step is mutated, and that test must live in the package that owns the contract. Treat every surviving mutant as a missing test and rerun the mutation set after adding it.",
+      "why": "Code executed by an enclosing test but asserted by none (or asserted only by another package) can be broken with the suite green, which is how nil-vs-empty security lists and walk exits went unheld.",
+      "probe": "Plant a mutation at each exit/guard of the changed functions (flip the condition, drop the return, collapse nil and empty) and run only the owning package's tests; every survivor gets a test before the PR opens.",
+      "claude_md": "Break what a test claims to catch.",
+      "finding_ids": [
+        "F0684",
+        "F0686",
+        "F0687",
+        "F0286",
+        "F0247",
+        "F0282",
+        "F0334"
+      ],
+      "exemplars": [
+        "F0282",
+        "F0286",
+        "F0247"
+      ]
+    },
+    {
+      "key": "validate-the-instrument-first",
+      "title": "Prove a check, command or mutation actually ran against its target before reading its result",
+      "rule": "An empty, passing or 'survived' result is evidence only if the instrument demonstrably reached the input: run each verifier, diagnosis command and mutation once against a known positive, confirm the mutated file differs and compiles, and confirm a differential oracle's transform preserved meaning before blaming the code under test.",
+      "why": "A verifier that never met its output, a command reading a stale working tree, a mutation pattern that matched nothing, or a non-compiling mutant all look exactly like a clean result.",
+      "probe": "Plant one violation at the exact path the check reads and watch it fail; diff the mutated file against the original and run `go build` on it; for differential oracles, re-parse the rewritten input and compare encoded values.",
+      "claude_md": "A check that runs is not a check that reaches.",
+      "finding_ids": [
+        "F0152",
+        "F0237",
+        "F0257",
+        "F0683",
+        "F0315"
+      ],
+      "exemplars": [
+        "F0152",
+        "F0257",
+        "F0683"
+      ]
+    },
+    {
+      "key": "derive-a-gates-target-set",
+      "title": "Derive the set a gate audits from the tree and cross-check it, never a hand-kept or unchecked list",
+      "rule": "When a guard audits packages, kinds or files, derive the list from the sources and fail on any member missing from both the list and the exemptions; when the targets are discovered by parsing, cross-check the parse against an independent count so a narrowed parse fails instead of silently shrinking coverage.",
+      "why": "A hand-kept list lets a new package import anything, and a parse that finds fewer kinds narrows the walk while the gate stays green.",
+      "probe": "Add a dummy package or TypeKind constant on a branch and confirm the gate reddens; break the discovery parse to find one fewer target and confirm the cross-check fails.",
+      "claude_md": "so adding a kind without updating a list reddens there instead of quietly narrowing what a test covers",
+      "finding_ids": [
+        "F0192",
+        "F0582"
+      ],
+      "exemplars": [
+        "F0192",
+        "F0582"
+      ]
+    },
+    {
+      "key": "exemptions-narrow-justified-retirable",
+      "title": "Scope every exemption, exclusion and suppression to its reason, and retire it when the reason goes",
+      "rule": "An exemption list entry, nolint directive, quarantine or check skip must cover only the members its stated reason excuses, be validated against the authority it excuses from, state the concrete condition that retires it, and be removed when it no longer suppresses anything or its issue closes.",
+      "why": "A class-wide skip or type-level exemption hides real duplicates and nameless nodes; a stale suppression or quarantine reads as a live constraint and keeps a fuzz target from ever running.",
+      "probe": "Remove each exemption/suppression in turn and rerun (lint with a cleared cache, the check, the fuzz quarantine): it must fire only on the cases its reason names. Plant two genuinely different items inside the exempt class and confirm they are still reported. For each issue-linked entry, check whether the issue is closed.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0347",
+        "F0451",
+        "F0471",
+        "F0480",
+        "F0491",
+        "F0439"
+      ],
+      "exemplars": [
+        "F0451",
+        "F0439",
+        "F0491"
+      ]
+    },
+    {
+      "key": "limitation-stated-in-code",
+      "title": "Write a deliberate limitation or deferred defect at the code that has it, not only in the PR body",
+      "rule": "Any limit deliberately left out of scope, known library limitation relied on, or known defect whose reproducer is removed must be stated in a comment at the function or call that has it, with its tracking issue, and also in the PR body, in the same commit.",
+      "why": "Readers reach the code first; a limitation recorded only in a PR body, commit message or tracker is invisible to the next person editing that function.",
+      "probe": "For every 'out of scope', 'known limit', 'tracked in #N' or removed seed mentioned in the PR body or commits, grep the diff for a matching comment at the named function or call; any without one is a finding.",
+      "claude_md": "A limitation that is deliberately out of scope must be stated in the code and in the PR body, in a place the next reader will actually reach",
+      "finding_ids": [
+        "F0155",
+        "F0310",
+        "F0365",
+        "F0382",
+        "F0844",
+        "F0015"
+      ],
+      "exemplars": [
+        "F0310",
+        "F0382",
+        "F0844"
+      ]
+    },
+    {
+      "key": "comment-claims-held-by-test",
+      "title": "Back every behavioural claim, scope boundary or known-wrong answer in a comment with a test",
+      "rule": "When a comment says something propagates automatically, that a measurement proves a property, that a check deliberately stops at a boundary, or that a known-wrong answer is left standing, add a test that fails if that statement stops being true (pin the known-wrong answer in a row naming its issue).",
+      "why": "Unenforced claims rot silently: widening a check's scope or breaking the described wiring leaves every test green, and a benchmark no CI job runs checks nothing.",
+      "probe": "For each such comment, make the claim false (drop the wiring, widen the scope, fix the known-wrong row) and confirm a test reddens; if the claim depends on a benchmark, confirm a CI step runs it.",
+      "claude_md": "Prefer proving a claim over asserting it",
+      "finding_ids": [
+        "F0094",
+        "F0640",
+        "F0552",
+        "F0735"
+      ],
+      "exemplars": [
+        "F0094",
+        "F0552",
+        "F0735"
+      ]
+    },
+    {
+      "key": "emitted-locations-resolve",
+      "title": "Every emitted pointer or location must resolve in the document it names, in one spelling",
+      "rule": "A provenance pointer or verifier location must address a node that exists: compose it from the declaration the value was read from (not a $ref mount or a reflection-only struct path), and two checkers reporting the same code must spell the location identically.",
+      "why": "Pointers through $ref'd path items or securitySchemes entries named positions no document holds, and reflection paths through embedded fields resolved in no encoding, so consumers could not locate the defect.",
+      "probe": "Add a test that applies every emitted pointer/location back to the parsed source (or the encoded document) with a resolver and fails on any miss; include $ref'd path items/entries; run both checkers on a shared fixture and diff their location strings.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0077",
+        "F0407",
+        "F0109",
+        "F0126"
+      ],
+      "exemplars": [
+        "F0407",
+        "F0109",
+        "F0126"
+      ]
+    },
+    {
+      "key": "provenance-names-the-writer",
+      "title": "Attribute each entry to the exact keyword and document that wrote it",
+      "rule": "Provenance for a sub-entry points at its own keyword, and for a node added by an overlay or merge layer names that layer's document; a combined entry is attributed by the positions that wrote its parts. Lower layers must get attribution through an injected locator, not the raw base source index.",
+      "why": "Overlay-added extensions and keywords were credited to the base document and per-keyword entries to the declaring schema, so --explain pointed at the wrong place.",
+      "probe": "Compile base+overlay fixtures where the overlay writes all, none, and some (first or last) parts of each entry, and assert the source document and pointer of every Unmodeled/extension entry; remove the raw-source parameter from lower layers so misuse does not compile.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0129",
+        "F0711",
+        "F0736",
+        "F0753"
+      ],
+      "exemplars": [
+        "F0736",
+        "F0753",
+        "F0129"
+      ]
+    },
+    {
+      "key": "sentinels-declared-and-distinct",
+      "title": "Declare any sentinel value in the contract and keep it distinct from a meaningful value",
+      "rule": "A sentinel written into a range-checked field must be declared in the IR contract and accepted by the verifier, and must not coincide with a real value (an empty JSON Pointer is the whole document, not 'no place').",
+      "why": "An undeclared -1 source index failed every pass diagnostic in the structural oracle, and an empty pointer made the root appear to declare every shared primitive.",
+      "probe": "Grep the diff for literal -1, \"\" or zero used as 'none' in provenance/index fields; run the producer's output through irverify and query the root location to confirm sentinel nodes are excluded.",
+      "claude_md": "no in-band errors",
+      "finding_ids": [
+        "F0124",
+        "F0752"
+      ],
+      "exemplars": [
+        "F0124",
+        "F0752"
+      ]
+    },
+    {
+      "key": "keys-canonical-single-derivation",
+      "title": "Derive lookup keys and IDs canonically, through the same function the definition used",
+      "rule": "A key or ID that must match a definition is computed through the one function that minted it, from the identifier the target actually stores, after normalising every equivalent spelling (escapes, percent-encoding); grouping must use every identity an item can carry.",
+      "why": "Raw pointer spellings, a shortcut namedTypeID for empty names, or IDs re-derived from a composed pointer produce keys matching no interned node, leaving dangling references.",
+      "probe": "Feed equivalent spellings (~ vs ~0, %7E, empty component name, $ref'd vs inline) and assert they resolve to the same ID; run irverify's no-dangling-refs check over each; grep for a second derivation of the same ID kind.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0029",
+        "F0030",
+        "F0221",
+        "F0744"
+      ],
+      "exemplars": [
+        "F0030",
+        "F0029",
+        "F0221"
+      ]
+    },
+    {
+      "key": "verifier-checks-whole-grammar",
+      "title": "Verify every property of an identifier grammar, each with its own rejecting example",
+      "rule": "For every derived identifier or canonical name with a grammar, irverify must reject any value the grammar cannot produce, covering every property (casing, character set, segmentation, agreement with the recorded coordinate), with one rejecting case per property.",
+      "why": "A check of casing and charset alone accepted both 'foo2bar' and 'foo_2_bar', and IDs built from $anchor names passed though no pointer grammar produces them.",
+      "probe": "List the grammar's properties and write one malformed value violating only each; confirm each is rejected by name.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0222",
+        "F0224"
+      ],
+      "exemplars": [
+        "F0222",
+        "F0224"
+      ]
+    },
+    {
+      "key": "parallel-implementations-agree",
+      "title": "Make two implementations that must agree derive from one source or diff them on shared edge cases",
+      "rule": "When a parser, derivation, seed list or validity rule exists in two places (two tokenizers, two tests' filters, a table test and a fuzz seed, a writer and its verifier), compute it once in a shared helper or run both over a shared edge-case table and assert identical results; when the writer starts refusing input, the checker refuses it in the same change.",
+      "why": "Copies drift: a lone '/' read as a token by one walk and the root by another, and irverify accepted strings the encoder refuses.",
+      "probe": "Grep for a second implementation of the changed logic; run both over empty, lone separator, no leading separator and length-bound cases and diff; feed the writer's refused inputs to the checker.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0558",
+        "F0834",
+        "F0379",
+        "F0704"
+      ],
+      "exemplars": [
+        "F0558",
+        "F0704",
+        "F0379"
+      ]
+    },
+    {
+      "key": "revalidate-after-decoding",
+      "title": "Re-validate text after percent or escape decoding before it becomes an identifier",
+      "rule": "Decoded untrusted text must pass the same validity check as the raw input, plus the target format's grammar (UTF-8 for a JSON Pointer), before use as a key or identifier.",
+      "why": "A percent-encoded %FF in a $ref fragment reached an IR identifier the encoder cannot write.",
+      "probe": "Compile a spec with `#/components/schemas/%FF` and similar decoded-invalid bytes; read the full diagnostic list and confirm the document still round-trips through JSON.",
+      "claude_md": "Never accept garbage silently.",
+      "finding_ids": [
+        "F0709",
+        "F0730"
+      ],
+      "exemplars": [
+        "F0730",
+        "F0709"
+      ]
+    },
+    {
+      "key": "budgets-charged-correctly-and-calibrated",
+      "title": "Charge a resource budget for exactly the work it bounds, degrade locally, and calibrate on real specs",
+      "rule": "A work bound must follow the real code path it prices (including the library's own duplicate-key handling), count only items the budgeted reader adds, degrade only the item that tripped it rather than latching scan-wide, and be measured against published specs at scale so valid input never reaches it.",
+      "why": "Mispriced or latched budgets either let one crafted input disable a cycle check or refuse valid documents that main compiles; constants tuned on hand-written documents prove nothing.",
+      "probe": "Run the corpus and large published specs before/after and require identical IR and exit codes; plant an over-deep chain ahead of a real cycle; feed duplicate-key mappings and compare the charge with the library's actual read.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0053",
+        "F0062",
+        "F0527",
+        "F0801",
+        "F0802"
+      ],
+      "exemplars": [
+        "F0053",
+        "F0802",
+        "F0062"
+      ]
+    },
+    {
+      "key": "closed-dispatch-explicit-arms",
+      "title": "Give each member of a closed set its own switch arm; never let the default answer for one",
+      "rule": "Dispatch over roles or kinds names every member explicitly and the default fails loudly (or answers nothing), so a new or unknown member cannot be handled as some other kind.",
+      "why": "A missing roleSchemaList case fell through silently, and a default arm answering for allOf made unknown family names report as declared.",
+      "probe": "Add a bogus member to the enum or name list and confirm it hits the default and fails or declares nothing; grep changed switches for defaults that return a specific case's answer.",
+      "claude_md": "switch-completeness test over the kind enum",
+      "finding_ids": [
+        "F0055",
+        "F0381"
+      ],
+      "exemplars": [
+        "F0381",
+        "F0055"
+      ]
+    },
+    {
+      "key": "copy-before-write",
+      "title": "Never write into a slice, map or set the caller or an earlier result still holds",
+      "rule": "Filtering via s[:0] or extending a received set aliases the input; build into a fresh allocation whenever the input or receiver may be read again.",
+      "why": "In-place filtering and writes into a shared set silently rewrote callers' data and earlier results.",
+      "probe": "Grep the diff for `[:0]` and writes into parameter or receiver maps/sets; add a test that calls twice (or rereads the input) and asserts the first result is unchanged.",
+      "claude_md": "copy slices/maps at API boundaries",
+      "finding_ids": [
+        "F0227",
+        "F0389"
+      ],
+      "exemplars": [
+        "F0227",
+        "F0389"
+      ]
+    },
+    {
+      "key": "total-over-permitted-inputs",
+      "title": "Make helpers total over every value their contract permits, including nil and empty",
+      "rule": "A function that slices or indexes its input must handle every value its doc or a neighbouring comment allows (empty string), or reject it explicitly; a possibly-nil pointer stored in an interface field is screened at the store and the reader.",
+      "why": "Slicing an empty style string panics, and a typed nil in an interface passes a type assertion and is dereferenced past the cap.",
+      "probe": "Call each changed helper with empty/zero/nil inputs; assert a nil *T stored in an interface is rejected at both ends.",
+      "claude_md": "validate at every public boundary",
+      "finding_ids": [
+        "F0481",
+        "F0678"
+      ],
+      "exemplars": [
+        "F0678",
+        "F0481"
+      ]
+    },
+    {
+      "key": "fixtures-discriminate-wrong-implementations",
+      "title": "Choose fixtures that a plausible wrong implementation would fail, including the exact reported shape",
+      "rule": "A regression or rule test must contain the inputs that separate right from wrong: the exact shape from the issue, both edges of each range and the values just outside, the same name in both syntactic positions, inputs that sort differently under the wrong collation, and fixture text that parses as intended.",
+      "why": "Interior-only values, neighbour shapes and single-position cases let a by-name, off-by-one or UTF-16 implementation pass; a mis-quoted YAML flow scalar silently made a fixture say something else.",
+      "probe": "Write the plausible wrong implementation (narrow a bound by one, key by name, swap byte for UTF-16 order) and confirm the test reddens; diff the fixture against the issue text; read the first diagnostics a new check emits on existing fixtures against their intent.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0285",
+        "F0287",
+        "F0288",
+        "F0835",
+        "F0530"
+      ],
+      "exemplars": [
+        "F0285",
+        "F0287",
+        "F0288"
+      ]
+    },
+    {
+      "key": "keyword-placement-path-independent",
+      "title": "A keyword must land in the same IR place, never dropped, whichever lowering or guard handles it",
+      "rule": "When the same keyword or annotation can reach the IR through several lowerings or past a dedup guard, its placement must not depend on the path; a guard deciding to skip residue may only run after confirming the data has a home elsewhere.",
+      "why": "Visibility residue was dropped exactly for parameters whose schema owns a node, and a constraint beside allOf went to Unmodeled while beside properties it went to Constraints, defeating lossless capture.",
+      "probe": "Compile the keyword beside every container shape (properties, allOf, $ref, parameter with and without an owned node) and diff where it lands; confirm none disappears.",
+      "claude_md": "Lossless by default, lowered late.",
+      "finding_ids": [
+        "F0182",
+        "F0572"
+      ],
+      "exemplars": [
+        "F0182",
+        "F0572"
+      ]
+    },
+    {
+      "key": "tests-fail-fast-and-legibly",
+      "title": "Make a failing test fail quickly, with a named cause, and never rewrite a golden on failure",
+      "rule": "Guard preconditions with require (NotNil, length) before dereferencing or indexing; diff member sets rather than counts; give a hang-prone guard a bounded-time case that fails in seconds; and stop before any golden write when an earlier assertion failed.",
+      "why": "A panic or package timeout hides the cause, a count mismatch names no member, and a non-fatal assertion under -update rewrote the golden from regressed output.",
+      "probe": "Break the code under test and read the failure: it must name the cause within seconds and not panic; run the golden test with -update while an assertion fails and confirm the golden file is unchanged.",
+      "claude_md": "`testify/require` for preconditions, `assert` for values",
+      "finding_ids": [
+        "F0408",
+        "F0633",
+        "F0604",
+        "F0871",
+        "F0187"
+      ],
+      "exemplars": [
+        "F0187",
+        "F0633",
+        "F0871"
+      ]
+    },
+    {
+      "key": "doc-code-obeys-own-rules",
+      "title": "Build every code sample in a doc under its own rules and check every cited precedent",
+      "rule": "Code examples in READMEs, style guides and design docs must compile and run under the flags and banned-construct lists the same document mandates, and any code location a doc cites as precedent must actually say what the doc claims.",
+      "why": "Exemplars that do not compile or use the forms the guide bans teach the wrong thing, and a design doc prescribed a package-level mutable registry citing code that says the opposite.",
+      "probe": "Extract each sample into a scratch module and build/run it with the mandated flags and linter; open each cited file/line and compare.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0796",
+        "F0886",
+        "F0887",
+        "F0888",
+        "F0889",
+        "F0442"
+      ],
+      "exemplars": [
+        "F0886",
+        "F0796",
+        "F0442"
+      ]
+    },
+    {
+      "key": "docs-consistent-after-edit",
+      "title": "Re-check a doc's references, renames and capability claims against its final state",
+      "rule": "After editing a doc, confirm every referenced type is defined, every 'see above/below' lands on its target, renamed terms left no residue (articles, plurals), and capability matrix cells match behaviour the same PR changed.",
+      "why": "An undefined MessageRef, inverted cross-references, 'a emitter' and a matrix cell denying client streaming the PR enabled all shipped as stale prose.",
+      "probe": "Grep backticked identifiers for definitions; grep the old term with neighbouring articles; for behaviour changes, grep docs/ir-spec-matrix.md for the capability and rerun the matrix test.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0005",
+        "F0258",
+        "F0420",
+        "F0514"
+      ],
+      "exemplars": [
+        "F0514",
+        "F0005",
+        "F0420"
+      ]
+    },
+    {
+      "key": "no-package-level-test-seams",
+      "title": "Inject test seams per call or instance, never as package-level variables tests reassign",
+      "rule": "A seam for compile, marshal or index steps is a struct field or option, so each call sees only its own choice.",
+      "why": "Package-level function variables are mutable global state, serialize the tests that rebind them and are a data race hazard in a pure, reentrant stage.",
+      "probe": "Grep the diff for package-level `var .* = func` or function-typed vars assigned in tests; run with -race and t.Parallel.",
+      "claude_md": "no package-level mutable state",
+      "finding_ids": [
+        "F0018",
+        "F0484"
+      ],
+      "exemplars": [
+        "F0484",
+        "F0018"
+      ]
+    },
+    {
+      "key": "test-moves-preserve-cases-and-scope",
+      "title": "When moving or rewriting tests, keep every case, the defining file, and the external package",
+      "rule": "Diff test case names before and after a table rewrite; file each test with the source file that defines the unexported symbol it calls; keep tests that use only the public API in package foo_test.",
+      "why": "Consolidations silently dropped a table row and moved public-API tests into the internal package.",
+      "probe": "Diff `go test -list . -v` subtest names before and after; check the package clause of every touched test file; map unexported calls to defining files.",
+      "claude_md": "external test packages (`package foo_test`) preferred",
+      "finding_ids": [
+        "F0047",
+        "F0048",
+        "F0329"
+      ],
+      "exemplars": [
+        "F0329",
+        "F0048"
+      ]
+    },
+    {
+      "key": "resolve-symbols-semantically",
+      "title": "Identify and measure code with the parser and type checker, never by regex or constructed name strings",
+      "rule": "Match functions and packages by types.Object identity and the file's own import declarations (including aliases), and measure structure (call cycles, method counts) with a parser, cross-checked by a second method.",
+      "why": "Name-string matching missed aliased imports and flagged unrelated packages, and a regex roughly doubled a mutual-recursion count and sized a plan on it.",
+      "probe": "Add an aliased import and an unrelated same-named package to the guard's fixtures; recompute any reported metric with go/ast or go/types and compare.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0829",
+        "F0876",
+        "F0260"
+      ],
+      "exemplars": [
+        "F0829",
+        "F0260"
+      ]
+    },
+    {
+      "key": "tests-environment-independent",
+      "title": "Pin or skip what a test borrows from the environment",
+      "rule": "A test depending on privilege, permission bits or an external tool driver must pin the mode explicitly (e.g. GOPACKAGESDRIVER=off) or skip when the environment bypasses it, and be run once as the CI user.",
+      "why": "chmod tests fail as root, and a load through whatever driver PATH supplies can make a refusal lapse without a sign.",
+      "probe": "Run the test as root and with GOPACKAGESDRIVER set to a stub; it must pass or skip, never silently change meaning.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0021",
+        "F0883"
+      ],
+      "exemplars": [
+        "F0021",
+        "F0883"
+      ]
+    },
+    {
+      "key": "follow-recorded-decisions",
+      "title": "Check the tracker for a recorded decision before changing what it covers",
+      "rule": "Before touching a shared view, cache or plan dependency, search issues for a decision about it and follow it or state the departure in code and PR body; a recorded blocking edge must not contradict the reason the item was split out.",
+      "why": "Changes settled questions issues had framed (a second memo on a view #404 wanted settled first) or made a standalone defect wait on the programme it was split from.",
+      "probe": "`gh issue list --search \"<file or symbol>\"` for every shared structure touched; confirm the PR body cites any hit.",
+      "claude_md": "A line you were forced onto may already have a decision recorded.",
+      "finding_ids": [
+        "F0630",
+        "F0205"
+      ],
+      "exemplars": [
+        "F0630",
+        "F0205"
+      ]
+    },
+    {
+      "key": "wire-change-bumps-version",
+      "title": "Bump IRVersion in the same commit as any serialized key or shape change",
+      "rule": "Any change to a JSON member name or shape in the IR encoding bumps the version constant, and a consumer pinned to the old version must reject the new document.",
+      "why": "Old consumers would otherwise accept a document they cannot read.",
+      "probe": "Diff json tags and MarshalJSONTo code in ir/; if any changed, confirm IRVersion changed and a decode with the old version fails.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0184"
+      ],
+      "exemplars": [
+        "F0184"
+      ]
+    },
+    {
+      "key": "rewrites-preserve-semantics",
+      "title": "Check mechanical rewrites for changed behaviour, lint residue and dropped rationale",
+      "rule": "An automated or stdlib-helper rewrite must be checked for the zero-result representation (nil vs empty slice, null vs []), operand evaluation timing when splitting a compound condition, lint/gofmt output, and the 'why not the library' comment it would delete.",
+      "why": "slices.SortedFunc turned [] into null, go fix left f := f copies failing lint, and dropping a rationale comment invites a revert to jsontext.AppendToken.",
+      "probe": "Run golangci-lint and gofmt on rewritten files; call each rewritten function on empty input and compare JSON with the original; diff removed comments in the rewrite.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0700",
+        "F0836",
+        "F0256",
+        "F0857"
+      ],
+      "exemplars": [
+        "F0836",
+        "F0857",
+        "F0700"
+      ]
+    },
+    {
+      "key": "misc-unclusterable",
+      "title": "One-off findings",
+      "rule": "Read every diagnostic and assertion message as it prints; when a transformation builds a node graph, re-check the structural invariant every reader assumes on its output.",
+      "why": "Ungrammatical messages and a graft placing an alias target outside Content (crashing the parser) are not covered by another rule.",
+      "probe": "Print each new message; run every entry point of a graph transformation on aliased/tagged input and walk the result asserting reader invariants.",
+      "claude_md": "",
+      "finding_ids": [
+        "F0874",
+        "F0682"
+      ],
+      "exemplars": [
+        "F0682",
+        "F0874"
+      ]
+    }
+  ]
+}
