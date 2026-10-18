@@ -640,7 +640,7 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	t.Parallel()
 	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
 	deep := ref
-	for range 10010 {
+	for range 10010 { // past the 10,000 levels the recursive walk stopped at
 		deep = ynode.Map(ynode.Scalar("items"), deep)
 	}
 	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), deep))

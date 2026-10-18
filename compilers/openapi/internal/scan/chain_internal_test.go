@@ -63,7 +63,8 @@ func memberLine(t *testing.T, members []string, name string) int {
 // chain's, however long: a loop of any length is refused, since the resolver
 // recurses once per hop of one (GitHub #922), and a chain that ends is not.
 // Each document is declared as written and reversed, and the report falls on
-// the first member declared whose chain cycles, as it does for a short loop.
+// the first member declared whose chain cycles, as it does for a short loop:
+// the scan's site rule, which GitHub #912 would move onto the loop itself.
 func TestCycles_ChainIsJudgedWhole(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -180,7 +181,7 @@ func TestOutsideCycle_FollowsEachNodeOnce(t *testing.T) {
 // TestCycles_LongLoopOutsideComponentsIsRefused is the loop of reference
 // objects spelled by document position, which speakeasy's resolver has no guard
 // for, at a length past the 10,000 hops a walk once stopped at. Declared either
-// way, the first path declared reports it.
+// way, the first path declared reports it (see GitHub #912 on that site).
 func TestCycles_LongLoopOutsideComponentsIsRefused(t *testing.T) {
 	t.Parallel()
 	const n = 10001

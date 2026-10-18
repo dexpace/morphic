@@ -2,7 +2,7 @@
 # pointer passes through /a, which is on the chain by then.
 #
 # The declaration order is load-bearing. Declaring /b first is what makes the
-# walk reach it as a chain root before /a is ever on a chain, so a safe-memo
+# walk reach it as a chain root before /a is ever on a chain, so a record
 # keyed on the node alone records /b as terminating and the later /a -> /b walk
 # short-circuits past the re-entrant hop. Both orders deadlock in the resolver,
 # so both must be refused; this is the order that hides it.
