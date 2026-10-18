@@ -25,6 +25,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -507,7 +508,67 @@ func (e external) admit(key string, root *yaml.Node) error {
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes))
 	}
+	if ref, target, local := localRef(root, key); local {
+		return refused(key, fmt.Sprintf("it is fetched over the network and its $ref %q reaches "+
+			"the local file %s, which a remote document must not read", ref, target))
+	}
 	return nil
+}
+
+// localRef returns the first $ref in root, read against base, that reaches a
+// local file, and the file it names. A document fetched over the network
+// (overNetwork) must not read the local file system, by an absolute path, a
+// protocol-relative //host path the resolver reads as a file, or a file: URI,
+// whichever way a $ref in it spells one (GitHub #929). base keys a network
+// document, so a relative $ref resolves to a URL and never here; only an
+// absolute reference reaches a local file. The walk is holdSpellings', reading
+// a $ref's value through an alias as the model does.
+func localRef(root *yaml.Node, base string) (ref, target string, local bool) {
+	if !overNetwork(base) {
+		return "", "", false
+	}
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		stack = append(stack, n.Content...)
+		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
+			key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1])
+			if key.Value != "$ref" || value.Kind != yaml.ScalarNode {
+				continue
+			}
+			if t, ok := localTarget(value.Value, base); ok {
+				return value.Value, t, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+// overNetwork reports whether key names a document the reader fetched over the
+// network: an http or https URL. A file: URI is local, and so is a path.
+func overNetwork(key string) bool {
+	u, err := url.Parse(key)
+	return err == nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https"))
+}
+
+// localTarget returns the document the reference ref, read against base, names,
+// and whether that is a local file rather than a URL — a file: URI among them,
+// which the resolver reads from disk (readFileURI). A reference the resolver
+// cannot place reaches nothing, and is left for it to report.
+func localTarget(ref, base string) (string, bool) {
+	abs, err := references.ResolveAbsoluteReference(references.Reference(ref), base)
+	if err != nil {
+		return "", false
+	}
+	target := abs.AbsoluteReference
+	return target, !refscope.IsURL(target) || isFileURI(target)
+}
+
+// isFileURI reports whether s is a file: URI.
+func isFileURI(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && strings.EqualFold(u.Scheme, "file")
 }
 
 // nowhere locates an external document's findings, which leave as the text of
