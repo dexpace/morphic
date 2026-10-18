@@ -11,8 +11,10 @@ import (
 	"iter"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -307,21 +309,21 @@ func (e external) Open(name string) (fs.File, error) {
 		e.holdOpened(name)
 		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.readFile(name) })
+	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.readFile(name, name) })
 	if a.err != nil {
 		return nil, a.err
 	}
 	return servedFile{Reader: bytes.NewReader(a.body)}, nil
 }
 
-// readFile reads the file name names (see fileNamed), and prepares it under
-// name. The file is closed before its bytes are served.
-func (e external) readFile(name string) answer {
-	f, err := os.Open(fileNamed(name)) // the file a $ref names: what AllowExternalRefs opts into
+// readFile reads the file path names (see fileNamed), and prepares it under
+// key. The file is closed before its bytes are served.
+func (e external) readFile(key, path string) answer {
+	f, err := os.Open(fileNamed(path)) // the file a $ref names: what AllowExternalRefs opts into
 	if err != nil {
 		return answer{err: err}
 	}
-	data, err := e.prepare(name, f)
+	data, err := e.prepare(key, f)
 	if err = errors.Join(err, f.Close()); err != nil {
 		return answer{err: err}
 	}
@@ -355,8 +357,12 @@ func (e external) Do(req *http.Request) (*http.Response, error) {
 
 // fetch sends req as the resolver's default client would, and prepares the
 // body of a successful response under key. Any other status is answered
-// unread, for the resolver to report as it would have.
+// unread, for the resolver to report as it would have. A file URI is read as
+// the file it names (see readFileURI), which the client has no transport for.
 func (e external) fetch(req *http.Request, key string) answer {
+	if req.URL.Scheme == "file" {
+		return e.readFileURI(req.URL, key)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return answer{err: err}
@@ -369,6 +375,54 @@ func (e external) fetch(req *http.Request, key string) answer {
 		return answer{err: err}
 	}
 	return answer{status: resp.StatusCode, body: data}
+}
+
+// readFileURI reads the file the file URI u names (see filePathOf), and
+// prepares it under key, answering as a successful response would. The URI is
+// a document of its own, named only as spelled (refscope.SameDocument), so the
+// same file named by its path is another document.
+func (e external) readFileURI(u *url.URL, key string) answer {
+	path, err := filePathOf(u, runtime.GOOS == "windows")
+	if err != nil {
+		return answer{err: refused(key, err.Error())}
+	}
+	a := e.readFile(key, path)
+	if a.err == nil {
+		a.status = http.StatusOK
+	}
+	return a
+}
+
+// filePathOf returns the path of the local file the file URI u names (RFC
+// 8089), percent-decoded, with a Windows drive letter's leading slash removed
+// where windows says paths are read as Windows reads them. It refuses a URI
+// naming a user, a file on another host, no absolute path or a query, and an
+// escaped separator, which would decode into another segmentation.
+func filePathOf(u *url.URL, windows bool) (string, error) {
+	switch {
+	case u.Path == "": // an opaque URI, file:a.yaml, has none
+		return "", errors.New("a file URI names no absolute path")
+	case u.User != nil:
+		return "", errors.New("a file URI's user names no local file")
+	case u.Host != "" && !strings.EqualFold(u.Host, "localhost"):
+		return "", fmt.Errorf("a file URI names a file on host %q, not a local one", u.Host)
+	case u.RawQuery != "" || u.ForceQuery:
+		return "", errors.New("a file URI's query names nothing in a file")
+	}
+	escaped := strings.ToLower(u.EscapedPath())
+	if strings.Contains(escaped, "%2f") || windows && strings.Contains(escaped, "%5c") {
+		return "", errors.New("a file URI's escaped separator names no single path segment")
+	}
+	path := u.Path
+	if windows && len(path) >= 3 && path[0] == '/' && path[2] == ':' && isDriveLetter(path[1]) {
+		path = path[1:]
+	}
+	return path, nil
+}
+
+// isDriveLetter reports whether c names a Windows drive.
+func isDriveLetter(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
 }
 
 // prepare reads an external document from r, no further than one byte past the

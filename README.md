@@ -190,7 +190,7 @@ OpenAPI compiler accepts:
 | Option | Values | Meaning |
 |---|---|---|
 | `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
-| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files and fetching URLs. |
+| `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files (by path or local `file:` URI) and fetching URLs. |
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
 | `max-source-bytes` | an integer | The byte budget for one document. |
