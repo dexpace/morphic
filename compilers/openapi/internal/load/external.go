@@ -22,6 +22,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
@@ -275,7 +276,7 @@ func (e external) holdSpelling(ref references.Reference, base string) {
 	if err != nil || !e.read.self.names(abs.AbsoluteReference) {
 		return
 	}
-	e.holdSite(abs.AbsoluteReference, jsontext.Pointer(ref.GetJSONPointer()))
+	e.holdSite(abs.AbsoluteReference, fragment.Pointer(string(ref)))
 }
 
 // settle finishes resolving r, whose resolution returned vErrs and err. It
@@ -391,9 +392,10 @@ func (e external) send(req *http.Request, key string) (*http.Response, error) {
 
 // prepare reads an external document from r, no further than one byte past the
 // byte budget, and stores the tree it parses to under key once the source's
-// refusals have passed it. It returns the bytes read, which the resolver still
-// reads and caches as it would have. Bytes already prepared under key are not
-// parsed again: the tree stored then still stands.
+// refusals have passed it, its $refs rewritten as the source's are (see
+// escapes). It returns the bytes read, which the resolver still reads and
+// caches as it would have. Bytes already prepared under key are not parsed
+// again: the tree stored then still stands.
 //
 // Bytes that will not parse are handed over unprepared, and the resolver
 // refuses them with its own reason.
@@ -422,6 +424,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	releaseAnchors(root)
+	e.read.self.escapes.escape(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
 	e.judged.Store(key, sha256.Sum256(data))

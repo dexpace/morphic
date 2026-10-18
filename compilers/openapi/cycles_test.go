@@ -53,6 +53,8 @@ var cycleReproducers = []struct{ name, file string }{
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+	// A self-reference only a plus read as a plus reveals (GitHub #911).
+	{"pointer-plus-self", "cycle_pointer_plus_self"},
 }
 
 // TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the

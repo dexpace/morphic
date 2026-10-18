@@ -10,6 +10,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 )
 
@@ -35,12 +36,13 @@ func IsPointer(pointer jsontext.Pointer) bool {
 	return strings.HasPrefix(string(pointer), defsPrefix)
 }
 
-// PointerOf returns the "#/$defs/..." pointer ref spells, decoded as the
-// resolver decodes it, and whether the resolver reads it relative to the schema
-// that spells it. It does not when ref names a document, even this one: the
-// resolver reads such a pointer for itself, which is what load leaves to it.
+// PointerOf returns the "#/$defs/..." pointer ref spells, decoded as
+// fragment.Pointer decodes it, and whether the resolver reads it relative to
+// the schema that spells it. It does not when ref names a document, even this
+// one: the resolver reads such a pointer for itself, which is what load leaves
+// to it.
 func PointerOf(ref references.Reference) (jsontext.Pointer, bool) {
-	pointer := jsontext.Pointer(ref.GetJSONPointer())
+	pointer := fragment.Pointer(string(ref))
 	if ref.GetURI() != "" || !IsPointer(pointer) {
 		return "", false
 	}

@@ -8,6 +8,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -208,7 +209,7 @@ func Hops[T, S any, R interface {
 		info := ref.GetReferenceResolutionInfo()
 		next := R(info.Object)
 		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
-			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
+			Pointer: fragment.Pointer(string(ref.GetReference()))})
 		ref = next
 		hops = append(hops, Hop[R]{Ref: ref, Foreign: scope.Foreign})
 	}
@@ -280,7 +281,7 @@ func endOf[S any, R interface {
 		return End{}, true
 	}
 	return End{Document: last.ResolvedDocument, Path: last.AbsoluteDocumentPath,
-		Pointer: jsontext.Pointer(written.GetJSONPointer())}, true
+		Pointer: fragment.Pointer(string(written))}, true
 }
 
 // ReferenceEnd is EndOf for a reference of each of the library's kinds, a

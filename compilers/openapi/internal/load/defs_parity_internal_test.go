@@ -124,13 +124,13 @@ func TestHeldRefs_AgreeWithTheResolverOnTheFirstReferenceItMeets(t *testing.T) {
 		doc, _ := buildDoc(t, spec)
 		for i, r := range heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc)) {
 			want, found := resolverTarget(t, spec, i)
-			assert.Equal(t, found, r.target != nil, "%s: whether %s finds a definition\n%s", r.site, *r.written, spec)
+			assert.Equal(t, found, r.target != nil, "%s: whether %s finds a definition\n%s", r.site, *r.modelled, spec)
 			if !found {
 				unresolved++
 				continue
 			}
 			resolved++
-			assert.Equal(t, want, r.at, "%s: where %s finds it\n%s", r.site, *r.written, spec)
+			assert.Equal(t, want, r.at, "%s: where %s finds it\n%s", r.site, *r.modelled, spec)
 		}
 	}
 	assert.Greater(t, resolved, 100, "references the sample resolves")

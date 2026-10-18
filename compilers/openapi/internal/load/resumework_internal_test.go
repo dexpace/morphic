@@ -31,7 +31,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*soa.OpenAPI, *resu
 	releaseAnchors(tree)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree))
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, valErrs, newSourceTree(0, overlay.Origin{}, tree), nil)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	reader.work.limit = limit
@@ -166,13 +166,14 @@ func TestResumeWork_Charge(t *testing.T) {
     Loop: {$ref: '#/components/schemas/Loop'}
     Out: {$ref: 'third.yaml#/x'}
     Back: {$ref: '#/components/schemas/Out'}
+    Plus+Key: {$ref: '#/components/schemas/Base'}
 `))
 	require.True(t, parsed)
 	cost := func(name string) int {
 		steps, _ := newTreeReads().cost(tree, "/components/schemas/"+name, math.MaxInt)
 		return steps
 	}
-	const indexed = 1 + 1 + 6 // the root's pairs, components', schemas'
+	const indexed = 1 + 1 + 7 // the root's pairs, components', schemas'
 	for _, c := range []struct {
 		ref   string
 		reads int
@@ -183,6 +184,7 @@ func TestResumeWork_Charge(t *testing.T) {
 		{"#/components/schemas/Loop", 2, []string{"Loop"}},
 		{"#/components/schemas/Back", 2, []string{"Back", "Out"}},
 		{"#/components/schemas/Missing", 2, []string{"Missing"}},
+		{"#/components/schemas/Plus+Key", 2, []string{"Plus+Key", "Base"}},
 	} {
 		w := newResumeWork()
 		require.True(t, w.charge(tree, references.Reference(c.ref), c.reads))

@@ -10,12 +10,14 @@ import (
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
@@ -51,14 +53,15 @@ func TestInternalPointer(t *testing.T) {
 	}
 }
 
-// TestInternalPointer_MatchesTheResolversNormalization pins that the fragment is
-// read the way the resolver reads it, which is what makes a reference this
-// compiler calls unresolved one the resolver also failed to resolve. A $ref is a
-// URI, so `%2D` in the fragment is a hyphen; comparing the raw text against
+// TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded pins that the
+// fragment is read the way the resolver reads the spelling it is handed
+// (fragment.ForResolver), which is what makes a reference this compiler calls
+// unresolved one the resolver also failed to resolve. A $ref is a URI, so `%2D`
+// in the fragment is a hyphen and '+' is a plus; comparing the raw text against
 // declared names failed every spec-correct escape (GitHub #40). It carries the
 // same name as nodeview's test of the same two accessors, so the pair is one
 // grep apart — a dependency bump has to satisfy both.
-func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
+func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
 	sc := Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
 	tests := []struct {
@@ -70,6 +73,8 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		{name: "underscore", ref: "#/components/schemas/Foo%5FBar", want: "/components/schemas/Foo_Bar", internal: true},
 		{name: "dot", ref: "#/components/schemas/Foo%2EBar", want: "/components/schemas/Foo.Bar", internal: true},
 		{name: "space", ref: "#/components/schemas/A%20B", want: "/components/schemas/A B", internal: true},
+		{name: "plus is a plus", ref: "#/components/schemas/A+B", want: "/components/schemas/A+B", internal: true},
+		{name: "escaped plus is a plus", ref: "#/components/schemas/A%2BB", want: "/components/schemas/A+B", internal: true},
 		{name: "percent", ref: "#/components/schemas/A%25B", want: "/components/schemas/A%B", internal: true},
 		// %2F decodes to a separator, so it deepens the pointer rather than naming
 		// a component with a slash in it — RFC 6901 spells that one `~1`.
@@ -83,6 +88,7 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		// either: GetURI trims and stops. A self-reference has to be spelled the way
 		// the file is named.
 		{name: "document half is not decoded", ref: "m%2Eyaml#/components/schemas/A", internal: false},
+		{name: "a plus in the document half is no escape", ref: "m+x.yaml#/components/schemas/A", internal: false},
 		// No document key can spell a byte that is not UTF-8, so the fragment can
 		// never resolve (GitHub #520).
 		{name: "non-UTF-8 fragment", ref: "#/components/schemas/%FF", want: "", internal: false},
@@ -93,6 +99,10 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 			got, internal := sc.InternalPointer(tc.ref)
 			assert.Equal(t, tc.internal, internal)
 			assert.Equal(t, tc.want, got)
+			if internal {
+				assert.Equal(t, jsontext.Pointer(references.Reference(fragment.ForResolver(tc.ref)).GetJSONPointer()), got,
+					"the resolver's reading of the spelling it is handed")
+			}
 		})
 	}
 }
@@ -112,6 +122,7 @@ func TestFragmentPointer_ReadsTheFragmentOfAnyDocument(t *testing.T) {
 		{name: "same document", ref: "#/components/schemas/A", want: "/components/schemas/A", wantOK: true},
 		{name: "another document is still a pointer", ref: "other.yaml#/components/schemas/A", want: "/components/schemas/A", wantOK: true},
 		{name: "percent-decoded", ref: "#/components/schemas/Foo%2DBar", want: "/components/schemas/Foo-Bar", wantOK: true},
+		{name: "plus is a plus", ref: "#/components/schemas/A+B", want: "/components/schemas/A+B", wantOK: true},
 		{name: `a lone slash, the member keyed ""`, ref: "#/", want: "/", wantOK: true},
 		{name: "a $anchor is not a pointer", ref: "#anchor"},
 		{name: "a bare # names the whole document, which is refused", ref: "#"},
@@ -788,7 +799,7 @@ components:
 	require.NoError(t, err)
 	_, err = doc.ResolveAllReferences(t.Context(), soa.ResolveAllOptions{OpenAPILocation: "spec.yaml"})
 	require.NoError(t, err)
-	references := func(node any) (End, bool) {
+	elsewhere := func(node any) (End, bool) {
 		if r, ok := node.(*soa.ReferencedResponse); ok && r.IsReference() {
 			return End{Document: "elsewhere", Path: "x.yaml"}, true
 		}
@@ -799,16 +810,16 @@ components:
 		return err == nil
 	}
 	for _, holds := range []func(*yaml.Node, string) bool{nil, library} {
-		sc := Scope{Doc: doc, Ends: references, Holds: holds}
+		sc := Scope{Doc: doc, Ends: elsewhere, Holds: holds}
 		assert.True(t, sc.At("/components/responses/R/x-foo/a").Foreign, "S holds x-foo")
 		assert.True(t, sc.Locate("/components/responses/R/x-foo").At().Foreign)
 		assert.False(t, sc.At("/components/responses/R/x-nope").Foreign, "S holds no x-nope")
 		assert.False(t, sc.At("/components/responses/S/x-foo").Foreign, "S is no reference")
 	}
 
-	never := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return false }}
+	never := Scope{Doc: doc, Ends: elsewhere, Holds: func(*yaml.Node, string) bool { return false }}
 	assert.False(t, never.At("/components/responses/R/x-foo/a").Foreign, "Holds, not the library, answers")
-	always := Scope{Doc: doc, Ends: references, Holds: func(*yaml.Node, string) bool { return true }}
+	always := Scope{Doc: doc, Ends: elsewhere, Holds: func(*yaml.Node, string) bool { return true }}
 	assert.True(t, always.At("/components/responses/R/x-nope").Foreign, "Holds, not the library, answers")
 	assert.False(t, always.At("/components/responses/S/x-foo").Foreign, "only a reference asks it")
 }

@@ -49,11 +49,12 @@ func TestSpecFiles_FailsWhereItFindsNoSpec(t *testing.T) {
 
 // positionsDoc has a schema the model's walk reaches, a path whose key needs
 // escaping, an extension only the tree reaches, and a response written as a
-// reference, internal and external.
+// reference, internal and external, and one naming a key that holds a plus.
 const positionsDoc = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
-  /a: {get: {responses: {"200": {description: ok}, "201": {$ref: '#/components/responses/R'}, "202": {$ref: 'other.yaml#/R'}, "203": {$ref: '#anchor'}}}}
+  /a: {get: {responses: {"200": {description: ok}, "201": {$ref: '#/components/responses/R'}, "202": {$ref: 'other.yaml#/R'}, "203": {$ref: '#anchor'}, "204": {$ref: '#/paths/~1b+c'}}}}
+  /b+c: {x-p: {k: v}}
 components:
   schemas:
     A: {type: object}
@@ -65,8 +66,8 @@ x-ext: {k: [v]}
 // TestPositions_ReadsTheWalkTheTreeAndAStrayToken pins what a differential is
 // asked about: a place the walk reaches, a path only the tree has, an escaped
 // key, a list index, a path of an internal reference's target read through
-// it, though not of an external one's nor an anchor's, and each with a stray
-// token appended.
+// it, a plus in the key it names included, though not of an external one's nor
+// an anchor's, and each with a stray token appended.
 func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(positionsDoc))
@@ -76,6 +77,7 @@ func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 		"/components/schemas/A", "/x-ext/k/0", "/paths/~1a/get", "/x-ext/k/0/0", "/components/schemas/A/properties",
 		"/paths/~1a/x", "/x-ext/", "//~1",
 		"/paths/~1a/get/responses/201/x-k/a", "/paths/~1a/get/responses/201/description/0",
+		"/paths/~1a/get/responses/204/x-p/k",
 	} {
 		assert.Contains(t, got, want)
 	}

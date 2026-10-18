@@ -47,6 +47,7 @@ components:
 x-lib:
   first: {$ref: './root.yaml#/x-lib/second'}
   second: {$ref: '#/x-lib/first'}
+  plus+loop: {$ref: './root.yaml#/x-lib/plus+loop'}
 `
 }
 
@@ -82,6 +83,7 @@ func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
 		{"a loop that crosses from the model into the tree", "root.yaml#/components/schemas/A", true},
 		{"a chain into a loop", "#/components/schemas/Tail", true},
 		{"a loop of raw nodes", "./root.yaml#/x-lib/first", true},
+		{"a loop of a raw node keyed with a plus", "./root.yaml#/x-lib/plus+loop", true},
 		{"a hop into another file", "#/components/schemas/Elsewhere", false},
 		{"a chain through another file", "#/components/schemas/ThroughElsewhere", false},
 		{"an anchor", "#/components/schemas/Anchored", false},
@@ -311,7 +313,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 		opts := Options{AllowExternalRefs: allow}
 		var reader *external
 		if allow {
@@ -385,7 +387,7 @@ func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		root, _, err := decodeStream([]byte(spec))
 		require.NoError(t, err)
 
-		self := newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 
 		assert.Equal(t, c.holdless, self.holdless, c.name)
 		assert.Equal(t, !c.holdless, len(self.keys()) > 0, "%s: held under its keys unless it spells $id", c.name)
@@ -407,7 +409,7 @@ func TestNewSourceDocument_ASourceWritingMoreRefsThanTheGuardReadsIsNotHeld(t *t
 				&yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"})
 		}
 
-		self := newSourceDocument("root.yaml", nil, root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument("root.yaml", nil, root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 
 		assert.Equal(t, n > maxHeldRefs, self.holdless, "%d $refs", n)
 	}
@@ -438,7 +440,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 		a, ok := doc.GetComponents().GetSchemas().Get("A")
 		require.True(t, ok)
 
-		pass.visit("/components/schemas/A", a, a.GetRef())
+		pass.visit("/components/schemas/A", a)
 
 		assert.Equal(t, c.resolved, a.IsResolved(), c.name)
 		assert.Empty(t, pass.failures, c.name)
@@ -489,6 +491,9 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 				"    G: {$ref: '#/components/schemas/H/$defs/X'}\n", "    K: {$ref: '#/components/schemas/H/$defs/Y'}\n"}
 		}, []string{"/components/schemas/G", "/components/schemas/H/$defs/X", "/components/schemas/H/$defs/Y",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/q"}, ""},
+		{"through a key spelled with a plus", func(string) []string {
+			return []string{"    A: {$ref: 'root.yaml#/x-plus/D+E'}\n"}
+		}, []string{"/components/schemas/A"}, "x-plus:\n  D+E: {$ref: './root.yaml#/components/schemas/A'}\n"},
 		{"in a source that spells $id, which is not held", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/E'}\n", "    E: {$ref: '#/components/schemas/A'}\n"}
 		}, nil, "x-id: {$id: 'http://example.com/a'}\n"},
@@ -639,7 +644,7 @@ func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))))
+		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)))
 
 		reader.hold(t.Context(), Siblings{})
 

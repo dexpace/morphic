@@ -9,6 +9,8 @@ import (
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )
 
 // reachBase is the base a URI is resolved against to read what no base can
@@ -39,7 +41,7 @@ func isDefsRef(raw string) bool {
 	if !strings.Contains(raw, "#") {
 		return false
 	}
-	return strings.HasPrefix(string(references.Reference(raw).GetJSONPointer()), "/$defs/")
+	return strings.HasPrefix(string(fragment.Pointer(raw)), "/$defs/")
 }
 
 // namesRegistryEntry reports whether raw can resolve through the $anchor and
@@ -73,7 +75,7 @@ func (r *reach) lookups(c refClass) []*posSet {
 	if !ref.HasJSONPointer() {
 		return out
 	}
-	switch pointer := string(ref.GetJSONPointer()); {
+	switch pointer := string(fragment.Pointer(raw)); {
 	case pointer == "" || pointer == "/":
 		if c.drifted {
 			out = appendSet(out, r.documents())
@@ -123,7 +125,7 @@ func (r *reach) documents() *posSet {
 // the fragment when it is a pointer.
 func (r *reach) idLandings(out []*posSet, scope *yaml.Node, ref references.Reference) []*posSet {
 	var tokens []string
-	switch pointer := string(ref.GetJSONPointer()); {
+	switch pointer := string(fragment.Pointer(string(ref))); {
 	case pointer == "" || pointer == "/":
 	case strings.HasPrefix(pointer, "/"):
 		tokens = pointerTokens(pointer)

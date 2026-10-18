@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"fmt"
-	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -18,11 +18,11 @@ import (
 // heldRef is one "#/$defs/..." reference and the definition the resolver's own
 // rule names for it (defs.Reader.Target); target is nil when the rule names none.
 type heldRef struct {
-	js      *schemaRef
-	written *references.Reference // the $ref as written, which is put back
-	target  *schemaRef            // the definition the rule names
-	at      jsontext.Pointer      // where that definition is written
-	site    jsontext.Pointer      // where the reference is written
+	js       *schemaRef
+	modelled *references.Reference // the $ref as the model holds it, which is put back
+	target   *schemaRef            // the definition the rule names
+	at       jsontext.Pointer      // where that definition is written
+	site     jsontext.Pointer      // where the reference is written
 	// refused is why a reference written in the fields beside a path item's
 	// $ref is left unresolved, or empty for any other (see heldRefs).
 	refused string
@@ -49,7 +49,7 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.R
 			if !ok {
 				return nil
 			}
-			r := heldRef{js: js, written: js.GetSchema().Ref, site: jsontext.Pointer(item.Location.ToJSONPointer())}
+			r := heldRef{js: js, modelled: js.GetSchema().Ref, site: jsontext.Pointer(item.Location.ToJSONPointer())}
 			if use, key, beside := sibs.Beside(r.site); beside {
 				r.refused = refscope.DefsBesideReason(use, key)
 			} else {
@@ -63,7 +63,7 @@ func heldRefs(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, rule *defs.R
 }
 
 // withDefsHeld runs f with every "#/$defs/..." reference taken out of the
-// resolver's reach, then puts each back as written.
+// resolver's reach, then puts each back as the model held it.
 //
 // The resolver caches the first definition it finds for a pointer and hands it
 // to every later reference spelling it, and resolves a reference it reached
@@ -79,7 +79,7 @@ func withDefsHeld(refs []heldRef, f func()) {
 	f()
 }
 
-// restoreDefs puts every held reference back as written.
+// restoreDefs puts every held reference back as the model held it.
 func restoreDefs(refs []heldRef) {
 	for _, r := range refs {
 		r.restore()
@@ -89,21 +89,21 @@ func restoreDefs(refs []heldRef) {
 // hold takes the reference out of the resolver's reach.
 func (r heldRef) hold() { r.js.GetSchema().Ref = nil }
 
-// restore puts the reference back as written.
-func (r heldRef) restore() { r.js.GetSchema().Ref = r.written }
+// restore puts the reference back as the model held it.
+func (r heldRef) restore() { r.js.GetSchema().Ref = r.modelled }
 
 // retarget gives the reference the pointer of its definition, for the resolver
 // to read, or leaves it out of reach when the rule names none.
 func (r heldRef) retarget() {
 	r.hold()
 	if r.target != nil {
-		r.js.GetSchema().Ref = new(references.Reference("#" + fragmentOf(r.at)))
+		r.js.GetSchema().Ref = new(references.Reference("#" + fragment.Of(r.at)))
 	}
 }
 
 // resolveHeld resolves each held reference the rule answers for by handing the
 // resolver the pointer of the definition itself, reports each as the walk's
-// references are (see visit), and puts every reference back as written. One the
+// references are (see visit), and puts every reference back as held. One the
 // rule has no answer for stays out of reach meanwhile, so a chain that meets it
 // ends there rather than reading the resolver's order-dependent lookup, and is
 // reported as a definition the resolver cannot find: the lowering reports only
@@ -119,14 +119,14 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 		site = r.site
 		if r.refused != "" {
 			p.failures = append(p.failures, diag.Newf(ir.SeverityError, diag.UnresolvedRef, p.at(site),
-				"unresolved $ref %q: %s", *r.written, r.refused))
+				"unresolved $ref %q: %s", p.esc.writtenOf(r.js), r.refused))
 			continue
 		}
 		if r.target == nil {
-			p.missing(site, *r.written)
+			p.missing(site, p.esc.writtenOf(r.js))
 			continue
 		}
-		p.visit(site, r.js, *r.written)
+		p.visit(site, r.js)
 	}
 	return "", nil
 }
@@ -136,24 +136,6 @@ func (p *resolution) resolveHeld(refs []heldRef) (site jsontext.Pointer, err err
 func (p *resolution) missing(site jsontext.Pointer, ref references.Reference) {
 	p.failures = append(p.failures,
 		failureDiag(p.at(site), ref, trail{}, fmt.Errorf("definition not found: %s", ref)))
-}
-
-// fragmentOf spells pointer as a URI fragment the resolver decodes back to
-// exactly pointer (references.Reference.GetJSONPointer trims and
-// query-unescapes): every byte outside a plain set is percent-encoded, '+' and
-// '%' and '#' and whitespace included.
-func fragmentOf(pointer jsontext.Pointer) string {
-	const plain = "/~$-_.!*'(),;:@&=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	out := make([]byte, 0, len(pointer))
-	for i := range len(pointer) {
-		b := pointer[i]
-		if strings.IndexByte(plain, b) >= 0 {
-			out = append(out, b)
-			continue
-		}
-		out = append(out, fmt.Sprintf("%%%02X", b)...)
-	}
-	return string(out)
 }
 
 // heldDefsPointer reports the "#/$defs/..." pointer of a schema reference load

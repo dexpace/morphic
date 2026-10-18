@@ -572,6 +572,8 @@ func TestEnds(t *testing.T) {
     NotString: {$ref: [x]}
     Flag: true
     Listed: [{$ref: '#/components/schemas/Loop'}]
+    Loop+Key: {$ref: '#/components/schemas/Loop+Key'}
+    ToLoop: {$ref: '#/components/schemas/Loop+Key'}
 `))
 	require.True(t, parsed)
 	for _, c := range []struct {
@@ -585,6 +587,8 @@ func TestEnds(t *testing.T) {
 		{"#/components/schemas/NotString", true, "a $ref that is not a string is none"},
 		{"#/components/schemas/Flag", true, "a schema that is a boolean holds none"},
 		{"#/components/schemas/Loop", false, "a cycle"},
+		{"#/components/schemas/Loop+Key", false, "a cycle through a key spelled with a plus"},
+		{"#/components/schemas/ToLoop", false, "a hop to that cycle"},
 		{"#/components/schemas/Back", false, "a hop naming a document"},
 		{"#/components/schemas/Merged", false, "a $ref a merge key supplies is followed"},
 		{"#/components/schemas/ViaAlias", false, "an alias's $ref is followed"},

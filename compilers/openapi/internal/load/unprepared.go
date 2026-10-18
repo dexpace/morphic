@@ -17,6 +17,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -348,11 +349,11 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 //
 // net/url respells a URL many-to-one, so a stored tree can miss the resolver's
 // key. Each resolved reference records the document it read; when one the
-// resolver parsed holds an anchor, doc is rebuilt and resolved again, handed
+// resolver parsed holds an anchor, or a $ref it reads otherwise than the
+// prepared tree does (see escapes), doc is rebuilt and resolved again over
 // every prepared tree (see handOver) and the first pass's answers (see
-// external.replaying). It resolves as the first did but for those trees, which
-// the walk never descends into, so it reaches no new document; one found
-// unprepared is an internal fault.
+// external.replaying). That reaches no new document; one found unprepared is an
+// internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
@@ -360,7 +361,8 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	reader := newExternal(doc, opts, read)
 	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
-	if !anyAnchored(doc, unprepared(doc, read, used)) {
+	first := unprepared(doc, read, used)
+	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
 		return doc, sibs, targets, diags, nil
 	}
 
@@ -383,10 +385,23 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
 func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(doc, missed, hasAnchor)
+}
+
+// anyRewritable reports whether any document in missed, as the resolver parsed
+// it, holds a $ref the resolver reads a '+' of as a space, which the prepared
+// tree has spelled otherwise (GitHub #911).
+func anyRewritable(doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(doc, missed, rewritable)
+}
+
+// anyParsed reports whether the tree the resolver parsed for any document in
+// missed satisfies holds.
+func anyParsed(doc *soa.OpenAPI, missed []usedDocument, holds func(*yaml.Node) bool) bool {
 	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
 		tree, ok := cached.(*yaml.Node)
-		return ok && hasAnchor(tree)
+		return ok && holds(tree)
 	})
 }
 
@@ -489,14 +504,16 @@ func resolutionTrail(model any) trail {
 }
 
 // chain is every record a reference's resolution holds, first hop first, and
-// the reference it stopped at, if it stopped at one. The last record holds no
-// object when the library gave the reference it stopped at one of its own: a
-// $ref inside a resolved schema gets one holding only the base it resolves
-// against. cut marks a chain followed only as far as maxResolutionHops.
+// the reference it stopped at, if it stopped at one, with the hop that holds
+// it. The last record holds no object when the library gave the reference it
+// stopped at one of its own: a $ref inside a resolved schema gets one holding
+// only the base it resolves against. cut marks a chain followed only as far as
+// maxResolutionHops.
 type chain struct {
-	records []record
-	stopped references.Reference
-	cut     bool
+	records   []record
+	stopped   references.Reference
+	stoppedAt any
+	cut       bool
 }
 
 // record is one hop's record: the document it read, by path, where its
@@ -506,8 +523,8 @@ type chain struct {
 // object of the hop's kind in place of the one it reached, and reports whether
 // obj was of that kind.
 //
-// pointer is read off the reference, decoded once as the resolver decoded it,
-// not cut from the absolute one: a document's path may hold a '#'.
+// pointer is read off the reference, decoded once as fragment.Pointer decodes
+// it, not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
 	path         string
 	target       references.Reference
@@ -589,7 +606,7 @@ func recordsOf[S any, R interface {
 			break
 		}
 		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			pointer: jsontext.Pointer(hop.GetReference().GetJSONPointer()), document: &info.ResolvedDocument,
+			pointer: fragment.Pointer(string(hop.GetReference())), document: &info.ResolvedDocument,
 			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
 		if info.Object == nil {
 			c.records = append(c.records, r)
@@ -604,7 +621,7 @@ func recordsOf[S any, R interface {
 		hop = info.Object
 	}
 	if hop != nil {
-		c.stopped = hop.GetReference() // empty for the object a resolution ends on
+		c.stopped, c.stoppedAt = hop.GetReference(), hop // empty for the object a resolution ends on
 	}
 	return c
 }

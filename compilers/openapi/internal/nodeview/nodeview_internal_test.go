@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -84,7 +86,12 @@ func TestPointerPath_Cases(t *testing.T) {
 	}
 }
 
-func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
+// TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded pins that the
+// fragment is read the way the resolver reads the spelling it is handed
+// (fragment.ForResolver), which is '+' as itself and otherwise as the resolver
+// reads it. Each pointer is asked of the library as well, so a dependency bump
+// that reads a fragment otherwise reddens it here.
+func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, ref string
@@ -95,6 +102,9 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 		{name: "trailing space", ref: "#/paths/~1a ", want: "/paths/~1a", internal: true},
 		{name: "leading space", ref: " #/paths/~1a", want: "/paths/~1a", internal: true},
 		{name: "percent-decoded", ref: "#/paths/%7E1a", want: "/paths/~1a", internal: true},
+		{name: "plus is a plus", ref: "#/a+b", want: "/a+b", internal: true},
+		{name: "escaped plus is a plus", ref: "#/a%2Bb", want: "/a+b", internal: true},
+		{name: "plus in an undecodable fragment is a plus", ref: "#/a+b%zz", want: "/a+b%zz", internal: true},
 		{name: "second hash ends the pointer", ref: "#/a#b", want: "/a", internal: true},
 		{name: "bare hash names the root", ref: "#", want: "", internal: true},
 		{name: "undecodable escape kept raw", ref: "#/a%zz", want: "/a%zz", internal: true},
@@ -117,6 +127,10 @@ func TestInternalPointer_MatchesTheResolversNormalization(t *testing.T) {
 			got, internal := InternalPointer(tc.ref)
 			assert.Equal(t, tc.internal, internal)
 			assert.Equal(t, tc.want, got)
+			if internal {
+				assert.Equal(t, jsontext.Pointer(references.Reference(fragment.ForResolver(tc.ref)).GetJSONPointer()), got,
+					"the resolver's reading of the spelling it is handed")
+			}
 		})
 	}
 }

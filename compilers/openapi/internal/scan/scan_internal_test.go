@@ -56,6 +56,8 @@ var cycleReproducers = []struct{ name, file string }{
 	// overflows the stack rather than deadlocking: the resolution cache ends up
 	// pointing at its own reference and GetObject's delegation recurses.
 	{"pointer-whitespace-self", "cycle_pointer_whitespace_self"},
+	// A self-reference only a plus read as a plus reveals (GitHub #911).
+	{"pointer-plus-self", "cycle_pointer_plus_self"},
 }
 
 // TestCycleReproducers_EveryFixtureIsExercised holds cycleReproducers to the
@@ -763,9 +765,10 @@ components:
 // TestDetectCycles_PointerIsNormalizedLikeTheResolver pins the scan's pointer
 // reading to speakeasy's. It splits a $ref on '#', trims whitespace from both
 // halves and percent-decodes the pointer (references/reference.go GetURI and
-// GetJSONPointer, v1.24.0), so '#/paths/~1a ' names /a there. A scan that reads
-// the raw value instead calls that pointer dangling and lets a self-reference
-// through — one trailing space was enough to walk past the refusal.
+// GetJSONPointer), so '#/paths/~1a ' names /a there. A scan that reads the raw
+// value instead calls that pointer dangling and lets a self-reference through —
+// one trailing space was enough to walk past the refusal. A '+' is the one
+// byte it reads otherwise (see TestDetectCycles_PlusInAPointerIsAPlus).
 func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a:\n    $ref: "
@@ -781,6 +784,41 @@ func TestDetectCycles_PointerIsNormalizedLikeTheResolver(t *testing.T) {
 			t.Parallel()
 			diags := scanBytes(t, []byte(head+ref+tail))
 			require.NotEmpty(t, diags, "the resolver reads this pointer as naming /a")
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+		})
+	}
+}
+
+// TestDetectCycles_PlusInAPointerIsAPlus pins that the scan reads '+' in a $ref
+// fragment as itself (RFC 3986 section 3.5), not as the space the resolver's own
+// decoder makes of it: a key spelled with a plus is reached by a pointer spelled
+// with one, a key spelled with a space is not, and load hands the resolver the
+// same reading (GitHub #911). The escaped spelling is the control, which both
+// readings agree on.
+func TestDetectCycles_PlusInAPointerIsAPlus(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"
+	tests := []struct {
+		name    string
+		src     string
+		isCycle bool
+	}{
+		{name: "a plus reaches the key spelled with a plus", isCycle: true,
+			src: head + "x-a+b: {$ref: '#/x-a+b'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a+b'}\n"},
+		{name: "an escaped plus reaches the same key", isCycle: true,
+			src: head + "x-a+b: {$ref: '#/x-a%2Bb'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a+b'}\n"},
+		{name: "a plus does not reach the key spelled with a space",
+			src: head + "x-a b: {$ref: '#/x-a+b'}\ncomponents:\n  schemas:\n    A: {$ref: '#/x-a%20b'}\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			diags := scanBytes(t, []byte(tc.src))
+			if !tc.isCycle {
+				assert.Empty(t, diags, "the chain ends at a key that is not there")
+				return
+			}
+			require.NotEmpty(t, diags, "the chain closes on the key it starts at")
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
 		})
 	}
