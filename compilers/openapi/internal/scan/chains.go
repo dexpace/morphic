@@ -29,7 +29,7 @@ type chainGraph struct {
 	// through it on the way to its target.
 	passedBy map[*yaml.Node][]*yaml.Node
 	// maxNodes bounds how many nodes are read: MaxIndexedNodes, which no tree
-	// Cycles takes holds, or less in a test of the bound.
+	// Cycles takes can reach (see read), or less in a test of the bound.
 	maxNodes int
 	// work counts each hop read, each passing pointer weighed and each node
 	// settled, so a test can bound the work without timing it.
@@ -69,9 +69,11 @@ func (g *chainGraph) outcome(n *yaml.Node) chainOutcome {
 	return g.hops[n].out
 }
 
-// read follows the chains from starts, reading each node's hop once. A tree
-// Cycles takes is indexed in full, so it holds fewer than maxNodes nodes; one
-// past them is a scan bug, and recoverCycleScan reports its panic.
+// read follows the chains from starts, reading each node's hop once. Each node
+// read is a $ref mapping holding a key and a value of its own, and Cycles takes
+// only a tree indexed in full within MaxIndexedNodes, so the reads stay far
+// below it. Reading past maxNodes is a scan bug; recoverCycleScan reports its
+// panic.
 func (g *chainGraph) read(starts []*yaml.Node) {
 	pending := slices.Clone(starts)
 	for len(pending) > 0 {
@@ -147,12 +149,12 @@ func (g *chainGraph) loops() [][]*yaml.Node {
 	return loops
 }
 
-// settleLoop settles loop number id. A walk from one of its nodes goes once
-// round, re-entering if a hop passes through a node it already followed. first
-// says, for each node, how far round from loop[0] the walk from it first meets
-// a pass through it; a walk from loop[i] re-enters when some node it follows
-// before coming round is passed within that turn, which a least first over the
-// loop read twice answers for every start at once.
+// settleLoop settles loop number id. A walk from loop[i] goes once round, and
+// re-enters if a node it follows is passed through before the walk comes back.
+// first[j] is where, counted round from loop[0], the walk from loop[j] first
+// meets a pass through loop[j]. The walk from loop[i] follows loop[i:] and then
+// loop[:i] a turn later, so it re-enters when the least of those firsts falls
+// before i+n.
 func (g *chainGraph) settleLoop(id int, loop []*yaml.Node) {
 	n := len(loop)
 	left := false
@@ -229,7 +231,7 @@ func (g *chainGraph) settleEnd(h *chainHop) {
 
 // settleFrom settles every node whose chain reaches root, a settled node on a
 // loop or ending its chain, outward from it. between holds the nodes from root
-// to the one being settled, which are the rest of that node's chain.
+// up to the one being settled, not including it: the rest of that node's chain.
 func (g *chainGraph) settleFrom(root *yaml.Node, landing map[*yaml.Node][]*yaml.Node) {
 	type visit struct {
 		n     *yaml.Node

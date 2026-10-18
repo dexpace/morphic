@@ -384,7 +384,7 @@ func randomRefDoc(r *rand.Rand) []byte {
 	for i := range paths {
 		fmt.Fprintf(&b, "\n  /x%d: %s", i, member())
 	}
-	b.WriteString("\ncomponents:\n  x-none: {}\n")
+	b.WriteString("\ncomponents:\n  x-none: {}\n") // a mapping even with no section under it
 	for k, sec := range sections {
 		if counts[k] > 0 {
 			fmt.Fprintf(&b, "  %s:\n", sec.name)
@@ -411,22 +411,30 @@ func TestSettleChains_AgreesWithAWalkFromEachNode(t *testing.T) {
 	for range generated {
 		docs = append(docs, randomRefDoc(r))
 	}
+	verdicts := map[chainVerdict]string{chainTerminates: "ends", chainCycles: "cycles", chainReenters: "re-enters"}
 	met := map[string]int{}
 	for _, data := range docs {
 		s, chains := settled(t, data)
 		for _, n := range chains.order {
 			got, h := chains.outcome(n), chains.hops[n]
 			require.Equal(t, walkFrom(s.view, chains.root, n), got, "the chain from line %d of\n%s", n.Line, data)
-			met[fmt.Sprintf("loop=%t %v left=%t", h.loop != 0, got.verdict, got.leftComponents)]++
+			kind := "off a loop, " + verdicts[got.verdict]
+			if h.loop != 0 {
+				kind = "on a loop, " + verdicts[got.verdict]
+			}
+			if got.leftComponents {
+				kind += ", leaving components"
+			}
+			met[kind]++
 			if h.selfThrough {
 				met["through itself"]++
 			}
 		}
 	}
 	for _, kind := range []string{
-		"loop=true 1 left=false", "loop=true 1 left=true", "loop=true 2 left=false",
-		"loop=false 0 left=false", "loop=false 1 left=false", "loop=false 1 left=true",
-		"loop=false 2 left=false", "through itself",
+		"on a loop, cycles", "on a loop, cycles, leaving components", "on a loop, re-enters",
+		"off a loop, ends", "off a loop, cycles", "off a loop, cycles, leaving components",
+		"off a loop, re-enters", "through itself",
 	} {
 		assert.Positive(t, met[kind], "no node settled as %q", kind)
 	}
@@ -460,4 +468,75 @@ func TestSettleChains_ReadsNothingPastAPointerThroughItsOwnNode(t *testing.T) {
 
 	require.Len(t, chains.order, 1, "only A is read")
 	assert.Equal(t, chainOutcome{verdict: chainReenters}, chains.outcome(chains.order[0]))
+}
+
+// settledFrom settles a document's chains from the nodes at starts alone, in
+// that order, and returns each node's outcome by pointer.
+func settledFrom(t *testing.T, data []byte, starts []jsontext.Pointer, at []jsontext.Pointer) map[jsontext.Pointer]chainOutcome {
+	t.Helper()
+	root := indexOf(t, data).Root()
+	view := nodeview.New()
+	node := func(p jsontext.Pointer) *yaml.Node {
+		path, complete := view.PointerPath(root, p)
+		require.True(t, complete, "%s names nothing", p)
+		return path[len(path)-1]
+	}
+	from := make([]*yaml.Node, 0, len(starts))
+	for _, p := range starts {
+		from = append(from, node(p))
+	}
+	chains := settleChains(view, root, from, sourceindex.MaxIndexedNodes)
+	outcomes := make(map[jsontext.Pointer]chainOutcome, len(at))
+	for _, p := range at {
+		outcomes[p] = chains.outcome(node(p))
+	}
+	return outcomes
+}
+
+// TestSettleChains_LoopReentryCountsTheTurn pins a loop of L0, L1 and L0's
+// member t, where L1's hop passes through L0. A walk from L0 or from t follows
+// L0 before L1's hop and re-enters; one from L1 follows it only after, and
+// cycles. Which node the loop is read from decides whether a re-entry is found
+// before or after the turn, so each is a start in turn.
+func TestSettleChains_LoopReentryCountsTheTurn(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    L0: {$ref: '#/components/schemas/L1', t: {$ref: '#/components/schemas/L0'}}\n",
+		"    L1: {$ref: '#/components/schemas/L0/t'}\n",
+	})
+	nodes := []jsontext.Pointer{"/components/schemas/L0", "/components/schemas/L1", "/components/schemas/L0/t"}
+	want := map[jsontext.Pointer]chainOutcome{
+		nodes[0]: {verdict: chainReenters},
+		nodes[1]: {verdict: chainCycles},
+		nodes[2]: {verdict: chainReenters},
+	}
+	for _, start := range nodes {
+		t.Run(string(start), func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, want, settledFrom(t, data, []jsontext.Pointer{start}, nodes))
+		})
+	}
+}
+
+// TestSettleChains_TailPassedOnItsLoopReenters pins a node off a loop whose
+// pointer a hop on the loop passes through: T lands on the loop of L, M and
+// T's member x, and M's hop passes through T. A walk from T has T on it when M's
+// hop comes and re-enters; a walk from the loop never follows T, and cycles.
+func TestSettleChains_TailPassedOnItsLoopReenters(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    T: {$ref: '#/components/schemas/L', x: {$ref: '#/components/schemas/L'}}\n",
+		"    L: {$ref: '#/components/schemas/M'}\n",
+		"    M: {$ref: '#/components/schemas/T/x'}\n",
+	})
+	nodes := []jsontext.Pointer{"/components/schemas/T", "/components/schemas/L", "/components/schemas/M", "/components/schemas/T/x"}
+
+	got := settledFrom(t, data, nodes[:1], nodes)
+
+	assert.Equal(t, map[jsontext.Pointer]chainOutcome{
+		nodes[0]: {verdict: chainReenters},
+		nodes[1]: {verdict: chainCycles},
+		nodes[2]: {verdict: chainCycles},
+		nodes[3]: {verdict: chainCycles},
+	}, got)
 }
