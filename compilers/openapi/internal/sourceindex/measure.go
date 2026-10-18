@@ -1,6 +1,10 @@
 package sourceindex
 
-import yaml "gopkg.in/yaml.v3"
+import (
+	"math"
+
+	yaml "gopkg.in/yaml.v3"
+)
 
 // Measure takes how deeply a subtree nests: the mappings and sequences its
 // deepest path passes through, an alias standing for the node it names, as in
@@ -8,11 +12,9 @@ import yaml "gopkg.in/yaml.v3"
 // #905).
 //
 // A `<<` merge key's value counts where it is written, a level below the
-// mapping the parser folds it into, so the measure never falls short of the
-// parser's. An alias back into a node still being measured counts 0.
-//
-// It remembers what it measures, so a node and then any part of it cost one
-// walk. A Measure belongs to one tree.
+// mapping the parser folds it into, two for a list, so the measure never
+// falls short of the parser's. An alias back into a node still being measured
+// counts 0. What it measures it keeps, for the one tree it belongs to.
 type Measure struct {
 	memo map[*yaml.Node]int64
 	// inFlight holds the nodes Of has expanded and not yet measured. It is empty
@@ -26,9 +28,14 @@ type Measure struct {
 	truncated    bool
 }
 
-// NewMeasure returns a measure for a tree of at most maxNodes nodes.
+// NewMeasure returns a measure for a tree of at most maxNodes nodes, a bound
+// so large its limit would overflow being taken as no bound at all.
 func NewMeasure(maxNodes int64) *Measure {
-	return &Measure{memo: map[*yaml.Node]int64{}, inFlight: map[*yaml.Node]bool{}, limit: 4 * max(maxNodes, 0)}
+	limit := int64(math.MaxInt64)
+	if maxNodes < limit/4 {
+		limit = 4 * max(maxNodes, 0)
+	}
+	return &Measure{memo: map[*yaml.Node]int64{}, inFlight: map[*yaml.Node]bool{}, limit: limit}
 }
 
 // measureFrame is one entry of Of's post-order stack: a node, and whether
@@ -43,8 +50,8 @@ type measureFrame struct {
 //
 // The walk is iterative, so a deep tree costs no stack. A node is pushed only
 // while neither measured nor in flight, so each is expanded once whatever
-// shares it, and an alias cycle, which only a tree built by hand still holds
-// past the anchor-cycle refusal, ends the walk rather than looping it.
+// shares it, and an alias cycle ends the walk rather than looping it: one
+// below the anchor-cycle check's tracked depth, or in a tree built by hand.
 func (m *Measure) Of(n *yaml.Node) int64 {
 	if n == nil {
 		return 0

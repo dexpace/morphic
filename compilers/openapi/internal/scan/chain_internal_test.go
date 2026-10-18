@@ -630,3 +630,66 @@ func TestSettleChains_ALoopReentryFollowsThePointersOrder(t *testing.T) {
 
 	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{"/components/schemas/B/k": {"/components/schemas/B"}}, got)
 }
+
+// TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate is the test
+// above with the pass further round: N lands on R, of a loop of R, X, B, R's y,
+// A, N's x and C, where B's hop passes R two hops after it and A's passes N
+// four after. A walk from N re-enters R at its third hop, before A's would
+// pass N at its fifth.
+func TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    N: {$ref: '#/components/schemas/R', x: {$ref: '#/components/schemas/C'}}\n",
+		"    R: {$ref: '#/components/schemas/X', y: {$ref: '#/components/schemas/A'}}\n",
+		"    X: {$ref: '#/components/schemas/B'}\n",
+		"    B: {$ref: '#/components/schemas/R/y'}\n",
+		"    A: {$ref: '#/components/schemas/N/x'}\n",
+		"    C: {$ref: '#/components/schemas/R'}\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/N", []jsontext.Pointer{"/components/schemas/N"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{"/components/schemas/N": {"/components/schemas/R"}}, got)
+}
+
+// TestSettleChains_ATailIsReenteredAtItsEarliestPass pins that of two passes
+// through a tail N, the one earlier on N's walk counts, whichever was read
+// first: P's hop passes N at the first hop and T's at the sixth, around a
+// re-entry of Q at the fourth. Every schema is a start, so the declaration
+// order decides which pass is read first, and either way round N is
+// re-entered.
+func TestSettleChains_ATailIsReenteredAtItsEarliestPass(t *testing.T) {
+	t.Parallel()
+	members := []string{
+		"    N: {$ref: '#/components/schemas/P', k: {$ref: '#/components/schemas/Q'}, z: {type: string}}\n",
+		"    P: {$ref: '#/components/schemas/N/k'}\n",
+		"    Q: {$ref: '#/components/schemas/S', t: {$ref: '#/components/schemas/T'}}\n",
+		"    S: {$ref: '#/components/schemas/Q/t'}\n",
+		"    T: {$ref: '#/components/schemas/N/z'}\n",
+	}
+	reversed := slices.Clone(members)
+	slices.Reverse(reversed)
+	for _, order := range [][]string{members, reversed} {
+		s, chains := settled(t, schemasDoc(order))
+		n := nodesAt(t, chains.root, []jsontext.Pointer{"/components/schemas/N"})[0]
+		require.Len(t, s.out, len(members), "every schema is a start")
+		_, fails := chains.failsOn(n)
+		assert.Equal(t, []*yaml.Node{n}, fails, "in the order %q", order)
+	}
+}
+
+// TestSettleChains_ATailYieldsToAReentryEarlierOnOnePointer pins the path
+// order at a tail: T, E's member k, lands on E through an alias, and E's
+// pointer passes E and then T. A walk from T meets E first along it.
+func TestSettleChains_ATailYieldsToAReentryEarlierOnOnePointer(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    E: &e {$ref: '#/components/schemas/E/k/z', k: {$ref: '#/components/schemas/WE', z: {type: string}}}\n",
+		"    WE: *e\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/E/k", []jsontext.Pointer{"/components/schemas/E/k", "/components/schemas/E"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{
+		"/components/schemas/E/k": {"/components/schemas/E"},
+		"/components/schemas/E":   {"/components/schemas/E"},
+	}, got)
+}

@@ -137,9 +137,10 @@ func TestCycles_NamesTheLeastRecursiveAlias(t *testing.T) {
 	}
 }
 
-// laughs is a billion-laughs bomb named prefix: levels anchors, each a list of
+// laughs is a billion-laughs bomb named prefix: eight anchors, each a list of
 // ten aliases to the one before.
-func laughs(prefix string, levels int) string {
+func laughs(prefix string) string {
+	const levels = 8
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s:\n  l0: &%s0 [x, x, x, x, x, x, x, x, x, x]\n", prefix, prefix)
 	for i := 1; i < levels; i++ {
@@ -155,7 +156,7 @@ func laughs(prefix string, levels int) string {
 // two bombs, the one with the least pointer, in either order.
 func TestAliasAmplification_NamesTheLeastInnermostAmplifier(t *testing.T) {
 	t.Parallel()
-	for order, data := range bothOrders("", []string{laughs("b", 8), laughs("a", 8)}) {
+	for order, data := range bothOrders("", []string{laughs("b"), laughs("a")}) {
 		t.Run(order, func(t *testing.T) {
 			t.Parallel()
 			d := onlyRefusal(t, data)
@@ -201,4 +202,40 @@ func TestFailures_RecordsALoopOnce(t *testing.T) {
 		failed.add(start)
 	}
 	assert.Len(t, failed.sites, n)
+}
+
+// fanned is an anchor of ten scalars under name, aliased twenty times in a
+// list beside it.
+func fanned(name string) string {
+	return fmt.Sprintf("%s: {x: &%s [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], u: [%s]}\n", name, name,
+		strings.TrimSuffix(strings.Repeat("*"+name+", ", 20), ", "))
+}
+
+// TestAliasAmplification_NamesTheLeastSiteUnderABudget pins the two budgeted
+// branches, in either order: two lists each adding more than the budget allows
+// but staying inside the ratio, named for the budget; and, under the same
+// budget, two bombs past the ratio, named for their shape.
+func TestAliasAmplification_NamesTheLeastSiteUnderABudget(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		members []string
+		code    string
+		want    jsontext.Pointer
+	}{
+		{"past the budget", []string{fanned("b"), fanned("a")}, diag.BudgetExceeded, "/a/u"},
+		{"past the ratio", []string{laughs("b"), laughs("a")}, diag.AliasAmplification, "/a/l4"},
+	}
+	for _, tc := range tests {
+		for order, data := range bothOrders("", tc.members) {
+			t.Run(tc.name+"/"+order, func(t *testing.T) {
+				t.Parallel()
+				root := indexOf(t, data).Root()
+				d, refused := aliasAmplification(InTree(0, Pointers(root)), root, rawNodes(root), 100)
+				require.True(t, refused)
+				assert.Equal(t, tc.code, d.Code)
+				assert.Equal(t, tc.want, d.Provenance.Pointer)
+			})
+		}
+	}
 }

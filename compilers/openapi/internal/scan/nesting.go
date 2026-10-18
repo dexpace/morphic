@@ -14,11 +14,11 @@ import (
 // more the deeper the node, so a schema thousands of levels deep cost seconds
 // and gigabytes before the schema walk's own bound refused it (GitHub #905).
 //
-// The deepest of 1,839 real OpenAPI 3 specs nests 21 levels. Anything the
-// lowering lowers in full fits beneath it, which
-// TestMaxNesting_AdmitsWhatTheLoweringLowersInFull pins; at it, a node costs
-// the parser a few times what a shallow one does. It is a limit on a shape,
-// not a budget.
+// Real specs nest far less: the deepest of the 1,839 OpenAPI 3 documents the
+// real-world sweep read in October 2026 nests 21 levels. Anything the lowering
+// lowers in full fits beneath it (TestMaxNesting_AdmitsWhatTheLoweringLowersInFull).
+// It bounds levels, not their keys' bytes, which cost the parser per node too
+// (GitHub #931). It is a limit on a shape, not a budget.
 const MaxNesting = 1024
 
 // Nesting refuses a document nested past MaxNesting before the parser builds

@@ -2,6 +2,7 @@ package sourceindex
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -235,4 +236,16 @@ func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 	assert.Equal(t, int64(0), m.Of(nil))
 	assert.Equal(t, int64(0), m.Of(&yaml.Node{Kind: yaml.AliasNode}))
 	assert.Equal(t, int64(1), m.Of(ynode.Seq(nil)), "a nil child adds nothing to its sequence")
+}
+
+// TestNewMeasure_SaturatesALimitPastOverflow pins the node bound so large that
+// four times it overflows: it is taken as no limit, not wrapped to a negative
+// one that truncates the first measure.
+func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
+	t.Parallel()
+	root := decode(t, "a: &x [1]\nb: *x\n")
+
+	assert.False(t, Build(root, 1<<61).Truncated())
+	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)
+	assert.Equal(t, int64(0), NewMeasure(-1).limit, "a negative bound admits nothing")
 }

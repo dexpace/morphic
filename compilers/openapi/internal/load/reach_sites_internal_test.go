@@ -2,8 +2,13 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
+	"math/rand/v2"
+	"slices"
+	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -61,29 +66,159 @@ func TestReachCycle_NamesACycleMemberInEitherOrder(t *testing.T) {
 
 // TestCycleMembers_KeepsTheFirstCycleWhenTheBudgetCutsTheSearch pins what the
 // search answers when its budget runs out after it closes a cycle and before
-// that cycle's component is whole: the references on the path it closed, so a
-// document the search it replaced refused at that budget is refused still.
+// that cycle's component is whole: the references on the cycle it closed, and
+// not T and R leading into it, so a document the search it replaced refused at
+// that budget is refused still, at a member of the cycle. Each order is tried.
 func TestCycleMembers_KeepsTheFirstCycleWhenTheBudgetCutsTheSearch(t *testing.T) {
 	t.Parallel()
-	doc, root := buildDoc(t, schemasDoc("    H:\n      $defs:\n        A: {$ref: '#/$defs/B'}\n        B: {$ref: '#/$defs/A'}"))
-	fresh := func() (*reach, []*yaml.Node) {
-		return newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+	members := []string{
+		"        T: {$ref: '#/$defs/R'}\n", "        R: {$ref: '#/$defs/A'}\n",
+		"        A: {$ref: '#/$defs/B'}\n", "        B: {$ref: '#/$defs/A'}\n",
 	}
-	whole, starts := fresh()
-	require.Len(t, whole.cycleMembers(starts), 4, "both references, from the cycle and from its component")
-
-	for extra := 1; extra < 64; extra++ {
-		r, starts := fresh()
-		r.budget.limit = r.budget.spent + extra
-		members := r.cycleMembers(starts)
-		if len(members) == 0 {
-			continue
+	reversed := slices.Clone(members)
+	slices.Reverse(reversed)
+	for _, order := range [][]string{members, reversed} {
+		doc, root := buildDoc(t, schemasDoc("    H:\n      $defs:\n"+strings.TrimSuffix(strings.Join(order, ""), "\n")))
+		pointers := scan.Pointers(root)
+		cut := cutCycleMembers(t, doc, root)
+		got := make([]jsontext.Pointer, 0, len(cut))
+		for _, m := range cut {
+			p, _ := pointers(m)
+			got = append(got, p)
 		}
-		assert.True(t, r.incomplete(), "the first budget that closes the cycle stops the search there")
-		assert.Len(t, members, 2, "the path's two references, and nothing from a component left open")
-		return
+		assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/H/$defs/A", "/components/schemas/H/$defs/B"}, got,
+			"in the order %q", order)
+	}
+}
+
+// cutCycleMembers runs the search under the least budget that lets it close
+// a cycle, and returns what it names, requiring that the budget cut it short.
+func cutCycleMembers(t *testing.T, doc *soa.OpenAPI, root *yaml.Node) []*yaml.Node {
+	t.Helper()
+	for extra := 1; extra < 64; extra++ {
+		r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+		r.budget.limit = r.budget.spent + extra
+		if members := r.cycleMembers(starts); len(members) > 0 {
+			require.True(t, r.incomplete(), "the first budget that closes the cycle stops the search there")
+			return members
+		}
 	}
 	t.Fatal("no budget below 64 steps closes the cycle")
+	return nil
+}
+
+// TestCycleMembers_NamesEveryReferenceOnACycleAndNoOther holds the search, with
+// budget to spare, to what the graph says by plain reachability: a set member
+// is on a cycle exactly when its class reaches back to the set. Thousands of
+// generated documents of $defs and anchored references are compared.
+func TestCycleMembers_NamesEveryReferenceOnACycleAndNoOther(t *testing.T) {
+	t.Parallel()
+	r := rand.New(rand.NewPCG(912, 914))
+	cyclic := 0
+	for range 1500 {
+		spec := randomDefsDoc(r)
+		doc, root := buildDoc(t, spec)
+		search, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+		got := map[*yaml.Node]bool{}
+		for _, m := range search.cycleMembers(starts) {
+			got[m] = true
+		}
+		brute, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+		want := onCycles(brute, starts)
+		require.Equal(t, want, got, "in\n%s", spec)
+		if len(want) > 0 {
+			cyclic++
+		}
+	}
+	assert.Greater(t, cyclic, 100, "enough of the documents hold a cycle to compare")
+}
+
+// randomDefsDoc is two schemas whose $defs refer to each other's, through
+// $defs-relative pointers, pointers from the root, and anchors, two names of
+// which several may declare, so one lookup can land on more than one node.
+func randomDefsDoc(r *rand.Rand) string {
+	names := []string{"A", "B", "C"}
+	var b strings.Builder
+	for h := range 2 {
+		fmt.Fprintf(&b, "    H%d:\n      $defs:\n", h)
+		for _, n := range names {
+			target := names[r.IntN(len(names))]
+			var body string
+			switch r.IntN(6) {
+			case 0:
+				body = "{type: string}"
+			case 1, 2:
+				body = fmt.Sprintf("{$ref: '#/$defs/%s'}", target)
+			case 3:
+				body = fmt.Sprintf("{$ref: '#/components/schemas/H%d/$defs/%s'}", r.IntN(2), target)
+			case 4:
+				body = fmt.Sprintf("{$anchor: a%d, $ref: '#/$defs/%s'}", r.IntN(2), target)
+			default:
+				body = fmt.Sprintf("{$ref: '#a%d'}", r.IntN(2))
+			}
+			fmt.Fprintf(&b, "        %s: %s\n", n, body)
+		}
+	}
+	return schemasDoc(strings.TrimSuffix(b.String(), "\n"))
+}
+
+// onCycles is, by plain reachability over the graph reach walks from starts,
+// every set member whose class reaches the set back.
+func onCycles(r *reach, starts []*yaml.Node) map[*yaml.Node]bool {
+	type edge struct {
+		to  vertex
+		via *yaml.Node
+	}
+	out := map[vertex][]edge{}
+	queue := []vertex{}
+	for _, s := range starts {
+		queue = append(queue, vertex{class: r.classOf(s)})
+	}
+	for seen := map[vertex]bool{}; len(queue) > 0; queue = queue[1:] {
+		v := queue[0]
+		if seen[v] {
+			continue
+		}
+		seen[v] = true
+		if v.set == nil {
+			for _, s := range r.lookups(v.class) {
+				out[v] = append(out[v], edge{to: vertex{set: s}})
+			}
+		} else {
+			for _, m := range v.set.members {
+				out[v] = append(out[v], edge{to: vertex{class: r.classOf(m)}, via: m})
+			}
+		}
+		for _, e := range out[v] {
+			queue = append(queue, e.to)
+		}
+	}
+	reaches := func(from, to vertex) bool {
+		seen, stack := map[vertex]bool{}, []vertex{from}
+		for len(stack) > 0 {
+			v := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if v == to {
+				return true
+			}
+			if !seen[v] {
+				seen[v] = true
+				for _, e := range out[v] {
+					stack = append(stack, e.to)
+				}
+			}
+		}
+		return false
+	}
+	members := map[*yaml.Node]bool{}
+	for v, edges := range out {
+		for _, e := range edges {
+			if e.via != nil && reaches(e.to, v) {
+				members[e.via] = true
+			}
+		}
+	}
+	return members
 }
 
 // firstCycleWithin is the search cycleMembers replaced, as it stood: a

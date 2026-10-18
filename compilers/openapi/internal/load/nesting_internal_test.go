@@ -55,24 +55,57 @@ func TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer, "the first level past the bound")
 }
 
-// TestLoad_RefusesANestingAnOverlayGrafted pins that the bound covers the
-// tree the parser is handed, not only the bytes read: an overlay grafting a
-// deep subtree onto a shallow source is refused after it applies, at a
-// position the overlay answers for.
-func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
+// nestedValue is n mappings, each holding the next under k, around a scalar.
+func nestedValue(n int) string {
+	return strings.Repeat("{k: ", n) + "1" + strings.Repeat("}", n)
+}
+
+// sourceDeepDiag is the one source-too-deep error among diags, which it
+// requires.
+func sourceDeepDiag(t *testing.T, diags []ir.Diagnostic) ir.Diagnostic {
+	t.Helper()
+	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.SourceTooDeep })
+	require.GreaterOrEqual(t, i, 0, "diagnostics: %+v", diags)
+	require.Equal(t, 1, countErrorsAt(diags, diag.SourceTooDeep))
+	return diags[i]
+}
+
+// TestLoad_RefusesAnOverlayNestedPastTheBoundBeforeApplyingIt pins that an
+// overlay document is held to the bound as the source is, before the library
+// applies it: the library clones an update into every node its target
+// selects, at a cost growing with the update's depth. The refusal is placed in
+// the overlay's own coordinates, where nothing has been grafted.
+func TestLoad_RefusesAnOverlayNestedPastTheBoundBeforeApplyingIt(t *testing.T) {
 	t.Parallel()
-	deep := strings.Repeat("{k: ", scan.MaxNesting) + "1" + strings.Repeat("}", scan.MaxNesting)
 	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31),
-		overlayOptions("  - target: $.info\n    update: {x-deep: "+deep+"}\n"))
+		overlayOptions("  - target: $.info\n    update: {x-deep: "+nestedValue(scan.MaxNesting)+"}\n"))
 
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	require.Equal(t, 1, countErrorsAt(diags, diag.SourceTooDeep), "diagnostics: %+v", diags)
-	for _, d := range diags {
-		if d.Code == diag.SourceTooDeep {
-			assert.Equal(t, 1, d.Provenance.Source, "the overlay grafted what passes the bound")
-		}
-	}
+	d := sourceDeepDiag(t, diags)
+	assert.Equal(t, 1, d.Provenance.Source, "the overlay is the document past the bound")
+	assert.True(t, strings.HasPrefix(string(d.Provenance.Pointer), "/actions/0/update/x-deep/"), "at %s", d.Provenance.Pointer)
+}
+
+// TestLoad_RefusesANestingAnOverlayGrafted pins that the bound covers the tree
+// the parser is handed, not only the bytes read: an overlay within the bound
+// that grafts onto a deep target leaves a tree past it, refused after it
+// applies, at a position the overlay answers for.
+func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
+	t.Parallel()
+	const deep = 1020 // the overlay's root, actions, its action and the update are four levels more
+	source := minimal31 + "components:\n  schemas:\n    A: {type: object, properties: {p: {type: object, properties: {q: {type: string}}}}}\n"
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(source),
+		overlayOptions("  - target: $.components.schemas.A.properties.p.properties.q\n    update: {x-deep: "+nestedValue(deep)+"}\n"))
+
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	d := sourceDeepDiag(t, diags)
+	assert.Equal(t, 1, d.Provenance.Source, "the overlay grafted what passes the bound")
+	// q is the eighth level and x-deep's value the ninth, so the first past the
+	// bound is MaxNesting-8 levels below that value.
+	want := "/components/schemas/A/properties/p/properties/q/x-deep" + strings.Repeat("/k", scan.MaxNesting-8)
+	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer)
 }
 
 // TestExternal_AdmitRefusesANestingPastTheBound pins that a document an

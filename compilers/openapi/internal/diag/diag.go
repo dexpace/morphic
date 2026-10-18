@@ -34,12 +34,12 @@ const (
 	// CyclicRef reports a degenerate reference cycle, caught before it crashes
 	// the parser with a stack overflow or deadlocks the resolver on a lock its
 	// own goroutine holds. A pre-parse scan finds a recursive YAML anchor or a
-	// chain of $ref-only nodes joined by same-document pointers. Load's reach
-	// finds one closing only through $anchor, $id or $defs-relative resolution,
-	// over-approximating the resolver bar a $defs reference load holds out of it
-	// (GitHub #557). Either names a reference the cycle itself runs through,
-	// never one only leading into it, and of several the least by pointer
-	// (GitHub #912).
+	// chain of $ref-only nodes joined by same-document pointers; load's reach,
+	// one closing through $anchor, $id or $defs-relative resolution, which it
+	// over-approximates bar a $defs reference load holds (GitHub #557). Either
+	// names a reference on the cycle, or one a pointer passes back through,
+	// never one only leading in, and of several the least by pointer (GitHub
+	// #912).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the

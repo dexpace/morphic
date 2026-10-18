@@ -502,13 +502,11 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	return origin, append(diags, refusals(locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
 }
 
-// overlayRefusals refuses an overlay whose aliases the library would follow
-// without end or far past its size, before the library is handed it.
-//
-// The library clones each update by following aliases, so an anchor naming one
-// of its own ancestors overflows the stack and an alias bomb exhausts memory.
-// Neither is a panic, so no barrier catches them (GitHub #489). They are the
-// source's refusals, under the same limits.
+// overlayRefusals holds an overlay to the source's refusals, under the same
+// limits, before the library is handed it. The library clones each update by
+// following aliases, into every node its target selects: an anchor naming its
+// own ancestor overflows the stack, an alias bomb exhausts memory (GitHub
+// #489), and a deep update costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
@@ -538,7 +536,11 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	return append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are

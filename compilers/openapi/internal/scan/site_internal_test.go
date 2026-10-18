@@ -83,6 +83,9 @@ func randomTree(r *rand.Rand, depth int) string {
 		return "[" + strings.Join(items, ", ") + "]"
 	}
 	perm := r.Perm(len(keys))[:r.IntN(4)+1]
+	if r.IntN(8) == 0 {
+		perm = append(perm, perm[0]) // a repeated key, whose values share a token
+	}
 	pairs := make([]string, len(perm))
 	for i, k := range perm {
 		pairs[i] = keys[k] + ": " + randomTree(r, depth-1)
@@ -183,9 +186,9 @@ func TestPathsTo_ClimbsEachNodeOnce(t *testing.T) {
 		candidates = append(candidates, bottom.Content[i])
 	}
 	steps, _ := stepsIn(root, len(candidates)*4+depth*4)
-	want := map[*yaml.Node]bool{}
-	for _, c := range candidates {
-		want[c] = true
+	want := map[*yaml.Node]int{}
+	for i, c := range candidates {
+		want[c] = i
 	}
 
 	under := pathsTo(steps, candidates, want)
@@ -196,4 +199,34 @@ func TestPathsTo_ClimbsEachNodeOnce(t *testing.T) {
 	}
 	assert.Equal(t, depth+width+1, recorded, "the spine below the top, and each candidate")
 	assert.Same(t, candidates[0], Least(root, candidates), "c0 is the least")
+}
+
+// TestLeast_FollowsEveryValueOfARepeatedKey pins the one place two siblings
+// share a token: a mapping that repeats a key. The least pointer can lie
+// under either value, so both are followed, and the answer does not move when
+// the two are declared the other way round. Values sharing one pointer exactly
+// go to the first given.
+func TestLeast_FollowsEveryValueOfARepeatedKey(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{"x: {a: {z: {}}, a: {b: {}}}\n", "x: {a: {b: {}}, a: {z: {}}}\n"} {
+		root := indexOf(t, []byte(src)).Root()
+		pairs := root.Content[1].Content
+		first, second := pairs[1].Content[1], pairs[3].Content[1]
+		pointers := Pointers(root)
+
+		got, _ := pointers(Least(root, []*yaml.Node{first, second}))
+		assert.Equal(t, jsontext.Pointer("/x/a/b"), got, "in %q", src)
+	}
+
+	root := indexOf(t, []byte("x: {a: {}, a: {}}\n")).Root()
+	first, second := root.Content[1].Content[1], root.Content[1].Content[3]
+	assert.Same(t, second, Least(root, []*yaml.Node{second, first}), "one pointer: the first given")
+	assert.Same(t, first, Least(root, []*yaml.Node{first, second}))
+
+	// z under the first a is given first, so that a is reached first, and the
+	// two k sharing /x/a/k meet in that order rather than the order given.
+	root = indexOf(t, []byte("x: {a: {k: {}, z: {}}, a: {k: {}}}\n")).Root()
+	a1, a2 := root.Content[1].Content[1], root.Content[1].Content[3]
+	k1, z1, k2 := a1.Content[1], a1.Content[3], a2.Content[1]
+	assert.Same(t, k2, Least(root, []*yaml.Node{z1, k2, k1}), "one pointer: the first given of those sharing it")
 }

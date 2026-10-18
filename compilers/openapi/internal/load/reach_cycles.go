@@ -13,24 +13,29 @@ import (
 // vertex is a cycle; the graph has no edge from a vertex to itself.
 type cycleSearch struct {
 	r *reach
-	// order numbers each vertex in the order the search enters it, from 1, and
-	// low holds the least number each reaches back to.
-	order, low map[vertex]int
+	// seen holds what the search knows of each vertex it has entered.
+	seen map[vertex]*searched
 	// open is Tarjan's stack: the vertices entered whose component is not yet
-	// whole. on marks them, and depth holds the frame each vertex was entered
-	// at.
-	open  []vertex
-	on    map[vertex]bool
-	depth map[vertex]int
+	// whole.
+	open []vertex
 	// members holds the references each whole cycle runs through, and first
 	// those of the first cycle the search closed: all a budget cutting the
 	// search short leaves known.
 	members, first []*yaml.Node
 }
 
+// searched is one vertex the search entered: its number in the order entered,
+// from 1, the least number it reaches back to, the frame it was entered at,
+// and whether it is still on Tarjan's stack.
+type searched struct {
+	order, low, depth int
+	open              bool
+}
+
 // searchFrame is one vertex on the search's path and the edges it has left.
 type searchFrame struct {
-	v     vertex
+	key   vertex
+	v     *searched
 	sets  []*posSet    // a class's sets not yet entered
 	nodes []*yaml.Node // a set's members not yet entered
 	via   *yaml.Node   // the set member the frame above was entered through
@@ -46,8 +51,7 @@ type searchFrame struct {
 // the budget allows one exactly when it allowed the other. Going on past it
 // costs a document that is refused anyway.
 func (r *reach) cycleMembers(starts []*yaml.Node) []*yaml.Node {
-	s := &cycleSearch{r: r, order: map[vertex]int{}, low: map[vertex]int{},
-		on: map[vertex]bool{}, depth: map[vertex]int{}}
+	s := &cycleSearch{r: r, seen: map[vertex]*searched{}}
 	for _, start := range starts {
 		s.from(vertex{class: r.classOf(start)})
 	}
@@ -57,7 +61,7 @@ func (r *reach) cycleMembers(starts []*yaml.Node) []*yaml.Node {
 // from searches from v unless an earlier start already entered it. It asks
 // the budget before every step, so with nothing left it takes none.
 func (s *cycleSearch) from(v vertex) {
-	if s.order[v] != 0 {
+	if _, entered := s.seen[v]; entered {
 		return
 	}
 	frames := []searchFrame{s.enter(v, 0)}
@@ -68,15 +72,16 @@ func (s *cycleSearch) from(v vertex) {
 			frames = s.leave(frames)
 			continue
 		}
+		known, entered := s.seen[next]
 		switch {
-		case s.order[next] == 0:
+		case !entered:
 			frames = append(frames, s.enter(next, len(frames)))
-		case s.on[next]:
-			s.low[top.v] = min(s.low[top.v], s.order[next])
+		case known.open:
+			top.v.low = min(top.v.low, known.order)
 			if s.first == nil {
 				// Until a cycle closes, every vertex on Tarjan's stack is on the
 				// path: one left behind reaches back past itself, through a cycle.
-				s.first = cycleThrough(frames[s.depth[next]:])
+				s.first = cycleThrough(frames[known.depth:])
 			}
 		}
 	}
@@ -84,14 +89,14 @@ func (s *cycleSearch) from(v vertex) {
 
 // enter puts v on the search's path at frame depth, numbered next.
 func (s *cycleSearch) enter(v vertex, depth int) searchFrame {
-	s.order[v] = len(s.order) + 1
-	s.low[v] = s.order[v]
+	order := len(s.seen) + 1
+	known := &searched{order: order, low: order, depth: depth, open: true}
+	s.seen[v] = known
 	s.open = append(s.open, v)
-	s.on[v], s.depth[v] = true, depth
 	if v.set != nil {
-		return searchFrame{v: v, nodes: v.set.members}
+		return searchFrame{key: v, v: known, nodes: v.set.members}
 	}
-	return searchFrame{v: v, sets: s.r.lookups(v.class)}
+	return searchFrame{key: v, v: known, sets: s.r.lookups(v.class)}
 }
 
 // advance takes the next edge out of top's vertex, or reports there is none
@@ -113,14 +118,14 @@ func (s *cycleSearch) advance(top *searchFrame) (vertex, bool) {
 // leave takes the vertex on top off the path once its edges are spent,
 // closing its component when it heads one, and returns the path left.
 func (s *cycleSearch) leave(frames []searchFrame) []searchFrame {
-	v := frames[len(frames)-1].v
+	top := frames[len(frames)-1]
 	frames = frames[:len(frames)-1]
-	if s.low[v] == s.order[v] {
-		s.close(v)
+	if top.v.low == top.v.order {
+		s.close(top.key)
 	}
 	if len(frames) > 0 {
 		parent := frames[len(frames)-1].v
-		s.low[parent] = min(s.low[parent], s.low[v])
+		parent.low = min(parent.low, top.v.low)
 	}
 	return frames
 }
@@ -138,7 +143,7 @@ func (s *cycleSearch) close(v vertex) {
 	s.open = s.open[:at]
 	in := make(map[vertex]bool, len(component))
 	for _, u := range component {
-		s.on[u], in[u] = false, true
+		s.seen[u].open, in[u] = false, true
 	}
 	if len(component) < 2 {
 		return
@@ -161,7 +166,7 @@ func (s *cycleSearch) close(v vertex) {
 func cycleThrough(frames []searchFrame) []*yaml.Node {
 	var through []*yaml.Node
 	for _, f := range frames {
-		if f.v.set != nil {
+		if f.key.set != nil {
 			through = append(through, f.via)
 		}
 	}

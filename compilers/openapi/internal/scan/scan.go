@@ -1,14 +1,11 @@
 // Package scan refuses a source document before any of it is lowered.
 //
-// Three shapes would otherwise crash, hang or exhaust memory in the resolver or
-// parser: a reference cycle that never reaches a concrete schema; a reference
-// whose pointer passes through a reference being resolved, which deadlocks on
-// that reference's own lock; and a YAML alias fan-out expanding to more nodes
-// than the document declares. Each is read from the raw text through nodeview,
-// before either library sees it.
-//
-// The caller supplies a sourceindex.Index over the same tree, so its size and
-// alias-to-ancestor answers are not rederived.
+// Four shapes would otherwise crash, hang or exhaust the resolver or parser: a
+// reference cycle that never reaches a concrete schema; a reference whose
+// pointer passes through one being resolved, deadlocking on its lock; a YAML
+// alias fan-out past the document's own size; and nesting so deep that the
+// parser's cost per node, growing with depth, adds up past use. Each is read
+// from the raw text, through the sourceindex.Index the caller supplies.
 package scan
 
 import (
