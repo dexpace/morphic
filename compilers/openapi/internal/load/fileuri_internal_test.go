@@ -45,9 +45,17 @@ func TestFilePathOf(t *testing.T) {
 		{name: "a user at localhost", uri: "file://me@localhost/a.yaml", wantErr: "user names no local file"},
 		{name: "a query", uri: "file:///a.yaml?v=1", wantErr: "query names nothing"},
 		{name: "an empty query", uri: "file:///a.yaml?", wantErr: "query names nothing"},
-		{name: "an escaped slash", uri: "file:///a%2Fb.yaml", wantErr: "escaped separator"},
-		{name: "an escaped slash in upper case", uri: "file:///a%2fb.yaml", wantErr: "escaped separator"},
-		{name: "an escaped backslash on Windows", uri: "file:///a%5cb.yaml", windows: true, wantErr: "escaped separator"},
+		{name: "an escaped slash", uri: "file:///a%2Fb.yaml", wantErr: "escaped slash"},
+		{name: "an escaped slash in lower case", uri: "file:///a%2fb.yaml", wantErr: "escaped slash"},
+		{name: "an escaped backslash on Windows", uri: "file:///a%5cb.yaml", windows: true, wantErr: "backslash is a separator"},
+		{name: "a backslash on Windows", uri: `file:///a\\b.yaml`, windows: true, wantErr: "backslash is a separator"},
+		{name: "a share", uri: "file:////server/share/a.yaml", wantErr: "two slashes"},
+		{name: "a share on Windows", uri: "file:////server/share/a.yaml", windows: true, wantErr: "two slashes"},
+		{name: "a share under localhost", uri: "file://localhost//server/share/a.yaml", wantErr: "two slashes"},
+		{name: "a backslash share on Windows", uri: `file:///\\server\share\a.yaml`, windows: true,
+			wantErr: "backslash is a separator"},
+		{name: "a backslash after the root elsewhere", uri: `file:///\\server\a.yaml`, want: `/\\server\a.yaml`},
+		{name: "two slashes after a drive on Windows", uri: "file:///C://a.yaml", windows: true, want: "C://a.yaml"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

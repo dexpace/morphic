@@ -396,8 +396,10 @@ func (e external) readFileURI(u *url.URL, key string) answer {
 // filePathOf returns the path of the local file the file URI u names (RFC
 // 8089), percent-decoded, with a Windows drive letter's leading slash removed
 // where windows says paths are read as Windows reads them. It refuses a URI
-// naming a user, a file on another host, no absolute path or a query, and an
-// escaped separator, which would decode into another segmentation.
+// naming a user, a file on another host, no absolute path or a query, a path
+// opening with two slashes, which Windows reads as another host's share, and
+// a separator that would decode into another segmentation: an escaped slash,
+// or on Windows a backslash.
 func filePathOf(u *url.URL, windows bool) (string, error) {
 	switch {
 	case u.Path == "": // an opaque URI, file:a.yaml, has none
@@ -410,12 +412,19 @@ func filePathOf(u *url.URL, windows bool) (string, error) {
 		return "", errors.New("a file URI's query names nothing in a file")
 	}
 	escaped := strings.ToLower(u.EscapedPath())
-	if strings.Contains(escaped, "%2f") || windows && strings.Contains(escaped, "%5c") {
-		return "", errors.New("a file URI's escaped separator names no single path segment")
+	if strings.Contains(escaped, "%2f") {
+		return "", errors.New("a file URI's escaped slash names no single path segment")
+	}
+	// EscapedPath escapes a backslash written as itself too.
+	if windows && strings.Contains(escaped, "%5c") {
+		return "", errors.New("a file URI's backslash is a separator on Windows, so it names no single path segment")
 	}
 	path := u.Path
 	if windows && len(path) >= 3 && path[0] == '/' && path[2] == ':' && isDriveLetter(path[1]) {
 		path = path[1:]
+	}
+	if strings.HasPrefix(path, "//") {
+		return "", errors.New("a file URI's path opens with two slashes, naming a network share, not a local file")
 	}
 	return path, nil
 }
