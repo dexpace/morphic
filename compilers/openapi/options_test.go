@@ -90,7 +90,7 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 	limits := reflect.ValueOf(&l).Elem()
 	require.Equal(t, limits.NumField(), len(fields), "an option for each field, and no other")
 	for i := range limits.NumField() {
-		field, ok := limits.Field(i).Addr().Interface().(*int)
+		field, ok := reflect.TypeAssert[*int](limits.Field(i).Addr())
 		require.True(t, ok, "%s is an int budget", limits.Type().Field(i).Name)
 		assert.Contains(t, fields, field, "%s has an option", limits.Type().Field(i).Name)
 	}
