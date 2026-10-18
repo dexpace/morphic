@@ -35,16 +35,17 @@ func TestExternal_OpenOfAMissingFilePassesTheOSErrorThrough(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "the error is os.Open's own, unwrapped: %v", err)
 }
 
-// TestExternal_OpenOfADirectoryFailsOnTheRead covers the read-error return in
-// prepare and the errors.Join(err, f.Close()) branch in readFile: os.Open
-// succeeds on a directory, and reading it is what fails (EISDIR on Linux and
-// macOS).
-func TestExternal_OpenOfADirectoryFailsOnTheRead(t *testing.T) {
+// TestExternal_OpenRefusesWhatIsNotARegularFile pins GitHub #930 on the one
+// kind of file every system has that is not regular: a directory opens, and is
+// refused with the reason before anything is read from it.
+func TestExternal_OpenRefusesWhatIsNotARegularFile(t *testing.T) {
 	t.Parallel()
+	dir := t.TempDir()
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).Open(t.TempDir())
+	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).Open(dir)
 
-	require.Error(t, err, "a directory opens but does not read")
+	require.Error(t, err)
+	assert.Equal(t, "external document "+dir+" refused: it is not a regular file", err.Error())
 }
 
 // TestExternal_OpenPreparesTheFileAndCachesItsTree pins the success path: the
