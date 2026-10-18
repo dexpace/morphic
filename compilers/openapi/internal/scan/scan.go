@@ -28,8 +28,9 @@ import (
 
 // maxCycleDepth is how many hops a start may take to reveal a cycle: a chain
 // whose first revisit comes later is no verdict for that start, and a spec
-// chains far shorter. The walk itself runs past it, to the end of the chain, so
-// the nodes it covered are remembered rather than re-walked by every later start.
+// chains far shorter. A loop longer than this is therefore reported from no
+// start (#922). The walk itself runs past it, to the end of the chain, so the
+// nodes it covered are remembered rather than re-walked by every later start.
 const maxCycleDepth = 10000
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
@@ -369,7 +370,7 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 // chainReenters), so that verdict is refused whatever the pointer names.
 func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, bool) {
 	// A cycle verdict is not remembered, so a long chain ending in a loop that
-	// never leaves components is walked again from each start.
+	// never leaves components is walked again from each start (#924).
 	for _, start := range s.outside {
 		verdict, leftComponents := s.followRefChain(root, start)
 		switch {
@@ -760,6 +761,7 @@ func (s *refScan) traverse(root *yaml.Node, ref jsontext.Pointer, onPath map[*ya
 // nodes.
 func (s *refScan) markSafe(path []*yaml.Node, memoizable bool) {
 	if !memoizable {
+		// A chain built to have such a hop is walked again from each start (#923).
 		return
 	}
 	for _, n := range path {

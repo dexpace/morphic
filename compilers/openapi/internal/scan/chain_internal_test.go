@@ -115,7 +115,8 @@ func TestCycles_VerdictsAroundTheCap(t *testing.T) {
 			t.Parallel()
 			diags := scanBytes(t, chainDoc(tc.tail, tc.loopLen, false))
 			if tc.wantLine == 0 {
-				assert.Empty(t, diags, "a loop longer than the cap is past what a start can reveal")
+				assert.Empty(t, diags,
+					"a loop longer than the cap is past what a start can reveal; #922 asks whether it should be")
 				return
 			}
 			require.Len(t, diags, 1)
