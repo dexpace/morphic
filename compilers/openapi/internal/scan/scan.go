@@ -26,10 +26,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxCycleDepth bounds how many hops one pure-$ref chain is followed. It guards
-// the walk against a runaway structure per the bounded-recursion rule; real
-// specs chain far shorter, so nothing short of a document built to reach it — or
-// a detector bug — ever does.
+// maxCycleDepth is how many hops a start may take to reveal a cycle: a chain
+// whose first revisit comes later is no verdict for that start, and a spec
+// chains far shorter. A loop longer than this is therefore reported from no
+// start (#922). The walk itself runs past it, to the end of the chain, so the
+// nodes it covered are remembered rather than re-walked by every later start.
 const maxCycleDepth = 10000
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
@@ -368,6 +369,8 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 // A hop passing through a reference deadlocks before the tracker runs (see
 // chainReenters), so that verdict is refused whatever the pointer names.
 func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, bool) {
+	// A cycle verdict is not remembered, so a long chain ending in a loop that
+	// never leaves components is walked again from each start (#924).
 	for _, start := range s.outside {
 		verdict, leftComponents := s.followRefChain(root, start)
 		switch {
@@ -462,13 +465,22 @@ type refScan struct {
 	// reported under different rules — see outsideCycle.
 	outside []*yaml.Node
 	safe    map[*yaml.Node]bool
+	// hopLimit bounds one chain walk. Each hop lands on a node not yet on the
+	// chain, so a walk cannot outlast the document's nodes.
+	hopLimit int
+	// hops counts every hop any walk followed, so a test can bound the work
+	// without timing it.
+	hops int
 }
 
 // newRefScan returns a scan with every memoization map initialized. Building the
 // visited sets as one array indexed by role — rather than a field per role —
 // makes it impossible to add a role and forget its set.
 func newRefScan() *refScan {
-	s := &refScan{view: nodeview.New(), safe: map[*yaml.Node]bool{}}
+	s := &refScan{
+		view: nodeview.New(), safe: map[*yaml.Node]bool{},
+		hopLimit: sourceindex.MaxIndexedNodes,
+	}
 	for i := range s.seen {
 		s.seen[i] = map[*yaml.Node]bool{}
 	}
@@ -595,58 +607,117 @@ func (s *refScan) visitSchemaList(n *yaml.Node) {
 	s.pushReversed(n.Content, roleSchema)
 }
 
+// chainEnd is how one walk along a pure-$ref chain stopped.
+type chainEnd int
+
+const (
+	endTerminates chainEnd = iota // a node with no $ref, a memoized one, or a dangling $ref
+	endRevisits                   // a node already on the chain
+	endReenters                   // a hop passed through a node already on the chain
+	endLimit                      // hopLimit reached without any of the above
+)
+
+// chainWalk is what one walk found. depth is the hop it stopped at, which is what
+// maxCycleDepth is measured against; path is every node it followed.
+type chainWalk struct {
+	end            chainEnd
+	depth          int
+	path           []*yaml.Node
+	leftComponents bool
+	memoizable     bool
+}
+
 // followRefChain follows pure-$ref edges from start and returns how the chain
-// ends (see chainVerdict). The on-path set and maxCycleDepth bound it.
+// ends (see chainVerdict). A start gets a verdict only if the chain ends within
+// maxCycleDepth hops; past that it terminates, whatever the walk found.
 //
 // leftComponents reports whether any followed edge named a node outside
 // components, which separates a cycle speakeasy's resolver refuses from one it
-// faults on (outsideCycle). It is meaningful only with chainCycles: a
-// terminating chain is no candidate, and the s.safe short-circuit can end a
-// walk early.
+// faults on (outsideCycle). It is meaningful only with chainCycles.
 //
 // s.safe memoizes nodes proven to reach a $ref-free node, keeping the scan
-// linear in the collected refs. A node on a cycle is never marked safe, so
-// memoization cannot hide one.
+// linear in the collected refs. A node on a cycle is never marked safe.
 func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
+	w := s.walkChain(root, start)
+	switch {
+	case w.depth > maxCycleDepth || w.end == endLimit:
+		s.markPastHorizon(w)
+		return chainTerminates, w.leftComponents
+	case w.end == endRevisits:
+		return chainCycles, w.leftComponents
+	case w.end == endReenters:
+		return chainReenters, w.leftComponents
+	}
+	s.markSafe(w.path, w.memoizable)
+	return chainTerminates, w.leftComponents
+}
+
+// walkChain follows the chain from start to its end, however long. Stopping at
+// maxCycleDepth would leave every node it covered unremembered, and each earlier
+// start would walk them again.
+func (s *refScan) walkChain(root, start *yaml.Node) chainWalk {
 	onPath := make(map[*yaml.Node]bool)
-	var path []*yaml.Node
-	leftComponents, memoizable := false, true
+	w := chainWalk{memoizable: true}
 	cur := start
 
-	for depth := 0; depth <= maxCycleDepth; depth++ {
+	for ; w.depth <= s.hopLimit; w.depth++ {
+		s.hops++
 		if s.safe[cur] {
-			s.markSafe(path, memoizable)
-			return chainTerminates, leftComponents // cur already proved chain-terminating
+			w.end = endTerminates // cur already proved chain-terminating
+			return w
 		}
 		if onPath[cur] {
-			return chainCycles, leftComponents // revisited a node on this chain
+			w.end = endRevisits
+			return w
 		}
 		ref, ok := s.view.PureRefTarget(cur)
 		if !ok {
 			s.safe[cur] = true
-			s.markSafe(path, memoizable)
-			return chainTerminates, leftComponents // no top-level $ref — legal recursion
+			w.end = endTerminates // no top-level $ref — legal recursion
+			return w
 		}
 		if !componentsRef(ref) {
-			leftComponents = true
+			w.leftComponents = true
 		}
 		onPath[cur] = true
-		path = append(path, cur)
+		w.path = append(w.path, cur)
 
 		next, reenters, viaRef := s.traverse(root, ref, onPath)
 		if reenters {
-			return chainReenters, leftComponents
+			w.end = endReenters
+			return w
 		}
 		if viaRef {
-			memoizable = false
+			w.memoizable = false
 		}
 		if next == nil {
-			s.markSafe(path, memoizable)
-			return chainTerminates, leftComponents // dangling ref — unresolved downstream
+			w.end = endTerminates // dangling ref — unresolved downstream
+			return w
 		}
 		cur = next
 	}
-	return chainTerminates, leftComponents // depth cap reached without a verdict
+	w.end = endLimit
+	return w
+}
+
+// markPastHorizon remembers what a walk that ended beyond maxCycleDepth proved,
+// so no later start walks it again and each still gets its own verdict.
+//
+// A chain that terminates does so for every node on it. One that revisits a
+// node is a cycle for a start only while its tail and loop fit in
+// maxCycleDepth, which a node further than that from the walk's end cannot
+// meet; those are safe and the rest are left to a later start. A reentry
+// belongs to the chain that read it and is never remembered.
+func (s *refScan) markPastHorizon(w chainWalk) {
+	switch w.end {
+	case endTerminates:
+		s.markSafe(w.path, w.memoizable)
+	case endRevisits:
+		// A revisit ends the walk on the hop equal to the path's length, and
+		// the caller reaches here only past maxCycleDepth, so this cannot go
+		// below zero.
+		s.markSafe(w.path[:len(w.path)-maxCycleDepth], w.memoizable)
+	}
 }
 
 // traverse follows one pointer from the chain position carrying it and reports
@@ -690,6 +761,7 @@ func (s *refScan) traverse(root *yaml.Node, ref jsontext.Pointer, onPath map[*ya
 // nodes.
 func (s *refScan) markSafe(path []*yaml.Node, memoizable bool) {
 	if !memoizable {
+		// A chain built to have such a hop is walked again from each start (#923).
 		return
 	}
 	for _, n := range path {
