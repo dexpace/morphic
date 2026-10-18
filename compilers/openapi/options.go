@@ -156,6 +156,12 @@ const (
 	// document peaked at 4.4 GiB; at this default the largest one accepted
 	// peaks at 1.65 GiB.
 	DefaultMaxAliasSurplus = 1 << 18
+	// DefaultMaxExternalDocuments is the document budget: 16,384, a 4.7x margin
+	// over the 3,476 files the $refs of DigitalOcean's public API description
+	// reach, counted 2026-10-18, the largest split description found. The three
+	// above are single files, and a description split per resource or per
+	// schema is what reading external documents is for.
+	DefaultMaxExternalDocuments = 1 << 14
 )
 
 // Limits bounds the size and cardinality of one compile, so a legal but
@@ -196,6 +202,13 @@ type Limits struct {
 	// expansion up to the larger of the two goes unchecked. A document without
 	// aliases adds nothing, so this never refuses it.
 	MaxAliasSurplus int `json:"maxAliasSurplus,omitzero"`
+	// MaxExternalDocuments bounds the documents external references read in one
+	// compile: each file and each URL, read once however many references name
+	// it. A document past it is not read, each reference into it is reported
+	// unresolved, and the compile reports openapi/budget-exceeded once. It
+	// bounds how many documents are read, not their size, which MaxSourceBytes
+	// and MaxSourceNodes bound one at a time.
+	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 }
 
 // withDefaults returns a copy of l with each unset budget filled from its
@@ -212,6 +225,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.MaxAliasSurplus == 0 {
 		l.MaxAliasSurplus = DefaultMaxAliasSurplus
+	}
+	if l.MaxExternalDocuments == 0 {
+		l.MaxExternalDocuments = DefaultMaxExternalDocuments
 	}
 	return l
 }

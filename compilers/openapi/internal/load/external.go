@@ -3,7 +3,6 @@ package load
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
@@ -40,23 +39,11 @@ import (
 type external struct {
 	doc  *soa.OpenAPI
 	opts Options
-	// read holds every document prepared and every request's answer, shared by
-	// the readers of one compile so a second resolution can be handed what the
-	// first read (see resolveExternal).
+	// read holds every document prepared and the answer each document's one
+	// read got, shared by the readers of one compile, so a second resolution is
+	// answered as the first was and handed what it prepared (see
+	// resolveExternal).
 	read *externalReads
-	// replaying has the reader answer a request from read rather than send it,
-	// while read holds one: the n-th request for a URL gets the n-th answer
-	// recorded for it. A second resolution's reader replays the first's.
-	replaying bool
-	// judged holds each document's verdict by the key it was read under: the
-	// error it was refused with, or the digest of the bytes it was prepared
-	// from. The resolver asks again on every reference until it has built
-	// something from a document, so a refused one fails again unread, and a
-	// prepared one is judged again only if its bytes changed. Shared by every
-	// copy of the reader and safe for concurrent use. A second resolution keeps
-	// its own, since a digest vouches for a tree stored in this reader's
-	// document; a refusal reaches it as a replayed answer.
-	judged *sync.Map
 	// held is the source as hold hands it to the resolver of doc, which Open
 	// hands it again under each other spelling the resolver opens it by.
 	held *heldSource
@@ -95,12 +82,12 @@ type heldObject struct {
 }
 
 // newExternal returns the reader for doc's external references, recording in
-// read what it prepares and how its requests are answered. The document's caches
-// are initialized here rather than trusted to be, because storing into an
-// uninitialized one faults inside the library.
+// read what it prepares and how each document's read was answered. The
+// document's caches are initialized here rather than trusted to be, because
+// storing into an uninitialized one faults inside the library.
 func newExternal(doc *soa.OpenAPI, opts Options, read *externalReads) external {
 	doc.InitCache()
-	return external{doc: doc, opts: opts, read: read, judged: &sync.Map{},
+	return external{doc: doc, opts: opts, read: read,
 		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{}}, work: newResumeWork()}
 }
 
@@ -306,8 +293,9 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 	return vErrs, err
 }
 
-// Open reads the file name names (see fileNamed), and prepares it under name.
-// A file refused once fails again without being opened.
+// Open serves the file name names as its one read in the compile answered it
+// (see externalReads.once), reading it the first time it is asked for (see
+// readFile).
 //
 // The source, spelled as no key holds it, is held under name and served as
 // held, not read. That is a spelling no $ref the resolver met was found by
@@ -317,20 +305,27 @@ func (e external) settle(ctx context.Context, r resolvable, opts references.Reso
 func (e external) Open(name string) (fs.File, error) {
 	if e.read.self.names(name) {
 		e.holdOpened(name)
-		return sourceFile{Reader: bytes.NewReader(nil)}, nil
+		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	if err := e.refusal(name); err != nil {
-		return nil, err
+	a := e.read.once(name, e.opts.MaxExternalDocuments, func() answer { return e.readFile(name) })
+	if a.err != nil {
+		return nil, a.err
 	}
+	return servedFile{Reader: bytes.NewReader(a.body)}, nil
+}
+
+// readFile reads the file name names (see fileNamed), and prepares it under
+// name. The file is closed before its bytes are served.
+func (e external) readFile(name string) answer {
 	f, err := os.Open(fileNamed(name)) // the file a $ref names: what AllowExternalRefs opts into
 	if err != nil {
-		return nil, err
+		return answer{err: err}
 	}
 	data, err := e.prepare(name, f)
-	if err != nil {
-		return nil, errors.Join(err, f.Close())
+	if err = errors.Join(err, f.Close()); err != nil {
+		return answer{err: err}
 	}
-	return preparedFile{File: f, data: bytes.NewReader(data)}, nil
+	return answer{body: data}
 }
 
 // fileNamed returns the file the path name names: its dot segments removed, as
@@ -346,54 +341,41 @@ func fileNamed(name string) string {
 	return filepath.Clean(name)
 }
 
-// Do fetches req as the resolver's default client would, and prepares the body
-// of a successful response under the request's URL. A URL refused once fails
-// again without being fetched. Any other outcome is the resolver's to report,
-// as it was. Every answer is recorded in read, which a replaying reader answers
-// from while it can (see replaying).
+// Do answers req as the one read in the compile of the document at its URL
+// answered it (see externalReads.once), fetching it the first time it is
+// asked for (see fetch).
 //
 // The resolver looks a document up by its URL as net/url spells it, and the
 // client sees only the request, so an absolute $ref spelled otherwise misses;
 // resolveExternal recovers that document (GitHub #538).
 func (e external) Do(req *http.Request) (*http.Response, error) {
 	key := req.URL.String()
-	if e.replaying {
-		if a, ok := e.read.nextAnswer(key); ok {
-			return a.response(req)
-		}
-	}
-	resp, err := e.send(req, key)
-	if err != nil {
-		e.read.recordAnswer(key, answer{err: err})
-		return resp, err
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		e.read.recordAnswer(key, answer{status: resp.StatusCode})
-		return resp, nil
-	}
-	data, err := e.prepare(key, resp.Body)
-	if err = errors.Join(err, resp.Body.Close()); err != nil {
-		e.read.recordAnswer(key, answer{err: err})
-		return nil, err
-	}
-	e.read.recordAnswer(key, answer{status: resp.StatusCode, body: data})
-	resp.Body = io.NopCloser(bytes.NewReader(data))
-	return resp, nil
+	return e.read.once(key, e.opts.MaxExternalDocuments, func() answer { return e.fetch(req, key) }).response(req)
 }
 
-// send makes req over the network, unless the document under key was refused.
-func (e external) send(req *http.Request, key string) (*http.Response, error) {
-	if err := e.refusal(key); err != nil {
-		return nil, err
+// fetch sends req as the resolver's default client would, and prepares the
+// body of a successful response under key. Any other status is answered
+// unread, for the resolver to report as it would have.
+func (e external) fetch(req *http.Request, key string) answer {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return answer{err: err}
 	}
-	return http.DefaultClient.Do(req)
+	var data []byte
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		data, err = e.prepare(key, resp.Body)
+	}
+	if err = errors.Join(err, resp.Body.Close()); err != nil {
+		return answer{err: err}
+	}
+	return answer{status: resp.StatusCode, body: data}
 }
 
 // prepare reads an external document from r, no further than one byte past the
 // byte budget, and stores the tree it parses to under key once the source's
 // refusals have passed it. It returns the bytes read, which the resolver still
-// reads and caches as it would have. Bytes already prepared under key are not
-// parsed again: the tree stored then still stands.
+// reads and caches as it would have. It runs once per document a compile reads
+// (see externalReads.once), so no tree it stored is ever replaced.
 //
 // Bytes that will not parse are handed over unprepared, and the resolver
 // refuses them with its own reason.
@@ -408,10 +390,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if exceeds(len(data), e.opts.MaxSourceBytes) {
-		return nil, e.refuse(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
-	}
-	if e.prepared(key, data) {
-		return data, nil
+		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes))
 	}
 
 	root, parsed := parseTree(data)
@@ -424,7 +403,6 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 	releaseAnchors(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
-	e.judged.Store(key, sha256.Sum256(data))
 	e.holdSpellings(root, key)
 	return data, nil
 }
@@ -451,10 +429,10 @@ func (e external) admit(key string, root *yaml.Node) error {
 		for i, d := range findings {
 			reasons[i] = d.Message
 		}
-		return e.refuse(key, strings.Join(reasons, "; "))
+		return refused(key, strings.Join(reasons, "; "))
 	}
 	if nodes := nodeCount(root); exceeds(nodes, e.opts.MaxSourceNodes) {
-		return e.refuse(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
+		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes))
 	}
 	return nil
@@ -466,56 +444,27 @@ func nowhere(*yaml.Node) ir.Provenance {
 	return ir.Provenance{Source: ir.NoSource}
 }
 
-// refuse records the document under key as refused for reason, and returns the
-// error its read fails with, which the resolver reports as the reason the
-// reference naming it could not be resolved.
-func (e external) refuse(key, reason string) error {
-	err := fmt.Errorf("external document %s refused: %s", key, reason)
-	e.judged.Store(key, err)
-	return err
+// refused returns the error the read of the document under key fails with,
+// refused for reason, which the resolver reports as the reason each reference
+// naming it could not be resolved.
+func refused(key, reason string) error {
+	return fmt.Errorf("external document %s refused: %s", key, reason)
 }
 
-// refusal returns the error the document under key was refused with, or nil
-// for one not refused.
-func (e external) refusal(key string) error {
-	verdict, _ := e.judged.Load(key)
-	err, _ := verdict.(error)
-	return err
-}
-
-// prepared reports whether the document under key was prepared from these very
-// bytes already.
-func (e external) prepared(key string, data []byte) bool {
-	verdict, _ := e.judged.Load(key)
-	digest, ok := verdict.([sha256.Size]byte)
-	return ok && digest == sha256.Sum256(data)
-}
-
-// preparedFile is a file whose bytes were read ahead: Read serves them, and the
-// file itself answers Stat and Close.
-type preparedFile struct {
-	fs.File
-	data *bytes.Reader
-}
-
-// Read serves the bytes read ahead.
-func (p preparedFile) Read(b []byte) (int, error) {
-	return p.data.Read(b)
-}
-
-// sourceFile serves the bytes held for the source as the file the resolver
-// opened (see holdDocument). The resolver reads it and closes it, and asks
-// nothing else of it.
-type sourceFile struct {
+// servedFile serves bytes read already as the file the resolver opened: a
+// document's, from its one read, or those held for the source (see
+// holdDocument). The resolver reads it and closes it, and asks nothing else of
+// it.
+type servedFile struct {
 	*bytes.Reader
 }
 
-// Stat refuses: the source is held, not opened.
-func (sourceFile) Stat() (fs.FileInfo, error) {
+// Stat refuses: what is served was read, and no file is open.
+func (servedFile) Stat() (fs.FileInfo, error) {
 	return nil, fs.ErrInvalid
 }
 
 // Close releases nothing: there is nothing opened.
-func (sourceFile) Close() error {
+func (servedFile) Close() error {
 	return nil
 }
