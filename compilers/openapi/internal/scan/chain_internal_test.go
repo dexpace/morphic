@@ -1,7 +1,9 @@
 package scan
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,171 +17,274 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// firstMemberLine is the line of the first schema in a chainDoc: the five lines
-// of header above it.
+// schemasHeader opens every schemas document below. It is five lines, so the
+// first member is on firstMemberLine.
+const schemasHeader = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
+
 const firstMemberLine = 6
 
-// chainDoc is a document whose schemas form one $ref chain: tail schemas S0…,
-// then either a loop of loopLen schemas C0… that refer round to each other, or,
-// for loopLen 0, a schema that refers to nothing. reverse declares them last
-// first, so each schema refers to one declared before it.
-func chainDoc(tail, loopLen int, reverse bool) []byte {
-	ref := func(name, target string) string {
-		return fmt.Sprintf("    %s: {$ref: '#/components/schemas/%s'}\n", name, target)
-	}
-	var members []string
-	for i := range tail {
-		next := "S" + strconv.Itoa(i+1)
-		switch {
-		case i < tail-1:
-		case loopLen > 0:
-			next = "C0"
-		default:
-			next = "End"
-		}
-		members = append(members, ref("S"+strconv.Itoa(i), next))
-	}
-	for i := range loopLen {
-		members = append(members, ref("C"+strconv.Itoa(i), "C"+strconv.Itoa((i+1)%loopLen)))
-	}
-	if loopLen == 0 {
-		members = append(members, "    End: {type: string}\n")
-	}
-	if reverse {
-		for i, j := 0, len(members)-1; i < j; i, j = i+1, j-1 {
-			members[i], members[j] = members[j], members[i]
-		}
-	}
-	return []byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
-		strings.Join(members, ""))
+// end is a member with no $ref, where a chain terminates.
+const end = "    End: {type: string}\n"
+
+// schemasDoc is a schemas document declaring members in order.
+func schemasDoc(members []string) []byte {
+	return []byte(schemasHeader + strings.Join(members, ""))
 }
 
-// TestCycles_ChainLongerThanTheCap pins what a chain past maxCycleDepth reports,
-// in both declaration orders. The reported line is the first start whose own
-// walk reaches the loop within the cap — not the head of the chain — so a change
-// to how much of a capped walk is remembered moves it.
-func TestCycles_ChainLongerThanTheCap(t *testing.T) {
+// chainTo is n members prefix0 … prefix(n-1), each a $ref to the next and the
+// last to then.
+func chainTo(prefix string, n int, then string) []string {
+	members := make([]string, n)
+	for i := range n {
+		next := prefix + strconv.Itoa(i+1)
+		if i == n-1 {
+			next = then
+		}
+		members[i] = fmt.Sprintf("    %s%d: {$ref: '#/components/schemas/%s'}\n", prefix, i, next)
+	}
+	return members
+}
+
+// loopOf is n members C0 … C(n-1), each a $ref to the next and the last back
+// to the first.
+func loopOf(n int) []string {
+	return chainTo("C", n, "C0")
+}
+
+// memberLine is the line of the member named name in members.
+func memberLine(t *testing.T, members []string, name string) int {
+	t.Helper()
+	i := slices.IndexFunc(members, func(m string) bool { return strings.HasPrefix(m, "    "+name+":") })
+	require.NotEqual(t, -1, i, "no member is named %s", name)
+	return firstMemberLine + i
+}
+
+// TestCycles_ChainIsJudgedWhole pins that a chain's verdict is the whole
+// chain's, however long: a loop of any length is refused, since the resolver
+// recurses once per hop of one (GitHub #922), and a chain that ends is not.
+// Each document is declared as written and reversed, and the report falls on
+// the first member declared whose chain cycles, as it does for a short loop.
+func TestCycles_ChainIsJudgedWhole(t *testing.T) {
 	t.Parallel()
-	const hops = 15000
 	tests := []struct {
-		name     string
-		loopLen  int
-		reverse  bool
-		wantLine int // 0: no diagnostic
+		name    string
+		members []string
+		// want and wantReversed name the member reported in each order, or "".
+		want, wantReversed string
 	}{
-		{"terminal-forward", 0, false, 0},
-		{"terminal-reverse", 0, true, 0},
-		{"loop-forward", 2, false, firstMemberLine + hops + 2 - maxCycleDepth},
-		{"loop-reverse", 2, true, firstMemberLine},
+		{"self-loop", loopOf(1), "C0", "C0"},
+		{"loop-of-two", loopOf(2), "C0", "C1"},
+		{"loop-of-10001", loopOf(10001), "C0", "C10000"},
+		{"loop-of-20000", loopOf(20000), "C0", "C19999"},
+		{"short-tail-into-a-long-loop", slices.Concat(chainTo("S", 3, "C0"), loopOf(10001)), "S0", "C10000"},
+		{"long-tail-into-a-short-loop", slices.Concat(chainTo("S", 15000, "C0"), loopOf(2)), "S0", "C1"},
+		{"long-chain-that-ends", slices.Concat(chainTo("S", 15000, "End"), []string{end}), "", ""},
+		{
+			"long-chain-that-ends-beside-a-loop",
+			slices.Concat(chainTo("S", 15000, "End"), []string{end}, loopOf(2)), "C0", "C1",
+		},
+	}
+	for _, tc := range tests {
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/reversed=%t", tc.name, reversed), func(t *testing.T) {
+				t.Parallel()
+				members, want := slices.Clone(tc.members), tc.want
+				if reversed {
+					slices.Reverse(members)
+					want = tc.wantReversed
+				}
+
+				diags := scanBytes(t, schemasDoc(members))
+
+				if want == "" {
+					assert.Empty(t, diags, "a chain that ends is no cycle however long it is")
+					return
+				}
+				require.Len(t, diags, 1)
+				assert.Equal(t, diag.CyclicRef, diags[0].Code)
+				assert.Equal(t, ir.SeverityError, diags[0].Severity)
+				assert.Equal(t, memberLine(t, members, want), diags[0].Provenance.Position.Line)
+			})
+		}
+	}
+}
+
+// TestFollowRefChain_FollowsEachNodeOnce counts visits rather than timing
+// them. A sweep from every start visits at most two nodes per start, however
+// long the chain is and however it ends: the first walk records each node it
+// followed, and every later start stops at its own record. The chains are
+// declared head first, so without that every start would walk to the end.
+func TestFollowRefChain_FollowsEachNodeOnce(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		members []string
+		starts  int
+		want    chainVerdict
+	}{
+		{"chain-of-10000", slices.Concat(chainTo("S", 10000, "End"), []string{end}), 10000, chainTerminates},
+		{"chain-of-20000", slices.Concat(chainTo("S", 20000, "End"), []string{end}), 20000, chainTerminates},
+		{"loop-of-20000", loopOf(20000), 20000, chainCycles},
+		{"tail-of-20000-into-a-loop", slices.Concat(chainTo("S", 20000, "C0"), loopOf(2)), 20002, chainCycles},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			diags := scanBytes(t, chainDoc(hops, tc.loopLen, tc.reverse))
-			if tc.wantLine == 0 {
-				assert.Empty(t, diags, "a chain that ends is not a cycle however long it is")
-				return
+			root := indexOf(t, schemasDoc(tc.members)).Root()
+			s := newRefScan()
+			s.collect(root)
+			require.Len(t, s.out, tc.starts)
+
+			for _, start := range s.out {
+				require.Equal(t, tc.want, s.followRefChain(root, start).verdict)
 			}
-			require.Len(t, diags, 1)
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-			assert.Equal(t, ir.SeverityError, diags[0].Severity)
-			assert.Equal(t, tc.wantLine, diags[0].Provenance.Position.Line)
+
+			assert.LessOrEqual(t, s.visits, 2*len(s.out), "a start the first walk followed is visited once")
 		})
 	}
 }
 
-// TestCycles_VerdictsAroundTheCap pins which starts a loop is still found from,
-// either side of maxCycleDepth. A start reveals a loop when its tail and the
-// loop fit in the cap together, so the first to report is max(0, tail+loop-cap)
-// schemas from the head, and none does once the loop alone is longer.
-func TestCycles_VerdictsAroundTheCap(t *testing.T) {
+// parameterChainDoc is n component parameters, each a $ref to the next, ending
+// in a loop of two that never leaves components.
+func parameterChainDoc(n int) []byte {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  parameters:\n")
+	for i := range n + 2 {
+		next := i + 1
+		if i == n+1 {
+			next = n
+		}
+		fmt.Fprintf(&b, "    P%d: {$ref: '#/components/parameters/P%d'}\n", i, next)
+	}
+	return []byte(b.String())
+}
+
+// TestOutsideCycle_FollowsEachNodeOnce is the sweep above through outsideCycle,
+// for a loop it leaves to the resolver: one that stays inside components. It
+// reports nothing, so it walks from every start, and each later start stops at
+// the cycle the first walk recorded (GitHub #924).
+func TestOutsideCycle_FollowsEachNodeOnce(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		tail, loopLen int
-		wantLine      int // 0: no diagnostic
-	}{
-		{tail: 5, loopLen: 2, wantLine: firstMemberLine},
-		{tail: 9000, loopLen: 1000, wantLine: firstMemberLine},
-		{tail: 9000, loopLen: 1001, wantLine: firstMemberLine + 1},
-		{tail: 9999, loopLen: 2, wantLine: firstMemberLine + 1},
-		{tail: 10000, loopLen: 2, wantLine: firstMemberLine + 2},
-		{tail: 12000, loopLen: 5, wantLine: firstMemberLine + 2005},
-		{tail: 12000, loopLen: 9990, wantLine: firstMemberLine + 11990},
-		{tail: 3, loopLen: 10000, wantLine: firstMemberLine + 3},
-		{tail: 3, loopLen: 10001},
-		{tail: 20, loopLen: 10001},
-		{tail: 1, loopLen: 20000},
-	}
-	for _, tc := range tests {
-		t.Run(fmt.Sprintf("tail%d-loop%d", tc.tail, tc.loopLen), func(t *testing.T) {
-			t.Parallel()
-			diags := scanBytes(t, chainDoc(tc.tail, tc.loopLen, false))
-			if tc.wantLine == 0 {
-				assert.Empty(t, diags,
-					"a loop longer than the cap is past what a start can reveal; #922 asks whether it should be")
-				return
-			}
-			require.Len(t, diags, 1)
-			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-			assert.Equal(t, tc.wantLine, diags[0].Provenance.Position.Line)
-		})
-	}
-}
-
-// chainHops is how many hops a sweep over every start of a chain follows, and
-// how many starts there are. Every start must end without a verdict: a sweep
-// that finds a loop stops at the first, which would measure nothing.
-func chainHops(t *testing.T, tail, loopLen int) (hops, starts int) {
-	t.Helper()
-	root := indexOf(t, chainDoc(tail, loopLen, false)).Root()
+	const n = 20000
+	root := indexOf(t, parameterChainDoc(n)).Root()
 	s := newRefScan()
 	s.collect(root)
-	for _, start := range s.out {
-		verdict, _ := s.followRefChain(root, start)
-		require.Equal(t, chainTerminates, verdict)
-	}
-	return s.hops, len(s.out)
+	require.Len(t, s.outside, n+2)
+
+	_, found := s.outsideCycle(InSource(0), root)
+
+	assert.False(t, found, "a loop inside components is the resolver's to report")
+	assert.LessOrEqual(t, s.visits, 2*len(s.outside), "a start the first walk followed is visited once")
 }
 
-// TestFollowRefChain_WorkDoesNotGrowQuadraticallyPastTheCap counts hops rather
-// than timing them. The chain is declared head first, the order in which a walk
-// stopping at the cap would be repeated from every start; the loops are longer
-// than the cap, so no start reveals one and the sweep reaches every start.
-func TestFollowRefChain_WorkDoesNotGrowQuadraticallyPastTheCap(t *testing.T) {
+// TestCycles_LongLoopOutsideComponentsIsRefused is the loop of reference
+// objects spelled by document position, which speakeasy's resolver has no guard
+// for, at a length past the 10,000 hops a walk once stopped at. Declared either
+// way, the first path declared reports it.
+func TestCycles_LongLoopOutsideComponentsIsRefused(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name          string
-		tail, loopLen int
-	}{
-		{"terminal-at-cap", maxCycleDepth, 0},
-		{"terminal-past-cap", 2 * maxCycleDepth, 0},
-		{"loop-just-past-cap", 5, maxCycleDepth + 1},
-		{"loop-twice-cap", 5, 2 * maxCycleDepth},
+	const n = 10001
+	members := make([]string, n)
+	for i := range n {
+		members[i] = fmt.Sprintf("  /p%d: {$ref: '#/paths/~1p%d'}\n", i, (i+1)%n)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, reversed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reversed=%t", reversed), func(t *testing.T) {
 			t.Parallel()
-			hops, starts := chainHops(t, tc.tail, tc.loopLen)
-			assert.LessOrEqual(t, hops, 3*starts,
-				"each start should cost a hop or two once the first walk has covered the chain")
+			declared := slices.Clone(members)
+			if reversed {
+				slices.Reverse(declared)
+			}
+
+			diags := scanBytes(t, []byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"+strings.Join(declared, "")))
+
+			require.Len(t, diags, 1)
+			assert.Equal(t, diag.CyclicRef, diags[0].Code)
+			assert.Equal(t, 4, diags[0].Provenance.Position.Line, "the first path declared, below three header lines")
 		})
 	}
 }
 
-func TestFollowRefChain_ChainTwiceTheCapCostsAboutTwiceTheCap(t *testing.T) {
-	t.Parallel()
-	atCap, _ := chainHops(t, maxCycleDepth, 0)
-	pastCap, _ := chainHops(t, 2*maxCycleDepth, 0)
+// recordDoc holds two chains of reference objects, each ending in a loop. The
+// first leaves components before its loop, at In; the second leaves it inside
+// its loop, at E.
+const recordDoc = `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths:
+  /in: {$ref: '#/components/pathItems/In'}
+  /out: {$ref: '#/components/pathItems/B'}
+  /q: {$ref: '#/components/pathItems/D'}
+components:
+  pathItems:
+    In: {$ref: '#/paths/~1out'}
+    B: {$ref: '#/components/pathItems/C'}
+    C: {$ref: '#/components/pathItems/B'}
+    D: {$ref: '#/components/pathItems/E'}
+    E: {$ref: '#/paths/~1q'}
+    F: {$ref: '#/components/pathItems/D'}
+`
 
-	assert.Positive(t, atCap)
-	assert.LessOrEqual(t, pastCap, 3*atCap, "the cost grew by more than a small multiple")
+// TestFollowRefChain_RecordsWhereEachNodesChainEnds pins what a walk records
+// for each node it followed, and that a walk stopping at a record answers as a
+// whole walk would. A node's chain left components if its own hop did or any
+// hop after it did, which on a loop is every hop of the loop. The walks run in
+// several orders, so a record is met before, after and inside a loop.
+func TestFollowRefChain_RecordsWhereEachNodesChainEnds(t *testing.T) {
+	t.Parallel()
+	entering := map[jsontext.Pointer]chainOutcome{
+		"/paths/~1in":              {chainCycles, true},
+		"/components/pathItems/In": {chainCycles, true},
+		"/paths/~1out":             {chainCycles, false},
+		"/components/pathItems/B":  {chainCycles, false},
+		"/components/pathItems/C":  {chainCycles, false},
+	}
+	leaving := map[jsontext.Pointer]chainOutcome{
+		"/components/pathItems/F": {chainCycles, true},
+		"/components/pathItems/D": {chainCycles, true},
+		"/components/pathItems/E": {chainCycles, true},
+		"/paths/~1q":              {chainCycles, true},
+	}
+	tests := []struct {
+		name  string
+		walks []jsontext.Pointer
+		want  map[jsontext.Pointer]chainOutcome
+	}{
+		{"entering-in-one-walk", []jsontext.Pointer{"/paths/~1in"}, entering},
+		{"entering-loop-first", []jsontext.Pointer{"/components/pathItems/B", "/paths/~1in"}, entering},
+		{"entering-backwards", []jsontext.Pointer{"/paths/~1out", "/components/pathItems/In", "/paths/~1in"}, entering},
+		{"leaving-in-one-walk", []jsontext.Pointer{"/components/pathItems/F"}, leaving},
+		{"leaving-loop-first", []jsontext.Pointer{"/components/pathItems/D", "/components/pathItems/F"}, leaving},
+		{"leaving-loop-midway", []jsontext.Pointer{"/paths/~1q", "/components/pathItems/F"}, leaving},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := indexOf(t, []byte(recordDoc)).Root()
+			s := newRefScan()
+			at := func(p jsontext.Pointer) *yaml.Node {
+				path, complete := s.view.PointerPath(root, p)
+				require.True(t, complete, "%s names nothing", p)
+				return path[len(path)-1]
+			}
+
+			for _, p := range tc.walks {
+				assert.Equal(t, tc.want[p], s.followRefChain(root, at(p)), "the walk from %s", p)
+			}
+
+			for p, want := range tc.want {
+				got, recorded := s.outcomes[at(p)]
+				assert.True(t, recorded, "%s is on a walk and not recorded", p)
+				assert.Equal(t, want, got, "the record for %s", p)
+			}
+		})
+	}
 }
 
-// chainThroughRef is a chain of n schemas, ending in a two-schema loop if loops
-// and in a schema with no $ref if not, whose hop from schema at reads its target
-// through a reference — the shape markSafe declines to remember. The target is
-// the member t of a reference object, so the pointer completes and the walk goes
-// on. chain is every schema carrying a $ref, in walk order.
+// chainThroughRef is a chain of n schemas, ending in a loop of two if loops and
+// in a schema with no $ref if not, whose hop from the schema at reads its target
+// through a reference: member t of a reference object, so the pointer
+// completes and the walk goes on. chain is every schema carrying a $ref, in walk
+// order.
 func chainThroughRef(n, at int, loops bool) (root *yaml.Node, chain []*yaml.Node) {
 	const prefix = "#/schemas/"
 	nodes := make([]*yaml.Node, n)
@@ -208,32 +313,28 @@ func chainThroughRef(n, at int, loops bool) (root *yaml.Node, chain []*yaml.Node
 	return ynode.Map(ynode.Scalar("schemas"), schemas), chain
 }
 
-func TestFollowRefChain_ThroughARefIsNotRememberedPastTheCap(t *testing.T) {
+// TestFollowRefChain_ThroughARefRecordsNothing pins that a walk with a hop read
+// through a reference records no node, however its chain ends: such a hop
+// proves nothing about a start that reaches the same node by another route.
+func TestFollowRefChain_ThroughARefRecordsNothing(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
 		loops bool
+		want  chainVerdict
 	}{
-		{"ends-in-a-loop", true},
-		{"ends-in-a-schema", false},
+		{"ends-in-a-loop", true, chainCycles},
+		{"ends-in-a-schema", false, chainTerminates},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			root, chain := chainThroughRef(maxCycleDepth+500, 100, tc.loops)
-
+			root, chain := chainThroughRef(50, 10, tc.loops)
 			s := newRefScan()
-			verdict, _ := s.followRefChain(root, chain[0])
 
-			assert.Equal(t, chainTerminates, verdict, "the chain ends past what this start can reveal")
-			var remembered []int
-			for i, n := range chain {
-				if s.safe[n] {
-					remembered = append(remembered, i)
-				}
-			}
-			assert.Empty(t, remembered,
-				"a chain read through a reference proves nothing about another reaching it")
+			assert.Equal(t, tc.want, s.followRefChain(root, chain[0]).verdict)
+
+			assert.Empty(t, s.outcomes, "a chain read through a reference is recorded for no node")
 		})
 	}
 }
@@ -244,7 +345,7 @@ func TestFollowRefChain_ThroughARefIsNotRememberedPastTheCap(t *testing.T) {
 // loop of t and S(n-1).
 func reentryDoc(n int) []byte {
 	var b strings.Builder
-	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
+	b.WriteString(schemasHeader)
 	last := "S" + strconv.Itoa(n-1)
 	fmt.Fprintf(&b, "    S0: {$ref: '#/components/schemas/S1', t: {$ref: '#/components/schemas/%s'}}\n", last)
 	for i := 1; i < n-1; i++ {
@@ -254,31 +355,34 @@ func reentryDoc(n int) []byte {
 	return []byte(b.String())
 }
 
-// TestCycles_ReentryPastTheCapIsNotRemembered pins that a walk re-entering its
-// chain past maxCycleDepth leaves the chain to later starts. The re-entry is
-// S0's alone: S(i) for i > 0 meets the loop's revisit after n+1-i hops, and the
-// first to do so within the cap reports it.
-func TestCycles_ReentryPastTheCapIsNotRemembered(t *testing.T) {
+// TestCycles_ReentryRecordsNothing pins that a walk re-entering its chain
+// leaves the chain to later starts. S0's walk re-enters, which refCycles does
+// not report for a schema, and S1's meets the loop and is reported. Recording
+// S0's walk would hand S1 its re-entry, and nothing would be reported.
+func TestCycles_ReentryRecordsNothing(t *testing.T) {
 	t.Parallel()
-	const n = maxCycleDepth + 10
 
-	diags := scanBytes(t, reentryDoc(n))
+	diags := scanBytes(t, reentryDoc(20))
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.CyclicRef, diags[0].Code)
-	assert.Equal(t, firstMemberLine+n+1-maxCycleDepth, diags[0].Provenance.Position.Line)
+	assert.Equal(t, firstMemberLine+1, diags[0].Provenance.Position.Line)
 }
 
-func TestFollowRefChain_HopLimitEndsTheWalkWithoutAVerdict(t *testing.T) {
+// TestFollowRefChain_PanicsPastItsVisitBound pins the bound at its edge. A chain
+// of twenty references ending in a schema takes 21 visits: a bound of 21 lets
+// the walk finish, and one of 20 stops it with the panic recoverCycleScan turns
+// into a warning.
+func TestFollowRefChain_PanicsPastItsVisitBound(t *testing.T) {
 	t.Parallel()
-	root := indexOf(t, chainDoc(20, 0, false)).Root()
-	s := newRefScan()
-	s.hopLimit = 5
-	s.collect(root)
+	root := indexOf(t, schemasDoc(slices.Concat(chainTo("S", 20, "End"), []string{end}))).Root()
+	walk := func(bound int) func() {
+		s := newRefScan()
+		s.maxVisits = bound
+		s.collect(root)
+		return func() { s.followRefChain(root, s.out[0]) }
+	}
 
-	verdict, _ := s.followRefChain(root, s.out[0])
-
-	assert.Equal(t, chainTerminates, verdict)
-	assert.Empty(t, s.safe, "a walk that stopped at the limit proved nothing about its nodes")
-	assert.Equal(t, s.hopLimit+1, s.hops)
+	assert.NotPanics(t, walk(21))
+	assert.PanicsWithValue(t, "cycle scan: a $ref chain outlasted its 20-node bound", walk(20))
 }

@@ -357,41 +357,22 @@ func TestDetectCycles_MalformedSchemaShapes(t *testing.T) {
 	assert.Empty(t, scanBytes(t, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
 }
 
-func TestFollowRefChain_DepthCapReturnsFalse(t *testing.T) {
-	t.Parallel()
-	const n = maxCycleDepth + 2
-	schemas := &yaml.Node{Kind: yaml.MappingNode}
-	root := ynode.Map(ynode.Scalar("schemas"), schemas)
-	nodes := make([]*yaml.Node, n)
-	for i := range nodes {
-		nodes[i] = &yaml.Node{Kind: yaml.MappingNode}
-	}
-	for i := range nodes {
-		schemas.Content = append(schemas.Content, ynode.Scalar(strconv.Itoa(i)), nodes[i])
-		if i < n-1 {
-			nodes[i].Content = []*yaml.Node{ynode.Scalar("$ref"), ynode.Scalar("#/schemas/" + strconv.Itoa(i+1))}
-		}
-	}
-	verdict, _ := newRefScan().followRefChain(root, nodes[0])
-	assert.Equal(t, chainTerminates, verdict,
-		"a chain longer than the depth cap exits without flagging a cycle")
-}
-
-func TestFollowRefChain_SafeMemoShortCircuits(t *testing.T) {
+func TestFollowRefChain_RecordShortCircuits(t *testing.T) {
 	t.Parallel()
 	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/B"))
 	b := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/A"))
 	schemas := ynode.Map(ynode.Scalar("A"), a, ynode.Scalar("B"), b)
 	root := ynode.Map(ynode.Scalar("schemas"), schemas)
 
-	verdict, _ := newRefScan().followRefChain(root, a)
-	assert.Equal(t, chainCycles, verdict, "A -> B -> A is cyclic with an empty memo")
+	assert.Equal(t, chainCycles, newRefScan().followRefChain(root, a).verdict,
+		"A -> B -> A is cyclic with nothing recorded")
 
 	s := newRefScan()
-	s.safe[b] = true
-	memoed, _ := s.followRefChain(root, a)
-	assert.Equal(t, chainTerminates, memoed, "a chain reaching a memoized-safe node is not a cycle")
-	assert.True(t, s.safe[a], "the walk records the reaching node as terminating too")
+	s.outcomes[b] = chainOutcome{verdict: chainTerminates}
+	assert.Equal(t, chainTerminates, s.followRefChain(root, a).verdict,
+		"a walk reaching a recorded node takes its outcome")
+	assert.Equal(t, chainOutcome{verdict: chainTerminates}, s.outcomes[a],
+		"the walk records the reaching node with that outcome too")
 }
 
 func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
@@ -399,9 +380,9 @@ func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
 	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/Missing"))
 	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), a))
 	s := newRefScan()
-	verdict, _ := s.followRefChain(root, a)
-	assert.Equal(t, chainTerminates, verdict, "a dangling $ref is not a cycle")
-	assert.True(t, s.safe[a], "the dangling node is recorded terminating")
+	assert.Equal(t, chainTerminates, s.followRefChain(root, a).verdict, "a dangling $ref is not a cycle")
+	assert.Equal(t, chainOutcome{verdict: chainTerminates}, s.outcomes[a],
+		"the dangling node is recorded terminating")
 }
 
 // TestComponentsRef_IsStrictlyBeneathTheSection pins the boundary a chain is
@@ -659,7 +640,7 @@ func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
 	t.Parallel()
 	ref := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/components/schemas/A"))
 	deep := ref
-	for range maxCycleDepth + 10 {
+	for range 10010 {
 		deep = ynode.Map(ynode.Scalar("items"), deep)
 	}
 	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), deep))
