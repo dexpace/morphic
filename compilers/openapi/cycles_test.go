@@ -415,10 +415,10 @@ func FuzzCycleDetector(f *testing.F) {
 	})
 }
 
-// TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders pins why the scan
-// records no walk through a reference. Whether a re-entrant hop is seen depends
+// TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders pins that a
+// re-entry is judged for each start. Whether a re-entrant hop is seen depends
 // on which reference the walk reaches as a chain root first, so a single order
-// proves nothing: with a record keyed on the node alone, declaring the dangling
+// proves nothing: with an outcome kept per node alone, declaring the dangling
 // reference first records it as terminating and the later chain short-circuits
 // straight past the hop. Both orders deadlock in the resolver, so both must be
 // refused.

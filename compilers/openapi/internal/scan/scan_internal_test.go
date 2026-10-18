@@ -357,32 +357,14 @@ func TestDetectCycles_MalformedSchemaShapes(t *testing.T) {
 	assert.Empty(t, scanBytes(t, []byte(allOfNotSeq)), "allOf as a mapping is not a schema list")
 }
 
-func TestFollowRefChain_RecordShortCircuits(t *testing.T) {
-	t.Parallel()
-	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/B"))
-	b := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/A"))
-	schemas := ynode.Map(ynode.Scalar("A"), a, ynode.Scalar("B"), b)
-	root := ynode.Map(ynode.Scalar("schemas"), schemas)
-
-	assert.Equal(t, chainCycles, newRefScan().followRefChain(root, a).verdict,
-		"A -> B -> A is cyclic with nothing recorded")
-
-	s := newRefScan()
-	s.outcomes[b] = chainOutcome{verdict: chainTerminates}
-	assert.Equal(t, chainTerminates, s.followRefChain(root, a).verdict,
-		"a walk reaching a recorded node takes its outcome")
-	assert.Equal(t, chainOutcome{verdict: chainTerminates}, s.outcomes[a],
-		"the walk records the reaching node with that outcome too")
-}
-
-func TestFollowRefChain_DanglingRefIsNotCycle(t *testing.T) {
+func TestSettleChains_DanglingRefIsNotCycle(t *testing.T) {
 	t.Parallel()
 	a := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/schemas/Missing"))
 	root := ynode.Map(ynode.Scalar("schemas"), ynode.Map(ynode.Scalar("A"), a))
-	s := newRefScan()
-	assert.Equal(t, chainTerminates, s.followRefChain(root, a).verdict, "a dangling $ref is not a cycle")
-	assert.Equal(t, chainOutcome{verdict: chainTerminates}, s.outcomes[a],
-		"the dangling node is recorded terminating")
+
+	chains := settleChains(nodeview.New(), root, []*yaml.Node{a}, sourceindex.MaxIndexedNodes)
+
+	assert.Equal(t, chainOutcome{verdict: chainTerminates}, chains.outcome(a), "a dangling $ref is not a cycle")
 }
 
 // TestComponentsRef_IsStrictlyBeneathTheSection pins the boundary a chain is

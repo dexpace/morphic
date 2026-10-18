@@ -3,6 +3,7 @@ package scan
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,7 +14,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -110,43 +112,44 @@ func TestCycles_ChainIsJudgedWhole(t *testing.T) {
 	}
 }
 
-// TestFollowRefChain_FollowsEachNodeOnce counts visits rather than timing
-// them. A sweep from every start visits at most two nodes per start, however
-// long the chain is and however it ends: the first walk records each node it
-// followed, and every later start stops at its own record. The chains are
-// declared head first, so without that every start would walk to the end.
-func TestFollowRefChain_FollowsEachNodeOnce(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		members []string
-		starts  int
-		want    chainVerdict
-	}{
-		{"chain-of-10000", slices.Concat(chainTo("S", 10000, "End"), []string{end}), 10000, chainTerminates},
-		{"chain-of-20000", slices.Concat(chainTo("S", 20000, "End"), []string{end}), 20000, chainTerminates},
-		{"loop-of-20000", loopOf(20000), 20000, chainCycles},
-		{"tail-of-20000-into-a-loop", slices.Concat(chainTo("S", 20000, "C0"), loopOf(2)), 20002, chainCycles},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root := indexOf(t, schemasDoc(tc.members)).Root()
-			s := newRefScan()
-			s.collect(root)
-			require.Len(t, s.out, tc.starts)
+// settled collects the references of a document and settles their chains.
+func settled(t *testing.T, data []byte) (*refScan, *chainGraph) {
+	t.Helper()
+	root := indexOf(t, data).Root()
+	s := newRefScan()
+	s.collect(root)
+	return s, settleChains(s.view, root, slices.Concat(s.out, s.outside), sourceindex.MaxIndexedNodes)
+}
 
-			for _, start := range s.out {
-				require.Equal(t, tc.want, s.followRefChain(root, start).verdict)
-			}
-
-			assert.LessOrEqual(t, s.visits, 2*len(s.out), "a start the first walk followed is visited once")
-		})
+// viaRefDoc is the shape that walked a chain once per start: n schemas in a
+// chain whose last hop reads its target through a reference, via, declared as
+// written or reversed.
+func viaRefDoc(n int, reversed bool) []byte {
+	members := chainTo("S", n-1, "S"+strconv.Itoa(n-1))
+	members = append(members,
+		fmt.Sprintf("    S%d: {$ref: '#/components/schemas/via/t'}\n", n-1),
+		"    via: {$ref: '#/components/schemas/nowhere', t: {type: string}}\n")
+	if reversed {
+		slices.Reverse(members)
 	}
+	return schemasDoc(members)
+}
+
+// fanInDoc is n schemas whose hops all pass through one reference, via, whose
+// own chain is n schemas long: asking of each hop whether via's chain reaches
+// it, by walking that chain, would be quadratic.
+func fanInDoc(n int) []byte {
+	members := make([]string, 0, 2*n+2)
+	for i := range n {
+		members = append(members, fmt.Sprintf("    F%d: {$ref: '#/components/schemas/via/x'}\n", i))
+	}
+	members = append(members, "    via: {$ref: '#/components/schemas/S0', x: {type: string}}\n")
+	return schemasDoc(slices.Concat(members, chainTo("S", n, "End"), []string{end}))
 }
 
 // parameterChainDoc is n component parameters, each a $ref to the next, ending
-// in a loop of two that never leaves components.
+// in a loop of two that never leaves components, which outsideCycle leaves to
+// the resolver.
 func parameterChainDoc(n int) []byte {
 	var b strings.Builder
 	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  parameters:\n")
@@ -160,22 +163,52 @@ func parameterChainDoc(n int) []byte {
 	return []byte(b.String())
 }
 
-// TestOutsideCycle_FollowsEachNodeOnce is the sweep above through outsideCycle,
-// for a loop it leaves to the resolver: one that stays inside components. It
-// reports nothing, so it walks from every start, and each later start stops at
-// the cycle the first walk recorded (GitHub #924).
-func TestOutsideCycle_FollowsEachNodeOnce(t *testing.T) {
+// TestSettleChains_ReadsEachHopOnce counts work rather than timing it. Each
+// reference's hop is read once, and settling costs a step per node and per
+// pointer passing through one, however long the chains are, however they end
+// and in whichever order they are declared: the shapes that once walked a chain
+// again from every start (GitHub #903, #923, #924), and one that a naive
+// question about passing pointers would make quadratic.
+func TestSettleChains_ReadsEachHopOnce(t *testing.T) {
 	t.Parallel()
 	const n = 20000
-	root := indexOf(t, parameterChainDoc(n)).Root()
-	s := newRefScan()
-	s.collect(root)
-	require.Len(t, s.outside, n+2)
+	tests := []struct {
+		name string
+		data []byte
+		refs int
+		want chainVerdict
+	}{
+		{"chain", schemasDoc(slices.Concat(chainTo("S", n, "End"), []string{end})), n, chainTerminates},
+		{"loop", schemasDoc(loopOf(n)), n, chainCycles},
+		{"tail-into-a-loop", schemasDoc(slices.Concat(chainTo("S", n, "C0"), loopOf(2))), n + 2, chainCycles},
+		{"through-a-ref", viaRefDoc(n, false), n + 1, chainTerminates},
+		{"through-a-ref-reversed", viaRefDoc(n, true), n + 1, chainTerminates},
+		{"fan-in-through-a-ref", fanInDoc(n), 2*n + 1, chainTerminates},
+		{"parameters-into-a-loop", parameterChainDoc(n), n + 2, chainCycles},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s, chains := settled(t, tc.data)
 
-	_, found := s.outsideCycle(InSource(0), root)
+			require.Len(t, chains.order, tc.refs, "every reference is read, once")
+			for _, start := range slices.Concat(s.out, s.outside) {
+				require.Equal(t, tc.want, chains.outcome(start).verdict)
+			}
+			assert.LessOrEqual(t, chains.work, 3*tc.refs, "settling is linear in the references")
+		})
+	}
+}
+
+// TestOutsideCycle_DoesNotReportALoopInsideComponents pins that the loop the
+// sweep above settles once is still left to the resolver, from every start.
+func TestOutsideCycle_DoesNotReportALoopInsideComponents(t *testing.T) {
+	t.Parallel()
+	s, chains := settled(t, parameterChainDoc(50))
+
+	_, found := s.outsideCycle(InSource(0), chains)
 
 	assert.False(t, found, "a loop inside components is the resolver's to report")
-	assert.LessOrEqual(t, s.visits, 2*len(s.outside), "a start the first walk followed is visited once")
 }
 
 // TestCycles_LongLoopOutsideComponentsIsRefused is the loop of reference
@@ -225,118 +258,29 @@ components:
     F: {$ref: '#/components/pathItems/D'}
 `
 
-// TestFollowRefChain_RecordsWhereEachNodesChainEnds pins what a walk records
-// for each node it followed, and that a walk stopping at a record answers as a
-// whole walk would. A node's chain left components if its own hop did or any
-// hop after it did, which on a loop is every hop of the loop. The walks run in
-// several orders, so a record is met before, after and inside a loop.
-func TestFollowRefChain_RecordsWhereEachNodesChainEnds(t *testing.T) {
+// TestSettleChains_LeftComponentsCoversTheWholeChain pins which nodes' chains
+// leave components: a node's does if its own hop does or any hop after it,
+// which on a loop is every hop of the loop.
+func TestSettleChains_LeftComponentsCoversTheWholeChain(t *testing.T) {
 	t.Parallel()
-	entering := map[jsontext.Pointer]chainOutcome{
+	want := map[jsontext.Pointer]chainOutcome{
 		"/paths/~1in":              {chainCycles, true},
 		"/components/pathItems/In": {chainCycles, true},
 		"/paths/~1out":             {chainCycles, false},
 		"/components/pathItems/B":  {chainCycles, false},
 		"/components/pathItems/C":  {chainCycles, false},
+		"/components/pathItems/F":  {chainCycles, true},
+		"/components/pathItems/D":  {chainCycles, true},
+		"/components/pathItems/E":  {chainCycles, true},
+		"/paths/~1q":               {chainCycles, true},
 	}
-	leaving := map[jsontext.Pointer]chainOutcome{
-		"/components/pathItems/F": {chainCycles, true},
-		"/components/pathItems/D": {chainCycles, true},
-		"/components/pathItems/E": {chainCycles, true},
-		"/paths/~1q":              {chainCycles, true},
-	}
-	tests := []struct {
-		name  string
-		walks []jsontext.Pointer
-		want  map[jsontext.Pointer]chainOutcome
-	}{
-		{"entering-in-one-walk", []jsontext.Pointer{"/paths/~1in"}, entering},
-		{"entering-loop-first", []jsontext.Pointer{"/components/pathItems/B", "/paths/~1in"}, entering},
-		{"entering-backwards", []jsontext.Pointer{"/paths/~1out", "/components/pathItems/In", "/paths/~1in"}, entering},
-		{"leaving-in-one-walk", []jsontext.Pointer{"/components/pathItems/F"}, leaving},
-		{"leaving-loop-first", []jsontext.Pointer{"/components/pathItems/D", "/components/pathItems/F"}, leaving},
-		{"leaving-loop-midway", []jsontext.Pointer{"/paths/~1q", "/components/pathItems/F"}, leaving},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root := indexOf(t, []byte(recordDoc)).Root()
-			s := newRefScan()
-			at := func(p jsontext.Pointer) *yaml.Node {
-				path, complete := s.view.PointerPath(root, p)
-				require.True(t, complete, "%s names nothing", p)
-				return path[len(path)-1]
-			}
+	s, chains := settled(t, []byte(recordDoc))
+	root := chains.root
 
-			for _, p := range tc.walks {
-				assert.Equal(t, tc.want[p], s.followRefChain(root, at(p)), "the walk from %s", p)
-			}
-
-			for p, want := range tc.want {
-				got, recorded := s.outcomes[at(p)]
-				assert.True(t, recorded, "%s is on a walk and not recorded", p)
-				assert.Equal(t, want, got, "the record for %s", p)
-			}
-		})
-	}
-}
-
-// chainThroughRef is a chain of n schemas, ending in a loop of two if loops and
-// in a schema with no $ref if not, whose hop from the schema at reads its target
-// through a reference: member t of a reference object, so the pointer
-// completes and the walk goes on. chain is every schema carrying a $ref, in walk
-// order.
-func chainThroughRef(n, at int, loops bool) (root *yaml.Node, chain []*yaml.Node) {
-	const prefix = "#/schemas/"
-	nodes := make([]*yaml.Node, n)
-	for i := range nodes {
-		next := prefix + strconv.Itoa(i+1)
-		if i == n-1 {
-			next = prefix + strconv.Itoa(n-2)
-		}
-		nodes[i] = ynode.Map(ynode.Scalar("$ref"), ynode.Scalar(next))
-	}
-	chain = nodes
-	if !loops {
-		nodes[n-1] = ynode.Map(ynode.Scalar("type"), ynode.Scalar("string"))
-		chain = nodes[:n-1]
-	}
-	nodes[at].Content[1] = ynode.Scalar(prefix + "via/t")
-	via := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar(prefix+"nowhere"), ynode.Scalar("t"), nodes[at+1])
-
-	schemas := ynode.Map()
-	for i, node := range nodes {
-		if i != at+1 {
-			schemas.Content = append(schemas.Content, ynode.Scalar(strconv.Itoa(i)), node)
-		}
-	}
-	schemas.Content = append(schemas.Content, ynode.Scalar("via"), via)
-	return ynode.Map(ynode.Scalar("schemas"), schemas), chain
-}
-
-// TestFollowRefChain_ThroughARefRecordsNothing pins that a walk with a hop read
-// through a reference records no node, however its chain ends: such a hop
-// proves nothing about a start that reaches the same node by another route.
-func TestFollowRefChain_ThroughARefRecordsNothing(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name  string
-		loops bool
-		want  chainVerdict
-	}{
-		{"ends-in-a-loop", true, chainCycles},
-		{"ends-in-a-schema", false, chainTerminates},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root, chain := chainThroughRef(50, 10, tc.loops)
-			s := newRefScan()
-
-			assert.Equal(t, tc.want, s.followRefChain(root, chain[0]).verdict)
-
-			assert.Empty(t, s.outcomes, "a chain read through a reference is recorded for no node")
-		})
+	for p, w := range want {
+		path, complete := s.view.PointerPath(root, p)
+		require.True(t, complete, "%s names nothing", p)
+		assert.Equal(t, w, chains.outcome(path[len(path)-1]), "the chain from %s", p)
 	}
 }
 
@@ -356,11 +300,11 @@ func reentryDoc(n int) []byte {
 	return []byte(b.String())
 }
 
-// TestCycles_ReentryRecordsNothing pins that a walk re-entering its chain
-// leaves the chain to later starts. S0's walk re-enters, which refCycles does
-// not report for a schema, and S1's meets the loop and is reported. Recording
-// S0's walk would hand S1 its re-entry, and nothing would be reported.
-func TestCycles_ReentryRecordsNothing(t *testing.T) {
+// TestCycles_ReentryIsTheStartsOwn pins that a re-entry is judged for each
+// start apart. S0's walk re-enters, which refCycles does not report for a
+// schema; S1's passes S0 as an ordinary reference, meets the loop and is
+// reported. Handing S1 the re-entry S0 met would report nothing.
+func TestCycles_ReentryIsTheStartsOwn(t *testing.T) {
 	t.Parallel()
 
 	diags := scanBytes(t, reentryDoc(20))
@@ -370,20 +314,150 @@ func TestCycles_ReentryRecordsNothing(t *testing.T) {
 	assert.Equal(t, firstMemberLine+1, diags[0].Provenance.Position.Line)
 }
 
-// TestFollowRefChain_PanicsPastItsVisitBound pins the bound at its edge. A chain
-// of twenty references ending in a schema takes 21 visits: a bound of 21 lets
-// the walk finish, and one of 20 stops it with the panic recoverCycleScan turns
-// into a warning.
-func TestFollowRefChain_PanicsPastItsVisitBound(t *testing.T) {
+// walkFrom is what settleChains answers for start: a walk one hop at a time,
+// remembering nothing between starts. It stops at the first node it revisits,
+// the first pointer passing through a node it followed, or the end.
+func walkFrom(view *nodeview.View, root, start *yaml.Node) chainOutcome {
+	at := map[*yaml.Node]int{}
+	var left []bool
+	for cur := start; len(left) <= sourceindex.MaxIndexedNodes; {
+		if _, revisit := at[cur]; revisit {
+			return chainOutcome{verdict: chainCycles, leftComponents: slices.Contains(left, true)}
+		}
+		ref, ok := view.PureRefTarget(cur)
+		if !ok {
+			return chainOutcome{verdict: chainTerminates}
+		}
+		at[cur] = len(left)
+		left = append(left, !componentsRef(ref))
+		path, complete := view.PointerPath(root, ref)
+		through := path
+		if complete {
+			through = path[:len(path)-1]
+		}
+		if slices.ContainsFunc(through, func(n *yaml.Node) bool { _, on := at[n]; return on }) {
+			return chainOutcome{verdict: chainReenters}
+		}
+		if !complete {
+			return chainOutcome{verdict: chainTerminates}
+		}
+		cur = path[len(path)-1]
+	}
+	panic("walkFrom: a chain longer than the tree")
+}
+
+// randomRefDoc is a small document of schemas, path items and parameters
+// whose members are $refs to each other, to members of each other read through
+// a $ref, or to nothing, and carry $refs of their own beside them.
+func randomRefDoc(r *rand.Rand) []byte {
+	sections := []struct{ name, prefix string }{{"schemas", "S"}, {"pathItems", "P"}, {"parameters", "Q"}}
+	counts := []int{r.IntN(7), r.IntN(5), r.IntN(5)}
+	paths := r.IntN(5)
+	targets := []string{"#/components/schemas/missing", "#/components", "#"}
+	for k, sec := range sections {
+		for i := range counts[k] {
+			at := fmt.Sprintf("#/components/%s/%s%d", sec.name, sec.prefix, i)
+			targets = append(targets, at, at, at+"/t")
+		}
+	}
+	for i := range paths {
+		targets = append(targets, fmt.Sprintf("#/paths/~1x%d", i), fmt.Sprintf("#/paths/~1x%d/t", i))
+	}
+	member := func() string {
+		target, sibling := targets[r.IntN(len(targets))], targets[r.IntN(len(targets))]
+		switch r.IntN(8) {
+		case 0:
+			return "{type: string}"
+		case 1, 2:
+			return fmt.Sprintf("{$ref: '%s', t: {$ref: '%s'}}", target, sibling)
+		case 3:
+			return fmt.Sprintf("{$ref: '%s', t: {type: string}}", target)
+		default:
+			return fmt.Sprintf("{$ref: '%s'}", target)
+		}
+	}
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:")
+	if paths == 0 {
+		b.WriteString(" {}")
+	}
+	for i := range paths {
+		fmt.Fprintf(&b, "\n  /x%d: %s", i, member())
+	}
+	b.WriteString("\ncomponents:\n  x-none: {}\n")
+	for k, sec := range sections {
+		if counts[k] > 0 {
+			fmt.Fprintf(&b, "  %s:\n", sec.name)
+		}
+		for i := range counts[k] {
+			fmt.Fprintf(&b, "    %s%d: %s\n", sec.prefix, i, member())
+		}
+	}
+	return []byte(b.String())
+}
+
+// TestSettleChains_AgreesWithAWalkFromEachNode holds every settled outcome to
+// walkFrom, over the cycle reproducers and thousands of generated documents.
+// The kinds of outcome it must meet are counted, so a generator that stopped
+// reaching one would fail here rather than pass on less.
+func TestSettleChains_AgreesWithAWalkFromEachNode(t *testing.T) {
+	t.Parallel()
+	const generated = 4000
+	docs := make([][]byte, 0, len(cycleReproducers)+generated)
+	for _, tc := range cycleReproducers {
+		docs = append(docs, readReproducer(t, tc.file))
+	}
+	r := rand.New(rand.NewPCG(903, 923))
+	for range generated {
+		docs = append(docs, randomRefDoc(r))
+	}
+	met := map[string]int{}
+	for _, data := range docs {
+		s, chains := settled(t, data)
+		for _, n := range chains.order {
+			got, h := chains.outcome(n), chains.hops[n]
+			require.Equal(t, walkFrom(s.view, chains.root, n), got, "the chain from line %d of\n%s", n.Line, data)
+			met[fmt.Sprintf("loop=%t %v left=%t", h.loop != 0, got.verdict, got.leftComponents)]++
+			if h.selfThrough {
+				met["through itself"]++
+			}
+		}
+	}
+	for _, kind := range []string{
+		"loop=true 1 left=false", "loop=true 1 left=true", "loop=true 2 left=false",
+		"loop=false 0 left=false", "loop=false 1 left=false", "loop=false 1 left=true",
+		"loop=false 2 left=false", "through itself",
+	} {
+		assert.Positive(t, met[kind], "no node settled as %q", kind)
+	}
+}
+
+// TestSettleChains_PanicsPastItsNodeBound pins the bound at its edge: a chain
+// of twenty references reads twenty, so a bound of 20 lets it finish and one of
+// 19 stops it with the panic recoverCycleScan turns into a warning.
+func TestSettleChains_PanicsPastItsNodeBound(t *testing.T) {
 	t.Parallel()
 	root := indexOf(t, schemasDoc(slices.Concat(chainTo("S", 20, "End"), []string{end}))).Root()
-	walk := func(bound int) func() {
+	settle := func(bound int) func() {
 		s := newRefScan()
-		s.maxVisits = bound
 		s.collect(root)
-		return func() { s.followRefChain(root, s.out[0]) }
+		return func() { settleChains(s.view, root, s.out, bound) }
 	}
 
-	assert.NotPanics(t, walk(21))
-	assert.PanicsWithValue(t, "cycle scan: a $ref chain outlasted its 20-node bound", walk(20))
+	assert.NotPanics(t, settle(20))
+	assert.PanicsWithValue(t, "cycle scan: $ref chains outgrew their 19-node bound", settle(19))
+}
+
+// TestSettleChains_ReadsNothingPastAPointerThroughItsOwnNode pins that a hop
+// every walk re-enters on ends its chain: A's pointer passes through A, so no
+// walk ever lands on A/t, and the node there, which no start reaches, is not
+// read.
+func TestSettleChains_ReadsNothingPastAPointerThroughItsOwnNode(t *testing.T) {
+	t.Parallel()
+	_, chains := settled(t, schemasDoc([]string{
+		"    A: {$ref: '#/components/schemas/A/t', t: {$ref: '#/components/schemas/End'}}\n", end,
+	}))
+
+	require.Len(t, chains.order, 1, "only A is read")
+	assert.Equal(t, chainOutcome{verdict: chainReenters}, chains.outcome(chains.order[0]))
 }
