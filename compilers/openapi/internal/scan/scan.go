@@ -637,8 +637,8 @@ type chainWalk struct {
 // faults on (outsideCycle). It is meaningful only with chainCycles.
 //
 // s.safe holds nodes that make any start reaching them terminate, keeping the
-// scan linear in the collected refs: each leads to an end the resolver stops at,
-// or to a revisit more than maxCycleDepth hops on (markPastHorizon).
+// scan linear in the collected refs: each leads to where the resolver stops, or
+// to a revisit past maxCycleDepth (markPastHorizon).
 func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
 	w := s.walkChain(root, start)
 	switch {
