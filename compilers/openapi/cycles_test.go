@@ -415,13 +415,12 @@ func FuzzCycleDetector(f *testing.F) {
 	})
 }
 
-// TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders pins what the
-// safe-memo narrowing exists for. Whether a re-entrant hop is seen depends on
-// which reference the walk reaches as a chain root first, so a single order
-// proves nothing: with a memo keyed on the node alone, declaring the dangling
-// reference first records it as terminating and the later chain short-circuits
-// straight past the hop. Both orders deadlock in the resolver, so both must be
-// refused.
+// TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders pins that a
+// re-entry is judged for each start. /b's own chain ends without one, and /a's
+// re-enters on /b's hop, which passes through /a. A scan that let /a take /b's
+// outcome, or judged whichever came first and reused the answer, would miss it
+// with /b declared first, so a single order proves nothing. Both orders
+// deadlock in the resolver, so both must be refused.
 func TestCompile_ReentrantPrefixRefusedInBothDeclarationOrders(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"
