@@ -28,9 +28,10 @@ import (
 
 // maxCycleDepth is how many hops a start may take to reveal a cycle: a start
 // whose chain first revisits or passes through one of its own nodes after that
-// gets no verdict, and a spec chains far shorter. A loop longer than this is therefore reported from no
-// start (#922). The walk itself runs past it, to the end of the chain, so the
-// nodes it covered are remembered rather than re-walked by every later start.
+// gets no verdict, and a spec chains far shorter. A loop longer than this is
+// therefore reported from no start (#922). The walk itself runs past it, to the
+// end of the chain, so the nodes it covered are remembered rather than re-walked
+// by every later start.
 const maxCycleDepth = 10000
 
 // schemaEntryMapKeys name a mapping of schemas encountered outside a schema
