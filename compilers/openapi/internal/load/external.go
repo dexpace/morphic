@@ -508,24 +508,24 @@ func (e external) admit(key string, root *yaml.Node) error {
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes))
 	}
-	if ref, target, local := localRef(root, key); local {
-		return refused(key, fmt.Sprintf("it is fetched over the network and its $ref %q reaches "+
-			"the local file %s, which a remote document must not read", ref, target))
+	if reason, refuse := reachesLocal(root, key); refuse {
+		return refused(key, "it is fetched over the network and "+reason+
+			", which a remote document must not do")
 	}
 	return nil
 }
 
-// localRef returns the first $ref in root, read against base, that reaches a
-// local file, and the file it names. A document fetched over the network
-// (overNetwork) must not read the local file system, by an absolute path, a
-// protocol-relative //host path the resolver reads as a file, or a file: URI,
-// whichever way a $ref in it spells one (GitHub #929). base keys a network
-// document, so a relative $ref resolves to a URL and never here; only an
-// absolute reference reaches a local file. The walk is holdSpellings', reading
-// a $ref's value through an alias as the model does.
-func localRef(root *yaml.Node, base string) (ref, target string, local bool) {
+// reachesLocal returns why root, a document fetched over the network, must not
+// be read, when a $ref or $id in it takes the resolver to the local file
+// system, and whether one does (GitHub #929). base keys the document.
+//
+// A $ref reaching a local file against base is one (localTarget). A relative
+// $ref stays on the host, unless a $id above it rebased the base off the
+// network (offNetworkID), which base alone would miss; refusing an off-network
+// $id keeps every base on the network. The walk reads a value through an alias.
+func reachesLocal(root *yaml.Node, base string) (reason string, refuse bool) {
 	if !overNetwork(base) {
-		return "", "", false
+		return "", false
 	}
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
@@ -534,15 +534,22 @@ func localRef(root *yaml.Node, base string) (ref, target string, local bool) {
 		stack = append(stack, n.Content...)
 		for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 			key, value := nodeview.Deref(n.Content[i]), nodeview.Deref(n.Content[i+1])
-			if key.Value != "$ref" || value.Kind != yaml.ScalarNode {
+			if value.Kind != yaml.ScalarNode {
 				continue
 			}
-			if t, ok := localTarget(value.Value, base); ok {
-				return value.Value, t, true
+			switch key.Value {
+			case "$ref":
+				if t, ok := localTarget(value.Value, base); ok {
+					return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
+				}
+			case "$id":
+				if t, ok := offNetworkID(value.Value, base); ok {
+					return fmt.Sprintf("its $id %q rebases references to %s, off the network", value.Value, t), true
+				}
 			}
 		}
 	}
-	return "", "", false
+	return "", false
 }
 
 // overNetwork reports whether key names a document the reader fetched over the
@@ -563,6 +570,18 @@ func localTarget(ref, base string) (string, bool) {
 	}
 	target := abs.AbsoluteReference
 	return target, !refscope.IsURL(target) || isFileURI(target)
+}
+
+// offNetworkID returns the base the $id id, read against base, rebases to, and
+// whether that base has left the network. A relative id stays on the host; one
+// that resolves to a file: URI or a path has left it, and a $ref under it the
+// resolver would read locally.
+func offNetworkID(id, base string) (string, bool) {
+	abs, err := references.ResolveAbsoluteReference(references.Reference(id), base)
+	if err != nil {
+		return "", false
+	}
+	return abs.AbsoluteReference, !overNetwork(abs.AbsoluteReference)
 }
 
 // isFileURI reports whether s is a file: URI.

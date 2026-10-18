@@ -1,7 +1,6 @@
 package load
 
 import (
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -73,11 +72,17 @@ func remoteDoc(ref string) string {
 // the $ref and the file, and the document is not stored.
 func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 	t.Parallel()
-	for _, ref := range []string{"/etc/passwd", "//evil/etc/passwd", "file:///etc/passwd"} {
-		t.Run(ref, func(t *testing.T) {
+	tests := map[string]struct{ body, reason string }{
+		"an absolute path $ref":   {remoteDoc("/etc/passwd"), `its $ref "/etc/passwd" reaches the local file`},
+		"a //host $ref":           {remoteDoc("//evil/etc/passwd"), `its $ref "//evil/etc/passwd" reaches the local file`},
+		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file`},
+		"a file: $id above a ref": {"components:\n  schemas:\n    S:\n      $id: 'file:///x/'\n      $ref: './secret.yaml#/x'\n", `its $id "file:///x/" rebases references to file:///x/, off the network`},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
-				_, err := w.Write([]byte(remoteDoc(ref)))
+				_, err := w.Write([]byte(tc.body))
 				assert.NoError(t, err)
 			})
 			key := srv.URL + "/remote.yaml"
@@ -88,30 +93,49 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 			_, err = newExternal(doc, Options{}, newExternalReads(sourceDocument{})).Do(req)
 
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "external document "+key+" refused: it is fetched over the network")
-			assert.Contains(t, err.Error(), fmt.Sprintf("its $ref %q reaches the local file", ref))
+			assert.Contains(t, err.Error(), "external document "+key+" refused: it is fetched over the network and "+tc.reason)
 			_, ok := doc.GetCachedExternalDocument(key)
 			assert.False(t, ok, "nothing is stored for a refused document")
 		})
 	}
 }
 
-// TestLocalRef_PassesALocalDocumentAndANetworkOne pins what localRef leaves
-// alone: a local document (its base is not a network one) is never scanned,
-// however its $refs spell a file, and a network document whose $refs stay on
-// the host — relative, absolute-URL and internal — reaches no local file.
-func TestLocalRef_PassesALocalDocumentAndANetworkOne(t *testing.T) {
+// TestOffNetworkID pins which $id values leave the network, read against a
+// network base: a file: URI and an absolute path do, a relative or absolute
+// http(s) $id does not.
+func TestOffNetworkID(t *testing.T) {
+	t.Parallel()
+	const base = "http://host/dir/a.yaml"
+	for id, off := range map[string]bool{
+		"file:///x/":      true,
+		"/x/":             true,
+		"//evil/x/":       true,
+		"./v2/":           false,
+		"https://other/":  false,
+		"http://host/v3/": false,
+		"://bad":          false, // the resolver cannot place it, and reports it itself
+	} {
+		_, got := offNetworkID(id, base)
+		assert.Equal(t, off, got, id)
+	}
+}
+
+// TestReachesLocal_PassesALocalDocumentAndANetworkOne pins what reachesLocal
+// leaves alone: a local document (its base is not a network one) is never
+// scanned, however its $refs spell a file, and a network document whose $refs
+// and $ids stay on the host reaches no local file.
+func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	t.Parallel()
 	local := mustParse(t, remoteDoc("/etc/passwd"))
-	_, _, isLocal := localRef(local, "/dir/a.yaml")
-	assert.False(t, isLocal, "a local document's own $refs are not judged against the network rule")
+	_, refuse := reachesLocal(local, "/dir/a.yaml")
+	assert.False(t, refuse, "a local document's own $refs are not judged against the network rule")
 
 	onHost := "components:\n  schemas:\n" +
 		"    A: {$ref: './b.yaml#/x'}\n" +
 		"    B: {$ref: 'https://other/c.yaml#/x'}\n" +
-		"    C: {$ref: '#/components/schemas/A'}\n"
-	_, _, isLocal = localRef(mustParse(t, onHost), "http://host/dir/a.yaml")
-	assert.False(t, isLocal, "a network document staying on the host reaches no local file")
+		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n"
+	_, refuse = reachesLocal(mustParse(t, onHost), "http://host/dir/a.yaml")
+	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 }
 
 // TestExternal_DoReadsANetworkDocumentStayingOnTheHost pins the other side:
