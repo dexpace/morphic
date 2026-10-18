@@ -31,15 +31,15 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, caught before it can crash
-	// the parser with a stack overflow or deadlock the resolver on a lock its own
-	// goroutine holds. Two checks report it: a pre-parse scan over the decoded
-	// tree, for a recursive YAML anchor or a chain of $ref-only schemas joined by
-	// ordinary same-document pointers; and load's reach, for a cycle that closes
-	// only through $anchor, $id or $defs-relative resolution. Reach
-	// over-approximates the resolver, so it can refuse a document the resolver
-	// survives; a $defs reference load holds out of the resolver is exact
-	// (GitHub #557).
+	// CyclicRef reports a degenerate reference cycle, caught before it crashes
+	// the parser with a stack overflow or deadlocks the resolver on a lock its
+	// own goroutine holds. A pre-parse scan finds a recursive YAML anchor or a
+	// chain of $ref-only nodes joined by same-document pointers. Load's reach
+	// finds one closing only through $anchor, $id or $defs-relative resolution,
+	// over-approximating the resolver bar a $defs reference load holds out of it
+	// (GitHub #557). Either names a reference the cycle itself runs through,
+	// never one only leading into it, and of several the least by pointer
+	// (GitHub #912).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
@@ -56,16 +56,23 @@ const (
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
 	SourceTooLarge = "openapi/source-too-large"
+	// SourceTooDeep reports a document nested deeper than the pre-parse scan
+	// admits (scan.MaxNesting), its aliases expanded. What the parser builds
+	// costs more per node the deeper the node, so the document is refused before
+	// the parser builds it, at the least pointer where its nesting passes the
+	// bound (GitHub #905). A document an external reference names is refused
+	// alike, failing the reference.
+	SourceTooDeep = "openapi/source-too-deep"
 	// TaggedMapping reports a mapping carrying a YAML tag other than !!map, which
 	// OpenAPI forbids: its YAML form limits tags to YAML 1.2's JSON schema
 	// ruleset. At a reference position whose model is a struct (a request body,
 	// response, parameter and the like) the parser leaves the model unbuilt and
 	// dereferences it, on a goroutine no recover here reaches (GitHub #474).
 	//
-	// The document is refused before parsing, at every position, because telling
-	// the faulting ones apart would mean maintaining a copy of the parser's object
-	// model. A tagged scalar is a separate question (GitHub #245) and is not
-	// refused.
+	// The document is refused before parsing whatever the position, since telling
+	// the faulting ones apart would mean copying the parser's object model, at
+	// the tagged mapping with the least pointer. A tagged scalar is not refused
+	// (GitHub #245).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -227,11 +234,10 @@ const (
 	DisjointVisibility = "openapi/disjoint-visibility"
 	// AliasAmplification reports a document whose YAML aliases expand it past a
 	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
-	// for small documents) — a billion-laughs shape
-	// that would exhaust memory inside soa.Unmarshal before any reference is
-	// resolved (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
-	// this is a positive, measured finding, so the document is refused outright
-	// rather than handed to the parser.
+	// for small documents) — a billion-laughs shape that would exhaust memory
+	// inside soa.Unmarshal before any reference is resolved (GitHub #27). A
+	// positive, measured finding, unlike CycleScanFailed, it refuses the document
+	// outright, at the least pointer of the smallest structures past the ratio.
 	//
 	// It is a ratio and no caller's budget, so no setting admits a document it
 	// names. A document inside the ratio whose aliases still add more nodes than

@@ -248,6 +248,17 @@ var workShapes = []struct {
 		}
 		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
 	}},
+	{"a loop in each", func(n int) string {
+		return repeated(n, "    S%d: {$defs: {a: {$ref: '#/$defs/b'}, b: {$ref: '#/$defs/a'}}, x-i: %d}\n")
+	}},
+	{"every reference into one loop", func(n int) string {
+		var sb strings.Builder
+		sb.WriteString("    L: {$defs: {a: {$ref: '#/$defs/b'}, b: {$ref: '#/$defs/a'}}}\n")
+		for i := range n {
+			fmt.Fprintf(&sb, "    S%d: {$ref: '#/components/schemas/L/$defs/a'}\n", i)
+		}
+		return schemasDoc(strings.TrimRight(sb.String(), "\n"))
+	}},
 	{"declarations nested in an extension", func(n int) string {
 		return "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-deep: " +
 			strings.Repeat("{$anchor: a, k: ", n) + "1" + strings.Repeat("}", n) +
@@ -270,10 +281,7 @@ func workSpent(t *testing.T, spec string) int {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
 	r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
-	state := map[vertex]int{}
-	for _, start := range starts {
-		r.cycles(start, state)
-	}
+	r.cycleMembers(starts)
 	require.False(t, r.incomplete(), "the shape fits the budget")
 	return r.budget.spent
 }
@@ -337,12 +345,7 @@ func TestNewReach_ChargesEveryPhase(t *testing.T) {
 		"each declaration is filed under its own document and the whole tree")
 	assert.Positive(t, phase(func() { r.markSearched(defsRefs) }))
 	assert.Positive(t, phase(func() { r.drift(defsRefs) }))
-	assert.Positive(t, phase(func() {
-		state := map[vertex]int{}
-		for _, start := range starts {
-			r.cycles(start, state)
-		}
-	}))
+	assert.Positive(t, phase(func() { r.cycleMembers(starts) }))
 }
 
 // TestScopesOf_VisitsASharedAncestorOnce pins scopesOf for a declaring mapping
@@ -423,7 +426,7 @@ func TestCycles_ChargesEveryStep(t *testing.T) {
 	require.Len(t, starts, 1)
 
 	before := r.budget.spent
-	require.False(t, r.cycles(starts[0], map[vertex]int{}))
+	require.Empty(t, r.cycleMembers(starts))
 	assert.GreaterOrEqual(t, r.budget.spent-before, declarations)
 }
 
@@ -480,9 +483,10 @@ func TestReach_EveryWalkStopsOnceTheBudgetIsSpent(t *testing.T) {
 	t.Run("cycles", func(t *testing.T) {
 		t.Parallel()
 		r, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
-		require.True(t, r.cycles(starts[0], map[vertex]int{}), "with budget to spare the cycle is found")
-		r.budget.limit = r.budget.spent
-		assert.False(t, r.cycles(starts[0], map[vertex]int{}), "with none it gives no verdict")
+		require.NotEmpty(t, r.cycleMembers(starts), "with budget to spare the cycle is found")
+		fresh, starts := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+		fresh.budget.limit = fresh.budget.spent
+		assert.Empty(t, fresh.cycleMembers(starts), "with none it gives no verdict")
 	})
 }
 

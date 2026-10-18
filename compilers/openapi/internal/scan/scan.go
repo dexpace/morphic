@@ -171,26 +171,34 @@ func stepsIn(root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
 	return out, !cut
 }
 
-// reachChildren hands reach each child of n with the step that leads to it.
+// reachChildren hands reach each child of n a pointer reaches, with the step
+// that leads to it.
 func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
+	eachChild(n, func(c *yaml.Node, token string, held bool) {
+		if held {
+			reach(c, step{holder: n, token: token})
+		}
+	})
+}
+
+// eachChild hands visit each child of a mapping or sequence n, with the token
+// naming it and whether a pointer reaches it there: a pair under a `<<` merge
+// key, or under a key that is no scalar, is n's but has no pointer of its own.
+// A scalar holds nothing, and an alias's target is written elsewhere.
+func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
 			token, own := nodeview.KeyOf(key)
-			if !own {
-				continue
-			}
-			reach(key, step{holder: n, token: token})
-			reach(value, step{holder: n, token: token})
+			visit(key, token, own)
+			visit(value, token, own)
 		}
 	case yaml.SequenceNode:
 		for i, item := range n.Content {
-			reach(item, step{holder: n, token: strconv.Itoa(i)})
+			visit(item, strconv.Itoa(i), true)
 		}
 	default:
-		// A scalar holds nothing, and an alias's target is indexed where it
-		// is written.
 	}
 }
 
@@ -271,23 +279,26 @@ func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnost
 	})
 }
 
-// anchorCycle reports the recursive anchor the index found, if any. It is read
-// before anything weighs the document's aliases: a recursive anchor makes the
-// expanded weight infinite, and having refused those is what makes the alias
-// graph a DAG and the weigh walk provably terminating.
+// anchorCycle reports a recursive anchor the index found, if any, at the alias
+// with the least pointer (Least). It is read before anything weighs the
+// document's aliases: a recursive anchor makes the expanded weight infinite,
+// and having refused those is what makes the alias graph a DAG and the weigh
+// walk provably terminating.
 func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	alias, ok := idx.AnchorCycle()
-	if !ok {
+	cycles := idx.AnchorCycles()
+	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false
 	}
+	alias := Least(idx.Root(), cycles)
 	return cyclicDiag(locate, alias,
 		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
 }
 
-// scanIndex reports the first degenerate cycle the index's tree carries, or nil.
-// The index's root is nil for a source with no document in it; the ref walk and
-// the weigher both treat that as "nothing to scan", so no explicit nil guard is
-// needed here.
+// scanIndex reports the degenerate structure the index's tree carries, or nil:
+// a recursive anchor before anything else, then $ref chains, then alias
+// amplification. The index's root is nil for a source with no document in it;
+// the ref walk and the weigher both treat that as "nothing to scan", so no
+// explicit nil guard is needed here.
 func scanIndex(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	if d, ok := anchorCycle(locate, idx); ok {
 		return []ir.Diagnostic{d}
@@ -319,10 +330,11 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycles reports the first degenerate chain among the collected references:
-// one followed until it revisits a node on it without reaching a node with no
-// top-level $ref, where speakeasy stops resolving. Schema positions are refused
-// on that alone; reference-object positions are judged by outsideCycle.
+// refCycles reports the degenerate chains among the collected references, at
+// one site (see refusal): a chain followed until it revisits a node on it
+// without reaching a node with no top-level $ref, where speakeasy stops
+// resolving. Schema positions are refused on that alone; reference-object
+// positions as outsideRefused judges them.
 //
 // If the mapping view hit nodeview.MergeDepthLimit it returns a
 // diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
@@ -332,13 +344,7 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
 	chains := settleChains(s.view, root, slices.Concat(s.out, s.outside), sourceindex.MaxIndexedNodes)
-	for _, start := range s.out {
-		if chains.outcome(start).verdict == chainCycles {
-			return []ir.Diagnostic{cyclicDiag(locate, start,
-				"cyclic $ref: reference chain never reaches a node without a $ref")}
-		}
-	}
-	if d, found := s.outsideCycle(locate, chains); found {
+	if d, found := s.refusal(locate, root, chains); found {
 		return []ir.Diagnostic{d}
 	}
 	if s.view.Exhausted() {
@@ -351,8 +357,55 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	return nil
 }
 
-// outsideCycle reports the first degenerate chain among reference objects
-// outside any schema that speakeasy's resolver cannot report itself.
+// refusal reports the chains refCycles refuses, or nothing when it refuses
+// none. However many there are, one diagnostic names one site: of what the
+// refused chains fail on (chainGraph.failsOn), the node with the least pointer
+// (Least). A reference that only leads into a cycle is not named, and no
+// declaration order moves the site (GitHub #912).
+func (s *refScan) refusal(locate Locator, root *yaml.Node, chains *chainGraph) (ir.Diagnostic, bool) {
+	failed := failures{chains: chains, loops: map[int]bool{}}
+	for _, start := range s.out {
+		if chains.outcome(start).verdict == chainCycles {
+			failed.add(start)
+		}
+	}
+	for _, start := range s.outside {
+		if outsideRefused(chains.outcome(start)) {
+			failed.add(start)
+		}
+	}
+	if len(failed.sites) == 0 {
+		return ir.Diagnostic{}, false
+	}
+	site := Least(root, failed.sites)
+	if h := chains.hops[site]; h.loop != 0 && failed.loops[h.loop] {
+		return cyclicDiag(locate, site, "cyclic $ref: reference chain never reaches a node without a $ref"), true
+	}
+	return cyclicDiag(locate, site, "cyclic $ref: reference resolves through itself"), true
+}
+
+// failures gathers what the refused chains fail on: each loop one cycles in,
+// once, and each node one first re-enters.
+type failures struct {
+	chains *chainGraph
+	loops  map[int]bool
+	sites  []*yaml.Node
+}
+
+// add records what the chain from start fails on.
+func (f *failures) add(start *yaml.Node) {
+	loop, sites := f.chains.failsOn(start)
+	if loop != 0 && f.loops[loop] {
+		return
+	}
+	if loop != 0 {
+		f.loops[loop] = true
+	}
+	f.sites = append(f.sites, sites...)
+}
+
+// outsideRefused reports whether the chain from a reference object outside any
+// schema is one speakeasy's resolver cannot report itself.
 //
 // The resolver's cycle guard tracks completed hops: resolveObjectWithTracking
 // extends its chain only after Reference.resolve returns. Whole-node hops under
@@ -362,19 +415,8 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 //
 // A hop passing through a reference deadlocks before the tracker runs (see
 // chainReenters), so that verdict is refused whatever the pointer names.
-func (s *refScan) outsideCycle(locate Locator, chains *chainGraph) (ir.Diagnostic, bool) {
-	for _, start := range s.outside {
-		chain := chains.outcome(start)
-		switch {
-		case chain.verdict == chainReenters:
-			return cyclicDiag(locate, start,
-				"cyclic $ref: reference resolves through itself"), true
-		case chain.verdict == chainCycles && chain.leftComponents:
-			return cyclicDiag(locate, start,
-				"cyclic $ref: reference chain never reaches a node without a $ref"), true
-		}
-	}
-	return ir.Diagnostic{}, false
+func outsideRefused(chain chainOutcome) bool {
+	return chain.verdict == chainReenters || (chain.verdict == chainCycles && chain.leftComponents)
 }
 
 // componentsSection is the pointer of the components object itself. It repeats
@@ -418,7 +460,7 @@ const (
 // chainOutcome is how the chain from a node ends: its verdict and, for
 // chainCycles alone, whether a hop on the way named a node outside components,
 // which separates a cycle speakeasy's resolver refuses from one it faults on
-// (see outsideCycle). For any other verdict it is false.
+// (see outsideRefused). For any other verdict it is false.
 type chainOutcome struct {
 	verdict        chainVerdict
 	leftComponents bool
@@ -463,7 +505,7 @@ type refScan struct {
 	out   []*yaml.Node
 	// outside holds the pure-$ref nodes found in reference-object positions
 	// rather than schema ones. They are kept apart from out because the two are
-	// reported under different rules — see outsideCycle.
+	// reported under different rules — see outsideRefused.
 	outside []*yaml.Node
 }
 
@@ -481,8 +523,8 @@ func newRefScan() *refScan {
 // collect gathers every pure-$ref node reachable through a schema position into
 // s.out, skipping reference objects and data subtrees that speakeasy never
 // resolves as schema references. Nodes are appended in the depth-first
-// pre-order a recursive walk would produce, which keeps the reported cycle
-// stable for a document containing more than one.
+// pre-order a recursive walk would produce, which the chains are read in; what
+// a refusal names is chosen by pointer, so it follows no such order.
 func (s *refScan) collect(root *yaml.Node) {
 	s.push(root, roleOutside)
 	for len(s.stack) > 0 {
@@ -624,17 +666,17 @@ const maxAliasAmplification = 128
 const minExpandedNodes = 1 << 15 // 32768
 
 // aliasAmplification reports whether root's alias-substituted form exceeds what
-// the document may expand to, with an error diagnostic at the innermost node
-// that crossed. raw is the document's own node count.
+// the document may expand to, with an error at the innermost node that crossed,
+// the least by pointer of several. raw is the document's own node count.
 //
 // Two bounds apply. The ratio (maxAliasAmplification, floored at
 // minExpandedNodes) catches compounding aliasing, as diag.AliasAmplification
 // whatever the budget. surplus, the nodes aliasing may add beyond raw (zero for
-// no bound), catches one anchor repeated in a flat list, whose ratio stops
-// growing while memory climbs, as diag.BudgetExceeded.
+// none), catches one anchor repeated in a flat list, whose ratio stays put
+// while memory climbs, as diag.BudgetExceeded.
 //
-// Run it only after a recursive anchor is refused, which makes the alias graph
-// a DAG and the walk terminate (see scanIndex).
+// Run it only once recursive anchors are refused, which makes the alias graph
+// a DAG (see scanIndex).
 func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
@@ -647,21 +689,21 @@ func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir
 
 	// One walk against whichever bound binds, so a document refused by neither —
 	// every document a compile goes on to lower — costs a single walk.
-	culprit, exceeded := newAliasWeigher(bound).weigh(root)
-	if !exceeded {
+	culprits := newAliasWeigher(bound).weigh(root)
+	if len(culprits) == 0 {
 		return ir.Diagnostic{}, false
 	}
 	if !budgeted {
-		return aliasAmplificationDiag(locate, culprit, shape, raw), true
+		return aliasAmplificationDiag(locate, Least(root, culprits), shape, raw), true
 	}
 
 	// Past the budget, the document is weighed again against the ratio, so one
 	// past both is named for the shape, which no budget admits. Only a refused
 	// document pays for this walk.
-	if bomb, pastShape := newAliasWeigher(shape).weigh(root); pastShape {
-		return aliasAmplificationDiag(locate, bomb, shape, raw), true
+	if bombs := newAliasWeigher(shape).weigh(root); len(bombs) > 0 {
+		return aliasAmplificationDiag(locate, Least(root, bombs), shape, raw), true
 	}
-	return aliasBudgetDiag(locate, culprit, surplus, raw), true
+	return aliasBudgetDiag(locate, Least(root, culprits), surplus, raw), true
 }
 
 // shapeAllowance returns the expanded weight the ratio rule admits for a
@@ -716,6 +758,9 @@ type aliasWeigher struct {
 	ceiling   int64
 	weight    map[*yaml.Node]int64
 	inFlight  map[*yaml.Node]bool
+	// cut holds each node a cycle reached while it was in flight, whose weight is
+	// the ceiling it was saturated to rather than one weighed.
+	cut map[*yaml.Node]bool
 
 	// computations counts how many times computeWeight actually ran, as
 	// opposed to how many times a node's weight was merely read from the
@@ -735,22 +780,24 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 		ceiling:   allowance + 1,
 		weight:    map[*yaml.Node]int64{},
 		inFlight:  map[*yaml.Node]bool{},
+		cut:       map[*yaml.Node]bool{},
 	}
 }
 
-// weigh computes expandedWeight for every node reachable from root. It returns
-// the first node, in post-order, whose weight exceeds w.allowance and true, or
-// nil and false if none does. Post-order makes that node the innermost
-// amplifier: a node is weighed before its ancestors, so the walk stops at the
-// smallest structure already too large.
+// weigh computes expandedWeight for every node reachable from root, and returns
+// in post-order every innermost amplifier: a node whose weight exceeds
+// w.allowance though nothing it depends on does, the smallest structure already
+// too large. It returns none for a document within the allowance. It weighs on
+// past the first, since which comes first is the document's declaration order.
 //
 // Each distinct node enters the stack at most once, because pushChildren skips
 // one whose weight is known or that is in flight, so the stack is bounded by
 // the distinct nodes reachable from root.
-func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
+func (w *aliasWeigher) weigh(root *yaml.Node) []*yaml.Node {
 	if root == nil {
-		return nil, false
+		return nil
 	}
+	var innermost []*yaml.Node
 	stack := []*weighFrame{{n: root}}
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
@@ -770,11 +817,21 @@ func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
 		w.computations++
 		w.weight[top.n] = wt
 		stack = stack[:len(stack)-1]
-		if wt > w.allowance {
-			return top.n, true
+		if wt > w.allowance && !w.dependsOnAmplifier(top.n) {
+			innermost = append(innermost, top.n)
 		}
 	}
-	return nil, false
+	return innermost
+}
+
+// dependsOnAmplifier reports whether something n's weight depends on (see
+// childrenOf), every one of which is weighed by the time n is, is itself past
+// the allowance. A node a cycle cut is not weighed and never finishes, so the
+// node depending on it is the innermost there is.
+func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
+	return slices.ContainsFunc(childrenOf(n), func(c *yaml.Node) bool {
+		return !w.cut[c] && w.weight[c] > w.allowance
+	})
 }
 
 // pushChildren enqueues the nodes n's weight depends on (see childrenOf). A
@@ -790,7 +847,7 @@ func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 			continue
 		}
 		if w.inFlight[c] {
-			w.weight[c] = w.ceiling
+			w.weight[c], w.cut[c] = w.ceiling, true
 			continue
 		}
 		if _, done := w.weight[c]; done {

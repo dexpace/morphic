@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"go/constant"
+	"go/types"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -651,4 +654,32 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 	r := Check(context.Background(), "spec", []byte(src))
 	assert.Equal(t, OutcomeOrderDependent, r.Outcome, "detail: %s", r.Detail)
 	assert.Contains(t, r.Detail, "declaration order")
+}
+
+// TestMaxReverseDepth_ReachesEveryAdmittedDocument holds the rewrite's bound
+// to the nesting the OpenAPI compiler admits, read where it is declared: a
+// document nested exactly that deep is permuted whole, and one level more is
+// refused, as the compiler refuses it. Below the bound, the oracle would skip
+// documents the compiler lowers.
+func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
+	t.Parallel()
+	pkg, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/scan")
+	require.NoError(t, err)
+	admitted := -1
+	for c := range pkg.Objects[*types.Const]() {
+		if c.Name() == "MaxNesting" {
+			v, exact := constant.Int64Val(c.Val())
+			require.True(t, exact)
+			admitted = int(v)
+		}
+	}
+	require.Positive(t, admitted, "the scan declares MaxNesting")
+	nested := func(n int) []byte {
+		return []byte(strings.Repeat("{k: ", n) + "1" + strings.Repeat("}", n) + "\n")
+	}
+
+	_, ok := reverseMappings(nested(admitted))
+	assert.True(t, ok, "a document at the compiler's bound is permuted")
+	_, ok = reverseMappings(nested(admitted + 1))
+	assert.False(t, ok, "one past it is the compiler's to refuse, and the rewrite's")
 }

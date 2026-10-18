@@ -144,9 +144,10 @@ func releaseAnchors(root *yaml.Node) {
 var ErrParse = errors.New("parse source")
 
 // maxSchemaScanDepth bounds the scalar scan of a schema node (styleguide
-// bounded-recursion rule); a schema nested deeper is pathological, not a spec the
-// compiler is expected to classify.
-const maxSchemaScanDepth = 512
+// bounded-recursion rule) at the nesting the pre-parse scan admits: no tree the
+// parser is handed nests deeper (scan.Nesting), so the scan reaches every
+// scalar under any node of one.
+const maxSchemaScanDepth = scan.MaxNesting
 
 // Document is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
@@ -423,11 +424,12 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 	}
 }
 
-// refusals indexes a decoded tree once and reports its pre-parse refusals: the
-// degenerate reference and alias structures scan finds, a mapping carrying a
-// tag the parser faults on (see diag.TaggedMapping), and a refusal of its own
-// when the document is too large to index in full. A tag refusal is reported
-// alongside a cycle, not instead of one.
+// refusals indexes a decoded tree once and reports its pre-parse refusals: a
+// document nested too deeply to build (scan.Nesting), the degenerate reference
+// and alias structures scan finds, a mapping carrying a tag the parser faults
+// on (see diag.TaggedMapping), and a refusal of its own when the document is
+// too large to index in full. Each refusal is reported alongside the others,
+// not instead of them.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -445,9 +447,13 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))
-	if n, ok := idx.TaggedMapping(); ok {
-		diags = append(diags, taggedMappingRefusal(locate, n))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	diags = append(diags, scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))...)
+	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
 	}
 	return diags
 }

@@ -271,6 +271,14 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	return Cycles(InSource(0), indexOf(t, data), defaultSurplus)
 }
 
+// scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
+// load places them, for a test that names a site by pointer.
+func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
+	t.Helper()
+	idx := indexOf(t, data)
+	return Cycles(InTree(0, Pointers(idx.Root())), idx, defaultSurplus)
+}
+
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
 // decode never reaches the scan in a real compile — load returns a parse error
 // first — so a decode failure here is a broken fixture, not a case to scan.

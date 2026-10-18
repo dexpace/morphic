@@ -105,8 +105,9 @@ Promoting something into the framework later is additive, while demoting it brea
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
 A compiler is also bounded in what one compile may cost. Most bounds are constants beside the
-walk they bound (schema nesting depth, how many times its own size a document's aliases expand
-it to, reference-chain length), because nothing about them is a caller's to choose. The bounds on
+walk they bound (schema nesting depth, how deeply a document nests, how many times its own size
+a document's aliases expand it to, reference-chain length), because nothing about them is a
+caller's to choose. The bounds on
 the *input* are, so they are options: `openapi.Options.Limits` carries a byte budget, a
 parsed-node budget and an alias budget for one source document and a member budget for one enum,
 each with a documented default and each settable — zero takes the default, negative turns the
