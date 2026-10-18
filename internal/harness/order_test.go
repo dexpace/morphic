@@ -7,9 +7,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -318,9 +321,10 @@ func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 	}
 }
 
-// TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding pins the sorting:
-// properties, pattern properties and examples are held in source order, so a
-// permutation reorders them by design and must not be reported.
+// TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding pins the
+// order-blind comparison: properties, pattern properties and examples are held
+// in source order, so a permutation reorders them by design and must not be
+// reported.
 func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 	t.Parallel()
 	props := []ir.Property{{ID: "p/x/a", WireName: "a"}, {ID: "p/x/b", WireName: "b"}}
@@ -354,9 +358,10 @@ func numbers(pairs ...string) ir.Value {
 	return v
 }
 
-// objectValuedModel is a model whose property default and two unnamed examples
-// are object values, written as the source declares them or with every object's
-// members reversed, which is what reversing the source does to them (#683).
+// objectValuedModel is a model whose property default and unnamed examples hold
+// object values, one of them inside a list, written as the source declares them
+// or with every object's members reversed, which is what reversing the source
+// does to them (#683).
 func objectValuedModel(reversed bool, defaultX string) *ir.Document {
 	def := numbers("x", defaultX, "y", "2")
 	first, second := numbers("x", "1", "y", "4"), numbers("x", "2", "y", "3")
@@ -373,9 +378,10 @@ func objectValuedModel(reversed bool, defaultX string) *ir.Document {
 	}}}
 }
 
-// TestDiffOrderInvariants_ReorderedObjectMembersAreNotAFinding pins #683. The
-// two examples sort in opposite orders once their members are reversed, so
-// comparing their members as written pairs each with the other one.
+// TestDiffOrderInvariants_ReorderedObjectMembersAreNotAFinding pins #683. Its
+// two unnamed examples order oppositely once their members are reversed, so a
+// comparison that sorted examples by a rendering as written would pair each
+// with the other one.
 func TestDiffOrderInvariants_ReorderedObjectMembersAreNotAFinding(t *testing.T) {
 	t.Parallel()
 	detail, ok := diffOrderInvariants(objectValuedModel(false, "1"), objectValuedModel(true, "1"), nil)
@@ -391,26 +397,60 @@ func TestDiffOrderInvariants_ChangedObjectMemberIsAFinding(t *testing.T) {
 	assert.Contains(t, detail, "type registry depends on declaration order")
 }
 
-// TestCanonicalValue_StopsAtTheDepthBound covers the bound: a value nested past
-// maxReverseDepth comes back as it is, while one within it is put in name order.
-func TestCanonicalValue_StopsAtTheDepthBound(t *testing.T) {
+// TestSameExamples_ComparesAMultiset pins what matching examples forgives: the
+// order they come in, and nothing else. A repeated example is counted, and a
+// nil list is not an empty one, which cmp.Equal would not forgive either.
+func TestSameExamples_ComparesAMultiset(t *testing.T) {
 	t.Parallel()
-	deep := numbers("b", "2", "a", "1")
-	for range maxReverseDepth + 1 {
-		deep = ir.Value{Kind: ir.ValueList, List: []ir.Value{deep}}
+	one, two := ir.Example{Name: "one"}, ir.Example{Name: "two"}
+	for _, tc := range []struct {
+		name string
+		a, b []ir.Example
+		same bool
+	}{
+		{"the same order", []ir.Example{one, two}, []ir.Example{one, two}, true},
+		{"the other order", []ir.Example{one, two}, []ir.Example{two, one}, true},
+		{"a repeat in either order", []ir.Example{one, two, one}, []ir.Example{two, one, one}, true},
+		{"both nil", nil, nil, true},
+		{"another example", []ir.Example{one, one}, []ir.Example{one, two}, false},
+		{"a repeat counted once", []ir.Example{one, one, two}, []ir.Example{one, two, two}, false},
+		{"one more", []ir.Example{one}, []ir.Example{one, one}, false},
+		{"nil against empty", nil, []ir.Example{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.same, sameExamples(tc.a, tc.b))
+			assert.Equal(t, tc.same, sameExamples(tc.b, tc.a), "matching must be symmetric")
+		})
 	}
+}
 
-	innermost := canonicalValue(deep, 0)
-	for range maxReverseDepth + 1 {
-		require.Len(t, innermost.List, 1)
-		innermost = innermost.List[0]
+// TestSameExamples_SeeksOnlyAmongItsName holds matching to the work its doc
+// claims: doubling a reversed list of named examples doubles the comparisons,
+// where seeking each among every unmatched one would quadruple them. It counts
+// filter calls rather than time, and compares two counts because cmp may
+// consult a filter more than once per comparison.
+func TestSameExamples_SeeksOnlyAmongItsName(t *testing.T) {
+	t.Parallel()
+	comparisons := func(n int) int {
+		examples := make([]ir.Example, n)
+		for i := range examples {
+			examples[i] = ir.Example{Name: strconv.Itoa(i)}
+		}
+		reversed := slices.Clone(examples)
+		slices.Reverse(reversed)
+
+		calls := 0
+		counting := cmp.FilterValues(func(_, _ ir.Example) bool {
+			calls++
+			return false
+		}, cmp.Ignore())
+		require.True(t, sameExamples(examples, reversed, counting))
+		return calls
 	}
-	require.Len(t, innermost.Object, 2)
-	assert.Equal(t, "b", innermost.Object[0].Name, "a value past the bound is left as written")
-
-	shallow := canonicalValue(numbers("b", "2", "a", "1"), 0)
-	require.Len(t, shallow.Object, 2)
-	assert.Equal(t, "a", shallow.Object[0].Name, "a value within the bound is put in name order")
+	small, large := comparisons(100), comparisons(200)
+	require.Positive(t, small, "the filter must see the comparisons it counts")
+	assert.Equal(t, 2*small, large)
 }
 
 // TestOrderInvariant_ReachesTheCorpus is the reachability guard. The oracle
@@ -482,6 +522,16 @@ func TestOrderInvariant_PermutationArtifactsAreNotFindings(t *testing.T) {
 			// the permuted source does not parse at all.
 			name: "an alias reordered above its anchor",
 			src:  "openapi: 3.0.0\ninfo: {title: 0, version: 0}\n0: &m\n1: *m\n",
+		},
+		{
+			// Each object value's members come back reversed, which Value.Object
+			// keeps by design (#683). The two unnamed examples order oppositely
+			// once reversed, so sorting them as written would pair them crosswise.
+			name: "object values with several members",
+			src: "openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {}\ncomponents:\n  schemas:\n" +
+				"    S:\n      type: object\n      properties:\n" +
+				"        flags: {type: object, additionalProperties: {type: boolean}, default: {a: true, b: false}}\n" +
+				"      examples: [{x: 1, y: 4}, {x: 2, y: 3}]\n",
 		},
 		{
 			// The permutation moves the fixture's one finding to another line
