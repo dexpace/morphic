@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,10 +48,15 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 
 	got, err := New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{
-			"grouping":            "path-prefix",
-			"allow-external-refs": "true",
-			"overlay":             "patch.yaml",
-			"overlay-lax":         "true",
+			"grouping":               "path-prefix",
+			"allow-external-refs":    "true",
+			"overlay":                "patch.yaml",
+			"overlay-lax":            "true",
+			"max-source-bytes":       "11",
+			"max-source-nodes":       "-1",
+			"max-enum-members":       "0",
+			"max-alias-surplus":      "+13",
+			"max-external-documents": "14",
 		},
 		ReadFile: read,
 	})
@@ -64,6 +70,30 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
 	assert.Equal(t, overlayDoc, string(opts.Overlay.Data))
 	assert.True(t, opts.Overlay.Lax)
+	assert.Equal(t, Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
+		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
+}
+
+// TestLimitOptions_NameEveryBudget holds the text vocabulary to Limits itself:
+// each field is set by exactly one option, so a budget added to Limits without
+// a name to set it by fails here rather than staying out of a text caller's
+// reach.
+func TestLimitOptions_NameEveryBudget(t *testing.T) {
+	t.Parallel()
+	var l Limits
+	fields := map[*int]string{}
+	for name, field := range limitOptions(&l) {
+		_, dup := fields[field]
+		assert.False(t, dup, "%s sets a field another option sets", name)
+		fields[field] = name
+	}
+	limits := reflect.ValueOf(&l).Elem()
+	require.Equal(t, limits.NumField(), len(fields), "an option for each field, and no other")
+	for i := range limits.NumField() {
+		field, ok := limits.Field(i).Addr().Interface().(*int)
+		require.True(t, ok, "%s is an int budget", limits.Type().Field(i).Name)
+		assert.Contains(t, fields, field, "%s has an option", limits.Type().Field(i).Name)
+	}
 }
 
 func TestDecodeOptions_EmptySetIsDefaults(t *testing.T) {
@@ -83,7 +113,14 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		wantErr  string
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"}, nil,
-			`unknown option "gruoping" (known: allow-external-refs, grouping, overlay, overlay-lax)`},
+			`unknown option "gruoping" (known: allow-external-refs, grouping, max-alias-surplus, ` +
+				`max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, overlay, overlay-lax)`},
+		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"}, nil,
+			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
+		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"}, nil,
+			`"max-source-nodes": want an integer`},
+		{"empty budget", map[string]string{"max-external-documents": ""}, nil,
+			`"max-external-documents": want an integer`},
 		{"unknown grouping", map[string]string{"grouping": "alphabetical"}, nil,
 			`want "tags" or "path-prefix", got "alphabetical"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"}, nil,

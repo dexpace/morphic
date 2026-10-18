@@ -193,6 +193,14 @@ OpenAPI compiler accepts:
 | `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution leave the source document, reading files and fetching URLs. |
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
+| `max-source-bytes` | an integer | The byte budget for one document. |
+| `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
+| `max-enum-members` | an integer | The budget on the members of one enum. |
+| `max-alias-surplus` | an integer | The budget on the nodes YAML aliases may add to a document. |
+| `max-external-documents` | an integer | The budget on how many documents external references read in one compile. |
+
+Each `max-*` option sets the `openapi.Limits` budget it names, whose default is documented there:
+`0` takes the default, and a negative value turns the budget off.
 
 ```bash
 morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml

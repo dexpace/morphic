@@ -239,6 +239,25 @@ actions:
 	assert.Len(t, doc.Sources, 2, "an applied overlay is a second source")
 }
 
+// TestRun_BudgetOptionReachesTheCompiler pins a budget set as text: a byte
+// budget below the spec's size refuses it with the compiler's own diagnostic,
+// and a negative one compiles it as no budget at all does.
+func TestRun_BudgetOptionReachesTheCompiler(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", testspec.Tiny)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"validate", spec, "--opt", "max-source-bytes=8"}, &stdout, &stderr)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "openapi/budget-exceeded")
+	assert.Contains(t, stderr.String(), "past the 8-byte budget")
+
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"validate", spec, "--opt", "max-source-bytes=-1"}, &stdout, &stderr)
+	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
+}
+
 func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
@@ -252,6 +271,7 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 		// value is still unusable. Read as "no overlay" it would exit 0 having
 		// applied none, which is the one outcome --opt exists to rule out.
 		{"empty value", "overlay=", `"overlay": want a file path`},
+		{"non-integer budget", "max-source-bytes=lots", `"max-source-bytes": want an integer`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
