@@ -367,10 +367,9 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 //
 // A hop passing through a reference deadlocks before the tracker runs (see
 // chainReenters), so that verdict is refused whatever the pointer names.
-//
-// A cycle verdict is not remembered, so a long chain ending in a loop that never
-// leaves components is walked again from each start.
 func (s *refScan) outsideCycle(locate Locator, root *yaml.Node) (ir.Diagnostic, bool) {
+	// A cycle verdict is not remembered, so a long chain ending in a loop that
+	// never leaves components is walked again from each start.
 	for _, start := range s.outside {
 		verdict, leftComponents := s.followRefChain(root, start)
 		switch {
