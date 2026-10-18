@@ -26,9 +26,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxCycleDepth is how many hops a start may take to reveal a cycle: a chain
-// whose first revisit comes later is no verdict for that start, and a spec
-// chains far shorter. A loop longer than this is therefore reported from no
+// maxCycleDepth is how many hops a start may take to reveal a cycle: a start
+// whose chain first revisits or passes through one of its own nodes after that
+// gets no verdict, and a spec chains far shorter. A loop longer than this is therefore reported from no
 // start (#922). The walk itself runs past it, to the end of the chain, so the
 // nodes it covered are remembered rather than re-walked by every later start.
 const maxCycleDepth = 10000
@@ -404,7 +404,8 @@ type chainVerdict int
 
 const (
 	// chainTerminates: the chain reached a node with no top-level $ref, or a
-	// pointer that names nothing. The resolver stops either way.
+	// pointer that names nothing. The resolver stops either way. It is also the
+	// answer for a start whose chain ends past maxCycleDepth, however it ends.
 	chainTerminates chainVerdict = iota
 
 	// chainCycles: every hop resolved to a whole node, and the chain revisited
@@ -465,8 +466,8 @@ type refScan struct {
 	// reported under different rules — see outsideCycle.
 	outside []*yaml.Node
 	safe    map[*yaml.Node]bool
-	// hopLimit bounds one chain walk. Each hop lands on a node not yet on the
-	// chain, so a walk cannot outlast the document's nodes.
+	// hopLimit bounds one chain walk. A walk stops at the first node already on
+	// its chain, so it cannot outlast the document's nodes.
 	hopLimit int
 	// hops counts every hop any walk followed, so a test can bound the work
 	// without timing it.
@@ -635,8 +636,9 @@ type chainWalk struct {
 // components, which separates a cycle speakeasy's resolver refuses from one it
 // faults on (outsideCycle). It is meaningful only with chainCycles.
 //
-// s.safe memoizes nodes proven to reach a $ref-free node, keeping the scan
-// linear in the collected refs. A node on a cycle is never marked safe.
+// s.safe holds nodes that make any start reaching them terminate, keeping the
+// scan linear in the collected refs: each leads to an end the resolver stops at,
+// or to a revisit more than maxCycleDepth hops on (markPastHorizon).
 func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
 	w := s.walkChain(root, start)
 	switch {
@@ -654,7 +656,9 @@ func (s *refScan) followRefChain(root, start *yaml.Node) (chainVerdict, bool) {
 
 // walkChain follows the chain from start to its end, however long. Stopping at
 // maxCycleDepth would leave every node it covered unremembered, and each earlier
-// start would walk them again.
+// start would walk them again. The price falls on a walk past the cap that is
+// still not remembered (see markPastHorizon): each later start repeats it to
+// the chain's end rather than to maxCycleDepth (#923).
 func (s *refScan) walkChain(root, start *yaml.Node) chainWalk {
 	onPath := make(map[*yaml.Node]bool)
 	w := chainWalk{memoizable: true}
@@ -700,14 +704,15 @@ func (s *refScan) walkChain(root, start *yaml.Node) chainWalk {
 	return w
 }
 
-// markPastHorizon remembers what a walk that ended beyond maxCycleDepth proved,
-// so no later start walks it again and each still gets its own verdict.
+// markPastHorizon remembers what a walk ending past maxCycleDepth proved, so a
+// later start stops there yet gets the verdict its own capped walk would.
 //
 // A chain that terminates does so for every node on it. One that revisits a
 // node is a cycle for a start only while its tail and loop fit in
 // maxCycleDepth, which a node further than that from the walk's end cannot
 // meet; those are safe and the rest are left to a later start. A reentry
-// belongs to the chain that read it and is never remembered.
+// belongs to the chain that read it, and a walk hopLimit stopped proved
+// nothing, so neither is remembered.
 func (s *refScan) markPastHorizon(w chainWalk) {
 	switch w.end {
 	case endTerminates:
@@ -749,7 +754,7 @@ func (s *refScan) traverse(root *yaml.Node, ref jsontext.Pointer, onPath map[*ya
 	return hop[len(hop)-1], false, viaRef
 }
 
-// markSafe records every node on a proven chain-terminating path so a later
+// markSafe records every node of path as safe (see followRefChain), so a later
 // chain that reaches one stops instead of re-walking it.
 //
 // It declines when a hop passed through a reference. Re-entrancy belongs to a
