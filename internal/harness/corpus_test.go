@@ -94,6 +94,10 @@ func knownInvalid() map[string]bool {
 		// pointer, so '#/paths/~1a ' names /a there; a scan of the raw value
 		// would call it dangling and miss the cycle.
 		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"): true,
+		// A self-reference visible only when a '+' in the pointer is a plus,
+		// as RFC 3986 reads it: the resolver reads it as a space and would
+		// look for a key that is not there (#911).
+		filepath.FromSlash("../../testdata/openapi/cycle_pointer_plus_self.yaml"): true,
 		// A 10-level x 10-way YAML alias fan-out ("billion laughs"). Every
 		// alias target is acyclic, so neither the anchor nor the $ref cycle
 		// detector catches it, and unguarded it exhausts memory inside

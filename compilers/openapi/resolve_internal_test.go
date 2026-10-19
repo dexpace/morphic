@@ -400,7 +400,10 @@ var fragmentReadings = []struct {
 	{name: "a slash spelled as an escape still introduces a pointer", ref: "#%2F"},
 	{name: "lone slash", ref: "#/"},
 	// Escaping the two readers must keep agreeing on.
-	{name: "a plus decodes to a space", ref: "#/a+b"},
+	{name: "a plus is a plus", ref: "#/a+b"},
+	{name: "an escaped plus is a plus", ref: "#/a%2Bb"},
+	{name: "a plus beside an undecodable escape", ref: "#/a+b%zz"},
+	{name: "a plus before the second hash", ref: "#/a+b#c+d"},
 	{name: "second hash ends the pointer", ref: "#/a#b"},
 	{name: "leading and trailing space", ref: " #/a "},
 	{name: "non-canonical escape, accepted by both (GitHub #14)", ref: "#/A~B"},

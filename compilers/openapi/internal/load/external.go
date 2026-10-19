@@ -23,6 +23,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -265,7 +266,7 @@ func (e external) holdSpelling(ref references.Reference, base string) {
 	if err != nil || !e.read.self.names(abs.AbsoluteReference) {
 		return
 	}
-	e.holdSite(abs.AbsoluteReference, jsontext.Pointer(ref.GetJSONPointer()))
+	e.holdSite(abs.AbsoluteReference, fragment.Pointer(string(ref)))
 }
 
 // settle finishes resolving r, whose resolution returned vErrs and err. It
@@ -461,9 +462,10 @@ func isDriveLetter(c byte) bool {
 
 // prepare reads an external document from r, no further than one byte past the
 // byte budget, and stores the tree it parses to under key once the source's
-// refusals have passed it. It returns the bytes read, which the resolver still
-// reads and caches as it would have. It runs once per document a compile reads
-// (see externalReads.once), so no tree it stored is ever replaced.
+// refusals have passed it, its $refs rewritten as the source's are (see
+// escapes). It returns the bytes read, which the resolver still reads and
+// caches as it would have. It runs once per document a compile reads (see
+// externalReads.once), so no tree it stored is ever replaced.
 //
 // Bytes that will not parse are handed over unprepared, and the resolver
 // refuses them with its own reason.
@@ -489,6 +491,7 @@ func (e external) prepare(key string, r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	releaseAnchors(root)
+	e.read.self.escapes.escape(root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
 	e.holdSpellings(root, key)

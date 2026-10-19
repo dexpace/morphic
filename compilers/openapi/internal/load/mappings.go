@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -359,7 +360,7 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 // that the position is no schema: the lowering reports every target it cannot
 // resolve. One not provably ending is left out (see chainEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
-	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
+	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragment.Of(pointer)))
 	if !m.chainEnds(ref.GetRef()) {
 		return
 	}
@@ -376,7 +377,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	if declared := firstSchema(c); declared != nil {
 		m.out[pointer] = declared
 	}
-	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, c.trail(), vErrs, noSchemaNodes(c)
+	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, m.self.escapes.trailOf(c), vErrs, noSchemaNodes(c)
 	if err == nil {
 		m.enqueue(t.least, c)
 	}
@@ -452,7 +453,7 @@ func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, si
 		vErrs, err = m.reader.settle(ctx, js, m.opts, vErrs, err)
 	}
 	c := resolutionChain(js)
-	found.noteEntry(site, c.trail(), vErrs, noSchemaNodes(c))
+	found.noteEntry(site, m.self.escapes.trailOf(c), vErrs, noSchemaNodes(c))
 	m.nested = append(m.nested, siteRef{site: site, ref: js})
 	if err == nil {
 		m.enqueue(site, c)

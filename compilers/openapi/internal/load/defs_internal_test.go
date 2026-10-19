@@ -53,7 +53,7 @@ func TestHeldRefs_CollectsEveryHeldReferenceWithTheRulesAnswer(t *testing.T) {
 	require.Len(t, refs, 2, "one held reference per schema")
 	for _, r := range refs {
 		assert.NotNil(t, r.target, "the rule finds each schema's own definition")
-		assert.Equal(t, "#/$defs/n", r.written.String())
+		assert.Equal(t, "#/$defs/n", r.modelled.String())
 	}
 }
 
@@ -317,51 +317,12 @@ func TestResolveHeld_RecoversFromAPanicAndReportsWhere(t *testing.T) {
 
 	held := heldRefs(t.Context(), doc, Siblings{}, defs.NewReader(doc))
 	require.Len(t, held, 2)
-	held[1].written = nil // resolving the second then dereferences nothing
+	held[1].refused = "beside a path item $ref"
+	pass.at = nil // reporting the second then calls a locator that is not there
 	site, err = pass.resolveHeld(held)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference resolver panicked")
 	assert.Equal(t, held[1].site, site, "stopped at the reference being resolved")
-}
-
-// TestFragmentOf_RoundTrips pins that every byte fragmentOf percent-encodes
-// decodes back to exactly the pointer it started from once the resolver reads
-// it as a URI fragment (references.Reference.GetJSONPointer trims and
-// query-unescapes) — the property resolveHeld relies on to hand the resolver a
-// pointer it will read back unchanged.
-func TestFragmentOf_RoundTrips(t *testing.T) {
-	t.Parallel()
-	tests := []jsontext.Pointer{
-		"/$defs/a+b",
-		"/$defs/50%",
-		"/$defs/a#b",
-		"/$defs/a b",
-		"/$defs/héllo",
-	}
-	for _, p := range tests {
-		t.Run(string(p), func(t *testing.T) {
-			t.Parallel()
-			ref := references.Reference("#" + fragmentOf(p))
-			got := jsontext.Pointer(ref.GetJSONPointer())
-			assert.Equal(t, p, got)
-		})
-	}
-}
-
-// TestFragmentOf_RoundTripsEveryByte pins the same property for every byte
-// value at the start, the middle and the end of a key. The resolver trims the
-// fragment before it decodes it, and a '#' ends it, so those are the places a
-// byte left unencoded would be lost.
-func TestFragmentOf_RoundTripsEveryByte(t *testing.T) {
-	t.Parallel()
-	for b := range 256 {
-		for _, key := range []string{string([]byte{byte(b), 'a'}), string([]byte{'a', byte(b), 'b'}), string([]byte{'a', byte(b)})} {
-			p := jsontext.Pointer("/$defs/" + key)
-			ref := references.Reference("#" + fragmentOf(p))
-			require.Equal(t, p, jsontext.Pointer(ref.GetJSONPointer()), "byte 0x%02x in %q", b, key)
-			require.Empty(t, ref.GetURI(), "byte 0x%02x in %q", b, key)
-		}
-	}
 }
 
 // TestHeldDefsPointer pins which references load holds out of the resolver's

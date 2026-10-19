@@ -423,7 +423,7 @@ func resolverOver(t *testing.T, spec string, limit int) (*mappings, []ir.Diagnos
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
 	require.Empty(t, valErrs)
-	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
+	self := newSourceDocument("spec.yaml", []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, Options{}, nil)
 	pass.targets.limit = limit
 	_, diags := pass.run(doc)
@@ -1218,7 +1218,7 @@ func TestMappings_TheTargetsAreTheLastResolutions(t *testing.T) {
 	}
 
 	resolved, _, targets, _, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
-		newSourceDocument("root.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root)),
+		newSourceDocument("root.yaml", data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
 		Options{AllowExternalRefs: true}, rebuild)
 
 	require.NoError(t, err)
@@ -1317,7 +1317,7 @@ func externalResolverOver(t *testing.T, spec string) (*mappings, []ir.Diagnostic
 	require.NoError(t, err)
 	doc, valErrs, err := unmarshal(t.Context(), []byte(spec), root)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root))
+	self := newSourceDocument(filepath.Join(t.TempDir(), "spec.yaml"), []byte(spec), root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)

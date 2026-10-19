@@ -194,14 +194,14 @@ func TestTargetOf(t *testing.T) {
 		"ToS":     {filepath.Join(dir, "other.yaml"), false},
 		"ToLocal": {filepath.Join(dir, "root.yaml"), true},
 	} {
-		got, ok := targetOf("/site", schema(name))
+		got, ok := targetOf("/site", schema(name), nil)
 		require.True(t, ok, name)
 		assert.Equal(t, want.doc, got.doc, name)
 		assert.Equal(t, want.inSource, got.inSource, name)
 		assert.Equal(t, jsontext.Pointer("/site"), got.site, name)
 		assert.NotNil(t, got.node, name)
 	}
-	_, ok = targetOf("/site", stops)
+	_, ok = targetOf("/site", stops, nil)
 	assert.False(t, ok, "/stops reaches no object")
 }
 

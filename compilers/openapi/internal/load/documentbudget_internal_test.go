@@ -174,7 +174,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	}
 	opts.AllowExternalRefs = true
 	_, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
-		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root)), opts, rebuild)
+		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
 	return diags, rebuilds
 }

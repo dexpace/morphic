@@ -405,7 +405,7 @@ func TestNewSourceDocument_KeepsOnlyFindingsAtANode(t *testing.T) {
 	atNode := &validation.Error{Rule: "r", UnderlyingError: errors.New("m"), Node: node}
 	atNone := &validation.Error{Rule: "r", UnderlyingError: errors.New("n")}
 
-	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{})
+	self := newSourceDocument("root.yaml", nil, nil, []error{atNode, atNone, errors.New("plain")}, sourceTree{}, nil)
 
 	assert.Equal(t, map[findingKey]bool{keyOf(atNode, ""): true}, self.found)
 }
@@ -454,7 +454,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	releaseAnchors(root)
 	doc, valErrs, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root))
+	self := newSourceDocument(path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), nil)
 	opts := Options{AllowExternalRefs: true}
 	reader := newExternal(doc, opts, newExternalReads(self))
 	return doc, newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
@@ -648,7 +648,7 @@ func TestHold_ASchemaRefNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 	a, ok := doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 
-	pass.visit("/components/schemas/A", a, a.GetReference())
+	pass.visit("/components/schemas/A", a)
 
 	require.Empty(t, pass.failures)
 	assert.Equal(t, "string", string(a.GetResolvedSchema().GetSchema().GetType()[0]))

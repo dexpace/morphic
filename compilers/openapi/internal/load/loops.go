@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
@@ -74,7 +75,7 @@ func newLoops(self sourceDocument, model *soa.OpenAPI) *loops {
 // otherwise is no answer: one naming an anchor, a definition, or another
 // document.
 func (l *loops) within(ref references.Reference) (string, bool) {
-	pointer := string(ref.GetJSONPointer())
+	pointer := string(fragment.Pointer(string(ref)))
 	if !strings.HasPrefix(pointer, "/") || defs.IsPointer(jsontext.Pointer(pointer)) {
 		return "", false
 	}

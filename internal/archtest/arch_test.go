@@ -63,12 +63,18 @@ var rules = map[string][]string{
 	// included: an internal test file cannot import a package that imports its
 	// own.
 	"compilers/openapi/internal/ynode": {"gopkg.in/yaml.v3"},
+	// The one reading of a $ref fragment, and the spelling the resolver is handed
+	// for it (GitHub #911). It reaches the library's reference type for the
+	// resolver's own reading and nothing of the compiler, so the scans, the loader
+	// and the lowering can all reach it.
+	"compilers/openapi/internal/fragment": {"github.com/speakeasy-api/openapi/references"},
 	// A view over the raw source: mappings read the way the resolver reads them,
 	// through aliases and `<<` merge keys. It reaches the library's yml package
 	// for the merge-key predicate the unmarshaller itself uses, and is below both
 	// the scans that first wanted it and the schema lowering that wants the same
 	// view.
-	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/fragment",
+		"github.com/speakeasy-api/openapi/yml", "gopkg.in/yaml.v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
@@ -82,7 +88,8 @@ var rules = map[string][]string{
 	// navigation, and nothing of the compiler, so the loader that hands the
 	// resolver its answer and the lowering that names the target can both reach
 	// the one rule.
-	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/navigation",
+	"compilers/openapi/internal/defs": {module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
@@ -136,6 +143,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/defs",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/overlay",
@@ -163,6 +171,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/defs",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
@@ -244,6 +253,7 @@ var rules = map[string][]string{
 	// it reached. Widening this entry is how that becomes true silently.
 	"compilers/openapi/internal/openapitest": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",

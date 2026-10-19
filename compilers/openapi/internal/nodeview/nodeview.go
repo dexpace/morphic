@@ -10,12 +10,13 @@ package nodeview
 
 import (
 	"encoding/json/jsontext"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/yml"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )
 
 // maxAliasChain bounds how many alias hops Deref follows. yaml.v3 resolves an
@@ -378,11 +379,10 @@ func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 // document, and whether the resolver walks it as a pointer into this
 // document.
 //
-// It mirrors the resolver (references/reference.go GetURI and GetJSONPointer,
-// v1.24.0): split on '#', trim both halves, percent-decode the pointer; an
-// empty URI half names this document. A raw read would hide a resolvable
-// pointer from the cycle scan, such as '#/paths/~1a ' with a trailing space.
-// Re-check on a dependency bump.
+// It reads the fragment as fragment.Pointer does, and the document half as the
+// resolver does (references/reference.go GetURI): split on '#', trim, and an
+// empty half names this document. A raw read would hide a resolvable pointer
+// from the cycle scan, such as '#/paths/~1a ' with a trailing space.
 //
 // A fragment not starting with '/' is refused: `#name` is a $anchor (GitHub
 // #523, #526). A bare '#' names the root. One decoding to non-UTF-8 bytes is
@@ -392,10 +392,7 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	if len(parts) < 2 || strings.TrimSpace(parts[0]) != "" {
 		return "", false // no fragment, or a fragment in another document
 	}
-	pointer := strings.TrimSpace(parts[1])
-	if decoded, err := url.QueryUnescape(pointer); err == nil {
-		pointer = decoded
-	}
+	pointer := string(fragment.Pointer(ref))
 	// A `#name` fragment is a $anchor the resolver looks up by name, not a
 	// pointer it walks. Walking the name from the root as a key refused a
 	// document as a cycle the resolver never enters (GitHub #523), and a chain

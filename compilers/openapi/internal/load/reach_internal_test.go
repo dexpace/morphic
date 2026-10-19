@@ -329,8 +329,10 @@ var craftedCrashFixtures = []struct{ name, spec string }{
 	{"two nested anchors name each other", anchorMutualNested},
 	{"a parameter's inline schema anchor names itself", anchorSelfParameter},
 	{"a pointer hop and an anchor hop meet on one cycle", anchorPointerMixedCycle},
+	{"the same, through a key spelled with a plus", anchorPointerMixedCycleThroughAPlus},
 	{"$id names itself as its own $ref", idSelfReference},
 	{"$id plus a pointer names itself", idPlusPointerSelfReference},
+	{"the same, through a key spelled with a plus", idPlusPointerSelfReferenceThroughAPlus},
 	{"a relative $id names itself", relativeIDSelfReference},
 	{"$id-scoped anchor names itself by fragment", idScopedAnchorSelfReference},
 	{"$id-scoped anchor names itself by absolute URI", absoluteURIAnchorSelfReference},
@@ -646,6 +648,19 @@ components:
         x: {$ref: "#y"}
         y: {$anchor: y, $ref: "#/components/schemas/A/properties/x"}
 `
+	// The same cycle through a key spelled with a plus, which the resolver reads
+	// as it hands it the pointer (GitHub #911).
+	anchorPointerMixedCycleThroughAPlus = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      properties:
+        x+y: {$ref: "#z"}
+        z: {$anchor: z, $ref: "#/components/schemas/A/properties/x+y"}
+`
 	// A schema's $id names itself as its own $ref.
 	idSelfReference = `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -665,6 +680,18 @@ components:
       type: object
       properties:
         p: {$ref: "https://x.test/a#/properties/p"}
+`
+	// The same, through a key spelled with a plus.
+	idPlusPointerSelfReferenceThroughAPlus = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $id: "https://x.test/a"
+      type: object
+      properties:
+        p+q: {$ref: "https://x.test/a#/properties/p+q"}
 `
 	// A relative $id names itself as its own $ref.
 	relativeIDSelfReference = `openapi: 3.1.0
@@ -940,6 +967,47 @@ func reachDiagFor(t *testing.T, spec string) (ir.Diagnostic, bool) {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
 	return chainCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
+}
+
+// TestChainCycle_ReadsAPlusInADefsPointerAsAPlus pins that the reach graph reads
+// a fragment as fragment.Pointer does, as the pointers the loader hands the
+// resolver are spelled: two $defs entries keyed with a plus name each other,
+// which the resolver follows until the stack runs out. Read as a space, neither
+// pointer names an entry and the cycle goes unseen (GitHub #911).
+func TestChainCycle_ReadsAPlusInADefsPointerAsAPlus(t *testing.T) {
+	t.Parallel()
+	d, found := reachDiagFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $defs:
+        m+n: {$ref: "#/$defs/o+p"}
+        o+p: {$ref: "#/$defs/m+n"}
+`)
+
+	require.True(t, found, "the cycle through the keys m+n and o+p")
+	assert.Equal(t, diag.CyclicRef, d.Code)
+}
+
+// TestChainCycle_ReadsAPlusInAnAnchorOrIDChainAsAPlus is the plus test above for
+// the hops that are not a $defs pointer: a plain pointer and a pointer past a
+// schema's $id, each met on a cycle with an anchor or its own $id, which only
+// the reach graph sees. The plain pointer names a key spelled with a plus.
+func TestChainCycle_ReadsAPlusInAnAnchorOrIDChainAsAPlus(t *testing.T) {
+	t.Parallel()
+	for name, spec := range map[string]string{
+		"a plain pointer":       anchorPointerMixedCycleThroughAPlus,
+		"a pointer past an $id": idPlusPointerSelfReferenceThroughAPlus,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d, found := reachDiagFor(t, spec)
+			require.True(t, found)
+			assert.Equal(t, diag.CyclicRef, d.Code)
+		})
+	}
 }
 
 // TestChainCycle_GateSkipsPlainPointerDocuments drives chainCycle's own fast

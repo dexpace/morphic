@@ -241,6 +241,11 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	releaseAnchors(root)
+	esc := newEscapes()
+	esc.escape(root)
+	// Every return below leaves the tree as the source wrote it; the models are
+	// put back at the end of resolve.
+	defer esc.restoreTrees()
 	doc, valErrs, err := unmarshal(ctx, src.Data, root)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
@@ -267,16 +272,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	diags := cyc
 	diags = append(diags, sibFaults...)
 	diags = append(diags, validDiags...)
-	rebuildDoc := opts.rebuildDoc
-	if rebuildDoc == nil {
-		rebuildDoc = unmarshal
-	}
-	rebuild := func() (*soa.OpenAPI, error) {
-		again, _, err := rebuildDoc(ctx, src.Data, root)
-		return again, err
-	}
-	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree)
-	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts, rebuild)
+	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree, esc)
+	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
+		opts.rebuilder(ctx, src.Data, root))
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -294,7 +292,20 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		},
 		Overlay:  origin,
 		Siblings: sibs,
-	}, diags, nil
+	}, esc.asWritten(diags), nil
+}
+
+// rebuilder returns the rebuild of the model of root that resolveExternal's
+// second pass is handed: o.rebuildDoc, or unmarshal itself.
+func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) func() (*soa.OpenAPI, error) {
+	rebuildDoc := o.rebuildDoc
+	if rebuildDoc == nil {
+		rebuildDoc = unmarshal
+	}
+	return func() (*soa.OpenAPI, error) {
+		again, _, err := rebuildDoc(ctx, data, root)
+		return again, err
+	}
 }
 
 // validated returns the source's validation findings, with what the library
@@ -374,11 +385,27 @@ func compilerOwned(verr validation.Error) bool {
 // it resolved, which is a rebuild of doc when resolveExternal had to recover an
 // anchored external document the resolver parsed itself.
 //
+// The resolver reads the $refs the source's trees were rewritten to (see
+// escapes). Once it is done, the models are put back as written, so nothing
+// past this call sees the rewritten spelling.
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
+	doc, sibs, targets, diags, err := resolveRefs(ctx, at, doc, sibs, self, opts, rebuild)
+	if err != nil {
+		return nil, Siblings{}, MappingTargets{}, nil, err
+	}
+	site, err := self.escapes.restore(ctx, doc, sibs, targets)
+	return doc, sibs, targets, append(diags, restoreFault(at, site, err)...), nil
+}
+
+// resolveRefs is resolve less the restore of the models.
+//
 // What the references reach that the source's own validation never checked is
 // validated after the last resolution, over the document returned (see
 // validateReached): a rebuild discards a first resolution's objects, so
 // validating those would report on objects the IR is not built from.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+func resolveRefs(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
