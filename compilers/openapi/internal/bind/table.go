@@ -48,7 +48,7 @@ type frame struct {
 	state   state
 }
 
-// sites is every schema position that writes a $ref, in document order.
+// sites is every schema position that writes a $ref.
 func (b *Binder) sites() []jsontext.Pointer {
 	var out []jsontext.Pointer
 	b.eachSchema(func(at jsontext.Pointer, n *yaml.Node) {
@@ -60,8 +60,8 @@ func (b *Binder) sites() []jsontext.Pointer {
 }
 
 // eachSchema walks the document by its grammar and calls f with every schema
-// position, in document order, each pointer once. A node an alias places at
-// several positions is read at each, as the parser reads it.
+// position, each pointer once. A node an alias places at several positions is
+// read at each, as the parser reads it.
 func (b *Binder) eachSchema(f func(at jsontext.Pointer, n *yaml.Node)) {
 	stack := []frame{{node: b.root, state: sDocument}}
 	for len(stack) > 0 && b.spend(1) {
@@ -78,8 +78,7 @@ func (b *Binder) eachSchema(f func(at jsontext.Pointer, n *yaml.Node)) {
 	}
 }
 
-// children are the positions directly below f, in reverse so the first is
-// read first.
+// children are the positions directly below f, whose node is n.
 func (b *Binder) children(n *yaml.Node, f frame) []frame {
 	var out []frame
 	switch n.Kind {
@@ -93,6 +92,5 @@ func (b *Binder) children(n *yaml.Node, f frame) []frame {
 			out = append(out, frame{node: c, pointer: f.pointer.AppendToken(token), state: step(f.state, token)})
 		}
 	}
-	slices.Reverse(out)
 	return out
 }

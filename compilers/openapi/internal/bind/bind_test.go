@@ -57,7 +57,7 @@ func TestResolve_ReadsEachReferenceAsTheCompilerDoes(t *testing.T) {
 			bind.Resolved, "/components/schemas/B/properties/p", "/components/schemas/B/properties/p", bind.Schema, 1},
 		{"an object no schema reference names", "    A: {$ref: '#/info'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
 		{"the document", "    A: {$ref: '#'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
-		{"a lone slash, read as the document", "    A: {$ref: '#/'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
+		{"a lone slash, read as the document", "    A: {$ref: '#/'}\n'': {type: string}\n", bind.Unresolved, "", "", bind.NoRole, 0},
 		{"a document part only", "    A: {$ref: ''}\n", bind.Unresolved, "", "", bind.NoRole, 0},
 		{"nothing there", "    A: {$ref: '#/components/schemas/Z'}\n", bind.Unresolved, "", "", bind.NoRole, 0},
 		{"another document", "    A: {$ref: 'other.yaml#/X'}\n", bind.External, "", "", bind.NoRole, 0},
@@ -122,6 +122,9 @@ func TestResolve_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/B/properties/p", "/components/schemas/B/$defs/A"},
 		{"an $id of a fragment alone still makes a resource", "components:\n  schemas:\n    B: {$id: '#f', $ref: '#/$defs/A', $defs: {A: {}}}\n",
 			"/components/schemas/B", "/components/schemas/B/$defs/A"},
+		{"a nested $id of a fragment alone moves no base", "components:\n  schemas:\n    B: {$id: 'https://x.test/b', $defs: {A: {}}, properties: {p: {$id: '#f', " +
+			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
+			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A"},
 		{"an $id that is no URI reference keeps the base", "components:\n  schemas:\n    B: {$defs: {A: {}}, properties: {p: {$id: '%zz', " +
 			"properties: {q: {$ref: '#/$defs/A', $defs: {A: {}}}}}}}\n",
 			"/components/schemas/B/properties/p/properties/q", "/components/schemas/B/$defs/A"},
@@ -129,6 +132,12 @@ func TestResolve_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/components/schemas/H/properties/p", "/components/schemas/H/$defs/A/properties/x"},
 		{"past an ancestor holding no schema there", "components:\n  schemas:\n    H: {$defs: {A: {type: [string]}}, properties: {p: {$ref: '#/$defs/A/type'}}}\n",
 			"/components/schemas/H/properties/p", ""},
+		{"past an ancestor holding raw YAML there", "components:\n  schemas:\n    H: {$defs: {A: {example: {}}}, properties: {p: {$ref: '#/$defs/A/example'}}}\n",
+			"/components/schemas/H/properties/p", ""},
+		{"an ancestor that is a map holding $defs", "components:\n  schemas:\n    H: {properties: {$defs: {properties: {x: {}}}, p: {$ref: '#/$defs/properties/x'}}}\n",
+			"/components/schemas/H/properties/p", "/components/schemas/H/properties/$defs/properties/x"},
+		{"no ancestor in raw YAML", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n'}\ncomponents:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n",
+			"/components/schemas/U", ""},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",
 			"/components/schemas/H/properties/p", "/$defs/A"},
 	}

@@ -11,16 +11,21 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// defsPrefix opens every pointer read relative to the schema spelling it.
-const defsPrefix = "/$defs/"
+// defsRoot is the position a schema's definitions sit at, and defsPrefix opens
+// every pointer read relative to the schema spelling it.
+const (
+	defsRoot   jsontext.Pointer = "/$defs"
+	defsPrefix                  = string(defsRoot) + "/"
+)
 
 // defs is where a "#/$defs/..." pointer written at at lands, by the rule
 // internal/defs documents (defs.Reader.Target): at's own definitions when it
 // is a schema resource of its own, else the position the pointer names from
-// the document's root, else the definitions of the nearest schema above at
-// holding a schema there. Unlike the parser's resolver, the answer depends on
-// nothing read before, so the root's definition answers even where at defines
-// one of its own (docs/parser-library.md#root-defs).
+// the document's root, else the definitions of the nearest object above at
+// that holds "$defs" in the model and a schema there. Unlike the parser's
+// resolver, the answer depends on nothing read before, so the root's
+// definition answers even where at defines one of its own
+// (docs/parser-library.md#root-defs).
 func (b *Binder) defs(at, pointer jsontext.Pointer) (jsontext.Pointer, bool) {
 	if key, single := singleKey(pointer); single && b.ownResource(at) {
 		if own := at + defsRootOf(key); b.at(own) != nil {
@@ -34,16 +39,25 @@ func (b *Binder) defs(at, pointer jsontext.Pointer) (jsontext.Pointer, bool) {
 		if !b.spend(1) {
 			return "", false
 		}
-		if roleOf(tokens(anc)) == Schema && roleOf(tokens(anc+pointer)) == Schema && b.at(anc+pointer) != nil {
+		if b.answers(anc, pointer) {
 			return anc + pointer, true
 		}
 	}
 	return "", false
 }
 
+// answers reports whether the ancestor anc answers pointer, as defs.Reader
+// reads one: a schema of the model sits at the path. That holds only where
+// anc's "$defs" is the model's too, since the grammar reads nothing below raw
+// YAML as a schema. Raw YAML at the path answers nothing, though the parser's
+// resolver reads it (GitHub #997).
+func (b *Binder) answers(anc, pointer jsontext.Pointer) bool {
+	return roleOf(tokens(anc+pointer)) == Schema && b.at(anc+pointer) != nil
+}
+
 // defsRootOf is the pointer "/$defs/key".
 func defsRootOf(key string) jsontext.Pointer {
-	return jsontext.Pointer("/$defs").AppendToken(key)
+	return defsRoot.AppendToken(key)
 }
 
 // singleKey is the one key "/$defs/key" names, and whether pointer names one
