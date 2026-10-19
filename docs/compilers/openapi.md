@@ -235,12 +235,24 @@ to nothing — a pointer naming no node, a component its section does not hold, 
 external references are off, an `$anchor` — is reported as an `openapi/unresolved-ref` error at the
 referencing position, and the position lowers without it: a schema position to the top type, any
 other position to nothing at all, so the parameter, response or body it would have named is absent.
-A chain of references that closes on itself is [`reference-cycles`](#reference-cycles)'.
+A same-document `#/$defs/...` pointer is read by the rule the resolver follows for a reference it
+meets on its own walk, in an order no declaration changes: the `$defs` of the schema writing the
+`$ref` where that schema declares an `$id`, else the position the pointer names from the document's
+root, raw YAML included, so a root `$defs` answers though the OpenAPI Object does not define the key
+([`unknown-keys`](#unknown-keys) still reports it), else the definitions of the nearest ancestor
+holding the path. A schema with no `$id` that writes such a pointer, and holds a definition under
+its key while the root holds another, is left unresolved, reported as an `openapi/unresolved-ref`
+error, since the resolver reads one or the other depending on what it resolved first
+([`root-defs`](../parser-library.md#root-defs)). A chain of references that closes on itself is
+[`reference-cycles`](#reference-cycles)'.
 
 - Codes: `openapi/unresolved-ref`
 - Tests: `openapi.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `openapi.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
-  `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`
+  `openapi.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
+  `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
+  `load.TestLoad_ARootDefinitionItsSchemaShadowsIsLeftUnresolved`,
+  `defs.TestTarget_LocalIDRuleAndEscapes`
 - Status: partly built: no schema another document holds is lowered, so a schema `$ref` naming one
   is reported unresolved (#74), and an `$anchor` is not honoured as a reference target (#914). A
   reference inside an object another document holds is never resolved, and nothing reports it
@@ -252,24 +264,24 @@ A chain of references that closes on itself is [`reference-cycles`](#reference-c
   refused as malformed (#516), and one ending in `/` resolves to the parent (#770); a `$ref` to a
   position that holds no schema reports two diagnostics (#769); an unresolved reference's message
   ends in the resolver's own wording (#809); and what a reference into another document's content
-  names can follow declaration order (#765, #766). Open: whether a `$ref` into a root-level `$defs`
-  resolves (#910).
+  names can follow declaration order (#765, #766). A `$defs` pointer an ancestor answers with raw
+  YAML is reported unresolved (#997).
 
 ### `reference-cycles`
 
 A chain of `$ref`s that never reaches a node without one — `A: {$ref: B}`, `B: {$ref: A}` — and a
 YAML anchor recursive in itself would each run the parser out of stack, so the source is refused
 before the parser reads it, as an `openapi/cyclic-ref` error, and compiles to no Document. The cycle
-is found whether it closes through same-document pointers, through `$anchor`, `$id` or a relative
-`$defs`, or through the source's own file name, and it is reported at the reference of the cycle
-with the least pointer, never one only leading in, so the report does not move with declaration
-order; a chain closing through the file name is reported at every reference whose chain loops. A
-cycle of Reference Objects the resolver reports itself, as an unresolved reference
-([`references`](#references)). A schema reaching itself through what it declares is recursion, not a
-cycle ([`recursion`](#recursion)). A cycle check that cannot finish, at one of its bounds or on a
-fault of its own, is reported as an `openapi/cycle-scan-failed` warning, and the compile proceeds
-with every cycle the check did classify still refused; past the chain read's bound, a `$ref` it did
-not read is left unresolved where the source is held.
+is found whether it closes through same-document pointers, through `$anchor`, `$id` or a `$defs`
+pointer, a root definition included, or through the source's own file name, and it is reported at
+the reference of the cycle with the least pointer, never one only leading in, so the report does not
+move with declaration order; a chain closing through the file name is reported at every reference
+whose chain loops. A cycle of Reference Objects the resolver reports itself, as an unresolved
+reference ([`references`](#references)). A schema reaching itself through what it declares is
+recursion, not a cycle ([`recursion`](#recursion)). A cycle check that cannot finish, at one of its
+bounds or on a fault of its own, is reported as an `openapi/cycle-scan-failed` warning, and the
+compile proceeds with every cycle the check did classify still refused; past the chain read's bound,
+a `$ref` it did not read is left unresolved where the source is held.
 
 - Codes: `openapi/cyclic-ref`, `openapi/cycle-scan-failed`
 - Tests: `openapi.TestCompile_CyclicSpecDoesNotCrash`,
@@ -1384,14 +1396,16 @@ identifies every type by a synthetic ID derived from its source pointer rather t
 and describes one API surface rather than a resource graph, so it has no dialect axis and none is
 coming: each is kept verbatim under `openapi:<keyword>` (`out_of_scope`), with an info
 `openapi/degraded-construct` at it, and `$id` is explicitly *not* honoured as a base URI for
-reference resolution. A document's `jsonSchemaDialect`, the default `$schema` of its schemas, is
-kept on the Document the same way, every schema read in the OpenAPI dialect whatever it names.
-`$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
-see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
-what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)). `$anchor` is neither: a `$ref`
-naming an anchor is reported unresolved rather than resolving through it
-([`references`](#references)). It is excluded here because the compiler does nothing with it today,
-not because dropping it is settled.
+reference resolution: it counts only as the boundary of a schema resource, which makes a schema's
+own `$defs` answer a `#/$defs/...` pointer it writes ([`references`](#references)) and stops a
+`$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)). A document's `jsonSchemaDialect`,
+the default `$schema` of its schemas, is kept on the Document the same way, every schema read in the
+OpenAPI dialect whatever it names. `$comment` is dropped outright — 2020-12 §8.3 forbids presenting
+it to end users, so no emitter may see it. `$dynamicAnchor` is consumed as a reference target rather
+than carried as content — it is what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)).
+`$anchor` is neither: a `$ref` naming an anchor is reported unresolved rather than resolving through
+it ([`references`](#references)). It is excluded here because the compiler does nothing with it
+today, not because dropping it is settled.
 
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`
@@ -1673,10 +1687,10 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 
 ### `parameter-schema-keywords`
 
-A parameter schema's `xml` and its `readOnly` and `writeOnly` are kept verbatim in the parameter's
+A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
-`ir.Parameter` has no field for either, except the `xml` of a schema that owns a node of its own,
-which stays on that node's `XMLHints`.
+`ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
+that node's `XMLHints` instead.
 
 - Cases: `param-xml-residue`
 - Codes: `openapi/degraded-construct`
