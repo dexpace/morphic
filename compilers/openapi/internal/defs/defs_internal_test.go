@@ -909,6 +909,16 @@ func TestTarget_AStandaloneSchemaShadowsNothingOfItsOwn(t *testing.T) {
 	assert.False(t, r.Shadowed(root, "/$defs/k"))
 }
 
+// TestReader_IndexedSaysHowItReadsRawYAML pins Indexed: true only for a reader
+// given a RawRead, which every caller reading a wide mapping is to pass.
+func TestReader_IndexedSaysHowItReadsRawYAML(t *testing.T) {
+	t.Parallel()
+	doc := schemaFromYAML(t, "type: string\n")
+	assert.False(t, NewReader(doc).Indexed(), "asks the library")
+	assert.True(t, NewIndexedReader(doc, libraryRead).Indexed())
+	assert.False(t, (*Reader)(nil).Indexed())
+}
+
 // TestTarget_TheRootIsReadOncePerPointer pins that the reader remembers what
 // the root holds at a pointer, so every reference spelling it costs one read
 // of the root however many there are, and reads raw YAML only through the

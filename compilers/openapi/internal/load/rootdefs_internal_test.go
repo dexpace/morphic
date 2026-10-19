@@ -6,13 +6,48 @@ import (
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
+
+// TestDefsRules_ReadRawYAMLThroughAnIndex pins that each reader of the $defs
+// rule in load reads raw YAML, where a root definition sits, through an index:
+// the held references', the cycle model's and the mapping targets'. Asking the
+// library instead scans the mapping once per reference (GitHub #778).
+func TestDefsRules_ReadRawYAMLThroughAnIndex(t *testing.T) {
+	t.Parallel()
+	doc, root := buildDoc(t, twoDefsSpec)
+	assert.True(t, heldPass(t, doc).rule.Indexed(), "the held references'")
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+	assert.True(t, r.rule.Indexed(), "the cycle model's")
+	assert.True(t, newMappings(sourceDocument{path: "spec.yaml"}, doc, references.ResolveOptions{}, nil).rule.Indexed(),
+		"the mapping targets'")
+}
+
+// TestReach_DefsEdgeLandsOnARootDefinition pins the cycle model's edge for a
+// reference the rule answers at the document's root: the raw YAML written
+// there, so a chain back through it is a cycle the model refuses.
+func TestReach_DefsEdgeLandsOnARootDefinition(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
+	doc, root := buildDoc(t, head+"$defs:\n  d: {type: string}\ncomponents:\n  schemas:\n    A: {$ref: '#/$defs/d'}\n")
+	r, _ := newReach(t.Context(), maxReachWork, root, doc, Siblings{})
+	a := r.tree.walk(r.tree.root, []string{"components", "schemas", "A"})
+	d := r.tree.walk(r.tree.root, []string{"$defs", "d"})
+	require.NotNil(t, a)
+	require.NotNil(t, d)
+	held, ok := r.held[a]
+	require.True(t, ok)
+	assert.Equal(t, []*yaml.Node{d}, held.members)
+
+	assertRefusedByReach(t, head+"$defs:\n  d: {$ref: '#/components/schemas/A'}\ncomponents:\n  schemas:\n    A: {$ref: '#/$defs/d'}\n")
+}
 
 // TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt pins GitHub #910: a
 // "#/$defs/..." reference into a "$defs" written at the document's root

@@ -116,6 +116,13 @@ func NewIndexedReader(doc Navigable, raw RawRead) *Reader {
 	return &Reader{doc: doc, places: map[jsontext.Pointer]place{}, roots: map[jsontext.Pointer]rootRead{}, raw: raw}
 }
 
+// Indexed reports whether r reads raw YAML through the RawRead it was given,
+// an index, rather than by asking the library, which scans a mapping on every
+// read (GitHub #778).
+func (r *Reader) Indexed() bool {
+	return r != nil && r.raw != nil
+}
+
 // Reads reports how many times r has navigated its document, which is the work
 // it has done. Because it remembers, that stays proportional to the positions
 // it has read however many references ask about them; a test holds it to that.

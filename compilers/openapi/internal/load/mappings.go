@@ -161,7 +161,7 @@ type target struct {
 func newMappings(self sourceDocument, doc *soa.OpenAPI, opts references.ResolveOptions, reader *external) *mappings {
 	reads := newTreeReads()
 	return &mappings{self: self, doc: doc, opts: opts, reader: reader, view: nodeview.New(), reads: reads,
-		rule: defs.NewIndexedReader(doc, reads.target),
+		rule: defsRule(doc, reads),
 		ends: map[hop]int{}, model: map[any]bool{}, modelAt: map[builtKey]bool{}, walked: map[builtKey]bool{},
 		built: map[jsontext.Pointer]*schemaRef{},
 		named: map[jsontext.Pointer]bool{}, byPointer: map[jsontext.Pointer]*target{},

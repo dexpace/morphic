@@ -35,6 +35,13 @@ type heldRef struct {
 const shadowedReason = "the document's root and the $defs of the schema spelling it, which has no $id, " +
 	"both define it, and the resolver reads one or the other depending on what it resolved first"
 
+// defsRule is the $defs rule over doc, reading raw YAML through reads, an
+// index, so a wide mapping costs its width once however many references read
+// through it (defs.Reader.Indexed).
+func defsRule(doc *soa.OpenAPI, reads *treeReads) *defs.Reader {
+	return defs.NewIndexedReader(doc, reads.target)
+}
+
 // heldRefs collects every schema reference whose pointer the resolver reads
 // relative to the schema spelling it, with the answer rule gives for each. One
 // reader over doc serves them all, which keeps the work proportional to the

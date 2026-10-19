@@ -122,7 +122,7 @@ func (r *reach) incomplete() bool {
 // references a search starts from.
 func newReach(ctx context.Context, limit int, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings) (*reach, []*yaml.Node) {
 	r := emptyReach(root, &budget{limit: limit})
-	r.rule = defs.NewIndexedReader(doc, newTreeReads().target)
+	r.rule = defsRule(doc, newTreeReads())
 	declared, defsRefs := r.tree.index()
 	starts := r.collect(walkSource(ctx, doc, sibs))
 	r.group(declared)

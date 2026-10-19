@@ -44,7 +44,7 @@ func resolveWith(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, d
 
 // run is resolveWith's work over doc, the document p was made for.
 func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
-	held := heldRefs(p.ctx, doc, p.sibs, defs.NewIndexedReader(doc, newTreeReads().target))
+	held := heldRefs(p.ctx, doc, p.sibs, p.rule)
 	withDefsHeld(held, func() {
 		p.fail(eachSighting(walkSource(p.ctx, doc, p.sibs), resolverPanics,
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
@@ -100,6 +100,8 @@ type resolution struct {
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// quotes as the source writes them (GitHub #911).
 	esc *escapes
+	// rule names the definition each "#/$defs/..." reference is held to.
+	rule *defs.Reader
 	// version and validateOpts are the source's declared version and what its
 	// validation hands each object, which a resolution's findings are judged by
 	// (unrequired), in another document as well, as a reached schema's are
@@ -124,7 +126,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		reader.hold(ctx, sibs)
 	}
 	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
-		version: doc.OpenAPI, validateOpts: documentOptions(doc),
+		rule: defsRule(doc, newTreeReads()), version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
 			tree: self.tree}}

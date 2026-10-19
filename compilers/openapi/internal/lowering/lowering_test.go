@@ -517,6 +517,23 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
+// TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex pins that a context
+// carrying the load phase's results reads raw YAML under its "#/$defs/..."
+// pointers through the index those results were read through, where the one it
+// was made from asks the library, which scans a mapping on every read
+// (GitHub #778).
+func TestWithLoaded_ReadsDefinitionsThroughTheLoadIndex(t *testing.T) {
+	t.Parallel()
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.ComponentSpec("    A: {type: string}\n"))}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, overlay.Origin{})
+
+	assert.False(t, base.RefScope().Defs.Indexed())
+	assert.True(t, base.WithLoaded(doc).RefScope().Defs.Indexed())
+}
+
 // TestCtx_NamingByReferenceIsScopedToTheCopy holds what makes the flag safe to
 // thread: it is set on a copy, so a lowering that descends under a $ref cannot
 // leak the marking back to the caller that is still lowering a declaration.
