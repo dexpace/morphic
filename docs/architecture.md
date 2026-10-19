@@ -58,12 +58,19 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 One compiler per source format. Each owns its format completely: file loading, reference
 resolution, format-version normalization, and lowering into IR nodes.
 
-Contract (conceptually — signatures are illustrative, not implementation):
+Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
 ```go
 type Compiler interface {
-    Formats() []SourceFormat                    // e.g. openapi@3.0, openapi@3.1
-    Parse(ctx, sources, Options) (*ir.Document, []ir.Diagnostic, error)
+    Formats() []SourceFormat // e.g. openapi@3.0, openapi@3.1
+    // Detect reports the format src declares and whether this compiler recognizes it.
+    Detect(src Source, opts Options) (Recognition, []ir.Diagnostic, bool)
+    // DecodeOptions turns textual settings into this compiler's own options value.
+    DecodeOptions(set OptionSet) (any, error)
+    // Compile lowers sources into a Document, or refuses them with a nil one.
+    Compile(ctx context.Context, sources []Source, opts Options) (*ir.Document, []ir.Diagnostic, error)
+    // SourceTable names the inputs a compile reads: the table a refusal's diagnostics index.
+    SourceTable(sources []Source, opts Options) []ir.SourceInfo
 }
 ```
 
@@ -172,8 +179,10 @@ Built, and in the default list:
 - **validate** — referential integrity (every typed-ID reference resolves to something the document
   declares: a `TypeRef` target against the type registry, an `OpID` against the operations the
   service tree declares, and so on for every ID class), discriminator mappings point at actual
-  variants, wire-name uniqueness within a model, binding completeness (every operation parameter
-  is bound exactly once per binding). Structural errors here are fatal; style issues are warnings.
+  variants, wire-name uniqueness within a model, and binding completeness: a parameter an HTTP
+  binding places twice at one non-host location is an error, one it places nowhere is a warning,
+  and a `host` binding is additive (ir-design §8.1). Structural errors here are fatal; style issues
+  are warnings.
 
 Designed, not yet built:
 
@@ -348,13 +357,13 @@ Dependency rules, enforced by an architecture test as in oagen:
 - `ir` imports only the standard library. It contains no parsing, no generation, no I/O.
 - `compilers/compile` imports only `ir`: it is below every compiler, not beside them.
 - `compilers/*` and `pass` import `ir` (and their own format libraries) — never each other,
-  never `emitter` or `engine`. A compiler also names the contract package and
+  never `emitters` or `engine`. A compiler also names the contract package and
   `compilers/compile`; each is allowed in its own right, so no sibling compiler rides in beside
   them.
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches nothing but `ir`,
   and no lowering package may reach the compiler that calls it.
-- `emitters/*` imports `ir` and `emitter` (contract) — never `compiler`.
+- `emitters/*` imports `ir` and the contract package `emitters` — never a compiler.
 - `engine` imports everything below it; `cmd` imports `engine`.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:

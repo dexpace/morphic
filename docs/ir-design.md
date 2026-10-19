@@ -49,8 +49,9 @@ type TypeDef interface {
 ```
 
 JSON encoding of sums uses an adjacent `kind` tag (`{"kind": "model", ...}`). Exhaustiveness is
-enforced by a generated `switch`-completeness test over `TypeKind` values (the oagen
-`assertNever` lesson, adapted to Go).
+enforced by a `switch`-completeness test over `TypeKind` values (the oagen `assertNever` lesson,
+adapted to Go). Nothing is generated: the test iterates a hand-written kind list, and a second test
+holds that list to the kinds the `ir` sources declare.
 
 ---
 
@@ -290,9 +291,11 @@ types; aliases are recorded so both IDs stay resolvable.
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
 `s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's,
 because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different
-things and nothing outside the format can compute one. A node a lowering *mints* rather than finds
-takes a namespace of its own, so no pointer a reference can spell ever reaches it — the general form
-of the rule §4.3 states for distributed unions.
+things and nothing outside the format can compute one. Whatever the format, `Provenance.Pointer`
+records the path as an RFC 6901 pointer, and the ID's path is that pointer without its leading `/`:
+a protobuf full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a
+lowering *mints* rather than finds takes a namespace of its own, so no pointer a reference can spell
+ever reaches it — the general form of the rule §4.3 states for distributed unions.
 
 Primitives are the one exception, and only because the rule's premise does not hold for them: a
 primitive occupies no source position, so there is no path for a format to own. Its identity is

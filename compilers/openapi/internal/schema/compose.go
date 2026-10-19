@@ -530,12 +530,13 @@ func unvisitedRefTargets(s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.
 	return out
 }
 
-// lowerOneOfAnyOf lowers a oneOf/anyOf schema. A two-variant {X, null} set
-// collapses to nullable X (ir-design §3.3); a set with no non-null branch at
-// all (every branch a bare `type: null`) has no X for that collapse to name,
-// so it lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
-// everything else becomes a Union with one Variant per branch (oneOf
-// exclusive, anyOf not), never collapsing a union into optional fields.
+// lowerOneOfAnyOf lowers a oneOf/anyOf schema. A set of one non-null branch X
+// beside any number of bare null branches collapses to nullable X (ir-design
+// §3.3); a set with no non-null branch at all (every branch a bare `type:
+// null`) has no X for that collapse to name, so it lowers to nullable `any`
+// instead (lowerNullOnlyUnion, GitHub #416); everything else becomes a Union
+// with one Variant per branch (oneOf exclusive, anyOf not), never collapsing a
+// union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, depth int, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ih, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, anchors, depth, inner, ip, ih)
