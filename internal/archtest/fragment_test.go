@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	// fragmentPackage is the one package that reads a $ref fragment, and the
-	// only one that may use what bypasses its reading.
+	// fragmentPackage is the one package that reads a $ref fragment as a
+	// pointer, and the only one that may use what bypasses its reading.
 	fragmentPackage = module + "/compilers/openapi/internal/fragment"
 	// referencesPackage declares the library's reference type, whose
 	// GetJSONPointer query-unescapes a fragment and so reads '+' as a space.

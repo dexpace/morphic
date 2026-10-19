@@ -239,7 +239,7 @@ func restoreFault(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer
 	if err == nil {
 		return nil
 	}
-	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.InternalInvariant, at(site), "%s", err.Error())}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.InternalInvariant, at(site), "internal: %s", err.Error())}
 }
 
 // restoreFrom is restore over a walk of the source the caller supplies, so a

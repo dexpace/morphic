@@ -521,7 +521,7 @@ func TestRestoreFault_ReportsTheFaultWhereItEnded(t *testing.T) {
 	assert.Equal(t, diag.InternalInvariant, got[0].Code)
 	assert.Equal(t, ir.SeverityError, got[0].Severity)
 	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/a"}, got[0].Provenance)
-	assert.Equal(t, "restoring $refs as written panicked: boom", got[0].Message)
+	assert.Equal(t, "internal: restoring $refs as written panicked: boom", got[0].Message)
 }
 
 func TestRestorer_FinishReportsAWalkOfAnObjectThatFaults(t *testing.T) {
