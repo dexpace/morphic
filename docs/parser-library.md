@@ -48,13 +48,15 @@ To bump the library:
 
 ### `schema-cycle-overflow`
 
-A cycle of schema `$ref`s overflows the stack. Only the first reference from outside the cycle,
-met by the walk before any member, returns an error instead (`circular reference detected`). A
-member met first overflows, as does a second reference from outside, to any member. In Go a stack
-overflow ends the process whatever recovers, cancels or times out around it, so a cycle has to be
-refused before the resolver sees the document. Refusing one in every declaration order takes a
-model of how the resolver reads `$defs`, `$anchor` and `$id`, which is what most of the code below
-is.
+A cycle of schema `$ref`s overflows the stack. Only the first reference from outside the cycle, met
+by the walk before any member, returns an error instead (`circular reference detected`). A member
+met first overflows, as does a second reference from outside, to any member. A `$ref` whose pointer
+passes through the schema it is written in, such as `#/components/schemas/A/` in `A`, is no cycle:
+it fails as naming nothing (`not found`), so the scan refuses a schema chain only when it cycles. In
+Go a stack overflow ends the process whatever recovers, cancels or times out around it, so a cycle
+has to be refused before the resolver sees the document. Refusing one in every declaration order
+takes a model of how the resolver reads `$defs`, `$anchor` and `$id`, which is what most of the code
+below is.
 
 ```yaml
 components:

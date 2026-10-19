@@ -77,7 +77,8 @@ func resolveTargets(ctx context.Context, input []byte) string {
 
 // schemaCycleOverflow pins schema-cycle-overflow: a cycle of schema $refs
 // overflows the stack, except for the first reference from outside it, when
-// the walk meets that reference before any member.
+// the walk meets that reference before any member, and a pointer through the
+// schema it is written in fails as naming nothing.
 func schemaCycleOverflow(t *testing.T) {
 	ref := func(name, target string) string { return refTo("schemas", name, target) }
 	overflows := map[string]string{
@@ -100,6 +101,12 @@ func schemaCycleOverflow(t *testing.T) {
 		r := probe(t, "resolve", schemas(ref("O", "A"), ref("A", "B"), ref("B", "A")))
 		require.Equal(t, returned, r.outcome, revisit(t, r))
 		assert.Contains(t, r.report, "circular reference detected", revisit(t, r))
+	})
+	t.Run("a pointer through its own schema", func(t *testing.T) {
+		t.Parallel()
+		r := probe(t, "resolve", schemas("A: {$ref: '#/components/schemas/A/'}"))
+		require.Equal(t, returned, r.outcome, revisit(t, r))
+		assert.Contains(t, r.report, "not found", revisit(t, r))
 	})
 }
 

@@ -350,9 +350,9 @@ func scanIndex(t *testing.T, src string) sourceindex.Index {
 // chainCycles to chainReenters, and refCycles refuses a schema chain on the
 // first alone, so the document now reaches the resolver.
 //
-// It reports rather than blocks there: the resolver reports such a reference
-// unresolved, as it does a reference object's
-// (docs/parser-library.md#reference-object-cycle).
+// There the resolver fails it as naming nothing
+// (docs/parser-library.md#schema-cycle-overflow), and the compile reports it
+// unresolved, not cyclic.
 func TestCompile_SchemaEmptyPointerSegmentIsUnresolved(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
