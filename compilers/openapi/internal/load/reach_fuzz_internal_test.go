@@ -69,6 +69,30 @@ func noChainCheck(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI, Sibli
 	return ir.Diagnostic{}, false
 }
 
+// TestLoad_RunsTheChainCheckItsOptionsHold pins the seam the oracle turns the
+// check off through, in this process: the oracle's own runs happen in children,
+// whose coverage need not reach the profile. A check Options holds runs in
+// chainCycle's place, its refusal is Load's, and a check that finds nothing
+// lets the load go on.
+func TestLoad_RunsTheChainCheckItsOptionsHold(t *testing.T) {
+	t.Parallel()
+	refusal := diag.Newf(ir.SeverityError, diag.CyclicRef, ir.Provenance{}, "planted")
+	refuses := func(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI, Siblings) (ir.Diagnostic, bool) {
+		return refusal, true
+	}
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}
+
+	doc, diags, err := Load(t.Context(), 0, src, Options{chainCheck: refuses})
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	assert.Equal(t, []ir.Diagnostic{refusal}, diags)
+
+	doc, diags, err = Load(t.Context(), 0, src, Options{chainCheck: noChainCheck})
+	require.NoError(t, err)
+	assert.NotNil(t, doc)
+	assert.False(t, diag.HasError(diags), "%v", diags)
+}
+
 // pipelineOverflows reports whether load's pipeline, with the reference-chain
 // check off, overflows its stack on spec, asked of the oracle in a child. A
 // panic is a different finding and fails the test rather than counting as one.
