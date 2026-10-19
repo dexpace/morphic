@@ -3793,8 +3793,9 @@ func refTargets(refs []ir.TypeRef) []ir.TypeID {
 }
 
 // TestAllOf_NestedInlineWrapperFlattens pins allOf's associativity: a branch
-// that only wraps another allOf classifies like the flat spelling, with every
-// property keeping the pointer it was written at (GitHub #599).
+// whose only unconsumed keyword is a non-empty allOf classifies like the flat
+// spelling, with every property keeping the pointer it was written at (GitHub
+// #599).
 func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -4052,8 +4053,10 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
         - allOf: []
         - {$ref: '#/components/schemas/A'}
 `
+	docs := make([]*ir.Document, 0, 2)
 	for _, src := range []string{m + nestedAB, nestedAB + m} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
+		docs = append(docs, doc)
 		errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
 			return d.Severity != ir.SeverityError
 		})
@@ -4073,6 +4076,8 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
 			"(allOf")
 	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
+		"declaration order must not change the types")
 }
 
 // TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside

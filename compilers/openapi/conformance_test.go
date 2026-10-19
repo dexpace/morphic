@@ -780,9 +780,10 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, ok, "inline allOf branch contributes its properties")
 }
 
-// assertAllOfNestedInline pins that a branch which only wraps another allOf is
-// flattened into the enclosing list: it classifies as the flat spelling does,
-// keeps each property's own pointer, and is itself kept nowhere.
+// assertAllOfNestedInline pins that a branch whose only unconsumed keyword is a
+// non-empty allOf is flattened into the enclosing list: it classifies as the
+// flat spelling does, keeps each property's own pointer, and is itself kept
+// nowhere.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[namedID("M")].(*ir.Model)
 	require.True(t, ok)
