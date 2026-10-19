@@ -183,7 +183,7 @@ func objectReading(v reflect.Value, token string) (Reading, *yaml.Node) {
 		return Retried, nil
 	}
 	if _, ok := reflect.TypeAssert[jsonpointer.KeyNavigable](v); ok {
-		return Answering, nil // it answers token or fails, never deferring to its fields (see the package doc)
+		return Answering, nil // it answers token or fails, never deferring to its fields (TestWalk_AnswersAsTheWholeReadDoes)
 	}
 	if keyed(reflect.Indirect(v).Type(), token, true) {
 		return Answering, nil
