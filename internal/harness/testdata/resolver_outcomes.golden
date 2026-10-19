@@ -12,6 +12,10 @@ path-item/prefix-self-dangling errors
 path-item/prefix-self-trailing-space errors
 path-item/prefix-self-percent-encoded errors
 path-item/prefix-self-resolving-sibling errors
+path-item/prefix-self-sibling-back errors
+path-item/prefix-self-property-back errors
+path-item/prefix-self-empty-key-back errors
+path-item/prefix-self-empty-token-stays errors
 path-item/dangling-elsewhere errors
 path-item/external-document errors
 webhook/exact-self errors
@@ -19,6 +23,10 @@ webhook/prefix-self-dangling errors
 webhook/prefix-self-trailing-space errors
 webhook/prefix-self-percent-encoded errors
 webhook/prefix-self-resolving-sibling errors
+webhook/prefix-self-sibling-back errors
+webhook/prefix-self-property-back errors
+webhook/prefix-self-empty-key-back errors
+webhook/prefix-self-empty-token-stays errors
 webhook/dangling-elsewhere errors
 webhook/external-document errors
 component-path-item/exact-self errors
@@ -26,6 +34,10 @@ component-path-item/prefix-self-dangling errors
 component-path-item/prefix-self-trailing-space errors
 component-path-item/prefix-self-percent-encoded errors
 component-path-item/prefix-self-resolving-sibling errors
+component-path-item/prefix-self-sibling-back errors
+component-path-item/prefix-self-property-back errors
+component-path-item/prefix-self-empty-key-back errors
+component-path-item/prefix-self-empty-token-stays errors
 component-path-item/dangling-elsewhere errors
 component-path-item/external-document errors
 component-response/exact-self errors
@@ -33,6 +45,10 @@ component-response/prefix-self-dangling errors
 component-response/prefix-self-trailing-space errors
 component-response/prefix-self-percent-encoded errors
 component-response/prefix-self-resolving-sibling errors
+component-response/prefix-self-sibling-back errors
+component-response/prefix-self-property-back errors
+component-response/prefix-self-empty-key-back errors
+component-response/prefix-self-empty-token-stays errors
 component-response/dangling-elsewhere errors
 component-response/external-document errors
 schema/exact-self overflowed
@@ -40,5 +56,9 @@ schema/prefix-self-dangling errors
 schema/prefix-self-trailing-space overflowed
 schema/prefix-self-percent-encoded errors
 schema/prefix-self-resolving-sibling errors
+schema/prefix-self-sibling-back overflowed
+schema/prefix-self-property-back overflowed
+schema/prefix-self-empty-key-back overflowed
+schema/prefix-self-empty-token-stays overflowed
 schema/dangling-elsewhere errors
 schema/external-document errors

@@ -1,11 +1,7 @@
-# The re-entrant prefix reached on the second hop rather than the first: /b's
-# pointer passes through /a, which is on the chain by then.
-#
-# The declaration order is load-bearing. /b's own chain ends without a
-# re-entry, and /b is declared first, so a scan that judged it first and let
-# /a -> /b reuse that answer would short-circuit past the re-entrant hop. Both
-# orders re-enter a reference (docs/parser-library.md#reference-object-cycle),
-# so both must be refused; this is the order that hides it.
+# The prefix through a reference reached on the second hop rather than the
+# first: /b's pointer passes through /a, which is on /a's chain by then. Both
+# references are reported unresolved
+# (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Path Item Prefix Chain, version: "1"}
 paths:

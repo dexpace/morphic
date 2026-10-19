@@ -32,15 +32,15 @@ const (
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
 	// CyclicRef reports a degenerate reference cycle, refused before the parser
-	// library reaches it: one it would overflow its stack on
-	// (docs/parser-library.md#schema-cycle-overflow,
-	// docs/parser-library.md#alias-cycle), or a chain of reference objects it
-	// reports itself (docs/parser-library.md#reference-object-cycle). A
-	// pre-parse scan finds a recursive YAML anchor or a chain of $ref-only nodes
-	// joined by same-document pointers; load's reach, one closing through
-	// $anchor, $id or $defs-relative resolution (GitHub #557). Either names a
-	// reference on the cycle, or one a pointer passes back through, never one
-	// only leading in, and of several the least by pointer (GitHub #912).
+	// library overflows its stack on it (docs/parser-library.md#schema-cycle-overflow,
+	// docs/parser-library.md#alias-cycle). A pre-parse scan finds a recursive
+	// YAML anchor or a loop of schema $refs joined by same-document pointers;
+	// load's reach, one closing through $anchor, $id or $defs-relative
+	// resolution (GitHub #557). Each names the cycle's reference with the least
+	// pointer, never one only leading in (GitHub #912). Load's chain read, for
+	// one closing through the source's file name, names every reference whose
+	// chain loops (GitHub #768). The resolver reports a chain of reference
+	// objects itself, as UnresolvedRef (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the

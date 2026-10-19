@@ -382,7 +382,7 @@ func pureRefFrom(val *yaml.Node) (jsontext.Pointer, bool) {
 // It reads the fragment as fragment.Pointer does, and the document half as the
 // resolver does (references/reference.go GetURI): split on '#', trim, and an
 // empty half names this document. A raw read would hide a resolvable pointer
-// from the cycle scan, such as '#/paths/~1a ' with a trailing space.
+// from the cycle scan, such as '#/components/schemas/A ' with a trailing space.
 //
 // A fragment not starting with '/' is refused: `#name` is a $anchor (GitHub
 // #523, #526). A bare '#' names the root. One decoding to non-UTF-8 bytes is
@@ -401,37 +401,34 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 	if pointer != "" && !strings.HasPrefix(pointer, "/") {
 		return "", false // a $anchor name or other non-pointer fragment
 	}
-	// Kept for non-UTF-8 bytes too: no document key spells them, but the resolver
-	// walks every token before the one it cannot find, and a walk through a
-	// reference already on the chain is the re-entrant hop the scan refuses
-	// whether or not the pointer then resolves.
+	// Kept for non-UTF-8 bytes too: no key of a parsed document spells them, so
+	// a walk lands nowhere, the answer refusing the pointer here would give.
 	return jsontext.Pointer(pointer), true
 }
 
-// PointerPath walks a normalized JSON pointer (as InternalPointer returns it)
-// against root, returning the root and each node reached, aliases dereferenced.
-// complete reports whether every token was followed; if not, the path ends at
-// the last node reached.
-//
-// It returns the whole path because a pointer through a reference already being
-// resolved is a re-entry, which the scan refuses: the resolver deadlocked on it
-// at an earlier version (docs/parser-library.md#reference-object-cycle).
-//
-// '/a/' has tokens "a" and "" (RFC 6901 §3). Dropping the empty token would
-// make a node the walk passes through its destination, which the caller's
-// re-entrancy check exempts (GitHub #238).
-func (v *View) PointerPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
-	return v.walkPointer(root, pointer, tokenless(pointer))
+// PointerTarget walks a normalized JSON pointer (as InternalPointer returns it)
+// against root, aliases dereferenced, and returns the node it lands on, or
+// false when it lands nowhere. A lone '/' lands on the root (see tokenless),
+// and every other token is read as RFC 6901 reads it: '/a/' names the key ""
+// under a. The resolver reads a trailing empty token by where its walk has got
+// to, which only a caller knowing the document's roles can say (GitHub #944).
+func (v *View) PointerTarget(root *yaml.Node, pointer jsontext.Pointer) (*yaml.Node, bool) {
+	path, complete := v.walkPointer(root, pointer, tokenless(pointer))
+	if !complete {
+		return nil, false
+	}
+	return path[len(path)-1], true
 }
 
 // DocumentPath walks a pointer that names a position in this document rather
-// than a reference some source wrote, and is otherwise PointerPath.
+// than a reference some source wrote, returning the root and each node reached,
+// aliases dereferenced. complete reports whether every token was followed; if
+// not, the path ends at the last node reached.
 //
-// They differ on '/'. PointerPath lands it on the root, as the resolver does, a
-// departure from RFC 6901 that tokenless records. ids.Ptr("") spells the root
-// member whose key is the empty string as '/', so here only the empty pointer
-// names the root. Taking '/' for the root would hide an $id written on that
-// member from a caller reading $id down a path.
+// It differs from PointerTarget only on '/', which it reads as RFC 6901 does.
+// ids.Ptr("") spells the root member keyed "" as '/', so taking '/' for the
+// root here would hide an $id written on that member from a caller reading $id
+// down a path.
 func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, pointer == "")
 }
@@ -483,7 +480,7 @@ func tokenless(pointer jsontext.Pointer) bool {
 //
 // n itself is not dereferenced, unlike MappingPairs and PureRefTarget: an alias
 // handed here matches neither arm and answers nil. Every caller walks with a
-// dereference at each hop, as PointerPath does, so the difference is
+// dereference at each hop, as walkPointer does, so the difference is
 // unreachable; it is written down because those siblings promise the opposite.
 func (v *View) ChildByToken(n *yaml.Node, token string) *yaml.Node {
 	if n == nil {
@@ -536,7 +533,7 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // An index costs a map allocation and an insert per pair to save a comparison
 // per pair per later read, so a narrow or rarely read mapping never repays it.
 // The wide ones a walk revisits are the few a components block holds. 16 is
-// where the costs roughly meet; BenchmarkPointerPath_IntoAWideMapping carries
+// where the costs roughly meet; BenchmarkPointerTarget_IntoAWideMapping carries
 // the widths that show it.
 //
 // Width says nothing about reuse: declaresResourceIDAbove builds a view per

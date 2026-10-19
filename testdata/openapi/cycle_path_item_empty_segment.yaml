@@ -1,9 +1,8 @@
-# The re-entrant prefix spelled with a trailing separator. '/A/' ends in an
-# empty reference token, which RFC 6901 and the resolver's own pointer parser
-# both read as naming the key "" under A — so the walk re-enters A, the
-# reference already being resolved, before the missing key can be reported
-# (docs/parser-library.md#reference-object-cycle). A scan dropping the empty
-# token read it as stopping at A, a components-only cycle left to the resolver.
+# The prefix spelled with a trailing separator: '/A/' ends in an empty
+# reference token, which the resolver reads as a key under A, through the
+# reference it is resolving. It deadlocked there once, and now reports the
+# reference unresolved, at the use and the component
+# (docs/parser-library.md#reference-object-cycle).
 openapi: 3.1.0
 info: {title: Path Item Empty Segment, version: "1"}
 paths:

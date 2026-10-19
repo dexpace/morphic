@@ -1,0 +1,12 @@
+# A schema loop through a trailing empty token read in raw YAML. A schema has
+# no field u, so the resolver reads the rest of A's pointer in raw YAML, where
+# a last empty token stays on the node reached: A lands on u, whose $ref leads
+# back to A, and the resolver recurses until the stack runs out (GitHub #944).
+openapi: 3.1.0
+info: {title: Schema Empty Token Stays, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $ref: '#/components/schemas/A/u/'
+      u: {$ref: '#/components/schemas/A'}

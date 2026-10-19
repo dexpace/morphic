@@ -1,0 +1,15 @@
+# A schema that refers to itself under an operation's default response. The
+# resolver recurses round the loop until the stack runs out. Outside a schema a
+# default is a response, not example data, so the scan must read the schemas
+# beneath it.
+openapi: 3.1.0
+info: {title: Schema Default Response, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        default:
+          description: any
+          content:
+            application/json:
+              schema: {$ref: '#/paths/~1a/get/responses/default/content/application~1json/schema'}

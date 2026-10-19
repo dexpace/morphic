@@ -3,9 +3,9 @@ package harness_test
 // The differential oracle for the compiler's reference refusals.
 //
 // compilers/openapi/internal/scan refuses documents that would crash
-// speakeasy's resolver, or once hung it
-// (docs/parser-library.md#schema-cycle-overflow,
-// docs/parser-library.md#reference-object-cycle). That refusal is a *model* of
+// speakeasy's resolver (docs/parser-library.md#schema-cycle-overflow), and
+// leaves to it the reference-object chains it reports itself
+// (docs/parser-library.md#reference-object-cycle). That refusal is a *model* of
 // one version's behavior, and a model can be wrong in two directions: too
 // narrow lets a hang through, too wide refuses a document that compiles.
 // Neither shows up in a test that only asserts what the scan says, because the
@@ -13,7 +13,7 @@ package harness_test
 //
 // So this asks the resolver instead. For each generated shape it compares what
 // the compiler does against what the resolver actually does, both measured in a
-// subprocess — because a deadlock and a stack overflow cannot be observed from
+// subprocess — because a hang and a stack overflow cannot be observed from
 // inside the process they happen to, and because the compiler is subject to both
 // if its refusal ever regresses. An oracle that hangs instead of failing on the
 // regression it exists for would be no oracle at all.
@@ -159,6 +159,18 @@ func pointerForms() []pointerForm {
 		}},
 		{"prefix-self-resolving-sibling", func(p string) string {
 			return fmt.Sprintf("{$ref: '%s/description', description: d}", p)
+		}},
+		{"prefix-self-sibling-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/x', x: {$ref: '%s'}}", p, p)
+		}},
+		{"prefix-self-property-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/properties/p', properties: {p: {$ref: '%s'}}}", p, p)
+		}},
+		{"prefix-self-empty-key-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/properties/', properties: {'': {$ref: '%s'}}}", p, p)
+		}},
+		{"prefix-self-empty-token-stays", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/x/', x: {$ref: '%s'}}", p, p)
 		}},
 		{"dangling-elsewhere", func(string) string { return "{$ref: '#/nope/nope'}" }},
 		{"external-document", func(string) string { return "{$ref: 'other.yaml#/x'}" }},

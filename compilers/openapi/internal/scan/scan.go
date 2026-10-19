@@ -1,9 +1,8 @@
 // Package scan refuses a source document before any of it is lowered, for
-// shapes the parser library cannot survive, or once could not. A schema
-// reference cycle overflows its stack
-// (docs/parser-library.md#schema-cycle-overflow). A chain of reference objects
-// re-entering a reference, or cycling by document position, deadlocked it or
-// overflowed its stack at an earlier version
+// shapes the parser library cannot survive. A schema $ref chain that never
+// reaches a concrete schema overflows its stack
+// (docs/parser-library.md#schema-cycle-overflow); a chain of reference objects
+// is left to the resolver, which reports one
 // (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
 // fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). And nesting so deep that its cost
@@ -33,10 +32,14 @@ var schemaEntryMapKeys = map[string]bool{
 	"schemas": true, "$defs": true, "definitions": true,
 }
 
-// subSchemaObjectKeys name single sub-schemas within a schema object.
+// subSchemaObjectKeys name single sub-schemas within a schema object. These and
+// the two sets below are the schema fields of the library's model, and only
+// those (TestSubSchemaKeys_AreTheModelsSchemaFields): under any other key of a
+// schema, such as draft-07's additionalItems, the resolver resolves nothing,
+// and its pointer walk is in raw YAML or a field holding no schema.
 var subSchemaObjectKeys = map[string]bool{
 	"items": true, "not": true, "additionalProperties": true,
-	"additionalItems": true, "propertyNames": true, "contains": true,
+	"propertyNames": true, "contains": true,
 	"if": true, "then": true, "else": true,
 	"unevaluatedItems": true, "unevaluatedProperties": true,
 	"contentSchema": true,
@@ -45,7 +48,7 @@ var subSchemaObjectKeys = map[string]bool{
 // subSchemaMapKeys name a mapping of name→schema within a schema object.
 var subSchemaMapKeys = map[string]bool{
 	"properties": true, "patternProperties": true, "dependentSchemas": true,
-	"$defs": true, "definitions": true,
+	"$defs": true,
 }
 
 // subSchemaListKeys name a sequence of schemas within a schema object.
@@ -53,12 +56,13 @@ var subSchemaListKeys = map[string]bool{
 	"allOf": true, "oneOf": true, "anyOf": true, "prefixItems": true,
 }
 
-// schemaDataKeys name value-bearing keys whose subtree is data, not schema — a
-// $ref-shaped mapping under one of them is an opaque value, never resolved.
-var schemaDataKeys = map[string]bool{
-	"example": true, "examples": true, "default": true,
-	"const": true, "enum": true,
-}
+// exampleKeys name the fields holding example data outside a schema: the
+// example of a parameter, a header or a media type, a raw value, and its
+// examples, Example objects that hold no schema either. A $ref-shaped mapping
+// under one is an opaque value, never resolved. No field so named outside a
+// schema holds one (TestExampleKeys_HoldNoSchema). A default there is a
+// response, so it is no such key, whatever a schema's default is.
+var exampleKeys = map[string]bool{"example": true, "examples": true}
 
 // Locator answers where a diagnostic's subject is. Given a node it returns the
 // provenance to report the node at; given nil it returns the source alone, the
@@ -227,10 +231,9 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 }
 
 // Cycles refuses, before parsing, the structures the package doc names (GitHub
-// #12, #27, speakeasy-api/openapi#231): a recursive anchor, a $ref cycle, a
-// pointer re-entering its own chain, and alias amplification past the ratio or
-// the surplus budget (zero for none). An incomplete scan yields a
-// diag.CycleScanFailed warning.
+// #12, #27, speakeasy-api/openapi#231): a recursive anchor, a schema $ref chain
+// that loops, and alias amplification past the ratio or the surplus budget
+// (zero for none). An incomplete scan yields a diag.CycleScanFailed warning.
 //
 // The index must cover the tree that will reach the parser, since an overlay
 // can graft a cycle onto a clean document, and must not be truncated: a partial
@@ -331,12 +334,11 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycles reports the degenerate chains among the collected references, at
-// one site (see refusal): a chain followed until it revisits a node on it
-// without reaching a node with no top-level $ref, where speakeasy stops
-// resolving. Schema positions are refused on that alone
-// (docs/parser-library.md#schema-cycle-overflow); reference-object positions as
-// outsideRefused judges them.
+// refCycles reports the schema chains that never reach a node without a
+// top-level $ref, which the resolver recurses round until the stack runs out
+// (docs/parser-library.md#schema-cycle-overflow), at one site (see refusal). A
+// chain of reference objects is left to the resolver, which reports it
+// (docs/parser-library.md#reference-object-cycle).
 //
 // If the mapping view hit nodeview.MergeDepthLimit it returns a
 // diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
@@ -345,7 +347,7 @@ func anchorName(alias *yaml.Node) string {
 func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
-	chains := settleChains(s.view, root, slices.Concat(s.out, s.outside), sourceindex.MaxIndexedNodes)
+	chains := settleChains(s.view, root, s.out, sourceindex.MaxIndexedNodes)
 	if d, found := s.refusal(locate, root, chains); found {
 		return []ir.Diagnostic{d}
 	}
@@ -360,110 +362,17 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 }
 
 // refusal reports the chains refCycles refuses, or nothing when it refuses
-// none. However many there are, one diagnostic names one site: of what the
-// refused chains fail on (chainGraph.failsOn), the node with the least pointer
-// (Least). A reference that only leads into a cycle is not named, and no
-// declaration order moves the site (GitHub #912).
+// none. However many there are, one diagnostic names one site: of the nodes of
+// every loop a schema chain runs into, the one with the least pointer (Least).
+// A reference that only leads into a loop is not named, and no declaration
+// order moves the site (GitHub #912).
 func (s *refScan) refusal(locate Locator, root *yaml.Node, chains *chainGraph) (ir.Diagnostic, bool) {
-	failed := failures{chains: chains, loops: map[int]bool{}}
-	for _, start := range s.out {
-		if chains.outcome(start).verdict == chainCycles {
-			failed.add(start)
-		}
-	}
-	for _, start := range s.outside {
-		if outsideRefused(chains.outcome(start)) {
-			failed.add(start)
-		}
-	}
-	if len(failed.sites) == 0 {
+	sites := chains.loopsReached(s.out)
+	if len(sites) == 0 {
 		return ir.Diagnostic{}, false
 	}
-	site := Least(root, failed.sites)
-	if h := chains.hops[site]; h.loop != 0 && failed.loops[h.loop] {
-		return cyclicDiag(locate, site, "cyclic $ref: reference chain never reaches a node without a $ref"), true
-	}
-	return cyclicDiag(locate, site, "cyclic $ref: reference resolves through itself"), true
-}
-
-// failures gathers what the refused chains fail on: each loop one cycles in,
-// once, and each node one first re-enters.
-type failures struct {
-	chains *chainGraph
-	loops  map[int]bool
-	sites  []*yaml.Node
-}
-
-// add records what the chain from start fails on.
-func (f *failures) add(start *yaml.Node) {
-	loop, sites := f.chains.failsOn(start)
-	if loop != 0 && f.loops[loop] {
-		return
-	}
-	if loop != 0 {
-		f.loops[loop] = true
-	}
-	f.sites = append(f.sites, sites...)
-}
-
-// outsideRefused reports whether the chain from a reference object outside any
-// schema is refused here rather than left to the resolver: one re-entering a
-// reference on it (chainReenters), whatever the pointer names, and a cycle
-// once the chain has left components.
-//
-// Both were written against an earlier resolver, which deadlocked on the first
-// and overflowed its stack on the second. It now returns an error on both
-// (docs/parser-library.md#reference-object-cycle), so neither refusal protects
-// the process; each still reports at the reference itself. GitHub #574 decides
-// whether they stay.
-func outsideRefused(chain chainOutcome) bool {
-	return chain.verdict == chainReenters || (chain.verdict == chainCycles && chain.leftComponents)
-}
-
-// componentsSection is the pointer of the components object itself. It repeats
-// ids.componentsRoot because scan may not import ids.
-const componentsSection jsontext.Pointer = "/components"
-
-// componentsRef reports whether a same-document $ref names a node in the
-// components section: a reference-object cycle every hop of which does is left
-// to the resolver, and one that leaves components is refused (see
-// outsideRefused). The pointer is the normalized one nodeview.InternalPointer
-// returns, so it carries no leading '#'.
-func componentsRef(pointer jsontext.Pointer) bool {
-	return pointer != componentsSection && componentsSection.Contains(pointer)
-}
-
-// chainVerdict is how following a pure-$ref chain ends. The two failing cases
-// are kept apart because a reference object's chain is refused on them
-// differently, not for description's sake: a re-entry wherever it is written, a
-// cycle only once it has left components (see outsideRefused).
-type chainVerdict int
-
-const (
-	// chainTerminates: the chain reached a node with no top-level $ref, or a
-	// pointer that names nothing. The resolver stops either way.
-	chainTerminates chainVerdict = iota
-
-	// chainCycles: every hop resolved to a whole node, and the chain revisited
-	// one already on it. Each hop completes, so speakeasy extends its own
-	// reference chain and its cycle check sees the loop.
-	chainCycles
-
-	// chainReenters: a hop's pointer passes *through* a node already on the
-	// chain, inside a hop that never completes. The resolver deadlocked on this
-	// at an earlier version, and now reports the reference unresolved
-	// (docs/parser-library.md#reference-object-cycle). Refused whatever the
-	// pointer's spelling, a components-only chain included.
-	chainReenters
-)
-
-// chainOutcome is how the chain from a node ends: its verdict and, for
-// chainCycles alone, whether a hop on the way named a node outside components,
-// which separates a cycle left to the resolver from one refused here (see
-// outsideRefused). For any other verdict it is false.
-type chainOutcome struct {
-	verdict        chainVerdict
-	leftComponents bool
+	return cyclicDiag(locate, Least(root, sites),
+		"cyclic $ref: reference chain never reaches a node without a $ref"), true
 }
 
 // walkRole is how the ref-collection walk reads the node it is visiting. The
@@ -481,6 +390,47 @@ const (
 
 	roleCount // number of roles; sizes refScan.seen
 )
+
+// child returns the role of what a node read in role r holds under key, and
+// false where the scan reads no further: under a schema, any key naming no
+// sub-schema, below which the resolver reads no schema; outside one, an
+// extension or an example (exampleKeys). That skip goes by the name alone,
+// though the library's model also asks which object holds the key, so it
+// passes over an object named so, such as a webhook named x-h (GitHub #949).
+// The collection walk and a hop's pointer walk (emptyTokenLanding) share this
+// one reading.
+func (r walkRole) child(key string) (walkRole, bool) {
+	switch r {
+	case roleOutside:
+		switch {
+		case strings.HasPrefix(key, "x-"), exampleKeys[key]:
+			return roleOutside, false
+		case key == "schema":
+			return roleSchema, true
+		case schemaEntryMapKeys[key]:
+			return roleSchemaMap, true
+		default:
+			return roleOutside, true
+		}
+	case roleSchema:
+		switch {
+		case subSchemaObjectKeys[key]:
+			return roleSchema, true
+		case subSchemaMapKeys[key]:
+			return roleSchemaMap, true
+		case subSchemaListKeys[key]:
+			return roleSchemaList, true
+		default:
+			return roleSchema, false
+		}
+	case roleSchemaMap, roleSchemaList:
+		return roleSchema, true
+	default:
+		// Unreachable by construction, as in collect: recoverCycleScan turns
+		// this into the diag.CycleScanFailed warning, never a crash.
+		panic(fmt.Sprintf("cycle scan: unhandled walk role %d", r))
+	}
+}
 
 // refTask is one unit of the ref-collection walk: a node and the role to read it
 // in.
@@ -503,10 +453,6 @@ type refScan struct {
 	stack []refTask
 	seen  [roleCount]map[*yaml.Node]bool
 	out   []*yaml.Node
-	// outside holds the pure-$ref nodes found in reference-object positions
-	// rather than schema ones. They are kept apart from out because the two are
-	// reported under different rules — see outsideRefused.
-	outside []*yaml.Node
 }
 
 // newRefScan returns a scan with every memoization map initialized. Building the
@@ -571,30 +517,15 @@ func (s *refScan) pushReversed(nodes []*yaml.Node, role walkRole) {
 	}
 }
 
-// visitOutside reads a document position outside any schema, entering schema
-// context at schema-valued keys and never collecting refs from data or extension
-// subtrees.
+// visitOutside reads a document position outside any schema, collecting
+// nothing there: it enters schema context at schema-valued keys, and never
+// descends into data or extension subtrees (walkRole.child).
 func (s *refScan) visitOutside(n *yaml.Node) {
 	if n.Kind == yaml.SequenceNode {
 		s.pushReversed(n.Content, roleOutside)
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
-		s.outside = append(s.outside, n)
-	}
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case strings.HasPrefix(p.Key, "x-"), schemaDataKeys[p.Key]:
-			// extension or example/default data: not a schema position
-		case p.Key == "schema":
-			s.push(p.Val, roleSchema)
-		case schemaEntryMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		default:
-			s.push(p.Val, roleOutside)
-		}
-	}
+	s.pushChildren(roleOutside, s.view.MappingPairs(n))
 }
 
 // visitSchema reads one schema object: it collects the node when it is a pure
@@ -609,16 +540,7 @@ func (s *refScan) visitSchema(n *yaml.Node) {
 	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.out = append(s.out, n)
 	}
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case subSchemaObjectKeys[p.Key]:
-			s.push(p.Val, roleSchema)
-		case subSchemaMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		case subSchemaListKeys[p.Key]:
-			s.push(p.Val, roleSchemaList)
-		}
-	}
+	s.pushChildren(roleSchema, pairs)
 }
 
 // visitSchemaMap reads each value of a name→schema mapping as a schema.
@@ -626,9 +548,17 @@ func (s *refScan) visitSchemaMap(n *yaml.Node) {
 	if n.Kind != yaml.MappingNode {
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	for _, pair := range slices.Backward(pairs) {
-		s.push(pair.Val, roleSchema)
+	s.pushChildren(roleSchemaMap, s.view.MappingPairs(n))
+}
+
+// pushChildren enqueues each value of pairs, a mapping read in role r, in the
+// role walkRole.child gives it there, skipping those that hold no schema. They
+// are pushed last first, so a LIFO pop meets them in written order.
+func (s *refScan) pushChildren(r walkRole, pairs []nodeview.Pair) {
+	for _, p := range slices.Backward(pairs) {
+		if role, held := r.child(p.Key); held {
+			s.push(p.Val, role)
+		}
 	}
 }
 

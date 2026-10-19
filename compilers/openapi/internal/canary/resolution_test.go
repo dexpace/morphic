@@ -77,8 +77,10 @@ func resolveTargets(ctx context.Context, input []byte) string {
 
 // schemaCycleOverflow pins schema-cycle-overflow: a cycle of schema $refs
 // overflows the stack, except for the first reference from outside it, when
-// the walk meets that reference before any member, and a pointer through the
-// schema it is written in fails as naming nothing.
+// the walk meets that reference before any member. A pointer through the
+// schema it is written in lands on the member it names, closing a cycle where
+// that member leads back, and ending in an empty token fails as naming
+// nothing.
 func schemaCycleOverflow(t *testing.T) {
 	ref := func(name, target string) string { return refTo("schemas", name, target) }
 	overflows := map[string]string{
@@ -88,6 +90,8 @@ func schemaCycleOverflow(t *testing.T) {
 		"an outside reference met last":   schemas(ref("A", "B"), ref("B", "A"), ref("O", "A")),
 		"a second outside reference":      schemas(ref("O", "A"), ref("P", "A"), ref("A", "B"), ref("B", "A")),
 		"an outside reference to another": schemas(ref("O", "A"), ref("P", "B"), ref("A", "B"), ref("B", "A")),
+		"a pointer through its own schema to a member back": schemas(
+			"A: {$ref: '#/components/schemas/A/properties/p', properties: {p: {$ref: '#/components/schemas/A'}}}"),
 	}
 	for name, doc := range overflows {
 		t.Run(name, func(t *testing.T) {
