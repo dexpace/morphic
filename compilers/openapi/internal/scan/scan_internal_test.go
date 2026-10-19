@@ -709,8 +709,8 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 // TestCycles_AllocatesLinearlyInItsInput bounds the allocations Cycles makes
 // per level of input, at n and at 2n, and holds the count at 2n under 2.5
 // times the count at n, so a walk that re-enters a node fails by count rather
-// than by a clock (#979). The bounds are twice the most seen
-// on go1.27.2, with and without -race. It runs serially: AllocsPerRun measures
+// than by a clock (#979). The per-level bounds are twice the most seen on
+// go1.27.2, with and without -race. It runs serially: AllocsPerRun measures
 // the whole process. A collect walk re-entering a node allocates nothing, so
 // TestRefScanCollect_VisitsEachNodeOncePerRole pins that one.
 func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
