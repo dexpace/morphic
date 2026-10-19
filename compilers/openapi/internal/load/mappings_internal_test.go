@@ -981,18 +981,19 @@ func nodesRead(t *testing.T, doc any, root *yaml.Node, pointer string) (int, err
 	read()
 	failure := err
 	reached := 0
-	var plant func(n *yaml.Node)
-	plant = func(n *yaml.Node) {
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
 		for i, child := range n.Content {
 			n.Content[i] = nil
 			if panics(read) {
 				reached++
 			}
 			n.Content[i] = child
-			plant(child)
+			stack = append(stack, child)
 		}
 	}
-	plant(root)
 	return reached, failure
 }
 

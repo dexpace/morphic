@@ -13,12 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A child is a re-run of this test binary that runs one test alone, told by an
-// environment variable that it is the child and what to work on. A stack
-// overflow or a panic the library does not recover ends the process, so a
-// test that asks whether one happens asks it in a child, whose loss fails
-// nothing.
-
 // childMaxStack bounds a child's goroutine stacks, so a runaway recursion
 // overflows at once rather than outlasting childTimeout, under -race too.
 const childMaxStack = 64 << 20
@@ -47,9 +41,12 @@ func asChild(env string) (string, bool) {
 	return value, true
 }
 
-// inChild runs test alone in a child that asChild(env) hands value, and
-// returns what the child printed and how it stopped. A child that stops any
-// other way, failing its test, hanging or never starting, fails t.
+// inChild runs test alone in a child: a re-run of this test binary, told by env,
+// which asChild reads, that it is the child and what to work on. A stack
+// overflow, or a panic the library does not recover, ends the process, so a
+// test that asks whether one happens asks it in a child. inChild returns what
+// the child printed and how it stopped; a child that stops any other way,
+// failing its test, hanging or never starting, fails t.
 func inChild(t *testing.T, test, env, value string) (string, childEnd) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
