@@ -685,7 +685,7 @@ func TestDetectCycles_MergeChainPastBoundWarns(t *testing.T) {
 
 // scanWithin runs Cycles over src and returns its diagnostics. The minute is a
 // hang guard, not a cost bound: a hang cannot be counted, so only a clock can
-// end it. What Cycles costs is bounded by TestCycles_AllocatesLinearlyInItsInput.
+// end it. TestCycles_AllocatesLinearlyInItsInput bounds what Cycles allocates on these shapes.
 func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 	t.Helper()
 	const bound = time.Minute
@@ -706,8 +706,9 @@ func scanWithin(t *testing.T, src, blowup string) []ir.Diagnostic {
 }
 
 // TestCycles_AllocatesLinearlyInItsInput bounds the allocations Cycles makes
-// per level of input, at n and at 2n, so a walk that re-enters a node fails
-// by count rather than by a clock (#979). The bounds are twice the most seen
+// per level of input, at n and at 2n, and holds the count at 2n under 2.5
+// times the count at n, so a walk that re-enters a node fails by count rather
+// than by a clock (#979). The bounds are twice the most seen
 // on go1.27.2, with and without -race. It runs serially: AllocsPerRun measures
 // the whole process. A collect walk re-entering a node allocates nothing, so
 // TestRefScanCollect_VisitsEachNodeOncePerRole pins that one.
@@ -724,15 +725,20 @@ func TestCycles_AllocatesLinearlyInItsInput(t *testing.T) {
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
+			var counts []float64
 			for _, size := range []int{row.n, 2 * row.n} {
 				idx := indexOf(t, []byte(row.spec(size)))
 				allocs := testing.AllocsPerRun(1, func() {
 					Cycles(InSource(0), idx, defaultSurplus)
 				})
 				require.Positive(t, allocs, "a measurement of nothing bounds nothing")
+				counts = append(counts, allocs)
 				assert.LessOrEqual(t, allocs/float64(size), row.perUnit,
 					"size %d took %.0f allocations, over %.2f a level", size, allocs, row.perUnit)
 			}
+			require.Len(t, counts, 2)
+			assert.Less(t, counts[1], 2.5*counts[0],
+				"doubling the input took %.0f allocations to %.0f, more than 2.5 times", counts[0], counts[1])
 		})
 	}
 }

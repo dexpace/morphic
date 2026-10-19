@@ -630,7 +630,7 @@ func TestProbeFromMerge_DeclinesAnAliasThatResolvedToNothing(t *testing.T) {
 // probe's walk quadratic: the inner mapping was entered once per merge key
 // naming it, so the work was the product of the two rather than their sum. The
 // version sits at the innermost anchor, so a walk that stops early is caught by
-// the assertion rather than by the clock.
+// the assertion rather than looking cheap.
 func breadthMergeDoc(k int) []byte {
 	var b strings.Builder
 	b.WriteString("l0: &a0\n  openapi: 3.1.0\n")
@@ -687,7 +687,9 @@ func TestProbeFromMapping_EntersEachNodeOnce(t *testing.T) {
 // was about: maxMergeDepth limits how deep a merge chain is followed, not how
 // wide, and the walk used to enter an anchored mapping once per merge key
 // naming it. It counts allocations, not time, so load cannot move it, and
-// runs serially because AllocsPerRun measures the whole process.
+// runs serially because AllocsPerRun measures the whole process. It sees
+// re-entry only because each entry allocates, so
+// TestProbeFromMapping_EntersEachNodeOnce pins the walk itself.
 func TestProbeFromMapping_CostIsLinearInMergeBreadth(t *testing.T) {
 	for _, k := range []int{2000, 4000} {
 		var root yaml.Node
