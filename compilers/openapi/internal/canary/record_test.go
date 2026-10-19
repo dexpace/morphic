@@ -572,18 +572,23 @@ func yamlComments(path string) ([]comment, error) {
 }
 
 // yamlComment returns the comment line ends with: from a '#' that opens the
-// line or follows a space, outside quotes.
+// line or follows a space, outside quotes. A quote opens a quoted scalar only
+// where a scalar starts, so an apostrophe inside a plain one opens nothing,
+// and a backslash in a double-quoted one escapes the byte after it.
 func yamlComment(line string) (string, bool) {
-	var quote rune
-	for i, r := range line {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
 		switch {
+		case quote == '"' && c == '\\':
+			i++
 		case quote != 0:
-			if r == quote {
+			if c == quote {
 				quote = 0
 			}
-		case r == '\'' || r == '"':
-			quote = r
-		case r == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
+		case (c == '\'' || c == '"') && (i == 0 || strings.IndexByte(" \t[{,", line[i-1]) >= 0):
+			quote = c
+		case c == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
 			return line[i+1:], true
 		}
 	}

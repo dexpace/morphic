@@ -240,6 +240,10 @@ func TestYAMLComment_StartsAtAHashOutsideQuotes(t *testing.T) {
 		{`key: "a # b"`, "", false},
 		{"key: a#b", "", false},
 		{"key: 'it''s' # after a doubled quote", " after a doubled quote", true},
+		{"key: it's # after an apostrophe", " after an apostrophe", true},
+		{`key: "a \" # b"`, "", false},
+		{`key: "a \\" # after an escaped backslash`, " after an escaped backslash", true},
+		{"[a, 'b # c'] # after a flow sequence", " after a flow sequence", true},
 	}
 	for _, tc := range tests {
 		got, has := yamlComment(tc.line)
