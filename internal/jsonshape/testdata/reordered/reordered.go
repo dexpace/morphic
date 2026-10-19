@@ -40,6 +40,7 @@ const (
 type Sum interface {
 	Kind() Color
 	sum()
+	Common() *Base
 }
 
 // ByPointer is a variant held by pointer.
@@ -51,6 +52,9 @@ type ByPointer struct {
 func (*ByPointer) Kind() Color { return Azure }
 
 func (*ByPointer) sum() {}
+
+// Common is not the tag.
+func (p *ByPointer) Common() *Base { return nil }
 
 // ByValue is a variant held by value.
 type ByValue struct {
@@ -64,6 +68,9 @@ func (v ByValue) MarshalJSON() (out []byte, err error) { return nil, nil }
 func (ByValue) Kind() Color { return "red" }
 
 func (ByValue) sum() {}
+
+// Common is not the tag.
+func (v ByValue) Common() *Base { return nil }
 
 // Color is a string enum.
 type Color string

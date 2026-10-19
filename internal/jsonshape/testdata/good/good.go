@@ -111,9 +111,11 @@ func (r *Registry) UnmarshalJSONFrom(*jsontext.Decoder) error { return nil }
 // String is not a method the encoder calls.
 func (r Registry) String() string { return "" }
 
-// Sum is a sealed sum.
+// Sum is a sealed sum. Common sorts before Kind and also takes nothing and
+// returns one value, so only its name says it is not the tag.
 type Sum interface {
 	sum()
+	Common() *Base
 	Kind() Color
 }
 
@@ -123,6 +125,9 @@ type ByValue struct {
 }
 
 func (ByValue) sum() {}
+
+// Common is a sum's accessor that is not its tag.
+func (ByValue) Common() *Base { return nil }
 
 // Kind returns a typed constant.
 func (ByValue) Kind() Color { return Red }
@@ -136,6 +141,9 @@ type ByPointer struct {
 }
 
 func (*ByPointer) sum() {}
+
+// Common is a sum's accessor that is not its tag.
+func (*ByPointer) Common() *Base { return nil }
 
 // Kind returns an untyped constant.
 func (*ByPointer) Kind() Color { return "blue" }
@@ -152,6 +160,7 @@ func (Partial) Kind() Color { return Red }
 // Other is an interface, which a variant is not.
 type Other interface {
 	sum()
+	Common() *Base
 	Kind() Color
 }
 
