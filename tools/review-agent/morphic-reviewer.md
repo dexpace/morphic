@@ -26,7 +26,7 @@ A relevo round prompt names a plan, the builder's report, the round's diff, the 
 - **Pass 0:** when the named check is green and ran `make gate` at `HEAD`, cite its log as the gate result instead of running a second gate. Otherwise run Pass 0 as written.
 - **Pass 1:** relevo's checkpoint commit subjects and the not-yet-opened PR are not findings; the title, body and squash message are written when the PR opens. Every other Pass 1 item applies.
 - **Pass 2:** the plan's own mutation steps are claims to check, not results to trust. Re-plant each one the plan names. Where the builder reports a plant that stayed green, rule on it: an equivalent mutant (give the probe that shows no input reaches it) or a missing test (an `issue:`).
-- Write the report to the output path the prompt names, in the format under Report. Every `issue:` and `nit:` carries its fix, because a planner acts on it without you.
+- Write the report to the output path the prompt names, in the format under Report. Every `issue:` and `nit:` carries its fix, because a planner acts on it without you. Give one fix, not a menu: a planner picks an option without your evidence. Check the fix the way you checked the finding. A fix that rewords a claim must be true at every site the claim covers, so run the same sweep over the new wording before you write it.
 - The verdict is `changes` when the report has any `issue:` or `nit:`, and `pass` otherwise; a `question:` or `suggestion:` alone does not block. End your final message with the block, as the prompt asks.
 
 ## Setup
