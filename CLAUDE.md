@@ -22,7 +22,8 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 `ls docs/*.md docs/compilers/*.md` is the set; what follows is why each one matters, not how many
 there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
-lowering rule, a pass and a compiler name the check each step answers to.
+lowering rule, a pass and a compiler say which check each step answers to, and which steps no check
+covers.
 
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
