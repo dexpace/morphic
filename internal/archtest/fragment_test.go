@@ -110,7 +110,7 @@ func TestFragmentReading_OnlyInPackageFragment(t *testing.T) {
 	t.Parallel()
 	pkgs, err := productionLoad()
 	require.NoError(t, err)
-	require.Greater(t, len(pkgs), 1, "the sweep loaded no compiler package, so a clean result proves nothing")
+	require.Greater(t, len(pkgs), 1, "the sweep loaded no production package, so a clean result proves nothing")
 
 	sawFragment := false
 	for _, p := range pkgs {

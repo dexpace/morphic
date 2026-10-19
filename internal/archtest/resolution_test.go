@@ -41,10 +41,11 @@ const (
 // resolutionBaseline is how many times each production package, keyed by its
 // repo-relative path, uses each member of the library's resolution API.
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
-// use ties the compiler to a resolver it can neither bound nor order, and when
-// one falls until the count here is lowered to match. So the map only shrinks,
-// and what it still holds is what is left of the move to compiler-owned schema
-// resolution (GitHub #920).
+// use deepens the dependence on the library's resolution, and when one falls
+// until the count here is lowered to match, so the map only shrinks (GitHub
+// #920). A call through an interface both kinds of reference satisfy counts
+// toward each, so its schema count reaches zero only once the interface is
+// split.
 var resolutionBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/annotation": {
 		"oas3.JSONSchema.GetReferenceResolutionInfo": 1,
@@ -71,6 +72,55 @@ var resolutionBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/schema": {
 		"oas3.JSONSchema.GetResolvedSchema": 2,
 	},
+}
+
+// reviewedMembers is the resolution API as derived from the library version
+// go.mod requires, by short name. A member nothing calls shows in no baseline
+// count, so a bump that adds one or drops one fails
+// TestResolutionAPI_IsTheReviewedSet until it is looked at and this list is
+// updated: a member dropped silently would let a later call into it go
+// uncounted.
+var reviewedMembers = []string{
+	"oas3.Inline",
+	"oas3.JSONSchema.GetAbsRef",
+	"oas3.JSONSchema.GetDocumentBaseURI",
+	"oas3.JSONSchema.GetImmediateReference",
+	"oas3.JSONSchema.GetParent",
+	"oas3.JSONSchema.GetReferenceChain",
+	"oas3.JSONSchema.GetReferenceResolutionInfo",
+	"oas3.JSONSchema.GetResolvedObject",
+	"oas3.JSONSchema.GetResolvedSchema",
+	"oas3.JSONSchema.GetSchemaRegistry",
+	"oas3.JSONSchema.GetTopLevelParent",
+	"oas3.JSONSchema.GetTopLevelReference",
+	"oas3.JSONSchema.IsResolved",
+	"oas3.JSONSchema.MustGetResolvedSchema",
+	"oas3.JSONSchema.Resolve",
+	"oas3.JSONSchema.SetDocumentBaseURI",
+	"oas3.JSONSchema.SetParent",
+	"oas3.JSONSchema.SetSchemaRegistry",
+	"oas3.JSONSchema.SetTopLevelParent",
+	"oas3.JSONSchema.ShallowCopy",
+	"oas3.NewReferencedScheme",
+	"oas3.Schema.GetEffectiveBaseURI",
+	"oas3.Schema.GetOwningDocument",
+	"oas3.Schema.GetSchemaRegistry",
+	"oas3.Schema.PopulateWithContext",
+	"oas3.Schema.SetEffectiveBaseURI",
+	"oas3.Schema.SetOwningDocument",
+	"oas3.Schema.ShallowCopy",
+	"oas3.SchemaRegistryImpl.GetBaseURI",
+	"oas3.SchemaRegistryImpl.RegisterSchema",
+	"openapi.BuildIndex",
+	"openapi.Bundle",
+	"openapi.Encoding.GetContentType",
+	"openapi.Inline",
+	"openapi.Localize",
+	"openapi.OpenAPI.ResolveAllReferences",
+	"openapi.Optimize",
+	"openapi.Reference.Resolve",
+	"openapi.Upgrade",
+	"references.Resolve",
 }
 
 // libFunc is one function the library declares with a body, as the type checker
@@ -188,7 +238,9 @@ func typeKey(t types.Type) string {
 // resolver, or touches a field of the schema's package that resolving a schema
 // writes. A non-schema reference's answer is read by GetObject, the accessor of
 // every parameter and response, and stays with the library (GitHub #920), so
-// only running its resolver counts. Each member maps to why it is one.
+// only running its resolver counts; Walk reads no resolution state, and
+// GetTarget and Validate reach it only through GetObject. Each member maps to
+// why it is one.
 func resolutionAPI(g libGraph, resolver, schemaResolve, schemaPkg string) map[string]string {
 	state := writtenFrom(g, schemaResolve, schemaPkg+".")
 	why := map[string]string{}
@@ -485,8 +537,8 @@ func baselineFindings(baseline map[string]map[string]int, uses map[string]map[st
 			got, want := len(uses[pkg][m]), baseline[pkg][m]
 			switch {
 			case got > want:
-				out = append(out, fmt.Sprintf("%s: %d uses of %s, over its baseline of %d; each ties the compiler "+
-					"to a resolver it can neither bound nor order (GitHub #558): %s",
+				out = append(out, fmt.Sprintf("%s: %d uses of %s, over its baseline of %d; each deepens the "+
+					"compiler's dependence on the library's reference resolution (GitHub #558): %s",
 					pkg, got, m, want, positions(uses[pkg][m], root)))
 			case got < want:
 				out = append(out, fmt.Sprintf("%s: %d uses of %s, under its baseline of %d; lower "+
@@ -579,6 +631,21 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 	for _, finding := range baselineFindings(resolutionBaseline, uses, repoRoot(t)) {
 		t.Error(finding)
 	}
+}
+
+// TestResolutionAPI_IsTheReviewedSet holds the API derived from the real
+// library to reviewedMembers, in both directions.
+func TestResolutionAPI_IsTheReviewedSet(t *testing.T) {
+	t.Parallel()
+	members, err := libraryAPI()
+	require.NoError(t, err)
+	shorts := make([]string, len(members))
+	for i, m := range members {
+		shorts[i] = m.short
+	}
+	slices.Sort(shorts)
+	assert.Equal(t, reviewedMembers, shorts,
+		"the library's resolution API changed: review each member added or dropped, then update reviewedMembers")
 }
 
 // plantedLibrary is a library in miniature: Resolve is its resolver and
@@ -755,11 +822,11 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"gone: 0 uses of lib.A, under its baseline of 1; lower resolutionBaseline to match",
-		"held: 3 uses of lib.A, over its baseline of 2; each ties the compiler to a resolver it can " +
-			"neither bound nor order (GitHub #558): x/x.go:1, x/x.go:2, x/x.go:5",
+		"held: 3 uses of lib.A, over its baseline of 2; each deepens the compiler's dependence on the " +
+			"library's reference resolution (GitHub #558): x/x.go:1, x/x.go:2, x/x.go:5",
 		"held: 0 uses of lib.B, under its baseline of 1; lower resolutionBaseline to match",
-		"new: 1 uses of lib.C, over its baseline of 0; each ties the compiler to a resolver it can " +
-			"neither bound nor order (GitHub #558): x/x.go:7",
+		"new: 1 uses of lib.C, over its baseline of 0; each deepens the compiler's dependence on the " +
+			"library's reference resolution (GitHub #558): x/x.go:7",
 	}, baselineFindings(baseline, map[string]map[string][]token.Position{
 		"held": {"lib.A": at(1, 2, 5)}, "new": {"lib.C": at(7)},
 	}, root))
