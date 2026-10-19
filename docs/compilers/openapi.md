@@ -16,7 +16,8 @@ A rule closes with the evidence that pins it, one bullet per field:
 - **Codes** — the diagnostic codes it reports, as `compilers/openapi/internal/diag` declares them.
 - **Tests** — Go tests that pin what no case reaches, as `package.TestName`: `openapi` for the
   compiler's own package, an internal package's name otherwise.
-- **Status** — where the compiler does not yet do all the rule says, and the issue tracking it.
+- **Status** — where the compiler does not yet do all the rule says, naming the issue that tracks
+  it, or the milestone that schedules work not yet begun.
 
 A rule names a case or a test, or says in its Status why it has neither. The `TestLoweringSpec`
 tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
@@ -401,6 +402,8 @@ decision table but keeps every branch reconstructible.
 
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`
+- Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
+  discriminator itself, is composed as a mixin rather than the `Base` (#986).
 
 ### `allof-beside-ref`
 
@@ -730,7 +733,7 @@ a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum`
 normalization — not in the compiler — so per-variant `Docs` survive until the collapse is chosen
 
 - Status: partly built: the compiler keeps such a union a Union of Literals with per-variant docs,
-  and no pass normalizes it to an Enum yet.
+  and no pass normalizes it to an Enum yet (#990).
 
 ### `enum-const`
 
@@ -772,6 +775,8 @@ but still lowers to a closure, which keeps the object a `Model` until #862 is re
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`
+- Status: partly built: `additionalProperties: false` beside `patternProperties` also carries a
+  catch-all typed as the top type, which the closure contradicts (#987).
 
 ### `pattern-properties`
 
@@ -1642,13 +1647,14 @@ Unmodeled entries, and their documented *promotion* (no dedicated node needed) i
 synthesizes one logical `Parameter` typed by a `Union` of variant models, bound via
 `HTTPParamBinding.ParamPath` per field
 
-- Status: partly built: the groups are kept as any extension is, and no pass promotes them yet.
+- Status: partly built: the groups are kept as any extension is, and no pass promotes them yet
+  (#988).
 
 ### `pagination-policy`
 
 pagination only via injectable policy, marked Inferred
 
-- Status: not built: no policy infers pagination yet, so the compiler sets no Pagination.
+- Status: not built: no policy infers pagination yet, so the compiler sets no Pagination (#989).
 
 ## 15. Swagger 2.0
 

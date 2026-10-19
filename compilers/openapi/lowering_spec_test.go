@@ -53,6 +53,9 @@ var (
 	ruleCitation = regexp.MustCompile(`compilers/openapi\.md#([A-Za-z0-9_-]+)`)
 	// selfLink is a link from the specification to one of its own rules.
 	selfLink = regexp.MustCompile(`\]\(#([A-Za-z0-9_-]+)\)`)
+	// statusTracker is what a Status names to say who owns its gap: an issue,
+	// or the milestone that schedules the work.
+	statusTracker = regexp.MustCompile(`#[0-9]+\b|\bmilestone [0-9]+\b`)
 )
 
 // rule is one rule of the specification: its key, the line of its heading,
@@ -173,7 +176,8 @@ func readRuleField(r *rule, line string, n int) []string {
 // TestLoweringSpec_RulesAreKeyedAndCarryEvidence holds each rule to a key of
 // its own and to evidence: a conformance case or a test that pins it, or a
 // Status saying why it has neither. A rule nothing pins is one a change can
-// break without any test going red.
+// break without any test going red, and a Status naming no issue or milestone
+// is a gap nobody will schedule.
 func TestLoweringSpec_RulesAreKeyedAndCarryEvidence(t *testing.T) {
 	t.Parallel()
 	seen := map[string]int{}
@@ -184,6 +188,9 @@ func TestLoweringSpec_RulesAreKeyedAndCarryEvidence(t *testing.T) {
 		seen[r.key] = r.line
 		if len(r.cases) == 0 && len(r.tests) == 0 && r.status == "" {
 			t.Errorf("line %d: %s names no case or test that pins it, and no Status saying why", r.line, r.key)
+		}
+		if r.status != "" && !statusTracker.MatchString(r.status) {
+			t.Errorf("line %d: %s writes a Status that names no issue (#N) or milestone tracking it", r.line, r.key)
 		}
 	}
 }
