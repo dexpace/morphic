@@ -655,20 +655,41 @@ func TestTreeReads_ModelCostReadsNothingPastItsLimit(t *testing.T) {
 	assert.Positive(t, reads.drain(), "a count within it indexes what it reads")
 }
 
-// TestJoinTokens_KeepsTheBytesTheLibraryReads pins that a token is spelled
-// with the bytes the library compares, a byte that is no UTF-8 included, and
-// that no tokens spell no pointer.
+// TestJoinTokens_KeepsTheBytesTheLibraryReads holds joinTokens to the library's
+// reading of the pointer it spells. Each row's tokens are the keys of a tree,
+// nested one to a level, and the library must land on the node they name. A
+// byte that is no UTF-8 and a key spelled as an escape are among them. An empty
+// token that ends a pointer answers the node before it, and no tokens spell a
+// pointer the library refuses to read.
 func TestJoinTokens_KeepsTheBytesTheLibraryReads(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct {
+	for _, tc := range []struct {
 		tokens []string
-		want   string
+		named  int // how many leading tokens name the node the library lands on
 	}{
-		{nil, ""},
-		{[]string{""}, "/"},
-		{[]string{"a/b", "~x", ""}, "/a~1b/~0x/"},
-		{[]string{"a\xffb", "k"}, "/a\xffb/k"},
+		{[]string{"a"}, 1},
+		{[]string{"a/b"}, 1},
+		{[]string{"~x"}, 1},
+		{[]string{"~1"}, 1},
+		{[]string{"a/b", "~x"}, 2},
+		{[]string{"a\xffb", "k"}, 2},
+		{[]string{"k", "\xc0\xaf"}, 2},
+		{[]string{"a/b", "~x", ""}, 2},
+		{[]string{""}, 0},
 	} {
-		assert.Equal(t, c.want, joinTokens(c.tokens), "%q", c.tokens)
+		nodes := make([]*yaml.Node, len(tc.tokens)+1)
+		nodes[len(tc.tokens)] = ynode.Scalar("leaf")
+		for i := len(tc.tokens) - 1; i >= 0; i-- {
+			nodes[i] = ynode.Map(ynode.Scalar(tc.tokens[i]), nodes[i+1])
+		}
+
+		got, err := jsonpointer.GetTarget(nodes[0], jsonpointer.JSONPointer(joinTokens(tc.tokens)))
+
+		require.NoError(t, err, "%q", tc.tokens)
+		assert.Same(t, nodes[tc.named], got, "%q", tc.tokens)
 	}
+
+	_, err := jsonpointer.GetTarget(ynode.Map(ynode.Scalar(""), ynode.Scalar("leaf")), jsonpointer.JSONPointer(joinTokens(nil)))
+
+	assert.ErrorIs(t, err, jsonpointer.ErrValidation, "no tokens spell a pointer the library reads")
 }
