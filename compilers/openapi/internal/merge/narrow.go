@@ -6,15 +6,15 @@ import "github.com/dexpace/morphic/ir"
 // to number, six edges, so the cap only guards a table edited into a cycle.
 const maxNarrowDepth = 8
 
-// primParent maps a primitive kind to its immediate supertype: the kind whose
-// values include every value of the key. A kind absent from it is a root (bool,
-// string, number, any). The edges mirror what the schema package's formatTable
-// lowers, so each "type/format" row narrows its bare "type" row.
+// primParent maps a primitive kind to its immediate supertype in OpenAPI's
+// spelling: the bare "type" a "type/format" row refines. A kind absent from it
+// is a root (bool, string, number, any). The edges mirror the schema package's
+// formatTable; bytes under string and decimal128 under decimal rest on the
+// spelling alone, with no value-set containment claimed.
 //
-// The relation is sound but deliberately incomplete. It omits true
-// containments (uint8 within int16, integer within float, int32 within
-// float64) and overlaps where neither kind contains the other (int32 and
-// uint32), whose intersection no single PrimKind names. Those pairs stay
+// The relation is deliberately incomplete. It omits true containments (uint8
+// within int16, integer within float, int32 within float64) and overlaps where
+// neither kind contains the other (int32 and uint32). Those pairs stay
 // unrelated and keep the conflicting-redeclaration warning.
 var primParent = map[ir.PrimKind]ir.PrimKind{
 	ir.PrimInt8:           ir.PrimInt16,
@@ -41,10 +41,11 @@ var primParent = map[ir.PrimKind]ir.PrimKind{
 	ir.PrimBytes:          ir.PrimString,
 }
 
-// Narrows reports whether narrow is a strict subtype of broad: every value of
-// narrow is a value of broad and the two kinds differ. Under allOf the
-// intersection of the pair is narrow, so a redeclaration naming both loses
-// nothing by keeping narrow.
+// Narrows reports whether narrow is a strict refinement of broad under
+// primParent: broad is reached by walking up from narrow, and the kinds
+// differ. It claims OpenAPI-spelling subsumption, not value-domain
+// containment. Under allOf the pair intersects as narrow, so a redeclaration
+// naming both keeps narrow.
 func Narrows(narrow, broad ir.PrimKind) bool {
 	kind, ok := narrow, true
 	for depth := 0; depth < maxNarrowDepth && ok; depth++ {

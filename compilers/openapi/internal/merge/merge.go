@@ -96,9 +96,10 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 	dst.Visibility = visibility
 
 	lost = g.foldDocs(dst, &src) || lost
-	// Skipped when src's type was dropped: default, constraints and examples
-	// describe the shape that lost, so folding them onto the winner makes the
-	// document assert two contradictory things about one field — an integer
+	// Skipped when src's type was dropped (a narrowing is no drop, and its
+	// swap judges no default; see foldTypeTargets): default, constraints and
+	// examples describe the shape that lost, so folding them onto the winner
+	// makes the document assert two contradictory things about one field — an integer
 	// carrying a string default, beside an Unmodeled entry saying the string
 	// declaration was dropped. Nothing downstream compares a Value's kind to
 	// its property's type, so an emitter renders that pair into code that does
@@ -314,12 +315,10 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 
 // foldTypeTargets settles which target dst keeps and reports whether src's was
 // dropped. A bare primitive that strictly narrows the other wins in either
-// order, since the intersection is the narrower kind and nothing is lost. Where
-// the referent is the same, or the narrower one is settled, the only thing left
-// to disagree about is whether null is admitted. Under intersection it is
-// admitted only where both branches admit it — the rule foldNullVerdicts
-// already states for a single schema. Without this the answer came from
-// whichever branch was written first.
+// order. dst's own default and examples ride onto the narrower target unjudged:
+// a number default 1.5 lands on integer, unreported. Otherwise the only thing
+// left to disagree about is null, admitted only where both branches admit it,
+// as foldNullVerdicts states for a single schema.
 func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
 	if aNarrower, related := g.bareNarrowing(dst.Type, src.Type); related {
 		if !aNarrower {

@@ -913,7 +913,7 @@ func TestReconcileProperty_ARelatedKindThroughAScalarStillWarns(t *testing.T) {
 }
 
 // TestTypesConflict_UnrelatedPrimitivesStillConflict pins the pairs the
-// relation leaves alone.
+// relation leaves alone, with integer against number as the narrowing control.
 func TestTypesConflict_UnrelatedPrimitivesStillConflict(t *testing.T) {
 	t.Parallel()
 	reg := narrowingRegistry()
