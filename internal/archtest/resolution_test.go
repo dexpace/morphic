@@ -167,34 +167,36 @@ func (f *libFunc) read(n ast.Node, info *types.Info) {
 		}
 	case *ast.AssignStmt:
 		for _, lhs := range n.Lhs {
-			if key, ok := writtenField(lhs, info); ok {
-				f.writes[key] = true
-			}
+			f.write(lhs, info)
 		}
 	case *ast.IncDecStmt:
-		if key, ok := writtenField(n.X, info); ok {
-			f.writes[key] = true
+		f.write(n.X, info)
+	case *ast.UnaryExpr:
+		if n.Op == token.AND {
+			f.write(n.X, info)
 		}
 	}
 }
 
-// writtenField returns the field an assignment to lhs writes: the one it names,
-// or the one whose element, pointee or slice it indexes.
-func writtenField(lhs ast.Expr, info *types.Info) (string, bool) {
+// write records the fields a write to x writes, x being assigned, incremented
+// or having its address taken: the field x names, and each field its path
+// passes through by an index, a dereference or a selector.
+func (f *libFunc) write(x ast.Expr, info *types.Info) {
 	for {
-		switch e := ast.Unparen(lhs).(type) {
+		switch e := ast.Unparen(x).(type) {
 		case *ast.IndexExpr:
-			lhs = e.X
+			x = e.X
 		case *ast.StarExpr:
-			lhs = e.X
+			x = e.X
 		case *ast.SelectorExpr:
 			sel, ok := info.Selections[e]
 			if !ok || sel.Kind() != types.FieldVal {
-				return "", false
+				return
 			}
-			return fieldKey(sel), true
+			f.writes[fieldKey(sel)] = true
+			x = e.X
 		default:
-			return "", false
+			return
 		}
 	}
 }
@@ -269,7 +271,9 @@ func resolutionAPI(g libGraph, resolver, schemaResolve, schemaPkg string) map[st
 		}
 	}
 
-	maps.DeleteFunc(why, func(name, _ string) bool { return !exportedAPI(g[name].fn) })
+	// An exported method of an unexported type is callable too, promoted through
+	// a type that embeds it or through an interface.
+	maps.DeleteFunc(why, func(name, _ string) bool { return !g[name].fn.Exported() })
 	return why
 }
 
@@ -317,24 +321,26 @@ func rootReason(name string, f *libFunc, resolver string, state map[string]bool)
 	return ""
 }
 
-// exportedAPI reports whether fn can be called from outside its package: it is
-// exported, and so is the type it is a method of.
-func exportedAPI(fn *types.Func) bool {
-	if !fn.Exported() {
-		return false
-	}
-	recv := fn.Signature().Recv()
-	if recv == nil {
-		return true
-	}
-	named, ok := derefNamed(recv.Type()).(*types.Named)
-	return ok && named.Obj().Exported()
+// resolutionMember is one member of the API: the function or method, the short
+// name the baseline gives it, "pkg.Type.Method" or "pkg.Func", and for a method,
+// the methods its type has through a pointer, each by types.Id.
+type resolutionMember struct {
+	full, name, short string
+	methods           map[string]bool
 }
 
-// resolutionMember is one member of the API: the function or method, and the
-// short name the baseline gives it, "pkg.Type.Method" or "pkg.Func".
-type resolutionMember struct {
-	full, pkg, recv, name, short string
+// has reports whether m's type has a method of every name iface declares, so a
+// call through iface may reach m.
+func (m resolutionMember) has(iface *types.Interface) bool {
+	if m.methods == nil {
+		return false
+	}
+	for want := range iface.Methods() {
+		if !m.methods[types.Id(want.Pkg(), want.Name())] {
+			return false
+		}
+	}
+	return true
 }
 
 // membersOf describes the API's members, refusing two that would share a short
@@ -344,14 +350,17 @@ func membersOf(g libGraph, api map[string]string) ([]resolutionMember, error) {
 	shorts := map[string]string{}
 	for _, full := range slices.Sorted(maps.Keys(api)) {
 		fn := g[full].fn
-		m := resolutionMember{full: full, pkg: fn.Pkg().Path(), name: fn.Name(), short: fn.Pkg().Name() + "."}
+		m := resolutionMember{full: full, name: fn.Name(), short: fn.Pkg().Name() + "."}
 		if recv := fn.Signature().Recv(); recv != nil {
 			named, ok := derefNamed(recv.Type()).(*types.Named)
 			if !ok {
 				return nil, fmt.Errorf("%s has a receiver that is no named type", full)
 			}
-			m.recv = named.Obj().Name()
-			m.short += m.recv + "."
+			m.short += named.Obj().Name() + "."
+			m.methods = map[string]bool{}
+			for sel := range types.NewMethodSet(types.NewPointer(named)).Methods() {
+				m.methods[types.Id(sel.Obj().Pkg(), sel.Obj().Name())] = true
+			}
 		}
 		m.short += m.name
 		if other, taken := shorts[m.short]; taken {
@@ -454,8 +463,9 @@ func libraryPackages() ([]string, error) {
 // identifier the type checker resolves to a member: a call, a method value or
 // expression, a method promoted through an embedded field. One resolved to an
 // interface's method, a constraint's included, counts toward each member of that
-// name whose type has every method the interface declares, since the call may
-// reach it. A method reached by reflection names no identifier and is not seen.
+// name whose type has a method of every name the interface declares, since the
+// call may reach it. A method reached by reflection names no identifier and is
+// not seen.
 func resolutionUses(p *decls.Package, members []resolutionMember) map[string][]token.Position {
 	byFull := map[string]resolutionMember{}
 	byName := map[string][]resolutionMember{}
@@ -470,7 +480,7 @@ func resolutionUses(p *decls.Package, members []resolutionMember) map[string][]t
 		if !ok {
 			continue
 		}
-		reached := dispatchedTo(p, fn, byName[fn.Name()])
+		reached := dispatchedTo(fn, byName[fn.Name()])
 		if m, ok := byFull[fn.Origin().FullName()]; ok {
 			reached = []resolutionMember{m}
 		}
@@ -487,11 +497,12 @@ func resolutionUses(p *decls.Package, members []resolutionMember) map[string][]t
 }
 
 // dispatchedTo returns the candidates a call through fn may reach, when fn is an
-// interface's method: each one whose type, in p's view of it, has every method
-// the interface declares.
-func dispatchedTo(p *decls.Package, fn *types.Func, candidates []resolutionMember) []resolutionMember {
+// interface's method: each one whose type has a method of every name the
+// interface declares. The types are read from the library's own load, so what
+// the calling package imports does not bound what it can be handed.
+func dispatchedTo(fn *types.Func, candidates []resolutionMember) []resolutionMember {
 	recv := fn.Signature().Recv()
-	if recv == nil || len(candidates) == 0 {
+	if recv == nil {
 		return nil
 	}
 	iface, ok := recv.Type().Underlying().(*types.Interface)
@@ -500,31 +511,11 @@ func dispatchedTo(p *decls.Package, fn *types.Func, candidates []resolutionMembe
 	}
 	var out []resolutionMember
 	for _, m := range candidates {
-		if m.recv != "" && satisfies(p, m, iface) {
+		if m.has(iface) {
 			out = append(out, m)
 		}
 	}
 	return out
-}
-
-// satisfies reports whether m's type, through a pointer, has a method of every
-// name iface declares.
-func satisfies(p *decls.Package, m resolutionMember, iface *types.Interface) bool {
-	pkg, ok := p.Imported(m.pkg)
-	if !ok {
-		return false
-	}
-	tn, ok := pkg.Scope().Lookup(m.recv).(*types.TypeName)
-	if !ok {
-		return false
-	}
-	methods := types.NewMethodSet(types.NewPointer(tn.Type()))
-	for want := range iface.Methods() {
-		if methods.Lookup(want.Pkg(), want.Name()) == nil {
-			return false
-		}
-	}
-	return true
 }
 
 // baselineFindings compares uses, by package and member, with baseline and
@@ -661,28 +652,44 @@ type Schema struct {
 	seen   map[string]bool
 	box    *int
 	count  int
+	meta   struct{ n int }
+	addr   int
 	name   string
 	other  int
 }
 
-func (s *Schema) Resolve()     { s.cache = new(int); s.count++; s.link(); Resolve() } // runs the resolver
-func (s *Schema) link()        { s.parent = s; s.seen["s"] = true; *s.box = 1 }      // unexported
-func (s *Schema) Cached() bool { return s.cache != nil }                            // touches cache
-func (s *Schema) Up() *Schema  { return s.parent }                                  // touches parent, written through link
-func (s *Schema) Seen() bool   { return s.seen["s"] }                               // touches seen, written through an index
-func (s *Schema) Box() int     { return *s.box }                                    // touches box, written through its pointer
-func (s *Schema) Count() int   { return s.count }                                   // touches count, incremented
-func (s *Schema) Name() string { return s.name }                                    // not: Resolve never writes name
-func (s *Schema) SetOther()    { s.other++ }                                        // not: written, but not by Resolve
-func (s *Schema) cached() bool { return s.cache != nil }                            // unexported
-func Through(s *Schema) bool   { return s.cached() }                                // reaches cache through cached
-func Runs()                    { helper() }                                         // reaches the resolver through helper
-func helper()                  { Resolve() }                                        // unexported
-func Plain() int               { return 1 }                                         // not: reaches neither
+func (s *Schema) Resolve() { s.cache = new(int); s.count++; s.link(); Resolve() } // runs the resolver
+
+// link is unexported. It writes each field a different way.
+func (s *Schema) link() {
+	s.parent = s
+	s.seen["s"] = true
+	*s.box = 1
+	s.meta.n = 1
+	fill(&s.addr)
+}
+
+func fill(n *int)              { *n = 1 }                // unexported
+func (s *Schema) Cached() bool { return s.cache != nil } // touches cache
+func (s *Schema) Up() *Schema  { return s.parent }       // touches parent, written through link
+func (s *Schema) Seen() bool   { return s.seen["s"] }    // touches seen, written through an index
+func (s *Schema) Box() int     { return *s.box }         // touches box, written through its pointer
+func (s *Schema) Count() int   { return s.count }        // touches count, incremented
+func (s *Schema) Meta() int    { return s.meta.n }       // touches meta, written through a field of it
+func (s *Schema) Addr() int    { return s.addr }         // touches addr, written through its address
+func (s *Schema) Name() string { return s.name }         // not: Resolve never writes name
+func (s *Schema) SetOther()    { s.other++ }             // not: written, but not by Resolve
+func (s *Schema) cached() bool { return s.cache != nil } // unexported
+func Through(s *Schema) bool   { return s.cached() }     // reaches cache through cached
+func Runs()                    { helper() }              // reaches the resolver through helper
+func helper()                  { Resolve() }             // unexported
+func Plain() int               { return 1 }              // not: reaches neither
 
 type hidden struct{ s *Schema }
 
-func (h hidden) Cached() bool { return h.s.cache != nil } // not: its type is unexported
+func (h hidden) Cached() bool { return h.s.cache != nil } // touches cache, promoted through Wrapper
+
+type Wrapper struct{ hidden }
 
 type Doc struct{ Schema }
 
@@ -714,6 +721,9 @@ func TestResolutionAPI_DerivesThePlantedLibrarysMembers(t *testing.T) {
 		"(*p.Schema).Seen":    "touches p.Schema.seen",
 		"(*p.Schema).Box":     "touches p.Schema.box",
 		"(*p.Schema).Count":   "touches p.Schema.count",
+		"(*p.Schema).Meta":    "touches p.Schema.meta",
+		"(*p.Schema).Addr":    "touches p.Schema.addr",
+		"(p.hidden).Cached":   "touches p.Schema.cache",
 		"p.Through":           "calls (*p.Schema).cached",
 		"p.Runs":              "calls p.helper",
 		"(*p.Doc).Promoted":   "touches p.Schema.cache",
@@ -760,12 +770,12 @@ func viaConstraint[S interface {
 }
 
 func plantedResolution(ctx context.Context, s *schemaRef, doc *soa.OpenAPI, item objectRef, r resolved) {
-	_ = s.GetResolvedSchema() // counts oas3.JSONSchema.GetResolvedSchema
+	_ = s.GetResolvedSchema()   // counts oas3.JSONSchema.GetResolvedSchema
 	read := s.GetResolvedSchema // counts oas3.JSONSchema.GetResolvedSchema
 	_ = read
 	_ = (*schemaRef).GetResolvedSchema // counts oas3.JSONSchema.GetResolvedSchema
-	_ = embeds{s}.GetResolvedSchema() // counts oas3.JSONSchema.GetResolvedSchema
-	_ = r.GetResolvedSchema() // counts oas3.JSONSchema.GetResolvedSchema
+	_ = embeds{s}.GetResolvedSchema()  // counts oas3.JSONSchema.GetResolvedSchema
+	_ = r.GetResolvedSchema()          // counts oas3.JSONSchema.GetResolvedSchema
 	_ = viaConstraint(s)
 	_, _ = doc.ResolveAllReferences(ctx, soa.ResolveAllOptions{}) // counts openapi.OpenAPI.ResolveAllReferences
 	_ = lookalike{}.GetResolvedSchema()
@@ -774,31 +784,54 @@ func plantedResolution(ctx context.Context, s *schemaRef, doc *soa.OpenAPI, item
 }
 `
 
-// TestResolutionUses_PlantedSpellingsAreCounted plants plantedUses into a
+// plantedElsewhere calls the API through an interface declared in a package
+// that imports nothing of the library: a value it is handed may still be the
+// library's schema.
+const plantedElsewhere = `package ids
+
+type resolvedState interface {
+	IsReference() bool
+	IsResolved() bool
+}
+
+func plantedResolved(s resolvedState) bool {
+	return s.IsResolved() // counts oas3.JSONSchema.IsResolved
+}
+`
+
+// TestResolutionUses_PlantedSpellingsAreCounted plants each plant into a
 // package that uses none of the API and requires exactly the uses its markers
 // name. Without it, a counter that recognized nothing would pass the pin.
 func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 	t.Parallel()
 	members, err := libraryAPI()
 	require.NoError(t, err)
-	p := loadOverlaid(t, "compilers/openapi/internal/diag", "zz_planted_resolution.go", plantedUses)
+	for _, plant := range []struct{ dir, src string }{
+		{"compilers/openapi/internal/diag", plantedUses},
+		{"compilers/openapi/internal/ids", plantedElsewhere},
+	} {
+		t.Run(plant.dir, func(t *testing.T) {
+			t.Parallel()
+			p := loadOverlaid(t, plant.dir, "zz_planted_resolution.go", plant.src)
 
-	const marker = "// counts "
-	var want []string
-	for i, line := range strings.Split(plantedUses, "\n") {
-		if _, member, ok := strings.Cut(line, marker); ok {
-			want = append(want, fmt.Sprintf("%d %s", i+1, member))
-		}
+			const marker = "// counts "
+			var want []string
+			for i, line := range strings.Split(plant.src, "\n") {
+				if _, member, ok := strings.Cut(line, marker); ok {
+					want = append(want, fmt.Sprintf("%d %s", i+1, member))
+				}
+			}
+			var got []string
+			for member, at := range resolutionUses(p, members) {
+				for _, pos := range at {
+					assert.Equal(t, "zz_planted_resolution.go", filepath.Base(pos.Filename))
+					got = append(got, fmt.Sprintf("%d %s", pos.Line, member))
+				}
+			}
+			require.NotEmpty(t, want)
+			assert.ElementsMatch(t, want, got)
+		})
 	}
-	var got []string
-	for member, at := range resolutionUses(p, members) {
-		for _, pos := range at {
-			assert.Equal(t, "zz_planted_resolution.go", filepath.Base(pos.Filename))
-			got = append(got, fmt.Sprintf("%d %s", pos.Line, member))
-		}
-	}
-	require.NotEmpty(t, want)
-	assert.ElementsMatch(t, want, got)
 }
 
 // TestBaselineFindings_EveryDifferenceFails holds the comparison to its two

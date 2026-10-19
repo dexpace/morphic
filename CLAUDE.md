@@ -170,9 +170,9 @@ These all exist already — extend them rather than building a parallel mechanis
   `Unmodeled`, in-range provenance); its findings are `Violation` values — *our* bugs —
   deliberately a channel separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
-  package's uses of the parser library's reference resolution to `resolutionBaseline`, an API it
-  derives from the library's sources; the baseline only shrinks, so removing a use means lowering
-  it (#558).
+  production package's uses of the parser library's reference-resolution API, which it derives
+  from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
+  means lowering it (#558).
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
