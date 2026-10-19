@@ -65,48 +65,47 @@ func memberLine(t *testing.T, members []string, name string) int {
 // chain's, however long: a loop of any length is refused, since the resolver
 // recurses once per hop of one (GitHub #922), and a chain that ends is not.
 // Each document is declared as written and reversed, and the report falls on
-// the first member declared whose chain cycles, as it does for a short loop:
-// the scan's site rule, which GitHub #912 would move onto the loop itself.
+// the loop's member with the least pointer in both: never on a tail leading
+// into the loop, and never on whichever member comes first (GitHub #912).
 func TestCycles_ChainIsJudgedWhole(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
 		members []string
-		// want and wantReversed name the member reported in each order, or "".
-		want, wantReversed string
+		want    string // the member reported, or "" for none
 	}{
-		{"self-loop", loopOf(1), "C0", "C0"},
-		{"loop-of-two", loopOf(2), "C0", "C1"},
-		{"loop-of-10001", loopOf(10001), "C0", "C10000"},
-		{"loop-of-20000", loopOf(20000), "C0", "C19999"},
-		{"short-tail-into-a-long-loop", slices.Concat(chainTo("S", 3, "C0"), loopOf(10001)), "S0", "C10000"},
-		{"long-tail-into-a-short-loop", slices.Concat(chainTo("S", 15000, "C0"), loopOf(2)), "S0", "C1"},
-		{"long-chain-that-ends", slices.Concat(chainTo("S", 15000, "End"), []string{end}), "", ""},
+		{"self-loop", loopOf(1), "C0"},
+		{"loop-of-two", loopOf(2), "C0"},
+		{"loop-of-10001", loopOf(10001), "C0"},
+		{"loop-of-20000", loopOf(20000), "C0"},
+		{"short-tail-into-a-long-loop", slices.Concat(chainTo("S", 3, "C0"), loopOf(10001)), "C0"},
+		{"long-tail-into-a-short-loop", slices.Concat(chainTo("S", 15000, "C0"), loopOf(2)), "C0"},
+		{"tail-sorting-before-its-loop", slices.Concat(chainTo("A", 3, "C0"), loopOf(2)), "C0"},
+		{"long-chain-that-ends", slices.Concat(chainTo("S", 15000, "End"), []string{end}), ""},
 		{
 			"long-chain-that-ends-beside-a-loop",
-			slices.Concat(chainTo("S", 15000, "End"), []string{end}, loopOf(2)), "C0", "C1",
+			slices.Concat(chainTo("S", 15000, "End"), []string{end}, loopOf(2)), "C0",
 		},
 	}
 	for _, tc := range tests {
 		for _, reversed := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/reversed=%t", tc.name, reversed), func(t *testing.T) {
 				t.Parallel()
-				members, want := slices.Clone(tc.members), tc.want
+				members := slices.Clone(tc.members)
 				if reversed {
 					slices.Reverse(members)
-					want = tc.wantReversed
 				}
 
 				diags := scanBytes(t, schemasDoc(members))
 
-				if want == "" {
+				if tc.want == "" {
 					assert.Empty(t, diags, "a chain that ends is no cycle however long it is")
 					return
 				}
 				require.Len(t, diags, 1)
 				assert.Equal(t, diag.CyclicRef, diags[0].Code)
 				assert.Equal(t, ir.SeverityError, diags[0].Severity)
-				assert.Equal(t, memberLine(t, members, want), diags[0].Provenance.Position.Line)
+				assert.Equal(t, memberLine(t, members, tc.want), diags[0].Provenance.Position.Line)
 			})
 		}
 	}
@@ -200,13 +199,13 @@ func TestSettleChains_ReadsEachHopOnce(t *testing.T) {
 	}
 }
 
-// TestOutsideCycle_DoesNotReportALoopInsideComponents pins that the loop the
-// sweep above settles once is still left to the resolver, from every start.
-func TestOutsideCycle_DoesNotReportALoopInsideComponents(t *testing.T) {
+// TestOutsideRefused_LeavesALoopInsideComponents pins that the loop the sweep
+// above settles once is still left to the resolver, from every start.
+func TestOutsideRefused_LeavesALoopInsideComponents(t *testing.T) {
 	t.Parallel()
 	s, chains := settled(t, parameterChainDoc(50))
 
-	_, found := s.outsideCycle(InSource(0), chains)
+	_, found := s.refusal(InSource(0), chains.root, chains)
 
 	assert.False(t, found, "a loop inside components is the resolver's to report")
 }
@@ -214,7 +213,7 @@ func TestOutsideCycle_DoesNotReportALoopInsideComponents(t *testing.T) {
 // TestCycles_LongLoopOutsideComponentsIsRefused is the loop of reference
 // objects spelled by document position, which speakeasy's resolver has no guard
 // for, at a length past the 10,000 hops a walk once stopped at. Declared either
-// way, the first path declared reports it (see GitHub #912 on that site).
+// way, /p0, the member with the least pointer, reports it.
 func TestCycles_LongLoopOutsideComponentsIsRefused(t *testing.T) {
 	t.Parallel()
 	const n = 10001
@@ -234,7 +233,8 @@ func TestCycles_LongLoopOutsideComponentsIsRefused(t *testing.T) {
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.CyclicRef, diags[0].Code)
-			assert.Equal(t, 4, diags[0].Provenance.Position.Line, "the first path declared, below three header lines")
+			assert.Equal(t, 4+slices.Index(declared, members[0]), diags[0].Provenance.Position.Line,
+				"/p0, below three header lines")
 		})
 	}
 }
@@ -302,44 +302,49 @@ func reentryDoc(n int) []byte {
 
 // TestCycles_ReentryIsTheStartsOwn pins that a re-entry is judged for each
 // start apart. S0's walk re-enters, which refCycles does not report for a
-// schema; S1's passes S0 as an ordinary reference, meets the loop and is
-// reported. Handing S1 the re-entry S0 met would report nothing.
+// schema; S1's passes S0 as an ordinary reference, meets the loop of S0's t and
+// S19 and is refused, at t, the loop's member with the least pointer. Handing S1
+// the re-entry S0 met would report nothing.
 func TestCycles_ReentryIsTheStartsOwn(t *testing.T) {
 	t.Parallel()
 
-	diags := scanBytes(t, reentryDoc(20))
+	diags := scanPlaced(t, reentryDoc(20))
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.CyclicRef, diags[0].Code)
-	assert.Equal(t, firstMemberLine+1, diags[0].Provenance.Position.Line)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S0/t"), diags[0].Provenance.Pointer)
 }
 
 // walkFrom is what settleChains answers for start: a walk one hop at a time,
 // remembering nothing between starts. It stops at the first node it revisits,
-// the first pointer passing through a node it followed, or the end.
-func walkFrom(view *nodeview.View, root, start *yaml.Node) chainOutcome {
+// the first pointer passing through a node it followed, or the end, and says
+// what it failed on: the nodes from the one revisited round to it, or the
+// first node along the pointer that passed through one followed.
+func walkFrom(view *nodeview.View, root, start *yaml.Node) (chainOutcome, []*yaml.Node) {
 	at := map[*yaml.Node]int{}
+	var chain []*yaml.Node
 	var left []bool
 	for cur := start; len(left) <= sourceindex.MaxIndexedNodes; {
-		if _, revisit := at[cur]; revisit {
-			return chainOutcome{verdict: chainCycles, leftComponents: slices.Contains(left, true)}
+		if i, revisit := at[cur]; revisit {
+			return chainOutcome{verdict: chainCycles, leftComponents: slices.Contains(left, true)}, chain[i:]
 		}
 		ref, ok := view.PureRefTarget(cur)
 		if !ok {
-			return chainOutcome{verdict: chainTerminates}
+			return chainOutcome{verdict: chainTerminates}, nil
 		}
 		at[cur] = len(left)
+		chain = append(chain, cur)
 		left = append(left, !componentsRef(ref))
 		path, complete := view.PointerPath(root, ref)
 		through := path
 		if complete {
 			through = path[:len(path)-1]
 		}
-		if slices.ContainsFunc(through, func(n *yaml.Node) bool { _, on := at[n]; return on }) {
-			return chainOutcome{verdict: chainReenters}
+		if i := slices.IndexFunc(through, func(n *yaml.Node) bool { _, on := at[n]; return on }); i >= 0 {
+			return chainOutcome{verdict: chainReenters}, through[i : i+1]
 		}
 		if !complete {
-			return chainOutcome{verdict: chainTerminates}
+			return chainOutcome{verdict: chainTerminates}, nil
 		}
 		cur = path[len(path)-1]
 	}
@@ -396,10 +401,10 @@ func randomRefDoc(r *rand.Rand) []byte {
 	return []byte(b.String())
 }
 
-// TestSettleChains_AgreesWithAWalkFromEachNode holds every settled outcome to
-// walkFrom, over the cycle reproducers and thousands of generated documents.
-// The kinds of outcome it must meet are counted, so a generator that stopped
-// reaching one would fail here rather than pass on less.
+// TestSettleChains_AgreesWithAWalkFromEachNode holds every settled outcome,
+// and what it fails on, to walkFrom, over the cycle reproducers and thousands
+// of generated documents. The kinds of outcome it must meet are counted, so a
+// generator that stopped reaching one would fail here rather than pass on less.
 func TestSettleChains_AgreesWithAWalkFromEachNode(t *testing.T) {
 	t.Parallel()
 	const generated = 4000
@@ -417,7 +422,10 @@ func TestSettleChains_AgreesWithAWalkFromEachNode(t *testing.T) {
 		s, chains := settled(t, data)
 		for _, n := range chains.order {
 			got, h := chains.outcome(n), chains.hops[n]
-			require.Equal(t, walkFrom(s.view, chains.root, n), got, "the chain from line %d of\n%s", n.Line, data)
+			want, wantFails := walkFrom(s.view, chains.root, n)
+			require.Equal(t, want, got, "the chain from line %d of\n%s", n.Line, data)
+			_, fails := chains.failsOn(n)
+			require.ElementsMatch(t, wantFails, fails, "what the chain from line %d fails on, in\n%s", n.Line, data)
 			kind := "off a loop, " + verdicts[got.verdict]
 			if h.loop != 0 {
 				kind = "on a loop, " + verdicts[got.verdict]
@@ -538,5 +546,150 @@ func TestSettleChains_TailPassedOnItsLoopReenters(t *testing.T) {
 		nodes[1]: {verdict: chainCycles},
 		nodes[2]: {verdict: chainCycles},
 		nodes[3]: {verdict: chainCycles},
+	}, got)
+}
+
+// failsFrom settles data's chains from the node at start and returns, by
+// pointer, what the chain from each node at a pointer of at fails on.
+func failsFrom(t *testing.T, data []byte, start jsontext.Pointer, at []jsontext.Pointer) map[jsontext.Pointer][]jsontext.Pointer {
+	t.Helper()
+	root := indexOf(t, data).Root()
+	view := nodeview.New()
+	node := func(p jsontext.Pointer) *yaml.Node {
+		path, complete := view.PointerPath(root, p)
+		require.True(t, complete, "%s names nothing", p)
+		return path[len(path)-1]
+	}
+	chains := settleChains(view, root, []*yaml.Node{node(start)}, sourceindex.MaxIndexedNodes)
+	pointers := Pointers(root)
+	out := make(map[jsontext.Pointer][]jsontext.Pointer, len(at))
+	for _, p := range at {
+		_, fails := chains.failsOn(node(p))
+		for _, f := range fails {
+			fp, _ := pointers(f)
+			out[p] = append(out[p], fp)
+		}
+	}
+	return out
+}
+
+// TestSettleChains_AReentryFollowsThePointersOrder pins which of two nodes one
+// hop passes again is the one re-entered: the one its pointer reaches first,
+// where the resolver locks sooner. T's member k is E, which W aliases; T lands
+// on it there, and E's pointer passes T and then E itself. A walk from E
+// re-enters E; one from T meets T first along that same pointer.
+func TestSettleChains_AReentryFollowsThePointersOrder(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    T: {$ref: '#/components/schemas/W', k: &e {$ref: '#/components/schemas/T/k/z', z: {type: string}}}\n",
+		"    W: *e\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/T", []jsontext.Pointer{"/components/schemas/T", "/components/schemas/T/k"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{
+		"/components/schemas/T":   {"/components/schemas/T"},
+		"/components/schemas/T/k": {"/components/schemas/T/k"},
+	}, got)
+}
+
+// TestSettleChains_ATailPassedOnItsLoopIsCountedRoundFromWhereItLands pins how
+// far round its loop a hop passing a tail comes. N lands on R, of a loop of R,
+// A, N's x, B, R's y and C; A's hop passes N one hop after R, and B's passes R
+// three hops after it. Counting N's own hop as hop 0, a walk from N passes N
+// at hop 2, before R's re-entry at hop 4, so N is what it re-enters.
+func TestSettleChains_ATailPassedOnItsLoopIsCountedRoundFromWhereItLands(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    N: {$ref: '#/components/schemas/R', x: {$ref: '#/components/schemas/B'}}\n",
+		"    R: {$ref: '#/components/schemas/A', y: {$ref: '#/components/schemas/C'}}\n",
+		"    A: {$ref: '#/components/schemas/N/x'}\n",
+		"    B: {$ref: '#/components/schemas/R/y'}\n",
+		"    C: {$ref: '#/components/schemas/R'}\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/N", []jsontext.Pointer{"/components/schemas/N", "/components/schemas/R"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{
+		"/components/schemas/N": {"/components/schemas/N"},
+		"/components/schemas/R": {"/components/schemas/R"},
+	}, got)
+}
+
+// TestSettleChains_ALoopReentryFollowsThePointersOrder is the test above on a
+// loop: A, B's member k, lands on B through an alias, B on C, C's pointer passes
+// B and then A to land on A's z, and z on A. A walk from A meets both at C's hop,
+// B first along the pointer, though A comes first on the loop.
+func TestSettleChains_ALoopReentryFollowsThePointersOrder(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    B: &b {$ref: '#/components/schemas/C', k: &a {$ref: '#/components/schemas/WB', z: {$ref: '#/components/schemas/WA'}}}\n",
+		"    C: {$ref: '#/components/schemas/B/k/z'}\n",
+		"    WB: *b\n",
+		"    WA: *a\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/B/k", []jsontext.Pointer{"/components/schemas/B/k"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{"/components/schemas/B/k": {"/components/schemas/B"}}, got)
+}
+
+// TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate is the test
+// above with the pass further round: N lands on R, of a loop of R, X, B, R's y,
+// A, N's x and C, where B's hop passes R two hops after it and A's passes N
+// four after. Counting N's own hop as hop 0, a walk from N re-enters R at hop
+// 3, before A's would pass N at hop 5.
+func TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    N: {$ref: '#/components/schemas/R', x: {$ref: '#/components/schemas/C'}}\n",
+		"    R: {$ref: '#/components/schemas/X', y: {$ref: '#/components/schemas/A'}}\n",
+		"    X: {$ref: '#/components/schemas/B'}\n",
+		"    B: {$ref: '#/components/schemas/R/y'}\n",
+		"    A: {$ref: '#/components/schemas/N/x'}\n",
+		"    C: {$ref: '#/components/schemas/R'}\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/N", []jsontext.Pointer{"/components/schemas/N"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{"/components/schemas/N": {"/components/schemas/R"}}, got)
+}
+
+// TestSettleChains_ATailIsReenteredAtItsEarliestPass pins that of two passes
+// through a tail N, the one earlier on N's walk counts, whichever was read
+// first. Counting N's own hop as hop 0, P's hop passes N at hop 1 and T's at
+// hop 6, around Q's re-entry at hop 4. Every schema is a start, so the
+// declaration order decides which pass is read first, and either way round N
+// is re-entered.
+func TestSettleChains_ATailIsReenteredAtItsEarliestPass(t *testing.T) {
+	t.Parallel()
+	members := []string{
+		"    N: {$ref: '#/components/schemas/P', k: {$ref: '#/components/schemas/Q'}, z: {type: string}}\n",
+		"    P: {$ref: '#/components/schemas/N/k'}\n",
+		"    Q: {$ref: '#/components/schemas/S', t: {$ref: '#/components/schemas/T'}}\n",
+		"    S: {$ref: '#/components/schemas/Q/t'}\n",
+		"    T: {$ref: '#/components/schemas/N/z'}\n",
+	}
+	reversed := slices.Clone(members)
+	slices.Reverse(reversed)
+	for _, order := range [][]string{members, reversed} {
+		s, chains := settled(t, schemasDoc(order))
+		n := nodesAt(t, chains.root, []jsontext.Pointer{"/components/schemas/N"})[0]
+		require.Len(t, s.out, len(members), "every schema is a start")
+		_, fails := chains.failsOn(n)
+		assert.Equal(t, []*yaml.Node{n}, fails, "in the order %q", order)
+	}
+}
+
+// TestSettleChains_ATailYieldsToAReentryEarlierOnOnePointer pins the path
+// order at a tail: T, E's member k, lands on E through an alias, and E's
+// pointer passes E and then T. A walk from T meets E first along it.
+func TestSettleChains_ATailYieldsToAReentryEarlierOnOnePointer(t *testing.T) {
+	t.Parallel()
+	data := schemasDoc([]string{
+		"    E: &e {$ref: '#/components/schemas/E/k/z', k: {$ref: '#/components/schemas/WE', z: {type: string}}}\n",
+		"    WE: *e\n",
+	})
+	got := failsFrom(t, data, "/components/schemas/E/k", []jsontext.Pointer{"/components/schemas/E/k", "/components/schemas/E"})
+
+	assert.Equal(t, map[jsontext.Pointer][]jsontext.Pointer{
+		"/components/schemas/E/k": {"/components/schemas/E"},
+		"/components/schemas/E":   {"/components/schemas/E"},
 	}, got)
 }

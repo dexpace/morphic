@@ -101,7 +101,7 @@ func TestDetectCycles_RealWorldAnchorReuseIsClean(t *testing.T) {
 	docRoot := indexOf(t, []byte(src)).Root()
 	raw := rawNodes(docRoot)
 	probe := newAliasWeigher(raw * 1000)
-	_, exceeded := probe.weigh(docRoot)
+	exceeded := len(probe.weigh(docRoot)) > 0
 	require.False(t, exceeded, "sanity: the probe's own allowance must not itself be crossed")
 	expanded := probe.weight[docRoot]
 	surplus := expanded - raw
@@ -124,7 +124,7 @@ func TestDetectCycles_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	src := wideBaseReuseSpec(props, siblings)
 
 	root := indexOf(t, []byte(src)).Root()
-	_, pastShape := newAliasWeigher(shapeAllowance(rawNodes(root))).weigh(root)
+	pastShape := len(newAliasWeigher(shapeAllowance(rawNodes(root))).weigh(root)) > 0
 	require.True(t, pastShape,
 		"sanity: this document expands past maxAliasAmplification times itself, so the ratio names it and no budget admits it")
 
@@ -183,7 +183,7 @@ func TestDetectCycles_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) 
 	docRoot := indexOf(t, []byte(src)).Root()
 	raw := rawNodes(docRoot)
 	probe := newAliasWeigher(raw * 1000)
-	_, exceeded := probe.weigh(docRoot)
+	exceeded := len(probe.weigh(docRoot)) > 0
 	require.False(t, exceeded, "sanity: the probe's own allowance must not itself be crossed")
 	expanded := probe.weight[docRoot]
 	require.Less(t, expanded, int64(maxAliasAmplification)*raw,
@@ -210,7 +210,7 @@ func TestAliasAmplification_SurplusBoundIsExact(t *testing.T) {
 	root := indexOf(t, []byte(flatFanOutSpec(100))).Root()
 	raw := rawNodes(root)
 	probe := newAliasWeigher(shapeAllowance(raw))
-	_, pastShape := probe.weigh(root)
+	pastShape := len(probe.weigh(root)) > 0
 	require.False(t, pastShape, "sanity: the fixture is inside the ratio, so only the surplus can refuse it")
 	added := probe.weight[root] - raw
 	require.Positive(t, added, "sanity: the fixture's aliases add nodes")
@@ -269,7 +269,7 @@ func TestAliasAmplification_AnAdmittedDocumentIsWeighedOnce(t *testing.T) {
 	shape := shapeAllowance(raw)
 	surplus := (shape - raw) / 2
 	probe := newAliasWeigher(raw + surplus)
-	_, exceeded := probe.weigh(root)
+	exceeded := len(probe.weigh(root)) > 0
 	require.False(t, exceeded, "sanity: the document is inside the budget, so it is admitted")
 	require.Less(t, surplus, shape-raw, "sanity: the budget binds before the ratio, so both bounds are live")
 
@@ -322,9 +322,7 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 
 func TestAliasWeigher_NilRoot(t *testing.T) {
 	t.Parallel()
-	culprit, exceeded := newAliasWeigher(100).weigh(nil)
-	assert.Nil(t, culprit)
-	assert.False(t, exceeded)
+	assert.Empty(t, newAliasWeigher(100).weigh(nil))
 }
 
 func TestExpandedWeight_NoAliasesEqualsRawCount(t *testing.T) {
@@ -337,7 +335,7 @@ func TestExpandedWeight_NoAliasesEqualsRawCount(t *testing.T) {
 	raw := rawNodes(root)
 
 	w := newAliasWeigher(raw + 1000) // an allowance nothing here can cross
-	_, exceeded := w.weigh(root)
+	exceeded := len(w.weigh(root)) > 0
 	require.False(t, exceeded)
 	assert.Equal(t, raw, w.weight[root], "an alias-free tree's expandedWeight is exactly its own node count")
 }
@@ -353,7 +351,7 @@ func TestAliasWeigher_AliasToSubtreeMultiplies(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(aliases...))
 
 	w := newAliasWeigher(1000)
-	_, exceeded := w.weigh(root)
+	exceeded := len(w.weigh(root)) > 0
 	require.False(t, exceeded)
 	assert.Equal(t, int64(3), w.weight[base])
 	assert.Equal(t, int64(18), w.weight[root],
@@ -371,7 +369,7 @@ func TestAliasWeigher_MemoizesSharedTarget(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), ynode.Seq(aliases...))
 
 	w := newAliasWeigher(1_000_000)
-	_, exceeded := w.weigh(root)
+	exceeded := len(w.weigh(root)) > 0
 	require.False(t, exceeded)
 
 	assert.Equal(t, int64(len(w.weight)), w.computations,
@@ -386,9 +384,9 @@ func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	root := aliasFanOutNode(40)
 
 	w := newAliasWeigher(1000)
-	culprit, exceeded := w.weigh(root)
-	require.True(t, exceeded, "a 40-level doubling fan-out crosses any modest allowance")
-	require.NotNil(t, culprit)
+	culprits := w.weigh(root)
+	require.Len(t, culprits, 1, "a 40-level doubling fan-out crosses any modest allowance, in one innermost place")
+	culprit := culprits[0]
 	assert.Equal(t, w.ceiling, w.weight[culprit], "an exceeding weight always lands exactly on the ceiling")
 	assert.Greater(t, w.weight[culprit], int64(0), "the saturated value must not have wrapped negative")
 }
@@ -408,7 +406,7 @@ func TestAliasWeigher_AliasWithoutTargetWeighsZero(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), orphan)
 
 	w := newAliasWeigher(1000)
-	_, exceeded := w.weigh(root)
+	exceeded := len(w.weigh(root)) > 0
 	require.False(t, exceeded)
 	assert.Equal(t, int64(0), w.weight[orphan], "an alias with no target substitutes nothing")
 	assert.Equal(t, int64(2), w.weight[root], "root = 1(itself) + 1(key) + 0(the orphan alias)")
@@ -420,7 +418,7 @@ func TestAliasWeigher_NilChildIsSkipped(t *testing.T) {
 	root.Content = append(root.Content, nil)
 
 	w := newAliasWeigher(1000)
-	_, exceeded := w.weigh(root)
+	exceeded := len(w.weigh(root)) > 0
 	require.False(t, exceeded)
 	assert.Equal(t, int64(3), w.weight[root], "the nil child contributes nothing and costs no dereference")
 }
@@ -431,9 +429,9 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	loop.Content = append(loop.Content, ynode.Alias(loop)) // loop's own subtree aliases loop
 
 	w := newAliasWeigher(1000)
-	culprit, exceeded := w.weigh(loop)
-	require.True(t, exceeded, "a cyclic alias graph expands without bound and must be refused")
-	require.NotNil(t, culprit)
+	culprits := w.weigh(loop)
+	require.NotEmpty(t, culprits, "a cyclic alias graph expands without bound and must be refused")
+	culprit := culprits[0]
 	assert.Equal(t, w.ceiling, w.weight[culprit], "the cycle saturates rather than looping")
 }
 

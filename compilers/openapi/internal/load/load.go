@@ -148,9 +148,10 @@ func releaseAnchors(root *yaml.Node) {
 var ErrParse = errors.New("parse source")
 
 // maxSchemaScanDepth bounds the scalar scan of a schema node (styleguide
-// bounded-recursion rule); a schema nested deeper is pathological, not a spec the
-// compiler is expected to classify.
-const maxSchemaScanDepth = 512
+// bounded-recursion rule) at the nesting the pre-parse scan admits: no tree the
+// parser is handed nests deeper (scan.Nesting), so the scan reaches every
+// scalar under any node of one.
+const maxSchemaScanDepth = scan.MaxNesting
 
 // Document is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
@@ -454,11 +455,12 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 	}
 }
 
-// refusals indexes a decoded tree once and reports its pre-parse refusals: the
-// degenerate reference and alias structures scan finds, a mapping carrying a
-// tag the parser faults on (see diag.TaggedMapping), and a refusal of its own
-// when the document is too large to index in full. A tag refusal is reported
-// alongside a cycle, not instead of one.
+// refusals indexes a decoded tree once and reports its pre-parse refusals: a
+// document nested too deeply to build (scan.Nesting), the degenerate reference
+// and alias structures scan finds, a mapping carrying a tag the parser faults
+// on (see diag.TaggedMapping), and a refusal of its own when the document is
+// too large to index in full. Each refusal is reported alongside the others,
+// not instead of them.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -476,9 +478,13 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))
-	if n, ok := idx.TaggedMapping(); ok {
-		diags = append(diags, taggedMappingRefusal(locate, n))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	diags = append(diags, scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))...)
+	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
 	}
 	return diags
 }
@@ -527,13 +533,11 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	return origin, append(diags, refusals(locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
 }
 
-// overlayRefusals refuses an overlay whose aliases the library would follow
-// without end or far past its size, before the library is handed it.
-//
-// The library clones each update by following aliases, so an anchor naming one
-// of its own ancestors overflows the stack and an alias bomb exhausts memory.
-// Neither is a panic, so no barrier catches them (GitHub #489). They are the
-// source's refusals, under the same limits.
+// overlayRefusals holds an overlay to the source's refusals, under the same
+// limits, before the library is handed it. The library clones each update by
+// following aliases, into every node its target selects: an anchor naming its
+// own ancestor overflows the stack, an alias bomb exhausts memory (GitHub
+// #489), and a deep update costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
@@ -563,7 +567,11 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	return append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are

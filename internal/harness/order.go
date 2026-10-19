@@ -13,11 +13,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxReverseDepth bounds the rewrite's descent. It sits above the nesting any
-// document the compiler accepts can reach — the OpenAPI compiler refuses schema
-// nesting past 128 — so hitting it means a pathological input, not legitimate
-// depth.
-const maxReverseDepth = 512
+// maxReverseDepth bounds the rewrite's descent, which counts the document node
+// and every scalar. It sits one past the 1,024 levels of mappings and
+// sequences the OpenAPI compiler admits, the scalars below the deepest of
+// them included, so a document the rewrite stops on is one the compiler
+// refuses. TestMaxReverseDepth_ReachesEveryAdmittedDocument holds it there.
+const maxReverseDepth = 1025
 
 // orderInvariant compiles a source twice, once with its mappings as declared
 // and once with every mapping's entry order reversed, and reports what the

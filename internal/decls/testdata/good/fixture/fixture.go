@@ -26,6 +26,9 @@ const One Count = 1
 // Plain is an untyped string constant, of no named type.
 const Plain = "plain"
 
+// Huge is an untyped integer constant past what an int64 holds.
+const Huge = 1 << 64
+
 // Hello is a function, which declares no type.
 func Hello() {}
 

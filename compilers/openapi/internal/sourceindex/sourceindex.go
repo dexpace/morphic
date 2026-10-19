@@ -1,12 +1,12 @@
 // Package sourceindex answers, in one walk, the questions asked of a decoded
-// source tree before any of it is lowered: how many nodes the document
-// declares, whether an alias points back at one of its own ancestors, and
-// whether a mapping carries a tag the parser faults on. The answers are a value
-// the caller carries rather than a walk it repeats.
+// source tree before any of it is lowered: how many nodes it declares, how
+// deeply it nests, which aliases name an ancestor, and which mappings carry a
+// tag the parser faults on, as a value the caller carries rather than a walk
+// it repeats. Only what an alias names is measured once more.
 //
-// The index has no exported fields and no maps, so a copy is independent of the
-// original. It is derived from the tree alone, so equal trees give equal
-// indexes.
+// The index has no exported fields and no maps, and nothing in it changes
+// once Build returns, so a copy is as good as the original. Equal trees give
+// equal indexes.
 package sourceindex
 
 import (
@@ -19,8 +19,8 @@ import (
 
 // MaxIndexedNodes bounds how many nodes one index walks. It is the explicit
 // loop limit, not a memory guard: the tree is already materialized by the
-// decode, and the index holds a fixed amount of state whatever its size. It
-// sits far above any document that could have been decoded.
+// decode, and the index holds what it reports, not a record per node. It sits
+// far above any document that could have been decoded.
 //
 // A document past it is refused by the caller rather than half-counted: a
 // truncated count would understate the alias-expansion allowance derived from
@@ -38,20 +38,22 @@ const maxTrackedDepth = 10000
 // Index is what one walk over a decoded source tree found.
 //
 // A zero Index is the answer for a document with no content: no root, no nodes,
-// no anchor cycle, no tagged mapping, nothing truncated. That is the same answer
-// Build returns for an empty document, so a caller never has to tell the two
-// apart.
+// no nesting, no anchor cycle, no tagged mapping, nothing truncated. That is the
+// same answer Build returns for an empty document, so a caller never has to
+// tell the two apart.
 type Index struct {
-	root          *yaml.Node
-	nodes         int64
-	anchorCycle   *yaml.Node
-	taggedMapping *yaml.Node
-	truncated     bool
+	root           *yaml.Node
+	nodes          int64
+	nesting        int64
+	anchorCycles   []*yaml.Node
+	taggedMappings []*yaml.Node
+	truncated      bool
 }
 
-// Build walks the tree under root once and returns what it found. root may be a
-// document node or the content node itself; either way the index is rooted at
-// the content, which is the node every consumer scans from.
+// Build walks the tree under root once, measuring what each alias names as it
+// meets it, and returns what it found. root may be a document node or the
+// content node itself; either way the index is rooted at the content, which is
+// the node every consumer scans from.
 //
 // maxNodes is the caller's bound on the walk — MaxIndexedNodes in the compiler,
 // smaller in a test that drives the truncated path. A non-positive bound indexes
@@ -81,12 +83,18 @@ func (x Index) Root() *yaml.Node { return x.root }
 // meaningful only when Truncated is false.
 func (x Index) Nodes() int64 { return x.nodes }
 
-// AnchorCycle is the first alias, in document order, whose target is one of its
-// own ancestors — a recursive YAML anchor that expands without bound. Legal
-// anchor reuse, where an alias names a node that is not an ancestor, is not one.
-func (x Index) AnchorCycle() (*yaml.Node, bool) {
-	return x.anchorCycle, x.anchorCycle != nil
-}
+// Nesting is how many mappings and sequences the deepest path down the tree
+// passes through once every alias is expanded, which is the tree the parser
+// builds (see Measure). A scalar or empty document nests 0. It is meaningful
+// only when Truncated is false and AnchorCycles is empty: an alias back into
+// its own ancestor expands without end, and counts here as far as one turn.
+func (x Index) Nesting() int64 { return x.nesting }
+
+// AnchorCycles lists, in document order, every alias whose target is one of
+// its own ancestors — a recursive YAML anchor that expands without bound.
+// Legal anchor reuse, where an alias names a node that is not an ancestor, is
+// not one.
+func (x Index) AnchorCycles() []*yaml.Node { return slices.Clone(x.anchorCycles) }
 
 // MapTag is the tag yaml.v3 resolves every mapping to, and the one tag the
 // speakeasy parser accepts on a mapping at a modelled position. A parse never
@@ -95,19 +103,17 @@ func (x Index) AnchorCycle() (*yaml.Node, bool) {
 // naming another type (`!!str`, `!!set`).
 const MapTag = "!!map"
 
-// TaggedMapping is the first mapping, in document order, whose tag is not
-// MapTag. The parser degrades one at a plain object position to a type-mismatch
-// finding, but at a reference position whose model is a struct (a request body,
-// a response, a parameter) it leaves the model unbuilt and dereferences it, on
-// a goroutine of its own where no recover in this compiler reaches (GitHub
-// #474). The caller refuses the document on this answer before the parser sees
-// it.
+// TaggedMappings lists, in document order, every mapping whose tag is not
+// MapTag. The parser degrades one at a plain object position to a
+// type-mismatch finding, but at a reference position whose model is a struct
+// (a request body, a response, a parameter) it leaves the model unbuilt and
+// dereferences it, on a goroutine of its own where no recover in this compiler
+// reaches (GitHub #474). The caller refuses the document on this answer before
+// the parser sees it.
 //
 // A tag on a scalar or sequence is not this question: neither faults the
 // parser (what a tagged scalar keeps is GitHub #245).
-func (x Index) TaggedMapping() (*yaml.Node, bool) {
-	return x.taggedMapping, x.taggedMapping != nil
-}
+func (x Index) TaggedMappings() []*yaml.Node { return slices.Clone(x.taggedMappings) }
 
 // Truncated reports whether the walk stopped at its node bound. Every other
 // answer is then a partial one and must not be read as a fact about the
@@ -115,25 +121,34 @@ func (x Index) TaggedMapping() (*yaml.Node, bool) {
 func (x Index) Truncated() bool { return x.truncated }
 
 // frame is one entry of the walk's explicit stack: a node to visit at a known
-// depth, or the ancestor-path exit of a node whose children have all been
-// visited.
+// depth, or the exit of a node whose children have all been visited.
 type frame struct {
 	n     *yaml.Node
 	depth int
 	exit  bool
 }
 
-// walk visits every node once, in document order, counting as it goes and
-// recording the first alias that points back into its own path and the first
-// mapping whose tag is not MapTag.
+// walker is one walk's working state: the ancestors of the node being visited,
+// the deepest nesting met so far under each node still open, and the measure
+// an alias's target is taken from.
+type walker struct {
+	x         *Index
+	ancestors map[*yaml.Node]bool
+	tallest   []int64
+	measure   *Measure
+}
+
+// walk visits every node once, in document order, counting and measuring as
+// it goes, and recording every alias naming an ancestor and every mapping
+// whose tag is not MapTag.
 //
 // The raw parse tree is a tree: aliasing adds only edges this walk never
 // follows, so no node is reached twice and the ancestor set is exactly the path
-// from the root. The walk is therefore iterative, bounded by maxNodes rather
-// than a recursion cap, and it does not stop at the first finding, or an answer
-// would depend on which question was asked first.
+// from the root. An alias nests as its target, which the measure takes once.
+// The walk is iterative and bounded by maxNodes, and it never stops at a
+// finding, or one answer would hide another.
 func (x *Index) walk(maxNodes int64) {
-	ancestors := map[*yaml.Node]bool{}
+	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
 	stack := []frame{{n: x.root}}
 
 	for len(stack) > 0 {
@@ -141,7 +156,7 @@ func (x *Index) walk(maxNodes int64) {
 		stack = stack[:len(stack)-1]
 
 		if f.exit {
-			delete(ancestors, f.n)
+			w.leave(f)
 			continue
 		}
 		if f.n == nil {
@@ -153,45 +168,75 @@ func (x *Index) walk(maxNodes int64) {
 			x.truncated = true
 			return
 		}
-
-		x.recordTag(f.n)
-
-		tracked := f.depth <= maxTrackedDepth
-		if tracked && f.n.Kind == yaml.AliasNode {
-			x.recordAlias(f.n, ancestors)
-			continue // yaml.v3 gives an alias empty Content; its target is not its child
-		}
-		if tracked && len(f.n.Content) > 0 {
-			ancestors[f.n] = true
-			stack = append(stack, frame{n: f.n, exit: true})
-		}
-		for _, v := range slices.Backward(f.n.Content) {
-			stack = append(stack, frame{n: v, depth: f.depth + 1})
-		}
+		stack = w.visit(stack, f)
 	}
+	x.truncated = w.measure.Truncated()
 }
 
-// recordTag keeps the first mapping whose tag is not MapTag. The comparison is
-// the parser's own — the raw tag against the one spelling — rather than
-// yaml.v3's ShortTag, which would read an empty tag as MapTag and pass a node
-// the parser would still fault on.
+// visit records what f's node answers and returns the stack with its children
+// and its exit pushed, or unchanged for a node with none. An alias is a leaf:
+// yaml.v3 gives it empty Content, and its target is not its child.
+func (w *walker) visit(stack []frame, f frame) []frame {
+	n := f.n
+	w.x.recordTag(n)
+	tracked := f.depth <= maxTrackedDepth
+	if n.Kind == yaml.AliasNode {
+		if tracked {
+			w.x.recordAlias(n, w.ancestors)
+		}
+		w.finish(w.measure.Of(n))
+		return stack
+	}
+	if len(n.Content) == 0 {
+		w.finish(Level(n))
+		return stack
+	}
+
+	if tracked {
+		w.ancestors[n] = true
+	}
+	w.tallest = append(w.tallest, 0)
+	stack = append(stack, frame{n: n, depth: f.depth, exit: true})
+	for _, c := range slices.Backward(n.Content) {
+		stack = append(stack, frame{n: c, depth: f.depth + 1})
+	}
+	return stack
+}
+
+// leave closes the node f exits once its children are measured.
+func (w *walker) leave(f frame) {
+	if f.depth <= maxTrackedDepth {
+		delete(w.ancestors, f.n)
+	}
+	tallest := w.tallest[len(w.tallest)-1]
+	w.tallest = w.tallest[:len(w.tallest)-1]
+	w.finish(tallest + Level(f.n))
+}
+
+// finish hands a finished node's nesting to the node holding it, or to the
+// index when it is the root.
+func (w *walker) finish(nesting int64) {
+	if len(w.tallest) == 0 {
+		w.x.nesting = nesting
+		return
+	}
+	top := &w.tallest[len(w.tallest)-1]
+	*top = max(*top, nesting)
+}
+
+// recordTag keeps every mapping whose tag is not MapTag. The comparison is the
+// parser's own — the raw tag against the one spelling — rather than yaml.v3's
+// ShortTag, which would read an empty tag as MapTag and pass a node the parser
+// would still fault on.
 func (x *Index) recordTag(n *yaml.Node) {
-	if x.taggedMapping != nil || n.Kind != yaml.MappingNode {
-		return
-	}
-	if n.Tag != MapTag {
-		x.taggedMapping = n
+	if n.Kind == yaml.MappingNode && n.Tag != MapTag {
+		x.taggedMappings = append(x.taggedMappings, n)
 	}
 }
 
-// recordAlias keeps the first alias whose target is on the current path. Later
-// ones are dropped rather than overwriting it, so the reported node is the one a
-// depth-first descent would have stopped at.
+// recordAlias keeps an alias whose target is on the current path.
 func (x *Index) recordAlias(alias *yaml.Node, ancestors map[*yaml.Node]bool) {
-	if x.anchorCycle != nil || alias.Alias == nil {
-		return
-	}
-	if ancestors[alias.Alias] {
-		x.anchorCycle = alias
+	if alias.Alias != nil && ancestors[alias.Alias] {
+		x.anchorCycles = append(x.anchorCycles, alias)
 	}
 }

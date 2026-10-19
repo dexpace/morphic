@@ -77,10 +77,11 @@ type reach struct {
 }
 
 // reachCycle refuses a document when some choice of targets closes a chain from
-// one of its schema references, and names the first such reference in the
-// library's walk order. A document the model could not finish is not refused,
-// as for every bound in this stage: it is reported as diag.CycleScanFailed and
-// the compile goes on.
+// one of its schema references, and names, of the references a cycle runs
+// through, the one with the least pointer (scan.Least): never one that only
+// leads into a cycle, and none a declaration order moves (GitHub #912). A
+// document the model could not finish is not refused, as for every bound in
+// this stage: it is reported as diag.CycleScanFailed and the compile goes on.
 func reachCycle(ctx context.Context, locate scan.Locator, root *yaml.Node, doc *soa.OpenAPI, sibs Siblings,
 ) (ir.Diagnostic, bool) {
 	return reachWithin(ctx, maxReachWork, locate, root, doc, sibs)
@@ -92,12 +93,9 @@ func reachWithin(ctx context.Context, limit int, locate scan.Locator, root *yaml
 ) (ir.Diagnostic, bool) {
 	return recoverChains(locate, func() (ir.Diagnostic, bool) {
 		r, starts := newReach(ctx, limit, root, doc, sibs)
-		state := map[vertex]int{}
-		for _, start := range starts {
-			if r.cycles(start, state) {
-				return diag.Newf(ir.SeverityError, diag.CyclicRef, locate(start),
-					"cyclic $ref: reference chain never reaches a node without a $ref"), true
-			}
+		if members := r.cycleMembers(starts); len(members) > 0 {
+			return diag.Newf(ir.SeverityError, diag.CyclicRef, locate(scan.Least(root, members)),
+				"cyclic $ref: reference chain never reaches a node without a $ref"), true
 		}
 		if r.incomplete() {
 			return diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, locate(nil),
@@ -367,49 +365,4 @@ func (r *reach) markSearched(defsRefs []*yaml.Node) {
 type vertex struct {
 	class refClass
 	set   *posSet
-}
-
-// cycles is a depth-first search from start over classes and the sets they land
-// in; state is 1 for a vertex on the current path and 2 once it is known to
-// reach no cycle. It stops without a verdict when the budget runs out, which
-// reachWithin then reports as incomplete protection.
-func (r *reach) cycles(start *yaml.Node, state map[vertex]int) bool {
-	type frame struct {
-		v     vertex
-		sets  []*posSet    // a class's sets not yet entered
-		nodes []*yaml.Node // a set's members not yet entered
-	}
-	enter := func(v vertex) frame {
-		state[v] = 1
-		if v.set != nil {
-			return frame{v: v, nodes: v.set.members}
-		}
-		return frame{v: v, sets: r.lookups(v.class)}
-	}
-	v0 := vertex{class: r.classOf(start)}
-	if state[v0] != 0 {
-		return false
-	}
-	stack := []frame{enter(v0)}
-	for len(stack) > 0 && r.budget.spend(1) {
-		top := &stack[len(stack)-1]
-		var next vertex
-		switch {
-		case len(top.sets) > 0:
-			next, top.sets = vertex{set: top.sets[0]}, top.sets[1:]
-		case len(top.nodes) > 0:
-			next, top.nodes = vertex{class: r.classOf(top.nodes[0])}, top.nodes[1:]
-		default:
-			state[top.v] = 2
-			stack = stack[:len(stack)-1]
-			continue
-		}
-		switch state[next] {
-		case 1:
-			return true
-		case 0:
-			stack = append(stack, enter(next))
-		}
-	}
-	return false
 }
