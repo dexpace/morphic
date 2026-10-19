@@ -236,7 +236,7 @@ var schemaKeywords = []string{
 }
 
 // goroutinePerNode pins goroutine-per-node: decoding starts a goroutine for
-// every field of an object, entry of a map and element of a sequence, and
+// every key written on an object, entry of a map and element of a sequence, and
 // nothing caps how many of a map's or a sequence's are alive at once: on one
 // processor, a fifth of them at least. An object's few are gone before a
 // sample. A model's unknown keys come back in the order their goroutines end.

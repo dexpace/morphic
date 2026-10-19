@@ -331,7 +331,8 @@ type unknownReporter interface{ GetUnknownProperties() []string }
 // yields nothing.
 //
 // An empty census does not prove nothing is undeclared: a core model shaped as
-// a sequenced map folds an unrecognized key into that map and reports nothing.
+// a sequenced map folds an unrecognized key into that map and reports nothing
+// (docs/parser-library.md#embedded-map-keys).
 // That is right for Paths, Responses and Callback, whose every key is a
 // legitimate entry. A Path Item's keys go to UnknownKeysNamed instead, and
 // another such object would go quiet here.

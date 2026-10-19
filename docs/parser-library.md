@@ -1,10 +1,15 @@
 # Parser library behaviours
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
-library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, and
-its validator reports what the model breaks. This page records what the compiler depends on the
-library doing, defects included. Each entry gives the behaviour, the smallest input that shows it,
-the compiler code that exists because of it, and the test that pins it.
+library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, its
+validator reports what the model breaks, and its overlay applier patches a YAML tree. This page
+records what the compiler depends on the library doing, defects included: each behaviour the
+compiler refuses input over or works around. Each entry gives the behaviour, the smallest input
+that shows it, the compiler code that exists because of it, and the test that pins it.
+
+Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
+one, such as how the resolver reads a JSON pointer, a test beside the reproduction holds it to the
+library's. #907 lists the tests whose names claim such agreement without asking the library.
 
 Code that depends on a behaviour cites its entry, as `docs/parser-library.md#<key>`, instead of
 restating it. It never names a library version: the entry says what holds at the version it was
@@ -272,13 +277,13 @@ components:
 
 ### `goroutine-per-node`
 
-Decoding starts a goroutine for every field of an object, every entry of a map and every element
-of a sequence, and nothing caps how many of a map's or a sequence's are alive at once: decoding a
-thousand schemas, or a thousand required names, on one processor, a fifth of them or more are
-alive together. So a panic in decoding happens on a goroutine the caller's `recover` does not
-reach (see [`tagged-mapping-panic`](#tagged-mapping-panic)). And what decoding collects across
+Decoding starts a goroutine for every key written on an object, every entry of a map and every
+element of a sequence. So a panic decoding a node happens on a goroutine the caller's `recover` does
+not reach (see [`tagged-mapping-panic`](#tagged-mapping-panic)), and what decoding collects across
 those goroutines, such as the unknown keys a model records, comes back in no fixed order once it
-runs on more than one processor.
+runs on more than one processor. Nothing caps how many of a map's or a sequence's are alive at once:
+decoding a thousand schemas, or a thousand required names, on one processor, a fifth of them or more
+are alive together.
 
 ```yaml
 components:

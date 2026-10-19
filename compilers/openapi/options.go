@@ -151,10 +151,10 @@ const (
 	// whose largest surplus is 15,727 nodes: a 16.7x margin.
 	//
 	// It bounds the memory an alias-heavy document can cost, since the parser
-	// builds a fresh subtree for every path through an alias, and, unlike a
-	// relative bound, padding cannot lift it: at 1<<20 a purpose-built 93 KiB
-	// document peaked at 4.4 GiB; at this default the largest one accepted
-	// peaks at 1.65 GiB.
+	// builds a fresh subtree for every path through an alias
+	// (docs/parser-library.md#alias-expansion), and, unlike a relative bound,
+	// padding cannot lift it: at 1<<20 a purpose-built 93 KiB document peaked
+	// at 4.4 GiB; at this default the largest one accepted peaks at 1.65 GiB.
 	DefaultMaxAliasSurplus = 1 << 18
 	// DefaultMaxExternalDocuments is the document budget: 16,384, a 4.7x margin
 	// over the 3,476 files the $refs of DigitalOcean's public API description
