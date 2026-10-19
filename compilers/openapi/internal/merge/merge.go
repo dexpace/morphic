@@ -316,13 +316,13 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 
 // foldTypeTargets settles which target dst keeps and reports whether src's was
 // dropped. A bare primitive that strictly narrows the other wins in either
-// order. Broad first, the swap leaves dst's own default and examples riding
+// order. Broad first, the swap leaves dst's default and examples riding
 // onto the narrower target unjudged. Narrow first, foldShapeDetail adopts
-// src's broad default and examples, also unjudged: a number default 1.5
-// lands on integer, unreported, in both orders. Null is admitted only where
-// both branches admit it, narrowing or not, as foldNullVerdicts states for a
-// single schema. Elsewhere a differing target is a drop, unless the referent
-// is the same or the narrower one is settled.
+// src's broad default and examples, unjudged: a number default 1.5
+// lands on integer, unreported, in both orders. Any other differing target is
+// a drop, and dst keeps its own null admission. Where the referent is the
+// same or one narrows the other, null is admitted only where both branches
+// admit it, as foldNullVerdicts states for a single schema.
 func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
 	if aNarrower, related := g.bareNarrowing(dst.Type, src.Type); related {
 		if !aNarrower {
@@ -397,9 +397,9 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 // the other (Narrows). Two distinct composites of one kind are not provably
 // contradictory, so they are never reported.
 //
-// Narrows is incomplete: true containments it omits, and overlaps
-// like int32 and uint32, still conflict. Related kinds reached through a Scalar
-// or Enum conflict too, until GitHub #782 settles them.
+// Narrows is incomplete: true containments it omits, and overlaps like
+// int32 and uint32, still conflict. Related kinds reached through a Scalar or
+// Enum conflict too, until GitHub #782 settles them.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false
