@@ -28,9 +28,10 @@ type generation struct {
 	format int
 	// shape is the hex SHA-256 of the description, shapeGolden.
 	shape string
-	// sameShape says what meaning changed, for a bump that keeps the shape of
-	// the generation before it. It is empty for every other row.
-	sameShape string
+	// meaning says what changed, for a bump that keeps the shape of the
+	// generation before it: a change of meaning, which no description sees. It
+	// is empty for every other row.
+	meaning string
 }
 
 // generations is every IR generation since the shape pin landed, oldest first.
@@ -40,7 +41,7 @@ type generation struct {
 // place, so whichever merges second meets the other's in a conflict and takes
 // the next version.
 var generations = []generation{
-	{version: "0.14.0", format: 1, shape: "56c4a6ca7a53a660c67704b107ec8516f094325cfb11117a13c52bd19f3e0644"},
+	{version: "0.14.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
@@ -115,7 +116,7 @@ func pinFindings(rows []generation, version string, format int, shape string) []
 	case last.version != version && compareVersions(version, last.version) > 0:
 		finding := fmt.Sprintf("IRVersion is %s, but generations ends at %s: append %s", version, last.version, row(version))
 		if format == last.format && shape == last.shape {
-			finding += fmt.Sprintf(". The shape is still %s's, so set sameShape to the meaning that changed, "+
+			finding += fmt.Sprintf(". The shape is still %s's, so set meaning to what changed, "+
 				"or revert the bump (ir-design §2.1)", last.version)
 		}
 		return []string{finding}
@@ -131,7 +132,8 @@ func pinFindings(rows []generation, version string, format int, shape string) []
 		return []string{fmt.Sprintf("the encoded shape changed, but IRVersion is still %s, "+
 			"published with another shape (ir-design §2.1). Set IRVersion to %s, append %s, "+
 			"and say what changed under %s in the ir-design §2.1 version history. "+
-			"If a merge brought in another change that claimed %s, that version is taken: the next is yours",
+			"If a merge brought in another change that claimed %s, that version is taken: the next is yours. "+
+			"If only jsonshape changed how it spells a shape, move jsonshape.Format instead",
 			version, next, row(next), next, version)}
 	default:
 		return nil
@@ -156,7 +158,7 @@ func rowFindings(rows []generation, format int) []string {
 			out = append(out, fmt.Sprintf("row %d: shape %q is not a lower-case hex SHA-256", i, r.shape))
 		}
 		if i == 0 {
-			if r.sameShape != "" {
+			if r.meaning != "" {
 				out = append(out, fmt.Sprintf("row 0: %s has no generation before it to share a shape with", r.version))
 			}
 			continue
@@ -177,20 +179,21 @@ func stepFinding(prev, r generation) string {
 	case order == 0 && r.format <= prev.format:
 		return fmt.Sprintf("%s is described again in format %d after format %d: "+
 			"a generation is described anew only in a later format", r.version, r.format, prev.format)
-	case order == 0 && r.sameShape != "":
+	case order == 0 && r.meaning != "":
 		return fmt.Sprintf("%s in format %d describes a generation anew, which is no bump, "+
-			"so it has no sameShape", r.version, r.format)
+			"so it states no meaning", r.version, r.format)
 	case order == 0:
 		return ""
 	case r.format != prev.format:
 		return fmt.Sprintf("%s is described in format %d and %s in format %d: describe %s anew "+
 			"in format %d first, so the bump compares with it", r.version, r.format, prev.version,
 			prev.format, prev.version, r.format)
-	case r.shape == prev.shape && r.sameShape == "":
-		return fmt.Sprintf("%s has %s's shape: a bump that changes no shape is for a changed meaning, "+
-			"which sameShape says (ir-design §2.1); without one, revert the bump", r.version, prev.version)
-	case r.shape != prev.shape && r.sameShape != "":
-		return fmt.Sprintf("%s changes %s's shape, so its sameShape is not so", r.version, prev.version)
+	case r.shape == prev.shape && r.meaning == "":
+		return fmt.Sprintf("%s has %s's shape: a bump that changes no shape states the meaning it "+
+			"changes (ir-design §2.1); without one, revert the bump", r.version, prev.version)
+	case r.shape != prev.shape && r.meaning != "":
+		return fmt.Sprintf("%s changes %s's shape, so it states no meaning: "+
+			"its version history entry says what changed", r.version, prev.version)
 	default:
 		return ""
 	}
@@ -270,12 +273,13 @@ func TestPinFindings(t *testing.T) {
 			`the encoded shape changed, but IRVersion is still 0.3.0, published with another shape (ir-design §2.1). ` +
 				`Set IRVersion to 0.4.0, append {version: "0.4.0", format: 1, shape: "` + shapeB + `"}, ` +
 				`and say what changed under 0.4.0 in the ir-design §2.1 version history. ` +
-				`If a merge brought in another change that claimed 0.3.0, that version is taken: the next is yours`},
+				`If a merge brought in another change that claimed 0.3.0, that version is taken: the next is yours. ` +
+				`If only jsonshape changed how it spells a shape, move jsonshape.Format instead`},
 		{"a bump with no row", pinned, "0.4.0", 1, shapeB,
 			`IRVersion is 0.4.0, but generations ends at 0.3.0: append {version: "0.4.0", format: 1, shape: "` + shapeB + `"}`},
 		{"a bump with no row and no shape change", pinned, "0.4.0", 1, shapeA,
 			`IRVersion is 0.4.0, but generations ends at 0.3.0: append {version: "0.4.0", format: 1, shape: "` + shapeA + `"}. ` +
-				`The shape is still 0.3.0's, so set sameShape to the meaning that changed, or revert the bump (ir-design §2.1)`},
+				`The shape is still 0.3.0's, so set meaning to what changed, or revert the bump (ir-design §2.1)`},
 		{"a row with no bump", pinned, "0.2.0", 1, shapeA,
 			`generations ends at 0.3.0, past IRVersion 0.2.0: a row is appended by the bump that moves IRVersion to it`},
 		{"a new description format", pinned, "0.3.0", 2, shapeB,
@@ -312,7 +316,7 @@ func TestRowFindings(t *testing.T) {
 		want string // "" means no finding
 	}{
 		{"a bump that changes the shape", []generation{a, b}, ""},
-		{"a bump for a changed meaning", []generation{a, with(b, func(g *generation) { g.shape, g.sameShape = shapeA, "x" })}, ""},
+		{"a bump for a changed meaning", []generation{a, with(b, func(g *generation) { g.shape, g.meaning = shapeA, "x" })}, ""},
 		{"a generation described anew", []generation{a, with(a, func(g *generation) { g.format, g.shape = 2, shapeB })}, ""},
 		{"an empty table", nil, "generations is empty"},
 		{"a version that is no version", []generation{with(a, func(g *generation) { g.version = "0.3" })},
@@ -326,19 +330,19 @@ func TestRowFindings(t *testing.T) {
 			`row 0: shape "` + strings.Repeat("g", 64) + `" is not a lower-case hex SHA-256`},
 		{"an upper-case shape", []generation{with(a, func(g *generation) { g.shape = strings.ToUpper(shapeA) })},
 			`row 0: shape "` + strings.ToUpper(shapeA) + `" is not a lower-case hex SHA-256`},
-		{"a first row claiming a predecessor's shape", []generation{with(a, func(g *generation) { g.sameShape = "x" })},
+		{"a first row claiming a predecessor's shape", []generation{with(a, func(g *generation) { g.meaning = "x" })},
 			"row 0: 0.3.0 has no generation before it to share a shape with"},
 		{"rows out of order", []generation{b, a}, "row 1: 0.3.0 follows 0.4.0, but rows ascend by version"},
 		{"a version listed twice", []generation{a, with(a, func(g *generation) { g.shape = shapeB })},
 			"row 1: 0.3.0 is described again in format 1 after format 1: a generation is described anew only in a later format"},
-		{"a description anew claiming a meaning", []generation{a, with(a, func(g *generation) { g.format, g.sameShape = 2, "x" })},
-			"row 1: 0.3.0 in format 2 describes a generation anew, which is no bump, so it has no sameShape"},
+		{"a description anew claiming a meaning", []generation{a, with(a, func(g *generation) { g.format, g.meaning = 2, "x" })},
+			"row 1: 0.3.0 in format 2 describes a generation anew, which is no bump, so it states no meaning"},
 		{"a bump in a new format", []generation{a, with(b, func(g *generation) { g.format = 2 })},
 			"row 1: 0.4.0 is described in format 2 and 0.3.0 in format 1: describe 0.3.0 anew in format 2 first, so the bump compares with it"},
 		{"a bump that changes no shape", []generation{a, with(b, func(g *generation) { g.shape = shapeA })},
-			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape is for a changed meaning, which sameShape says (ir-design §2.1); without one, revert the bump"},
-		{"a meaning claimed by a shape change", []generation{a, with(b, func(g *generation) { g.sameShape = "x" })},
-			"row 1: 0.4.0 changes 0.3.0's shape, so its sameShape is not so"},
+			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape states the meaning it changes (ir-design §2.1); without one, revert the bump"},
+		{"a meaning claimed by a shape change", []generation{a, with(b, func(g *generation) { g.meaning = "x" })},
+			"row 1: 0.4.0 changes 0.3.0's shape, so it states no meaning: its version history entry says what changed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

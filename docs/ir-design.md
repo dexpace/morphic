@@ -153,11 +153,14 @@ to one that never had it — and `ir/ir-version-incompatible` for a stamp this b
 **How it is held to the shape.** `TestIRVersion_PinsTheEncodedShape` (`ir/irversion_test.go`)
 describes every type a `Document` reaches through `internal/jsonshape`: each member's JSON name, Go
 type and tag options, the methods the encoder calls in place of reading fields, the constants each
-type declares, and each sealed sum's variants with their tags. It requires the description's
-SHA-256 to be the one its `generations` table records for `IRVersion`, so a shape change at an
-unmoved version fails. So does a bump that changes no shape, unless its row's `sameShape` says what
-meaning changed: a change of meaning, such as a lowering that starts filling a member, is the one
-reason to bump that the description cannot see. The description reads declarations, so what a
+type declares, and each sealed sum's variants with their tags. A name is part of the description
+where it is what gives a value its meaning. A member's Go type is, so retyping a string member to
+an ID type moves it, and so is a numeric constant's name, since nothing else says what a `usage`
+of 2 means. A field's Go name and a string constant's are not: the JSON name and the string say
+it themselves. The test requires the description's SHA-256 to be the one its `generations` table
+records for `IRVersion`, so a shape change at an unmoved version fails. So does a bump that changes
+no shape, unless its row's `meaning` says what changed: a change of meaning, such as a lowering
+that starts filling a member, is the one reason to bump that the description cannot see. The description reads declarations, so what a
 codec method's body writes is outside it, left to the JSON contract tests in package `ir`. A type
 from another package, such as `jsontext.Value`, is described by its name, underlying type and codec
 methods, so a Go release that changes how one of them encodes moves the description too.

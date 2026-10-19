@@ -22,7 +22,7 @@ func load(t *testing.T, name string) *decls.Package {
 
 // goodShape is package good's description: every line is an input the encoder
 // reads, so changing any of them changes the description.
-const goodShape = `jsonshape 1: github.com/dexpace/morphic/internal/jsonshape/testdata/good.Root
+const goodShape = `jsonshape 1: good.Root
 
 type Base struct
 	"kept" string
@@ -43,8 +43,9 @@ type Extra struct
 	"more" string
 
 type Level int
-	const 2
-	const 10
+	const Floor = 2
+	const Low = 2
+	const High = 10
 
 type Registry map[Color]Sum
 	method (*Registry) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
@@ -64,11 +65,15 @@ type Root struct
 	"options" *int omitzero string
 	"pointer" encoding/json/jsontext.Pointer
 	"reg" Registry
+	"scale" Scale
 	"self" []Root
 	"sum" Sum
 	"tagged" Tagged
 	"toggle" Toggle
 	method (Root) IsZero() bool
+
+type Scale float64
+	const Half = 1/2
 
 type Spread struct
 	"item" uint8
@@ -93,9 +98,10 @@ type inner struct
 
 // TestDescribe_SpellsEveryInput pins the description of a root reaching every
 // form: tagged, untagged and ignored members, each kind of embedding, aliases,
-// a foreign type, codec methods by receiver and by promotion, constants once
-// each in value order, booleans included, and a sealed sum. A type nothing
-// reaches is left out.
+// a foreign type, codec methods by receiver and by promotion, constants in
+// value order (a string or boolean once by value, a number under each of its
+// names), and a sealed sum with each variant once. A type nothing reaches is
+// left out.
 func TestDescribe_SpellsEveryInput(t *testing.T) {
 	t.Parallel()
 	got, err := jsonshape.Describe(load(t, "good"), "Root")
@@ -105,8 +111,9 @@ func TestDescribe_SpellsEveryInput(t *testing.T) {
 
 // TestDescribe_IgnoresWhatTheJSONDoesNotCarry holds a description to the
 // shape alone. Package reordered redeclares package good in another order,
-// with every tagged field, constant, parameter and receiver renamed and one
-// alias spelled out, and describes alike but for the package it names.
+// with every tagged field, string and boolean constant, parameter and receiver
+// renamed, one alias spelled out and another dropped, and describes alike but
+// for the package it names.
 func TestDescribe_IgnoresWhatTheJSONDoesNotCarry(t *testing.T) {
 	t.Parallel()
 	good, err := jsonshape.Describe(load(t, "good"), "Root")
@@ -144,6 +151,7 @@ func TestDescribe_Refusals(t *testing.T) {
 		root, want string
 	}{
 		{"Generic", "Box[int]: a generic type has a shape per instantiation"},
+		{"Box", "Box[T any]: a generic type has a shape per instantiation"},
 		{"Anonymous", "Anonymous: field A: struct{X int \"json:\\\"x\\\"\"} has no shape"},
 		{"Dynamic", "Dynamic: field D: interface{} has no shape"},
 		{"Callback", "Callback: field F: func() has no shape"},
@@ -155,10 +163,13 @@ func TestDescribe_Refusals(t *testing.T) {
 		{"Open", "Unsealed: an interface with no unexported method is open"},
 		{"NoKind", "KindLess: a sealed interface with no Kind() method"},
 		{"ArgKind", "KindWithArg: a sealed interface with no Kind() method"},
+		{"VoidKind", "KindVoid: a sealed interface with no Kind() method"},
+		{"PairKind", "KindPair: a sealed interface with no Kind() method"},
 		{"ShapelessTag", "FuncTagged: func() has no shape"},
 		{"Lonely", "Alone: no type implements the sealed interface"},
 		{"Computed", "ComputedSum: variant FromField: its Kind method is not a single return of a constant"},
 		{"TwoSteps", "TwoStepSum: variant Stepped: its Kind method is not a single return of a constant"},
+		{"Trailed", "TrailSum: variant Trailing: its Kind method is not a single return of a constant"},
 		{"Panicky", "PanicSum: variant Panics: its Kind method is not a single return of a constant"},
 		{"Foreign", "ForeignSum: variant Token: its Kind method is not declared in the package read"},
 	} {

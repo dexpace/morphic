@@ -89,6 +89,28 @@ type KindWithArg interface {
 	Kind(int) Tag
 }
 
+// VoidKind reaches a sealed sum whose Kind returns nothing.
+type VoidKind struct {
+	V KindVoid `json:"v"`
+}
+
+// KindVoid has a Kind with no tag to return.
+type KindVoid interface {
+	kindVoid()
+	Kind()
+}
+
+// PairKind reaches a sealed sum whose Kind returns two values.
+type PairKind struct {
+	P KindPair `json:"p"`
+}
+
+// KindPair has a Kind returning more than its tag.
+type KindPair interface {
+	kindPair()
+	Kind() (Tag, error)
+}
+
 // ShapelessTag reaches a sum whose tag type has no JSON shape.
 type ShapelessTag struct {
 	S FuncTagged `json:"s"`
@@ -152,6 +174,28 @@ func (Stepped) twoStep() {}
 func (Stepped) Kind() Tag {
 	tag := Tag("stepped")
 	return tag
+}
+
+// Trailed reaches a variant whose Kind returns a constant and then goes on.
+type Trailed struct {
+	T TrailSum `json:"t"`
+}
+
+// TrailSum has one variant.
+type TrailSum interface {
+	trailed()
+	Kind() Tag
+}
+
+// Trailing has a statement after its return.
+type Trailing struct{}
+
+func (Trailing) trailed() {}
+
+// Kind returns, then panics.
+func (Trailing) Kind() Tag {
+	return "trailing"
+	panic("unreachable")
 }
 
 // Panicky reaches a variant whose Kind does not return.

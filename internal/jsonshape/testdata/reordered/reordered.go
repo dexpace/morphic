@@ -1,6 +1,7 @@
 // Package reordered declares the types of package good again, changing only
 // what the JSON does not carry: declaration order, the Go names of tagged
-// fields, constants and parameters, and how a type is spelled.
+// fields, string and boolean constants and parameters, and how a type is
+// spelled.
 package reordered
 
 import "encoding/json/jsontext"
@@ -19,13 +20,20 @@ const (
 	No  Toggle = false
 )
 
-// Level is an integer enum.
+// Half is the one scale, declared before its type.
+const Half Scale = 1.0 / 2
+
+// Scale is a float enum.
+type Scale float64
+
+// Level is an integer enum, whose names say what its numbers mean.
 type Level int
 
-// The levels, renamed.
+// The levels, under the names package good gives them.
 const (
-	Bottom Level = 2
-	Top    Level = 10
+	Floor Level = 2
+	High  Level = 10
+	Low   Level = 2
 )
 
 // Sum is a sealed sum.
@@ -102,6 +110,7 @@ func (b Base) IsZero() bool { return false }
 
 // Root reaches every member, type and method form, in another order.
 type Root struct {
+	Size    Scale               `json:"scale"`
 	Flip    Toggle              `json:"toggle"`
 	Levels  map[Level][]float64 `json:"levels"`
 	Reg     Registry            `json:"reg"`

@@ -28,6 +28,7 @@ type Root struct {
 	Reg     Registry            `json:"reg"`
 	Levels  map[Level][]float64 `json:"levels"`
 	Toggle  Toggle              `json:"toggle"`
+	Scale   Scale               `json:"scale"`
 }
 
 // Base is embedded by value, and gives Root a promoted IsZero.
@@ -74,14 +75,22 @@ const (
 // Plain is untyped, so it is no Color.
 const Plain = "plain"
 
-// Level is an integer enum whose order is numeric, not lexical.
+// Level is an integer enum whose order is numeric, not lexical. Its names say
+// what each number means, so each is described, two of them on one number.
 type Level int
 
 // The levels.
 const (
-	High Level = 10
-	Low  Level = 2
+	High  Level = 10
+	Low   Level = 2
+	Floor Level = 2
 )
+
+// Scale is a float enum, as much a number as Level.
+type Scale float64
+
+// Half is the one scale.
+const Half Scale = 0.5
 
 // Toggle is a boolean enum, whose values have an order but not a less-than.
 type Toggle bool
@@ -130,6 +139,9 @@ func (*ByPointer) sum() {}
 
 // Kind returns an untyped constant.
 func (*ByPointer) Kind() Color { return "blue" }
+
+// Held names a variant again, which is still listed once.
+type Held = ByValue
 
 // Partial has Kind but not the marker, so it is no variant.
 type Partial struct{}

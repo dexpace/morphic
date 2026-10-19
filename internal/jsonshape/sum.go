@@ -76,10 +76,11 @@ func kindMethod(iface *types.Interface) (*types.Func, error) {
 
 // implementer reports whether obj declares a concrete type that implements
 // iface, returning it, and whether a value of it is held by pointer because
-// only the pointer has every method.
+// only the pointer has every method. An alias declares no type of its own:
+// its type is an Alias, not the Named it names, so it is no variant.
 func implementer(obj types.Object, iface *types.Interface) (variant *types.Named, byPointer, implements bool) {
 	tn, isType := obj.(*types.TypeName)
-	if !isType || tn.IsAlias() {
+	if !isType {
 		return nil, false, false
 	}
 	named, isNamed := tn.Type().(*types.Named)
@@ -97,7 +98,8 @@ func implementer(obj types.Object, iface *types.Interface) (variant *types.Named
 
 // tagOf returns the constant the Kind method of held returns. It reads the
 // method's body, which must be that one return, since a tag computed any
-// other way is not one a description can state.
+// other way is not one a description can state. decls reads only a package
+// that compiles, and a method there always has a body.
 func (w *walker) tagOf(held types.Type, pkg *types.Package) (string, error) {
 	var decl *ast.FuncDecl
 	if sel := types.NewMethodSet(held).Lookup(pkg, "Kind"); sel != nil {
@@ -105,7 +107,7 @@ func (w *walker) tagOf(held types.Type, pkg *types.Package) (string, error) {
 			decl = w.methods[fn]
 		}
 	}
-	if decl == nil || decl.Body == nil {
+	if decl == nil {
 		return "", errors.New("its Kind method is not declared in the package read")
 	}
 	if len(decl.Body.List) != 1 {

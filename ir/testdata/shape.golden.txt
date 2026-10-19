@@ -1,4 +1,4 @@
-jsonshape 1: github.com/dexpace/morphic/ir.Document
+jsonshape 1: ir.Document
 
 type AdditionalMode string
 	const ""
@@ -834,10 +834,10 @@ type UnmodeledReason string
 	const "vendor_extension"
 
 type UsageFlags uint32
-	const 1
-	const 2
-	const 4
-	const 8
+	const UsageInput = 1
+	const UsageOutput = 2
+	const UsageError = 4
+	const UsageMultipart = 8
 
 type Value struct
 	"bool" bool omitzero

@@ -1,6 +1,7 @@
 package jsonshape
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -46,7 +47,7 @@ func Describe(p *decls.Package, root string) (string, error) {
 	w := &walker{
 		pkg:     p,
 		methods: methodDecls(p),
-		consts:  map[*types.Package]map[*types.Named][]constant.Value{},
+		consts:  map[*types.Package]map[*types.Named][]*types.Const{},
 		seen:    map[*types.Named]bool{},
 	}
 	w.reach(start)
@@ -65,8 +66,10 @@ func Describe(p *decls.Package, root string) (string, error) {
 	}
 	slices.SortFunc(entries, func(a, b entry) int { return strings.Compare(a.name, b.name) })
 
+	// The header names the package, not its import path, which is no part of
+	// the shape: moving the module must not move a pin.
 	var b strings.Builder
-	fmt.Fprintf(&b, "jsonshape %d: %s.%s\n", Format, p.Types.Path(), root)
+	fmt.Fprintf(&b, "jsonshape %d: %s.%s\n", Format, p.Types.Name(), root)
 	for _, e := range entries {
 		fmt.Fprintf(&b, "\ntype %s %s\n", e.name, e.head)
 		for _, line := range e.lines {
@@ -98,7 +101,7 @@ type walker struct {
 	methods map[*types.Func]*ast.FuncDecl
 	// consts indexes each package's constants by type, built the first time a
 	// type of that package is described.
-	consts map[*types.Package]map[*types.Named][]constant.Value
+	consts map[*types.Package]map[*types.Named][]*types.Const
 	seen   map[*types.Named]bool
 	queue  []*types.Named
 }
@@ -143,9 +146,10 @@ func (w *walker) qualifier(pkg *types.Package) string {
 	return pkg.Path()
 }
 
-// describe returns n's entry, queueing every named type it reaches.
+// describe returns n's entry, queueing every named type it reaches. An
+// instance has its origin's type parameters, so one check refuses both.
 func (w *walker) describe(n *types.Named) (entry, error) {
-	if n.TypeParams().Len() > 0 || n.TypeArgs().Len() > 0 {
+	if n.TypeParams().Len() > 0 {
 		return entry{}, errors.New("a generic type has a shape per instantiation, not one")
 	}
 	if n.Obj().Pkg() == nil {
@@ -206,10 +210,10 @@ func (w *walker) spell(t types.Type, depth int) (string, error) {
 }
 
 // basic spells a basic type by its kind, so byte and uint8 are one type, and
-// refuses one JSON has no encoding for.
+// refuses one JSON has no encoding for. No declared type is untyped, so none
+// reaches here.
 func basic(b *types.Basic) (string, error) {
-	if b.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString) == 0 ||
-		b.Info()&types.IsUntyped != 0 {
+	if b.Info()&(types.IsBoolean|types.IsInteger|types.IsFloat|types.IsString) == 0 {
 		return "", fmt.Errorf("%s has no JSON encoding", b)
 	}
 	return types.Typ[b.Kind()].Name(), nil
@@ -333,9 +337,11 @@ func (w *walker) signature(fn *types.Func) string {
 	return strings.TrimPrefix(types.TypeString(bare, w.qualifier), "func")
 }
 
-// constants lists the values n's package declares constants of n with, once
-// each and in value order. A constant's name is not in the JSON, so renaming
-// one, or adding another of a value already declared, changes no shape.
+// constants lists the constants n's package declares of type n, in value
+// order. A string or a boolean says in the JSON what it means, so it is listed
+// by value alone, once however many names it has. A number says nothing of
+// what it means; its constant's name does, so a numeric constant is listed
+// with its name, and reordering iota flags changes the description.
 func (w *walker) constants(n *types.Named) []string {
 	pkg := n.Obj().Pkg()
 	byType, indexed := w.consts[pkg]
@@ -343,14 +349,25 @@ func (w *walker) constants(n *types.Named) []string {
 		byType = constsByType(pkg)
 		w.consts[pkg] = byType
 	}
-	vals := slices.Clone(byType[n])
-	slices.SortFunc(vals, compareConstants)
-	vals = slices.CompactFunc(vals, func(a, b constant.Value) bool { return constant.Compare(a, token.EQL, b) })
-	out := make([]string, len(vals))
-	for i, v := range vals {
-		out[i] = "const " + v.ExactString()
+	consts := slices.Clone(byType[n])
+	slices.SortFunc(consts, func(a, b *types.Const) int {
+		return cmp.Or(compareConstants(a.Val(), b.Val()), strings.Compare(a.Name(), b.Name()))
+	})
+	out := make([]string, len(consts))
+	for i, c := range consts {
+		out[i] = constLine(c)
 	}
-	return out
+	return slices.Compact(out)
+}
+
+// constLine spells one constant: a number with the name that says what it
+// means, anything else by value alone.
+func constLine(c *types.Const) string {
+	v := c.Val()
+	if v.Kind() == constant.Int || v.Kind() == constant.Float {
+		return fmt.Sprintf("const %s = %s", c.Name(), v.ExactString())
+	}
+	return "const " + v.ExactString()
 }
 
 // compareConstants orders two constants of one type by value: numbers and
@@ -372,15 +389,15 @@ func compareConstants(a, b constant.Value) int {
 
 // constsByType indexes the package-level constants pkg declares by their named
 // type, read through an alias, so one scan serves every type of the package.
-func constsByType(pkg *types.Package) map[*types.Named][]constant.Value {
-	out := map[*types.Named][]constant.Value{}
+func constsByType(pkg *types.Package) map[*types.Named][]*types.Const {
+	out := map[*types.Named][]*types.Const{}
 	for _, name := range pkg.Scope().Names() {
 		c, isConst := pkg.Scope().Lookup(name).(*types.Const)
 		if !isConst {
 			continue
 		}
 		if named, isNamed := types.Unalias(c.Type()).(*types.Named); isNamed {
-			out[named] = append(out[named], c.Val())
+			out[named] = append(out[named], c)
 		}
 	}
 	return out
