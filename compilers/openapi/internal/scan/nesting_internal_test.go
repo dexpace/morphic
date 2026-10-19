@@ -126,3 +126,21 @@ func TestNesting_CountsTheExpandedTree(t *testing.T) {
 	require.True(t, refused)
 	assert.Equal(t, jsontext.Pointer("/a3/k/k/k"), d.Provenance.Pointer, "the alias carrying a3 past the bound")
 }
+
+// TestNesting_LeavesARecursiveAnchorToItsOwnRefusal pins that a document whose
+// count passes the bound only by going round a recursive anchor draws the
+// anchor-cycle refusal and not a nesting one, which would have no site: the
+// count of one turn is the index's, not a fact about the document.
+func TestNesting_LeavesARecursiveAnchorToItsOwnRefusal(t *testing.T) {
+	t.Parallel()
+	src := "x: &a " + strings.Repeat("{k: ", 3) + "*a" + strings.Repeat("}", 3) + "\n"
+	idx := indexOf(t, []byte(src))
+	require.NotEmpty(t, idx.AnchorCycles())
+	require.Greater(t, idx.Nesting(), int64(5), "one turn round the anchor counts past the bound below")
+
+	_, refused := placedNesting(t, src, 5)
+	assert.False(t, refused)
+	diags := scanPlaced(t, []byte(src))
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.CyclicRef, diags[0].Code)
+}

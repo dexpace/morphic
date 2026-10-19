@@ -1,12 +1,12 @@
 // Package sourceindex answers, in one walk, the questions asked of a decoded
 // source tree before any of it is lowered: how many nodes it declares, how
 // deeply it nests, which aliases name an ancestor, and which mappings carry a
-// tag the parser faults on. The answers are a value the caller carries rather
-// than a walk it repeats.
+// tag the parser faults on, as a value the caller carries rather than a walk
+// it repeats. Only what an alias names is measured once more.
 //
-// The index has no exported fields and no maps, and nothing in it changes once
-// Build returns, so a copy is as good as the original. It is derived from the
-// tree alone, so equal trees give equal indexes.
+// The index has no exported fields and no maps, and nothing in it changes
+// once Build returns, so a copy is as good as the original. Equal trees give
+// equal indexes.
 package sourceindex
 
 import (
@@ -19,8 +19,8 @@ import (
 
 // MaxIndexedNodes bounds how many nodes one index walks. It is the explicit
 // loop limit, not a memory guard: the tree is already materialized by the
-// decode, and the index holds a fixed amount of state whatever its size. It
-// sits far above any document that could have been decoded.
+// decode, and the index holds what it reports, not a record per node. It sits
+// far above any document that could have been decoded.
 //
 // A document past it is refused by the caller rather than half-counted: a
 // truncated count would understate the alias-expansion allowance derived from
@@ -50,9 +50,10 @@ type Index struct {
 	truncated      bool
 }
 
-// Build walks the tree under root once and returns what it found. root may be a
-// document node or the content node itself; either way the index is rooted at
-// the content, which is the node every consumer scans from.
+// Build walks the tree under root once, measuring what each alias names as it
+// meets it, and returns what it found. root may be a document node or the
+// content node itself; either way the index is rooted at the content, which is
+// the node every consumer scans from.
 //
 // maxNodes is the caller's bound on the walk — MaxIndexedNodes in the compiler,
 // smaller in a test that drives the truncated path. A non-positive bound indexes

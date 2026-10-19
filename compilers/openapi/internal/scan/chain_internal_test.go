@@ -595,8 +595,8 @@ func TestSettleChains_AReentryFollowsThePointersOrder(t *testing.T) {
 // TestSettleChains_ATailPassedOnItsLoopIsCountedRoundFromWhereItLands pins how
 // far round its loop a hop passing a tail comes. N lands on R, of a loop of R,
 // A, N's x, B, R's y and C; A's hop passes N one hop after R, and B's passes R
-// three hops after it. A walk from N passes N at its second hop, before R's own
-// re-entry at its fourth, so N is what it re-enters.
+// three hops after it. Counting N's own hop as hop 0, a walk from N passes N
+// at hop 2, before R's re-entry at hop 4, so N is what it re-enters.
 func TestSettleChains_ATailPassedOnItsLoopIsCountedRoundFromWhereItLands(t *testing.T) {
 	t.Parallel()
 	data := schemasDoc([]string{
@@ -634,8 +634,8 @@ func TestSettleChains_ALoopReentryFollowsThePointersOrder(t *testing.T) {
 // TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate is the test
 // above with the pass further round: N lands on R, of a loop of R, X, B, R's y,
 // A, N's x and C, where B's hop passes R two hops after it and A's passes N
-// four after. A walk from N re-enters R at its third hop, before A's would
-// pass N at its fifth.
+// four after. Counting N's own hop as hop 0, a walk from N re-enters R at hop
+// 3, before A's would pass N at hop 5.
 func TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate(t *testing.T) {
 	t.Parallel()
 	data := schemasDoc([]string{
@@ -653,10 +653,10 @@ func TestSettleChains_ALoopPassAfterTheLoopsOwnReentryComesTooLate(t *testing.T)
 
 // TestSettleChains_ATailIsReenteredAtItsEarliestPass pins that of two passes
 // through a tail N, the one earlier on N's walk counts, whichever was read
-// first: P's hop passes N at the first hop and T's at the sixth, around a
-// re-entry of Q at the fourth. Every schema is a start, so the declaration
-// order decides which pass is read first, and either way round N is
-// re-entered.
+// first. Counting N's own hop as hop 0, P's hop passes N at hop 1 and T's at
+// hop 6, around Q's re-entry at hop 4. Every schema is a start, so the
+// declaration order decides which pass is read first, and either way round N
+// is re-entered.
 func TestSettleChains_ATailIsReenteredAtItsEarliestPass(t *testing.T) {
 	t.Parallel()
 	members := []string{

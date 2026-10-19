@@ -60,8 +60,8 @@ const (
 	// admits (scan.MaxNesting), its aliases expanded. What the parser builds
 	// costs more per node the deeper the node, so the document is refused before
 	// the parser builds it, at the least pointer where its nesting passes the
-	// bound (GitHub #905). A document an external reference names is refused
-	// alike, failing the reference.
+	// bound (GitHub #905). An overlay document is refused alike before it is
+	// applied, and one an external reference names, failing the reference.
 	SourceTooDeep = "openapi/source-too-deep"
 	// TaggedMapping reports a mapping carrying a YAML tag other than !!map, which
 	// OpenAPI forbids: its YAML form limits tags to YAML 1.2's JSON schema

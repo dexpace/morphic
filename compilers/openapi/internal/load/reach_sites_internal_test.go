@@ -109,8 +109,8 @@ func cutCycleMembers(t *testing.T, doc *soa.OpenAPI, root *yaml.Node) []*yaml.No
 
 // TestCycleMembers_NamesEveryReferenceOnACycleAndNoOther holds the search, with
 // budget to spare, to what the graph says by plain reachability: a set member
-// is on a cycle exactly when its class reaches back to the set. Thousands of
-// generated documents of $defs and anchored references are compared.
+// is on a cycle exactly when its class reaches back to the set, over 1,500
+// generated documents of $defs and anchored references.
 func TestCycleMembers_NamesEveryReferenceOnACycleAndNoOther(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewPCG(912, 914))

@@ -25,6 +25,10 @@ const MaxNesting = 1024
 // it, as a diag.SourceTooDeep error anchored at the least of the sites
 // deepSites finds, or reports nothing for one within it. The index must cover
 // the tree the parser will be handed, untruncated.
+//
+// A document holding a recursive anchor is left to the anchor-cycle refusal:
+// it nests without end, and the index's count of one turn round it is no
+// fact to refuse on or to find a site for.
 func Nesting(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
 	return nestingWithin(locate, idx, MaxNesting)
 }
@@ -32,7 +36,7 @@ func Nesting(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
 func nestingWithin(locate Locator, idx sourceindex.Index, limit int64) (ir.Diagnostic, bool) {
-	if idx.Nesting() <= limit {
+	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
 	root := idx.Root()
