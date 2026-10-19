@@ -300,7 +300,7 @@ func TestProbe_TellsARecoverablePanicFromOneNothingReaches(t *testing.T) {
 	t.Parallel()
 	here := probe(t, "panic here", "")
 	require.Equal(t, returned, here.outcome, here.output)
-	assert.Equal(t, "recovered panic: here", here.report)
+	assert.Equal(t, recoveredMark+"here", here.report)
 
 	elsewhere := probe(t, "panic elsewhere", "")
 	require.Equal(t, panicked, elsewhere.outcome, elsewhere.output)

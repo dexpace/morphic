@@ -1028,11 +1028,12 @@ func (t tail) describe() string {
 // line and column through an overlay.
 //
 // A panic from the third-party parser, which faults on degenerate input such as
-// a whitespace-only document, becomes an ErrParse error. The recover reaches
-// only this goroutine, and the parser decodes on goroutines of its own, where a
-// fault ends the process: a shape known to fault, a tagged mapping at a
-// reference position (docs/parser-library.md#tagged-mapping-panic), is refused
-// beforehand (see refusals).
+// a whitespace-only document (docs/parser-library.md#recoverable-panic),
+// becomes an ErrParse error. The recover reaches only this goroutine, and the
+// parser decodes on goroutines of its own, where a fault ends the process: a
+// shape known to fault, a tagged mapping at a reference position
+// (docs/parser-library.md#tagged-mapping-panic), is refused beforehand (see
+// refusals).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {

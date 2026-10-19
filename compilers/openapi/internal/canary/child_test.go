@@ -33,6 +33,10 @@ const (
 	memoryMark = "canary-memory: "
 )
 
+// recoveredMark opens the report of a child whose own goroutine recovered a
+// panic, before the panic's value.
+const recoveredMark = "recovered panic: "
+
 // memoryExit is the status a child exits with once it crosses memoryCeiling,
 // distinct from the 2 a fatal error or an unrecovered panic exits with.
 const memoryExit = 3
@@ -208,7 +212,7 @@ func runChild(name, path string) int {
 func recovering(c child, input []byte) (report string) {
 	defer func() {
 		if r := recover(); r != nil {
-			report = fmt.Sprintf("recovered panic: %v", r)
+			report = fmt.Sprint(recoveredMark, r)
 		}
 	}()
 	return c(context.Background(), input)

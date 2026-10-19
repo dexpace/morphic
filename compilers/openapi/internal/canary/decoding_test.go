@@ -299,6 +299,26 @@ func taggedMappingPanic(t *testing.T) {
 	}
 }
 
+// recoverablePanic pins recoverable-panic: decoding a document of nothing but
+// whitespace, and resolving a reference to a $ref written with no value, panic
+// on the goroutine that called them, where its recover reaches the panic.
+func recoverablePanic(t *testing.T) {
+	tests := map[string]struct{ child, input, message string }{
+		"a whitespace document": {"unmarshal", " \n", "unknown node kind"},
+		"a $ref with no value": {"resolve", section("responses", "A: {$ref: '#/B'}") + "B: {$ref}\n",
+			"nil pointer dereference"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := probe(t, tc.child, tc.input)
+			require.Equal(t, returned, r.outcome, revisit(t, r))
+			assert.True(t, strings.HasPrefix(r.report, recoveredMark), revisit(t, r))
+			assert.Contains(t, r.report, tc.message, revisit(t, r))
+		})
+	}
+}
+
 // anchoredEntryDropped pins anchored-entry-dropped: an anchored entry of a
 // map the model embeds (a path, a method, a response, a callback expression,
 // a security requirement's scheme) is left out, with no finding, while one in

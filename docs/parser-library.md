@@ -294,6 +294,28 @@ components:
   - `sourceindex.Index.TaggedMappings` finds them.
   - `load.unmarshal` recovers a panic on its own goroutine only.
 
+### `recoverable-panic`
+
+Decoding and resolution panic on some documents the YAML parser accepts, on the goroutine that
+called them, where the caller's `recover` reaches the panic, unlike
+[`tagged-mapping-panic`](#tagged-mapping-panic). `soa.Unmarshal` panics with `unknown node kind` on
+a document of nothing but whitespace, before it decodes a node, and resolving a reference to a
+mapping whose `$ref` has no value dereferences nil.
+
+```yaml
+components:
+  responses:
+    A: {$ref: '#/B'}
+B: {$ref}
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/recoverable-panic`
+- Code:
+  - `load.recovered` turns a panic in resolution, a walk or validation into an error naming what
+    was running.
+  - `load.unmarshal` turns a panic in decoding into an `ErrParse` error.
+
 ### `anchored-entry-dropped`
 
 An anchored entry of a map the model embeds is left out of the model, with no finding: a path in
