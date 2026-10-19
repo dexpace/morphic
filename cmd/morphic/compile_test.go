@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -353,8 +354,9 @@ func TestRun_PrettyRestoresIndentedFile(t *testing.T) {
 // TestRun_StdoutIsTheGoldenEncoding pins encodeDocument's claim against an
 // encoder it does not share: what compile prints is byte for byte what
 // irtest.WriteGolden writes for the same document, indentation and trailing
-// newline included. Comparing --pretty with stdout cannot show this, since both
-// go through encodeDocument.
+// newline included, once the irVersion line a golden leaves out is taken from
+// it. Comparing --pretty with stdout cannot show this, since both go through
+// encodeDocument.
 func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	t.Parallel()
 	spec := writeFile(t, "spec.yaml", unsortedSpec)
@@ -369,7 +371,13 @@ func TestRun_StdoutIsTheGoldenEncoding(t *testing.T) {
 	require.NoError(t, irtest.WriteGolden(golden, res.Document))
 	want, err := os.ReadFile(golden)
 	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(string(want), stdout.String()), "stdout must be the golden encoding")
+
+	stamp := fmt.Sprintf("  %q: %q,\n", "irVersion", ir.IRVersion)
+	got := stdout.String()
+	require.True(t, strings.HasPrefix(got, "{\n"+stamp), "the stamp opens what compile prints: %s", got)
+	assert.Equal(t, 1, strings.Count(got, stamp), "compile prints the stamp once")
+	assert.Empty(t, cmp.Diff(string(want), strings.Replace(got, stamp, "", 1)),
+		"stdout must be the golden encoding with the stamp")
 }
 
 // TestRun_CompactOutputKeepsDocumentOrder is the determinism check the format

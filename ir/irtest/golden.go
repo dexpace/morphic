@@ -1,8 +1,15 @@
 // Package irtest provides test helpers for IR documents: golden snapshots, and
 // the namespaces a document's IDs live in.
+//
+// A golden stores a document without its irVersion. The stamp names the shape
+// of the JSON, which a test in package ir pins against that shape, so storing
+// it in every snapshot would only make each bump rewrite them all. The helpers
+// assert it instead: a golden is written and compared only for a document
+// stamped with ir.IRVersion, and ReadGolden puts the stamp back.
 package irtest
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -10,6 +17,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -22,22 +31,36 @@ var update = flag.Bool("update", false, "rewrite golden files instead of compari
 // Update reports whether -update was passed to go test.
 func Update() bool { return *update }
 
-// encodeGolden serializes doc as deterministic indented JSON with a trailing
-// newline. Both WriteGolden and compareGolden encode through this one
-// function, so the golden writer and the golden comparer cannot disagree
-// about what "the golden encoding" is. Both screen out a nil doc first, so one
-// never reaches here.
+// encodeGolden serializes doc as a golden stores it: deterministic indented
+// JSON with a trailing newline, without the irVersion member. Both WriteGolden
+// and compareGolden encode through this one function, so the golden writer and
+// the golden comparer cannot disagree about what "the golden encoding" is.
+// Both screen out a nil or foreign-stamped doc first, so one never reaches
+// here.
 func encodeGolden(doc *ir.Document) ([]byte, error) {
-	raw, err := json.Marshal(doc, jsontext.WithIndent("  "))
+	unstamped := *doc
+	unstamped.IRVersion = ""
+	raw, err := json.Marshal(&unstamped, jsontext.WithIndent("  "))
 	if err != nil {
 		return nil, err
 	}
 	return append(raw, '\n'), nil
 }
 
-// WriteGolden serializes doc deterministically and writes it to path, creating
-// parent directories as needed. An empty path and a nil document are both
-// caller errors and are refused before anything is written.
+// stampError reports a document a golden cannot stand for: one not stamped
+// with ir.IRVersion. A golden leaves the stamp out, so this check is what
+// still asserts it.
+func stampError(doc *ir.Document) error {
+	if doc.IRVersion != ir.IRVersion {
+		return fmt.Errorf("document stamped irVersion %q, not ir.IRVersion %s", doc.IRVersion, ir.IRVersion)
+	}
+	return nil
+}
+
+// WriteGolden serializes doc deterministically, without its irVersion, and
+// writes it to path, creating parent directories as needed. An empty path, a
+// nil document and one not stamped with ir.IRVersion are caller errors,
+// refused before anything is written.
 //
 // A nil document is worth refusing rather than encoding: it marshals to the
 // four bytes "null", which every later run with a nil document matches, so a
@@ -48,6 +71,9 @@ func WriteGolden(path string, doc *ir.Document) error {
 	}
 	if doc == nil {
 		return errors.New("irtest: write golden: nil document")
+	}
+	if err := stampError(doc); err != nil {
+		return fmt.Errorf("irtest: write golden %s: %w", path, err)
 	}
 	raw, err := encodeGolden(doc)
 	if err != nil {
@@ -73,8 +99,9 @@ type testingT interface {
 
 // CompareGolden compares doc against the golden file at goldenPath, or
 // rewrites it when -update is set. Failures include a full diff. An empty
-// goldenPath and a nil document each fail the test immediately: this is a test
-// helper, so refusing loudly is the only channel it has.
+// goldenPath, a nil document and one not stamped with ir.IRVersion each fail
+// the test immediately: this is a test helper, so refusing loudly is the only
+// channel it has.
 func CompareGolden(t *testing.T, goldenPath string, doc *ir.Document) {
 	t.Helper()
 	compareGolden(t, goldenPath, doc)
@@ -90,6 +117,9 @@ func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 	}
 	if doc == nil {
 		t.Fatalf("irtest: compare golden: nil document")
+	}
+	if err := stampError(doc); err != nil {
+		t.Fatalf("irtest: compare golden %s: %v", goldenPath, err)
 	}
 	if Update() {
 		if err := WriteGolden(goldenPath, doc); err != nil {
@@ -109,3 +139,34 @@ func compareGolden(t testingT, goldenPath string, doc *ir.Document) {
 		t.Errorf("golden mismatch for %s (-golden +got):\n%s", goldenPath, diff)
 	}
 }
+
+// ReadGolden decodes the golden at path into the document it stands for,
+// stamped with ir.IRVersion, which the golden leaves out. The Document decoder
+// reads the result, so a golden that stores a stamp of its own is refused as
+// a duplicate member, like anything else that decoder refuses.
+func ReadGolden(path string) (*ir.Document, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("irtest: read golden: %w", err)
+	}
+	body := bytes.TrimLeft(raw, jsonSpace)
+	if len(body) == 0 || body[0] != '{' {
+		return nil, fmt.Errorf("irtest: read golden %s: not a JSON object", path)
+	}
+	members := body[1:]
+	sep := ","
+	if rest := bytes.TrimLeft(members, jsonSpace); len(rest) > 0 && rest[0] == '}' {
+		sep = ""
+	}
+
+	// The version is MAJOR.MINOR.PATCH, so Go's quoting of it is JSON's.
+	stamped := slices.Concat([]byte(`{"irVersion":`+strconv.Quote(ir.IRVersion)+sep), members)
+	var doc ir.Document
+	if err := json.Unmarshal(stamped, &doc); err != nil {
+		return nil, fmt.Errorf("irtest: read golden %s: %w", path, err)
+	}
+	return &doc, nil
+}
+
+// jsonSpace is the whitespace JSON allows between tokens (RFC 8259 §2).
+const jsonSpace = " \t\n\r"
