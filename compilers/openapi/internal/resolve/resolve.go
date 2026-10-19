@@ -374,7 +374,8 @@ func (s Scope) reader() *defs.Reader {
 // in this document: InternalPointer's answer, except that a "#/$defs/..."
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
-// the document does not have (docs/parser-library.md#root-defs, GitHub #557).
+// the OpenAPI object does not define (docs/parser-library.md#root-defs, GitHub
+// #557).
 // ok is false for a reference into another document, for a $defs pointer the
 // rule finds nothing for, and for any other pointer Beside refuses. A $defs
 // pointer written beside a path item's $ref is held unresolved by load, so no
