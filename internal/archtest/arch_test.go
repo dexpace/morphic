@@ -93,6 +93,20 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/references", "gopkg.in/yaml.v3"},
+	// Every schema $ref of the source resolved into a table over its decoded
+	// tree, without the library's resolver (GitHub #913). It reads the tree
+	// through nodeview and a fragment through fragment, and nothing of the
+	// library's model or of the compiler, so it can stand where the resolver's
+	// reading of a schema reference does.
+	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/nodeview", "gopkg.in/yaml.v3"},
+	// The typed side of a bind table: the schema the parsed model holds at a
+	// position, read as the library's walk reads it, or one the library's decoder
+	// builds from raw YAML there.
+	"compilers/openapi/internal/bind/typed": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/navigation", module + "/compilers/openapi/internal/nodeview",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "github.com/speakeasy-api/openapi/marshaller",
+		"gopkg.in/yaml.v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and nothing else: an index of what the source says is not

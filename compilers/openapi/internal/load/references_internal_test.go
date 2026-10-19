@@ -201,21 +201,24 @@ components:
 // mapping target is resolved with every "#/$defs/..." reference as resolveHeld
 // left it: one GitHub #557's rule finds no definition for stays out of the
 // resolver's reach, so a chain through it ends there, as a $ref's does. Put
-// back as written, it sent the chain to the document-root $defs the rule
-// rejects, reporting X's finding at the entry, and with external references on
+// back as written, it sent the chain to the resolver's own lookup, which reads
+// the pointer in the schema the chain came through
+// (docs/parser-library.md#defs-order): S, under an extension, whose X it
+// found, reporting X's finding at the entry, and with external references on
 // reading the document X names.
 func TestResolve_AMappingChainStopsAtADefinitionTheRuleCannotFind(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	writeFile(t, dir, "other.yaml", "Y: {type: object, minLength: abc}\n")
 	const schemas = "    Pet:\n      type: object\n      properties: {k: {type: string}}\n" +
-		"      discriminator: {propertyName: k, mapping: {c: '#/components/schemas/Holder/properties/p'}}\n" +
+		"      discriminator: {propertyName: k, mapping: {c: '#/x-lib/S'}}\n" +
 		"    Holder: {type: object, properties: {p: {$ref: '#/$defs/X'}}}\n"
 	for name, x := range map[string]string{
 		"a definition with a finding":          "{type: object, minLength: abc}",
 		"a definition naming another document": "{$ref: 'other.yaml#/Y'}",
 	} {
-		src := openapitest.ComponentSpec(schemas) + "$defs:\n  X: " + x + "\n"
+		src := openapitest.ComponentSpec(schemas) +
+			"x-lib:\n  S: {$defs: {X: " + x + "}, $ref: '#/components/schemas/Holder/properties/p'}\n"
 		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)},
 			Options{AllowExternalRefs: true})
 		require.NoError(t, err, name)
