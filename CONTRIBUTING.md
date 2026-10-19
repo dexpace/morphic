@@ -41,21 +41,28 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
 1. **State the rule.** Edit the entry that already covers the construct, and add an entry only for
    a construct no rule covers: a `### ` heading whose text is the rule's key in code, its text, and
-   the fields that close it (the document's opening paragraphs say what each field holds). Write
-   the rule before the code; it is what the review checks the code against.
-   *Fails if missed:* `TestLoweringSpec_RulesAreKeyedAndCarryEvidence` for an entry that is
-   malformed or names no evidence. A rule never written fails the checks of steps 2 and 4 instead,
-   once its code or case exists and no rule names it.
+   the fields that close it (the document's opening paragraphs say what each field holds). The text
+   says what the construct lowers to, and when each code the rule reports fires, written
+   `openapi/<code>`; what the compiler does not do yet goes in the Status, with its issue, and the
+   text names no issue. Write the rule before the code; it is what the review checks the code
+   against.
+   *Fails if missed:* `TestLoweringSpec_RulesAreKeyedAndCarryEvidence` for an entry that names no
+   evidence, `TestLoweringSpec_TextStatesEachCodeAndNoIssue` for a code the text never writes or an
+   issue it names, and every `TestLoweringSpec` test for an entry in a shape the reader refuses. A
+   rule never written fails the checks of steps 2 and 4 instead, once its code or case exists and no
+   rule names it.
 
    If the IR has no field for what the rule needs, stop here: that is a change to the IR, which
    [`architecture.md`](docs/architecture.md) §2.5 governs. Until it lands, the rule keeps the
    construct verbatim under `no_ir_home`.
 2. **Add a diagnostic code, if the rule reports one.** Declare it in
    `compilers/openapi/internal/diag/diag.go`, add it to `codes()` in `diag_test.go`, and name it in
-   the rule's Codes field. Its doc comment names every site that reports it; a reviewer checks
-   that, and no test does.
-   *Fails if missed:* `TestCodes_MatchTheDeclaredSet` for `codes()`, and
-   `TestLoweringSpec_CodesAreDeclared` for a code no rule names.
+   the rule's Codes field and its text. Its doc comment names every site that reports it; a reviewer
+   checks that, and no test does.
+   *Fails if missed:* `TestCodes_MatchTheDeclaredSet` for `codes()`,
+   `TestLoweringSpec_CodesAreDeclared` for a code no rule names, and
+   `TestLoweringSpec_TextStatesEachCodeAndNoIssue` for one the Codes field names and the text does
+   not.
 3. **Implement it** where the rules near yours are lowered: their Tests fields name the packages
    that hold the code, and `micro-compiler-design.md` says why each package holds what it does. The
    parser library's model can read an absent field and an empty one alike, so check what it
@@ -180,5 +187,6 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `ir-design.md` §14: move the format's list there into the new document, or add a row for a
    format §14 does not list. The `TestLoweringSpec` tests read `docs/compilers/openapi.md` alone, so
-   give the new specification tests of its own. Nothing fails if this step is missed.
+   give the new specification tests of its own, reading it through `internal/keydoc` as they do.
+   Nothing fails if this step is missed.
 7. **Run the gate:** `make gate`.
