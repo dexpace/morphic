@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -43,6 +44,14 @@ func walkGoFiles(root string, visit func(rel string, fset *token.FileSet, f *ast
 		visit(filepath.ToSlash(rel), fset, f)
 		return nil
 	})
+}
+
+// ignoredByGoTool reports whether the go tool skips a directory by name: testdata
+// holds fixtures rather than packages, and a leading "." or "_" hides a directory
+// from package patterns such as ./... — which is what keeps the gitignored
+// reference checkouts under .claude out of the walk.
+func ignoredByGoTool(name string) bool {
+	return name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")
 }
 
 // TestWalkGoFiles_ReadsOnlyWhatTheGoToolBuilds plants a Go file in each place

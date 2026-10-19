@@ -4,10 +4,11 @@ linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
     - copyloopvar
+    - depguard # encoding/json v1, refused in every file
     - errorlint # %w discipline: errors.Is/As over == and type assertions
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
-    - gocritic
+    - gocritic # its default checks, and the ruleguard rules in internal/lintrules
     - intrange # for i := range n, where a counted loop only counts
     - misspell
     - modernize # the standard library and language forms go fix and the modernize analyzers propose
@@ -19,6 +20,24 @@ linters:
     - usestdlibvars # http.MethodGet over "GET", and the like
     - usetesting # t.Context, t.Chdir and t.TempDir over their context and os spellings
   settings:
+    depguard:
+      rules:
+        # encoding/json is v1. The IR's bytes are decided by ir.Document through
+        # encoding/json/v2, and every v1 call runs v2 under DefaultOptionsV1: HTML
+        # escaping, invalid UTF-8 rewritten to U+FFFD, duplicate names accepted,
+        # names matched case-insensitively. One v1 call reintroduces that at
+        # whatever it touches, and a test reaching v1 checks the IR against a codec
+        # it no longer uses, so tests are covered too. The trailing $ makes the
+        # match exact: a prefix would refuse v2 and jsontext with it.
+        #
+        # Lint reads the files the host's build includes, so a file built only for
+        # another port, such as one tagged windows, is not checked.
+        json-v1:
+          list-mode: lax
+          files: [$all]
+          deny:
+            - pkg: encoding/json$
+              desc: use encoding/json/v2 and encoding/json/jsontext
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -31,6 +50,16 @@ linters:
       # Raising this is how a function that should have been split stays whole,
       # so a failure is a prompt to name the inner step, not to move the number.
       min-complexity: 20
+    gocritic:
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          # Without failOn, ruleguard skips a rules file it cannot load and runs
+          # whatever else it has; with it, the load error fails the run and names
+          # the line.
+          failOn: all
+          rules: ${base-path}/internal/lintrules/rules.go
     revive:
       rules:
         - name: exported # GoDoc on every exported symbol
@@ -67,6 +96,15 @@ linters:
         linters:
           - modernize
         text: stditerators
+      # A compile.Settlement may rewrite a node the walk interned, through the
+      # registry compile.Types.Settle hands it, which refuses one that changes the
+      # node count (compilers/compile/settle.go). This line is that rewrite: the
+      # framework's way in, not a way around it.
+      - path: compilers/openapi/internal/schema/discriminated\.go
+        linters:
+          - gocritic
+        text: writes an ir\.TypeRegistry
+        source: reg\[d\.model\] = mt
 
 formatters:
   enable:

@@ -26,6 +26,8 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ steps.lint-version.outputs.version }}
+      - name: lint rules draw their planted findings
+        run: make lint-planted
       - name: build
         run: make build
       - name: test (race detector, exactly 100% coverage)

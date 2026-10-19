@@ -105,9 +105,9 @@ registry is the one handle a lowering holds (micro-compiler-design §4). What st
 compiler is what only it can compute: the path an ID derives from, since a JSON Pointer, a GraphQL
 structural path and a protobuf fully-qualified name are different things.
 
-The split is enforced rather than documented: architecture tests fail a package outside the
-framework that writes the type registry, derives a canonical name, builds an ID out of a string, or
-builds a namespace out of anything but a literal.
+The split is enforced rather than documented. A lint rule fails a package outside the framework
+that writes the type registry, and architecture tests fail one that derives a canonical name,
+builds an ID out of a string, or builds a namespace out of anything but a literal.
 Promoting something into the framework later is additive, while demoting it breaks every compiler,
 so borderline machinery starts outside and moves in on evidence from more than one format.
 
@@ -336,6 +336,7 @@ morphic/
 ├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
+├── internal/lintrules/     #           Rules golangci-lint runs through ruleguard (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).

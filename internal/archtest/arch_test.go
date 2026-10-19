@@ -316,6 +316,12 @@ var rules = map[string][]string{
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.
 	"internal/keydoc": {},
+	// The ruleguard rules golangci-lint runs. Its one file builds under a tag no
+	// build sets, and reaches the rules DSL and nothing else.
+	"internal/lintrules": {"github.com/quasilyte/go-ruleguard/dsl"},
+	// What those rules refuse, planted for scripts/lint-planted.sh. It reaches
+	// ir because the rules are about ir's types.
+	"internal/lintrules/testdata/planted": {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

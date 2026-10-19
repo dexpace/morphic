@@ -74,10 +74,10 @@ FUZZTIME ?= 10s
 # testdata/ while `coverage` is running `go test ./...` over the same tree.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint build coverage \
+.PHONY: gate fmt vet lint lint-planted build coverage \
 	fuzz bench bench-smoke print-lint-version
 
-gate: fmt vet lint build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -102,6 +102,12 @@ lint:
 		echo "warning:   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$$want" >&2; \
 	fi
 	golangci-lint run
+
+# The rules in .golangci.yml that a clean tree cannot prove, held to the findings
+# planted for them; scripts/lint-planted.sh says how. In CI it runs after the
+# lint action, which leaves its golangci-lint on PATH for the steps after it.
+lint-planted:
+	./scripts/lint-planted.sh
 
 # The build runs for the host and again for ports CI never runs on, since an
 # API one port lacks fails only that port's build: Windows, and the two wasm

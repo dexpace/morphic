@@ -138,7 +138,7 @@ cmd/morphic-harness/
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
-             keydoc, leakcheck, testspec).
+             keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -287,7 +287,7 @@ below are the ones most likely to bite in this codebase — the full guide gover
   `internal/archtest` enforces the cap, and `go test ./internal/archtest -run TestDocComments`
   lists every comment over it; an exception is a `longDocComments` entry there, with its reason.
 - **Serialization:** JSON goes through `encoding/json/v2` and `encoding/json/jsontext` only;
-  `encoding/json` (v1) is banned by `internal/archtest`, tests included. Explicit struct tags on
+  `encoding/json` (v1) is banned by the depguard lint, tests included. Explicit struct tags on
   every field: `omitempty` only on strings, slices and maps whose empty and absent forms mean the
   same; `omitzero` on every other optional field (pointers, bools, numbers), because v2's
   `omitempty` keeps a zero number or bool and drops a pointer to an empty struct, and on a

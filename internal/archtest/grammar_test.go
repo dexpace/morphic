@@ -508,3 +508,31 @@ func sweepProduction(t *testing.T, root, subtree string, owners []string,
 	require.NotZero(t, scanned, "the sweep reached no production Go file, so an empty result proves nothing")
 	return found
 }
+
+// skipUninterestingDir prunes directories that carry no production Go code.
+func skipUninterestingDir(root, path string, d fs.DirEntry) error {
+	if path == root {
+		return nil
+	}
+	switch d.Name() {
+	case ".git", "testdata", "docs", "scripts", ".claude", ".github":
+		return fs.SkipDir
+	}
+	return nil
+}
+
+// hasPrefixDir reports whether rel sits inside one of dirs, matching on
+// path-segment boundaries so "irverify" does not match the "ir" owner.
+func hasPrefixDir(rel string, dirs []string) bool {
+	return slices.ContainsFunc(dirs, func(d string) bool { return rel == d || strings.HasPrefix(rel, d+"/") })
+}
+
+// isSelector reports whether e is the qualified identifier pkg.name.
+func isSelector(e ast.Expr, pkg, name string) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg
+}
