@@ -121,6 +121,6 @@ type TagDef struct {
 	// — "nav", "badge", or any other string a document writes. It is kept as a
 	// fact rather than interpreted: whether a kind is navigational is grouping
 	// policy, not a property of the document, so no meaning is read into a
-	// value here (ir-design §7.1, docs/compilers/openapi.md#tag-groups).
+	// value here (ir-design §7.1).
 	Kind string `json:"kind,omitempty"`
 }

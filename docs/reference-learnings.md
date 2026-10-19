@@ -530,7 +530,8 @@ union variants survive in the IR; a second case with a discriminator to exercise
 > never states — the mapping names branch schemas, not subtypes of the enclosing model. Compiled, the
 > result is rejected by `pass/validate` with `discriminator-missing-variant`, and that error is
 > pre-existing rather than introduced. A declared `discriminator` beside a union therefore preserves
-> verbatim with a reason instead. See `ir-design.md` §4.8.
+> verbatim with a reason instead. See the OpenAPI compiler's rule
+> [`union-beside-structure`](compilers/openapi.md#union-beside-structure).
 >
 > Shape #1 also needed a constraint this section does not mention: distribute **only when every
 > branch is a `$ref`**. `Base`/`Mixins` conjoin by reference, so a conjunct needs a node with an ID.

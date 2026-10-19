@@ -568,7 +568,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, anchors *AnchorIndex, de
 // the shared `any` primitive with Nullable set. The combinator that produced
 // it, and the other one too when both are declared, carries no shape a Union
 // or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
-// instead of dropped (GitHub #416; ir-design §4.8).
+// instead of dropped (GitHub #416; docs/compilers/openapi.md#union-null-only).
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, hint string) (ir.TypeRef, []ir.Diagnostic) {
 	// inner is the shared `any` primitive: no schema pointer ever interns at
 	// its ID, so this position never already owns it. Hoist an alias
