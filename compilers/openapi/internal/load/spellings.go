@@ -9,8 +9,8 @@ import (
 
 // heldSpellings records what the source is held under besides its own keys:
 // each spelling of its file name a $ref was found to use, and the pointers of
-// the objects held under it. A second resolution, which reads the documents
-// the first prepared without preparing them again, holds the same from it.
+// the objects held under it. A second resolution, answered from the first's
+// reads and preparing no document again, holds the same from it.
 // Safe for concurrent use, as the readers sharing it are.
 type heldSpellings struct {
 	mu    sync.Mutex

@@ -103,8 +103,14 @@ lint:
 	fi
 	golangci-lint run
 
+# The build runs for the host and again for ports CI never runs on, since an
+# API one port lacks fails only that port's build: Windows, and the two wasm
+# ports, whose syscall package is the narrowest the module builds against.
 build:
 	$(GO) build ./...
+	GOOS=windows GOARCH=amd64 $(GO) build ./...
+	GOOS=js GOARCH=wasm $(GO) build ./...
+	GOOS=wasip1 GOARCH=wasm $(GO) build ./...
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is

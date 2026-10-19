@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json/jsontext"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
@@ -30,16 +31,18 @@ const maxResolutionHops = 32
 // externalReads is what the external-document readers of one compile have
 // read: each prepared document's released tree and the bytes it came from, by
 // the key it was prepared under, its tree by the digest of those bytes, the set
-// of those trees, and every answer their requests got, by URL and in order. The
+// of those trees, and the answer each document's one read got (see once). The
 // source is held as a document read already (see sourceDocument). It is safe
 // for concurrent use, as the readers sharing it are.
 type externalReads struct {
-	mu       sync.Mutex
-	self     sourceDocument
-	trees    map[string]*yaml.Node
-	mine     map[*yaml.Node]bool
-	answers  map[string][]answer
-	replayed map[string]int
+	mu    sync.Mutex
+	self  sourceDocument
+	trees map[string]*yaml.Node
+	mine  map[*yaml.Node]bool
+	// answers holds each document's read by the key it was read under, and
+	// documents counts the reads charged against the document budget.
+	answers   map[string]*reading
+	documents int
 	// data holds the bytes each key's tree was prepared from, and byDigest the
 	// first tree prepared from bytes of each digest (see recordTree).
 	data     map[string][]byte
@@ -74,8 +77,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		self:     self,
 		trees:    map[string]*yaml.Node{},
 		mine:     map[*yaml.Node]bool{},
-		answers:  map[string][]answer{},
-		replayed: map[string]int{},
+		answers:  map[string]*reading{},
 		data:     map[string][]byte{},
 		byDigest: map[digest]*yaml.Node{},
 		mended:   map[string]treeAnswer{},
@@ -105,26 +107,58 @@ func (a answer) response(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: a.status, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
 }
 
-// recordAnswer appends how a request for key was answered.
-func (r *externalReads) recordAnswer(key string, a answer) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.answers[key] = append(r.answers[key], a)
+// reading is one document's read: the answer it got, set once.
+type reading struct {
+	once   sync.Once
+	answer answer
 }
 
-// nextAnswer returns the first answer for key not yet replayed, so the n-th
-// request replayed gets the n-th answer, or false once none is left. The
-// resolver sends one request at a time, in its walk's order, so a second
-// resolution asks in the order the first did.
-func (r *externalReads) nextAnswer(key string) (answer, bool) {
+// once returns the answer the document under key got when it was read. The
+// first ask of the compile reads it with read while limit allows one more
+// document (see exceeds), and refuses it unread past that. Every later ask,
+// from either resolution, gets the same answer: the resolver asks again on
+// each reference until it has built something from a document, and a second
+// read could answer otherwise.
+func (r *externalReads) once(key string, limit int, read func() answer) answer {
+	r.mu.Lock()
+	rd, ok := r.answers[key]
+	if !ok {
+		rd = &reading{}
+		r.answers[key] = rd
+	}
+	r.mu.Unlock()
+	rd.once.Do(func() {
+		// Set first, so a read that panics, which the walk recovers, leaves a
+		// failure rather than an empty document.
+		rd.answer = answer{err: refused(key, "its read did not finish")}
+		if !r.charge(limit) {
+			rd.answer = answer{err: refused(key, fmt.Sprintf("it is past the %d-document budget", limit))}
+			return
+		}
+		rd.answer = read()
+	})
+	return rd.answer
+}
+
+// charge counts one more document read, and reports whether limit allows it.
+func (r *externalReads) charge(limit int) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	n := r.replayed[key]
-	if n >= len(r.answers[key]) {
-		return answer{}, false
+	r.documents++
+	return !exceeds(r.documents, limit)
+}
+
+// exhausted reports the document budget limit crossed, once, at the source:
+// which documents fell past it follows the walk's order.
+func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance, limit int) []ir.Diagnostic {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !exceeds(r.documents, limit) {
+		return nil
 	}
-	r.replayed[key] = n + 1
-	return r.answers[key][n], true
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
+		"external references name more documents than the %d-document budget; "+
+			"the $refs into the rest are reported unresolved", limit)}
 }
 
 // recordTree notes a document prepared under key from data. A digest names the
@@ -327,8 +361,9 @@ func (r *externalReads) under(used string) (string, *yaml.Node, bool) {
 //
 // It stores no bytes. With a document's bytes cached the resolver skips its
 // request and caches no object it builds, so two references the first
-// resolution gave one object would each get their own; the replayed request
-// brings them instead. The source's are stored by hold, in both resolutions.
+// resolution gave one object would each get their own; the answer the first
+// resolution's read got brings them instead. The source's are stored by hold,
+// in both resolutions.
 func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 	r.mu.Lock()
 	for key, tree := range r.trees {
@@ -349,10 +384,10 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // net/url respells a URL many-to-one, so a stored tree can miss the resolver's
 // key. Each resolved reference records the document it read; when one the
 // resolver parsed holds an anchor, doc is rebuilt and resolved again, handed
-// every prepared tree (see handOver) and the first pass's answers (see
-// external.replaying). It resolves as the first did but for those trees, which
-// the walk never descends into, so it reaches no new document; one found
-// unprepared is an internal fault.
+// every prepared tree (see handOver) and answered from the first pass's reads.
+// It resolves as the first did but for those trees, which the walk never
+// descends into, so it reaches no new document; one found unprepared is an
+// internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
@@ -374,7 +409,6 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
-	reader.replaying = true
 	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
 	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
 	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil

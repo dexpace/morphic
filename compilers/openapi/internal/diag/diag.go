@@ -245,11 +245,11 @@ const (
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
-	// most: a document past the byte or node budget (or an overlay action that
-	// would build it past that), aliases adding more nodes than the alias budget,
-	// an enum past the member budget (GitHub #75). Load bounds two kinds of work
-	// itself: resolving the mapping targets, and resuming chains through other
-	// documents.
+	// most: a document past the byte or node budget (or an overlay building it
+	// past one), aliases adding more nodes than the alias budget, an enum past
+	// the member budget (GitHub #75), more external documents than the document
+	// budget. Load bounds two kinds of work: resolving mapping targets, and
+	// resuming chains through other documents.
 	//
 	// Unlike AliasAmplification's bomb, these are documents legitimately that
 	// large. Every site reports an error: the document is refused, its

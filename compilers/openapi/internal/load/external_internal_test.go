@@ -35,21 +35,40 @@ func TestExternal_OpenOfAMissingFilePassesTheOSErrorThrough(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "the error is os.Open's own, unwrapped: %v", err)
 }
 
-// TestExternal_OpenOfADirectoryFailsOnTheRead covers the read-error return in
-// prepare and the errors.Join(err, f.Close()) branch in Open: os.Open succeeds
-// on a directory, and reading it is what fails (EISDIR on Linux and macOS).
-func TestExternal_OpenOfADirectoryFailsOnTheRead(t *testing.T) {
+// TestExternal_OpenRefusesWhatIsNotARegularFile pins GitHub #930 on the one
+// kind of file every system has that is not regular: a directory is refused
+// with the reason before it is opened.
+func TestExternal_OpenRefusesWhatIsNotARegularFile(t *testing.T) {
 	t.Parallel()
+	dir := t.TempDir()
 
-	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).Open(t.TempDir())
+	_, err := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).Open(dir)
 
-	require.Error(t, err, "a directory opens but does not read")
+	require.Error(t, err)
+	assert.Equal(t, "external document "+dir+" refused: it is not a regular file", err.Error())
+}
+
+// TestExternal_ReadOpenedJudgesTheFileOpened pins the second judgement: what a
+// path names can change between the check and the open, so the file opened is
+// judged too, refused unread and closed when it is not regular.
+func TestExternal_ReadOpenedJudgesTheFileOpened(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f, err := os.Open(dir)
+	require.NoError(t, err)
+
+	got := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).readOpened("k", f)
+
+	require.Error(t, got.err)
+	assert.Equal(t, "external document k refused: it is not a regular file", got.err.Error())
+	assert.ErrorIs(t, f.Close(), os.ErrClosed, "the refused file is closed")
 }
 
 // TestExternal_OpenPreparesTheFileAndCachesItsTree pins the success path: the
-// file's own bytes come back through Read, Stat and Close answer for the real
-// file, and the tree stored under the name Open was given has had its anchors
-// released while its alias still stands for what it named.
+// file's own bytes come back through Read, served from its read, so Stat
+// refuses and Close releases nothing, and the tree stored under the name Open
+// was given has had its anchors released while its alias still stands for what
+// it named.
 func TestExternal_OpenPreparesTheFileAndCachesItsTree(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x 1\nb: *x\n"
@@ -64,9 +83,8 @@ func TestExternal_OpenPreparesTheFileAndCachesItsTree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, body, string(got), "Read serves exactly the file's own bytes")
 
-	info, err := f.Stat()
-	require.NoError(t, err)
-	assert.Equal(t, "doc.yaml", info.Name(), "Stat answers for the real file")
+	_, err = f.Stat()
+	assert.ErrorIs(t, err, fs.ErrInvalid, "no file is open to answer for")
 	assert.NoError(t, f.Close())
 
 	cached, ok := doc.GetCachedExternalDocument(path)
@@ -90,10 +108,11 @@ func TestExternal_OpenOverTheByteBudgetIsRefused(t *testing.T) {
 	assert.Contains(t, err.Error(), "16-byte budget")
 }
 
-// TestExternal_OpenRefusesARefusedFileAgainUnread pins that a refusal is kept.
-// The resolver asks for a document again on every reference into it until it
-// has built something from it, and the second ask is refused without the file
-// being opened, which it could not be here: it is removed after the first.
+// TestExternal_OpenRefusesARefusedFileAgainUnread pins that a refusal is the
+// file's answer. The resolver asks for a document again on every reference
+// into it until it has built something from it, and the second ask is refused
+// without the file being opened, which it could not be here: it is removed
+// after the first.
 func TestExternal_OpenRefusesARefusedFileAgainUnread(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "big.yaml")
@@ -167,64 +186,32 @@ func TestExternal_PrepareUnderAMaxIntByteBudgetReadsTheDocument(t *testing.T) {
 	assert.True(t, ok, "the document is prepared")
 }
 
-// TestExternal_PrepareParsesUnchangedBytesOnce pins that a document the
-// resolver reads again, as it does on every reference into it until it has
-// built something from it, is not parsed again while its bytes are the same:
-// they come back as read, and the tree the resolver looks up is still the one
-// stored the first time.
-func TestExternal_PrepareParsesUnchangedBytesOnce(t *testing.T) {
+// TestExternal_OpenReadsAFileOnce pins that a file read once is served from
+// that read whenever it is asked for again, as the resolver does after a
+// pointer into it names nothing: the second ask gets the same bytes though the
+// file is gone, and the tree stored the first time stands.
+func TestExternal_OpenReadsAFileOnce(t *testing.T) {
 	t.Parallel()
 	const body = "a: &x 1\nb: *x\n"
+	path := filepath.Join(t.TempDir(), "doc.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 	doc := &soa.OpenAPI{}
 	reader := newExternal(doc, Options{}, newExternalReads(sourceDocument{}))
-	_, err := reader.prepare("k", strings.NewReader(body))
+	_, err := reader.Open(path)
 	require.NoError(t, err)
-	first, ok := doc.GetCachedExternalDocument("k")
+	first, ok := doc.GetCachedExternalDocument(path)
 	require.True(t, ok)
+	require.NoError(t, os.Remove(path))
 
-	data, err := reader.prepare("k", strings.NewReader(body))
+	f, err := reader.Open(path)
 
+	require.NoError(t, err, "served from the first read, not opened")
+	got, err := io.ReadAll(f)
 	require.NoError(t, err)
-	assert.Equal(t, body, string(data), "the bytes read are handed over again")
-	again, ok := doc.GetCachedExternalDocument("k")
+	assert.Equal(t, body, string(got))
+	again, ok := doc.GetCachedExternalDocument(path)
 	require.True(t, ok)
 	assert.Same(t, first, again, "the tree stored the first time stands")
-}
-
-// TestExternal_PrepareJudgesChangedBytesAgain pins that a document whose bytes
-// changed since it was prepared is held to the refusals again. The resolver
-// parses what it reads itself wherever it misses the prepared tree (GitHub
-// #538), so skipping them would let the new bytes reach the parser unjudged.
-func TestExternal_PrepareJudgesChangedBytesAgain(t *testing.T) {
-	t.Parallel()
-	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
-	_, err := reader.prepare("k", strings.NewReader("a: 1\n"))
-	require.NoError(t, err)
-
-	_, err = reader.prepare("k", strings.NewReader("p: &a [*a]\n"))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "recursive YAML anchor")
-}
-
-// TestExternal_PrepareSkipsOnlyWhatItPrepared pins that a refusal is never
-// taken for a preparation: a document refused under the key before is judged
-// again, so bytes the reader has not admitted cannot reach the resolver. Open
-// and Do refuse such a key before reading at all; this holds prepare to it on
-// its own.
-func TestExternal_PrepareSkipsOnlyWhatItPrepared(t *testing.T) {
-	t.Parallel()
-	doc := &soa.OpenAPI{}
-	reader := newExternal(doc, Options{MaxSourceNodes: 5}, newExternalReads(sourceDocument{}))
-	_, err := reader.prepare("k", strings.NewReader("a: [1, 2, 3, 4, 5]\n"))
-	require.Error(t, err, "sanity: the first document is past the node budget")
-
-	_, err = reader.prepare("k", strings.NewReader("p: &a [*a]\n"))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "recursive YAML anchor")
-	_, ok := doc.GetCachedExternalDocument("k")
-	assert.False(t, ok, "nothing is stored for a document refused")
 }
 
 // TestExternal_PrepareLeavesUnparseableBytesForTheResolver pins the overlay
@@ -369,11 +356,11 @@ func TestExternal_DoCachesASuccessfulResponsesBody(t *testing.T) {
 	assert.True(t, ok, "cached under the request's own URL")
 }
 
-// TestExternal_DoLeavesANonSuccessResponseUntouched pins that a status the
-// resolver already treats as failure is left for it to report: the response is
-// handed back exactly as received, and nothing is prepared or cached from a
-// body this reader never reads.
-func TestExternal_DoLeavesANonSuccessResponseUntouched(t *testing.T) {
+// TestExternal_DoAnswersAFailedStatusUnread pins that a status the resolver
+// already treats as failure is left for it to report: the response carries the
+// status as received, and nothing is prepared or cached from a body this reader
+// never reads.
+func TestExternal_DoAnswersAFailedStatusUnread(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "nope", http.StatusNotFound)
@@ -389,6 +376,9 @@ func TestExternal_DoLeavesANonSuccessResponseUntouched(t *testing.T) {
 	require.NotNil(t, resp)
 	t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Empty(t, got, "the body is not read")
 
 	_, ok := doc.GetCachedExternalDocument(key)
 	assert.False(t, ok)
@@ -410,7 +400,7 @@ func TestExternal_DoPassesATransportErrorThrough(t *testing.T) {
 	assert.Nil(t, resp)
 }
 
-// TestExternal_DoFailsOnATruncatedBody covers Do's errors.Join(err,
+// TestExternal_DoFailsOnATruncatedBody covers fetch's errors.Join(err,
 // resp.Body.Close()) branch: a body that ends before its declared
 // Content-Length fails mid-read, and that failure — not a short, silent
 // document — is what Do reports.
@@ -475,6 +465,102 @@ func TestExternal_DoRefusesARefusedURLAgainUnfetched(t *testing.T) {
 	require.Error(t, again)
 	assert.Equal(t, first.Error(), again.Error(), "the same refusal")
 	assert.Equal(t, int32(1), fetches.Load(), "fetched once")
+}
+
+// TestExternal_DoFetchesAURLOnce is the HTTP half of
+// TestExternal_OpenReadsAFileOnce, for every kind of answer: a second request
+// for a URL gets the first one's status and body, or its transport error, and
+// reaches no server.
+func TestExternal_DoFetchesAURLOnce(t *testing.T) {
+	t.Parallel()
+	var fetches atomic.Int32
+	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if fetches.Add(1) > 2 {
+			http.Error(w, "asked again", http.StatusTeapot)
+			return
+		}
+		if r.URL.Path == "/gone.yaml" {
+			http.Error(w, "nope", http.StatusNotFound)
+			return
+		}
+		_, err := w.Write([]byte("a: 1\n"))
+		assert.NoError(t, err)
+	})
+	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	closed.Close()
+	reader := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}))
+	do := func(url string) (int, string, error) {
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := reader.Do(req)
+		if err != nil {
+			return 0, "", err
+		}
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		return resp.StatusCode, string(body), nil
+	}
+
+	for _, tc := range []struct {
+		url    string
+		status int
+		body   string
+	}{
+		{srv.URL + "/doc.yaml", http.StatusOK, "a: 1\n"},
+		{srv.URL + "/gone.yaml", http.StatusNotFound, ""},
+	} {
+		for range 3 {
+			status, body, err := do(tc.url)
+			require.NoError(t, err, tc.url)
+			assert.Equal(t, tc.status, status, tc.url)
+			assert.Equal(t, tc.body, body, tc.url)
+		}
+	}
+	_, _, first := do(closed.URL + "/doc.yaml")
+	_, _, again := do(closed.URL + "/doc.yaml")
+
+	require.Error(t, first)
+	assert.Same(t, first, again, "the transport error the one request got")
+	assert.Equal(t, int32(2), fetches.Load(), "each URL fetched once")
+}
+
+// TestExternal_ReadsPastTheDocumentBudgetAreRefusedUnread pins the budget at
+// the reader, over both kinds of document, which share one count: within it a
+// file and a URL are read, and past it each is refused with the budget named
+// and never opened or fetched, though both are there to read.
+func TestExternal_ReadsPastTheDocumentBudgetAreRefusedUnread(t *testing.T) {
+	t.Parallel()
+	var fetches atomic.Int32
+	srv := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		fetches.Add(1)
+		_, err := w.Write([]byte("a: 1\n"))
+		assert.NoError(t, err)
+	})
+	dir := externalDir(t, map[string]string{"a.yaml": "a: 1\n", "b.yaml": "b: 1\n"})
+	reader := newExternal(&soa.OpenAPI{}, Options{MaxExternalDocuments: 2}, newExternalReads(sourceDocument{}))
+	get := func(name string) error {
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/"+name, nil)
+		require.NoError(t, err)
+		resp, err := reader.Do(req)
+		if err == nil {
+			require.NoError(t, resp.Body.Close())
+		}
+		return err
+	}
+	_, err := reader.Open(filepath.Join(dir, "a.yaml"))
+	require.NoError(t, err, "the first document is within the budget")
+	require.NoError(t, get("a.yaml"), "the second is too, though it is a URL")
+
+	_, file := reader.Open(filepath.Join(dir, "b.yaml"))
+	url := get("b.yaml")
+
+	require.Error(t, file)
+	assert.Equal(t, "external document "+filepath.Join(dir, "b.yaml")+" refused: it is past the 2-document budget",
+		file.Error())
+	require.Error(t, url)
+	assert.Contains(t, url.Error(), "external document "+srv.URL+"/b.yaml refused: it is past the 2-document budget")
+	assert.Equal(t, int32(1), fetches.Load(), "nothing past the budget is fetched")
 }
 
 // TestNewExternal_InitializesTheCacheOnAZeroDocument pins why newExternal calls
