@@ -1,0 +1,913 @@
+jsonshape 1: github.com/dexpace/morphic/ir.Document
+
+type AdditionalMode string
+	const ""
+	const "closed"
+	const "closed_after_composition"
+
+type AdditionalProps struct
+	"key" *TypeRef omitzero
+	"patterns" []PatternProps omitempty
+	"value" TypeRef
+
+type Any struct
+	embed TypeCommon
+	method (*Any) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Any) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type AuthID string
+
+type AuthKind string
+	const "apiKey"
+	const "asymmetric_encryption"
+	const "custom"
+	const "http_basic"
+	const "http_bearer"
+	const "mutual_tls"
+	const "oauth2"
+	const "openid_connect"
+	const "sasl_gssapi"
+	const "sasl_plain"
+	const "sasl_scram_sha256"
+	const "sasl_scram_sha512"
+	const "symmetric_encryption"
+	const "user_password"
+	const "x509"
+
+type AuthRequirement struct
+	"schemes" []SchemeUse omitempty
+
+type AuthScheme struct
+	"bearerFormat" string omitempty
+	"credentials" *TypeRef omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"flows" []OAuthFlow omitempty
+	"id" AuthID omitempty
+	"in" string omitempty
+	"keyName" string omitempty
+	"kind" AuthKind omitempty
+	"name" Naming
+	"oauth2MetadataURL" string omitempty
+	"openIDConnectURL" string omitempty
+	"provenance" Provenance
+	"scheme" string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type Availability struct
+	"added" []string omitempty
+	"deprecated" string omitempty
+	"removed" []string omitempty
+	"renamedFrom" []VersionedName omitempty
+	"requiredChanged" []VersionedBool omitempty
+	"typeChangedFrom" []VersionedType omitempty
+
+type BigVal string
+
+type Callback struct
+	"expression" string omitempty
+	"operations" []OpID omitempty
+
+type Channel struct
+	"address" *string omitzero
+	"bindings" map[string]RawConfig omitempty
+	"docs" Docs
+	"id" ChannelID omitempty
+	"messages" []MessageID omitempty
+	"name" Naming
+	"params" []Parameter omitempty
+	"provenance" Provenance
+	"servers" []int omitempty
+	"tags" []string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type ChannelID string
+
+type Constraints struct
+	"exclusiveMax" *BigVal omitzero
+	"exclusiveMin" *BigVal omitzero
+	"max" *BigVal omitzero
+	"maxItems" *int64 omitzero
+	"maxLength" *int64 omitzero
+	"maxProps" *int64 omitzero
+	"min" *BigVal omitzero
+	"minItems" *int64 omitzero
+	"minLength" *int64 omitzero
+	"minProps" *int64 omitzero
+	"multipleOf" *BigVal omitzero
+	"pattern" string omitempty
+	"patternMessage" string omitempty
+	"precision" *int64 omitzero
+	"scale" *int64 omitzero
+	"uniqueItems" bool
+
+type Contact struct
+	"email" string omitempty
+	"name" string omitempty
+	"url" string omitempty
+
+type Content struct
+	"encoding" map[PropID]PartEncoding omitempty
+	"examples" []Example omitempty
+	"file" *FileInfo omitzero
+	"item" *TypeRef omitzero
+	"itemEncoding" *PartEncoding omitzero
+	"mediaType" string omitempty
+	"schemaFormat" string omitempty
+	"type" TypeRef
+	"unmodeled" Unmodeled omitempty
+
+type CtorValue struct
+	"args" []Value omitempty
+	"name" string omitempty
+	"scalar" TypeID omitempty
+
+type Deprecation struct
+	"message" string omitempty
+	"removalDate" string omitempty
+	"removalVersion" string omitempty
+	"since" string omitempty
+
+type Diagnostic struct
+	"code" string
+	"message" string
+	"provenance" Provenance
+	"severity" Severity
+
+type Discriminator struct
+	"default" TypeID omitempty
+	"envelope" string omitempty
+	"envelopeValueName" string omitempty
+	"index" *int omitzero
+	"inferred" bool
+	"mapping" map[string]TypeID omitempty
+	"property" PropID omitempty
+	"propertyName" string omitempty
+
+type Docs struct
+	"description" string omitempty
+	"externalDocs" []Link omitempty
+	"summary" string omitempty
+
+type Document struct
+	"auth" map[AuthID]AuthScheme omitempty
+	"channels" map[ChannelID]Channel omitempty
+	"contact" *Contact omitzero
+	"diagnostics" []Diagnostic omitempty
+	"docs" Docs
+	"idSpaces" map[string][]string omitempty
+	"irVersion" string omitempty
+	"license" *License omitzero
+	"messages" map[MessageID]Message omitempty
+	"name" string omitempty
+	"servers" []Server omitempty
+	"services" []Service omitempty
+	"sources" []SourceInfo omitempty
+	"tagDefs" []TagDef omitempty
+	"termsOfService" string omitempty
+	"types" TypeRegistry omitempty
+	"unmodeled" Unmodeled omitempty
+	"version" string omitempty
+	"versions" []string omitempty
+	method (*Document) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Document) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Encoding struct
+	"mediaType" string omitempty
+	"name" string omitempty
+	"schema" *TypeRef omitzero
+	"wireType" *TypeRef omitzero
+
+type Enum struct
+	embed TypeCommon
+	"closed" bool
+	"fallbackMember" string omitempty
+	"flags" bool
+	"members" []EnumMember omitempty
+	"valueType" PrimKind
+	method (*Enum) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Enum) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type EnumMember struct
+	"availability" *Availability omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"examples" []Example omitempty
+	"id" EnumMemberID
+	"name" Naming
+	"unmodeled" Unmodeled omitempty
+	"value" Value
+	"wireName" string omitempty
+
+type EnumMemberID string
+
+type ErrorCase struct
+	"conditions" ResponseConditions
+	"docs" Docs
+	"fault" string omitempty
+	"headers" []Property omitempty
+	"name" Naming
+	"payload" *Payload omitzero
+	"retryable" *bool omitzero
+	"throttling" *bool omitzero
+	"unmodeled" Unmodeled omitempty
+
+type ErrorExample struct
+	"content" Value
+	"type" TypeRef
+
+type EventInfo struct
+	"contentType" string omitempty
+	"terminal" bool
+
+type Example struct
+	"description" string omitempty
+	"error" *ErrorExample omitzero
+	"externalURL" string omitempty
+	"headers" *Value omitzero
+	"input" *Value omitzero
+	"name" string omitempty
+	"output" *Value omitzero
+	"summary" string omitempty
+	"unmodeled" Unmodeled omitempty
+	"value" *Value omitzero
+
+type External struct
+	embed TypeCommon
+	"identity" string
+	"minVersion" string omitempty
+	"package" string omitempty
+	method (*External) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*External) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Field struct
+	"name" string omitempty
+	"value" Value
+
+type FileInfo struct
+	"contentTypeDefault" string omitempty
+	"contentTypes" []string omitempty
+	"contents" *TypeRef omitzero
+	"filenameLocation" string omitempty
+	"filenameWireName" string omitempty
+	"isText" bool
+
+type GraphQLBinding struct
+	"fieldPath" []string omitempty
+	"kind" string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type GroupID string
+
+type HTTPBinding struct
+	"callbacks" []Callback omitempty
+	"checksumRequired" bool
+	"compression" *RequestCompression omitzero
+	"hostPrefix" string omitempty
+	"isWebhook" bool
+	"method" string omitempty
+	"paramBindings" []HTTPParamBinding omitempty
+	"patchImplicitOptionality" *bool omitzero
+	"requestContentTypes" []string omitempty
+	"responseBodyPath" *PropPath omitzero
+	"sharedRoute" bool
+	"successStatus" map[int]int omitempty
+	"unmodeled" Unmodeled omitempty
+	"uriTemplate" string omitempty
+	"webhookName" string omitempty
+
+type HTTPLocation string
+	const "body"
+	const "body_property"
+	const "cookie"
+	const "header"
+	const "host"
+	const "path"
+	const "query"
+	const "querystring"
+
+type HTTPParamBinding struct
+	"allowReserved" bool
+	"bodyPath" []PropID omitempty
+	"contentType" string omitempty
+	"explode" *bool omitzero
+	"location" HTTPLocation omitempty
+	"param" ParamID omitempty
+	"paramPath" []PropID omitempty
+	"pathPattern" string omitempty
+	"prefix" string omitempty
+	"style" string omitempty
+	"wireName" string omitempty
+
+type Idempotency struct
+	"kind" IdempotencyKind omitempty
+	"tokenParam" ParamID omitempty
+
+type IdempotencyKind string
+	const ""
+	const "idempotency_token"
+	const "idempotent"
+	const "safe"
+
+type License struct
+	"identifier" string omitempty
+	"name" string omitempty
+	"url" string omitempty
+
+type Link struct
+	"description" string omitempty
+	"url" string omitempty
+
+type List struct
+	embed TypeCommon
+	"constraints" *Constraints omitzero
+	"elem" TypeRef
+	"encoding" *Encoding omitzero
+	method (*List) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*List) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Literal struct
+	embed TypeCommon
+	"value" Value
+	method (*Literal) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Literal) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type LongRunning struct
+	"finalOperation" *OpID omitzero
+	"finalStateVia" string omitempty
+	"finalType" *TypeRef omitzero
+	"pollingOperation" *OpID omitzero
+	"pollingType" *TypeRef omitzero
+	"resultPath" *PropPath omitzero
+
+type MapT struct
+	embed TypeCommon
+	"constraints" *Constraints omitzero
+	"key" *TypeRef omitzero
+	"value" TypeRef
+	method (*MapT) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*MapT) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Message struct
+	"bindings" map[string]RawConfig omitempty
+	"contentType" string omitempty
+	"correlationID" *PropPath omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"examples" []Example omitempty
+	"headers" *TypeRef omitzero
+	"id" MessageID omitempty
+	"name" Naming
+	"payload" Payload
+	"provenance" Provenance
+	"tags" []string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type MessageBinding struct
+	"bindings" map[string]RawConfig omitempty
+	"channel" ChannelID omitempty
+	"direction" MsgDirection omitempty
+	"messages" []MessageID omitempty
+	"reply" *Reply omitzero
+	"unmodeled" Unmodeled omitempty
+
+type MessageID string
+
+type Model struct
+	embed TypeCommon
+	"abstract" bool
+	"additional" AdditionalMode omitempty
+	"additionalProps" *AdditionalProps omitzero
+	"base" *TypeRef omitzero
+	"constraints" *Constraints omitzero
+	"discriminator" *Discriminator omitzero
+	"discriminatorValue" string omitempty
+	"extensionRanges" []WireIDRange omitempty
+	"implements" []TypeRef omitempty
+	"inputOnly" bool
+	"mixins" []TypeRef omitempty
+	"positional" bool
+	"properties" []Property omitempty
+	method (*Model) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Model) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type MsgDirection string
+	const "receive"
+	const "send"
+
+type Naming struct
+	"aliases" []string omitempty
+	"canonical" string omitempty
+	"hint" string omitempty
+	"source" string omitempty
+
+type OAuthFlow struct
+	"authorizationURL" string omitempty
+	"kind" string omitempty
+	"refreshURL" string omitempty
+	"scopes" []OAuthScope omitempty
+	"tokenEndpointAuthMethods" []string omitempty
+	"tokenURL" string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type OAuthScope struct
+	"description" string omitempty
+	"name" string
+
+type OTPBinding struct
+	"behaviour" string omitempty
+	"kind" string omitempty
+	"process" ChannelID omitempty
+	"requestTag" *Value omitzero
+	"unmodeled" Unmodeled omitempty
+
+type OpBindings struct
+	"graphql" *GraphQLBinding omitzero
+	"http" []HTTPBinding omitempty
+	"message" *MessageBinding omitzero
+	"otp" *OTPBinding omitzero
+	"rpc" *RPCBinding omitzero
+
+type OpID string
+
+type Operation struct
+	"auth" []AuthRequirement omitzero
+	"availability" *Availability omitzero
+	"bindings" OpBindings
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"errors" []ErrorCase omitempty
+	"examples" []Example omitempty
+	"id" OpID omitempty
+	"idempotency" Idempotency
+	"longRunning" *LongRunning omitzero
+	"name" Naming
+	"oneWay" bool
+	"overloadOf" *OpID omitzero
+	"pagination" *Pagination omitzero
+	"parameterVisibility" []string omitempty
+	"params" []Parameter omitempty
+	"provenance" Provenance
+	"request" *Payload omitzero
+	"requestStream" *StreamDetail omitzero
+	"responseStream" *StreamDetail omitzero
+	"responses" []Response omitempty
+	"returnTypeVisibility" []string omitempty
+	"streaming" StreamingMode omitempty
+	"tags" []string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type OperationGroup struct
+	"availability" *Availability omitzero
+	"docs" Docs
+	"groups" []OperationGroup omitempty
+	"id" GroupID omitempty
+	"name" Naming
+	"operations" []Operation omitempty
+	"resource" *ResourceInfo omitzero
+	"unmodeled" Unmodeled omitempty
+
+type PageStrategy string
+	const "cursor"
+	const "link_header"
+	const "next_link"
+	const "offset"
+	const "page"
+	const "token"
+
+type Pagination struct
+	"firstLink" *PropPath omitzero
+	"inferred" bool
+	"inputCursor" *ParamPath omitzero
+	"inputLimit" *ParamPath omitzero
+	"items" *PropPath omitzero
+	"lastLink" *PropPath omitzero
+	"nextCursor" *PropPath omitzero
+	"nextLink" *PropPath omitzero
+	"prevLink" *PropPath omitzero
+	"strategy" PageStrategy omitempty
+	"totalCount" *PropPath omitzero
+
+type ParamID string
+
+type ParamPath struct
+	"param" ParamID omitempty
+	"segments" []PropID omitempty
+
+type Parameter struct
+	"availability" *Availability omitzero
+	"constraints" *Constraints omitzero
+	"default" *Value omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"examples" []Example omitempty
+	"id" ParamID
+	"name" Naming
+	"provenance" Provenance
+	"required" bool
+	"type" TypeRef
+	"unmodeled" Unmodeled omitempty
+	"valueFrom" *PropPath omitzero
+
+type PartEncoding struct
+	"contentTypes" []string omitempty
+	"explode" *bool omitzero
+	"filename" bool
+	"headers" []Property omitempty
+	"multi" bool
+	"style" string omitempty
+
+type PatternProps struct
+	"pattern" string
+	"value" TypeRef
+
+type Payload struct
+	"contents" []Content omitempty
+	"docs" Docs omitzero
+	"required" *bool omitzero
+	"unmodeled" Unmodeled omitempty
+
+type Position struct
+	"column" int omitzero
+	"line" int
+
+type PresenceKind string
+	const ""
+	const "explicit"
+	const "implicit"
+	const "required"
+
+type PrimKind string
+	const "any"
+	const "bool"
+	const "bytes"
+	const "date"
+	const "datetime"
+	const "datetime_offset"
+	const "decimal"
+	const "decimal128"
+	const "duration"
+	const "float"
+	const "float32"
+	const "float64"
+	const "int16"
+	const "int32"
+	const "int64"
+	const "int8"
+	const "integer"
+	const "number"
+	const "string"
+	const "time"
+	const "uint16"
+	const "uint32"
+	const "uint64"
+	const "uint8"
+	const "url"
+	const "uuid"
+
+type Primitive struct
+	embed TypeCommon
+	"prim" PrimKind
+	method (*Primitive) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Primitive) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type PropID string
+
+type PropPath struct
+	"in" string omitempty
+	"root" *TypeRef omitzero
+	"segments" []PropID omitempty
+
+type Property struct
+	"args" []Parameter omitempty
+	"availability" *Availability omitzero
+	"clientOptional" bool
+	"constraints" *Constraints omitzero
+	"default" *Value omitzero
+	"defaultAdded" bool
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"encoding" *Encoding omitzero
+	"eventHeader" bool
+	"eventPayload" bool
+	"examples" []Example omitempty
+	"extensionOf" string omitempty
+	"flatten" bool
+	"id" PropID
+	"name" Naming
+	"presence" PresenceKind omitempty
+	"provenance" Provenance
+	"required" bool
+	"secret" bool
+	"type" TypeRef
+	"unmodeled" Unmodeled omitempty
+	"visibility" Visibility
+	"wireID" *int omitzero
+	"wireName" string omitempty
+	"wireNameByFormat" map[string]string omitempty
+	"xml" *XMLHints omitzero
+
+type ProtocolDecl struct
+	"name" string omitempty
+	"options" RawConfig omitempty
+
+type Provenance struct
+	"inferred" string omitempty
+	"node" string omitempty
+	"pointer" encoding/json/jsontext.Pointer omitempty
+	"position" Position omitzero
+	"source" int
+
+type RPCBinding struct
+	"fullMethod" string omitempty
+	"idempotencyLevel" string omitempty
+	"inputType" *TypeRef omitzero
+	"paramStructure" string omitempty
+	"system" string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type RawConfig map[string]encoding/json/jsontext.Value
+
+type Reply struct
+	"address" *PropPath omitzero
+	"channel" *ChannelID omitzero
+	"docs" Docs
+	"messages" []MessageID omitempty
+
+type RequestCompression struct
+	"encodings" []string omitempty
+
+type ResourceInfo struct
+	"collectionOps" []OpID omitempty
+	"identifiers" []Property omitempty
+	"instanceOps" []OpID omitempty
+	"lifecycle" map[string]OpID omitempty
+	"noReplace" bool
+	"properties" []Property omitempty
+
+type Response struct
+	"conditions" ResponseConditions
+	"docs" Docs
+	"headers" []Property omitempty
+	"name" Naming
+	"payload" *Payload omitzero
+	"statusCodeProp" *PropPath omitzero
+	"unmodeled" Unmodeled omitempty
+
+type ResponseConditions struct
+	"statusCodes" []StatusRange omitempty
+
+type Scalar struct
+	embed TypeCommon
+	"base" *TypeRef omitzero
+	"constraints" *Constraints omitzero
+	"encoding" *Encoding omitzero
+	method (*Scalar) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Scalar) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type SchemeUse struct
+	"scheme" AuthID omitempty
+	"scopes" []string omitempty
+
+type Server struct
+	"auth" []AuthRequirement omitzero
+	"bindings" map[string]RawConfig omitempty
+	"description" Docs
+	"name" Naming
+	"protocol" string omitempty
+	"protocolVersion" string omitempty
+	"tags" []string omitempty
+	"unmodeled" Unmodeled omitempty
+	"urlTemplate" string omitempty
+	"variables" []ServerVariable omitempty
+
+type ServerVariable struct
+	"default" string omitempty
+	"docs" Docs
+	"enum" []string omitempty
+	"name" string omitempty
+	"unmodeled" Unmodeled omitempty
+
+type Service struct
+	"auth" []AuthRequirement omitzero
+	"commonErrors" []ErrorCase omitempty
+	"docs" Docs
+	"extends" []ServiceID omitempty
+	"groups" []OperationGroup omitempty
+	"id" ServiceID omitempty
+	"name" Naming
+	"namespace" []string omitempty
+	"protocols" []ProtocolDecl omitempty
+	"provenance" Provenance
+	"renames" map[TypeID]Naming omitempty
+	"servers" []int omitempty
+	"unmodeled" Unmodeled omitempty
+	"version" string omitempty
+
+type ServiceID string
+
+type Severity string
+	const "error"
+	const "info"
+	const "warning"
+
+type SourceInfo struct
+	"format" string
+	"hash" string
+	"path" string
+	"selfURI" string omitempty
+
+type StatusRange struct
+	"from" int
+	"to" int
+
+type StreamDetail struct
+	"events" *TypeRef omitzero
+	"initial" *TypeRef omitzero
+	"requiresLength" bool
+
+type StreamingMode string
+	const "bidi"
+	const "client"
+	const "none"
+	const "server"
+
+type TagDef struct
+	"docs" Docs
+	"kind" string omitempty
+	"name" string omitempty
+	"parent" string omitempty
+
+type TemplateArg struct
+	"type" *TypeRef omitzero
+	"value" *Value omitzero
+
+type TemplateInstantiation struct
+	"args" []TemplateArg omitempty
+	"template" string omitempty
+
+type Tuple struct
+	embed TypeCommon
+	"constraints" *Constraints omitzero
+	"elems" []TypeRef omitempty
+	"rest" *TypeRef omitzero
+	method (*Tuple) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Tuple) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type TypeCommon struct
+	"access" string omitempty
+	"anonymous" bool
+	"availability" *Availability omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"examples" []Example omitempty
+	"id" TypeID
+	"instantiation" *TemplateInstantiation omitzero
+	"mediaTypeHint" string omitempty
+	"name" Naming
+	"namespace" []string omitempty
+	"provenance" Provenance
+	"sensitive" bool
+	"tags" []string omitempty
+	"unmodeled" Unmodeled omitempty
+	"usage" UsageFlags omitzero
+	"wireNameByFormat" map[string]string omitempty
+	"xml" *XMLHints omitzero
+
+type TypeDef interface
+	tag TypeKind
+	variant "any" *Any
+	variant "enum" *Enum
+	variant "external" *External
+	variant "list" *List
+	variant "literal" *Literal
+	variant "map" *MapT
+	variant "model" *Model
+	variant "primitive" *Primitive
+	variant "scalar" *Scalar
+	variant "tuple" *Tuple
+	variant "union" *Union
+
+type TypeID string
+
+type TypeKind string
+	const "any"
+	const "enum"
+	const "external"
+	const "list"
+	const "literal"
+	const "map"
+	const "model"
+	const "primitive"
+	const "scalar"
+	const "tuple"
+	const "union"
+
+type TypeRef struct
+	"nullable" bool
+	"target" TypeID
+
+type TypeRegistry map[TypeID]TypeDef
+	method (*TypeRegistry) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Union struct
+	embed TypeCommon
+	"discriminator" *Discriminator omitzero
+	"exclusive" bool
+	"variants" []Variant omitempty
+	"wireTagged" bool
+	method (*Union) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
+	method (*Union) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
+
+type Unmodeled map[string]UnmodeledEntry
+
+type UnmodeledEntry struct
+	"provenance" Provenance
+	"reason" UnmodeledReason
+	"value" encoding/json/jsontext.Value
+
+type UnmodeledReason string
+	const "degraded_lowering"
+	const "no_ir_home"
+	const "out_of_scope"
+	const "validation_only"
+	const "vendor_extension"
+
+type UsageFlags uint32
+	const 1
+	const 2
+	const 4
+	const 8
+
+type Value struct
+	"bool" bool omitzero
+	"bytes" []uint8 omitempty
+	"ctor" *CtorValue omitzero
+	"kind" ValueKind
+	"list" []Value omitempty
+	"num" BigVal omitempty
+	"object" []Field omitempty
+	"ref" *ValueRef omitzero
+	"str" string omitempty
+
+type ValueKind string
+	const "bool"
+	const "bytes"
+	const "ctor"
+	const "list"
+	const "null"
+	const "number"
+	const "object"
+	const "ref"
+	const "string"
+	const "symbol"
+
+type ValueRef struct
+	"member" string omitempty
+	"type" TypeID omitempty
+
+type Variant struct
+	"availability" *Availability omitzero
+	"deprecation" *Deprecation omitzero
+	"docs" Docs
+	"event" *EventInfo omitzero
+	"examples" []Example omitempty
+	"name" Naming
+	"type" TypeRef
+	"unmodeled" Unmodeled omitempty
+	"wireID" *int omitzero
+	"wireName" string omitempty
+	"xml" *XMLHints omitzero
+
+type VersionedBool struct
+	"version" string omitempty
+	"wasRequired" bool
+
+type VersionedName struct
+	"name" string omitempty
+	"version" string omitempty
+
+type VersionedType struct
+	"type" TypeRef
+	"version" string omitempty
+
+type Visibility struct
+	"none" bool
+	"only" []string omitempty
+
+type WireIDRange struct
+	"from" int
+	"to" int
+
+type XMLHints struct
+	"name" string omitempty
+	"namespace" string omitempty
+	"nodeType" string omitempty
+	"prefix" string omitempty
+	"wrapped" bool
+
+type encoding/json/jsontext.Pointer string
+
+type encoding/json/jsontext.Value []uint8
+	method (*encoding/json/jsontext.Value) UnmarshalJSON([]byte) error
+	method (encoding/json/jsontext.Value) MarshalJSON() ([]byte, error)
