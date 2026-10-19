@@ -84,6 +84,17 @@ func TestPointer_PartsFromTheResolverOnPlusAlone(t *testing.T) {
 	}
 }
 
+// resolverReads is the pointer the resolver reads from ref.
+func resolverReads(ref string) jsontext.Pointer {
+	return jsontext.Pointer(references.Reference(ref).GetJSONPointer())
+}
+
+// TestForResolver_SpellsOnlyWhatTheResolverMisreads holds ForResolver to the
+// resolver's own reading of each spelling: it changes a reference exactly where
+// the resolver reads it as something other than the pointer the table names,
+// and the resolver reads that pointer from the spelling it hands back. The
+// table's resolver column differs from ref on the same rows, which pins today's
+// resolver.
 func TestForResolver_SpellsOnlyWhatTheResolverMisreads(t *testing.T) {
 	t.Parallel()
 	for _, tc := range readings {
@@ -93,6 +104,11 @@ func TestForResolver_SpellsOnlyWhatTheResolverMisreads(t *testing.T) {
 			assert.Equal(t, tc.resolver, got)
 			assert.Equal(t, got, fragment.ForResolver(got), "a second pass changes nothing")
 			assert.Equal(t, fragment.Pointer(tc.ref), fragment.Pointer(got))
+
+			misread := resolverReads(tc.ref) != tc.pointer
+			assert.Equal(t, tc.resolver != tc.ref, misread, "the resolver reads this spelling as something else")
+			assert.Equal(t, got != tc.ref, misread, "ForResolver spells exactly what the resolver misreads")
+			assert.Equal(t, tc.pointer, resolverReads(got), "the resolver reads the pointer from the spelling it is handed")
 		})
 	}
 }

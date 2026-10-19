@@ -5,6 +5,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"iter"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
@@ -490,26 +492,35 @@ func TestMappings_TheWorkIsBounded(t *testing.T) {
 }
 
 // TestMappings_TheKeysTheResolverScansAreCharged pins that reading a target
-// costs the keys of each mapping the library scans to find it, both where
-// chainEnds reads it and where it is resolved: n targets in one extension of n
-// keys take n squared steps, and so do n a level below one, where n component
-// schemas, which the model finds by name, take n. The bound is set at what the
-// components take, so only the scanned layouts cross it. Each row names the
-// targets a different way: by mapping entries, and by $refs in a raw object.
+// costs the keys of each mapping the library scans to find it, where chainEnds
+// reads it and where it is resolved: n targets in one extension of n keys take
+// n squared steps, and so do n a level below one, but n component schemas,
+// which the model finds by name, take n. The library is asked how many nodes it
+// reads for a target (see nodesRead), which the price covers. The bound is set
+// at what the components take, so only the scanned layouts cross it.
 func TestMappings_TheKeysTheResolverScansAreCharged(t *testing.T) {
 	t.Parallel()
 	const n = 64
+	// pointer is where layout writes target i.
+	pointer := func(layout string, i int) string {
+		switch layout {
+		case "flat":
+			return fmt.Sprintf("/x-lib/T%d", i)
+		case "nested":
+			return fmt.Sprintf("/x-lib/G%d/T%d", i, i)
+		default:
+			return fmt.Sprintf("/components/schemas/T%d", i)
+		}
+	}
 	// spec writes n targets in the layout named, named by the route.
 	spec := func(route, layout string) string {
 		var names, schemas, library, targets strings.Builder
 		for i := range n {
-			target := fmt.Sprintf("#/components/schemas/T%d", i)
+			target := "#" + pointer(layout, i)
 			switch layout {
 			case "flat":
-				target = fmt.Sprintf("#/x-lib/T%d", i)
 				fmt.Fprintf(&library, "  T%d: {type: object, description: d}\n", i)
 			case "nested":
-				target = fmt.Sprintf("#/x-lib/G%d/T%d", i, i)
 				fmt.Fprintf(&library, "  G%d:\n    T%d: {type: object, description: d}\n", i, i)
 			default:
 				fmt.Fprintf(&schemas, "    T%d: {type: object, description: d}\n", i)
@@ -527,12 +538,39 @@ func TestMappings_TheKeysTheResolverScansAreCharged(t *testing.T) {
 		return mappingSpec("    Box: {$ref: '#/x-lib/W'}\n"+schemas.String(), "x-lib:\n  W: {type: object, properties: {"+
 			strings.TrimSuffix(targets.String(), ", ")+"}}\n"+library.String())
 	}
+	// samples are the targets the library is asked about: the first, the middle
+	// and the last.
+	samples := []int{0, n / 2, n - 1}
+	// reads returns how many nodes the library reads to find each sample.
+	reads := func(t *testing.T, route, layout string) []int {
+		source := spec(route, layout)
+		root, _, err := decodeStream([]byte(source))
+		require.NoError(t, err)
+		doc, _, err := unmarshal(t.Context(), []byte(source), root)
+		require.NoError(t, err)
+		found := make([]int, len(samples))
+		for k, i := range samples {
+			found[k], err = nodesRead(t, doc, root, pointer(layout, i))
+			require.NoError(t, err, "%s: the library finds target %d", layout, i)
+		}
+		return found
+	}
 	for _, route := range []string{"mapping", "nested $ref"} {
 		t.Run(route, func(t *testing.T) {
 			t.Parallel()
 			byName, diags := resolverOver(t, spec(route, "component"), maxMappingWork)
 			require.Empty(t, diags)
+			assert.Equal(t, make([]int, len(samples)), reads(t, route, "component"),
+				"the library reads no raw node to find a component")
 			for _, layout := range []string{"flat", "nested"} {
+				found := reads(t, route, layout)
+				assert.Equal(t, []int{found[0], found[0] + n/2, found[0] + n - 1}, found,
+					"%s: the library compares each key before the target's", layout)
+				m := chainResolver(t, spec(route, layout), false)
+				for k, i := range samples {
+					assert.GreaterOrEqual(t, m.priced(pointer(layout, i), true, false), found[k],
+						"%s: the price of target %d covers the nodes the library reads", layout, i)
+				}
 				scanned, _ := resolverOver(t, spec(route, layout), maxMappingWork)
 				require.GreaterOrEqual(t, scanned.work, n*(n+1),
 					"%s: each target is read twice, by chainEnds and to resolve it, past the keys before it", layout)
@@ -578,14 +616,15 @@ func TestReadsAsSchema(t *testing.T) {
 	}
 }
 
-// TestMappings_PricedCountsTheLibrarysRead pins what reading a position costs
-// (see priced): a step for the read and one for each token the model answers
-// or fails, so a component costs its depth however wide its map. Where the read
-// leaves the model, or a field holds raw YAML, a step into it and the library's
-// read there of the tokens left: a step for each node it navigates to and each
-// pair its loops pass (see treeReads). Rows are counted with their mappings
-// indexed; the first read of one is charged that too.
-func TestMappings_PricedCountsTheLibrarysRead(t *testing.T) {
+// TestMappings_PricedCoversWhatTheLibraryReads pins what reading a position
+// costs (see priced): a step for the read and one for each token the model
+// answers or fails, so a component costs its depth however wide its map. Where
+// the read leaves the model, or a field holds raw YAML, a step into it and one
+// for each node and pair of a read there (see treeReads). Rows are counted with
+// their mappings indexed; the first read of one is charged that too. The
+// library is asked how many nodes it reads (see nodesRead), which the price
+// covers.
+func TestMappings_PricedCoversWhatTheLibraryReads(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -610,32 +649,41 @@ x-alias: *a
 	rows := []struct {
 		pointer jsontext.Pointer
 		want    int
+		// reads is how many nodes the library reads to find the position today.
+		reads int
 	}{
-		{"/components/schemas/Z", 1 + 3},
-		{"/components/schemas/Missing", 1 + 2 + 1},
-		{"/x-lib", 1 + 1 + (1 + 5)},
-		{"/missing/a", 1 + 1 + (1 + 6 + 6)},
-		{"/x-lib/a", 1 + 1 + (1 + 5) + (1 + 1)},
-		{"/x-lib/missing/a", 1 + 1 + (1 + 5) + (1 + 5 + 5)},
-		{"/x-lib/a/type/deeper", 1 + 1 + (1 + 5) + (1 + 1 + 1 + 1 + 1)},
-		{"/x-lib/list/3", 1 + 1 + (1 + 5) + (1 + 3 + 1)},
-		{"/x-lib/aliased/k1/x", 1 + 1 + (1 + 5) + (1 + 5 + 1 + 1 + 1 + 1)},
-		{"/x-alias/k1/x", 1 + 1 + (1 + 6) + (1 + 1 + 1 + 1)},
-		{"/components/schemas/Z/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1)},
-		{"/components/schemas/Z2/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1)},
-		{"/components/examples/E/value/G1/T", 1 + 4 + 1 + (1 + 2 + 1 + 1)},
+		{"/components/schemas/Z", 1 + 3, 0},
+		{"/components/schemas/Missing", 1 + 2 + 1, 0},
+		{"/x-lib", 1 + 1 + (1 + 5), 5},
+		{"/missing/a", 1 + 1 + (1 + 6 + 6), 6},
+		{"/x-lib/a", 1 + 1 + (1 + 5) + (1 + 1), 6},
+		{"/x-lib/missing/a", 1 + 1 + (1 + 5) + (1 + 5 + 5), 10},
+		{"/x-lib/a/type/deeper", 1 + 1 + (1 + 5) + (1 + 1 + 1 + 1 + 1), 7},
+		{"/x-lib/list/3", 1 + 1 + (1 + 5) + (1 + 3 + 1), 8},
+		{"/x-lib/aliased/k1/x", 1 + 1 + (1 + 5) + (1 + 5 + 1 + 1 + 1 + 1), 12},
+		{"/x-alias/k1/x", 1 + 1 + (1 + 6) + (1 + 1 + 1 + 1), 8},
+		{"/components/schemas/Z/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1), 3},
+		{"/components/schemas/Z2/x-ext/k", 1 + 3 + 1 + (1 + 2) + (1 + 1), 3},
+		{"/components/examples/E/value/G1/T", 1 + 4 + 1 + (1 + 2 + 1 + 1), 3},
 	}
 	for _, c := range rows {
 		m.priced(string(c.pointer), true, false) // indexes every mapping the reads meet
 	}
 	for _, c := range rows {
-		assert.Equal(t, c.want, m.priced(string(c.pointer), true, false), c.pointer)
+		price := m.priced(string(c.pointer), true, false)
+		assert.Equal(t, c.want, price, c.pointer)
+
+		reads, _ := nodesRead(t, m.doc, m.self.root, string(c.pointer))
+		assert.Equal(t, c.reads, reads, "%s: the nodes the library reads", c.pointer)
+		assert.GreaterOrEqual(t, price, reads, "%s: the price covers them", c.pointer)
 	}
 	fresh := chainResolver(t, spec, false)
 	assert.Equal(t, 1+1+(1+5)+6, fresh.priced("/x-lib", true, false), "the first read of a mapping indexes it, too")
 
 	inTree, _ := newTreeReads().cost(m.self.root, "/x-lib/aliased/k1/x", math.MaxInt)
 	assert.Equal(t, 1+inTree, m.priced("/x-lib/aliased/k1/x", false, true), "a read of the source's tree")
+	readInTree, _ := nodesRead(t, m.self.root, m.self.root, "/x-lib/aliased/k1/x")
+	assert.GreaterOrEqual(t, inTree, readInTree, "which covers the nodes the library reads in it")
 	assert.Equal(t, m.priced("/x-lib/aliased/k1/x", true, false)+inTree, m.priced("/x-lib/aliased/k1/x", true, true),
 		"a read of both, as with external references allowed")
 	bare := chainResolver(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", false)
@@ -647,7 +695,9 @@ x-alias: *a
 // do when that mapping is written under the first of two equal keys, the
 // second empty. The library reads the first, so the price must too: priced
 // along the unmarshaller's reading, which keeps the second, the targets were
-// charged as one key each, and never reached the bound.
+// charged as one key each, and never reached the bound. The library is asked
+// which key it reads and how many nodes that takes (see nodesRead), and the
+// price of the last target must cover them.
 func TestMappings_AKeyWrittenTwiceIsPricedAsTheLibraryReadsIt(t *testing.T) {
 	t.Parallel()
 	const n = 64
@@ -666,6 +716,19 @@ func TestMappings_AKeyWrittenTwiceIsPricedAsTheLibraryReadsIt(t *testing.T) {
 	twice, _ := resolverOver(t, spec(true), maxMappingWork)
 	require.Greater(t, once.work, n*n/2, "the targets' scans of one wide mapping")
 	assert.GreaterOrEqual(t, twice.work, once.work, "the same scans, under the first of two equal keys")
+
+	last := fmt.Sprintf("/x-lib/w/D%d", n-1)
+	var found [2]int
+	for i, source := range []string{spec(false), spec(true)} {
+		m := chainResolver(t, source, false)
+		var err error
+		found[i], err = nodesRead(t, m.doc, m.self.root, last)
+		require.NoError(t, err, "the library reads the first of the two keys, which holds the target")
+
+		assert.GreaterOrEqual(t, m.priced(last, true, false), found[i], "the price covers the nodes the library reads")
+	}
+	assert.Greater(t, found[1], n, "the library scans the keys before the last target in the first mapping")
+	assert.Equal(t, found[0], found[1], "and reads the second key no more than if it were not written")
 }
 
 // TestMappings_ContentUnderADefaultResponseIsTheOtherDocuments pins GitHub
@@ -869,22 +932,114 @@ func TestMappings_ASelfReferenceNoPointerNamesIsNotResolved(t *testing.T) {
 	}
 }
 
+// resolverHops returns the pointer of each hop the library's resolution of ref
+// takes in doc, read at path, from ref's own to the schema it ends at.
+func resolverHops(t *testing.T, doc *soa.OpenAPI, path string, ref references.Reference) []string {
+	t.Helper()
+	js := oas3.NewJSONSchemaFromReference(ref)
+	_, err := js.Resolve(t.Context(), references.ResolveOptions{RootDocument: doc, TargetLocation: path, DisableExternalRefs: true})
+	require.NoError(t, err)
+	var hops []string
+	for hop := js; len(hops) < maxResolutionHops; {
+		if !hop.IsReference() {
+			return hops
+		}
+		info := hop.GetReferenceResolutionInfo()
+		require.NotNil(t, info, "the library recorded the hop after %v", hops)
+		require.NotNil(t, info.Object, "the library reached an object after %v", hops)
+		hops = append(hops, string(info.AbsoluteReference.GetJSONPointer()))
+		hop = info.Object
+	}
+	require.FailNow(t, "the resolution does not end", "%v", hops)
+	return nil
+}
+
+// hopsRead returns the pointer of each hop m.chainEnds read, from the first to
+// the last, as the distances it remembered order them.
+func hopsRead(m *mappings) []string {
+	hops := slices.SortedFunc(maps.Keys(m.ends), func(a, b hop) int { return m.ends[b] - m.ends[a] })
+	pointers := make([]string, len(hops))
+	for i, h := range hops {
+		pointers[i] = h.pointer
+	}
+	return pointers
+}
+
+// nodesRead returns how many nodes of the tree under root the library reads
+// to find pointer in doc, the model built from root, and the error it fails
+// with. It asks by planting a nil in each slot of the tree in turn: a read that
+// meets one panics, so the slots that panic are the nodes it dereferences. The
+// library compares a mapping's keys in order up to the first match, so the
+// count of a target grows with its position. A node met only through an alias
+// is not counted.
+func nodesRead(t *testing.T, doc any, root *yaml.Node, pointer string) (int, error) {
+	t.Helper()
+	var err error
+	read := func() {
+		_, err = jsonpointer.GetTarget(doc, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
+	}
+	read()
+	failure := err
+	reached := 0
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for i, child := range n.Content {
+			n.Content[i] = nil
+			if panics(read) {
+				reached++
+			}
+			n.Content[i] = child
+			stack = append(stack, child)
+		}
+	}
+	return reached, failure
+}
+
+// panics reports whether calling f panics.
+func panics(f func()) (panicked bool) {
+	defer func() { panicked = recover() != nil }()
+	f()
+	return false
+}
+
 // TestMappings_AKeyWrittenTwiceIsReadAsTheResolverReadsIt pins that the chain a
-// target starts is read as the resolver will read it. It reads a key written
-// twice the first time, and a merged key as the mapping that merges it does.
-// Read otherwise, a chain the resolver loops in looked as though it ended, and
-// the mapping killed the process.
+// target starts is read as the resolver will read it: a key written twice the
+// first time, and a merged key as the mapping that merges it does. Read
+// otherwise, a chain the resolver loops in looked as though it ended, and the
+// mapping killed the process. Each row's chain is first written to end in a
+// schema, and the hops chainEnds reads are those the library's resolution
+// takes; then it is written to loop, and the target is left to the lowering.
 func TestMappings_AKeyWrittenTwiceIsReadAsTheResolverReadsIt(t *testing.T) {
 	t.Parallel()
-	const cycle = "{$anchor: a, $ref: '#a'}"
-	for name, lib := range map[string]string{
-		"the target's key, whose first is a loop": "  E: {$ref: '#/x-lib/F'}\n  E: {type: object}\n  F: " + cycle + "\n",
-		"a hop's key, whose first is a loop":      "  E: {$ref: '#/x-lib/F'}\n  F: " + cycle + "\n  F: {type: object}\n",
-		"a key merged from a loop":                "  base: &b " + cycle + "\n  E: {<<: *b}\n",
+	// each row's lib holds a %s where its chain ends, and E is the target.
+	for _, c := range []struct {
+		name, lib string
+		// hops are the pointers the library's resolution of /x-lib/E takes
+		// today, so a bump that reads a key otherwise fails here even while
+		// chainEnds still agrees with it.
+		hops []string
+	}{
+		{"the target's key, whose first is a loop", "  E: {$ref: '#/x-lib/F'}\n  E: {type: object}\n  F: %s\n",
+			[]string{"/x-lib/E", "/x-lib/F", "/x-lib/End"}},
+		{"a hop's key, whose first is a loop", "  E: {$ref: '#/x-lib/F'}\n  F: %s\n  F: {type: object}\n",
+			[]string{"/x-lib/E", "/x-lib/F", "/x-lib/End"}},
+		{"a key merged from a loop", "  base: &b %s\n  E: {<<: *b}\n", []string{"/x-lib/E", "/x-lib/End"}},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			spec := mappingSpec(petMapping("m: '#/x-lib/E'"), "x-lib:\n"+lib)
+			ending := mappingSpec("", "x-lib:\n"+fmt.Sprintf(c.lib, "{$ref: '#/x-lib/End'}")+"  End: {type: object}\n")
+			m := chainResolver(t, ending, false)
+			require.True(t, m.chainEnds("#/x-lib/E"))
+
+			library := resolverHops(t, m.doc, m.self.path, "#/x-lib/E")
+
+			require.Equal(t, c.hops, library, "the hops the library takes")
+			require.Equal(t, library, hopsRead(m), "the hops chainEnds reads")
+
+			const cycle = "{$anchor: a, $ref: '#a'}"
+			spec := mappingSpec(petMapping("m: '#/x-lib/E'"), "x-lib:\n"+fmt.Sprintf(c.lib, cycle))
 
 			got, diags := loadTargets(t, "spec.yaml", spec, false)
 

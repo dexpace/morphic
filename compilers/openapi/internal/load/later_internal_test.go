@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonpointer"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/validation"
 	"github.com/stretchr/testify/assert"
@@ -143,13 +144,24 @@ paths:
 	}
 }
 
+// valueAddition returns the row of additions that adds a value to key of
+// object.
+func valueAddition(t *testing.T, object, key string) addition {
+	t.Helper()
+	i := slices.IndexFunc(additions, func(a addition) bool { return a.object == object && a.key == key && a.value != "" })
+	require.GreaterOrEqual(t, i, 0, "additions adds a value to %s.%s", object, key)
+	return additions[i]
+}
+
 // TestVersionCheck_AValueIsMatchedAsTheParserReadsIt pins a value addition to
-// the one value it names: another value of the field is not reported, and the
-// value is read through an alias or a `<<` merge as the parser reads it, so a
-// spelling the document writes elsewhere still counts.
+// the one value it names: another value of the field is not reported, and a
+// value written through an alias or a `<<` merge still is. Each field is read
+// from the parser's model of the document, which must read the value the row
+// expects, and the compiler must report a field exactly when the parser reads
+// the added value there.
 func TestVersionCheck_AValueIsMatchedAsTheParserReadsIt(t *testing.T) {
 	t.Parallel()
-	got := laterAt(t, `openapi: 3.0.3
+	const src = `openapi: 3.0.3
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -168,12 +180,35 @@ components:
     k: {type: apiKey, name: k, in: header}
     m:
       <<: {type: mutualTLS}
-`)
-	assert.Equal(t, []jsontext.Pointer{
-		"/components/securitySchemes/m/type",
-		"/paths/~1a/get/parameters/1/in",
-		"/paths/~1b/get/parameters/0/in",
-	}, slices.Sorted(maps.Keys(got)))
+`
+	parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+	require.NoError(t, err)
+	querystring := valueAddition(t, parameterObject, "in")
+	mutualTLS := valueAddition(t, securitySchemeObject, "type")
+	var want []jsontext.Pointer
+	for _, field := range []struct {
+		at    jsontext.Pointer
+		added addition
+		reads string
+	}{
+		{"/paths/~1a/get/parameters/0/in", querystring, "query"},
+		{"/paths/~1a/get/parameters/1/in", querystring, "querystring"},
+		{"/paths/~1b/get/parameters/0/in", querystring, "querystring"},
+		{"/components/securitySchemes/k/type", mutualTLS, "apiKey"},
+		{"/components/securitySchemes/m/type", mutualTLS, "mutualTLS"},
+	} {
+		target, err := jsonpointer.GetTarget(parsed, jsonpointer.JSONPointer(field.at))
+		require.NoError(t, err, "the parser's model holds %s", field.at)
+		read := fmt.Sprint(target) // a named string type, such as openapi.ParameterIn
+		require.Equal(t, field.reads, read, "what the parser reads at %s", field.at)
+		if read == field.added.value {
+			want = append(want, field.at)
+		}
+	}
+
+	got := laterAt(t, src)
+
+	assert.Equal(t, slices.Sorted(slices.Values(want)), slices.Sorted(maps.Keys(got)))
 }
 
 // TestVersionCheck_AnObjectIsJudgedWhereItIsWritten pins the reach of the
