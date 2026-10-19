@@ -689,10 +689,10 @@ type Doc struct{ Schema }
 func (d *Doc) Promoted() bool { return d.cache != nil } // touches cache, promoted from Schema
 `
 
-// TestResolutionAPI_DerivesItsMembersFromTheLibrary derives the API of
+// TestResolutionAPI_DerivesThePlantedLibrarysMembers derives the API of
 // plantedLibrary and requires exactly the members its comments name, each for
 // its reason: a list of names could not see a member the library adds.
-func TestResolutionAPI_DerivesItsMembersFromTheLibrary(t *testing.T) {
+func TestResolutionAPI_DerivesThePlantedLibrarysMembers(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "planted.go", plantedLibrary, 0)
