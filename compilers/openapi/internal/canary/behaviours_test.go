@@ -22,6 +22,7 @@ func canaries() map[string]func(t *testing.T) {
 		"root-defs":              rootDefs,
 		"alias-cycle":            aliasCycle,
 		"alias-expansion":        aliasExpansion,
+		"nesting-cost":           nestingCost,
 		"goroutine-per-node":     goroutinePerNode,
 		"tagged-mapping-panic":   taggedMappingPanic,
 		"recoverable-panic":      recoverablePanic,

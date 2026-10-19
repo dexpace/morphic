@@ -10,9 +10,10 @@ import (
 )
 
 // MaxNesting bounds how deeply a document may nest, as
-// sourceindex.Index.Nesting counts it. What the parser builds per node costs
-// more the deeper the node, so a schema thousands of levels deep cost seconds
-// and gigabytes before the schema walk's own bound refused it (GitHub #905).
+// sourceindex.Index.Nesting counts it. What the parser pays per node grows
+// with the node's depth (docs/parser-library.md#nesting-cost), so a schema
+// thousands of levels deep cost seconds and gigabytes before the schema walk's
+// own bound refused it (GitHub #905).
 //
 // Real specs nest far less: the deepest of the 1,839 OpenAPI 3 documents the
 // real-world sweep read in October 2026 nests 21 levels. Anything the lowering
@@ -22,9 +23,10 @@ import (
 const MaxNesting = 1024
 
 // Nesting refuses a document nested past MaxNesting before the parser builds
-// it, as a diag.SourceTooDeep error anchored at the least of the sites
-// deepSites finds, or reports nothing for one within it. The index must cover
-// the tree the parser will be handed, untruncated.
+// it (docs/parser-library.md#nesting-cost), as a diag.SourceTooDeep error
+// anchored at the least of the sites deepSites finds, or reports nothing for
+// one within it. The index must cover the tree the parser will be handed,
+// untruncated.
 //
 // A document holding a recursive anchor is left to the anchor-cycle refusal:
 // it nests without end, and the index's count of one turn round it is no

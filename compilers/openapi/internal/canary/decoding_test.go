@@ -165,6 +165,57 @@ func distinct[T comparable](root T, children func(T) []T) int {
 	return len(seen)
 }
 
+// allocations decodes input and walks the model it builds, and reports the
+// bytes each allocated on the heap, decoding's first.
+func allocations(ctx context.Context, input []byte) string {
+	sample := []metrics.Sample{{Name: "/gc/heap/allocs:bytes"}}
+	allocated := func() uint64 {
+		metrics.Read(sample)
+		return sample[0].Value.Uint64()
+	}
+	start := allocated()
+	doc, _, err := soa.Unmarshal(ctx, bytes.NewReader(input))
+	if err != nil {
+		return "decode: " + err.Error()
+	}
+	decoded := allocated()
+	for range soa.Walk(ctx, doc) {
+	}
+	return fmt.Sprintf("%d %d", decoded-start, allocated()-decoded)
+}
+
+// nestingDepth is how deep the shallower schema nestingCost measures nests.
+// The deeper nests four times as deep, so it holds four times the nodes.
+const nestingDepth = 250
+
+// nestingGrowth is how many times what the shallower schema costs the deeper
+// must cost, in decoding and in walking: four times at most were each node's
+// cost fixed, sixteen were it in proportion to the node's depth.
+const nestingGrowth = 6
+
+// nestingCost pins nesting-cost: decoding and walking a node cost in
+// proportion to its depth, so four times the depth costs more than
+// nestingGrowth times as much.
+func nestingCost(t *testing.T) {
+	shallow, deep := nestedCost(t, nestingDepth), nestedCost(t, 4*nestingDepth)
+	for i, phase := range []string{"decoding", "walking"} {
+		assert.Greater(t, deep[i], nestingGrowth*shallow[i], "%s: %s", phase, revisit(t, result{}))
+	}
+}
+
+// nestedCost returns the bytes decoding and walking a schema nested depth
+// levels deep allocate, measured in a child, where no other test allocates.
+func nestedCost(t *testing.T, depth int) [2]uint64 {
+	t.Helper()
+	nested := strings.Repeat("{type: array, items: ", depth) + "{type: string}" + strings.Repeat("}", depth)
+	r := probe(t, "allocations", schemas("A: "+nested))
+	require.Equal(t, returned, r.outcome, revisit(t, r))
+	var cost [2]uint64
+	_, err := fmt.Sscanf(r.report, "%d %d", &cost[0], &cost[1])
+	require.NoError(t, err, revisit(t, r))
+	return cost
+}
+
 // nodeCount is how many entries and elements the documents measuring
 // goroutines write.
 const nodeCount = 1000

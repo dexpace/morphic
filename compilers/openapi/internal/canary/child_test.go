@@ -86,13 +86,14 @@ type child func(ctx context.Context, input []byte) string
 // children returns the calls a child can run, by name.
 func children() map[string]child {
 	return map[string]child{
-		"resolve":    resolveAll,
-		"targets":    resolveTargets,
-		"unmarshal":  unmarshal,
-		"goroutines": goroutinesStarted,
-		"alive":      goroutinesAlive,
-		"orders":     unknownKeyOrders,
-		"overlay":    applyOverlay,
+		"resolve":     resolveAll,
+		"targets":     resolveTargets,
+		"unmarshal":   unmarshal,
+		"goroutines":  goroutinesStarted,
+		"alive":       goroutinesAlive,
+		"orders":      unknownKeyOrders,
+		"allocations": allocations,
+		"overlay":     applyOverlay,
 		// Two whose ending is known, for the tests of probe itself.
 		"panic here":      panicHere,
 		"panic elsewhere": panicElsewhere,

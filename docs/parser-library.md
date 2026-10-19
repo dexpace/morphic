@@ -249,6 +249,26 @@ components:
   - `scan.aliasWeigher` weighs a node as the decoder pays for it: once for every path to it.
   - `openapi.Limits.MaxAliasSurplus` is that budget.
 
+### `nesting-cost`
+
+Decoding and walking a node cost in proportion to its depth. `soa.Walk` hands each item the path
+to it, built afresh from its parent's, and decoding walks the whole model too. So a schema nested
+four times as deep, with four times the nodes, costs more than six times as much to decode and to
+walk, where a fixed cost per node would cost four times as much. A schema nested a few thousand
+levels deep cost the compiler seconds and gigabytes before any bound of its own applied (#905).
+
+```yaml
+components:
+  schemas:
+    A: {type: array, items: {type: array, items: {type: string}}}   # ... nested d levels deep
+```
+
+- Verified at: v1.25.5
+- Pinned by: `TestLibraryBehaviour/nesting-cost`
+- Code:
+  - `scan.MaxNesting` bounds how deeply a document may nest.
+  - `scan.Nesting` refuses a document nested past it before the parser builds it.
+
 ### `goroutine-per-node`
 
 Decoding starts a goroutine for every field of an object, every entry of a map and every element

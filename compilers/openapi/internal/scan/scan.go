@@ -6,8 +6,9 @@
 // (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
 // fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). And nesting so deep that its cost
-// per node, growing with depth, adds up past use. Each is read from the raw
-// text, through the sourceindex.Index the caller supplies.
+// per node, growing with depth, adds up past use
+// (docs/parser-library.md#nesting-cost). Each is read from the raw text,
+// through the sourceindex.Index the caller supplies.
 package scan
 
 import (
