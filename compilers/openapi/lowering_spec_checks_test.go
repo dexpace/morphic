@@ -50,6 +50,7 @@ func goodEnv() specEnv {
 func specProblems(text string, env specEnv) []string {
 	rules, problems := parseSpec(text)
 	problems = append(problems, evidenceProblems(rules)...)
+	problems = append(problems, textProblems(rules)...)
 	problems = append(problems, caseProblems(rules, env.corpus)...)
 	problems = append(problems, codeProblems(rules, env.declared, env.outside)...)
 	problems = append(problems, testProblems(rules, func(pkg string) (map[string]bool, error) {
@@ -93,6 +94,9 @@ func TestSpecChecks_ReportEachPlantedDefect(t *testing.T) {
 		{"a rule with no evidence", replace("- Tests: `openapi.TestA`\n- Status: not built (#12).\n", ""),
 			"second-rule names no case or test"},
 		{"a Status naming no tracker", replace("not built (#12).", "not built."), "names no issue"},
+		{"a code the text never writes", replace("reported `openapi/a-code` as", "reported as"),
+			`first-rule lists "openapi/a-code", which its text never writes`},
+		{"an issue in the text", replace("not built yet.", "not built yet (#9)."), "second-rule names #9 in its text"},
 		{"a case the corpus lacks", replace("- Cases: `case-a`", "- Cases: `case-a`, `case-z`"),
 			`name the case "case-z"`},
 		{"a case no rule names", func(_ *testing.T, _ *string, env *specEnv) { env.corpus["case-b"] = true },

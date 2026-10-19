@@ -49,6 +49,10 @@ var (
 	// statusTracker is what a Status names to say who owns what it leaves
 	// open: an issue, or the milestone that schedules the work.
 	statusTracker = regexp.MustCompile(`#[0-9]+\b|\bmilestone [0-9]+\b`)
+	// issueRef is an issue number written in prose.
+	issueRef = regexp.MustCompile(`(?:^|[^\w&/])(#[0-9]+)\b`)
+	// codeSpanText is one span of code, delimiters included.
+	codeSpanText = regexp.MustCompile("`[^`]+`")
 	// testName is how a Tests field names a test: package.TestName.
 	testName = regexp.MustCompile(`^([a-z][a-z0-9]*)\.(Test[A-Za-z0-9_]*)$`)
 )
@@ -139,6 +143,36 @@ func evidenceProblems(rules []rule) []string {
 	return problems
 }
 
+// TestLoweringSpec_TextStatesEachCodeAndNoIssue holds a rule's text to the
+// codes it lists and its Status to the issues it names. A code listed and
+// never written in the text is one the rule reports without saying when; an
+// issue named in the text is a gap or a question kept where no reader of the
+// Status finds it, and a closed one is history the rule need not carry.
+func TestLoweringSpec_TextStatesEachCodeAndNoIssue(t *testing.T) {
+	t.Parallel()
+	report(t, textProblems(readSpec(t)))
+}
+
+// textProblems reports each code a rule lists that its text does not write as
+// a span of code, and each issue number its text writes outside one.
+func textProblems(rules []rule) []string {
+	var problems []string
+	for _, r := range rules {
+		spans := keydoc.Spans(r.text)
+		for _, c := range r.codes {
+			if !slices.Contains(spans, c) {
+				problems = append(problems, fmt.Sprintf("line %d: %s lists %q, which its text never writes "+
+					"as `%s` where it says when the code fires", r.line, r.key, c, c))
+			}
+		}
+		if m := issueRef.FindStringSubmatch(codeSpanText.ReplaceAllString(r.text, "")); m != nil {
+			problems = append(problems, fmt.Sprintf("line %d: %s names %s in its text; an issue belongs in "+
+				"its Status", r.line, r.key, m[1]))
+		}
+	}
+	return problems
+}
+
 // TestLoweringSpec_CasesAreTheCorpus holds the Cases fields to conformanceCases
 // in both directions: a name no case carries is a rule citing evidence that is
 // not there, and a case no rule names pins a behaviour no rule states.
@@ -220,30 +254,10 @@ func codeProblems(rules []rule, declared map[string]bool, outside map[string]str
 	return problems
 }
 
-// codesOutsideTheRules lists the codes no lowering rule names, each with the
-// reason. Each is reported while a source is read, patched or refused, before
-// any construct lowers, so its own doc comment in package diag is where it is
-// stated.
+// codesOutsideTheRules lists the codes no rule names, each with the reason.
 func codesOutsideTheRules() map[string]string {
-	const (
-		reading = "reports on reading the source, before any construct lowers"
-		overlay = "reports on applying an overlay, before any construct lowers"
-	)
 	return map[string]string{
-		"openapi/alias-amplification":       reading,
-		"openapi/cycle-scan-failed":         reading,
-		"openapi/cyclic-ref":                reading,
-		"openapi/internal-invariant":        "reports a defect of the compiler, not of the source",
-		"openapi/invalid-overlay":           overlay,
-		"openapi/overlay-action":            overlay,
-		"openapi/overlay-failed":            overlay,
-		"openapi/overlay-origin-incomplete": overlay,
-		"openapi/source-too-deep":           reading,
-		"openapi/source-too-large":          reading,
-		"openapi/stream-documents-dropped":  reading,
-		"openapi/tagged-mapping":            reading,
-		"openapi/undecodable-source":        reading,
-		"openapi/unsupported-version":       reading,
+		"openapi/internal-invariant": "reports a defect of the compiler, not anything about the source",
 	}
 }
 
