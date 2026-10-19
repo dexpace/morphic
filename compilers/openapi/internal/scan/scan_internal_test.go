@@ -50,6 +50,8 @@ var cycleReproducers = []struct{ name, file string }{
 	// reached (GitHub #944).
 	{"schema-empty-key", "cycle_schema_empty_key"},
 	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
+	// A loop under a default response, a schema position (GitHub #949).
+	{"schema-default-response", "cycle_schema_default_response"},
 }
 
 // referenceObjectCycles are chains of reference objects outside any schema
@@ -841,6 +843,45 @@ func TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey(t *testing.T) {
 			d := onlyRefusal(t, []byte(tc.data))
 			assert.Equal(t, diag.CyclicRef, d.Code)
 			assert.Equal(t, tc.want, d.Provenance.Pointer)
+		})
+	}
+}
+
+// TestCycles_OutsideASchemaOnlyExamplesArePassedOver pins exampleKeys at
+// work. A schema loop under a default response, or a webhook named default, is
+// refused: the resolver recurses round it until the stack runs out, and a
+// default is no example data there. A loop in an example payload, or in an
+// Example's value, is data the resolver never resolves, and compiles.
+func TestCycles_OutsideASchemaOnlyExamplesArePassedOver(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
+	const media = "content: {application/json: {schema: {$ref: '%s'}}}"
+	const response = "#/paths/~1a/get/responses/default/content/application~1json/schema"
+	const webhook = "#/webhooks/default/post/requestBody/content/application~1json/schema"
+	parameter := func(field, body string) string {
+		return head + "paths: {/a: {get: {parameters: [{name: q, in: query, schema: {type: string}, " +
+			field + ": " + body + "}], responses: {'200': {description: d}}}}}\n"
+	}
+	tests := []struct {
+		name, data string
+		want       jsontext.Pointer
+	}{
+		{"default-response", head + "paths: {/a: {get: {responses: {default: {description: d, " +
+			fmt.Sprintf(media, response) + "}}}}}\n", jsontext.Pointer(response[1:])},
+		{"webhook-named-default", head + "paths: {}\nwebhooks: {default: {post: {requestBody: {" +
+			fmt.Sprintf(media, webhook) + "}}}}\n", jsontext.Pointer(webhook[1:])},
+		{"example", parameter("example", "{schema: {$ref: '#/paths/~1a/get/parameters/0/example/schema'}}"), ""},
+		{"examples", parameter("examples",
+			"{e: {value: {schema: {$ref: '#/paths/~1a/get/parameters/0/examples/e/value/schema'}}}}"), ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if tc.want == "" {
+				assert.Empty(t, scanPlaced(t, []byte(tc.data)), "example data is never resolved")
+				return
+			}
+			assert.Equal(t, tc.want, onlyRefusal(t, []byte(tc.data)).Provenance.Pointer)
 		})
 	}
 }

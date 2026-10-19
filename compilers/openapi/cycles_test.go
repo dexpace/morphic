@@ -46,6 +46,8 @@ var cycleReproducers = []struct{ name, file string }{
 	// reached (GitHub #944).
 	{"schema-empty-key", "cycle_schema_empty_key"},
 	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
+	// A loop under a default response, a schema position (GitHub #949).
+	{"schema-default-response", "cycle_schema_default_response"},
 }
 
 // referenceObjectCycles are chains of reference objects that cycle, or whose

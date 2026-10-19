@@ -53,12 +53,14 @@ var subSchemaListKeys = map[string]bool{
 	"allOf": true, "oneOf": true, "anyOf": true, "prefixItems": true,
 }
 
-// schemaDataKeys name value-bearing keys whose subtree is data, not schema — a
-// $ref-shaped mapping under one of them is an opaque value, never resolved.
-var schemaDataKeys = map[string]bool{
-	"example": true, "examples": true, "default": true,
-	"const": true, "enum": true,
-}
+// exampleKeys name the fields holding example data outside a schema: the
+// example of a parameter, a header or a media type, a raw value, and its
+// examples, Example objects that hold no schema either. A $ref-shaped mapping
+// under one is an opaque value, never resolved. The library's model gives no
+// other field outside a schema so named, and none that holds a schema
+// (TestExampleKeys_HoldNoSchema): there a default is a response, so it is no
+// such key, whatever a schema's default is.
+var exampleKeys = map[string]bool{"example": true, "examples": true}
 
 // Locator answers where a diagnostic's subject is. Given a node it returns the
 // provenance to report the node at; given nil it returns the source alone, the
@@ -390,16 +392,16 @@ const (
 // child returns the role of what a node read in role r holds under key, and
 // false where the scan reads no further: under a schema, any key naming no
 // sub-schema, below which the resolver reads no schema; outside one, an
-// extension or a key named like example data. That skip goes by the name
-// alone, though the library's model also asks which object holds the key, so
-// it passes over a default response, or a webhook named x-h (GitHub #949). The
-// collection walk and a hop's pointer walk (emptyTokenLanding) share this one
-// reading.
+// extension or an example (exampleKeys). That skip goes by the name alone,
+// though the library's model also asks which object holds the key, so it
+// passes over an object named so, such as a webhook named x-h (GitHub #949).
+// The collection walk and a hop's pointer walk (emptyTokenLanding) share this
+// one reading.
 func (r walkRole) child(key string) (walkRole, bool) {
 	switch r {
 	case roleOutside:
 		switch {
-		case strings.HasPrefix(key, "x-"), schemaDataKeys[key]:
+		case strings.HasPrefix(key, "x-"), exampleKeys[key]:
 			return roleOutside, false
 		case key == "schema":
 			return roleSchema, true
