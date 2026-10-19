@@ -112,10 +112,11 @@ API it describes (that is `Version`) and not the commit that produced it. It is 
 document that a reader cannot recompute from the contents: everything else about a document can be
 checked against the document, but which spelling of the schema its keys are in has to be declared.
 
-**What moves it.** Any change to the JSON shape of a `Document`: a key renamed or removed, an
-encoding changed, or the meaning of an existing key changed. A line of work that changes the shape
-several times bumps it once, where it lands on `main` — a version that moves within an unmerged
-branch tells a consumer nothing and rewrites every golden each time it moves. `ir.IRVersion` is the
+**What moves it.** Any change to the JSON shape of a `Document`: a key added, renamed or removed, an
+encoding changed, or the meaning of an existing key changed. An addition counts, because the decoder
+refuses a member it does not know, so a build at the old version cannot read the new document. A
+line of work that changes the shape several times bumps it once, where it lands on `main` — a
+version that moves within an unmerged branch tells a consumer nothing. `ir.IRVersion` is the
 constant; the version history below records what each past bump changed.
 
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
@@ -151,8 +152,35 @@ name different writers: `ir/ir-version-absent` for a document carrying no stamp 
 forgot, and the failure `omitempty` hides best, since a document without the key is byte-identical
 to one that never had it — and `ir/ir-version-incompatible` for a stamp this build does not read.
 
-**Consequence for goldens.** Every committed IR golden embeds `irVersion`, so a bump rewrites the
-whole snapshot corpus in the same change that makes it. Confirm rather than trust:
+**How it is held to the shape.** `TestIRVersion_PinsTheEncodedShape` (`ir/irversion_test.go`)
+describes every type a `Document` reaches through `internal/jsonshape`: each member's JSON name, Go
+type and tag options, the methods the encoder calls in place of reading fields, the constants each
+type declares, and each sealed sum's variants with their tags. A name is in the description where
+it gives a value its meaning: a member's Go type, so retyping a string member to an ID type moves
+the description, and a numeric constant's name, since nothing else says what a `usage` of 2
+means. A field's Go name and a string constant's are left out, because the JSON name and the
+string say it themselves. The test requires the description's SHA-256 to be the one its
+`generations` table records for `IRVersion`, so a shape change at an unmoved version fails. So
+does a bump that changes no shape, unless its row's `meaning` says what changed: a change of
+meaning, such as a lowering that starts filling a member, is the one reason to bump that the
+description cannot see. The description reads declarations, so what a codec method's body writes
+is outside it, left to the JSON contract tests in package `ir`. A type
+from another package, such as `jsontext.Value`, is described by its name, underlying type and codec
+methods, so a Go release that changes how one of them encodes moves the description too.
+
+**Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
+and adds an entry to the history below, which `TestIRVersion_HistoryRecordsEachGeneration` requires
+to end at `IRVersion`. The description itself is `ir/testdata/shape.golden.txt`, rewritten with
+`go test ./ir -run TestIRVersion -update`, so a reviewer reads a shape change as its diff. No golden
+moves. A row on `main` is never edited: two branches that claim one version append their rows in the
+same place, so whichever merges second meets the other's in a conflict and takes the next version.
+A change to how `jsonshape` spells a shape moves `jsonshape.Format` and appends a row describing the
+current generation anew, with no bump.
+
+**Goldens store no stamp.** `irtest.WriteGolden` and `irtest.CompareGolden` refuse a document not
+stamped with `ir.IRVersion`, then encode it without the stamp, and `irtest.ReadGolden` puts it back.
+Every golden still asserts the stamp, and a bump rewrites none of them. Confirm rather than trust;
+the second count is zero:
 
 ```bash
 ls testdata/*/openapi/*.golden.json | wc -l

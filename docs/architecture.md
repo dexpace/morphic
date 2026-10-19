@@ -333,6 +333,7 @@ morphic/
 ├── internal/archtest/      #           Layering, grammar, recursion and method-cap rules (tooling).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
+├── internal/jsonshape/     #           The IR's JSON shape, which IRVersion is pinned to (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
 ├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).

@@ -51,7 +51,7 @@ func runCompare(goldenPath string, doc *ir.Document) *recordingT {
 // badExtDoc marshals with an error: an invalid jsontext.Value in Unmodeled
 // makes encodeGolden's json.Marshal fail.
 func badExtDoc() *ir.Document {
-	return &ir.Document{Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{invalid")}}}
+	return &ir.Document{IRVersion: ir.IRVersion, Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue("{invalid")}}}
 }
 
 // withUpdate sets the -update flag for the duration of fn and restores it.
@@ -95,7 +95,7 @@ func TestCompareGolden_UpdateWriteErrorFatals(t *testing.T) {
 func TestCompareGolden_MissingGoldenFatals(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "absent.golden.json")
-	doc := &ir.Document{Name: "x"}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Name: "x"}
 
 	withUpdate(t, false, func() {
 		rec := runCompare(path, doc)
@@ -120,7 +120,7 @@ func TestCompareGolden_MismatchErrorf(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.golden.json")
 	require.NoError(t, os.WriteFile(path, []byte("{}\n"), 0o644))
-	doc := &ir.Document{Name: "different"}
+	doc := &ir.Document{IRVersion: ir.IRVersion, Name: "different"}
 
 	withUpdate(t, false, func() {
 		rec := runCompare(path, doc)
@@ -144,7 +144,7 @@ func TestWriteGolden_MkdirError(t *testing.T) {
 	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o644))
 	path := filepath.Join(blocker, "sub", "doc.json")
 
-	err := WriteGolden(path, &ir.Document{Name: "x"})
+	err := WriteGolden(path, &ir.Document{IRVersion: ir.IRVersion, Name: "x"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mkdir for golden")
 }
@@ -156,21 +156,27 @@ func TestWriteGolden_WriteError(t *testing.T) {
 	path := filepath.Join(dir, "asdir")
 	require.NoError(t, os.Mkdir(path, 0o755))
 
-	err := WriteGolden(path, &ir.Document{Name: "x"})
+	err := WriteGolden(path, &ir.Document{IRVersion: ir.IRVersion, Name: "x"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "write golden")
 }
 
-// TestCompareGolden_RejectsBadInput drives the two preconditions. They sit ahead
-// of the -update branch, so neither case needs the flag toggled to reach them.
+// TestCompareGolden_RejectsBadInput drives the preconditions. They sit ahead of
+// the -update branch, so neither case needs the flag toggled to reach them.
 //
 // The nil-document case is a regression test with a written-out failure mode: the
 // golden on disk is the "null" an unguarded WriteGolden produces, and an
 // unguarded compareGolden encodes nil to the same four bytes and reports a clean
 // match. The abort is the only thing separating that from a real comparison.
+//
+// The stamp cases would compare clean against the golden on disk, which
+// leaves the stamp out, but for the refusal.
 func TestCompareGolden_RejectsBadInput(t *testing.T) {
-	nullGolden := filepath.Join(t.TempDir(), "null.golden.json")
+	dir := t.TempDir()
+	nullGolden := filepath.Join(dir, "null.golden.json")
 	require.NoError(t, os.WriteFile(nullGolden, []byte("null\n"), 0o644))
+	golden := filepath.Join(dir, "doc.golden.json")
+	require.NoError(t, WriteGolden(golden, &ir.Document{IRVersion: ir.IRVersion, Name: "x"}))
 
 	cases := map[string]struct {
 		path      string
@@ -179,6 +185,10 @@ func TestCompareGolden_RejectsBadInput(t *testing.T) {
 	}{
 		"empty path":   {path: "", doc: &ir.Document{Name: "x"}, wantFatal: "empty golden path"},
 		"nil document": {path: nullGolden, doc: nil, wantFatal: "nil document"},
+		"unstamped document": {path: golden, doc: &ir.Document{Name: "x"},
+			wantFatal: `document stamped irVersion "", not ir.IRVersion ` + ir.IRVersion},
+		"document stamped with another version": {path: golden, doc: &ir.Document{IRVersion: "0.0.1", Name: "x"},
+			wantFatal: `document stamped irVersion "0.0.1", not ir.IRVersion ` + ir.IRVersion},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -190,13 +200,29 @@ func TestCompareGolden_RejectsBadInput(t *testing.T) {
 	}
 }
 
+// TestCompareGolden_UpdateRefusesAnUnstampedDocument holds the stamp check ahead
+// of -update, so rewriting goldens cannot store a snapshot of a document that
+// was never stamped.
+func TestCompareGolden_UpdateRefusesAnUnstampedDocument(t *testing.T) {
+	// Not parallel: toggles the shared -update flag.
+	path := filepath.Join(t.TempDir(), "doc.golden.json")
+
+	withUpdate(t, true, func() {
+		rec := runCompare(path, &ir.Document{Name: "x"})
+		require.True(t, rec.aborted, "an unstamped document must abort via Fatalf")
+		assert.Contains(t, rec.fatalf, "not ir.IRVersion")
+	})
+	_, err := os.Stat(path)
+	assert.ErrorIs(t, err, os.ErrNotExist, "a refused update leaves no golden behind")
+}
+
 func TestCompareGolden_HelperIsCalled(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.golden.json")
 	require.NoError(t, os.WriteFile(path, []byte("{}\n"), 0o644))
 
 	withUpdate(t, false, func() {
-		rec := runCompare(path, &ir.Document{})
+		rec := runCompare(path, &ir.Document{IRVersion: ir.IRVersion})
 		assert.GreaterOrEqual(t, rec.helperCalls, 1, "compareGolden marks itself a helper")
 	})
 }

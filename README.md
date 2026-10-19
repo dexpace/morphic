@@ -288,7 +288,9 @@ rather than from `go test`'s rounded percentage, so one uncovered statement fail
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 
 - **Golden snapshots.** `testdata/golden/` and `testdata/conformance/` pair each spec with the IR
-  it must compile to, byte for byte. After an intentional change, rewrite them and review the diff:
+  it must compile to, byte for byte, except the `irVersion` stamp: the helper asserts it rather than
+  storing it, so moving the version rewrites no golden. After an intentional change, rewrite them
+  and review the diff:
 
   ```bash
   go test ./compilers/openapi -run 'TestGolden|TestConformance' -update

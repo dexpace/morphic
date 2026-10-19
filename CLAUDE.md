@@ -137,8 +137,8 @@ cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
-internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, keydoc,
-             leakcheck, testspec).
+internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, decls, jsonshape,
+             keydoc, leakcheck, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -170,7 +170,13 @@ as the finding it excuses, with its reason beside it.
 These all exist already — extend them rather than building a parallel mechanism:
 
 - **Golden IR snapshots**: `spec → IR → JSON`, compared via `ir/irtest` (`-update` rewrites).
-  Corpus under `testdata/golden/`.
+  Corpus under `testdata/golden/`. A golden stores no `irVersion`: the helper asserts the stamp and
+  leaves it out, so a version bump rewrites no golden.
+- **IR shape pin**: `TestIRVersion_PinsTheEncodedShape` describes every type `ir.Document` reaches,
+  through `internal/jsonshape`, and holds `ir.IRVersion` to the description's hash in the
+  `generations` table beside it. A shape change without a bump fails, and so does a bump without
+  a shape change unless its row says what meaning changed. A bump moves the constant, appends a
+  row and adds an ir-design §2.1 history entry; `ir/testdata/shape.golden.txt` diffs the shape.
 - **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
   keeps "lossless by default" honest. The row↔spec mapping is machine-read, not prose: matrix rows

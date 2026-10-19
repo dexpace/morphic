@@ -7,7 +7,9 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -48,6 +50,62 @@ func declaredConstsOfType(t *testing.T, typeName string) []decls.Const {
 	require.NoError(t, err)
 	slices.SortFunc(consts, func(a, b decls.Const) int { return strings.Compare(a.Name, b.Name) })
 	return consts
+}
+
+// semver is a MAJOR.MINOR.PATCH version, the one form IRVersion takes.
+type semver [3]int
+
+// String spells v as MAJOR.MINOR.PATCH.
+func (v semver) String() string { return fmt.Sprintf("%d.%d.%d", v[0], v[1], v[2]) }
+
+// parseVersion reads s as MAJOR.MINOR.PATCH: three decimal numbers with no sign
+// and no leading zero (semver 2.0.0 §2), and nothing more. Each has at most
+// nine digits, so a successor computed from one cannot overflow an int.
+func parseVersion(s string) (semver, bool) {
+	parts := strings.Split(s, ".")
+	if len(parts) != len(semver{}) {
+		return semver{}, false
+	}
+	var v semver
+	for i, part := range parts {
+		if part == "" || len(part) > 9 || (len(part) > 1 && part[0] == '0') || strings.Trim(part, "0123456789") != "" {
+			return semver{}, false
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return semver{}, false
+		}
+		v[i] = n
+	}
+	return v, true
+}
+
+// compareVersions orders two versions by precedence. One that does not parse
+// sorts before any that does, and two that do not, by their spelling.
+func compareVersions(a, b string) int {
+	va, okA := parseVersion(a)
+	vb, okB := parseVersion(b)
+	switch {
+	case okA && okB:
+		return slices.Compare(va[:], vb[:])
+	case okA:
+		return 1
+	case okB:
+		return -1
+	default:
+		return strings.Compare(a, b)
+	}
+}
+
+// nextGeneration returns the version a bump from v moves to: the next MINOR,
+// which before 1.0 is the breaking position (ir-design §2.1). A v that does not
+// parse is returned as it is.
+func nextGeneration(v string) string {
+	parsed, ok := parseVersion(v)
+	if !ok {
+		return v
+	}
+	return semver{parsed[0], parsed[1] + 1, 0}.String()
 }
 
 // assertRoundTrip marshals want, unmarshals into a fresh T, and asserts the

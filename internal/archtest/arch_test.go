@@ -294,6 +294,10 @@ var rules = map[string][]string{
 		module + "/internal/decls/testdata/good/fixture",
 		module + "/internal/decls/testdata/good/uses",
 	},
+	// Test infrastructure as well: it describes the JSON shape of the types one
+	// root reaches, which it reads type-checked through decls, for the test in
+	// package ir that pins that shape to IRVersion.
+	"internal/jsonshape": {module + "/internal/decls"},
 	// Test infrastructure as well: the one reader of the repository's keyed
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.
