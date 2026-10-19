@@ -408,16 +408,11 @@ func InternalPointer(ref string) (jsontext.Pointer, bool) {
 
 // PointerTarget walks a normalized JSON pointer (as InternalPointer returns it)
 // against root, aliases dereferenced, and returns the node it lands on, or
-// false when it lands nowhere. A lone '/' lands on the root (see tokenless).
-//
-// A pointer ending in an empty token, such as '/a/', lands nowhere, though RFC
-// 6901 reads it as naming the key "" under a: the resolver reads that token in
-// a schema as a field no schema has. In raw YAML it reads it as staying on a,
-// which this walk does not follow (GitHub #944).
+// false when it lands nowhere. A lone '/' lands on the root (see tokenless),
+// and every other token is read as RFC 6901 reads it: '/a/' names the key ""
+// under a. The resolver reads a trailing empty token by where its walk has got
+// to, which only a caller knowing the document's roles can say (GitHub #944).
 func (v *View) PointerTarget(root *yaml.Node, pointer jsontext.Pointer) (*yaml.Node, bool) {
-	if !tokenless(pointer) && strings.HasSuffix(string(pointer), "/") {
-		return nil, false
-	}
 	path, complete := v.walkPointer(root, pointer, tokenless(pointer))
 	if !complete {
 		return nil, false
@@ -430,17 +425,16 @@ func (v *View) PointerTarget(root *yaml.Node, pointer jsontext.Pointer) (*yaml.N
 // aliases dereferenced. complete reports whether every token was followed; if
 // not, the path ends at the last node reached.
 //
-// It reads every token as RFC 6901 does, where PointerTarget departs twice: it
-// lands '/' on the root, as the resolver does, and a trailing empty token
-// nowhere. ids.Ptr("") spells the root member keyed "" as '/', so taking '/'
-// for the root here would hide an $id written on that member from a caller
-// reading $id down a path.
+// It differs from PointerTarget only on '/', which it reads as RFC 6901 does.
+// ids.Ptr("") spells the root member keyed "" as '/', so taking '/' for the
+// root here would hide an $id written on that member from a caller reading $id
+// down a path.
 func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*yaml.Node, complete bool) {
 	return v.walkPointer(root, pointer, pointer == "")
 }
 
-// walkPointer is the shared walk; atRoot says whether to read pointer as naming
-// the root, which the two readings answer differently for '/'.
+// walkPointer is the shared walk; atRoot says whether pointer carries no tokens
+// at all, which is the one question the two readings answer differently.
 func (v *View) walkPointer(root *yaml.Node, pointer jsontext.Pointer, atRoot bool) (path []*yaml.Node, complete bool) {
 	cur := Deref(root)
 	if cur == nil {

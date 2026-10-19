@@ -128,6 +128,12 @@ func pointerForms() []pointerForm {
 		{"prefix-self-property-back", func(p string) string {
 			return fmt.Sprintf("{$ref: '%s/properties/p', properties: {p: {$ref: '%s'}}}", p, p)
 		}},
+		{"prefix-self-empty-key-back", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/properties/', properties: {'': {$ref: '%s'}}}", p, p)
+		}},
+		{"prefix-self-empty-token-stays", func(p string) string {
+			return fmt.Sprintf("{$ref: '%s/x/', x: {$ref: '%s'}}", p, p)
+		}},
 		{"dangling-elsewhere", func(string) string { return "{$ref: '#/nope/nope'}" }},
 		{"external-document", func(string) string { return "{$ref: 'other.yaml#/x'}" }},
 	}

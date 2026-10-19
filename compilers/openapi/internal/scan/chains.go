@@ -1,8 +1,10 @@
 package scan
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -14,10 +16,10 @@ import (
 // A loop is found however long: the resolver recurses once per hop of one, so
 // any loop runs it out of stack (GitHub #922).
 //
-// A hop goes where its pointer lands, so every chain ends or runs into one
-// loop. A schema $ref the pointer passes is read by its own keys, as the
-// resolver reads it (GitHub #932); a reference object it reads through what it
-// names, which this does not follow (GitHub #945).
+// A hop goes where its pointer lands (landing), so every chain ends or runs
+// into one loop. A schema $ref the pointer passes is read by its own keys, as
+// the resolver reads it (GitHub #932); a reference object it reads through what
+// it names, which this does not follow (GitHub #945).
 type chainGraph struct {
 	view *nodeview.View
 	root *yaml.Node
@@ -95,13 +97,78 @@ func (g *chainGraph) read(starts []*yaml.Node) {
 			panic(fmt.Sprintf("cycle scan: $ref chains outgrew their %d-node bound", g.maxNodes))
 		}
 		g.work++
-		next, _ := g.view.PointerTarget(g.root, ref)
+		next := landing(g.view, g.root, ref)
 		g.hops[n] = &chainHop{next: next}
 		g.order = append(g.order, n)
 		if next != nil {
 			pending = append(pending, next)
 		}
 	}
+}
+
+// landing returns the node the resolver lands ref on, read from root, or nil
+// where it lands nowhere. It reads each token as RFC 6901 does, which is
+// nodeview.PointerTarget, but a trailing empty token by where the walk has got
+// to (emptyTokenRead): the library reads that one differently in its model and
+// in raw YAML (GitHub #944).
+func landing(view *nodeview.View, root *yaml.Node, ref jsontext.Pointer) *yaml.Node {
+	if before, trailing := strings.CutSuffix(string(ref), "/"); trailing {
+		switch emptyTokenRead(jsontext.Pointer(before)) {
+		case readNowhere:
+			return nil
+		case readStays:
+			path, complete := view.DocumentPath(root, jsontext.Pointer(before))
+			if !complete {
+				return nil
+			}
+			return path[len(path)-1]
+		default: // readKey: the member keyed "", which RFC 6901 names
+		}
+	}
+	next, _ := view.PointerTarget(root, ref)
+	return next
+}
+
+// emptyRead is how the resolver reads a pointer's trailing empty token.
+type emptyRead int
+
+const (
+	// readKey: as the member keyed "", where the library looks the token up as
+	// a key: in a map of schemas, a link's parameters, any map. A list has no
+	// such member, nor does the library find one. It is also the reading where
+	// the scan does not know a position's kind: at an object the model holds,
+	// the library fails the pointer, so a landing the scan takes there only
+	// ever adds a loop through a reference the resolver reports anyway.
+	readKey emptyRead = iota
+	// readNowhere: at a schema, as a field no schema has, so the pointer lands
+	// nowhere.
+	readNowhere
+	// readStays: as the node the walk has reached, in raw YAML: any key of a
+	// schema naming no sub-schema, and an extension or data key outside one.
+	// Where the model holds a non-schema object there instead, the library
+	// fails the pointer or lands on no schema, either way a reference it
+	// reports.
+	readStays
+)
+
+// emptyTokenRead returns how the resolver reads an empty token after the
+// tokens of before, from the role walkRole.child gives each from the document
+// root. Past a key child reads no schema under, the walk is in raw YAML, which
+// it never leaves, or in a field of the model holding no schema: readStays
+// serves both.
+func emptyTokenRead(before jsontext.Pointer) emptyRead {
+	role := roleOutside
+	for token := range before.Tokens() {
+		next, held := role.child(token)
+		if !held {
+			return readStays
+		}
+		role = next
+	}
+	if role == roleSchema {
+		return readNowhere
+	}
+	return readKey
 }
 
 // settle numbers the loop each chain runs into, following each node once. A

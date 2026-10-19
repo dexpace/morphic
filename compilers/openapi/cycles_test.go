@@ -41,6 +41,11 @@ var cycleReproducers = []struct{ name, file string }{
 	// (GitHub #932).
 	{"schema-through-own-member", "cycle_schema_through_own_member"},
 	{"schema-through-member-chain", "cycle_schema_through_member_chain"},
+	// Loops through a trailing empty token, which the resolver reads by where
+	// its walk is: in a map of schemas as the key "", in raw YAML as the node
+	// reached (GitHub #944).
+	{"schema-empty-key", "cycle_schema_empty_key"},
+	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
 }
 
 // referenceObjectCycles are chains of reference objects that cycle, or whose

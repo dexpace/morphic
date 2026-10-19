@@ -495,24 +495,29 @@ func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 	assert.Equal(t, []*yaml.Node{root}, path)
 }
 
-// TestPointerTarget_ATrailingEmptyTokenLandsNowhere pins where a trailing empty
-// token is read otherwise than RFC 6901 reads it: '/a/' lands nowhere though a
-// key "" is declared under a, because the resolver lands such a pointer on no
-// member. An empty token before the last still names the key "", and a lone '/'
-// is TestPointerTarget_LoneSeparatorNamesTheRoot's.
-func TestPointerTarget_ATrailingEmptyTokenLandsNowhere(t *testing.T) {
+// TestPointerTarget_AnEmptyTokenNamesTheEmptyKey pins that an empty token names
+// the key "", trailing or not, as RFC 6901 reads it. A walk that dropped or
+// stayed on a trailing one would land '/a/' on a. How the resolver reads a
+// trailing one turns on where its walk is, which is the scan's to say; a lone
+// '/' is TestPointerTarget_LoneSeparatorNamesTheRoot's.
+func TestPointerTarget_AnEmptyTokenNamesTheEmptyKey(t *testing.T) {
 	t.Parallel()
 	leaf := ynode.Scalar("leaf")
-	inner := ynode.Map(ynode.Scalar(""), ynode.Map(ynode.Scalar("b"), leaf))
-	root := ynode.Map(ynode.Scalar("a"), inner)
+	member := ynode.Map(ynode.Scalar("b"), leaf)
+	inner := ynode.Map(ynode.Scalar(""), member)
+	root := ynode.Map(ynode.Scalar("a"), inner, ynode.Scalar("c"), ynode.Map(ynode.Scalar("b"), leaf))
 
 	got, landed := New().PointerTarget(root, "/a/")
-	assert.False(t, landed, `the trailing token is not read as the key ""`)
-	assert.Nil(t, got)
+	require.True(t, landed, `the trailing token names the key ""`)
+	assert.Same(t, member, got)
 
 	got, landed = New().PointerTarget(root, "/a//b")
-	require.True(t, landed, `an empty token before the last names the key ""`)
+	require.True(t, landed, `so does one before the last`)
 	assert.Same(t, leaf, got)
+
+	got, landed = New().PointerTarget(root, "/c/")
+	assert.False(t, landed, `c declares no key "", so the pointer lands nowhere rather than on c`)
+	assert.Nil(t, got)
 }
 
 // TestPointerTarget_LoneSeparatorNamesTheRoot records where the resolver

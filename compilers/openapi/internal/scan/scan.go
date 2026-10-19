@@ -390,7 +390,8 @@ const (
 // child returns the role of what a node read in role r holds under key, and
 // false where the resolver reads no schema there or below: under an extension
 // or data key outside a schema, and under any key of a schema that names no
-// sub-schema.
+// sub-schema. It is the one reading of positions, so the collection walk and a
+// hop's pointer walk (emptyTokenRead) cannot part company.
 func (r walkRole) child(key string) (walkRole, bool) {
 	switch r {
 	case roleOutside:

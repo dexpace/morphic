@@ -94,6 +94,11 @@ func knownInvalid() map[string]bool {
 		// recurses round the loop until the stack runs out (#932).
 		filepath.FromSlash("../../testdata/openapi/cycle_schema_through_own_member.yaml"):   true,
 		filepath.FromSlash("../../testdata/openapi/cycle_schema_through_member_chain.yaml"): true,
+		// Schema loops through a trailing empty token, which the resolver reads
+		// in a map of schemas as the key "" and in raw YAML as the node reached,
+		// recursing round each until the stack runs out (#944).
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_empty_key.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_empty_token_stays.yaml"): true,
 		// A 10-level x 10-way YAML alias fan-out ("billion laughs"). Every
 		// alias target is acyclic, so neither the anchor nor the $ref cycle
 		// detector catches it, and unguarded it exhausts memory inside

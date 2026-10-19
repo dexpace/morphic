@@ -45,6 +45,11 @@ var cycleReproducers = []struct{ name, file string }{
 	// (GitHub #932).
 	{"schema-through-own-member", "cycle_schema_through_own_member"},
 	{"schema-through-member-chain", "cycle_schema_through_member_chain"},
+	// Loops through a trailing empty token, which the resolver reads by where
+	// its walk is: in a map of schemas as the key "", in raw YAML as the node
+	// reached (GitHub #944).
+	{"schema-empty-key", "cycle_schema_empty_key"},
+	{"schema-empty-token-stays", "cycle_schema_empty_token_stays"},
 }
 
 // referenceObjectCycles are chains of reference objects outside any schema
@@ -724,23 +729,104 @@ func TestRefScanCollect_OutsidePositions(t *testing.T) {
 		"nor walked as an outside position")
 }
 
-// TestDetectCycles_ATrailingEmptyTokenLandsNowhere pins the reading of a
-// pointer ending in an empty token. RFC 6901 reads '/A/' as naming the key ""
-// under A, where each of these documents holds a $ref back to A. The resolver
-// lands on no such member: in the schema model it fails the pointer, and the
-// second document, whose '/u/' it reads as u itself, compiles cleanly.
-func TestDetectCycles_ATrailingEmptyTokenLandsNowhere(t *testing.T) {
+// TestCycles_ATrailingEmptyTokenIsReadWhereTheWalkIs is GitHub #944 and the
+// readings beside it. The library reads a pointer's last empty token by where
+// its walk is: in a map, as the key ""; at a schema or a list of schemas, as a
+// field or index none has; in raw YAML, as the node reached. Each refused row
+// overflows the resolver's stack unrefused, and each clean row's hop lands
+// where the loop it spells is not followed. Both declaration orders.
+func TestCycles_ATrailingEmptyTokenIsReadWhereTheWalkIs(t *testing.T) {
 	t.Parallel()
-	members := map[string]string{
-		"a-schema":             "    A: {$ref: '#/components/schemas/A/', '': {$ref: '#/components/schemas/A'}}\n",
-		"a-member-of-a-schema": "    A: {$ref: '#/components/schemas/A/u/', u: {'': {$ref: '#/components/schemas/A'}}}\n",
+	const a = "'#/components/schemas/A'"
+	tests := []struct {
+		name    string
+		members []string
+		want    jsontext.Pointer // the site reported, or "" for none
+	}{
+		{"components-schemas-key", []string{
+			"    '': {$ref: '#/components/schemas/'}\n",
+		}, "/components/schemas/"},
+		{"components-schemas-key-pair", []string{
+			"    A: {$ref: '#/components/schemas/'}\n", "    '': {$ref: " + a + "}\n",
+		}, "/components/schemas/"},
+		{"properties-key", []string{
+			"    A: {$ref: '#/components/schemas/A/properties/', properties: {'': {$ref: " + a + "}}}\n",
+		}, "/components/schemas/A"},
+		{"pattern-properties-key", []string{
+			"    A: {$ref: '#/components/schemas/A/patternProperties/', patternProperties: {'': {$ref: " + a + "}}}\n",
+		}, "/components/schemas/A"},
+		{"defs-key", []string{
+			"    A: {$ref: '#/components/schemas/A/$defs/', $defs: {'': {$ref: " + a + "}}}\n",
+		}, "/components/schemas/A"},
+		{"dependent-schemas-key", []string{
+			"    A: {$ref: '#/components/schemas/A/dependentSchemas/', dependentSchemas: {'': {$ref: " + a + "}}}\n",
+		}, "/components/schemas/A"},
+		{"a-schema-is-no-map", []string{
+			"    A: {$ref: '#/components/schemas/A/', '': {$ref: " + a + "}}\n",
+		}, ""},
+		{"a-sub-schema-is-no-map", []string{
+			"    A: {$ref: '#/components/schemas/A/items/', items: {$ref: " + a + ", '': {$ref: " + a + "}}}\n",
+		}, ""},
+		{"a-list-is-no-map", []string{
+			"    A: {$ref: '#/components/schemas/A/allOf/', allOf: [{$ref: " + a + "}]}\n",
+		}, ""},
+		{"raw-stays-on-an-unknown-key", []string{
+			"    A: {$ref: '#/components/schemas/A/u/', u: {$ref: " + a + "}}\n",
+		}, "/components/schemas/A"},
+		{"raw-stays-on-an-extension", []string{
+			"    A: {$ref: '#/components/schemas/A/x-u/', x-u: {$ref: " + a + "}}\n",
+		}, "/components/schemas/A"},
+		{"raw-stays-on-an-example", []string{
+			"    A: {$ref: '#/components/schemas/A/example/', example: {$ref: " + a + "}}\n",
+		}, "/components/schemas/A"},
+		{"raw-stays-on-additional-items", []string{
+			"    A: {$ref: '#/components/schemas/A/additionalItems/', additionalItems: {$ref: " + a + "}}\n",
+		}, "/components/schemas/A"},
+		{"raw-reads-no-key", []string{
+			"    A: {$ref: '#/components/schemas/A/u/', u: {'': {$ref: " + a + "}}}\n",
+		}, ""},
+		{"raw-reads-no-key-under-definitions", []string{
+			"    A: {$ref: '#/components/schemas/A/definitions/', definitions: {'': {$ref: " + a + "}}}\n",
+		}, ""},
+		{"raw-stays-on-nothing", []string{
+			"    A: {$ref: '#/components/schemas/A/missing/'}\n",
+		}, ""},
 	}
-	for name, member := range members {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Empty(t, scanBytes(t, schemasDoc([]string{member})))
-		})
+	for _, tc := range tests {
+		for order, data := range bothOrders(schemasHeader, tc.members) {
+			t.Run(tc.name+"/"+order, func(t *testing.T) {
+				t.Parallel()
+				if tc.want == "" {
+					assert.Empty(t, scanPlaced(t, data), "the hop lands where no loop is")
+					return
+				}
+				d := onlyRefusal(t, data)
+				assert.Equal(t, diag.CyclicRef, d.Code)
+				assert.Equal(t, tc.want, d.Provenance.Pointer)
+			})
+		}
 	}
+}
+
+// TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey pins the reading
+// where the scan cannot tell the library's model from raw YAML: outside a
+// schema, a trailing empty token names the key "", as RFC 6901 reads it. A
+// link's parameters are a map whose values the library reads as raw YAML, so
+// the hop lands on the member keyed "" and the loop through it is refused.
+func TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey(t *testing.T) {
+	t.Parallel()
+	data := []byte(`openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  links:
+    L: {operationId: o, parameters: {'': {$ref: '#/components/schemas/S'}}}
+  schemas:
+    S: {$ref: '#/components/links/L/parameters/'}
+`)
+	d := onlyRefusal(t, data)
+	assert.Equal(t, diag.CyclicRef, d.Code)
+	assert.Equal(t, jsontext.Pointer("/components/links/L/parameters/"), d.Provenance.Pointer)
 }
 
 // TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks pins the start

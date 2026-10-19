@@ -296,7 +296,9 @@ func TestCycles_EveryStartRunsIntoTheLoopItLandsOn(t *testing.T) {
 
 // walkFrom is what settleChains answers for start: a walk one hop at a time,
 // remembering nothing between starts. It stops at the end, or at the first
-// node it revisits, and then returns the nodes from that one round to it.
+// node it revisits, and then returns the nodes from that one round to it. It
+// reads each hop by landing, which TestLanding_IsWhereTheLibraryLands holds to
+// the library, so what it checks is the settling.
 func walkFrom(view *nodeview.View, root, start *yaml.Node) []*yaml.Node {
 	at := map[*yaml.Node]int{}
 	var chain []*yaml.Node
@@ -310,18 +312,19 @@ func walkFrom(view *nodeview.View, root, start *yaml.Node) []*yaml.Node {
 		}
 		at[cur] = len(chain)
 		chain = append(chain, cur)
-		next, landed := view.PointerTarget(root, ref)
-		if !landed {
+		cur = landing(view, root, ref)
+		if cur == nil {
 			return nil
 		}
-		cur = next
 	}
 	panic("walkFrom: a chain longer than the tree")
 }
 
 // randomRefDoc is a small document of schemas, path items and parameters
 // whose members are $refs to each other, to members of each other read through
-// a $ref, or to nothing, and carry $refs of their own beside them.
+// a $ref, with a trailing empty token or without, or to nothing, and carry
+// $refs of their own beside them, under keys of each kind a trailing empty
+// token is read in.
 func randomRefDoc(r *rand.Rand) []byte {
 	sections := []struct{ name, prefix string }{{"schemas", "S"}, {"pathItems", "P"}, {"parameters", "Q"}}
 	counts := []int{1 + r.IntN(6), r.IntN(5), r.IntN(5)}
@@ -330,7 +333,7 @@ func randomRefDoc(r *rand.Rand) []byte {
 	for k, sec := range sections {
 		for i := range counts[k] {
 			at := fmt.Sprintf("#/components/%s/%s%d", sec.name, sec.prefix, i)
-			targets = append(targets, at, at, at+"/t", at+"/t/t")
+			targets = append(targets, at, at, at+"/t", at+"/t/t", at+"/", at+"/t/", at+"/properties/")
 		}
 	}
 	for i := range paths {
@@ -338,13 +341,17 @@ func randomRefDoc(r *rand.Rand) []byte {
 	}
 	member := func() string {
 		target, sibling := targets[r.IntN(len(targets))], targets[r.IntN(len(targets))]
-		switch r.IntN(8) {
+		switch r.IntN(10) {
 		case 0:
 			return "{type: string}"
 		case 1, 2:
 			return fmt.Sprintf("{$ref: '%s', t: {$ref: '%s'}}", target, sibling)
 		case 3:
 			return fmt.Sprintf("{$ref: '%s', t: {type: string}}", target)
+		case 4:
+			return fmt.Sprintf("{$ref: '%s', properties: {'': {$ref: '%s'}}}", target, sibling)
+		case 5:
+			return fmt.Sprintf("{$ref: '%s', '': {$ref: '%s'}, t: {'': {$ref: '%s'}}}", target, sibling, sibling)
 		default:
 			return fmt.Sprintf("{$ref: '%s'}", target)
 		}

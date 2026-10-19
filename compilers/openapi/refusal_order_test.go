@@ -18,8 +18,8 @@ import (
 
 // refGraphDoc is a document of schemas, path items and parameters whose
 // references form loops, tails into loops, pointers passing through other
-// references or back through their own, and $defs and $anchor chains, drawn
-// from r.
+// references or back through their own, with a trailing empty token or
+// without, and $defs and $anchor chains, drawn from r.
 func refGraphDoc(r *rand.Rand) string {
 	schemas, paths, params := 2+r.IntN(4), r.IntN(4), r.IntN(3)
 	var b strings.Builder
@@ -46,8 +46,10 @@ func refGraphDoc(r *rand.Rand) string {
 			fmt.Sprintf("{$defs: {d: {$ref: '#/components/schemas/S%d'}}, $ref: '#/$defs/d'}", j),
 			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/p', properties: {p: {$ref: '#/components/schemas/S%d'}}}",
 				i, j),
+			fmt.Sprintf("{$ref: '#/components/schemas/S%d/properties/', properties: {'': {$ref: '#/components/schemas/S%d'}}}",
+				i, j),
 			"{type: string}",
-		}[r.IntN(9)])
+		}[r.IntN(10)])
 	}
 	b.WriteString("}\n  pathItems: {")
 	for i := range paths {
