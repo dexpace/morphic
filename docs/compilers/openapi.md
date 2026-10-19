@@ -473,8 +473,8 @@ Each entry of `components/schemas` lowers to a node of its own in the type regis
 anything references it, under a `TypeID` derived from its pointer
 (`t/openapi/components/schemas/<name>`, §3.1) and named by its key ([`naming`](#naming)). One whose
 type is a primitive (`{type: string}`) lowers to a `Scalar` over that primitive, and one that is
-only a `$ref` to a `Scalar` alias whose `Base` is its target (§4.2). A reference to the entry names
-that ID.
+only a `$ref` lowers to a `Scalar` alias whose `Base` is its target (§4.2). A reference to the entry
+names that ID.
 
 - Cases: `named-types`, `component-reuse`
 - Tests: `ids.TestForPointer_ChoosesTheNamespace`
@@ -586,7 +586,8 @@ neither one's `false` clearing the other. A request body's `description` lands o
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`
-- Status: open: a deprecation cannot name its replacement, for want of an IR field (#670).
+- Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
+  (#670).
 
 ### `disjoint-visibility`
 
@@ -701,7 +702,7 @@ precedence rule for branches that disagree. So a branch declaring anything the m
 consume is kept verbatim in `Unmodeled["openapi:allOf/<index>"]` under `degraded_lowering` — the
 *whole* branch, consumed keywords included, so the source stays reconstructable rather than having
 to be reassembled from two places — keyed by branch index so siblings cannot overwrite each other,
-and reported as an `openapi/degraded-construct` at the branch naming the keywords that made it
+and reported by an `openapi/degraded-construct` at the branch naming the keywords that made it
 residue. Which keywords those are is derived from the branch's own declared key set rather than from
 a fixed list, so a keyword the dialect gains later is residue without anyone maintaining an
 enumeration. The key set is read through YAML aliases and merge keys, so a branch written
