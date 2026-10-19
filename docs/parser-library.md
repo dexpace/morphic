@@ -23,8 +23,9 @@ read them all:
 - **Pinned by.** The subtest of `TestLibraryBehaviour` named for the key. Each is a canary: it
   asserts what the library does today, so it goes red when a library change alters what the entry
   records, whether the change breaks something the compiler relies on or fixes a defect the
-  compiler guards against. A call that can end the process runs in a child process: a stack
-  overflow, a panic on a goroutine the library started, or memory that grows until it is stopped.
+  compiler guards against. A call that could end the process or never return runs in a child
+  process: a stack overflow, a panic on a goroutine the library started, memory that grows until it
+  is stopped, or a hang.
 - **Code.** The declarations that exist because of the behaviour, as `package.Name` or
   `package.Type.Member`, where `package` is `openapi` or a package under
   `compilers/openapi/internal`. Each must exist, and its doc comment must cite the entry.

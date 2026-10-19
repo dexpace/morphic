@@ -35,8 +35,9 @@ func unmarshal(ctx context.Context, input []byte) string {
 
 // goroutinesAlive decodes input on a goroutine of its own and reports the most
 // goroutines alive at once beyond those alive before, read each time this one
-// yields. On one processor that is about every goroutine decoding has started
-// and not yet run.
+// yields, or unfinished when decoding outlasts half the child's time. On one
+// processor that is about every goroutine decoding has started and not yet
+// run.
 func goroutinesAlive(ctx context.Context, input []byte) string {
 	before := runtime.NumGoroutine()
 	done := make(chan error, 1)
@@ -45,7 +46,7 @@ func goroutinesAlive(ctx context.Context, input []byte) string {
 		done <- err
 	}()
 	most := 0
-	for deadline := time.Now().Add(childTimeout); time.Now().Before(deadline); runtime.Gosched() {
+	for deadline := time.Now().Add(childTimeout / 2); time.Now().Before(deadline); runtime.Gosched() {
 		select {
 		case err := <-done:
 			if err != nil {
