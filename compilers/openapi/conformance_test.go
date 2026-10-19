@@ -158,6 +158,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings, []string{"intersection", "untagged-unions"}},
 		{"allof-boolean-branch", assertAllOfBooleanBranch, []string{"intersection"}},
 		{"allof-conflicting-type", assertAllOfConflictingType, nil},
+		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration, []string{"intersection"}},
 		{"allof-position-constraints", assertAllOfPositionConstraints, []string{"intersection"}},
 		{"oneof-discriminated", assertOneOfDiscriminated, []string{"tagged-unions"}},
 		{"discriminator-inheritance", assertDiscriminatorInheritance, []string{"tagged-unions", "inheritance"}},

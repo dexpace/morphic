@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -120,6 +121,24 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 			"row %q maps to the same kind (%s) as the bare type %q, so the pairing "+
 				"reaches no field once the position resolves to the shared primitive; "+
 				"a format whose kind does not differ must not be a row", key, prim, typ)
+	}
+}
+
+// TestFormatTable_EveryRowNarrowsItsBareType holds merge.Narrows to what the
+// table lowers: every (type, format) row must narrow its bare type's row, or an
+// allOf redeclaring a bare type with a format would warn of a conflict that
+// loses nothing (GitHub #598).
+func TestFormatTable_EveryRowNarrowsItsBareType(t *testing.T) {
+	t.Parallel()
+	for key, prim := range formatTable {
+		typ, _, paired := strings.Cut(key, "/")
+		if !paired {
+			continue
+		}
+		bare, ok := formatTable[typ]
+		require.True(t, ok, "row %q names a type with no row of its own", key)
+		assert.True(t, merge.Narrows(prim, bare),
+			"row %q lowers to %s, which merge.Narrows does not relate to the bare %q kind %s", key, prim, typ, bare)
 	}
 }
 

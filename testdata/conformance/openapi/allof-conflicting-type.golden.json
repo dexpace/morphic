@@ -228,7 +228,7 @@
             "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url": {
               "reason": "degraded_lowering",
               "value": {
-                "type": "string"
+                "type": "integer"
               },
               "provenance": {
                 "source": 0,
@@ -296,7 +296,7 @@
     {
       "severity": "warning",
       "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/string; kept the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url), which is kept verbatim under Unmodeled",
+      "message": "declarations of field \"clone_url\" disagree: incompatible types t/prim/url and t/prim/integer; kept the first declaration (/components/schemas/Repository/allOf/0/properties/clone_url) over the redeclaration (/components/schemas/Repository/allOf/1/properties/clone_url), which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
@@ -343,7 +343,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-conflicting-type.yaml",
-      "hash": "6787a5cb05f2da027cab0cde21f7e6ff5d467f7e0bdb132bf61355212e20f0e5"
+      "hash": "9f2716765e30d00be01f1d50d2f2e7547f6d7a844f1ec05e818f76c2fbf99cb7"
     }
   ]
 }

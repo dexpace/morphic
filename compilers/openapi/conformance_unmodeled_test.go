@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -315,7 +316,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
-// the document. A field one allOf branch types `uri` and another `string` has
+// the document. A field one allOf branch types `uri` and another `integer` has
 // no IR combinator, so the merge keeps the first declaration and, under
 // ir-design §4.8, the loser verbatim (GitHub #424). The entry holds the
 // declaration as written, not the dropped IR value, because ir-design §12
@@ -333,7 +334,7 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
 
 	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
-	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string"}`)
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"integer"}`)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Repository/allOf/1/properties/clone_url"),
 		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
@@ -367,6 +368,62 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", describedPtr),
 		"the description, the default and the example are each named as differing")
+}
+
+// assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
+// primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
+// merges to the narrower target with no warning and nothing kept under
+// Unmodeled, and the two orders agree on the type. NullableBroadFirst adds the
+// nullability intersection and the broad branch's adopted minimum.
+func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	pairs := []struct {
+		name   string
+		narrow ir.TypeID
+	}{
+		{"NumberInteger", "t/prim/integer"},
+		{"IntegerInt32", "t/prim/int32"},
+		{"StringDatetime", "t/prim/datetime_offset"},
+		{"Int32Int64", "t/prim/int32"},
+		{"UriString", "t/prim/url"},
+		{"DoubleNumber", "t/prim/float64"},
+		{"UuidString", "t/prim/uuid"},
+	}
+	for _, pair := range pairs {
+		var types [2]ir.TypeRef
+		for i, order := range []string{"BroadFirst", "NarrowFirst"} {
+			model := pair.name + order
+			p := narrowedProp(t, doc, model)
+			assert.Equal(t, pair.narrow, p.Type.Target, "%s: the narrower target wins", model)
+			for key := range p.Unmodeled {
+				assert.NotContains(t, key, "openapi:conflicting-redeclaration", "%s: nothing is kept", model)
+			}
+			for _, branch := range []string{"0", "1"} {
+				ptr := "/components/schemas/" + model + "/allOf/" + branch + "/properties/p"
+				assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", ptr),
+					"%s: a narrowing is not a conflict", model)
+			}
+			types[i] = p.Type
+		}
+		assert.Empty(t, cmp.Diff(types[0], types[1]), "%s: the merged type does not depend on branch order", pair.name)
+	}
+
+	p := narrowedProp(t, doc, "NullableBroadFirst")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), p.Type.Target)
+	assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+	require.NotNil(t, p.Constraints)
+	require.NotNil(t, p.Constraints.Min, "the broad branch's minimum is adopted")
+	assert.Equal(t, ir.BigVal("0"), *p.Constraints.Min)
+	assert.Empty(t, p.Unmodeled)
+}
+
+// narrowedProp returns property p of the named component model.
+func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
+	t.Helper()
+	m, ok := doc.Types[namedID(model)].(*ir.Model)
+	require.True(t, ok, "%s is a model", model)
+	p, ok := propByWire(m, "p")
+	require.True(t, ok, "%s reconciles to one property", model)
+	return p
 }
 
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written

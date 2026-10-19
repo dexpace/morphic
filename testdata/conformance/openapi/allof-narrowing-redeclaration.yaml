@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info: {title: AllOfNarrowingRedeclaration, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # One branch narrows a bare primitive the other leaves broader: a format over
+    # its bare type, or an integer width over a wider one. The intersection is
+    # the narrower kind, so the merge loses nothing: no warning, nothing kept
+    # under Unmodeled, and the same type whichever branch comes first. Each pair
+    # is declared in both orders, since the old merge got the broad-first order
+    # wrong on the type and the narrow-first order right on it but still warned.
+    NumberIntegerBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: integer}
+    NumberIntegerNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: number}
+    IntegerInt32BroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer}
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+    IntegerInt32NarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+        - type: object
+          properties:
+            p: {type: integer}
+    StringDatetimeBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string}
+        - type: object
+          properties:
+            p: {type: string, format: date-time}
+    StringDatetimeNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: date-time}
+        - type: object
+          properties:
+            p: {type: string}
+    Int32Int64BroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: int64}
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+    Int32Int64NarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: integer, format: int32}
+        - type: object
+          properties:
+            p: {type: integer, format: int64}
+    UriStringBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string}
+        - type: object
+          properties:
+            p: {type: string, format: uri}
+    UriStringNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: uri}
+        - type: object
+          properties:
+            p: {type: string}
+    DoubleNumberBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: number, format: double}
+    DoubleNumberNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, format: double}
+        - type: object
+          properties:
+            p: {type: number}
+    UuidStringBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string}
+        - type: object
+          properties:
+            p: {type: string, format: uuid}
+    UuidStringNarrowFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: uuid}
+        - type: object
+          properties:
+            p: {type: string}
+    # A nullable broad declaration beside a non-null narrow one: null is admitted
+    # only where both branches admit it, and the broad branch's minimum is
+    # adopted onto the merged field.
+    NullableBroadFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: [number, "null"], minimum: 0}
+        - type: object
+          properties:
+            p: {type: integer}

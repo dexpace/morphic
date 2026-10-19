@@ -3,8 +3,10 @@ package merge
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -763,4 +765,163 @@ func TestReconcileProperty_AnUnrenderableLoserIsAnError(t *testing.T) {
 	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
 	assert.Equal(t, ir.SeverityError, (*recorded)[1].Severity)
 	assert.Empty(t, dst.Unmodeled, "nothing claims a preservation that did not happen")
+}
+
+// narrowingRegistry holds one bare primitive per kind the narrowing tests pair.
+func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
+	reg := map[ir.TypeID]ir.TypeDef{}
+	for _, k := range []ir.PrimKind{
+		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
+		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
+	} {
+		id := ir.TypeID("t/prim/" + string(k))
+		reg[id] = &ir.Primitive{ID: id, Prim: k}
+	}
+	return reg
+}
+
+func primRef(k ir.PrimKind) ir.TypeRef { return ir.TypeRef{Target: ir.TypeID("t/prim/" + string(k))} }
+
+// TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder pins the refinement
+// rule: a redeclaration that narrows a bare primitive loses nothing, so the
+// narrower target wins whichever branch is written first, with no diagnostic
+// and no kept declaration.
+func TestReconcileProperty_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name          string
+		broad, narrow ir.PrimKind
+	}{
+		{"number and integer", ir.PrimNumber, ir.PrimInteger},
+		{"integer and int32", ir.PrimInteger, ir.PrimInt32},
+		{"string and datetime_offset", ir.PrimString, ir.PrimDatetimeOffset},
+		{"int32 narrows int64", ir.PrimInt64, ir.PrimInt32},
+		{"url and string", ir.PrimString, ir.PrimURL},
+		{"float64 and number", ir.PrimNumber, ir.PrimFloat64},
+		{"uuid and string", ir.PrimString, ir.PrimUUID},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var merged [2]ir.TypeRef
+			for i, order := range [][2]ir.PrimKind{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
+				g, recorded := stubMerger(narrowingRegistry())
+				dst := ir.Property{WireName: "x", Type: primRef(order[0])}
+				src := ir.Property{WireName: "x", Type: primRef(order[1]), Provenance: ptrAt("/allOf/1/properties/x")}
+
+				g.reconcileProperty(&dst, src, unread(t))
+
+				assert.Equal(t, primRef(tc.narrow).Target, dst.Type.Target, "the narrower target wins (order %d)", i)
+				assert.Empty(t, *recorded, "a refinement is not a conflict (order %d)", i)
+				assert.Empty(t, dst.Unmodeled, "nothing is dropped, so nothing is kept (order %d)", i)
+				merged[i] = dst.Type
+			}
+			assert.Empty(t, cmp.Diff(merged[0], merged[1]), "the merged type does not depend on branch order")
+		})
+	}
+}
+
+// TestReconcileProperty_ANarrowingIntersectsNullability pins that the swap
+// keeps the conjunction the equal-target case already states.
+func TestReconcileProperty_ANarrowingIntersectsNullability(t *testing.T) {
+	t.Parallel()
+	for _, broadFirst := range []bool{true, false} {
+		for _, broadNull := range []bool{true, false} {
+			t.Run(fmt.Sprintf("broadFirst=%v/broadNullable=%v", broadFirst, broadNull), func(t *testing.T) {
+				t.Parallel()
+				g, recorded := stubMerger(narrowingRegistry())
+				broad := primRef(ir.PrimNumber)
+				broad.Nullable = broadNull
+				narrow := primRef(ir.PrimInteger)
+				narrow.Nullable = !broadNull
+				dst, src := broad, narrow
+				if !broadFirst {
+					dst, src = narrow, broad
+				}
+				p := ir.Property{WireName: "x", Type: dst}
+
+				g.reconcileProperty(&p, ir.Property{WireName: "x", Type: src, Provenance: ptrAt("/p")}, unread(t))
+
+				assert.Equal(t, narrow.Target, p.Type.Target)
+				assert.False(t, p.Type.Nullable, "null is admitted only where both branches admit it")
+				assert.Empty(t, *recorded)
+			})
+		}
+	}
+}
+
+// TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail pins that
+// nothing is dropped, so the broader declaration's constraints and default are
+// folded as for any agreeing pair.
+func TestReconcileProperty_ANarrowingAdoptsTheBroaderDeclarationsDetail(t *testing.T) {
+	t.Parallel()
+	for _, broadFirst := range []bool{true, false} {
+		t.Run(fmt.Sprintf("broadFirst=%v", broadFirst), func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(narrowingRegistry())
+			broad := ir.Property{
+				WireName:    "x",
+				Type:        primRef(ir.PrimNumber),
+				Default:     &ir.Value{Kind: ir.ValueNumber, Num: "1"},
+				Constraints: &ir.Constraints{Min: bigVal("0")},
+				Provenance:  ptrAt("/allOf/0/properties/x"),
+			}
+			narrow := ir.Property{WireName: "x", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/allOf/1/properties/x")}
+			dst, src := broad, narrow
+			if !broadFirst {
+				dst, src = narrow, broad
+			}
+
+			g.reconcileProperty(&dst, src, unread(t))
+
+			assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target)
+			require.NotNil(t, dst.Constraints)
+			assert.Equal(t, bigVal("0"), dst.Constraints.Min, "the broader declaration's bound lands on the merged field")
+			require.NotNil(t, dst.Default)
+			assert.Equal(t, ir.BigVal("1"), dst.Default.Num, "and so does its default")
+			assert.Empty(t, *recorded)
+		})
+	}
+}
+
+// TestReconcileProperty_ARelatedKindThroughAScalarStillWarns pins the #782
+// boundary: a Scalar over bytes against string is related by kind but not by
+// bare primitives, so it is still a conflict resolved by branch order.
+func TestReconcileProperty_ARelatedKindThroughAScalarStillWarns(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	reg["t/sca"] = &ir.Scalar{ID: "t/sca", Base: &ir.TypeRef{Target: "t/prim/bytes"}}
+	for _, scalarFirst := range []bool{true, false} {
+		t.Run(fmt.Sprintf("scalarFirst=%v", scalarFirst), func(t *testing.T) {
+			t.Parallel()
+			g, recorded := stubMerger(reg)
+			first, second := ir.TypeRef{Target: "t/sca"}, primRef(ir.PrimString)
+			if !scalarFirst {
+				first, second = second, first
+			}
+			dst := ir.Property{WireName: "x", Type: first}
+			src := ir.Property{WireName: "x", Type: second, Provenance: ptrAt("/allOf/1/properties/x")}
+
+			g.reconcileProperty(&dst, src, written(`{"type":"string"}`))
+
+			assert.Equal(t, first.Target, dst.Type.Target, "the first declaration still wins")
+			require.Len(t, *recorded, 1)
+			assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
+			assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x")
+		})
+	}
+}
+
+// TestTypesConflict_UnrelatedPrimitivesStillConflict pins the pairs the
+// relation leaves alone.
+func TestTypesConflict_UnrelatedPrimitivesStillConflict(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	reg["t/enm"] = &ir.Enum{ID: "t/enm", ValueType: ir.PrimString}
+	g, _ := stubMerger(reg)
+
+	assert.True(t, g.typesConflict(primRef(ir.PrimUUID), primRef(ir.PrimDatetimeOffset)))
+	assert.True(t, g.typesConflict(primRef(ir.PrimInt32), primRef(ir.PrimUint32)))
+	assert.True(t, g.typesConflict(ir.TypeRef{Target: "t/enm"}, primRef(ir.PrimInteger)))
+	assert.False(t, g.typesConflict(primRef(ir.PrimInteger), primRef(ir.PrimNumber)), "a narrowing is not a conflict")
 }

@@ -68,13 +68,13 @@ func (g *Merger) MergeProperty(m *ir.Model, byWire map[string]int, p ir.Property
 // holds, under allOf intersection semantics: required and secret are OR-ed,
 // visibility narrows to what both branches admit (mergeVisibility), and
 // optional details dst lacks are adopted from src. dst, the first declaration,
-// keeps its identity and type shape.
+// keeps its identity, and its type shape unless the redeclaration narrows it.
 //
 // Unmodeled is the exception: its keys are namespaced, so entries union and a
 // later branch wins a shared key.
 //
-// What src has that the fold cannot carry is reported where it is dropped, and
-// the redeclaration is kept whole beside the winner (keepLosingDeclaration, the
+// What the fold cannot carry is reported where it is dropped, and the
+// redeclaration is kept whole beside the winner (keepLosingDeclaration, the
 // only place source is rendered).
 func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source func() (ir.RawValue, error)) {
 	pointer := src.Provenance.Pointer
@@ -287,29 +287,19 @@ func intersectLifecycles(a, b []ir.Lifecycle) []ir.Lifecycle {
 // guards a pathological or malformed registry.
 const maxTypeResolveDepth = 64
 
-// recordRedeclarationConflict folds src's type into dst and diagnoses what the
-// fold could not represent: an incompatible target type or a contradictory
-// constraint keyword. At most one diagnostic fires, a type conflict subsuming a
-// constraint one. When the targets match it also intersects dst's nullability.
+// recordRedeclarationConflict folds src's type into dst (foldTypeTargets) and
+// diagnoses what the fold could not represent: an incompatible target type or a
+// contradictory constraint keyword. At most one diagnostic fires, a type
+// conflict subsuming a constraint one.
 //
-// dropped reports that the targets differ, so src's type is lost. lost reports
-// that src's type or a constraint keyword was lost, so the redeclaration is
-// kept whole (GitHub #424). dropped is wider than the reported conflicts, since
-// typesConflict does not guess about composites of one kind, unresolvable
-// targets or the top type.
+// dropped reports that the targets differ and neither is a primitive
+// refinement of the other, so src's type is lost. lost reports that src's type
+// or a constraint keyword was lost, so the redeclaration is kept whole (GitHub
+// #424). dropped is wider than the reported conflicts, since typesConflict does
+// not guess about composites of one kind, unresolvable targets or the top type.
 func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lost bool) {
 	pointer := src.Provenance.Pointer
-	if dst.Type.Target != src.Type.Target {
-		dropped = true
-	} else {
-		// Same referent, and the only thing left for the two to disagree about
-		// is whether null is admitted. Under intersection it is admitted only
-		// where both branches admit it — the rule foldNullVerdicts already
-		// states for a single schema. Without this the answer came from
-		// whichever branch was written first, so reordering two allOf branches
-		// changed the merged field.
-		dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
-	}
+	dropped = g.foldTypeTargets(dst, src)
 	if g.typesConflict(dst.Type, src.Type) {
 		g.redeclarationConflictDiag(dst, pointer,
 			fmt.Sprintf("incompatible types %s and %s", dst.Type.Target, src.Type.Target))
@@ -320,6 +310,26 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 		return dropped, true
 	}
 	return dropped, dropped
+}
+
+// foldTypeTargets settles which target dst keeps and reports whether src's was
+// dropped. A bare primitive that strictly narrows the other wins in either
+// order, since the intersection is the narrower kind and nothing is lost. Where
+// the referent is the same, or the narrower one is settled, the only thing left
+// to disagree about is whether null is admitted. Under intersection it is
+// admitted only where both branches admit it — the rule foldNullVerdicts
+// already states for a single schema. Without this the answer came from
+// whichever branch was written first.
+func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
+	if aNarrower, related := g.bareNarrowing(dst.Type, src.Type); related {
+		if !aNarrower {
+			dst.Type.Target = src.Type.Target
+		}
+	} else if dst.Type.Target != src.Type.Target {
+		return true
+	}
+	dst.Type.Nullable = dst.Type.Nullable && src.Type.Nullable
+	return false
 }
 
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not
@@ -380,13 +390,13 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 // typesConflict reports whether two reconciled property types describe an
 // unsatisfiable intersection. Identical targets and the schemaless top type
 // never conflict. Different underlying primitives conflict, as does a scalar
-// against a structural type. Two distinct composites of one kind are not
-// provably contradictory, so they are never reported.
+// against a structural type, unless both are bare primitives and one narrows
+// the other (Narrows). Two distinct composites of one kind are not provably
+// contradictory, so they are never reported.
 //
-// KNOWN GAP (GitHub #446): PrimKinds compare for equality with no notion of
-// narrowing, so {string, format: uri} against a bare {string} reads as a
-// conflict though the merge loses nothing, and the diagnostic and preserved
-// entry claim otherwise. Every format-narrowing pair is affected.
+// Narrows is sound but incomplete: true containments it omits, and overlaps
+// like int32 and uint32, still conflict. Related kinds reached through a Scalar
+// or Enum conflict too, until GitHub #782 settles them.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	if a.Target == b.Target || g.isAnyType(a) || g.isAnyType(b) {
 		return false
@@ -395,7 +405,8 @@ func (g *Merger) typesConflict(a, b ir.TypeRef) bool {
 	bk, bok := g.resolvePrimKind(b)
 	switch {
 	case aok && bok:
-		return ak != bk
+		_, narrowing := g.bareNarrowing(a, b)
+		return ak != bk && !narrowing
 	case aok && !bok:
 		return g.isStructuralType(b)
 	case !aok && bok:

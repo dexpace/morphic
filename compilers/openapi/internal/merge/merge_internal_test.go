@@ -117,3 +117,78 @@ func TestMerger_ResolvePrimKindReportsUnresolvableTargets(t *testing.T) {
 	_, ok = g.resolvePrimKind(ir.TypeRef{Target: "t/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }
+
+// TestNarrows_IsTheStrictPrimitiveSubsumption pins the relation both ways:
+// every immediate edge and the transitive cases hold one way only, a kind never
+// narrows itself, and the unrelated pairs, including true containments the
+// table deliberately omits, hold neither way.
+func TestNarrows_IsTheStrictPrimitiveSubsumption(t *testing.T) {
+	t.Parallel()
+	holds := [][2]ir.PrimKind{
+		{ir.PrimInt8, ir.PrimInt16}, {ir.PrimInt16, ir.PrimInt32}, {ir.PrimInt32, ir.PrimInt64},
+		{ir.PrimInt64, ir.PrimInteger}, {ir.PrimUint8, ir.PrimUint16}, {ir.PrimUint16, ir.PrimUint32},
+		{ir.PrimUint32, ir.PrimUint64}, {ir.PrimUint64, ir.PrimInteger}, {ir.PrimInteger, ir.PrimDecimal},
+		{ir.PrimDecimal128, ir.PrimDecimal}, {ir.PrimDecimal, ir.PrimNumber}, {ir.PrimFloat32, ir.PrimFloat64},
+		{ir.PrimFloat64, ir.PrimFloat}, {ir.PrimFloat, ir.PrimNumber}, {ir.PrimDate, ir.PrimString},
+		{ir.PrimTime, ir.PrimString}, {ir.PrimDatetime, ir.PrimString}, {ir.PrimDatetimeOffset, ir.PrimString},
+		{ir.PrimDuration, ir.PrimString}, {ir.PrimURL, ir.PrimString}, {ir.PrimUUID, ir.PrimString},
+		{ir.PrimBytes, ir.PrimString},
+		{ir.PrimInt8, ir.PrimNumber}, {ir.PrimUint8, ir.PrimDecimal}, {ir.PrimInt32, ir.PrimInteger},
+		{ir.PrimFloat32, ir.PrimNumber},
+	}
+	for _, p := range holds {
+		assert.True(t, Narrows(p[0], p[1]), "%s narrows %s", p[0], p[1])
+		assert.False(t, Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
+	}
+
+	unrelated := [][2]ir.PrimKind{
+		{ir.PrimString, ir.PrimInteger}, {ir.PrimUUID, ir.PrimDatetimeOffset}, {ir.PrimInt32, ir.PrimUint32},
+		{ir.PrimDatetime, ir.PrimDatetimeOffset}, {ir.PrimBool, ir.PrimString}, {ir.PrimBool, ir.PrimInteger},
+		{ir.PrimBytes, ir.PrimInteger}, {ir.PrimAny, ir.PrimString},
+		{ir.PrimUint8, ir.PrimInt16}, {ir.PrimInt32, ir.PrimFloat64}, {ir.PrimInteger, ir.PrimFloat},
+	}
+	for _, p := range unrelated {
+		assert.False(t, Narrows(p[0], p[1]), "%s does not narrow %s", p[0], p[1])
+		assert.False(t, Narrows(p[1], p[0]), "%s does not narrow %s", p[1], p[0])
+	}
+
+	for kind := range primParent {
+		assert.False(t, Narrows(kind, kind), "%s is not strictly narrower than itself", kind)
+	}
+	assert.False(t, Narrows(ir.PrimNumber, ir.PrimNumber), "a root does not narrow itself")
+}
+
+// TestBareNarrowing_NeedsTwoBarePrimitives pins the helper the swap and the
+// conflict test share: a Scalar, an Enum or an unresolvable target is never
+// related, however its kind compares.
+func TestBareNarrowing_NeedsTwoBarePrimitives(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/num": &ir.Primitive{ID: "t/num", Prim: ir.PrimNumber},
+		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInteger},
+		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/enm": &ir.Enum{ID: "t/enm", ValueType: ir.PrimInteger},
+		"t/sca": &ir.Scalar{ID: "t/sca", Base: &ir.TypeRef{Target: "t/int"}},
+	})
+	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
+
+	aNarrower, related := g.bareNarrowing(ref("t/int"), ref("t/num"))
+	assert.True(t, aNarrower)
+	assert.True(t, related)
+
+	aNarrower, related = g.bareNarrowing(ref("t/num"), ref("t/int"))
+	assert.False(t, aNarrower)
+	assert.True(t, related)
+
+	for name, pair := range map[string][2]ir.TypeID{
+		"unrelated kinds":   {"t/str", "t/int"},
+		"an enum":           {"t/enm", "t/num"},
+		"a scalar":          {"t/num", "t/sca"},
+		"a dangling first":  {"t/absent", "t/num"},
+		"a dangling second": {"t/num", "t/absent"},
+	} {
+		aNarrower, related = g.bareNarrowing(ref(pair[0]), ref(pair[1]))
+		assert.False(t, aNarrower, name)
+		assert.False(t, related, name)
+	}
+}
