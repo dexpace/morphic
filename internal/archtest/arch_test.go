@@ -339,6 +339,11 @@ var exempt = map[string]string{
 // TestImportGraph_LayeringHolds parses every non-test Go file under each ruled
 // directory (imports only) and fails on any import whose path is neither stdlib
 // nor covered by that directory's allowlist.
+//
+// It stays a test rather than linter configuration (#796): depguard matches raw
+// string prefixes and applies every list a file matches at once, so
+// nearest-ancestor inheritance cannot be written, and go-arch-lint allows
+// components where these entries name packages.
 func TestImportGraph_LayeringHolds(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)
