@@ -220,9 +220,9 @@ func applyWithin(index int, root *yaml.Node, opts Options, budget int) (Origin, 
 // reported as applied.
 //
 // A recover reaches panics only. The library's clone follows aliases, so a
-// recursive anchor exhausts the stack and an alias bomb exhausts memory, both
-// fatal; the loader refuses those shapes before the overlay is applied
-// (GitHub #489).
+// recursive anchor exhausts the stack and an alias bomb memory, both fatal
+// (docs/parser-library.md#overlay-alias-clone); the loader refuses those shapes
+// before the overlay is applied (GitHub #489).
 func applyRecovered(doc *soaoverlay.Overlay, root *yaml.Node, at ir.Provenance, lax bool, maxNodes int) (diags []ir.Diagnostic, applied bool) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -255,9 +255,9 @@ func sourceInfo(doc *soaoverlay.Overlay, opts Options) ir.SourceInfo {
 // tree with the content it stands for.
 //
 // The library's clone copies an alias's target too, leaving an alias to a node
-// in no Content list. Readers here walk Content and treat an alias as a leaf,
-// so the budget, cycle scan and attribution miss that content while the parser
-// follows it (GitHub #477).
+// in no Content list (docs/parser-library.md#overlay-alias-clone). Readers here
+// walk Content and treat an alias as a leaf, so the budget, cycle scan and
+// attribution miss that content while the parser follows it (GitHub #477).
 //
 // normalized reports whether the tree was walked within budget; if not,
 // attribution is given up. safe is false when a graft could not be substituted;

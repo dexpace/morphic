@@ -33,7 +33,7 @@ import (
 // against the source in one order only (GitHub #762).
 func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 	t.Parallel()
-	swept := 0
+	swept := map[string]bool{}
 	for _, path := range corpusSpecs(t) {
 		data, err := os.ReadFile(path)
 		require.NoError(t, err)
@@ -41,16 +41,34 @@ func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 		if !ok {
 			continue
 		}
-		swept++
-		t.Run(filepath.Base(path), func(t *testing.T) {
+		name := filepath.Base(path)
+		swept[name] = true
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), data, 0o600))
-			assert.Empty(t, cmp.Diff(compiledThrough(t, dir, forward), compiledThrough(t, dir, reversed)),
-				"declaration order decided what compiling the spec as another document reports")
+			diff := cmp.Diff(compiledThrough(t, dir, forward), compiledThrough(t, dir, reversed))
+			if issue, known := orderDecided[name]; known {
+				assert.NotEmpty(t, diff, "order no longer decides this report: drop it from orderDecided (GitHub %s)", issue)
+				return
+			}
+			assert.Empty(t, diff, "declaration order decided what compiling the spec as another document reports")
 		})
 	}
-	assert.Positive(t, swept, "the sweep reached no OpenAPI 3 spec")
+	assert.NotEmpty(t, swept, "the sweep reached no OpenAPI 3 spec")
+	for name := range orderDecided {
+		assert.True(t, swept[name], "orderDecided names %s, which the sweep did not reach", name)
+	}
+}
+
+// orderDecided holds the corpus specs whose report, compiled as another
+// document, still follows declaration order, each with the issue recording
+// why. An entry must still differ, so it comes off once its issue is fixed.
+var orderDecided = map[string]string{
+	// The resolver keeps the hops of a failing chain, so of two references into
+	// one cycle, the one resolved second is reported without the hop the first
+	// was reported through.
+	"cycle_path_item_mutual.yaml": "#767",
 }
 
 // referencingRoots returns two sources that each $ref every path item and every

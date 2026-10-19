@@ -511,9 +511,10 @@ func TestPathItemFields_MatchTheLibraryModel(t *testing.T) {
 
 // TestPathItemDeclares_AnchoredDeclaredKeysAreNotUndeclared pins that declared
 // keys written with anchored values are not reported as undeclared. The library
-// skips every anchored value on a path item, so the raw mapping presents a
-// declared key as it presents an undeclared one, and only the vocabulary tells
-// them apart.
+// skips every anchored entry it would fold into a path item's operations map
+// (docs/parser-library.md#anchored-entry-dropped), so the raw mapping presents
+// a declared key as it presents an undeclared one, and only the vocabulary
+// tells them apart.
 //
 // The item is unmarshalled through the library directly, the one way left to
 // reach this shape: anchors are cleared before any model is built (GitHub #459,

@@ -31,15 +31,16 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
-	// CyclicRef reports a degenerate reference cycle, caught before it can crash
-	// the parser with a stack overflow or deadlock the resolver on a lock its own
-	// goroutine holds. Two checks report it: a pre-parse scan over the decoded
-	// tree, for a recursive YAML anchor or a chain of $ref-only schemas joined by
-	// ordinary same-document pointers; and load's reach, for a cycle that closes
-	// only through $anchor, $id or $defs-relative resolution. Reach
-	// over-approximates the resolver, so it can refuse a document the resolver
-	// survives; a $defs reference load holds out of the resolver is exact
-	// (GitHub #557).
+	// CyclicRef reports a degenerate reference cycle, refused before the parser
+	// library overflows its stack on it (docs/parser-library.md#schema-cycle-overflow,
+	// docs/parser-library.md#alias-cycle). A pre-parse scan finds a recursive
+	// YAML anchor or a loop of schema $refs joined by same-document pointers;
+	// load's reach, one closing through $anchor, $id or $defs-relative
+	// resolution (GitHub #557). Each names the cycle's reference with the least
+	// pointer, never one only leading in (GitHub #912). Load's chain read, for
+	// one closing through the source's file name, names every reference whose
+	// chain loops (GitHub #768). The resolver reports a chain of reference
+	// objects itself, as UnresolvedRef (docs/parser-library.md#reference-object-cycle).
 	CyclicRef = "openapi/cyclic-ref"
 	// CycleScanFailed reports that a cycle check did not run to completion,
 	// leaving its stack-overflow protection incomplete for the source: the
@@ -56,16 +57,24 @@ const (
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.
 	SourceTooLarge = "openapi/source-too-large"
+	// SourceTooDeep reports a document nested deeper than the pre-parse scan
+	// admits (scan.MaxNesting), its aliases expanded. What the parser builds
+	// costs more per node the deeper the node, so the document is refused before
+	// the parser builds it, at the least pointer where its nesting passes the
+	// bound (GitHub #905). An overlay document is refused alike before it is
+	// applied, and one an external reference names, failing the reference.
+	SourceTooDeep = "openapi/source-too-deep"
 	// TaggedMapping reports a mapping carrying a YAML tag other than !!map, which
 	// OpenAPI forbids: its YAML form limits tags to YAML 1.2's JSON schema
 	// ruleset. At a reference position whose model is a struct (a request body,
 	// response, parameter and the like) the parser leaves the model unbuilt and
-	// dereferences it, on a goroutine no recover here reaches (GitHub #474).
+	// dereferences it, on a goroutine no recover here reaches
+	// (docs/parser-library.md#tagged-mapping-panic, GitHub #474).
 	//
-	// The document is refused before parsing, at every position, because telling
-	// the faulting ones apart would mean maintaining a copy of the parser's object
-	// model. A tagged scalar is a separate question (GitHub #245) and is not
-	// refused.
+	// The document is refused before parsing whatever the position, since telling
+	// the faulting ones apart would mean copying the parser's object model, at
+	// the tagged mapping with the least pointer. A tagged scalar is not refused
+	// (GitHub #245).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -227,11 +236,11 @@ const (
 	DisjointVisibility = "openapi/disjoint-visibility"
 	// AliasAmplification reports a document whose YAML aliases expand it past a
 	// fixed multiple of its own size (scan's maxAliasAmplification, with a floor
-	// for small documents) — a billion-laughs shape
-	// that would exhaust memory inside soa.Unmarshal before any reference is
-	// resolved (GitHub #27). Unlike CycleScanFailed's incomplete-scan warning,
-	// this is a positive, measured finding, so the document is refused outright
-	// rather than handed to the parser.
+	// for small documents) — a billion-laughs shape that would exhaust memory
+	// inside soa.Unmarshal (docs/parser-library.md#alias-expansion, GitHub #27).
+	// A positive, measured finding, unlike CycleScanFailed, it refuses the
+	// document outright, at the least pointer of the smallest structures past
+	// the ratio.
 	//
 	// It is a ratio and no caller's budget, so no setting admits a document it
 	// names. A document inside the ratio whose aliases still add more nodes than
@@ -239,11 +248,11 @@ const (
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
-	// most: a document past the byte or node budget (or an overlay action that
-	// would build it past that), aliases adding more nodes than the alias budget,
-	// an enum past the member budget (GitHub #75). Load bounds two kinds of work
-	// itself: resolving the mapping targets, and resuming chains through other
-	// documents.
+	// most: a document past the byte or node budget (or an overlay building it
+	// past one), aliases adding more nodes than the alias budget, an enum past
+	// the member budget (GitHub #75), more external documents than the document
+	// budget. Load bounds two kinds of work: resolving mapping targets, and
+	// resuming chains through other documents.
 	//
 	// Unlike AliasAmplification's bomb, these are documents legitimately that
 	// large. Every site reports an error: the document is refused, its
@@ -256,11 +265,13 @@ const (
 	// (ir-design §4.3: Properties holds only own properties, and flattening
 	// across Base/Mixins is computed, never stored).
 	UnattachableRequired = "openapi/unattachable-required"
-	// InternalInvariant reports that lowering's own pointer-to-registry invariant
-	// broke: a pointer named a type ID the registry does not hold, so whatever
-	// was about to be attached there had nowhere to go. No source can provoke
-	// this — it is a compiler bug — but it is reported rather than dropped in
-	// silence, since the alternative is losing constructs with no trace at all.
+	// InternalInvariant reports that one of the compiler's own invariants broke:
+	// a pointer named a type ID the registry does not hold, the registry refused
+	// an entry, a second resolution read a document load never prepared, or the
+	// library faulted while load put the $refs it respelled back as written. It
+	// is a compiler bug, not a problem with the source, but it is reported rather
+	// than dropped in silence, since the alternative is losing constructs with no
+	// trace at all.
 	InternalInvariant = "openapi/internal-invariant"
 	// DuplicateOperationID reports an operationId that one declaration claims
 	// more than once because it is mounted more than once: a path item or an

@@ -614,3 +614,18 @@ func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
 		})
 	}
 }
+
+// TestInvalidSyntaxOnValidNumbers_ReadsEveryScalarOfAnAdmittedTree pins that the
+// scalar scan reaches as deep as the pre-parse scan admits: a recovered
+// spelling near the top and an unrepresentable one at the bottom of a node
+// nested near scan.MaxNesting keep the finding, which a shallower scan would
+// drop on the recovered one alone.
+func TestInvalidSyntaxOnValidNumbers_ReadsEveryScalarOfAnAdmittedTree(t *testing.T) {
+	t.Parallel()
+	depth := scan.MaxNesting - 1
+	src := "a: .5\nb: " + strings.Repeat("{k: ", depth) + ".inf" + strings.Repeat("}", depth) + "\n"
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+
+	assert.False(t, invalidSyntaxOnValidNumbers(root.Content[0]), "the .inf below decides")
+}

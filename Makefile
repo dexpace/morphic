@@ -103,18 +103,24 @@ lint:
 	fi
 	golangci-lint run
 
+# The build runs for the host and again for ports CI never runs on, since an
+# API one port lacks fails only that port's build: Windows, and the two wasm
+# ports, whose syscall package is the narrowest the module builds against.
 build:
 	$(GO) build ./...
+	GOOS=windows GOARCH=amd64 $(GO) build ./...
+	GOOS=js GOARCH=wasm $(GO) build ./...
+	GOOS=wasip1 GOARCH=wasm $(GO) build ./...
 
 # The suite runs once, under the race detector, and cmd/morphic-covergate judges
 # its profile statement by statement; its doc says why go test's percentage is
 # not enough. -race rides along rather than taking a run of its own: both want
 # the same execution of the same tests, and the profile is identical either way.
 #
-# -timeout is explicit because the compiler refuses documents that would hang
-# the third-party resolver, so a regression there is a test that never returns.
-# 300s clears the slowest package under -race by more than an order of magnitude
-# and still turns a hang into a stack dump naming the stuck goroutine.
+# -timeout is explicit so that a test that never returns, as one would if the
+# third-party resolver hung on a document the compiler no longer refuses, ends
+# in a stack dump naming the stuck goroutine. 300s clears the slowest package
+# under -race by more than an order of magnitude.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge

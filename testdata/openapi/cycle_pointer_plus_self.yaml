@@ -1,0 +1,13 @@
+# A self-reference only the plus in a pointer reveals. '+' in a $ref fragment is
+# a plus (RFC 3986 section 3.5), so '#/x-a+b' names the key "x-a+b", which refers
+# to itself. A scan that read the plus as a space, as the resolver's own reading
+# does, would look for a key "x-a b" that is not there and call it dangling.
+openapi: 3.1.0
+info: {title: Pointer Plus Self, version: "1"}
+paths: {}
+x-a+b:
+  $ref: '#/x-a+b'
+components:
+  schemas:
+    A:
+      $ref: '#/x-a+b'

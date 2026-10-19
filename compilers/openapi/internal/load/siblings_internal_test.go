@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -232,10 +233,11 @@ func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
 	assert.False(t, sibs.Unread(pathEntry(t, doc, "/a")), "a modelled use site is read")
 }
 
-// TestWithoutRef_DropsTheRefAsTheLibraryReadsIt pins the copy a model is built
-// from: every $ref pair, an alias key included, is gone, the position and the
-// document's own nodes stay, and a mapping holding nothing else has none.
-func TestWithoutRef_DropsTheRefAsTheLibraryReadsIt(t *testing.T) {
+// TestWithoutRef_KeepsThePositionAndTheDocumentsNodes pins the copy a model is
+// built from: every $ref pair, an alias key included, is gone, the position and
+// the document's own nodes stay, and a mapping holding nothing else has none.
+// Which keys spell $ref is TestWithoutRef_DropsTheRefAsTheLibraryReadsIt's.
+func TestWithoutRef_KeepsThePositionAndTheDocumentsNodes(t *testing.T) {
 	t.Parallel()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(`k: &k $ref
@@ -268,6 +270,49 @@ s: scalar
 		if tc.node != nil {
 			assert.Equal(t, tc.useSite, refBeside(tc.node), "refBeside")
 		}
+	}
+}
+
+// TestWithoutRef_DropsTheRefAsTheLibraryReadsIt asks the library which key of a
+// mapping is its $ref: each row unmarshals into a reference exactly when the
+// library reads its first key so, and withoutRef must drop that pair and no
+// other. A key spelled through an alias, a quote or a tag is read by its value;
+// a merge key, a binary tag or another spelling is not.
+func TestWithoutRef_DropsTheRefAsTheLibraryReadsIt(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`anchor: &k $ref
+rows:
+  - {$ref: '#/x', summary: s}
+  - {"$ref": '#/x', summary: s}
+  - {!!str $ref: '#/x', summary: s}
+  - {!custom $ref: '#/x', summary: s}
+  - {? $ref : '#/x', summary: s}
+  - {*k : '#/x', summary: s}
+  - {$REF: '#/x', summary: s}
+  - {'$ref ': '#/x', summary: s}
+  - {ref: '#/x', summary: s}
+  - {<<: {$ref: '#/x'}, summary: s}
+  - {!!binary JHJlZg==: '#/x', summary: s}
+`), &root))
+	// The library's reading of each row today, so a bump that reads a key
+	// otherwise fails here even while withoutRef still agrees with it.
+	isRef := []bool{true, true, true, true, true, true, false, false, false, false, false}
+	rows := root.Content[0].Content[3].Content
+	require.Len(t, rows, len(isRef))
+
+	for i, row := range rows {
+		var item soa.ReferencedPathItem
+		_, err := marshaller.UnmarshalNode(t.Context(), "", row, &item)
+		require.NoError(t, err, "row %d", i)
+		library := item.IsReference()
+		assert.Equal(t, isRef[i], library, "row %d: the library's reading of its key", i)
+
+		fields, ok := withoutRef(row)
+		require.True(t, ok, "row %d keeps its summary", i)
+		dropped := len(fields.Content) < len(row.Content)
+		assert.Equal(t, library, dropped, "row %d: withoutRef drops the pair the library reads as $ref", i)
+		assert.Equal(t, library, isRefKey(row.Content[0]), "row %d", i)
 	}
 }
 

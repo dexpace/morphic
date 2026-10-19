@@ -1,4 +1,5 @@
-# A path item that references itself by document position.
+# A path item that references itself by document position, which the resolver
+# reports as an unresolved reference (GitHub #574).
 openapi: 3.1.0
 info: {title: Path Item Self, version: "1"}
 paths:

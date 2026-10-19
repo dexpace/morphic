@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/ir"
@@ -373,10 +374,12 @@ func (s Scope) reader() *defs.Reader {
 // in this document: InternalPointer's answer, except that a "#/$defs/..."
 // pointer names the definition the resolver's rule finds relative to js
 // (defs.Reader.Target), never the document-rooted /$defs/... it spells, which
-// the document does not have (GitHub #557). ok is false for a reference into
-// another document, for a $defs pointer the rule finds nothing for, and for any
-// other pointer Beside refuses. A $defs pointer written beside a path item's
-// $ref is held unresolved by load, so no schema it could name reaches here.
+// the OpenAPI object does not define (docs/parser-library.md#root-defs, GitHub
+// #557).
+// ok is false for a reference into another document, for a $defs pointer the
+// rule finds nothing for, and for any other pointer Beside refuses. A $defs
+// pointer written beside a path item's $ref is held unresolved by load, so no
+// schema it could name reaches here.
 func (s Scope) TargetPointer(js *oas3.JSONSchema[oas3.Referenceable], ref string) (jsontext.Pointer, bool) {
 	pointer, ok := s.InternalPointer(ref)
 	if !ok || !defs.IsPointer(pointer) {
@@ -411,8 +414,9 @@ func (s Scope) MappingPointer(d *oas3.Discriminator, value string) (jsontext.Poi
 // way the resolver finds a $ref's target, or nil where there is none, like
 // annotation.DeclaredSchema for a followed $ref.
 //
-// It is for a mapping value, which the resolver never follows, so it carries no
-// declaration of its own (GitHub #530). The model's schema answers first: the
+// It is for a mapping value, which the resolver never follows
+// (docs/parser-library.md#mapping-unresolved), so it carries no declaration of
+// its own (GitHub #530). The model's schema answers first: the
 // load phase's may be a copy a $ref by the source's file name built, whose own
 // $refs nothing resolved. Mapped answers where the model holds raw YAML, such
 // as an extension's value or an enum member (GitHub #757).
@@ -428,16 +432,15 @@ func (s Scope) ModelAt(pointer jsontext.Pointer) *oas3.JSONSchema[oas3.Reference
 }
 
 // FragmentPointer returns the JSON pointer a $ref's fragment spells, whatever
-// document the reference names: the text after '#', trimmed and percent-decoded
-// as the resolver reads it (references.Reference). Unlike InternalPointer, it
-// does not ask what this document can resolve.
+// document the reference names, as fragment.Pointer reads it. Unlike
+// InternalPointer, it does not ask what this document can resolve.
 //
 // It reports ok=false for a reference with no fragment, a fragment that is not
 // a pointer (`#name` names a $anchor), a bare `#`, which names the whole
 // document, and a fragment decoding to bytes that are not UTF-8, which no
 // document key can spell and the IR cannot encode in an ID (GitHub #520).
 func FragmentPointer(ref string) (jsontext.Pointer, bool) {
-	pointer := jsontext.Pointer(references.Reference(ref).GetJSONPointer())
+	pointer := fragment.Pointer(ref)
 	if !strings.HasPrefix(string(pointer), "/") {
 		return "", false
 	}
@@ -452,10 +455,10 @@ func FragmentPointer(ref string) (jsontext.Pointer, bool) {
 // reference, a bare schema name or a malformed ref. A document part naming this
 // source file is internal (see namesSelf).
 //
-// It uses the resolver's own references.Reference, since fragments are
+// It decodes the fragment (fragment.Pointer), since fragments are
 // percent-encoded: comparing them raw missed resolvable references and interned
 // a second node at a named position (GitHub #40). nodeview.InternalPointer
-// mirrors that split.
+// reads the same fragment.
 //
 // A `#addr` fragment names a $anchor, which only the library resolves, and an
 // ID derived from it would be a path no coordinate spells (GitHub #141).

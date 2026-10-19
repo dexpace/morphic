@@ -40,6 +40,9 @@ type reached struct {
 	// reported holds every finding already reported (see keyOf), the source's
 	// own validation's included.
 	reported map[findingKey]bool
+	// esc holds the $refs rewritten for the resolver to read, which a message
+	// names as the source writes them (GitHub #911).
+	esc *escapes
 	// warned holds every version-check warning already reported: an object
 	// inside another reached one is walked again (see checkAll).
 	warned map[ir.Diagnostic]bool
@@ -78,6 +81,7 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	targets MappingTargets, opts Options, self sourceDocument,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree)
+	checks.esc = self.escapes
 	maps.Copy(checks.reported, self.found)
 	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets.resolved, checks)
 }
@@ -96,7 +100,7 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 ) []ir.Diagnostic {
 	targets := map[targetKey]reachedTarget{}
 	add := func(site jsontext.Pointer, r resolvable) {
-		t, ok := targetOf(site, r)
+		t, ok := targetOf(site, r, checks.esc)
 		if !ok {
 			return
 		}
@@ -138,8 +142,8 @@ func eachResolved(resolved []siteRef, visit func(jsontext.Pointer, resolvable)) 
 // target too, whatever its $refs spell: it can reach raw YAML, such as an x-*
 // key's value, or a node read as another kind, neither of which the source's
 // validation checked. What that validation did check, dropDeclared drops.
-func targetOf(site jsontext.Pointer, r resolvable) (reachedTarget, bool) {
-	t := resolutionChain(r).trail()
+func targetOf(site jsontext.Pointer, r resolvable, esc *escapes) (reachedTarget, bool) {
+	t := esc.trailOf(resolutionChain(r))
 	obj, node, ok := reachedObject(r)
 	if !ok {
 		return reachedTarget{}, false
@@ -373,10 +377,9 @@ func validateObject(ctx context.Context, obj any, opts []validation.Option) []er
 // reachedWalk returns the walk over obj, for the reconciliation of its findings
 // and the later version's constructs it writes.
 //
-// Each kind is walked through a Reference wrapper holding it inline. The
-// library's Walk dispatches on the started type, and its registry has no entry
-// for a bare PathItem, Parameter, Header, RequestBody, Response or Callback, so
-// a walk started from one panics (v1.25.2). A wrapper with no Reference walks
+// Each kind is walked through a Reference wrapper holding it inline, since a
+// walk started from a bare one panics
+// (docs/parser-library.md#bare-walk-panic). A wrapper with no Reference walks
 // straight through to the Object's fields, so what the walk finds is unchanged.
 func reachedWalk(ctx context.Context, obj any) iter.Seq[soa.WalkItem] {
 	switch o := obj.(type) {

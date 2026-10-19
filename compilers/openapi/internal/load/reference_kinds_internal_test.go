@@ -23,14 +23,7 @@ import (
 // would otherwise read it as no reference at all.
 func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 	t.Parallel()
-	want := map[reflect.Type]bool{reflect.TypeFor[*schemaRef](): true}
-	matcher := reflect.TypeFor[soa.Matcher]()
-	for field := range matcher.Fields() {
-		if strings.HasPrefix(field.Name, "Referenced") {
-			want[field.Type.In(0)] = true
-		}
-	}
-	require.GreaterOrEqual(t, len(want), 10, "every kind of reference the matcher names, and the schema's")
+	want := libraryReferenceKinds(t)
 
 	got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.EveryKindOfReference)},
 		Options{})
@@ -55,10 +48,26 @@ func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 			assert.True(t, ends, "%s: the lowering reads where its chain ends", name)
 			_, stands := emptyOf(r)
 			assert.Equal(t, !isSchemaModel(model), stands, "%s: a stand-in is held for each kind but the schema", name)
+			_, _, copies := refCopies(model)
+			assert.True(t, copies, "%s: load puts back a $ref it respelled", name)
 			return nil
 		}})
 	}
 	assert.Equal(t, want, seen, "the source holds a resolved reference of each kind")
+}
+
+// libraryReferenceKinds returns each kind of reference the library has: those
+// the walk's own matcher names, and the schema.
+func libraryReferenceKinds(t *testing.T) map[reflect.Type]bool {
+	t.Helper()
+	kinds := map[reflect.Type]bool{reflect.TypeFor[*schemaRef](): true}
+	for field := range reflect.TypeFor[soa.Matcher]().Fields() {
+		if strings.HasPrefix(field.Name, "Referenced") {
+			kinds[field.Type.In(0)] = true
+		}
+	}
+	require.GreaterOrEqual(t, len(kinds), 10, "every kind of reference the matcher names, and the schema's")
+	return kinds
 }
 
 // isSchemaModel reports whether model is a schema.

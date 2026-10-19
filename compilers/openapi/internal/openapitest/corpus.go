@@ -13,6 +13,8 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 )
 
 // MaxTreeDepth bounds how deep Positions reads the tree a model was built
@@ -93,7 +95,7 @@ type written struct {
 // through it: its site, then the path below the target.
 func throughReference(ref written, tree []jsontext.Pointer) []jsontext.Pointer {
 	r := references.Reference(ref.value)
-	target := jsontext.Pointer(r.GetJSONPointer())
+	target := fragment.Pointer(ref.value)
 	if r.GetURI() != "" || !strings.HasPrefix(string(target), "/") {
 		return nil
 	}

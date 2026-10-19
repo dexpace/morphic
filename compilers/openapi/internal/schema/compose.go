@@ -1300,8 +1300,9 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 // position whose type it names (typePosition), interning the schema there when
 // nothing has yet.
 //
-// The resolver never follows a mapping value, so DeclaredAt finds the schema
-// a $ref would have carried. Hoisting it resolves the target to the same
+// The resolver never follows a mapping value
+// (docs/parser-library.md#mapping-unresolved), so DeclaredAt finds the schema a
+// $ref would have carried. Hoisting it resolves the target to the same
 // pointer-derived ID in either declaration order (GitHub #530), naming the
 // node provisionally until its declaration arrives. variantTypes is as
 // readsThrough takes it.

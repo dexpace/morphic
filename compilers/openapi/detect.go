@@ -400,8 +400,8 @@ func documentRoot(doc *yaml.Node) *yaml.Node {
 // keys for a key the mapping does not write itself.
 //
 // A key written directly wins over one merged in, per YAML. A key written twice
-// takes its last spelling, as the compile's parser does, so detection and load
-// never disagree.
+// takes its last spelling, as the compile's parser does
+// (docs/parser-library.md#duplicate-key), so detection and load never disagree.
 //
 // depth bounds the recursion. seen bounds the width depth does not: without it,
 // one anchor merged k times walks its own k merges each time, a product rather
