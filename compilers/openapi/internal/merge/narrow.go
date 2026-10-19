@@ -6,16 +6,16 @@ import "github.com/dexpace/morphic/ir"
 // to number, six edges, so the cap only guards a table edited into a cycle.
 const maxNarrowDepth = 8
 
-// primParent maps a primitive kind to its immediate supertype in OpenAPI's
-// spelling: the bare "type" a "type/format" row refines. A kind absent from it
-// is a root (bool, string, number, any). The edges mirror the schema package's
-// formatTable; bytes under string and decimal128 under decimal rest on the
-// spelling alone, with no value-set containment claimed.
+// primParent maps a primitive kind to its immediate supertype. Most edges nest
+// by value domain: integer and float widths, integer under decimal, decimal
+// and float under number, each string format under string. Two rest on
+// OpenAPI's spelling instead: bytes (octets need not be Unicode text) and
+// decimal128 (its domain holds NaN and infinities). Every formatTable row
+// narrows its bare type; a test pins that direction only.
 //
 // The relation is deliberately incomplete. It omits true containments (uint8
-// within int16, integer within float, int32 within float64) and overlaps where
-// neither kind contains the other (int32 and uint32). Those pairs stay
-// unrelated and keep the conflicting-redeclaration warning.
+// within int16, integer within float, int32 within float64) and overlaps
+// like int32 and uint32, which keep the conflicting-redeclaration warning.
 var primParent = map[ir.PrimKind]ir.PrimKind{
 	ir.PrimInt8:           ir.PrimInt16,
 	ir.PrimInt16:          ir.PrimInt32,
@@ -43,8 +43,7 @@ var primParent = map[ir.PrimKind]ir.PrimKind{
 
 // Narrows reports whether narrow is a strict refinement of broad under
 // primParent: broad is reached by walking up from narrow, and the kinds
-// differ. It claims OpenAPI-spelling subsumption, not value-domain
-// containment. Under allOf the pair intersects as narrow, so a redeclaration
+// differ. Under allOf the pair intersects as narrow, so a redeclaration
 // naming both keeps narrow.
 func Narrows(narrow, broad ir.PrimKind) bool {
 	kind, ok := narrow, true

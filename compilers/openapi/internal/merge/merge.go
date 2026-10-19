@@ -96,17 +96,18 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 	dst.Visibility = visibility
 
 	lost = g.foldDocs(dst, &src) || lost
-	// Skipped when src's type was dropped (a narrowing is no drop, and its
-	// swap judges no default; see foldTypeTargets): default, constraints and
-	// examples describe the shape that lost, so folding them onto the winner
-	// makes the document assert two contradictory things about one field — an integer
-	// carrying a string default, beside an Unmodeled entry saying the string
-	// declaration was dropped. Nothing downstream compares a Value's kind to
-	// its property's type, so an emitter renders that pair into code that does
-	// not compile. Keyed on the drop, not on the conflict diagnostic: two
-	// Models are dropped without being called a conflict, and folded the
-	// loser's default onto the winner all the same. Deprecation and XML are not
-	// shape bound and are adopted either way.
+	// Skipped when src's type was dropped (a narrowing is no drop, so the
+	// broader side's default is folded unjudged; see foldTypeTargets):
+	// default, constraints and examples describe the shape that lost, so
+	// folding them onto the winner makes the document assert two
+	// contradictory things about one field — an integer carrying a string
+	// default, beside an Unmodeled entry saying the string declaration was
+	// dropped. Nothing downstream compares a Value's kind to its property's
+	// type, so an emitter renders that pair into code that does not compile.
+	// Keyed on the drop, not on the conflict diagnostic: two Models are
+	// dropped without being called a conflict, and folded the loser's default
+	// onto the winner all the same. Deprecation and XML are not shape bound
+	// and are adopted either way.
 	if !dropped {
 		lost = g.foldShapeDetail(dst, &src) || lost
 	}
@@ -315,10 +316,13 @@ func (g *Merger) recordRedeclarationConflict(dst, src *ir.Property) (dropped, lo
 
 // foldTypeTargets settles which target dst keeps and reports whether src's was
 // dropped. A bare primitive that strictly narrows the other wins in either
-// order. dst's own default and examples ride onto the narrower target unjudged:
-// a number default 1.5 lands on integer, unreported. Otherwise the only thing
-// left to disagree about is null, admitted only where both branches admit it,
-// as foldNullVerdicts states for a single schema.
+// order. Broad first, the swap leaves dst's own default and examples riding
+// onto the narrower target unjudged. Narrow first, foldShapeDetail adopts
+// src's broad default and examples, also unjudged: a number default 1.5
+// lands on integer, unreported, in both orders. Null is admitted only where
+// both branches admit it, narrowing or not, as foldNullVerdicts states for a
+// single schema. Elsewhere a differing target is a drop, unless the referent
+// is the same or the narrower one is settled.
 func (g *Merger) foldTypeTargets(dst, src *ir.Property) (dropped bool) {
 	if aNarrower, related := g.bareNarrowing(dst.Type, src.Type); related {
 		if !aNarrower {
@@ -393,7 +397,7 @@ func (g *Merger) redeclarationConflictDiag(dst *ir.Property, pointer jsontext.Po
 // the other (Narrows). Two distinct composites of one kind are not provably
 // contradictory, so they are never reported.
 //
-// Narrows is sound but incomplete: true containments it omits, and overlaps
+// Narrows is incomplete: true containments it omits, and overlaps
 // like int32 and uint32, still conflict. Related kinds reached through a Scalar
 // or Enum conflict too, until GitHub #782 settles them.
 func (g *Merger) typesConflict(a, b ir.TypeRef) bool {

@@ -1214,7 +1214,7 @@ from it is exact and nothing is reported.
   (§4.3) unless the redeclaration narrows it: where both declarations target a bare primitive and
   one kind strictly narrows the other (`integer` against `number`, `uuid` against `string`, `int32`
   against `int64`), the narrower wins in either order, since the intersection is that kind, and
-  nothing is dropped, so there is no diagnostic and no entry. The relation is sound but incomplete:
+  nothing is dropped, so there is no diagnostic and no entry. The relation is incomplete:
   it omits true containments (`uint8` within `int16`, `integer` within `float`) and overlaps neither
   kind contains (`int32`, `uint32`), and a pair related only through a `Scalar` or `Enum` (`string`
   against `format: byte`) is not narrowed (GitHub #782). Those keep the rule below. The IR has no
