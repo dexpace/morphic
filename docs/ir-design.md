@@ -158,7 +158,9 @@ SHA-256 to be the one its `generations` table records for `IRVersion`, so a shap
 unmoved version fails. So does a bump that changes no shape, unless its row's `sameShape` says what
 meaning changed: a change of meaning, such as a lowering that starts filling a member, is the one
 reason to bump that the description cannot see. The description reads declarations, so what a
-codec method's body writes is outside it; the JSON contract tests in package `ir` pin that.
+codec method's body writes is outside it, left to the JSON contract tests in package `ir`. A type
+from another package, such as `jsontext.Value`, is described by its name, underlying type and codec
+methods, so a Go release that changes how one of them encodes moves the description too.
 
 **Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
 and adds an entry to the history below, which `TestIRVersion_HistoryRecordsEachGeneration` requires
