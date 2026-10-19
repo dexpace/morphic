@@ -447,6 +447,85 @@ func TestLoad_AnUnresolvedReferenceIsQuotedAsTheSourceWritesIt(t *testing.T) {
 	}
 }
 
+// TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten covers the text the
+// library writes about the model it was resolving: a reason naming the
+// reference, and a value it could not use, dumped whole with each $ref inside
+// it, one of them a spelling its JSON encoder escapes.
+func TestLoad_TheLibrarysOwnTextQuotesAReferenceAsWritten(t *testing.T) {
+	t.Parallel()
+	l := loadPlus(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /x:
+    get:
+      requestBody: {$ref: '#/x-null/a+b'}
+      responses:
+        "200": {$ref: '#/components/schemas/Good'}
+components:
+  schemas:
+    Good:
+      type: object
+      properties:
+        l: {$ref: '#/x-s/L+1&<x>'}
+        m: {$ref: '#/x-s/M+1'}
+x-null: {a+b: null}
+x-s: {L+1&<x>: {type: string}, M+1: {type: string}}
+`, Options{})
+
+	errs := strings.Join(errorsOf(l.diags), "\n")
+	assert.Contains(t, errs, "unable to resolve reference: #/x-null/a+b", "a reason")
+	assert.Contains(t, errs, `"Ref":"#/x-s/M+1"`, "a value")
+	assert.Contains(t, errs, `"Ref":"#/x-s/L+1\u0026\u003cx\u003e"`, "a value the encoder escaped")
+	assertNoRewrittenSpelling(t, l.diags)
+}
+
+// TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites pins that a reference
+// the source writes with "%2B" is quoted so, in the library's text as well,
+// though another site spells the same one with '+'.
+func TestLoad_TheLibrarysTextKeepsASpellingTheSourceWrites(t *testing.T) {
+	t.Parallel()
+	l := loadPlus(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /x:
+    get:
+      requestBody: {$ref: '#/x-null/a+b'}
+      responses: {"200": {description: ok}}
+  /y:
+    get:
+      requestBody: {$ref: '#/x-null/a%2Bb'}
+      responses: {"200": {description: ok}}
+x-null: {a+b: null}
+`, Options{})
+
+	var escaped string
+	for _, d := range l.diags {
+		if d.Provenance.Pointer == "/paths/~1y/get/requestBody" {
+			escaped = d.Message
+		}
+	}
+	assert.Equal(t, `unresolved $ref "#/x-null/a%2Bb": unable to resolve reference: #/x-null/a%2Bb`, escaped)
+}
+
+// TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten covers a load that
+// respelled the tree it was handed and then refused the source, so never
+// reached the restore that ends resolution.
+func TestLoad_ARefusalAfterTheRespellingLeavesTheTreeAsWritten(t *testing.T) {
+	t.Parallel()
+	spec := strings.Replace(plusIssueSpec, "openapi: 3.1.0", "openapi: 3.9.0", 1)
+	parsed, err := Decode([]byte(spec))
+	require.NoError(t, err)
+
+	doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec), Parsed: parsed},
+		Options{})
+
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.UnsupportedVersion }),
+		"%v", diags)
+	assertSameTree(t, decodeRoot(t, spec), parsed.Root())
+}
+
 func TestLoad_AChainThatStopsAtAPlusReferenceQuotesItAsWritten(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

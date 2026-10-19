@@ -288,7 +288,7 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		},
 		Overlay:  origin,
 		Siblings: sibs,
-	}, diags, nil
+	}, esc.asWritten(diags), nil
 }
 
 // rebuilder returns the rebuild of the model of root that resolveExternal's

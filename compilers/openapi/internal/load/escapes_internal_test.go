@@ -236,6 +236,85 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 	built := soa.NewReferencedParameterFromRef("#/a+b")
 	assert.Equal(t, references.Reference("#/a+b"), esc.writtenOf(built), "a model answers with its own")
 	assert.Equal(t, trail{stopped: "#/a+b"}, esc.trailOf(chain{stopped: "#/a+b", stoppedAt: built}))
+	text := []ir.Diagnostic{{Message: "unable to resolve reference: #/a%2Bb"}}
+	assert.Equal(t, text, esc.asWritten(slices.Clone(text)))
+}
+
+// escapedMessages returns each message in turn as asWritten renders it, once
+// escape has rewritten src.
+func escapedMessages(t *testing.T, src string, messages ...string) []string {
+	t.Helper()
+	esc := newEscapes()
+	esc.escape(decodeRoot(t, src))
+	diags := make([]ir.Diagnostic, 0, len(messages))
+	for _, m := range messages {
+		diags = append(diags, ir.Diagnostic{Message: m})
+	}
+	out := make([]string, 0, len(messages))
+	for _, d := range esc.asWritten(diags) {
+		out = append(out, d.Message)
+	}
+	return out
+}
+
+func TestEscapes_AsWrittenPutsASpellingBackWhereItEnds(t *testing.T) {
+	t.Parallel()
+	got := escapedMessages(t, "[{$ref: '#/a+b'}, {$ref: '#/c+d&<e>'}]",
+		"unable to resolve reference: #/a%2Bb",
+		`got (value: {"Ref":"#/a%2Bb","Type":null})`,
+		`got (value: {"Ref":"#/c%2Bd\u0026\u003ce\u003e"})`,
+		"reference: #/c%2Bd&<e>",
+		`unresolved $ref "#/a%2Bb/f": not found`,
+		"no reference here",
+	)
+
+	assert.Equal(t, []string{
+		"unable to resolve reference: #/a+b",
+		`got (value: {"Ref":"#/a+b","Type":null})`,
+		`got (value: {"Ref":"#/c+d\u0026\u003ce\u003e"})`,
+		"reference: #/c+d&<e>",
+		`unresolved $ref "#/a%2Bb/f": not found`,
+		"no reference here",
+	}, got, "at the end of a message or a quoted string, as text and as JSON writes it, never inside a longer one")
+}
+
+func TestEscapes_AsWrittenKeepsASpellingTheSourceWrites(t *testing.T) {
+	t.Parallel()
+	got := escapedMessages(t, "[{$ref: '#/a+b'}, {$ref: '#/a%2Bb'}, {$ref: '#/c+d'}]",
+		`unresolved $ref "#/a%2Bb": unable to resolve reference: #/a%2Bb`,
+		"unable to resolve reference: #/c%2Bd",
+	)
+
+	assert.Equal(t, []string{
+		`unresolved $ref "#/a%2Bb": unable to resolve reference: #/a%2Bb`,
+		"unable to resolve reference: #/c+d",
+	}, got)
+}
+
+func TestEscapes_AsWrittenChoosesOneSpellingWhereSeveralRespellAlike(t *testing.T) {
+	t.Parallel()
+	for _, src := range []string{
+		"[{$ref: '#/a+%2Bb'}, {$ref: '#/a%2B+b'}]",
+		"[{$ref: '#/a%2B+b'}, {$ref: '#/a+%2Bb'}]",
+	} {
+		got := escapedMessages(t, src, "reference: #/a%2B%2Bb")
+
+		assert.Equal(t, []string{"reference: #/a%2B+b"}, got, "the least, whichever comes first: %s", src)
+	}
+}
+
+func TestJSONQuoted_ReportsOnlyAnEscapedSpelling(t *testing.T) {
+	t.Parallel()
+	s, w, ok := jsonQuoted("#/a%2B&", "#/a+&")
+	assert.True(t, ok)
+	assert.Equal(t, [2]string{`#/a%2B\u0026`, `#/a+\u0026`}, [2]string{s, w})
+
+	_, _, ok = jsonQuoted("#/a%2Bb", "#/a+b")
+	assert.False(t, ok, "written alike raw")
+	_, _, ok = jsonQuoted("#/a%2B\xff", "#/a+\xff")
+	assert.False(t, ok, "not UTF-8, so in no encoded value")
+	_, _, ok = jsonQuoted("#/a%2B&", "#/a+\xff")
+	assert.False(t, ok)
 }
 
 // escapedDoc builds the model of src from a tree rewritten as load rewrites it,
@@ -385,7 +464,7 @@ components:
 			return nil
 		}}))
 	}
-	assert.Len(t, kinds, 10, "every kind of reference the library has: the nine objects and the schema")
+	assert.Equal(t, libraryReferenceKinds(t), kinds, "every kind of reference the library has")
 }
 
 func TestRefCopies_RefusesWhatItCannotRestore(t *testing.T) {

@@ -1,10 +1,14 @@
 package load
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"iter"
 	"reflect"
+	"slices"
+	"strings"
 	"sync"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -25,17 +29,22 @@ const restoring = "restoring $refs as written"
 
 // escapes holds each $ref value load respelled for the resolver in a tree it
 // builds models from, by the node in the $ref's place, with the value written
-// there, and each node it changed as it was (#911).
+// there, and each node it changed as it was (GitHub #911).
 //
 // The resolver reads '+' in a fragment as a space, and builds models from raw
 // YAML as well as from the source's model. So the spelling is fixed in the
 // trees before anything is built, and put back once resolution is done: the
-// IR, verbatim copies and diagnostics see only what the source writes. A nil
-// *escapes holds nothing, and its methods do nothing.
+// IR, verbatim copies and diagnostics see what the source writes (asWritten
+// has the one exception). A nil *escapes does nothing.
 type escapes struct {
 	mu      sync.Mutex // prepare can run on several readers of one compile
 	written map[*yaml.Node]string
 	changed []changed
+	// spellings maps each spelling the resolver was handed to the one the
+	// source writes, the least of several; verbatim holds each $ref the source
+	// writes with "%2B" itself. A restore keeps both, for asWritten.
+	spellings map[string]string
+	verbatim  map[string]bool
 }
 
 // changed is a node escape changed in place, and the node as it was.
@@ -46,7 +55,7 @@ type changed struct {
 
 // newEscapes returns a registry holding nothing.
 func newEscapes() *escapes {
-	return &escapes{written: map[*yaml.Node]string{}}
+	return &escapes{written: map[*yaml.Node]string{}, spellings: map[string]string{}, verbatim: map[string]bool{}}
 }
 
 // escape respells, in the tree under root, each $ref value the resolver would
@@ -66,7 +75,13 @@ func (e *escapes) escape(root *yaml.Node) {
 		v := nodeview.Deref(n)
 		spelled := fragment.ForResolver(v.Value)
 		if spelled == v.Value {
+			if strings.Contains(v.Value, "%2B") {
+				e.verbatim[v.Value] = true
+			}
 			return true
+		}
+		if was, ok := e.spellings[spelled]; !ok || v.Value < was {
+			e.spellings[spelled] = v.Value
 		}
 		e.written[n] = v.Value
 		if n == v {
@@ -205,6 +220,83 @@ func (e *escapes) trailOf(c chain) trail {
 		t.stopped = e.writtenOf(c.stoppedAt)
 	}
 	return t
+}
+
+// endOfText marks the end of a message, where a spelling may end as it may
+// before a closing quote.
+const endOfText = "\x00"
+
+// asWritten puts back, in the messages of diags, each spelling the resolver
+// was handed where the source writes another. The library's own text renders
+// the model it was resolving as that model then held it, in a reason or in a
+// whole value it could not use, which no model restore reaches.
+//
+// A spelling is put back only where it ends the message or a quoted string,
+// never inside a longer reference. One the source writes itself is left
+// alone, so where a source spells a reference both ways, the library's text
+// may quote the "%2B" one.
+func (e *escapes) asWritten(diags []ir.Diagnostic) []ir.Diagnostic {
+	r := e.respellings()
+	if r == nil {
+		return diags
+	}
+	for i := range diags {
+		diags[i].Message = strings.TrimSuffix(r.Replace(diags[i].Message+endOfText), endOfText)
+	}
+	return diags
+}
+
+// respellings returns a replacer from each spelling the resolver was handed to
+// the source's, as the library writes each in text and as its JSON encoder
+// writes it in a value, at the end of a message or of a quoted string. It
+// returns nil when there is nothing to put back.
+func (e *escapes) respellings() *strings.Replacer {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var pairs [][2]string
+	for spelled, written := range e.spellings {
+		if e.verbatim[spelled] {
+			continue
+		}
+		pairs = append(pairs, [2]string{spelled, written})
+		if s, w, ok := jsonQuoted(spelled, written); ok {
+			pairs = append(pairs, [2]string{s, w})
+		}
+	}
+	if len(pairs) == 0 {
+		return nil
+	}
+	slices.SortFunc(pairs, func(a, b [2]string) int {
+		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
+	})
+	args := make([]string, 0, 4*len(pairs))
+	for _, p := range pairs {
+		args = append(args, p[0]+endOfText, p[1]+endOfText, p[0]+`"`, p[1]+`"`)
+	}
+	return strings.NewReplacer(args...)
+}
+
+// jsonQuoted returns spelled and written as the library's JSON encoder quotes
+// them, escaping HTML and JavaScript line terminators, without the quotes, and
+// whether that differs from spelled raw. A string JSON cannot encode is in no
+// encoded value.
+func jsonQuoted(spelled, written string) (string, string, bool) {
+	quote := func(s string) (string, bool) {
+		out, err := json.Marshal(s, jsontext.EscapeForHTML(true), jsontext.EscapeForJS(true))
+		if err != nil {
+			return "", false
+		}
+		return string(out[1 : len(out)-1]), true
+	}
+	s, sok := quote(spelled)
+	w, wok := quote(written)
+	if !sok || !wok || s == spelled {
+		return "", "", false
+	}
+	return s, w, true
 }
 
 // restoreTrees puts every node escape changed back as it was, and forgets
