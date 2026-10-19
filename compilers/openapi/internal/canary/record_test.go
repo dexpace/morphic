@@ -135,13 +135,18 @@ func firstSpan(s string) string {
 	return ""
 }
 
-// fieldProblems reports each field e leaves unwritten, and a Code field that
-// names no declaration.
+// fieldProblems reports each field e leaves unwritten, a version or pin that
+// is written naming nothing, and a Code field that names no declaration.
 func fieldProblems(e keydoc.Entry, got entry) []string {
 	var problems []string
 	for _, field := range []string{verifiedField, pinnedField, codeField} {
 		if _, ok := e.Field(field); !ok {
 			problems = append(problems, fmt.Sprintf("line %d: %s does not write the field %q", e.Line, e.Key, field))
+		}
+	}
+	for _, w := range []struct{ field, value string }{{verifiedField, got.verified}, {pinnedField, got.pinnedBy}} {
+		if f, ok := e.Field(w.field); ok && w.value == "" {
+			problems = append(problems, fmt.Sprintf("line %d: %s writes the field %q naming nothing", f.Line, e.Key, w.field))
 		}
 	}
 	if _, ok := e.Field(codeField); ok && len(got.code) == 0 {
