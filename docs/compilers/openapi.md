@@ -179,7 +179,61 @@ that decision lives (§12), which is what keeps a promotion pass from mistaking 
   `openapi.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
   `openapi.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
 
-## 2. Schemas: identity, references and annotations
+## 2. Names and values
+
+### `naming`
+
+a name the document spells → `Naming{Source, Canonical}`: the spelling as written, beside the word
+sequence §3.2 derives from it, at every position that spells one — `info.title`, a tag, an
+`operationId`, a parameter, response-header or property name, a component schema or security scheme
+key, an enum member's value as text, a 3.2 server `name`, and under `grouping=path-prefix` a first
+path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
+`Canonical`. A name spelled as the empty string is minted `Hint: "empty"` and no `Source` rather
+than passed through (an `operationId` of `""` is read as absent instead,
+[`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A component schema keyed
+`""` earns no named `TypeID`: it hoists anonymously at its own pointer
+(`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an inline
+schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server with
+no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
+carries a `Hint` alone, in the same word grammar and composed from its position, each half
+neutralized first so an empty parent gives `empty_item`, never `_item`. `Aliases` is never set.
+
+- Cases: `neutral-naming`, `empty-names`
+- Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
+  `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
+  `schema.TestInlinePosition_HintIsTheSameInBothOrders`
+- Status: partly built: a name with no letter or digit reaches an emitter with neither `Canonical`
+  nor `Hint`, which #956 tracks for an enum member.
+
+### `values`
+
+a default, `const`, enum member or example → an `ir.Value` read off the YAML node by its resolved
+tag alone, never by the type the schema declares (§6): `null`, `bool`, `string`, `list` and `object`
+(members in source order, keyed by their text, an alias followed), a `!!binary` → `bytes`, decoded,
+and a YAML timestamp → `string` in the spelling written (`2021-1-1` stays `2021-1-1`, never RFC
+3339). A number is the literal's exact decimal text in `Num`, never a `float64`: a magnitude past
+float64 or int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`),
+`_` separators drop, a YAML integer base resolves (`0644` is `420`, `0x1f` is `31`, `0b1010` is
+`10`), and digits, exponent and trailing zeros otherwise stand as written (`10.0`, `1.10e+3`). A
+plain scalar that YAML resolves to a string only because it is past float64's range is still a
+number when it is a finite decimal literal; a quoted one stays a string. A value no `Value` holds —
+`.inf` or `.nan`, a `!!binary` that is not base64, a tag the compiler does not lower (`!acme`),
+nesting past 128 — is not coerced: a default or example is dropped with an
+`openapi/degraded-construct` warning at its position, and a `const` or an enum member is
+[`enum-const`](#enum-const)'s. The number reader is the numeric bounds' as well
+([`constraints`](#constraints)), which reports a bound it cannot read as
+`openapi/invalid-numeric-literal`. A value kept verbatim under `Unmodeled` is a second channel that
+keeps numbers and dates as written too, but a `!!binary` as its source text.
+
+- Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`
+- Codes: `openapi/degraded-construct`
+- Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
+  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
+- Status: partly built: a verbatim payload renders a number past float64 range as a string (#783),
+  and a `<<` merge key in a mapping value stays a member named `<<` where a verbatim payload merges
+  it (#395).
+
+## 3. Schemas: identity, references and annotations
 
 ### `schema-registry`
 
@@ -193,6 +247,23 @@ components/schemas → registry (IDs from pointers)
 inline schemas hoisted with hints
 
 - Cases: `inline-types`, `inline-hoist-positions`, `inline-annotations`
+
+### `recursion`
+
+a schema that reaches itself through `$ref` — directly, through a property, `items`,
+`additionalProperties`, a union branch or an inline position, or through another component → a
+`TypeRef` to the ID the schema was registered under before its body lowered, so the cycle lives in
+the type graph by ID (§1), whichever declaration lowers first, with no diagnostic. A chain of
+`$ref`s that never reaches a node without one (`A: {$ref: B}`, `B: {$ref: A}`) is not recursion but
+a cycle with no schema in it: it is refused before anything lowers, as an `openapi/cyclic-ref`
+error, and compiles to no Document.
+
+- Cases: `recursive`
+- Tests: `schema.TestLower_RecursiveSchemaTerminates`, `scan.TestDetectCycles_LegalRecursionClean`,
+  `openapi.TestCompile_CyclicSpecDoesNotCrash`
+- Status: partly built: an `allOf` that names its own schema, or two schemas that are each other's
+  `Base`, lowers to a base chain that returns to where it started with no diagnostic, and a cycle of
+  required properties that admits no finite value is reported by nothing (#642).
 
 ### `ref-use-site`
 
@@ -243,6 +314,49 @@ otherwise lose silently
 - Tests: `openapi.TestAnnotationRetention_OtherDeclarationShapes`,
   `schema.TestPropertyPosition_ResidueStaysOutOfTheTypeNode`
 
+### `docs-and-deprecation`
+
+summary, description and externalDocs → `Docs`, and `deprecated: true` → `Deprecation{}`, on the
+entity whose object writes them. `Deprecation` is an empty marker: the keyword states no message,
+version or date, which only [`extension-promotion`](#extension-promotion) can supply. An operation,
+and a tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the
+`Summary`, beside its `description` and `externalDocs`; a response and an error case take
+`description` and `summary` ([`response-summary`](#response-summary)); a request body, a security
+scheme, a server and a server variable take `description`, an example `summary` and `description`,
+and a security scheme `deprecated` (3.2). `info` and the root `externalDocs` make the Document's one
+`Docs`, while the Service takes `info.description` alone. A schema's documentation lands on the node
+its position owns; where the position owns none (a shared primitive, a `$ref`), it lands on the
+property, parameter or header that carries it, the referent's under the use site's field by field
+([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins over its
+schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it, neither
+one's `false` clearing the other. A request body's `description` lands on its Payload
+([`request-body`](#request-body)), and a response's payload states no docs of its own.
+
+- Cases: `docs-summary-desc`, `deprecation`
+- Tests: `operation.TestOperation_DeprecatedIsCarried`,
+  `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
+  `operation.TestContent_RequestBodyDocsReachThePayload`
+
+### `disjoint-visibility`
+
+a field both `readOnly` and `writeOnly` — on one schema, across a `$ref` whose site sets one flag
+and referent the other, or on inline `allOf` branches that redeclare it — admits no lifecycle:
+`Visibility{None: true}` (§5.2), lowered as declared, + `disjoint-visibility` warning, once, at the
+invisible property or at the schema of the invisible header, or for `allOf` at the redeclaration
+that empties the set (a branch repeating a field already invisible reports nothing more). It is not
+a conflicting redeclaration ([`allof-redeclared-property`](#allof-redeclared-property)), which keeps
+one declaration over another, nor a degraded construct: `None` states the intersection exactly, and
+the warning says only that no request or response can carry the field. A flag set `false` states
+nothing. A pair written where no `Visibility` can land — an `items` schema, a parameter's schema —
+is kept verbatim and not reported ([`parameter-schema-keywords`](#parameter-schema-keywords)); a
+component's is reported at each property that references it.
+
+- Cases: `readonly-writeonly`
+- Codes: `openapi/disjoint-visibility`
+- Tests: `schema.TestModel_ReadOnlyAndWriteOnlyTogetherAreVisibleNowhere`,
+  `openapi.TestAllOfVisibilityMerge_DisjointRestrictionsAreInvisibleNotAConflict`,
+  `merge.TestReconcileProperty_AlreadyInvisibleVisibilityIsNotReAnnounced`
+
 ### `nullable`
 
 `nullable`/type-arrays → Nullable
@@ -267,7 +381,7 @@ schema `example(s)` → Examples
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
 
-## 3. Schemas: composition, unions and enumerations
+## 4. Schemas: composition, unions and enumerations
 
 ### `allof-classification`
 
@@ -372,6 +486,28 @@ same conjunction a single schema's null verdicts fold under.
   `merge.TestReconcileProperty_ALosingDetailIsKeptAndReported`
 - Status: partly built: a primitive a `format` narrows is reported as conflicting with the bare
   primitive, which it does not contradict (#446).
+
+### `allof-required`
+
+a `required` name written on an `allOf` branch, inline or beside a branch's `$ref`, or beside the
+`allOf` itself → `Property.Required` (§5.1) on the composed `Model`'s own property of that wire
+name, whichever branch declares the property: a branch holding nothing but `required` attaches
+across the whole composition, not only its own `properties`, and an attachment never clears a
+`Required` already set. A branch is read from its local schema, never from its `$ref` target, whose
+`required` list belongs to the target's own model. A name that matches no property the composed
+`Model` declares — one only a `Base` or `Mixin` declares, or one nothing declares — has no field to
+land on, because a `Model` stores its own properties and no flattened view across `Base`/`Mixins`
+(§4.3): it is reported as `openapi/unattachable-required` at the branch or schema that wrote it, a
+warning where the `Model` composes a `Base` or `Mixin` that may declare it, an info where it
+composes none.
+
+- Cases: `allof-required-only`
+- Codes: `openapi/unattachable-required`
+- Tests: `schema.TestAllOf_CompositionRequiredAttaches`,
+  `schema.TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyDiagnosed`,
+  `schema.TestAllOf_RequiredOnlyBranchNoBaseOrMixinDiagnosedInfo`
+- Status: partly built: the unattached name is reported and kept nowhere, where a map keeps its
+  `required` verbatim (#896).
 
 ### `allof-false-branch`
 
@@ -561,6 +697,26 @@ info)
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`
 
+### `discriminator-value`
+
+a subtype's wire tag → `Model.DiscriminatorValue`, left empty on the base itself. It is read off the
+discriminators of the subtype's `allOf` ancestors — the `$ref` branches' targets, then theirs, level
+by level to 256 levels, nearest first, a schema that declares none passed through and no schema its
+own ancestor — as the key an ancestor's `mapping` spells for the subtype, the mapping naming it by
+reference or by bare schema name, an inline subtype by its position's reference, and where several
+keys name it [`discriminator`](#discriminator) elects one. A key of `""` is a tag, not an absence.
+Once no ancestor's mapping names it, the tag is the subtype's schema name as declared (`Cat/Dog`,
+not its pointer token) if it is a component schema, OpenAPI's implicit mapping. A subtype that is no
+component schema — inline as a property or a union branch, or under an extension — has no name to
+answer to, so only a mapping entry tags it, and a chain with no discriminated ancestor carries no
+tag however deep. A variant of a distributed `oneOf`/`anyOf`
+([`union-beside-structure`](#union-beside-structure)) carries the tag of the schema enclosing it.
+
+- Cases: `discriminator-transitive`, `discriminator-inline-subtype`
+- Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
+  `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
+  `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`
+
 ### `string-const-union`
 
 a oneOf/anyOf whose variants are all string consts normalizes to a closed `Enum` in a `pass/`
@@ -584,7 +740,7 @@ past the member budget → `any` + `budget-exceeded` error
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`
 
-## 4. Schemas: objects, arrays and scalars
+## 5. Schemas: objects, arrays and scalars
 
 ### `additional-properties`
 
@@ -616,6 +772,22 @@ but still lowers to a closure, which keeps the object a `Model` until #862 is re
 
 - Cases: `maps`
 - Tests: `schema.TestModel_PatternPropertiesOrder`
+
+### `missing-array-items`
+
+a `type: array` schema with no `items` in a 3.0 document, where 3.0 requires one → lowered as
+2020-12 reads it, a `List` over the top type, + `missing-array-items` warning once at the schema's
+own pointer, wherever it sits (a property, a parameter's schema, an `items`, a union branch) and
+whatever it lowers to (a `Tuple`, an enum of arrays), since the report reads the declaration and not
+the node. Nothing is dropped or degraded, so no `degraded-construct` accompanies it. `items: {}` is
+silent, as is every schema at 3.1 and 3.2, where `items` is optional. Nor is a schema reported
+beside a `$ref`, whose siblings 3.0 ignores, an inline `allOf` branch, which merges in place, or a
+subschema kept verbatim, such as one under `not`.
+
+- Cases: `missing-array-items`
+- Codes: `openapi/missing-array-items`
+- Tests: `schema.TestLower_MissingArrayItems`, `schema.TestLower_ListWithoutItems`,
+  `schema.TestLower_MissingArrayItemsLoweredTwiceWarnsOnce`
 
 ### `tuples`
 
@@ -678,6 +850,26 @@ hoists, since the siblings bind the position rather than the referent.
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
 
+### `string-formats`
+
+a `type: string` with a `format` the table names → the shared primitive the pairing selects, and no
+node of its own: `date` → `date`, `time` → `time`, `duration` → `duration`, `uuid` → `uuid`, `uri` →
+`url`, `date-time` → `datetime_offset`, `binary` → `bytes`. `byte` → a hoisted `Scalar` over `bytes`
+whose `Encoding` is `base64`, with the `string` it travels as in `WireType`. Any other format
+(`email`, `uri-reference`, `ipv4`, an invented one) → a hoisted `Scalar` over `string` whose
+`Encoding.Name` is the format as written, case kept, since the compiler knows no registry of formats
+beyond the table. A `contentEncoding` beside a `byte` or unknown format names the encoding instead;
+where the two name different encodings the format is kept verbatim under `openapi:format`
+(`no_ir_home`) with an info `degraded-construct`. A scalar hoisted for its format carries the bounds
+written beside it. The table is the same at every minor, and a pairing of `format` with another
+`type` is [`numeric-formats`](#numeric-formats)'s.
+
+- Cases: `encoding-byte`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
+  `schema.TestLower_NamedScalarComponentResolves`,
+  `schema.TestFormatTable_EveryRowDistinguishesTheBareType`
+
 ### `numeric-formats`
 
 a numeric `type`+`format` → the primitive the format names — an integer width under `integer` and
@@ -735,7 +927,38 @@ an emitter that wants the exact reading has everything it needs to produce it.
 - Tests: `schema.TestLower_DepthCapExceeded`,
   `openapi.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`
 
-## 5. Schemas: keywords beyond the shape
+## 6. Schemas: keywords beyond the shape
+
+### `constraints`
+
+`minimum`, `maximum` and `multipleOf` → `Min`, `Max` and `MultipleOf`, and `minLength`, `maxLength`
+and `pattern` → `MinLength`, `MaxLength` and `Pattern` as written, on the node or carrier the
+position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`, `maxItems` and `uniqueItems`
+→ the `List`'s, and a `Tuple`'s per [`tuples`](#tuples); `minProperties` and `maxProperties` per
+[`additional-properties`](#additional-properties). A bound is read off the raw node, never the
+parser's `float64`, so its `BigVal` keeps every digit the literal wrote ([`values`](#values)), a
+quoted one as the decimal it spells; one that is no finite decimal literal is dropped with an
+`openapi/invalid-numeric-literal` error at the schema that wrote it. Exclusive bounds follow the
+declared dialect. In 3.0 the boolean modifies the bound beside it: `true` moves that bound to
+`ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so a 3.0 document and its 3.1
+translation lower alike, `false` states nothing, and `true` with no bound beside it bounds nothing
+and is kept verbatim under `openapi:exclusiveMinimum` or `openapi:exclusiveMaximum`
+(`degraded_lowering`) with a `degraded-construct` warning. In 3.1 and 3.2 the keyword is a bound of
+its own, kept beside `Min`/`Max` when both are declared, a field apiece and no `Unmodeled` entry
+(§5.3). The other dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
+`openapi/invalid-exclusive-bound` error. A bound beside a node with no `Constraints` field to take
+it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
+(`degraded_lowering`) with an info `degraded-construct` naming the node it lowered to, as
+[`shape-applicator`](#shape-applicator) keeps a collection bound on an object.
+
+- Cases: `constraints`, `numeric-precision`
+- Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
+  `openapi/degraded-construct`
+- Tests: `openapi.TestConstraints_ExclusiveBoolean30`,
+  `openapi.TestConstraints_ExclusiveWrongDialectForm`,
+  `openapi.TestConstraints_LosslessNumericLiterals`
+- Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
+  silence (#848).
 
 ### `validation-only`
 
@@ -845,7 +1068,7 @@ which the compiler does not yet honour.
 
 - Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`
 
-## 6. Paths and operations
+## 7. Paths and operations
 
 ### `path-keys`
 
@@ -872,6 +1095,27 @@ warning (the binding is unusable, but dropping the entry would lose every operat
 - Tests: `operation.TestPathItem_EmptyAdditionalOperationsKeyReported`,
   `operation.TestPathItem_AdditionalOperationsLowerOnEveryRoute`,
   `operation.TestPathItem_AdditionalOperationsBindCallbacks`
+
+### `operation-ids`
+
+an `operationId` → `Operation.Name` as `Source` and its neutral `Canonical` ([`naming`](#naming)),
+while the `OpID` is derived from the operation's mount pointer (§3.1) and never from the
+`operationId`, so a repeated or renamed id moves no ID. An operation with none, or with `""`, claims
+no id and is named by a hint of its method and the route's key in neutral words — the path template,
+a webhook's name, a callback's expression, or an `additionalOperations` key standing as the method
+(`get_ping`, `post_new_pet`; §8.1). Uniqueness is judged once every operation has lowered, across
+paths, webhooks and callbacks alike, and by declaration, so a finding does not move with the order
+the document is lowered in: a second declaration writing a claimed id →
+`openapi/conflicting-operation-id` error at the pointer it is written at, naming the first
+declaration, the declarations taken in pointer order; one declaration mounted more than once, by a
+path item `$ref`, a YAML alias or a merge key → `openapi/duplicate-operation-id` warning at each
+mount but the first, naming that mount. Every operation lowers whatever the verdict, repeated names
+included. The parser's own uniqueness check is dropped for this one.
+
+- Codes: `openapi/duplicate-operation-id`, `openapi/conflicting-operation-id`
+- Tests: `operation.TestOperations_DuplicateOperationIDReported`,
+  `operation.TestJudge_ReportsEveryDeclarationAndMountButTheFirst`,
+  `operation.TestOperation_NoOperationIdHint`
 
 ### `path-item-servers`
 
@@ -958,7 +1202,7 @@ did before.
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`
 
-## 7. Parameters
+## 8. Parameters
 
 ### `parameters`
 
@@ -967,6 +1211,29 @@ parameters → Params + HTTPBinding locations w/ style/explode
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
 - Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
+
+### `content-parameters`
+
+a parameter or header that states its type with `content` instead of `schema` → the first media-type
+entry, which OpenAPI requires to be the only one. Its schema is the type, lowered as the `schema`
+spelling's is with the same constraints and `xml` hints, hoisted at `<owner>/content/<key>/schema`
+or the top type where the entry writes none, and the key as written is the media type that
+serializes the value: `HTTPParamBinding.ContentType` on a parameter, `Property.Encoding.MediaType`
+on a header, neither set by the `schema` spelling. Further entries lower nothing: a
+`degraded-construct` warning at the `content` map names them. What else the entry writes is kept:
+its `example` and `examples` follow the parameter's or header's own in `Examples`, and its `x-*`
+extensions, `description`, undeclared keys and the fields only a body Content models — `itemSchema`,
+`itemEncoding`, `prefixEncoding` and `encoding`, each with an info `degraded-construct` — go
+verbatim under `openapi:content/<key>/<field>`, the key escaped as a pointer segment, as
+`vendor_extension` or `no_ir_home`. A `content` map with no entry elects nothing: a `schema` beside
+it stands and the empty map is kept (`degraded_lowering`) with a warning. The converse, `schema`
+beside a non-empty `content`, is [`competing-keywords`](#competing-keywords)'s.
+
+- Cases: `param-content-fields`, `header-content-schema`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestParams_ContentStyleParameter`,
+  `operation.TestSingleContentEntry_ReportsExtraMediaTypes`,
+  `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
 
 ### `allow-empty-value`
 
@@ -1023,7 +1290,28 @@ stays on that node's XMLHints
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
 
-## 8. Request bodies and content
+## 9. Request bodies and content
+
+### `media-types`
+
+every media type of a `content` map → one `Content` apiece, in source order and with none elected
+primary (§7.2). `Content.MediaType` is the key as written — case, parameters and wildcards kept, so
+`application/json` and `Application/JSON` are two Contents — and its `Type` is the media type's
+`schema`, hoisted at `<owner>/content/<key>/schema` with the key escaped as a pointer token, or the
+top type where it writes none. A request body's keys also go, as written and in order, to
+`HTTPBinding.RequestContentTypes`. A response whose `content` is absent or empty has no `Payload`
+([`request-body`](#request-body) for the request side). A key is classified on a copy that is
+lowercased, since a media type's names are case-insensitive (RFC 6838 §4.2), trimmed and cut at its
+first `;`, and the IR never keeps the copy: `multipart/*` and `application/x-www-form-urlencoded`
+read the media type's `encoding` as part encodings ([`multipart-encoding`](#multipart-encoding)),
+and a binary body is a file ([`file-bodies`](#file-bodies)); the streaming policy reads the same
+copy ([`streaming-media`](#streaming-media)). No other key is classified, so `application/*+json`,
+`text/*` and `*/*` are Contents like any other.
+
+- Cases: `media-type-spelling`, `multi-content`
+- Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
+  `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
+  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`
 
 ### `request-body`
 
@@ -1037,6 +1325,26 @@ Payload with no Contents that keeps all three, + `empty-request-content` warning
 - Codes: `openapi/empty-request-content`
 - Tests: `operation.TestContent_NonRequiredRequestBody`,
   `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`
+
+### `file-bodies`
+
+a content entry whose schema is `type: string` with `format: binary`, read through a `$ref` and
+whatever its media type, or whose schema is absent or boolean on `application/octet-stream` (matched
+on the normalized key, [`media-types`](#media-types)) → `Content.File` with `IsText` false and
+`ContentTypes` the key as written, and `Content.Type` the non-nullable `bytes` primitive in place of
+whatever the schema lowered to, so that a body to stream is not read as a model. No other `FileInfo`
+field is set. The same holds for a response and an error case. An `octet-stream` entry with a schema
+that is not `string`+`binary`, a `format: byte` or `contentMediaType` string, and a schema-less
+entry on any other media type are ordinary Contents.
+
+- Cases: `file-body`
+- Tests: `operation.TestContent_BinaryOctetStreamBody`,
+  `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
+  `operation.TestContent_BinaryRefBodyDetectedAsFile`
+- Status: partly built: a binary body's schema keeps its docs and bounds on a node no Content
+  references (#600), and the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
+  a schema-less entry on a media type other than `application/octet-stream`, are not recognized
+  (#605).
 
 ### `example-values`
 
@@ -1055,6 +1363,54 @@ lowers to Content.Item
 - Cases: `sequential-media`
 - Codes: `openapi/degraded-construct`, `openapi/unpreservable-construct`
 
+### `streaming-media`
+
+a request body or success response with a Content whose media type the streaming policy names —
+`application/jsonl`, `application/x-ndjson` and `text/event-stream` by default, matched on the
+normalized key ([`media-types`](#media-types)) at every minor → `Operation.RequestStream` and
+`ResponseStream` for the directions that have one, each with `Events` the Content's own `Type` (for
+a frame format the schema describes one frame, not the body), `Streaming` the `client`, `server` or
+`bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on the
+operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about framing
+and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration: it
+streams on any media type with `Events` the `Item` type and no marker, and wins over the media-type
+reading at its own Content. Streaming Contents that name different element types leave `Events`
+unset on a direction that still streams, every Content kept, with an info `degraded-construct` at
+the `requestBody` or `responses` pointer; Contents that name the same element elect it. Error
+responses are not read. The policy is the Go option `Options.StreamingMedia`: `Disabled` turns the
+media-type reading off, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the
+default list instead of extending it.
+
+- Cases: `streaming-media-30`, `streaming-media-31`
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
+  `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
+  `operation.TestStreaming_ItemSchemaDeclaresTheStream`
+- Status: partly built: an operation that does not stream carries an empty `Streaming`, where §7.2
+  declares `none` (#978).
+
+### `multipart-encoding`
+
+an Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content → a
+`PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
+wherever the body declares that property: on the schema, in an `allOf` branch with the first
+declaration of a name winning, or on a `Base` or `Mixin` it composes. `contentType` →
+`ContentTypes`, split on `,` and trimmed with empty items dropped; `headers` → `Headers`, lowered as
+a response's are; `style` and `explode` → `Style` and `Explode` as declared, nothing defaulted.
+`Multi` and `Filename` come from the part's own schema and never from the `encoding` map: `Multi`
+where it is an array, `Filename` where it is a `string` with `format` `binary` or `byte`. A part is
+entered only when its `PartEncoding` holds something, so a body that declares no encoding still gets
+entries for its array and file parts, and an entry declaring nothing leaves none. What an Encoding
+Object writes beyond those fields is [`encoding-allow-reserved`](#encoding-allow-reserved)'s.
+
+- Cases: `multipart-encoding`
+- Tests: `operation.TestContent_MultipartPartEncoding`,
+  `operation.TestContent_ArrayMultipartPartMulti`,
+  `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`
+- Status: partly built: an `encoding` key that names no property, or one declared only inside a
+  `oneOf`/`anyOf` branch, is dropped with no diagnostic (#604, #744), and an array of files is not
+  marked as files (#605).
+
 ### `encoding-allow-reserved`
 
 an Encoding Object's `allowReserved` → Content.Unmodeled (`no_ir_home`) under
@@ -1068,7 +1424,7 @@ lowers to
 - Tests: `operation.TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding`,
   `operation.TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey`
 
-## 9. Responses and errors
+## 10. Responses and errors
 
 ### `response-conditions`
 
@@ -1132,7 +1488,7 @@ declaration survive or vanish on nothing but its status code
 
 - Cases: `response-links`
 
-## 10. Webhooks and callbacks
+## 11. Webhooks and callbacks
 
 ### `webhooks`
 
@@ -1150,7 +1506,7 @@ callbacks → Callbacks
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
   (#858).
 
-## 11. Security
+## 12. Security
 
 ### `security-requirements`
 
@@ -1174,7 +1530,7 @@ Unmodeled (`degraded_lowering`) + info, never lowered into a field the flow lack
 - Cases: `oauth-flow-fields`
 - Codes: `openapi/degraded-construct`
 
-## 12. Servers
+## 13. Servers
 
 ### `servers`
 
@@ -1189,7 +1545,7 @@ on each — kept as declared on both entries — the document's in Servers, the 
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 
-## 13. Vendor extensions and policy
+## 14. Vendor extensions and policy
 
 ### `vendor-extensions`
 
@@ -1214,6 +1570,34 @@ reported (`degraded-construct`, warning) and reaches the IR in no form
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestOperation_UnserializableExtensionStillWarns`,
   `operation.TestEncoding_PartNameWithSlashKeepsItsOwnKey`
+
+### `unknown-keys`
+
+a key an OpenAPI object neither defines nor admits as an `x-` extension → kept verbatim under
+`openapi:<key>` in the `Unmodeled` of the node that carries the object, `out_of_scope`, + an
+`unknown-object-key` warning at the key's own pointer, since the object's key set is closed and such
+a key is usually a misspelling of its neighbour; an object that lowers to no node of its own is
+keyed beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<key>`,
+[`vendor-extensions`](#vendor-extensions)). A path item's is judged like any other, a value carrying
+a YAML anchor included. A schema keyword no field of the schema model names → the same entry + an
+`unknown-schema-keyword` info, because JSON Schema obliges an implementation to ignore a keyword it
+does not know; `$comment`, `$dynamicAnchor` and `$dynamicRef` are decided elsewhere and left out.
+One object contributes at most 64 keys, taken in byte order after the keys another reader already
+kept at the same pointer are set aside, and the rest reach the IR in no form, with one
+`unknown-key-budget` warning at the object. Two other outcomes also keep nothing and warn:
+`unknown-key-entry-taken`, where `openapi:<key>` is already held by a construct written elsewhere on
+a carrier two objects share, a parameter's own key and its schema's keyword, whichever lowered first
+surviving; and `unknown-key-unreachable`, where the key is merged in through `<<` and the raw
+mapping holds no pair for it.
+
+- Cases: `path-item-anchored-key`
+- Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
+  `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
+- Tests: `openapi.TestUnknownKeys_KeptAtEveryObject`,
+  `openapi.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
+  `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`
+- Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
+  (#396), and a key merged in through `<<` is reported and kept nowhere (#395).
 
 ### `extension-promotion`
 
@@ -1258,7 +1642,7 @@ pagination only via injectable policy, marked Inferred
 
 - Status: not built: no policy infers pagination yet, so the compiler sets no Pagination.
 
-## 14. Swagger 2.0
+## 15. Swagger 2.0
 
 ### `swagger-lift`
 
