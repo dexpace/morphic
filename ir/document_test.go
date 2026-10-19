@@ -70,8 +70,22 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 // version this build was compiled against. Every recorded bump so far changed
 // the JSON shape, so nothing licenses accepting a neighbouring one — not a
 // differing patch, not the same version spelled differently.
+//
+// The neighbours are derived from IRVersion, so a bump moves them with it: a
+// literal left behind once asserted that a build rejects its own documents.
 func TestCompatibleVersion(t *testing.T) {
 	t.Parallel()
+	v, ok := parseVersion(ir.IRVersion)
+	require.True(t, ok, "IRVersion %q is not MAJOR.MINOR.PATCH", ir.IRVersion)
+	require.NotEqual(t, semver{}, v, "IRVersion 0.0.0 has no earlier version to refuse")
+	earlier := v
+	for i := len(earlier) - 1; i >= 0; i-- {
+		if earlier[i] > 0 {
+			earlier[i]--
+			break
+		}
+	}
+
 	tests := []struct {
 		name    string
 		version string
@@ -79,16 +93,9 @@ func TestCompatibleVersion(t *testing.T) {
 	}{
 		{"this build's version", ir.IRVersion, true},
 		{"absent", "", false},
-		// These three are literals spelled against the CURRENT IRVersion, and
-		// nothing makes them follow it: every bump must re-anchor them by hand.
-		// The neighbour rows are the point of the test, so a bump that leaves
-		// them behind stops testing what they name — at 0.4.0 the old "later
-		// generation" literal WAS the current version, and the row asserted the
-		// build rejects its own documents. The rows below spell IRVersion
-		// directly and need no such maintenance.
-		{"the generation before this one", "0.13.0", false},
-		{"a later generation", "0.15.0", false},
-		{"a differing patch", "0.14.1", false},
+		{"an earlier version", earlier.String(), false},
+		{"the next generation", nextGeneration(ir.IRVersion), false},
+		{"a differing patch", semver{v[0], v[1], v[2] + 1}.String(), false},
 		{"a prerelease of this version", ir.IRVersion + "-rc.1", false},
 		{"padded with whitespace", " " + ir.IRVersion + " ", false},
 		{"not a version at all", "99.99.99-bogus", false},
@@ -96,6 +103,7 @@ func TestCompatibleVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			require.Equal(t, tc.want, tc.version == ir.IRVersion, "a row refuses %q exactly when it is not IRVersion", tc.version)
 			assert.Equal(t, tc.want, ir.CompatibleVersion(tc.version))
 		})
 	}
