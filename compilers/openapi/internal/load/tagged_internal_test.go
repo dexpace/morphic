@@ -1,14 +1,9 @@
 package load
 
 import (
-	"bytes"
-	"context"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
@@ -44,19 +39,16 @@ func TestLoad_ATaggedMappingIsRefusedBeforeParsing(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"!content:"`, "and quotes the tag")
 }
 
-// taggedChildEnv names a spec that a re-run of this test binary hands the
-// parser alone, in place of the test it re-ran. The fault being asked about
-// ends the process, so the parser is asked in a process the test can afford
-// to lose.
+// taggedChildEnv hands a child (see inChild) a spec, which it hands the parser
+// alone in place of the test it re-ran: the fault being asked about ends the
+// process.
 const taggedChildEnv = "MORPHIC_TAGGED_CHILD_SPEC"
 
-// parseBare is the child's side of parserFaults: it hands the parser the spec
-// at path, as Load would after its refusals, and returns if the parser does.
-func parseBare(t *testing.T, path string) {
+// parseBare is the child's side of parserFaults: it hands the parser spec, as
+// Load would after its refusals, and returns if the parser does.
+func parseBare(t *testing.T, spec string) {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	_, _, err = soa.Unmarshal(t.Context(), bytes.NewReader(data))
+	_, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
 	require.NoError(t, err)
 }
 
@@ -65,23 +57,13 @@ func parseBare(t *testing.T, path string) {
 // way for the child to end fails the test: it says nothing about the parser.
 func parserFaults(t *testing.T, spec string) bool {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "spec.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-	t.Cleanup(cancel)
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults$")
-	cmd.Env = append(os.Environ(), taggedChildEnv+"="+path)
-
-	out, err := cmd.CombinedOutput()
-
-	if err == nil {
+	out, end := inChild(t, "TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults", taggedChildEnv, spec)
+	if end == childPassed {
 		return false
 	}
-	var exit *exec.ExitError
-	require.ErrorAs(t, err, &exit, "the child must start and end of its own accord")
-	require.Equal(t, 2, exit.ExitCode(), "an unrecovered panic ends the process with status 2:\n%.1500s", out)
-	require.Contains(t, string(out), "invalid memory address or nil pointer dereference", "%.1500s", out)
-	require.Contains(t, string(out), "github.com/speakeasy-api/openapi/", "the fault is in the library:\n%.1500s", out)
+	require.Equal(t, childPanicked, end, "%.1500s", out)
+	require.Contains(t, out, "invalid memory address or nil pointer dereference", "%.1500s", out)
+	require.Contains(t, out, "github.com/speakeasy-api/openapi/", "the fault is in the library:\n%.1500s", out)
 	return true
 }
 
@@ -93,8 +75,8 @@ func parserFaults(t *testing.T, spec string) bool {
 // need special handling for: the tagged node is reached where its anchor is
 // declared.
 func TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults(t *testing.T) {
-	if path := os.Getenv(taggedChildEnv); path != "" {
-		parseBare(t, path)
+	if spec, ok := asChild(taggedChildEnv); ok {
+		parseBare(t, spec)
 		return
 	}
 	t.Parallel()

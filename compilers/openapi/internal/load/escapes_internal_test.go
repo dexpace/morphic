@@ -378,17 +378,36 @@ func TestJSONQuoted_ReportsOnlyAnEscapedSpelling(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// escapedDoc builds the model of src from a tree rewritten as load rewrites it,
-// and returns it with the registry that rewrote the tree.
-func escapedDoc(t *testing.T, src string) (*soa.OpenAPI, *escapes) {
+// escapedSource is a source as load holds it once it has rewritten the tree:
+// the tree, its anchors released and its $refs respelled for the resolver, the
+// model built from it with the library's findings, and the registry that
+// rewrote it.
+type escapedSource struct {
+	root    *yaml.Node
+	doc     *soa.OpenAPI
+	valErrs []error
+	esc     *escapes
+}
+
+// escapeSource decodes src and rewrites its tree as load does, then builds the
+// model from it.
+func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
 	releaseAnchors(root)
 	esc := newEscapes()
 	esc.escape(root)
-	doc, _, err := unmarshal(t.Context(), []byte(src), root)
+	doc, valErrs, err := unmarshal(t.Context(), []byte(src), root)
 	require.NoError(t, err)
-	return doc, esc
+	return escapedSource{root: root, doc: doc, valErrs: valErrs, esc: esc}
+}
+
+// escapedDoc builds the model of src from a tree rewritten as load rewrites it,
+// and returns it with the registry that rewrote the tree.
+func escapedDoc(t *testing.T, src string) (*soa.OpenAPI, *escapes) {
+	t.Helper()
+	s := escapeSource(t, src)
+	return s.doc, s.esc
 }
 
 // escapedParameters is escapedDoc for a document whose components hold

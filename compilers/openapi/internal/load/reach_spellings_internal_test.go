@@ -1,13 +1,9 @@
 package load
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,11 +60,7 @@ func TestReachCycle_RefusesCrashesOnlyReachCanSee(t *testing.T) {
 			spec := schemasDoc(tc.schemas)
 			assertRefusedByReach(t, spec)
 
-			path := filepath.Join(t.TempDir(), "spec.yaml")
-			require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-			defer cancel()
-			assert.True(t, reachFuzzSubprocessCrashed(ctx, t, path),
+			assert.True(t, pipelineOverflows(t, spec),
 				"the fixture no longer crashes the pipeline without the check, so refusing it protects nothing")
 		})
 	}
@@ -104,18 +96,6 @@ func TestReachCycle_LeavesWhatHoldingDefsOutOfTheResolverSurvives(t *testing.T) 
 				"the pipeline overflowed, so the reference the resolver reads for itself is not held out")
 		})
 	}
-}
-
-// pipelineOverflows reports whether load's pipeline, with the reference-chain
-// check off, overflows its stack on spec, asked in a subprocess the test can
-// afford to lose.
-func pipelineOverflows(t *testing.T, spec string) bool {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "spec.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
-	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-	defer cancel()
-	return reachFuzzSubprocessCrashed(ctx, t, path)
 }
 
 // parityFixtures are references the library reads as naming something else than

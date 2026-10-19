@@ -2,19 +2,14 @@ package load
 
 import (
 	"cmp"
-	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -62,10 +57,9 @@ x-lib:
 `
 }
 
-// loopsChildEnv carries a resolverAsk to a re-run of this test binary, which
-// answers it in place of the test it re-ran. A chain the resolver follows
-// without end runs its stack out, which nothing recovers from, so it is asked
-// in a process whose loss fails one row, not the binary.
+// loopsChildEnv hands a child (see inChild) a resolverAsk, which it answers in
+// place of the test it re-ran: a chain the resolver follows without end runs
+// its stack out, which nothing recovers from.
 const loopsChildEnv = "MORPHIC_LOOPS_CHILD_ASK"
 
 // loopsChildMark opens the line the child prints for its answer.
@@ -89,8 +83,8 @@ const (
 	runsOut      chainEnd = "overflows" // never: it recursed until the stack ran out
 )
 
-// hopsLimit bounds the hops endOf follows. A chain of more is one whose hops
-// lead round to one already taken, which the library never ends either.
+// hopsLimit bounds the hops endOf follows. No row's chain comes near it, so a
+// record that long is one no row asks about, and fails the child.
 const hopsLimit = 64
 
 // answerAsk is the child's side of resolverEnd: it holds the source as the
@@ -98,71 +92,62 @@ const hopsLimit = 64
 // out, and prints where the resolution stopped.
 func answerAsk(t *testing.T, body string) {
 	t.Helper()
-	debug.SetMaxStack(64 << 20)
 	var ask resolverAsk
 	require.NoError(t, json.Unmarshal([]byte(body), &ask))
-	data := []byte(ask.Spec)
-	root, _, err := decodeStream(data)
-	require.NoError(t, err)
-	releaseAnchors(root)
-	esc := newEscapes()
-	esc.escape(root)
-	doc, valErrs, err := unmarshal(t.Context(), data, root)
-	require.NoError(t, err)
-	self := newSourceDocument(ask.Path, data, root, valErrs, newSourceTree(0, overlay.Origin{}, root), esc)
+	src := escapeSource(t, ask.Spec)
+	tree := newSourceTree(0, overlay.Origin{}, src.root)
+	self := newSourceDocument(ask.Path, []byte(ask.Spec), src.root, src.valErrs, tree, src.esc)
 	opts := Options{AllowExternalRefs: true}
-	reader := newExternal(doc, opts, newExternalReads(self))
-	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{}, self, opts, &reader)
+	reader := newExternal(src.doc, opts, newExternalReads(self))
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), src.doc, Siblings{}, self, opts, &reader)
 
 	js := oas3.NewJSONSchemaFromReference(references.Reference(fragment.ForResolver(ask.Ref)))
-	_, err = js.Resolve(t.Context(), pass.opts)
-	fmt.Println(loopsChildMark + string(endOf(js, err)))
+	_, err := js.Resolve(t.Context(), pass.opts)
+	end, ok := endOf(js, err)
+	require.True(t, ok, "the library recorded a chain of more than %d hops", hopsLimit)
+	fmt.Println(loopsChildMark + string(end))
 }
 
 // endOf reads where the library's resolution of js, which failed with err or
 // did not, stopped. A failed one stopped at the first hop that holds no object;
 // if the library counts that hop resolved all the same, it marked it circular.
-func endOf(js *schemaRef, err error) chainEnd {
+// It reports false for a record of more than hopsLimit hops.
+func endOf(js *schemaRef, err error) (chainEnd, bool) {
 	if err == nil {
-		return endsAtSchema
+		return endsAtSchema, true
 	}
 	hop := js
 	for range hopsLimit {
 		info := hop.GetReferenceResolutionInfo()
 		if info == nil || info.Object == nil {
 			if hop.IsResolved() {
-				return closesAgain
+				return closesAgain, true
 			}
-			return cannotRead
+			return cannotRead, true
 		}
 		hop = info.Object
 	}
-	return runsOut
+	return "", false
 }
 
 // resolverEnd asks the library, in a child, where it stops following the chain
 // of ask's $ref. A child that overflows its stack is the answer runsOut; one
-// that stops otherwise fails the test.
+// that passes without answering, or stops otherwise, fails the test.
 func resolverEnd(t *testing.T, ask resolverAsk) chainEnd {
 	t.Helper()
 	body, err := json.Marshal(ask)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	t.Cleanup(cancel)
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLoops_ReadsAChainAsTheResolverDoes$")
-	cmd.Env = append(os.Environ(), loopsChildEnv+"="+string(body))
-	out, err := cmd.CombinedOutput()
-	for line := range strings.Lines(string(out)) {
-		if end, ok := strings.CutPrefix(strings.TrimRight(line, "\n"), loopsChildMark); ok {
-			require.NoError(t, err, "the child answered and ended")
-			return chainEnd(end)
-		}
-	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) && exit.ExitCode() == 2 && strings.Contains(string(out), "fatal error: stack overflow") {
+	out, end := inChild(t, "TestLoops_ReadsAChainAsTheResolverDoes", loopsChildEnv, string(body))
+	if end == childOverflowed {
 		return runsOut
 	}
-	require.FailNow(t, "the child neither answered nor overflowed", "%v:\n%.1500s", err, out)
+	require.Equal(t, childPassed, end, "%.1500s", out)
+	for line := range strings.Lines(out) {
+		if answer, ok := strings.CutPrefix(strings.TrimRight(line, "\n"), loopsChildMark); ok {
+			return chainEnd(answer)
+		}
+	}
+	require.FailNow(t, "the child printed no answer", "%.1500s", out)
 	return ""
 }
 
@@ -170,13 +155,8 @@ func resolverEnd(t *testing.T, ask resolverAsk) chainEnd {
 // the resolver respelled, and returns the loops reader of it at path.
 func loopsRead(t *testing.T, spec, path string) *loops {
 	t.Helper()
-	root, _, err := decodeStream([]byte(spec))
-	require.NoError(t, err)
-	releaseAnchors(root)
-	newEscapes().escape(root)
-	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
-	require.NoError(t, err)
-	return newLoops(sourceDocument{path: path, root: root}, doc)
+	src := escapeSource(t, spec)
+	return newLoops(sourceDocument{path: path, root: src.root}, src.doc)
 }
 
 // TestLoops_ReadsAChainAsTheResolverDoes pins which schema references loops
@@ -188,7 +168,7 @@ func loopsRead(t *testing.T, spec, path string) *loops {
 // holds its last, the tree its first, and a chain reads the tree from the
 // first hop naming the file. The reach check owns anchors.
 func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
-	if body := os.Getenv(loopsChildEnv); body != "" {
+	if body, ok := asChild(loopsChildEnv); ok {
 		answerAsk(t, body)
 		return
 	}
@@ -584,7 +564,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 // in the order written and reversed: the report is the same in both, and an
 // overflow fails this test, not the binary.
 func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -655,7 +635,7 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 // and the resolver followed it until the stack ran out. Each document is loaded
 // in a child, in both orders of the responses, by '#' and by the file's name.
 func TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -684,7 +664,7 @@ func TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain(t *testing.T) {
 // tree alone it seemed to end, and the resolver followed it until the stack ran
 // out. Each document is loaded in a child, in both orders of the paths.
 func TestLoops_ATreeHopThroughAReferenceReadsTheModel(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
