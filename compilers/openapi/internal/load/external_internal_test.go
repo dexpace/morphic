@@ -36,8 +36,8 @@ func TestExternal_OpenOfAMissingFilePassesTheOSErrorThrough(t *testing.T) {
 }
 
 // TestExternal_OpenRefusesWhatIsNotARegularFile pins GitHub #930 on the one
-// kind of file every system has that is not regular: a directory opens, and is
-// refused with the reason before anything is read from it.
+// kind of file every system has that is not regular: a directory is refused
+// with the reason before it is opened.
 func TestExternal_OpenRefusesWhatIsNotARegularFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -46,6 +46,22 @@ func TestExternal_OpenRefusesWhatIsNotARegularFile(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, "external document "+dir+" refused: it is not a regular file", err.Error())
+}
+
+// TestExternal_ReadOpenedJudgesTheFileOpened pins the second judgement: what a
+// path names can change between the check and the open, so the file opened is
+// judged too, refused unread and closed when it is not regular.
+func TestExternal_ReadOpenedJudgesTheFileOpened(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f, err := os.Open(dir)
+	require.NoError(t, err)
+
+	got := newExternal(&soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).readOpened("k", f)
+
+	require.Error(t, got.err)
+	assert.Equal(t, "external document k refused: it is not a regular file", got.err.Error())
+	assert.ErrorIs(t, f.Close(), os.ErrClosed, "the refused file is closed")
 }
 
 // TestExternal_OpenPreparesTheFileAndCachesItsTree pins the success path: the

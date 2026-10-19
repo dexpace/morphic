@@ -17,7 +17,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -319,17 +318,26 @@ func (e external) Open(name string) (fs.File, error) {
 }
 
 // readFile reads the file path names (see fileNamed), and prepares it under
-// key. The file is closed before its bytes are served.
-//
-// Only a regular file is read. It is opened without blocking, since opening a
-// FIFO otherwise waits for a writer, which no context interrupts, and judged
-// once open, so the file judged is the file read.
+// key. Only a regular file is read, and it is judged before it is opened:
+// opening a FIFO waits for a writer, which no context interrupts. A path Stat
+// cannot read is left to os.Open, whose error the caller sees as it is.
 func (e external) readFile(key, path string) answer {
+	name := fileNamed(path)
+	if info, err := os.Stat(name); err == nil && !info.Mode().IsRegular() {
+		return answer{err: refused(key, "it is not a regular file")}
+	}
 	// the file a $ref names: what AllowExternalRefs opts into
-	f, err := os.OpenFile(fileNamed(path), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, err := os.Open(name)
 	if err != nil {
 		return answer{err: err}
 	}
+	return e.readOpened(key, f)
+}
+
+// readOpened reads f, opened as the file under key, prepares it, and closes it
+// before its bytes are served. It judges f again, since the path can name
+// another file by the time it is opened.
+func (e external) readOpened(key string, f *os.File) answer {
 	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
 		return answer{err: errors.Join(refused(key, "it is not a regular file"), err, f.Close())}
 	}
