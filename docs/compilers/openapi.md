@@ -18,6 +18,11 @@ A rule closes with the evidence that pins it, one bullet per field:
   compiler's own package, an internal package's name otherwise.
 - **Status** — where the compiler does not yet do all the rule says, and the issue tracking it.
 
+A rule names a case or a test, or says in its Status why it has neither. The `TestLoweringSpec`
+tests in `compilers/openapi` hold every field to the code and read it both ways: each conformance
+case is named by a rule, and each code by a rule or by `codesOutsideTheRules`, which gives the reason
+a code has no rule.
+
 ## 1. Documents and versions
 
 ### `document-metadata`

@@ -167,6 +167,9 @@ These all exist already — extend them rather than building a parallel mechanis
   `compilers/openapi/conformance_matrix_test.go` requires every expressible row to be witnessed or
   listed with a reason. What it cannot check is whether a spec that *names* a row exercises that
   capability — that claim is read by a reviewer, so weigh it like any other.
+- **Lowering specification**: `docs/compilers/openapi.md` is machine-read like the matrix. Each rule
+  names its evidence, and the `TestLoweringSpec` tests in `compilers/openapi` hold the names to the
+  code both ways, and every `docs/compilers/openapi.md#<key>` citation to a rule.
 - **Oracles**: `internal/harness` drives a spec through no-panic → no error diagnostic →
   `irverify` invariants → JSON round-trip → determinism → order-invariance, stopping at the first
   one that fires. `harness.Check` is the list — read it there rather than trusting this sentence;
