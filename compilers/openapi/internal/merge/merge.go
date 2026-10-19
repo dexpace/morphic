@@ -126,7 +126,7 @@ func (g *Merger) reconcileProperty(dst *ir.Property, src ir.Property, source fun
 func (g *Merger) foldDocs(dst, src *ir.Property) bool {
 	lost := false
 	if foldString(&dst.Docs.Summary, src.Docs.Summary) {
-		g.detailDiffersDiag(dst, src.Provenance.Pointer, "summary")
+		g.detailDiffersDiag(dst, src.Provenance.Pointer, "title")
 		lost = true
 	}
 	if foldString(&dst.Docs.Description, src.Docs.Description) {

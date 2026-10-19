@@ -111,8 +111,8 @@ func TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription(t *testing.T)
 		{"summary, dst empty", summary(""), summary("B"), summary("B"), ""},
 		{"summary, src empty", summary("A"), summary(""), summary("A"), ""},
 		{"summary, equal", summary("A"), summary("A"), summary("A"), ""},
-		{"summary, different", summary("A"), summary("B"), summary("A"), "summary"},
-		{"summary, different swapped", summary("B"), summary("A"), summary("B"), "summary"},
+		{"summary, different", summary("A"), summary("B"), summary("A"), "title"},
+		{"summary, different swapped", summary("B"), summary("A"), summary("B"), "title"},
 		{"external docs, dst empty", links(nil), links(linkB), links(linkB), ""},
 		{"external docs, src empty", links(linkA), links(nil), links(linkA), ""},
 		{"external docs, equal", links(linkA), links(linkA), links(linkA), ""},
@@ -151,6 +151,29 @@ func TestReconcileProperty_TitleAndExternalDocsFoldLikeDescription(t *testing.T)
 			assert.Equal(t, ir.RawValue(`{"x":1}`), entry.Value)
 		})
 	}
+}
+
+// TestReconcileProperty_EveryDocsDisagreementIsReported pins that foldDocs
+// judges each docs field rather than stopping at the first that differs: a
+// redeclaration giving all three differently is reported three times, and
+// kept once.
+func TestReconcileProperty_EveryDocsDisagreementIsReported(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(nil)
+	first := ir.Docs{Summary: "A", Description: "dA", ExternalDocs: []ir.Link{{URL: "https://a.example"}}}
+	dst := ir.Property{WireName: "id", Docs: first}
+	src := ir.Property{WireName: "id", Provenance: ptrAt("/other"),
+		Docs: ir.Docs{Summary: "B", Description: "dB", ExternalDocs: []ir.Link{{URL: "https://b.example"}}}}
+
+	g.reconcileProperty(&dst, src, written(`{"x":1}`))
+
+	assert.Empty(t, cmp.Diff(first, dst.Docs))
+	require.Len(t, *recorded, 3)
+	for i, detail := range []string{"title", "description", "external docs"} {
+		assert.Contains(t, (*recorded)[i].Message, detail)
+	}
+	require.Len(t, dst.Unmodeled, 1)
+	assert.Equal(t, ir.RawValue(`{"x":1}`), dst.Unmodeled[losingDeclarationKey+"/other"].Value)
 }
 
 // readOnlyVisibility and writeOnlyVisibility are the two non-empty shapes
