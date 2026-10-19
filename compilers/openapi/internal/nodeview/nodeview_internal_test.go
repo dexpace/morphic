@@ -495,10 +495,11 @@ func TestDocumentPath_SeparatesTheLoneSlashFromTheRoot(t *testing.T) {
 	assert.Equal(t, []*yaml.Node{root}, path)
 }
 
-// TestPointerTarget_ATrailingEmptyTokenLandsNowhere pins the one token read
-// otherwise than RFC 6901 reads it: '/a/' lands nowhere though a key "" is
-// declared under a, because the library lands such a pointer on no member. An
-// empty token before the last still names the key "".
+// TestPointerTarget_ATrailingEmptyTokenLandsNowhere pins where a trailing empty
+// token is read otherwise than RFC 6901 reads it: '/a/' lands nowhere though a
+// key "" is declared under a, because the resolver lands such a pointer on no
+// member. An empty token before the last still names the key "", and a lone '/'
+// is TestPointerTarget_LoneSeparatorNamesTheRoot's.
 func TestPointerTarget_ATrailingEmptyTokenLandsNowhere(t *testing.T) {
 	t.Parallel()
 	leaf := ynode.Scalar("leaf")

@@ -723,7 +723,7 @@ func TestRefScanCollect_OutsidePositions(t *testing.T) {
 
 // TestDetectCycles_ATrailingEmptyTokenLandsNowhere pins the reading of a
 // pointer ending in an empty token. RFC 6901 reads '/A/' as naming the key ""
-// under A, where each of these documents holds a $ref back to A. The library
+// under A, where each of these documents holds a $ref back to A. The resolver
 // lands on no such member: in the schema model it fails the pointer, and the
 // second document, whose '/u/' it reads as u itself, compiles cleanly.
 func TestDetectCycles_ATrailingEmptyTokenLandsNowhere(t *testing.T) {

@@ -276,10 +276,10 @@ func TestCycles_AHopThroughAReferenceLandsWhereItsPointerEnds(t *testing.T) {
 	}
 }
 
-// TestCycles_EveryStartRunsIntoTheLoopItLandsOn pins that a hop is read once
-// for every chain through it: from S0, the last hop passes S0 on its way to t,
-// and from any later start too, and every one of them runs into the loop of t
-// and S19. That loop's member with the least pointer, t, is reported.
+// TestCycles_EveryStartRunsIntoTheLoopItLandsOn pins that one reading of a hop
+// serves every chain through it: the last hop passes S0 on its way to t on the
+// walk from S0 and from every later start alike, so each runs into the loop of
+// t and S19. That loop's member with the least pointer, t, is reported.
 func TestCycles_EveryStartRunsIntoTheLoopItLandsOn(t *testing.T) {
 	t.Parallel()
 	s, chains := settled(t, throughLoopDoc(20))
