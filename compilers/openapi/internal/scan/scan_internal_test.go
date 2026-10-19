@@ -152,10 +152,12 @@ components:
         p: {$ref: '#/components/schemas/A/default/q'}
         q: {$ref: '#/components/schemas/A/default/p'}
 `},
+	// Under an extension a schema position is data too: the resolver never
+	// reads x-foo, so neither loop below is followed.
 	{"extension-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
-x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
+x-foo: {schema: {$ref: '#/x-foo/schema'}, schemas: {A: {$ref: '#/x-foo/schemas/A'}}}
 `},
 	{"responses-ref-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -613,6 +615,7 @@ func TestRefScanCollect_UnhandledRolePanics(t *testing.T) {
 		s.stack = append(s.stack, refTask{n: ynode.Map(), role: roleCount})
 		s.collect(nil)
 	}, "a task carrying an unhandled role is a programmer error")
+	assert.Panics(t, func() { roleCount.child("items") }, "and so is reading a child in one")
 }
 
 func TestRefScanCollect_DeepNestingIsNotTruncated(t *testing.T) {
@@ -737,6 +740,44 @@ func TestDetectCycles_ATrailingEmptyTokenLandsNowhere(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, scanBytes(t, schemasDoc([]string{member})))
 		})
+	}
+}
+
+// TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks pins the start
+// collection to the library's schema model: draft-07's definitions and
+// additionalItems are no field of it, so the resolver resolves nothing beneath
+// them, and a loop held wholly there compiles. A loop a schema the resolver
+// does resolve runs into through them is still refused, since a hop is followed
+// wherever it lands.
+func TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		members []string
+		want    jsontext.Pointer
+	}{
+		{"definitions", []string{
+			"    A: {definitions: {X: {$ref: '#/components/schemas/A/definitions/X'}}}\n",
+		}, ""},
+		{"additional-items", []string{
+			"    A: {additionalItems: {$ref: '#/components/schemas/A/additionalItems'}}\n",
+		}, ""},
+		{"through-definitions", []string{
+			"    A: {definitions: {X: {$ref: '#/components/schemas/B'}}}\n",
+			"    B: {$ref: '#/components/schemas/A/definitions/X'}\n",
+		}, "/components/schemas/A/definitions/X"},
+	}
+	for _, tc := range tests {
+		for order, data := range bothOrders(schemasHeader, tc.members) {
+			t.Run(tc.name+"/"+order, func(t *testing.T) {
+				t.Parallel()
+				if tc.want == "" {
+					assert.Empty(t, scanPlaced(t, data), "nothing beneath the key is resolved")
+					return
+				}
+				assert.Equal(t, tc.want, onlyRefusal(t, data).Provenance.Pointer)
+			})
+		}
 	}
 }
 

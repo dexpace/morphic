@@ -29,10 +29,14 @@ var schemaEntryMapKeys = map[string]bool{
 	"schemas": true, "$defs": true, "definitions": true,
 }
 
-// subSchemaObjectKeys name single sub-schemas within a schema object.
+// subSchemaObjectKeys name single sub-schemas within a schema object. These and
+// the two sets below are the schema fields of the library's model, and only
+// those (TestSubSchemaKeys_AreTheModelsSchemaFields): under any other key of a
+// schema, such as draft-07's additionalItems, the resolver resolves nothing,
+// and its pointer walk is in raw YAML.
 var subSchemaObjectKeys = map[string]bool{
 	"items": true, "not": true, "additionalProperties": true,
-	"additionalItems": true, "propertyNames": true, "contains": true,
+	"propertyNames": true, "contains": true,
 	"if": true, "then": true, "else": true,
 	"unevaluatedItems": true, "unevaluatedProperties": true,
 	"contentSchema": true,
@@ -41,7 +45,7 @@ var subSchemaObjectKeys = map[string]bool{
 // subSchemaMapKeys name a mapping of name→schema within a schema object.
 var subSchemaMapKeys = map[string]bool{
 	"properties": true, "patternProperties": true, "dependentSchemas": true,
-	"$defs": true, "definitions": true,
+	"$defs": true,
 }
 
 // subSchemaListKeys name a sequence of schemas within a schema object.
@@ -383,6 +387,43 @@ const (
 	roleCount // number of roles; sizes refScan.seen
 )
 
+// child returns the role of what a node read in role r holds under key, and
+// false where the resolver reads no schema there or below: under an extension
+// or data key outside a schema, and under any key of a schema that names no
+// sub-schema.
+func (r walkRole) child(key string) (walkRole, bool) {
+	switch r {
+	case roleOutside:
+		switch {
+		case strings.HasPrefix(key, "x-"), schemaDataKeys[key]:
+			return roleOutside, false
+		case key == "schema":
+			return roleSchema, true
+		case schemaEntryMapKeys[key]:
+			return roleSchemaMap, true
+		default:
+			return roleOutside, true
+		}
+	case roleSchema:
+		switch {
+		case subSchemaObjectKeys[key]:
+			return roleSchema, true
+		case subSchemaMapKeys[key]:
+			return roleSchemaMap, true
+		case subSchemaListKeys[key]:
+			return roleSchemaList, true
+		default:
+			return roleSchema, false
+		}
+	case roleSchemaMap, roleSchemaList:
+		return roleSchema, true
+	default:
+		// Unreachable by construction, as in collect: recoverCycleScan turns
+		// this into the diag.CycleScanFailed warning, never a crash.
+		panic(fmt.Sprintf("cycle scan: unhandled walk role %d", r))
+	}
+}
+
 // refTask is one unit of the ref-collection walk: a node and the role to read it
 // in.
 type refTask struct {
@@ -470,25 +511,13 @@ func (s *refScan) pushReversed(nodes []*yaml.Node, role walkRole) {
 
 // visitOutside reads a document position outside any schema, collecting
 // nothing there: it enters schema context at schema-valued keys, and never
-// descends into data or extension subtrees.
+// descends into data or extension subtrees (walkRole.child).
 func (s *refScan) visitOutside(n *yaml.Node) {
 	if n.Kind == yaml.SequenceNode {
 		s.pushReversed(n.Content, roleOutside)
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case strings.HasPrefix(p.Key, "x-"), schemaDataKeys[p.Key]:
-			// extension or example/default data: not a schema position
-		case p.Key == "schema":
-			s.push(p.Val, roleSchema)
-		case schemaEntryMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		default:
-			s.push(p.Val, roleOutside)
-		}
-	}
+	s.pushChildren(roleOutside, s.view.MappingPairs(n))
 }
 
 // visitSchema reads one schema object: it collects the node when it is a pure
@@ -503,16 +532,7 @@ func (s *refScan) visitSchema(n *yaml.Node) {
 	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.out = append(s.out, n)
 	}
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case subSchemaObjectKeys[p.Key]:
-			s.push(p.Val, roleSchema)
-		case subSchemaMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		case subSchemaListKeys[p.Key]:
-			s.push(p.Val, roleSchemaList)
-		}
-	}
+	s.pushChildren(roleSchema, pairs)
 }
 
 // visitSchemaMap reads each value of a name→schema mapping as a schema.
@@ -520,9 +540,17 @@ func (s *refScan) visitSchemaMap(n *yaml.Node) {
 	if n.Kind != yaml.MappingNode {
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	for _, pair := range slices.Backward(pairs) {
-		s.push(pair.Val, roleSchema)
+	s.pushChildren(roleSchemaMap, s.view.MappingPairs(n))
+}
+
+// pushChildren enqueues each value of pairs, a mapping read in role r, in the
+// role walkRole.child gives it there, skipping those that hold no schema. They
+// are pushed last first, so a LIFO pop meets them in written order.
+func (s *refScan) pushChildren(r walkRole, pairs []nodeview.Pair) {
+	for _, p := range slices.Backward(pairs) {
+		if role, held := r.child(p.Key); held {
+			s.push(p.Val, role)
+		}
 	}
 }
 
