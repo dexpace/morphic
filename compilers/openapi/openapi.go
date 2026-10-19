@@ -229,10 +229,11 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 // Options) and most of which describes lowering the loader cannot see.
 func loadOptions(o Options) load.Options {
 	out := load.Options{
-		AllowExternalRefs: o.AllowExternalRefs,
-		MaxSourceBytes:    bounded(o.Limits.MaxSourceBytes),
-		MaxSourceNodes:    bounded(o.Limits.MaxSourceNodes),
-		MaxAliasSurplus:   bounded(o.Limits.MaxAliasSurplus),
+		AllowExternalRefs:    o.AllowExternalRefs,
+		MaxSourceBytes:       bounded(o.Limits.MaxSourceBytes),
+		MaxSourceNodes:       bounded(o.Limits.MaxSourceNodes),
+		MaxAliasSurplus:      bounded(o.Limits.MaxAliasSurplus),
+		MaxExternalDocuments: bounded(o.Limits.MaxExternalDocuments),
 	}
 	if o.Overlay != nil {
 		out.Overlay = &overlay.Options{Path: o.Overlay.Path, Data: o.Overlay.Data, Lax: o.Overlay.Lax}

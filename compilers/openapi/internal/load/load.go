@@ -66,6 +66,10 @@ type Options struct {
 	// the overlay, beyond their own. Zero is unbounded, as in MaxSourceBytes; the
 	// ratio refusal scan makes beside it holds either way.
 	MaxAliasSurplus int
+	// MaxExternalDocuments bounds the documents external references read in one
+	// compile, each counted once however often it is asked for. Zero is
+	// unbounded, as in MaxSourceBytes.
+	MaxExternalDocuments int
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
