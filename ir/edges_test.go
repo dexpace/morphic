@@ -1,9 +1,7 @@
 package ir_test
 
 import (
-	"encoding/json/v2"
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -13,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // typeIDReflect is the reflect.Type of ir.TypeID.
@@ -158,10 +157,8 @@ func corpusTypeDefs(t *testing.T) []ir.TypeDef {
 	}
 	defs := make([]ir.TypeDef, 0, len(files))
 	for _, f := range files {
-		data, err := os.ReadFile(f)
+		doc, err := irtest.ReadGolden(f)
 		require.NoError(t, err)
-		var doc ir.Document
-		require.NoError(t, json.Unmarshal(data, &doc), f)
 		for _, td := range doc.Types {
 			defs = append(defs, td)
 		}
