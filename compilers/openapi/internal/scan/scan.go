@@ -33,7 +33,7 @@ var schemaEntryMapKeys = map[string]bool{
 // the two sets below are the schema fields of the library's model, and only
 // those (TestSubSchemaKeys_AreTheModelsSchemaFields): under any other key of a
 // schema, such as draft-07's additionalItems, the resolver resolves nothing,
-// and its pointer walk is in raw YAML.
+// and its pointer walk is in raw YAML or a field holding no schema.
 var subSchemaObjectKeys = map[string]bool{
 	"items": true, "not": true, "additionalProperties": true,
 	"propertyNames": true, "contains": true,
@@ -388,12 +388,13 @@ const (
 )
 
 // child returns the role of what a node read in role r holds under key, and
-// false where the resolver reads no schema there or below: under an extension
-// or data key outside a schema, and under any key of a schema that names no
-// sub-schema. It is the one reading of positions, so the collection walk and a
-// hop's pointer walk (emptyTokenRead) cannot part company. Outside a schema it
-// reads a key by name alone, where the library's model also asks which object
-// holds the key (GitHub #949).
+// false where the scan reads no further: under a schema, any key naming no
+// sub-schema, below which the resolver reads no schema; outside one, an
+// extension or a key named like example data. That skip goes by the name
+// alone, though the library's model also asks which object holds the key, so
+// it passes over a default response, or a webhook named x-h (GitHub #949). The
+// collection walk and a hop's pointer walk (emptyTokenLanding) share this one
+// reading.
 func (r walkRole) child(key string) (walkRole, bool) {
 	switch r {
 	case roleOutside:

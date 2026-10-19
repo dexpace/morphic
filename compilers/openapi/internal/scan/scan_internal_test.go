@@ -810,23 +810,39 @@ func TestCycles_ATrailingEmptyTokenIsReadWhereTheWalkIs(t *testing.T) {
 
 // TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey pins the reading
 // where the scan cannot tell the library's model from raw YAML: outside a
-// schema, a trailing empty token names the key "", as RFC 6901 reads it. A
-// link's parameters are a map whose values the library reads as raw YAML, so
-// the hop lands on the member keyed "" and the loop through it is refused.
+// schema, and below a key it skips there by name, a trailing empty token names
+// the key "", as RFC 6901 reads it. A link's parameters are a map, and so are a
+// schema's properties under a default response or a webhook named x-h, so each
+// hop lands on the member keyed "" and the loop through it is refused.
 func TestCycles_ATrailingEmptyTokenOutsideASchemaNamesTheKey(t *testing.T) {
 	t.Parallel()
-	data := []byte(`openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  links:
-    L: {operationId: o, parameters: {'': {$ref: '#/components/schemas/S'}}}
-  schemas:
-    S: {$ref: '#/components/links/L/parameters/'}
-`)
-	d := onlyRefusal(t, data)
-	assert.Equal(t, diag.CyclicRef, d.Code)
-	assert.Equal(t, jsontext.Pointer("/components/links/L/parameters/"), d.Provenance.Pointer)
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"
+	const back = "{properties: {'': {$ref: '#/components/schemas/S'}}}"
+	tests := []struct {
+		name, data string
+		want       jsontext.Pointer
+	}{
+		{"link-parameters", head + "paths: {}\ncomponents:\n" +
+			"  links: {L: {operationId: o, parameters: {'': {$ref: '#/components/schemas/S'}}}}\n" +
+			"  schemas: {S: {$ref: '#/components/links/L/parameters/'}}\n",
+			"/components/links/L/parameters/"},
+		{"default-response", head + "paths: {/a: {get: {responses: {default: {description: d, " +
+			"content: {application/json: {schema: " + back + "}}}}}}}\ncomponents:\n" +
+			"  schemas: {S: {$ref: '#/paths/~1a/get/responses/default/content/application~1json/schema/properties/'}}\n",
+			"/components/schemas/S"},
+		{"webhook-named-like-an-extension", head + "paths: {}\nwebhooks: {x-h: {post: {requestBody: " +
+			"{content: {application/json: {schema: " + back + "}}}}}}\ncomponents:\n" +
+			"  schemas: {S: {$ref: '#/webhooks/x-h/post/requestBody/content/application~1json/schema/properties/'}}\n",
+			"/components/schemas/S"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := onlyRefusal(t, []byte(tc.data))
+			assert.Equal(t, diag.CyclicRef, d.Code)
+			assert.Equal(t, tc.want, d.Provenance.Pointer)
+		})
+	}
 }
 
 // TestRefScanCollect_ReadsNoSchemaUnderAKeyTheModelLacks pins the start

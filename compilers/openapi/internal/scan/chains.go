@@ -109,67 +109,70 @@ func (g *chainGraph) read(starts []*yaml.Node) {
 // landing returns the node the resolver lands ref on, read from root, or nil
 // where it lands nowhere. It reads each token as RFC 6901 does, which is
 // nodeview.PointerTarget, but a trailing empty token by where the walk has got
-// to (emptyTokenRead): the library reads that one differently in its model and
-// in raw YAML (GitHub #944).
+// to (emptyTokenLanding): the library reads that one differently in its model
+// and in raw YAML (GitHub #944).
 func landing(view *nodeview.View, root *yaml.Node, ref jsontext.Pointer) *yaml.Node {
 	if before, trailing := strings.CutSuffix(string(ref), "/"); trailing {
-		switch emptyTokenRead(jsontext.Pointer(before)) {
-		case readNowhere:
+		switch emptyTokenLanding(jsontext.Pointer(before)) {
+		case landsNowhere:
 			return nil
-		case readStays:
+		case landsOnNode:
 			path, complete := view.DocumentPath(root, jsontext.Pointer(before))
 			if !complete {
 				return nil
 			}
 			return path[len(path)-1]
-		default: // readKey: the member keyed "", which RFC 6901 names
+		default: // landsOnKey: the member keyed "", which RFC 6901 names
 		}
 	}
 	next, _ := view.PointerTarget(root, ref)
 	return next
 }
 
-// emptyRead is how the resolver reads a pointer's trailing empty token.
-type emptyRead int
+// emptyLanding is where the resolver lands a pointer's trailing empty token.
+type emptyLanding int
 
 const (
-	// readKey: as the member keyed "", where the library looks the token up as
-	// a key: in a map of schemas, a link's parameters, any map. A list has no
-	// such member, nor does the library find one. It is also the reading where
-	// the scan does not know a position's kind (GitHub #949): at an object the
-	// model holds, the library fails the pointer, so a landing the scan takes
-	// there only ever adds a loop through a reference the resolver reports
-	// anyway.
-	readKey emptyRead = iota
-	// readNowhere: at a schema, as a field no schema has, so the pointer lands
-	// nowhere.
-	readNowhere
-	// readStays: as the node the walk has reached, in raw YAML: any key of a
-	// schema naming no sub-schema, and an extension or data key outside one.
-	// Where the model holds a non-schema object there instead, the library
-	// fails the pointer or lands on no schema, either way a reference it
-	// reports.
-	readStays
+	// landsOnKey: on the member keyed "", where the library looks the token up
+	// as a key: in a map of schemas, a link's parameters, any map. A list has
+	// no such member, nor does the library find one. Outside a schema it is
+	// also the reading wherever the scan cannot tell the position's kind
+	// (GitHub #949): at an object of the model the library fails the pointer,
+	// so a landing only adds a loop through a reference it reports anyway; in
+	// raw YAML, where the library stays, a loop can be missed.
+	landsOnKey emptyLanding = iota
+	// landsNowhere: at a schema, which reads the token as a field no schema
+	// has.
+	landsNowhere
+	// landsOnNode: on the node the walk has reached, under a schema past a key
+	// naming no sub-schema, in raw YAML, where the library stays. Where the key
+	// names a field of the model holding no schema instead, the library fails
+	// the pointer or lands on no schema, either way a reference it reports.
+	landsOnNode
 )
 
-// emptyTokenRead returns how the resolver reads an empty token after the
+// emptyTokenLanding returns where the resolver lands an empty token after the
 // tokens of before, from the role walkRole.child gives each from the document
-// root. Past a key child reads no schema under, the walk is in raw YAML, which
-// it never leaves, or in a field of the model holding no schema: readStays
-// serves both.
-func emptyTokenRead(before jsontext.Pointer) emptyRead {
+// root. A key child reads no further under is known for raw YAML only under a
+// schema, whose keys are the model's. Outside one, child skips a key by its
+// name alone, so past it the scan does not know where the library's walk is.
+func emptyTokenLanding(before jsontext.Pointer) emptyLanding {
 	role := roleOutside
 	for token := range before.Tokens() {
 		next, held := role.child(token)
-		if !held {
-			return readStays
+		switch {
+		case held:
+			role = next
+		case role == roleSchema:
+			return landsOnNode
+		default:
+			return landsOnKey
 		}
-		role = next
 	}
 	if role == roleSchema {
-		return readNowhere
+		return landsNowhere
 	}
-	return readKey
+	return landsOnKey
 }
 
 // settle numbers the loop each chain runs into, following each node once. A

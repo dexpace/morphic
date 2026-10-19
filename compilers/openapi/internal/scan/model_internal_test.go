@@ -51,13 +51,28 @@ func TestSubSchemaKeys_AreTheModelsSchemaFields(t *testing.T) {
 
 // landingDoc holds a member of each kind a pointer's last empty token is read
 // in: maps of schemas, a schema and its sub-schemas, a list of schemas, keys a
-// schema has no field for, a link's parameters, a map of raw values, and
-// objects outside any schema. Each holds a member keyed "" where it can, so a
-// reading that took the key where the library stays, or stayed where it takes
-// the key, lands elsewhere.
+// schema has no field for, a link's parameters, a map of raw values, objects
+// outside any schema, and schemas below keys the scan skips by name. Each holds
+// a member keyed "" where it can, so a reading that took the key where the
+// library stays, or stayed where it takes the key, lands elsewhere.
 const landingDoc = `openapi: 3.1.0
 info: {title: t, version: '1'}
-paths: {}
+paths:
+  /a:
+    get:
+      responses:
+        default:
+          description: d
+          content:
+            application/json:
+              schema: {properties: {'': {type: string}}}
+webhooks:
+  x-h:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: {properties: {'': {type: string}}}
 x-l: {'': {k: v}}
 components:
   '': {k: v}
@@ -84,9 +99,10 @@ components:
 // TestLanding_IsWhereTheLibraryLands holds landing to the call the resolver
 // makes, jsonpointer.GetTarget on the parsed model: where the library lands a
 // pointer the scan lands it too, and where the library fails it the scan lands
-// nowhere, but for the rows marked over: positions holding no schema whose kind
-// the scan does not read, where a landing only ever adds a loop through a
-// reference the resolver reports anyway (emptyRead).
+// nowhere. Rows marked over are positions holding no schema whose kind the scan
+// does not read, where a landing only adds a loop through a reference the
+// resolver reports anyway. The row marked raw pins the one gap: outside a
+// schema the scan reads the key "" even in raw YAML (landsOnKey).
 func TestLanding_IsWhereTheLibraryLands(t *testing.T) {
 	t.Parallel()
 	doc, _, err := soa.Unmarshal(t.Context(), bytes.NewReader([]byte(landingDoc)))
@@ -96,8 +112,8 @@ func TestLanding_IsWhereTheLibraryLands(t *testing.T) {
 	root := nodeview.DocumentRoot(&tree)
 
 	tests := []struct {
-		pointer jsontext.Pointer
-		over    bool
+		pointer   jsontext.Pointer
+		over, raw bool
 	}{
 		{pointer: "/components/schemas/"},
 		{pointer: "/components/schemas/A"},
@@ -124,7 +140,9 @@ func TestLanding_IsWhereTheLibraryLands(t *testing.T) {
 		{pointer: "/components/links/L/parameters/p"},
 		{pointer: "/components/links/L/", over: true},
 		{pointer: "/components/", over: true},
-		{pointer: "/x-l/"},
+		{pointer: "/paths/~1a/get/responses/default/content/application~1json/schema/properties/"},
+		{pointer: "/webhooks/x-h/post/requestBody/content/application~1json/schema/properties/"},
+		{pointer: "/x-l/", raw: true},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.pointer), func(t *testing.T) {
@@ -132,6 +150,12 @@ func TestLanding_IsWhereTheLibraryLands(t *testing.T) {
 			want, landed := libraryLanding(t, doc, tc.pointer)
 			got := landing(nodeview.New(), root, tc.pointer)
 			switch {
+			case tc.raw:
+				require.True(t, landed, "the library stays on the node reached")
+				rfc, _ := nodeview.New().PointerTarget(root, tc.pointer)
+				require.NotNil(t, rfc)
+				assert.Same(t, rfc, got, `the scan lands on the member keyed ""`)
+				assert.NotEqual(t, [2]int{want.Line, want.Column}, [2]int{got.Line, got.Column})
 			case landed:
 				require.NotNil(t, got, "the library lands the pointer at %d:%d", want.Line, want.Column)
 				assert.Equal(t, [2]int{want.Line, want.Column}, [2]int{got.Line, got.Column})
