@@ -166,12 +166,14 @@ func distinct[T comparable](root T, children func(T) []T) int {
 }
 
 // allocations decodes input and walks the model it builds, and reports the
-// bytes each allocated on the heap, decoding's first.
+// bytes each allocated on the heap, decoding's first. It reads them through
+// runtime.ReadMemStats, which counts what every processor's cache holds, where
+// a runtime/metrics read leaves that uncounted until the cache is refilled.
 func allocations(ctx context.Context, input []byte) string {
-	sample := []metrics.Sample{{Name: "/gc/heap/allocs:bytes"}}
+	var stats runtime.MemStats
 	allocated := func() uint64 {
-		metrics.Read(sample)
-		return sample[0].Value.Uint64()
+		runtime.ReadMemStats(&stats)
+		return stats.TotalAlloc
 	}
 	start := allocated()
 	doc, _, err := soa.Unmarshal(ctx, bytes.NewReader(input))
