@@ -56,12 +56,13 @@ To bump the library:
 A cycle of schema `$ref`s overflows the stack. Only the first reference from outside the cycle, met
 by the walk before any member, returns an error instead (`circular reference detected`). A member
 met first overflows, as does a second reference from outside, to any member. A `$ref` whose pointer
-passes through a schema's `$ref` reads that schema's own members, so it lands where the pointer ends:
-`#/components/schemas/A/properties/p` in `A` lands on `p`, and a `p` leading back to `A` closes a
-cycle that overflows like any other. One ending in an empty token, such as `#/components/schemas/A/`
-in `A`, names no member of a schema, and fails as naming nothing (`not found`). So the scan refuses a
-schema chain only when the hops it lands on loop. In Go a stack overflow ends the process whatever recovers, cancels or times out around it, so a cycle
-has to be refused before the resolver sees the document. Refusing one in every declaration order
+passes through a schema's `$ref` reads that schema's own members, so it lands where the pointer
+ends: `#/components/schemas/A/properties/p` in `A` lands on `p`, and a `p` leading back to `A`
+closes a cycle that overflows like any other. One ending in an empty token, such as
+`#/components/schemas/A/` in `A`, names no member of a schema, and fails as naming nothing
+(`not found`). So the scan refuses a schema chain only when the hops it lands on loop. In Go a stack
+overflow ends the process whatever recovers, cancels or times out around it, so a cycle has to be
+refused before the resolver sees the document. Refusing one in every declaration order
 takes a model of how the resolver reads `$defs`, `$anchor` and `$id`, which is what most of the code
 below is.
 
@@ -179,9 +180,9 @@ security schemes, in cycles of one to three components, and for a path item, web
 naming itself by position. A `$ref` into the reference object it is reached through, such as a path
 item naming a key beneath itself, returns `unresolved reference`. Neither hangs nor overflows, so
 the compile leaves these shapes to the resolver and reports each at the reference, as an unresolved
-reference. An earlier resolver held a reference's lock while following one, so a chain re-entering
-it deadlocked, and overflowed its stack on a cycle spelled by position; the pre-parse refusals
-written against it are retired (#574).
+reference. An earlier resolver held a reference's lock while following it, so a chain re-entering
+one deadlocked, and it overflowed its stack on a cycle spelled by position. The pre-parse refusals
+written against that resolver are retired (#574).
 
 ```yaml
 components:

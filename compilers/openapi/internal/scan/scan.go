@@ -59,10 +59,9 @@ var subSchemaListKeys = map[string]bool{
 // exampleKeys name the fields holding example data outside a schema: the
 // example of a parameter, a header or a media type, a raw value, and its
 // examples, Example objects that hold no schema either. A $ref-shaped mapping
-// under one is an opaque value, never resolved. The library's model gives no
-// other field outside a schema so named, and none that holds a schema
-// (TestExampleKeys_HoldNoSchema): there a default is a response, so it is no
-// such key, whatever a schema's default is.
+// under one is an opaque value, never resolved. No field so named outside a
+// schema holds one (TestExampleKeys_HoldNoSchema). A default there is a
+// response, so it is no such key, whatever a schema's default is.
 var exampleKeys = map[string]bool{"example": true, "examples": true}
 
 // Locator answers where a diagnostic's subject is. Given a node it returns the
