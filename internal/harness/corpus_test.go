@@ -64,36 +64,44 @@ func knownInvalid() map[string]bool {
 		// cyclic. The resolver works from the last declaration, so the scan
 		// must read the mapping last-key-wins too.
 		filepath.FromSlash("../../testdata/openapi/cycle_duplicate_key.yaml"): true,
-		// Reference-object cycles spelled by document position ('#/paths/~1a',
-		// '#/webhooks/onA') rather than through components. Speakeasy guards
-		// the components spelling and faults on these, so the pre-parse scan
-		// refuses them too.
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):        true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):          true,
-		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):       true,
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"): true,
-		// A $ref whose pointer passes *through* a reference already being
-		// resolved. Speakeasy resolves a reference holding its own write lock
-		// and read-locks every reference the pointer walk traverses, so
-		// re-entering one deadlocks on a non-reentrant RWMutex before the hop
-		// completes and its own cycle guard can run. Unlike the cycles above,
-		// the components spelling deadlocks too, so all spellings are refused.
+		// Chains of reference objects that cycle, spelled by document position
+		// ('#/paths/~1a', '#/webhooks/onA') rather than through components, or
+		// whose pointer passes through a reference on the chain. The resolver
+		// follows each in a loop and reports it as an unresolved reference
+		// (docs/parser-library.md#reference-object-cycle, #574).
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_mutual.yaml"):           true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_self.yaml"):             true,
+		filepath.FromSlash("../../testdata/openapi/cycle_webhook_mutual.yaml"):             true,
+		filepath.FromSlash("../../testdata/openapi/cycle_response_via_path.yaml"):          true,
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_via_component.yaml"):    true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_self.yaml"):      true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_sibling.yaml"):   true,
 		filepath.FromSlash("../../testdata/openapi/cycle_path_item_prefix_chain.yaml"):     true,
 		filepath.FromSlash("../../testdata/openapi/cycle_component_path_item_prefix.yaml"): true,
 		filepath.FromSlash("../../testdata/openapi/cycle_webhook_prefix_self.yaml"):        true,
-		// The same re-entrant prefix spelled with a trailing separator. The
-		// empty token it ends in names the key "" under the path item, so the
-		// resolver descends through the reference it is already resolving; a
-		// pointer walk that dropped the token would let it past.
-		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"): true,
-		// The same self-reference, visible only once the pointer is normalized
+		filepath.FromSlash("../../testdata/openapi/cycle_path_item_empty_segment.yaml"):    true,
+		// A schema self-reference, visible only once the pointer is normalized
 		// as the resolver does. Speakeasy trims whitespace around a $ref's
-		// pointer, so '#/paths/~1a ' names /a there; a scan of the raw value
-		// would call it dangling and miss the cycle.
+		// pointer, so '#/components/schemas/A ' names A there; a scan of the raw
+		// value would call it dangling and miss the cycle.
 		filepath.FromSlash("../../testdata/openapi/cycle_pointer_whitespace_self.yaml"): true,
+		// A self-reference visible only when a '+' in the pointer is a plus,
+		// as RFC 3986 reads it: the resolver reads it as a space and would
+		// look for a key that is not there (#911).
+		filepath.FromSlash("../../testdata/openapi/cycle_pointer_plus_self.yaml"): true,
+		// Schema loops closed by a pointer passing back through a schema $ref on
+		// the chain, which the resolver reads by that schema's own members, so it
+		// recurses round the loop until the stack runs out (#932).
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_through_own_member.yaml"):   true,
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_through_member_chain.yaml"): true,
+		// Schema loops through a trailing empty token, which the resolver reads
+		// in a map of schemas as the key "" and in raw YAML as the node reached,
+		// recursing round each until the stack runs out (#944).
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_empty_key.yaml"):         true,
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_empty_token_stays.yaml"): true,
+		// A schema loop under a default response, which outside a schema is a
+		// response rather than example data (#949).
+		filepath.FromSlash("../../testdata/openapi/cycle_schema_default_response.yaml"): true,
 		// A 10-level x 10-way YAML alias fan-out ("billion laughs"). Every
 		// alias target is acyclic, so neither the anchor nor the $ref cycle
 		// detector catches it, and unguarded it exhausts memory inside

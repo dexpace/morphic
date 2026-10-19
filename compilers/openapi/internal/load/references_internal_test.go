@@ -672,7 +672,8 @@ var resolvesBeyondTheLibrary = map[string][]string{
 // External references are off on both sides: the library's default reads the
 // real file system where resolveWith's Options{} refuses. A fixture the build
 // refuses before resolving, by the pre-parse refusals or the chain-cycle check,
-// is skipped: the resolver has no guard of its own against those cycles.
+// is skipped: some of those overflow the resolver's stack
+// (docs/parser-library.md#schema-cycle-overflow).
 func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob("../../../../testdata/openapi/*.yaml")

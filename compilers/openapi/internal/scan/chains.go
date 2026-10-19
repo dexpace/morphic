@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -11,62 +12,69 @@ import (
 )
 
 // chainGraph settles how the chain from every pure-$ref node ends, reading
-// each hop once and settling outward from each chain's end, so no chain is
-// walked again per start (GitHub #903, #923, #924). The verdict is a walk's
-// however long the chain: the resolver recurses once per hop of a loop, so any
-// loop runs it out of stack (GitHub #922).
+// each hop once, so no chain is walked again per start (GitHub #903, #923).
+// A loop is found however long: the resolver overflows its stack on a schema
+// loop of any length (docs/parser-library.md#schema-cycle-overflow, GitHub
+// #922).
 //
-// A pointer passing through a node the walk followed always comes before the
-// chain's end, so a node re-enters when a hop on its own chain passes through
-// it or the node it lands on re-enters, and otherwise ends as that node does.
+// A hop goes where its pointer lands (landing), so every chain ends or runs
+// into one loop. A schema $ref the pointer passes is read by its own keys, as
+// the resolver reads it (GitHub #932); a reference object it reads through what
+// it names, which this does not follow (GitHub #945).
 type chainGraph struct {
 	view *nodeview.View
 	root *yaml.Node
 	hops map[*yaml.Node]*chainHop
-	// order holds the nodes in the order read, which every pass follows.
+	// order holds the nodes in the order read, which settling follows.
 	order []*yaml.Node
-	// passedBy holds, for each reference, the nodes whose pointer passed
-	// through it on the way to its target.
-	passedBy map[*yaml.Node][]*yaml.Node
+	// loops holds the nodes of each loop, numbered as chainHop.loop numbers it,
+	// in the order a walk from the node met first follows them.
+	loops [][]*yaml.Node
 	// maxNodes bounds how many nodes are read: MaxIndexedNodes, which no tree
 	// Cycles takes can reach (see read), or less in a test of the bound.
 	maxNodes int
-	// work counts each hop read, each passing pointer weighed and each node
-	// settled, so a test can bound the work without timing it.
+	// work counts each hop read and each node settled, so a test can bound the
+	// work without timing it.
 	work int
 }
 
-// chainHop is one node's hop, and how the chain from the node ends.
+// chainHop is one node's hop, and where the chain from the node ends.
 type chainHop struct {
-	// next is the node the pointer lands on. It is nil when the pointer names
-	// nothing, or passes through this node itself, which re-enters it on every
-	// walk; such a node ends its chain, as does one landing on a node with no
-	// $ref.
-	next        *yaml.Node
-	selfThrough bool
-	left        bool // the pointer names a node outside components
-	// loop numbers the loop the node is on, from 1; pos is its place there.
-	loop, pos int
-	out       chainOutcome
+	// next is the node the pointer lands on, nil when it names nothing.
+	next *yaml.Node
+	// loop numbers, from 1, the loop the chain from the node runs into, and is 0
+	// for a chain that ends.
+	loop int
 }
 
 // settleChains reads and settles every chain the starts reach.
 func settleChains(view *nodeview.View, root *yaml.Node, starts []*yaml.Node, maxNodes int) *chainGraph {
-	g := &chainGraph{
-		view: view, root: root, maxNodes: maxNodes,
-		hops: map[*yaml.Node]*chainHop{}, passedBy: map[*yaml.Node][]*yaml.Node{},
-	}
+	g := &chainGraph{view: view, root: root, maxNodes: maxNodes, hops: map[*yaml.Node]*chainHop{}}
 	g.read(starts)
-	for i, loop := range g.loops() {
-		g.settleLoop(i+1, loop)
-	}
-	g.settleTrees()
+	g.settle()
 	return g
 }
 
-// outcome is how the chain from n, a node the starts reach, ends.
-func (g *chainGraph) outcome(n *yaml.Node) chainOutcome {
-	return g.hops[n].out
+// loopOf numbers the loop the chain from n, a node the starts reach, runs
+// into, or is 0 when the chain ends.
+func (g *chainGraph) loopOf(n *yaml.Node) int {
+	return g.hops[n].loop
+}
+
+// loopsReached returns the nodes of every loop a chain from starts runs into,
+// each loop once however many chains run into it.
+func (g *chainGraph) loopsReached(starts []*yaml.Node) []*yaml.Node {
+	reached := map[int]bool{}
+	var nodes []*yaml.Node
+	for _, start := range starts {
+		loop := g.loopOf(start)
+		if loop == 0 || reached[loop] {
+			continue
+		}
+		reached[loop] = true
+		nodes = append(nodes, g.loops[loop-1]...)
+	}
+	return nodes
 }
 
 // read follows the chains from starts, reading each node's hop once. Each node
@@ -89,48 +97,93 @@ func (g *chainGraph) read(starts []*yaml.Node) {
 		if len(g.order) == g.maxNodes {
 			panic(fmt.Sprintf("cycle scan: $ref chains outgrew their %d-node bound", g.maxNodes))
 		}
-		h := g.readHop(n, ref)
-		g.hops[n] = h
+		g.work++
+		next := landing(g.view, g.root, ref)
+		g.hops[n] = &chainHop{next: next}
 		g.order = append(g.order, n)
-		if h.next != nil {
-			pending = append(pending, h.next)
+		if next != nil {
+			pending = append(pending, next)
 		}
 	}
 }
 
-// readHop walks n's pointer ref as the resolver does and records each
-// reference it passes through on the way. The destination is not passed
-// through: arriving at a node on the chain is a cycle, which speakeasy reports
-// itself. A pointer that names nothing has no destination, so every node it
-// reached is passed through, which is the case that hangs.
-func (g *chainGraph) readHop(n *yaml.Node, ref jsontext.Pointer) *chainHop {
-	g.work++
-	h := &chainHop{left: !componentsRef(ref)}
-	path, complete := g.view.PointerPath(g.root, ref)
-	through := path
-	if complete {
-		through = path[:len(path)-1]
-	}
-	for _, p := range through {
-		if _, isRef := g.view.PureRefTarget(p); !isRef {
-			continue
+// landing returns the node the resolver lands ref on, read from root, or nil
+// where it lands nowhere. It reads each token as RFC 6901 does, which is
+// nodeview.PointerTarget, but a trailing empty token by where the walk has got
+// to (emptyTokenLanding): the library reads that one differently in its model
+// and in raw YAML (GitHub #944).
+func landing(view *nodeview.View, root *yaml.Node, ref jsontext.Pointer) *yaml.Node {
+	if before, trailing := strings.CutSuffix(string(ref), "/"); trailing {
+		switch emptyTokenLanding(jsontext.Pointer(before)) {
+		case landsNowhere:
+			return nil
+		case landsOnNode:
+			path, complete := view.DocumentPath(root, jsontext.Pointer(before))
+			if !complete {
+				return nil
+			}
+			return path[len(path)-1]
+		default: // landsOnKey: the member keyed "", which RFC 6901 names
 		}
-		h.selfThrough = h.selfThrough || p == n
-		g.passedBy[p] = append(g.passedBy[p], n)
 	}
-	if complete && !h.selfThrough {
-		h.next = path[len(path)-1]
-	}
-	return h
+	next, _ := view.PointerTarget(root, ref)
+	return next
 }
 
-// loops returns each loop among the read nodes, from the node of it met first.
-// A node is followed once, so this is linear in the nodes.
-func (g *chainGraph) loops() [][]*yaml.Node {
-	// 0 for a node not yet followed, -1 for one done, and i+1 for the node at
-	// index i of the path being followed.
+// emptyLanding is where the resolver lands a pointer's trailing empty token.
+type emptyLanding int
+
+const (
+	// landsOnKey: on the member keyed "", where the library looks the token up
+	// as a key: in a map of schemas, a link's parameters, any map. A list has
+	// no such member, nor does the library find one. Outside a schema it is
+	// also the reading wherever the scan cannot tell the position's kind
+	// (GitHub #949): at an object of the model the library fails the pointer,
+	// so a landing only adds a loop through a reference it reports anyway; in
+	// raw YAML, where the library stays, a loop can be missed.
+	landsOnKey emptyLanding = iota
+	// landsNowhere: at a schema, which reads the token as a field no schema
+	// has.
+	landsNowhere
+	// landsOnNode: on the node the walk has reached, under a schema past a key
+	// naming no sub-schema, in raw YAML, where the library stays. Where the key
+	// names a field of the model holding no schema instead, the library fails
+	// the pointer or lands on no schema, either way a reference it reports.
+	landsOnNode
+)
+
+// emptyTokenLanding returns where the resolver lands an empty token after the
+// tokens of before, from the role walkRole.child gives each from the document
+// root. A key child reads no further under is known for raw YAML only under a
+// schema, whose keys are the model's. Outside one, child skips a key by its
+// name alone, so past it the scan does not know where the library's walk is.
+func emptyTokenLanding(before jsontext.Pointer) emptyLanding {
+	role := roleOutside
+	for token := range before.Tokens() {
+		next, held := role.child(token)
+		switch {
+		case held:
+			role = next
+		case role == roleSchema:
+			return landsOnNode
+		default:
+			return landsOnKey
+		}
+	}
+	if role == roleSchema {
+		return landsNowhere
+	}
+	return landsOnKey
+}
+
+// settle numbers the loop each chain runs into, following each node once. A
+// walk from a node not yet settled stops where the chain ends, at a settled
+// node, whose answer every node walked takes, or back on itself, which is a
+// loop first met.
+func (g *chainGraph) settle() {
+	// 0 for a node not yet walked, -1 for one settled, and i+1 for the node at
+	// index i of the walk under way.
 	state := make(map[*yaml.Node]int, len(g.order))
-	var loops [][]*yaml.Node
 	for _, start := range g.order {
 		var path []*yaml.Node
 		cur := start
@@ -139,150 +192,17 @@ func (g *chainGraph) loops() [][]*yaml.Node {
 			state[cur] = len(path)
 			cur = h.next
 		}
+		loop := 0
 		if i := state[cur]; i > 0 {
-			loops = append(loops, path[i-1:])
+			g.loops = append(g.loops, path[i-1:])
+			loop = len(g.loops)
+		} else if h := g.hops[cur]; h != nil {
+			loop = h.loop
 		}
 		for _, n := range path {
+			g.work++
+			g.hops[n].loop = loop
 			state[n] = -1
 		}
 	}
-	return loops
-}
-
-// settleLoop settles loop number id. A walk from loop[i] goes once round, and
-// re-enters if a node it follows is passed through before the walk comes back.
-// first[j] is where, counted round from loop[0], the walk from loop[j] first
-// meets a pass through loop[j]. The walk from loop[i] follows loop[i:] and then
-// loop[:i] a turn later, so it re-enters when the least of those firsts falls
-// before i+n.
-func (g *chainGraph) settleLoop(id int, loop []*yaml.Node) {
-	n := len(loop)
-	left := false
-	for i, node := range loop {
-		h := g.hops[node]
-		h.loop, h.pos = id, i
-		left = left || h.left
-	}
-	first := make([]int, n)
-	for i, node := range loop {
-		first[i] = i + g.passOnLoop(node, i, id, n)
-	}
-	suffix := slices.Clone(first)
-	for i := n - 2; i >= 0; i-- {
-		suffix[i] = min(suffix[i], suffix[i+1])
-	}
-	wrapped := 2 * n // the least first[0:i], a turn later
-	for i, node := range loop {
-		g.work++
-		h := g.hops[node]
-		h.out = chainOutcome{verdict: chainCycles, leftComponents: left}
-		if min(suffix[i], wrapped) < i+n {
-			h.out = chainOutcome{verdict: chainReenters}
-		}
-		wrapped = min(wrapped, first[i]+n)
-	}
-}
-
-// passOnLoop is how many hops after node, at index i of loop id of length n, a
-// walk from node first meets a pointer passing through it; n when no hop on
-// the loop passes through it.
-func (g *chainGraph) passOnLoop(node *yaml.Node, i, id, n int) int {
-	first := n
-	for _, by := range g.passedBy[node] {
-		g.work++
-		if h := g.hops[by]; h != nil && h.loop == id {
-			first = min(first, (h.pos-i+n)%n)
-		}
-	}
-	return first
-}
-
-// settleTrees settles every node off a loop, outward from where its chain
-// ends: a loop, or a node ending it, settled before the nodes landing on it.
-func (g *chainGraph) settleTrees() {
-	landing := map[*yaml.Node][]*yaml.Node{}
-	for _, n := range g.order {
-		if h := g.hops[n]; h.loop == 0 && g.hops[h.next] != nil {
-			landing[h.next] = append(landing[h.next], n)
-		}
-	}
-	for _, n := range g.order {
-		h := g.hops[n]
-		switch {
-		case h.loop != 0:
-		case g.hops[h.next] == nil:
-			g.settleEnd(h)
-		default:
-			continue // settled outward from where its chain ends
-		}
-		g.settleFrom(n, landing)
-	}
-}
-
-// settleEnd settles a node that ends its chain: its pointer passes through
-// the node itself, names nothing, or lands on a node with no $ref.
-func (g *chainGraph) settleEnd(h *chainHop) {
-	g.work++
-	h.out = chainOutcome{verdict: chainTerminates}
-	if h.selfThrough {
-		h.out.verdict = chainReenters
-	}
-}
-
-// settleFrom settles every node whose chain reaches root, a settled node on a
-// loop or ending its chain, outward from it. between holds the nodes from root
-// up to the one being settled, not including it: the rest of that node's chain.
-func (g *chainGraph) settleFrom(root *yaml.Node, landing map[*yaml.Node][]*yaml.Node) {
-	type visit struct {
-		n     *yaml.Node
-		leave bool
-	}
-	between := map[*yaml.Node]bool{}
-	stack := []visit{{n: root}}
-	for len(stack) > 0 {
-		v := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if v.leave {
-			delete(between, v.n)
-			continue
-		}
-		if v.n != root {
-			g.settleTail(v.n, between, g.hops[root])
-		}
-		between[v.n] = true
-		stack = append(stack, visit{n: v.n, leave: true})
-		for _, from := range landing[v.n] {
-			stack = append(stack, visit{n: from})
-		}
-	}
-}
-
-// settleTail settles n once the node it lands on is settled. n's chain is that
-// node's after n's own hop, so it ends the same way unless a hop on it passes
-// through n.
-func (g *chainGraph) settleTail(n *yaml.Node, between map[*yaml.Node]bool, root *chainHop) {
-	g.work++
-	h := g.hops[n]
-	h.out = g.hops[h.next].out
-	if h.out.verdict == chainCycles {
-		h.out.leftComponents = h.out.leftComponents || h.left
-	}
-	if g.passedOnChain(n, between, root) {
-		h.out = chainOutcome{verdict: chainReenters}
-	}
-}
-
-// passedOnChain reports whether a hop on the chain after n passes through n:
-// the hop of a node between n and root, or of one on root's loop.
-func (g *chainGraph) passedOnChain(n *yaml.Node, between map[*yaml.Node]bool, root *chainHop) bool {
-	for _, by := range g.passedBy[n] {
-		g.work++
-		if between[by] {
-			return true
-		}
-		if h := g.hops[by]; h != nil && root.loop != 0 && h.loop == root.loop {
-			return true
-		}
-	}
-	return false
 }

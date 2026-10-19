@@ -6,6 +6,9 @@
 // calls back into it, and it knows nothing about lowering. Spec problems leave
 // as ir.Diagnostic values; the Go error return is reserved for I/O and
 // programmer errors.
+//
+// Much of it answers how the parser library behaves, which
+// docs/parser-library.md records; each declaration that does cites its entry.
 package load
 
 import (
@@ -66,6 +69,10 @@ type Options struct {
 	// the overlay, beyond their own. Zero is unbounded, as in MaxSourceBytes; the
 	// ratio refusal scan makes beside it holds either way.
 	MaxAliasSurplus int
+	// MaxExternalDocuments bounds the documents external references read in one
+	// compile, each counted once however often it is asked for. Zero is
+	// unbounded, as in MaxSourceBytes.
+	MaxExternalDocuments int
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -119,8 +126,8 @@ func OverByteBudget(prov ir.Provenance, data []byte, limit int) (ir.Diagnostic, 
 // nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
-// a map, and drops it silently (GitHub #459; speakeasy-api/openapi v1.25.2,
-// marshaller/unmarshaller.go). That skip is the only read of an anchor's name;
+// a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
+// GitHub #459). That skip is the only read of an anchor's name;
 // an alias reaches its target by a kept pointer. Run it after the pre-parse
 // refusals, which do read names. A document read through external is released
 // too (GitHub #501), and replaces the resolver's own parse on a second
@@ -144,9 +151,10 @@ func releaseAnchors(root *yaml.Node) {
 var ErrParse = errors.New("parse source")
 
 // maxSchemaScanDepth bounds the scalar scan of a schema node (styleguide
-// bounded-recursion rule); a schema nested deeper is pathological, not a spec the
-// compiler is expected to classify.
-const maxSchemaScanDepth = 512
+// bounded-recursion rule) at the nesting the pre-parse scan admits: no tree the
+// parser is handed nests deeper (scan.Nesting), so the scan reaches every
+// scalar under any node of one.
+const maxSchemaScanDepth = scan.MaxNesting
 
 // Document is the successful output of the load phase: a parsed, resolved
 // speakeasy document plus the identity metadata the rest of the compiler needs.
@@ -237,6 +245,11 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	}
 
 	releaseAnchors(root)
+	esc := newEscapes()
+	esc.escape(root)
+	// Every return below leaves the tree as the source wrote it; the models are
+	// put back at the end of resolve.
+	defer esc.restoreTrees()
 	doc, valErrs, err := unmarshal(ctx, src.Data, root)
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: unmarshal source %d: %w", srcIndex, err)
@@ -263,16 +276,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	diags := cyc
 	diags = append(diags, sibFaults...)
 	diags = append(diags, validDiags...)
-	rebuildDoc := opts.rebuildDoc
-	if rebuildDoc == nil {
-		rebuildDoc = unmarshal
-	}
-	rebuild := func() (*soa.OpenAPI, error) {
-		again, _, err := rebuildDoc(ctx, src.Data, root)
-		return again, err
-	}
-	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree)
-	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts, rebuild)
+	self := newSourceDocument(src.Path, src.Data, root, valErrs, tree, esc)
+	doc, sibs, targets, resolveDiags, err := resolve(ctx, pointerAt(srcIndex, origin), doc, sibs, self, opts,
+		opts.rebuilder(ctx, src.Data, root))
 	if err != nil {
 		return nil, nil, fmt.Errorf("openapi: rebuild source %d: %w", srcIndex, err)
 	}
@@ -290,7 +296,20 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		},
 		Overlay:  origin,
 		Siblings: sibs,
-	}, diags, nil
+	}, esc.asWritten(diags), nil
+}
+
+// rebuilder returns the rebuild of the model of root that resolveExternal's
+// second pass is handed: o.rebuildDoc, or unmarshal itself.
+func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) func() (*soa.OpenAPI, error) {
+	rebuildDoc := o.rebuildDoc
+	if rebuildDoc == nil {
+		rebuildDoc = unmarshal
+	}
+	return func() (*soa.OpenAPI, error) {
+		again, _, err := rebuildDoc(ctx, data, root)
+		return again, err
+	}
 }
 
 // validated returns the source's validation findings, with what the library
@@ -370,11 +389,27 @@ func compilerOwned(verr validation.Error) bool {
 // it resolved, which is a rebuild of doc when resolveExternal had to recover an
 // anchored external document the resolver parsed itself.
 //
+// The resolver reads the $refs the source's trees were rewritten to (see
+// escapes). Once it is done, the models are put back as written, so nothing
+// past this call sees the rewritten spelling.
+func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
+) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
+	doc, sibs, targets, diags, err := resolveRefs(ctx, at, doc, sibs, self, opts, rebuild)
+	if err != nil {
+		return nil, Siblings{}, MappingTargets{}, nil, err
+	}
+	site, err := self.escapes.restore(ctx, doc, sibs, targets)
+	return doc, sibs, targets, append(diags, restoreFault(at, site, err)...), nil
+}
+
+// resolveRefs is resolve less the restore of the models.
+//
 // What the references reach that the source's own validation never checked is
 // validated after the last resolution, over the document returned (see
 // validateReached): a rebuild discards a first resolution's objects, so
 // validating those would report on objects the IR is not built from.
-func resolve(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+func resolveRefs(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, MappingTargets, []ir.Diagnostic, error) {
 	if !opts.AllowExternalRefs {
@@ -423,11 +458,12 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 	}
 }
 
-// refusals indexes a decoded tree once and reports its pre-parse refusals: the
-// degenerate reference and alias structures scan finds, a mapping carrying a
-// tag the parser faults on (see diag.TaggedMapping), and a refusal of its own
-// when the document is too large to index in full. A tag refusal is reported
-// alongside a cycle, not instead of one.
+// refusals indexes a decoded tree once and reports its pre-parse refusals, each
+// alongside the others: a document nested too deeply to build (scan.Nesting),
+// the degenerate reference structures scan finds and its alias ones
+// (docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
+// faults on (diag.TaggedMapping), and a refusal of its own when the document is
+// too large to index in full.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -445,15 +481,21 @@ func refusals(locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnosti
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))
-	if n, ok := idx.TaggedMapping(); ok {
-		diags = append(diags, taggedMappingRefusal(locate, n))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	diags = append(diags, scan.Cycles(locate, idx, int64(opts.MaxAliasSurplus))...)
+	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(root, tagged)))
 	}
 	return diags
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
-// locate puts the mapping — the way the cycle refusals are anchored.
+// locate puts the mapping — the way the cycle refusals are anchored. The parser
+// panics on such a mapping at a reference object, where no recover reaches
+// (docs/parser-library.md#tagged-mapping-panic).
 func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.TaggedMapping, locate(n),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
@@ -496,13 +538,12 @@ func applyOverlay(srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnost
 	return origin, append(diags, refusals(locator(srcIndex, origin, scan.Pointers(root)), root, opts)...)
 }
 
-// overlayRefusals refuses an overlay whose aliases the library would follow
-// without end or far past its size, before the library is handed it.
-//
-// The library clones each update by following aliases, so an anchor naming one
-// of its own ancestors overflows the stack and an alias bomb exhausts memory.
-// Neither is a panic, so no barrier catches them (GitHub #489). They are the
-// source's refusals, under the same limits.
+// overlayRefusals holds an overlay to the source's refusals, under the same
+// limits, before the library is handed it. The library clones each update by
+// following aliases, into every node its target selects: an anchor naming its
+// own ancestor overflows the stack, an alias bomb exhausts memory
+// (docs/parser-library.md#overlay-alias-clone, GitHub #489), and a deep update
+// costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
@@ -532,7 +573,11 @@ func overlayRefusals(opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))
+	var diags []ir.Diagnostic
+	if d, deep := scan.Nesting(locate, idx); deep {
+		diags = append(diags, d)
+	}
+	return append(diags, scan.Aliases(locate, idx, int64(opts.MaxAliasSurplus))...)
 }
 
 // metaSchemaReconciledMinor is the OpenAPI minor whose schema findings are
@@ -552,13 +597,13 @@ const metaSchemaReconciledMinor = "3.2"
 // only by checking against a meta-schema older than 3.2's, or nil when there is
 // nothing to reconcile.
 //
-// JSONSchema[T].Validate discards its options (jsonschema/oas3/jsonschema.go),
-// so every schema is checked against the 3.1 meta-schema. Validating every
-// schema twice, at 3.2 and as the library does, isolates where the two
-// disagree, each a false finding in a 3.2 document. In an older one, where
-// later says versionCheck reported a keyword 3.2 added, only the refusal of
-// a keyword is taken over: a propertyName 3.2 stopped requiring is a missing
-// field, and binds the declared version.
+// JSONSchema[T].Validate discards its options, so every schema is checked
+// against the 3.1 meta-schema (docs/parser-library.md#validation-version).
+// Validating every schema twice, at 3.2 and as the library does, isolates
+// where the two disagree, each a false finding in a 3.2 document. In an older
+// one, where later says versionCheck reported a keyword 3.2 added, only the
+// refusal of a keyword is taken over: a propertyName 3.2 stopped requiring is a
+// missing field, and binds the declared version.
 func metaSchemaVersionArtifacts(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, minor string, later bool,
 ) map[findingSite]bool {
 	walk := func() iter.Seq[soa.WalkItem] { return walkSource(ctx, doc, sibs) }
@@ -983,11 +1028,12 @@ func (t tail) describe() string {
 // line and column through an overlay.
 //
 // A panic from the third-party parser, which faults on degenerate input such as
-// a whitespace-only document, becomes an ErrParse error. The recover reaches
-// only this goroutine, and the parser fans a model's fields out over an
-// errgroup, so a fault in one of those goroutines ends the process: a shape
-// known to fault, a tagged mapping at a reference position (GitHub #474), is
-// refused beforehand (see refusals).
+// a whitespace-only document (docs/parser-library.md#recoverable-panic),
+// becomes an ErrParse error. The recover reaches only this goroutine, and the
+// parser decodes on goroutines of its own, where a fault ends the process: a
+// shape known to fault, a tagged mapping at a reference position
+// (docs/parser-library.md#tagged-mapping-panic), is refused beforehand (see
+// refusals).
 func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (doc *soa.OpenAPI, valErrs []error, err error) {
 	defer func() {
 		if r := recover(); r != nil {

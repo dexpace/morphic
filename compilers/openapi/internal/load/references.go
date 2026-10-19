@@ -50,7 +50,7 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 			func(site jsontext.Pointer, loc soa.Locations, model any) error {
 				p.targets.see(site, model)
 				if r, ok := model.(resolvable); ok && r.IsReference() {
-					p.visit(site, r, r.GetReference())
+					p.visit(site, r)
 				}
 				return nil
 			}))
@@ -61,14 +61,15 @@ func (p *resolution) run(doc *soa.OpenAPI) (MappingTargets, []ir.Diagnostic) {
 	p.failures = append(p.failures, p.loops.incomplete(p.at)...)
 	if p.reader != nil {
 		p.failures = append(p.failures, p.reader.work.exhausted(p.at)...)
+		p.failures = append(p.failures, p.reader.read.exhausted(p.at, p.reader.opts.MaxExternalDocuments)...)
 	}
 	return p.targets.targets(), append(p.failures, p.found.diags(p.at)...)
 }
 
 // resolveTargets resolves the mapping targets with every held reference as
-// resolveHeld resolved it, and puts each back as written after. A target's
+// resolveHeld resolved it, and puts each back as held after. A target's
 // chain meets a "#/$defs/..." reference as a $ref's did: at its definition, or,
-// where the rule names none, ending there. Put back as written, it sent the
+// where the rule names none, ending there. Put back as held, it sent the
 // chain to the resolver's own lookup, which resolveHeld keeps out of play.
 func (p *resolution) resolveTargets(held []heldRef) (jsontext.Pointer, error) {
 	for _, r := range held {
@@ -96,6 +97,9 @@ type resolution struct {
 	// sibs is what the source writes beside its path items' $refs, walked
 	// after doc as the rest of the source.
 	sibs Siblings
+	// esc holds the $refs rewritten for the resolver to read, which a message
+	// quotes as the source writes them (GitHub #911).
+	esc *escapes
 	// version and validateOpts are the source's declared version and what its
 	// validation hands each object, which a resolution's findings are judged by
 	// (unrequired), in another document as well, as a reached schema's are
@@ -119,7 +123,7 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		resolveOpts.HTTPClient = *reader
 		reader.hold(ctx, sibs)
 	}
-	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs,
+	p := &resolution{ctx: ctx, at: at, opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes,
 		version: doc.OpenAPI, validateOpts: documentOptions(doc),
 		targets: newMappings(self, doc, resolveOpts, reader),
 		found: reachedFindings{sites: map[references.Reference]jsontext.Pointer{}, known: self.found,
@@ -130,14 +134,14 @@ func newResolution(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 	return p
 }
 
-// visit resolves r, the reference written as ref at site, and notes what the
+// visit resolves r, the reference written at site, and notes what the
 // resolution found. A reference an earlier $ref's chain resolved is only noted.
 // The library counts one resolved once a chain that failed passed through it,
 // so which members of a failing chain are reported follows the walk's order
 // (GitHub #767). A schema's chain is read for a loop from the $ref r carries
 // now, which for a held "#/$defs/..." reference is its definition's pointer
-// (see retarget); ref is only quoted.
-func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.Reference) {
+// (see retarget); a message quotes the $ref as the source writes it.
+func (p *resolution) visit(site jsontext.Pointer, r resolvable) {
 	if js, schema := r.(*schemaRef); schema && p.loops != nil && !js.IsResolved() {
 		looped, cut := p.loops.read(js.GetRef())
 		if looped {
@@ -162,10 +166,10 @@ func (p *resolution) visit(site jsontext.Pointer, r resolvable, ref references.R
 	}
 	c := resolutionChain(r)
 	p.targets.enqueue(site, c)
-	t := c.trail()
+	t := p.esc.trailOf(c)
 	p.found.note(site, t, p.unrequired(site, r, vErrs))
 	if err != nil {
-		p.failures = append(p.failures, failureDiag(p.at(site), ref, t, err))
+		p.failures = append(p.failures, failureDiag(p.at(site), p.esc.writtenOf(r), t, err))
 	}
 }
 
@@ -218,10 +222,9 @@ func eachModel[T any](items iter.Seq[soa.WalkItem], what string,
 // eachSighting is eachModel handing visit the location of each model as well.
 //
 // A panic in the walk or under visit becomes an error naming what was running,
-// as a parser panic does in unmarshal: the library faults on shapes the parser
-// accepts, such as a $ref with no value. It stops the walk at site, the model
-// being visited, or the root when the walk panicked. An error from visit stops
-// it too.
+// as a parser panic does in unmarshal (see recovered). It stops the walk at
+// site, the model being visited, or the root when the walk panicked. An error
+// from visit stops it too.
 func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 	visit func(jsontext.Pointer, soa.Locations, T) error,
 ) (site jsontext.Pointer, err error) {
@@ -250,7 +253,9 @@ func eachSighting[T any](items iter.Seq[soa.WalkItem], what string,
 const resolverPanics = "reference resolver"
 
 // recovered turns a panic in the deferring function into *err, naming what was
-// running.
+// running. The library panics on the caller's goroutine on some shapes its
+// parser accepts, such as a $ref with no value
+// (docs/parser-library.md#recoverable-panic).
 func recovered(err *error, what string) {
 	if r := recover(); r != nil {
 		*err = fmt.Errorf("%s panicked: %v", what, r)

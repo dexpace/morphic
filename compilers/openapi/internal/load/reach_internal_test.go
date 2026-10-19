@@ -63,12 +63,12 @@ func assertNotRefusedByReach(t *testing.T, spec string) {
 	assert.False(t, found, "must not be refused as a reference cycle")
 }
 
-// The fixtures below were probed directly against speakeasy-api/openapi
-// v1.25.2's own resolver: every one crashes it with a stack overflow before
-// this package's reference-chain refusal can run ahead of the parser. They exercise $defs-relative resolution, which depends on
-// the chain that reaches a $defs entry and on registry re-registration
-// mid-resolution (GitHub #546), and are additional to the $anchor/$id shapes
-// #526 was filed against.
+// The fixtures below were each measured against the library's own resolver,
+// and each crashed it with a stack overflow
+// (docs/parser-library.md#schema-cycle-overflow). They exercise
+// $defs-relative resolution, which depends on the chain that reaches a $defs
+// entry and on registry re-registration mid-resolution (GitHub #546), and are
+// additional to the $anchor/$id shapes #526 was filed against.
 const (
 	// A $defs entry's own $ref names itself by a /$defs/ pointer.
 	defsPointerSelfReference = `openapi: 3.1.0
@@ -321,16 +321,18 @@ var craftedCrashFixtures = []struct{ name, spec string }{
 	{"a relative $id names itself through a leading ./", relativeIDSelfReferenceDotSlash},
 
 	// The fixtures below are GitHub #526's own $anchor/$id shapes. Each was
-	// run through speakeasy-api/openapi v1.25.2's own resolver directly, not
-	// through this package, so the comment on each records what the resolver
-	// does rather than what this package's model predicts.
+	// run through the library's own resolver directly, not through this
+	// package, so the comment on each records what the resolver did rather
+	// than what this package's model predicts.
 	{"top-level anchor names itself", anchorSelfTop},
 	{"nested property anchor names itself", anchorSelfNested},
 	{"two nested anchors name each other", anchorMutualNested},
 	{"a parameter's inline schema anchor names itself", anchorSelfParameter},
 	{"a pointer hop and an anchor hop meet on one cycle", anchorPointerMixedCycle},
+	{"the same, through a key spelled with a plus", anchorPointerMixedCycleThroughAPlus},
 	{"$id names itself as its own $ref", idSelfReference},
 	{"$id plus a pointer names itself", idPlusPointerSelfReference},
+	{"the same, through a key spelled with a plus", idPlusPointerSelfReferenceThroughAPlus},
 	{"a relative $id names itself", relativeIDSelfReference},
 	{"$id-scoped anchor names itself by fragment", idScopedAnchorSelfReference},
 	{"$id-scoped anchor names itself by absolute URI", absoluteURIAnchorSelfReference},
@@ -584,10 +586,10 @@ func TestReachCycle_LeavesALegitimateChain(t *testing.T) {
 	}
 }
 
-// The $anchor/$id fixtures below (GitHub #526) were each run through
-// speakeasy-api/openapi v1.25.2's own resolver directly, not through this
-// package; the comment on each records what the resolver does.
-// Every one crashes the raw library with a stack overflow.
+// The $anchor/$id fixtures below (GitHub #526) were each run through the
+// library's own resolver directly, not through this package; the comment on
+// each records what the resolver did. Every one crashed it with a stack
+// overflow (docs/parser-library.md#schema-cycle-overflow).
 const (
 	// A top-level schema's $ref names the $anchor it declares itself.
 	anchorSelfTop = `openapi: 3.1.0
@@ -646,6 +648,19 @@ components:
         x: {$ref: "#y"}
         y: {$anchor: y, $ref: "#/components/schemas/A/properties/x"}
 `
+	// The same cycle through a key spelled with a plus, which the resolver reads
+	// as it hands it the pointer (GitHub #911).
+	anchorPointerMixedCycleThroughAPlus = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      properties:
+        x+y: {$ref: "#z"}
+        z: {$anchor: z, $ref: "#/components/schemas/A/properties/x+y"}
+`
 	// A schema's $id names itself as its own $ref.
 	idSelfReference = `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -665,6 +680,18 @@ components:
       type: object
       properties:
         p: {$ref: "https://x.test/a#/properties/p"}
+`
+	// The same, through a key spelled with a plus.
+	idPlusPointerSelfReferenceThroughAPlus = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $id: "https://x.test/a"
+      type: object
+      properties:
+        p+q: {$ref: "https://x.test/a#/properties/p+q"}
 `
 	// A relative $id names itself as its own $ref.
 	relativeIDSelfReference = `openapi: 3.1.0
@@ -940,6 +967,47 @@ func reachDiagFor(t *testing.T, spec string) (ir.Diagnostic, bool) {
 	t.Helper()
 	doc, root := buildDoc(t, spec)
 	return chainCycle(t.Context(), scan.InSource(0), root, doc, Siblings{})
+}
+
+// TestChainCycle_ReadsAPlusInADefsPointerAsAPlus pins that the reach graph reads
+// a fragment as fragment.Pointer does, as the pointers the loader hands the
+// resolver are spelled: two $defs entries keyed with a plus name each other,
+// which the resolver follows until the stack runs out. Read as a space, neither
+// pointer names an entry and the cycle goes unseen (GitHub #911).
+func TestChainCycle_ReadsAPlusInADefsPointerAsAPlus(t *testing.T) {
+	t.Parallel()
+	d, found := reachDiagFor(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      $defs:
+        m+n: {$ref: "#/$defs/o+p"}
+        o+p: {$ref: "#/$defs/m+n"}
+`)
+
+	require.True(t, found, "the cycle through the keys m+n and o+p")
+	assert.Equal(t, diag.CyclicRef, d.Code)
+}
+
+// TestChainCycle_ReadsAPlusInAnAnchorOrIDChainAsAPlus is the plus test above for
+// the hops that are not a $defs pointer: a plain pointer and a pointer past a
+// schema's $id, each met on a cycle with an anchor or its own $id, which only
+// the reach graph sees. The plain pointer names a key spelled with a plus.
+func TestChainCycle_ReadsAPlusInAnAnchorOrIDChainAsAPlus(t *testing.T) {
+	t.Parallel()
+	for name, spec := range map[string]string{
+		"a plain pointer":       anchorPointerMixedCycleThroughAPlus,
+		"a pointer past an $id": idPlusPointerSelfReferenceThroughAPlus,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d, found := reachDiagFor(t, spec)
+			require.True(t, found)
+			assert.Equal(t, diag.CyclicRef, d.Code)
+		})
+	}
 }
 
 // TestChainCycle_GateSkipsPlainPointerDocuments drives chainCycle's own fast

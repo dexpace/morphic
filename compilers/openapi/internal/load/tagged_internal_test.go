@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -38,34 +39,72 @@ func TestLoad_ATaggedMappingIsRefusedBeforeParsing(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"!content:"`, "and quotes the tag")
 }
 
-// TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults sweeps the positions
-// the parser builds through a reference — each of which it nil-dereferences on
-// a tagged mapping — and the tag spellings that reach them, so the refusal is
-// pinned to the class rather than to the one fixture above. The alias case is
-// the one the walk must not need special handling for: the tagged node is
-// reached where its anchor is declared.
+// taggedChildEnv hands a child (see inChild) a spec, which it hands the parser
+// alone in place of the test it re-ran: the fault being asked about ends the
+// process.
+const taggedChildEnv = "MORPHIC_TAGGED_CHILD_SPEC"
+
+// parseBare is the child's side of parserFaults: it hands the parser spec, as
+// Load would after its refusals, and returns if the parser does.
+func parseBare(t *testing.T, spec string) {
+	t.Helper()
+	_, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
+	require.NoError(t, err)
+}
+
+// parserFaults reports whether the parser, handed spec with nothing refused
+// first, ends the process on a nil dereference inside the library. Any other
+// way for the child to end fails the test: it says nothing about the parser.
+func parserFaults(t *testing.T, spec string) bool {
+	t.Helper()
+	out, end := inChild(t, "TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults", taggedChildEnv, spec)
+	if end == childPassed {
+		return false
+	}
+	require.Equal(t, childPanicked, end, "%.1500s", out)
+	require.Contains(t, out, "invalid memory address or nil pointer dereference", "%.1500s", out)
+	require.Contains(t, out, "github.com/speakeasy-api/openapi/", "the fault is in the library:\n%.1500s", out)
+	return true
+}
+
+// TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults sweeps positions the
+// parser builds through a reference and the tag spellings that reach them.
+// The parser is asked first: each row, handed to it alone, must fault with its
+// tag and parse without, so a row it stops faulting on has gone stale. Load
+// must then refuse the row once. The alias row is the one the walk must not
+// need special handling for: the tagged node is reached where its anchor is
+// declared.
 func TestLoad_ATaggedMappingIsRefusedWhereverTheParserFaults(t *testing.T) {
+	if spec, ok := asChild(taggedChildEnv); ok {
+		parseBare(t, spec)
+		return
+	}
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
-	for name, body := range map[string]string{
-		"request body": "paths:\n  /b:\n    put:\n      requestBody: !x {content: {application/json: {}}}\n" +
-			"      responses: {\"200\": {description: ok}}\n",
-		"response":        "paths:\n  /b:\n    get:\n      responses: {\"200\": !x {description: ok}}\n",
-		"parameter":       "paths:\n  /b:\n    get:\n      parameters: [!x {name: q, in: query}]\n      responses: {\"200\": {description: ok}}\n",
-		"header":          "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, headers: {X-A: !x {schema: {}}}}}\n",
-		"example":         "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, content: {application/json: {examples: {e: !x {value: 1}}}}}}\n",
-		"link":            "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, links: {l: !x {operationId: x}}}}\n",
-		"security scheme": "paths: {}\ncomponents:\n  securitySchemes:\n    s: !x {type: http, scheme: basic}\n",
-		"standard tag !!str": "paths:\n  /b:\n    put:\n      requestBody: !!str {content: {application/json: {}}}\n" +
-			"      responses: {\"200\": {description: ok}}\n",
-		"standard tag !!set": "paths:\n  /b:\n    put:\n      requestBody: !!set {content: {application/json: {}}}\n" +
-			"      responses: {\"200\": {description: ok}}\n",
-		"through an alias": "x-body: &b !x {content: {application/json: {}}}\npaths:\n  /b:\n    put:\n      requestBody: *b\n" +
-			"      responses: {\"200\": {description: ok}}\n",
+	const ok = "      responses: {\"200\": {description: ok}}\n"
+	for _, tc := range []struct{ name, tag, body string }{
+		{"request body", "!x", "paths:\n  /b:\n    put:\n      requestBody: TAG {content: {application/json: {}}}\n" + ok},
+		{"response", "!x", "paths:\n  /b:\n    get:\n      responses: {\"200\": TAG {description: ok}}\n"},
+		{"parameter", "!x", "paths:\n  /b:\n    get:\n      parameters: [TAG {name: q, in: query}]\n" + ok},
+		{"header", "!x", "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, headers: {X-A: TAG {schema: {}}}}}\n"},
+		{"example", "!x", "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, content: {application/json: {examples: {e: TAG {value: 1}}}}}}\n"},
+		{"link", "!x", "paths:\n  /b:\n    get:\n      responses: {\"200\": {description: ok, links: {l: TAG {operationId: x}}}}\n"},
+		{"security scheme", "!x", "paths: {}\ncomponents:\n  securitySchemes:\n    s: TAG {type: http, scheme: basic}\n"},
+		{"standard tag !!str", "!!str", "paths:\n  /b:\n    put:\n      requestBody: TAG {content: {application/json: {}}}\n" + ok},
+		{"standard tag !!set", "!!set", "paths:\n  /b:\n    put:\n      requestBody: TAG {content: {application/json: {}}}\n" + ok},
+		{"through an alias", "!x", "x-body: &b TAG {content: {application/json: {}}}\npaths:\n  /b:\n    put:\n      requestBody: *b\n" + ok},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(head+body), Options{})
+			tagged := head + strings.ReplaceAll(tc.body, "TAG", tc.tag)
+			untagged := head + strings.ReplaceAll(tc.body, "TAG ", "")
+
+			parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(untagged))
+			require.NoError(t, err)
+			require.NotNil(t, parsed, "the parser reads the row without its tag")
+			require.True(t, parserFaults(t, tagged), "the parser faults on the row with its tag")
+
+			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(tagged), Options{})
 
 			require.NoError(t, err)
 			assert.Nil(t, doc)

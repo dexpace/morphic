@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -43,7 +44,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		return again, err
 	}
 	resolved, _, _, diags, err := resolveExternal(t.Context(), pointerAt(0, overlay.Origin{}), doc, Siblings{},
-		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root)),
+		newSourceDocument(path, data, root, nil, newSourceTree(0, overlay.Origin{}, root), nil),
 		Options{AllowExternalRefs: true}, rebuild)
 	return resolved, diags, err
 }
@@ -301,61 +302,64 @@ func TestResolveExternal_TheSecondPassSendsNoRequestTheFirstMade(t *testing.T) {
 	}
 	assert.Equal(t, []string{diag.UnresolvedRef, diag.UnresolvedRef, diag.UnresolvedRef, diag.UnresolvedRef}, codes,
 		"each failure once, and no internal fault for flaky.yaml")
-	assert.Equal(t, int32(1), flaky.Load(), "a failed status is replayed")
-	assert.Equal(t, int32(1), refused.Load(), "a refusal is replayed")
-	assert.Equal(t, int32(1), unfound.Load(), "a document's bytes are replayed")
-	assert.Equal(t, int32(1), cut.Load(), "a transport error is replayed")
+	assert.Equal(t, int32(1), flaky.Load(), "a failed status is the document's answer")
+	assert.Equal(t, int32(1), refused.Load(), "a refusal is the document's answer")
+	assert.Equal(t, int32(1), unfound.Load(), "a document's bytes are its answer")
+	assert.Equal(t, int32(1), cut.Load(), "a transport error is the document's answer")
 }
 
-// TestResolveExternal_TheSecondPassGetsTheFirstPassAnswersInOrder pins the
-// replay's order on one URL that fails one request. Spelled three ways, /a and
-// /c resolve under keys of their own and /b fails, as in the first pass;
-// spelled once, /a fails and /b resolves, as in the first pass. Answering a
-// failed request with a success would have it read the document unprepared, or
-// resolve what the first pass did not; answering every request with the
-// failure would fail a reference the first pass resolved.
-func TestResolveExternal_TheSecondPassGetsTheFirstPassAnswersInOrder(t *testing.T) {
+// TestResolveExternal_EveryReferenceGetsTheOneAnswerItsDocumentGot pins that a
+// document is read once a compile, whichever reference asks and in either
+// pass: the references to a URL, spelled alike or as the resolver keys apart,
+// all fail with the 503 its one request got, or all resolve. A second request
+// would have succeeded, so a reference that asked again would resolve what
+// another failed on. A respelled $ref to another server sets the second pass
+// off in each case.
+func TestResolveExternal_EveryReferenceGetsTheOneAnswerItsDocumentGot(t *testing.T) {
 	t.Parallel()
+	trigger, _ := countingServer(t, anchoredExternalDoc)
+	for _, tc := range []struct {
+		name      string
+		schemes   []string
+		failFirst bool
+	}{
+		{"three spellings, failed", []string{"HTTP", "Http", "hTTP"}, true},
+		{"three spellings, served", []string{"HTTP", "Http", "hTTP"}, false},
+		{"one spelling, failed", []string{"http", "http"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var requests atomic.Int32
+			failing := int32(2)
+			if tc.failFirst {
+				failing = 1
+			}
+			srv := newTestServer(t, failingHandler(t, failing, &requests))
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+				"  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n"
+			for i, scheme := range tc.schemes {
+				spec += fmt.Sprintf("  /p%d: {$ref: \"%s/ext.yaml#/paths/~1x\"}\n", i, respelled(srv.URL, scheme))
+			}
 
-	t.Run("three spellings", func(t *testing.T) {
-		t.Parallel()
-		var requests atomic.Int32
-		srv := newTestServer(t, failingHandler(t, 2, &requests))
-		spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
-			"  /a: {$ref: \"" + respelled(srv.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
-			"  /b: {$ref: \"" + respelled(srv.URL, "Http") + "/ext.yaml#/paths/~1x\"}\n" +
-			"  /c: {$ref: \"" + respelled(srv.URL, "hTTP") + "/ext.yaml#/paths/~1x\"}\n"
+			doc, diags, err := resolveSpec(t, spec, "root.yaml")
 
-		doc, diags, err := resolveSpec(t, spec, "root.yaml")
-
-		require.NoError(t, err)
-		assertRecoveredAt(t, doc, "/a")
-		assertRecoveredAt(t, doc, "/c")
-		require.Len(t, diags, 1)
-		assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
-		assert.Contains(t, diags[0].Message, "503")
-		assert.Equal(t, int32(3), requests.Load(), "the second pass sends nothing")
-	})
-
-	t.Run("one spelling", func(t *testing.T) {
-		t.Parallel()
-		var requests atomic.Int32
-		srv := newTestServer(t, failingHandler(t, 1, &requests))
-		trigger, _ := countingServer(t, anchoredExternalDoc)
-		spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
-			"  /x: {$ref: \"" + respelled(trigger.URL, "HTTP") + "/ext.yaml#/paths/~1x\"}\n" +
-			"  /a: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n" +
-			"  /b: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n"
-
-		doc, diags, err := resolveSpec(t, spec, "root.yaml")
-
-		require.NoError(t, err)
-		assertRecoveredAt(t, doc, "/x")
-		assertRecoveredAt(t, doc, "/b")
-		require.Len(t, diags, 1, "/a fails as it did in the first pass")
-		assert.Contains(t, diags[0].Message, "503")
-		assert.Equal(t, int32(2), requests.Load(), "the second pass sends nothing")
-	})
+			require.NoError(t, err)
+			assertRecoveredAt(t, doc, "/x")
+			assert.Equal(t, int32(1), requests.Load(), "one request, in neither pass sent again")
+			if !tc.failFirst {
+				assert.Empty(t, diags)
+				for i := range tc.schemes {
+					assertRecoveredAt(t, doc, fmt.Sprintf("/p%d", i))
+				}
+				return
+			}
+			require.Len(t, diags, len(tc.schemes), "every reference fails, each once")
+			for _, d := range diags {
+				assert.Equal(t, diag.UnresolvedRef, d.Code)
+				assert.Contains(t, d.Message, "503")
+			}
+		})
+	}
 }
 
 // failingHandler serves anchoredExternalDoc to every request but the n-th,
@@ -370,26 +374,6 @@ func failingHandler(t *testing.T, n int32, requests *atomic.Int32) http.HandlerF
 		_, err := w.Write([]byte(anchoredExternalDoc))
 		assert.NoError(t, err)
 	}
-}
-
-// TestResolveExternal_TheFirstPassSendsEveryRequest pins that only the second
-// pass replays: in the first, a reference whose document failed to arrive does
-// not fail the next reference to it, which asks again and resolves.
-func TestResolveExternal_TheFirstPassSendsEveryRequest(t *testing.T) {
-	t.Parallel()
-	var requests atomic.Int32
-	srv := newTestServer(t, failingHandler(t, 1, &requests))
-	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
-		"  /a: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n" +
-		"  /b: {$ref: \"" + srv.URL + "/ext.yaml#/paths/~1x\"}\n"
-
-	doc, diags, err := resolveSpec(t, spec, "root.yaml")
-
-	require.NoError(t, err)
-	assertRecoveredAt(t, doc, "/b")
-	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, "503")
-	assert.Equal(t, int32(2), requests.Load())
 }
 
 // TestResolveExternal_TheSecondPassResolvesASelfReferenceAsTheFirstDid pins
@@ -1147,7 +1131,7 @@ func respelledChain(t *testing.T, n int, secondPass bool) (*soa.PathItem, []ir.D
 // from both sides: the last document of a chain of maxResolutionHops is
 // recovered, and a chain one longer is not, with no report, because recovery
 // never learns the last document was read. A second pass another $ref sets off
-// resolves that one from its replayed bytes as the first pass did. The bound is
+// resolves that one from the bytes its one read got, as the first pass did. The bound is
 // for an absurd chain; this keeps a change to what happens at it deliberate.
 func TestResolveExternal_TheHopBoundIsWhereRecoveryEnds(t *testing.T) {
 	t.Parallel()
@@ -1391,31 +1375,122 @@ func TestUnprepared(t *testing.T) {
 	})
 }
 
-// TestExternalReads_ReplaysAnswersInOrder pins the replay's order: each key's
-// answers come back as they were recorded, one per request, and then none.
-func TestExternalReads_ReplaysAnswersInOrder(t *testing.T) {
+// TestExternalReads_OnceReadsEachDocumentOnce pins the record's one read per
+// key: the answer the first ask got is every later ask's, a failure included,
+// each key keeps its own, and only a first ask is charged.
+func TestExternalReads_OnceReadsEachDocumentOnce(t *testing.T) {
 	t.Parallel()
 	r := newExternalReads(sourceDocument{})
+	reads := map[string]int{}
+	readAs := func(key string, a answer) func() answer {
+		return func() answer {
+			reads[key]++
+			return a
+		}
+	}
 	gone := answer{status: http.StatusNotFound}
 	found := answer{status: http.StatusOK, body: []byte("doc")}
-	other := answer{err: errors.New("reset")}
-	r.recordAnswer("k", gone)
-	r.recordAnswer("k", found)
-	r.recordAnswer("other", other)
 
-	var got []answer
-	for {
-		a, ok := r.nextAnswer("k")
-		if !ok {
-			break
-		}
-		got = append(got, a)
+	first := r.once("k", 0, readAs("k", gone))
+	again := r.once("k", 0, readAs("k", found))
+	other := r.once("other", 0, readAs("other", found))
+
+	assert.Equal(t, gone, first)
+	assert.Equal(t, gone, again, "a later ask gets the first answer, not a read of its own")
+	assert.Equal(t, found, other, "each key keeps its own answer")
+	assert.Equal(t, map[string]int{"k": 1, "other": 1}, reads)
+	assert.Equal(t, 2, r.documents, "a document is charged once")
+}
+
+// TestExternalReads_OnceReadsOnceUnderConcurrentAsks pins the one read where
+// asks race: every ask for one key, from goroutines at once, gets the answer of
+// a single read, and the document is charged once.
+func TestExternalReads_OnceReadsOnceUnderConcurrentAsks(t *testing.T) {
+	t.Parallel()
+	r := newExternalReads(sourceDocument{})
+	var reads atomic.Int32
+	var wg sync.WaitGroup
+	got := make([]answer, 16)
+	for i := range got {
+		wg.Go(func() {
+			got[i] = r.once("k", 0, func() answer {
+				return answer{status: http.StatusOK, body: fmt.Appendf(nil, "read %d", reads.Add(1))}
+			})
+		})
+	}
+	wg.Wait()
+
+	assert.Equal(t, int32(1), reads.Load())
+	for _, a := range got {
+		assert.Equal(t, "read 1", string(a.body))
+	}
+	assert.Equal(t, 1, r.documents)
+}
+
+// TestExternalReads_OnceRefusesADocumentPastTheBudget pins the budget's edge:
+// limit documents are read, the next is refused unread with the budget named,
+// and a refused one stays refused, however often it is asked for and with
+// whatever limit.
+func TestExternalReads_OnceRefusesADocumentPastTheBudget(t *testing.T) {
+	t.Parallel()
+	r := newExternalReads(sourceDocument{})
+	read := 0
+	fetch := func() answer {
+		read++
+		return answer{status: http.StatusOK}
+	}
+	for i := range 2 {
+		assert.NoError(t, r.once(fmt.Sprintf("k%d", i), 2, fetch).err)
 	}
 
-	assert.Equal(t, []answer{gone, found}, got)
-	a, ok := r.nextAnswer("other")
-	require.True(t, ok, "each key keeps its own place")
-	assert.Equal(t, other, a)
+	past := r.once("k2", 2, fetch)
+	again := r.once("k2", 0, fetch)
+
+	require.Error(t, past.err)
+	assert.Equal(t, "external document k2 refused: it is past the 2-document budget", past.err.Error())
+	assert.Equal(t, past, again, "the refusal is the document's answer")
+	assert.Equal(t, 2, read, "nothing past the budget is read")
+	assert.Equal(t, 3, r.documents, "the refused document is charged, so the budget reads as crossed")
+}
+
+// TestExternalReads_OnceLeavesAFailureWhereAReadPanics pins that a read
+// stopped by a panic, which the resolution walk recovers from, leaves its
+// document failed rather than answered as empty, and is not read again.
+func TestExternalReads_OnceLeavesAFailureWhereAReadPanics(t *testing.T) {
+	t.Parallel()
+	r := newExternalReads(sourceDocument{})
+	assert.Panics(t, func() {
+		r.once("k", 0, func() answer { panic("read") })
+	})
+
+	got := r.once("k", 0, func() answer { return answer{status: http.StatusOK} })
+
+	require.Error(t, got.err)
+	assert.Equal(t, "external document k refused: its read did not finish", got.err.Error())
+}
+
+// TestExternalReads_ExhaustedReportsOnceAtTheSource pins the report: nothing
+// while every read was within the budget, and one error at the source once a
+// document fell past it.
+func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
+	t.Parallel()
+	at := pointerAt(0, overlay.Origin{})
+	r := newExternalReads(sourceDocument{})
+	ok := func() answer { return answer{status: http.StatusOK} }
+	r.once("a", 1, ok)
+	assert.Empty(t, r.exhausted(at, 1), "a budget spent exactly is not crossed")
+
+	r.once("b", 1, ok)
+	r.once("c", 1, ok)
+
+	got := r.exhausted(at, 1)
+	require.Len(t, got, 1)
+	assert.Equal(t, diag.BudgetExceeded, got[0].Code)
+	assert.Equal(t, ir.SeverityError, got[0].Severity)
+	assert.Equal(t, at(""), got[0].Provenance)
+	assert.Equal(t, "external references name more documents than the 1-document budget; "+
+		"the $refs into the rest are reported unresolved", got[0].Message)
+	assert.Empty(t, r.exhausted(at, 0), "an unbounded budget is never crossed")
 }
 
 // TestExternalReads_IsSafeForConcurrentUse holds the record to what the readers
@@ -1438,9 +1513,8 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
 				assert.True(t, r.prepared(tree))
-				r.recordAnswer(key, answer{status: http.StatusOK, body: []byte(key)})
-				_, ok = r.nextAnswer(key)
-				assert.True(t, ok)
+				a := r.once(key, 0, func() answer { return answer{status: http.StatusOK, body: []byte(key)} })
+				assert.Equal(t, key, string(a.body))
 				r.handOver(doc, nil)
 			}
 		})

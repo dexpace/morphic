@@ -1,22 +1,25 @@
 package load
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
+	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
@@ -44,85 +47,192 @@ components:
     ThroughElsewhere: {$ref: '#/components/schemas/Elsewhere'}
     Anchored: {$anchor: a, $ref: '#a'}
     Defined: {$ref: '#/$defs/D'}
+    Twice: {type: object}
+    Twice: {$ref: '#/components/schemas/Twice'}
+    ToTwice: {$ref: '#/components/schemas/Twice'}
 x-lib:
   first: {$ref: './root.yaml#/x-lib/second'}
   second: {$ref: '#/x-lib/first'}
+  plus+loop: {$ref: './root.yaml#/x-lib/plus+loop'}
 `
 }
 
+// loopsChildEnv hands a child (see inChild) a resolverAsk, which it answers in
+// place of the test it re-ran: a chain the resolver follows without end runs
+// its stack out, which nothing recovers from.
+const loopsChildEnv = "MORPHIC_LOOPS_CHILD_ASK"
+
+// loopsChildMark opens the line the child prints for its answer.
+const loopsChildMark = "loops-child: "
+
+// resolverAsk is a source, the path it is loaded at, and a schema $ref to ask
+// the resolver to follow.
+type resolverAsk struct {
+	Spec string `json:"spec"`
+	Path string `json:"path"`
+	Ref  string `json:"ref"`
+}
+
+// chainEnd is where the resolver's walk of a chain stopped.
+type chainEnd string
+
+const (
+	endsAtSchema chainEnd = "ends"      // at a schema with no $ref
+	closesAgain  chainEnd = "closes"    // at a hop it had taken, reported as a circular reference
+	cannotRead   chainEnd = "fails"     // at a hop it could not read
+	runsOut      chainEnd = "overflows" // never: it recursed until the stack ran out
+)
+
+// hopsLimit bounds the hops endOf follows. No row's chain comes near it, so a
+// record that long is one no row asks about, and fails the child.
+const hopsLimit = 64
+
+// answerAsk is the child's side of resolverEnd: it holds the source as the
+// load phase does, then asks the library to resolve the $ref with loops left
+// out, and prints where the resolution stopped.
+func answerAsk(t *testing.T, body string) {
+	t.Helper()
+	var ask resolverAsk
+	require.NoError(t, json.Unmarshal([]byte(body), &ask))
+	src := escapeSource(t, ask.Spec)
+	tree := newSourceTree(0, overlay.Origin{}, src.root)
+	self := newSourceDocument(ask.Path, []byte(ask.Spec), src.root, src.valErrs, tree, src.esc)
+	opts := Options{AllowExternalRefs: true}
+	reader := newExternal(src.doc, opts, newExternalReads(self))
+	pass := newResolution(t.Context(), pointerAt(0, overlay.Origin{}), src.doc, Siblings{}, self, opts, &reader)
+
+	js := oas3.NewJSONSchemaFromReference(references.Reference(fragment.ForResolver(ask.Ref)))
+	_, err := js.Resolve(t.Context(), pass.opts)
+	end, ok := endOf(js, err)
+	require.True(t, ok, "the library recorded a chain of more than %d hops", hopsLimit)
+	fmt.Println(loopsChildMark + string(end))
+}
+
+// endOf reads where the library's resolution of js, which failed with err or
+// did not, stopped. A failed one stopped at the first hop that holds no object;
+// if the library counts that hop resolved all the same, it marked it circular.
+// It reports false for a record of more than hopsLimit hops.
+func endOf(js *schemaRef, err error) (chainEnd, bool) {
+	if err == nil {
+		return endsAtSchema, true
+	}
+	hop := js
+	for range hopsLimit {
+		info := hop.GetReferenceResolutionInfo()
+		if info == nil || info.Object == nil {
+			if hop.IsResolved() {
+				return closesAgain, true
+			}
+			return cannotRead, true
+		}
+		hop = info.Object
+	}
+	return "", false
+}
+
+// resolverEnd asks the library, in a child, where it stops following the chain
+// of ask's $ref. A child that overflows its stack is the answer runsOut; one
+// that passes without answering, or stops otherwise, fails the test.
+func resolverEnd(t *testing.T, ask resolverAsk) chainEnd {
+	t.Helper()
+	body, err := json.Marshal(ask)
+	require.NoError(t, err)
+	out, end := inChild(t, "TestLoops_ReadsAChainAsTheResolverDoes", loopsChildEnv, string(body))
+	if end == childOverflowed {
+		return runsOut
+	}
+	require.Equal(t, childPassed, end, "%.1500s", out)
+	for line := range strings.Lines(out) {
+		if answer, ok := strings.CutPrefix(strings.TrimRight(line, "\n"), loopsChildMark); ok {
+			return chainEnd(answer)
+		}
+	}
+	require.FailNow(t, "the child printed no answer", "%.1500s", out)
+	return ""
+}
+
+// loopsRead builds the source as the load phase does, the $refs it respells for
+// the resolver respelled, and returns the loops reader of it at path.
+func loopsRead(t *testing.T, spec, path string) *loops {
+	t.Helper()
+	src := escapeSource(t, spec)
+	return newLoops(sourceDocument{path: path, root: src.root}, src.doc)
+}
+
 // TestLoops_ReadsAChainAsTheResolverDoes pins which schema references loops
-// finds never to end (GitHub #768): those whose chain, read as the resolver
-// reads it, closes on a hop it already took. The resolver opens the source by
-// any spelling of its file, which the lowering reads only as the bare name, and
-// reads the source's tree from the first such hop on. Chains it cannot read as
-// the resolver does, and those that end, are no answer.
+// finds never to end (GitHub #768) by asking the resolver. Each row's chain is
+// resolved with loops left out, in a child. The library's answer today is
+// written beside the row, so a bump that changes it fails here even while loops
+// agrees, and loops must answer true exactly where the library closes on a hop
+// it had taken. A schema written twice tells the readings apart: the model
+// holds its last, the tree its first, and a chain reads the tree from the
+// first hop naming the file. The reach check owns anchors.
 func TestLoops_ReadsAChainAsTheResolverDoes(t *testing.T) {
+	if body, ok := asChild(loopsChildEnv); ok {
+		answerAsk(t, body)
+		return
+	}
 	t.Parallel()
 	abs, err := filepath.Abs("root.yaml")
 	require.NoError(t, err)
 	spec := loopsSpec(abs)
-	root, _, err := decodeStream([]byte(spec))
-	require.NoError(t, err)
-	doc, _, err := unmarshal(t.Context(), []byte(spec), root)
-	require.NoError(t, err)
-	self := sourceDocument{path: "root.yaml", root: root}
+	rebased := strings.Replace(spec, "openapi: 3.1.0\n", "openapi: 3.2.0\n$self: https://example.com/dir/root.yaml\n", 1)
+	named := strings.ReplaceAll(spec, "'root.yaml#/components/schemas/ByName'", "'x:root.yaml#/components/schemas/ByName'")
 
 	for _, c := range []struct {
 		name, ref string
-		want      bool
+		// spec and path are the source's, loopsSpec at root.yaml unless set.
+		spec, path string
+		end        chainEnd
 	}{
-		{"a schema that ends", "#/components/schemas/Plain", false},
-		{"an alias of one", "#/components/schemas/Alias", false},
-		{"an alias by the file's name", "root.yaml#/components/schemas/ByAlias", false},
-		{"a loop in the model", "#/components/schemas/Loop", true},
-		{"a loop through the file's name", "root.yaml#/components/schemas/ByName", true},
-		{"a loop through ./", "./root.yaml#/components/schemas/ByDot", true},
-		{"a loop through a directory", "sub/../root.yaml#/components/schemas/ByDirectory", true},
-		{"a loop through the absolute path", abs + "#/components/schemas/ByAbsolute", true},
-		{"a loop that crosses from the model into the tree", "root.yaml#/components/schemas/A", true},
-		{"a chain into a loop", "#/components/schemas/Tail", true},
-		{"a loop of raw nodes", "./root.yaml#/x-lib/first", true},
-		{"a hop into another file", "#/components/schemas/Elsewhere", false},
-		{"a chain through another file", "#/components/schemas/ThroughElsewhere", false},
-		{"an anchor", "#/components/schemas/Anchored", false},
-		{"a definition", "#/components/schemas/Defined", false},
-		{"a position nothing is at", "#/components/schemas/Missing", false},
+		{name: "a schema that ends", ref: "#/components/schemas/Plain", end: endsAtSchema},
+		{name: "an alias of one", ref: "#/components/schemas/Alias", end: endsAtSchema},
+		{name: "an alias by the file's name", ref: "root.yaml#/components/schemas/ByAlias", end: endsAtSchema},
+		{name: "a loop in the model", ref: "#/components/schemas/Loop", end: closesAgain},
+		{name: "a loop through the file's name", ref: "root.yaml#/components/schemas/ByName", end: closesAgain},
+		{name: "a loop through ./", ref: "./root.yaml#/components/schemas/ByDot", end: closesAgain},
+		{name: "a loop through a directory", ref: "sub/../root.yaml#/components/schemas/ByDirectory", end: closesAgain},
+		{name: "a loop through the absolute path", ref: abs + "#/components/schemas/ByAbsolute", end: closesAgain},
+		{name: "a loop that crosses from the model into the tree", ref: "root.yaml#/components/schemas/A", end: closesAgain},
+		{name: "a chain into a loop", ref: "#/components/schemas/Tail", end: closesAgain},
+		{name: "a loop of raw nodes", ref: "./root.yaml#/x-lib/first", end: closesAgain},
+		{name: "a loop of a raw node keyed with a plus", ref: "./root.yaml#/x-lib/plus+loop", end: closesAgain},
+		{name: "a hop into another file", ref: "#/components/schemas/Elsewhere", end: cannotRead},
+		{name: "a chain through another file", ref: "#/components/schemas/ThroughElsewhere", end: cannotRead},
+		{name: "an anchor", ref: "#/components/schemas/Anchored", end: runsOut},
+		{name: "a definition", ref: "#/components/schemas/Defined", end: cannotRead},
+		{name: "a position nothing is at", ref: "#/components/schemas/Missing", end: cannotRead},
+		{name: "a schema written twice, read in the model", ref: "#/components/schemas/Twice", end: closesAgain},
+		{name: "a schema written twice, read in the tree", ref: "root.yaml#/components/schemas/Twice", end: endsAtSchema},
+		{name: "a hop past the file's name, to a schema written twice",
+			ref: "root.yaml#/components/schemas/ToTwice", end: endsAtSchema},
+		{name: "a source whose $self rebases its references, by the file's name",
+			ref: "root.yaml#/components/schemas/ByName", spec: rebased, end: closesAgain},
+		{name: "a source whose $self rebases its references, within the document",
+			ref: "#/components/schemas/Loop", spec: rebased, end: closesAgain},
+		{name: "a source whose name the resolver reads as a URL",
+			ref: "x:root.yaml#/components/schemas/ByName", spec: named, path: "x:root.yaml", end: closesAgain},
+		{name: "another URL is another document",
+			ref: "y:root.yaml#/components/schemas/ByName", spec: named, path: "x:root.yaml", end: cannotRead},
 	} {
-		assert.Equal(t, c.want, newLoops(self, doc).into(references.Reference(c.ref)), c.name)
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			source, path := cmp.Or(c.spec, spec), cmp.Or(c.path, "root.yaml")
+
+			library := resolverEnd(t, resolverAsk{Spec: source, Path: path, Ref: c.ref})
+
+			assert.Equal(t, c.end, library, "where the resolver stops")
+			assert.Equal(t, library == closesAgain,
+				loopsRead(t, source, path).into(references.Reference(fragment.ForResolver(c.ref))),
+				"loops answers true exactly where the resolver closes on a hop")
+		})
 	}
 
 	t.Run("a source with no tree or no model", func(t *testing.T) {
 		t.Parallel()
-		assert.False(t, newLoops(sourceDocument{path: "root.yaml"}, doc).into("#/components/schemas/Loop"))
-		assert.False(t, newLoops(self, nil).into("#/components/schemas/Loop"))
-	})
-
-	t.Run("a source whose $self rebases its references", func(t *testing.T) {
-		t.Parallel()
-		rebased := strings.Replace(spec, "openapi: 3.1.0\n", "openapi: 3.2.0\n$self: https://example.com/dir/root.yaml\n", 1)
-		rebasedRoot, _, err := decodeStream([]byte(rebased))
-		require.NoError(t, err)
-		rebasedDoc, _, err := unmarshal(t.Context(), []byte(rebased), rebasedRoot)
-		require.NoError(t, err)
-		l := newLoops(sourceDocument{path: "root.yaml", root: rebasedRoot}, rebasedDoc)
-
-		assert.True(t, l.into("root.yaml#/components/schemas/ByName"),
-			"a schema $ref resolves against the source's path, which $self does not rebase")
-		assert.True(t, l.into("#/components/schemas/Loop"), "a pointer within the document is the source's")
-	})
-
-	t.Run("a source whose name the resolver reads as a URL", func(t *testing.T) {
-		t.Parallel()
-		named := strings.ReplaceAll(spec, "'root.yaml#/components/schemas/ByName'", "'x:root.yaml#/components/schemas/ByName'")
-		namedRoot, _, err := decodeStream([]byte(named))
-		require.NoError(t, err)
-		namedDoc, _, err := unmarshal(t.Context(), []byte(named), namedRoot)
-		require.NoError(t, err)
-		l := newLoops(sourceDocument{path: "x:root.yaml", root: namedRoot}, namedDoc)
-
-		assert.True(t, l.into("x:root.yaml#/components/schemas/ByName"),
-			"the source is held under its own spelling, which the resolver reads it by")
-		assert.False(t, l.into("y:root.yaml#/components/schemas/ByName"), "another URL is another document")
+		l := loopsRead(t, spec, "root.yaml")
+		assert.False(t, newLoops(sourceDocument{path: "root.yaml"}, l.model).into("#/components/schemas/Loop"))
+		assert.False(t, newLoops(l.self, nil).into("#/components/schemas/Loop"))
 	})
 }
 
@@ -311,7 +421,7 @@ func TestNewResolution_ReadsChainsWhereExternalReferencesAreRead(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument(path, []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 		opts := Options{AllowExternalRefs: allow}
 		var reader *external
 		if allow {
@@ -385,7 +495,7 @@ func TestNewSourceDocument_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		root, _, err := decodeStream([]byte(spec))
 		require.NoError(t, err)
 
-		self := newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 
 		assert.Equal(t, c.holdless, self.holdless, c.name)
 		assert.Equal(t, !c.holdless, len(self.keys()) > 0, "%s: held under its keys unless it spells $id", c.name)
@@ -407,7 +517,7 @@ func TestNewSourceDocument_ASourceWritingMoreRefsThanTheGuardReadsIsNotHeld(t *t
 				&yaml.Node{Kind: yaml.ScalarNode, Value: "#/x"})
 		}
 
-		self := newSourceDocument("root.yaml", nil, root, nil, newSourceTree(0, overlay.Origin{}, root))
+		self := newSourceDocument("root.yaml", nil, root, nil, newSourceTree(0, overlay.Origin{}, root), nil)
 
 		assert.Equal(t, n > maxHeldRefs, self.holdless, "%d $refs", n)
 	}
@@ -438,7 +548,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 		a, ok := doc.GetComponents().GetSchemas().Get("A")
 		require.True(t, ok)
 
-		pass.visit("/components/schemas/A", a, a.GetRef())
+		pass.visit("/components/schemas/A", a)
 
 		assert.Equal(t, c.resolved, a.IsResolved(), c.name)
 		assert.Empty(t, pass.failures, c.name)
@@ -454,7 +564,7 @@ func TestVisit_AChainTheGuardCouldNotReadIsLeftUnresolved(t *testing.T) {
 // in the order written and reversed: the report is the same in both, and an
 // overflow fails this test, not the binary.
 func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -489,6 +599,9 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 				"    G: {$ref: '#/components/schemas/H/$defs/X'}\n", "    K: {$ref: '#/components/schemas/H/$defs/Y'}\n"}
 		}, []string{"/components/schemas/G", "/components/schemas/H/$defs/X", "/components/schemas/H/$defs/Y",
 			"/components/schemas/H/properties/p", "/components/schemas/H/properties/q"}, ""},
+		{"through a key spelled with a plus", func(string) []string {
+			return []string{"    A: {$ref: 'root.yaml#/x-plus/D+E'}\n"}
+		}, []string{"/components/schemas/A"}, "x-plus:\n  D+E: {$ref: './root.yaml#/components/schemas/A'}\n"},
 		{"in a source that spells $id, which is not held", func(dir string) []string {
 			return []string{"    A: {$ref: '" + abs(dir) + "#/components/schemas/E'}\n", "    E: {$ref: '#/components/schemas/A'}\n"}
 		}, nil, "x-id: {$id: 'http://example.com/a'}\n"},
@@ -522,7 +635,7 @@ func TestLoops_ACycleThroughTheSourcesFileNameIsRefusedNotFollowed(t *testing.T)
 // and the resolver followed it until the stack ran out. Each document is loaded
 // in a child, in both orders of the responses, by '#' and by the file's name.
 func TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -551,7 +664,7 @@ func TestLoops_AHopPastAReferenceNotYetResolvedIsReadAgain(t *testing.T) {
 // tree alone it seemed to end, and the resolver followed it until the stack ran
 // out. Each document is loaded in a child, in both orders of the paths.
 func TestLoops_ATreeHopThroughAReferenceReadsTheModel(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -639,7 +752,7 @@ func TestHold_ASourceThatSpellsIDIsNotHeld(t *testing.T) {
 		require.NoError(t, err)
 		doc, _, err := unmarshal(t.Context(), []byte(spec), root)
 		require.NoError(t, err)
-		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root))))
+		reader := newExternal(doc, Options{}, newExternalReads(newSourceDocument("root.yaml", []byte(spec), root, nil, newSourceTree(0, overlay.Origin{}, root), nil)))
 
 		reader.hold(t.Context(), Siblings{})
 

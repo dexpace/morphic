@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json/jsontext"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,16 +32,18 @@ const maxResolutionHops = 32
 // externalReads is what the external-document readers of one compile have
 // read: each prepared document's released tree and the bytes it came from, by
 // the key it was prepared under, its tree by the digest of those bytes, the set
-// of those trees, and every answer their requests got, by URL and in order. The
+// of those trees, and the answer each document's one read got (see once). The
 // source is held as a document read already (see sourceDocument). It is safe
 // for concurrent use, as the readers sharing it are.
 type externalReads struct {
-	mu       sync.Mutex
-	self     sourceDocument
-	trees    map[string]*yaml.Node
-	mine     map[*yaml.Node]bool
-	answers  map[string][]answer
-	replayed map[string]int
+	mu    sync.Mutex
+	self  sourceDocument
+	trees map[string]*yaml.Node
+	mine  map[*yaml.Node]bool
+	// answers holds each document's read by the key it was read under, and
+	// documents counts the reads charged against the document budget.
+	answers   map[string]*reading
+	documents int
 	// data holds the bytes each key's tree was prepared from, and byDigest the
 	// first tree prepared from bytes of each digest (see recordTree).
 	data     map[string][]byte
@@ -74,8 +78,7 @@ func newExternalReads(self sourceDocument) *externalReads {
 		self:     self,
 		trees:    map[string]*yaml.Node{},
 		mine:     map[*yaml.Node]bool{},
-		answers:  map[string][]answer{},
-		replayed: map[string]int{},
+		answers:  map[string]*reading{},
 		data:     map[string][]byte{},
 		byDigest: map[digest]*yaml.Node{},
 		mended:   map[string]treeAnswer{},
@@ -105,26 +108,59 @@ func (a answer) response(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: a.status, Body: io.NopCloser(bytes.NewReader(a.body)), Request: req}, nil
 }
 
-// recordAnswer appends how a request for key was answered.
-func (r *externalReads) recordAnswer(key string, a answer) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.answers[key] = append(r.answers[key], a)
+// reading is one document's read: the answer it got, set once.
+type reading struct {
+	once   sync.Once
+	answer answer
 }
 
-// nextAnswer returns the first answer for key not yet replayed, so the n-th
-// request replayed gets the n-th answer, or false once none is left. The
-// resolver sends one request at a time, in its walk's order, so a second
-// resolution asks in the order the first did.
-func (r *externalReads) nextAnswer(key string) (answer, bool) {
+// once returns the answer the document under key got when it was read. The
+// first ask of the compile reads it with read while limit allows one more
+// document (see exceeds), and refuses it unread past that: the resolver sets no
+// bound of its own (docs/parser-library.md#resolution-unbounded). Every later
+// ask, from either resolution, gets the same answer: the resolver asks again on
+// each reference until it has built something from a document, and a second
+// read could answer otherwise.
+func (r *externalReads) once(key string, limit int, read func() answer) answer {
+	r.mu.Lock()
+	rd, ok := r.answers[key]
+	if !ok {
+		rd = &reading{}
+		r.answers[key] = rd
+	}
+	r.mu.Unlock()
+	rd.once.Do(func() {
+		// Set first, so a read that panics, which the walk recovers, leaves a
+		// failure rather than an empty document.
+		rd.answer = answer{err: refused(key, "its read did not finish")}
+		if !r.charge(limit) {
+			rd.answer = answer{err: refused(key, fmt.Sprintf("it is past the %d-document budget", limit))}
+			return
+		}
+		rd.answer = read()
+	})
+	return rd.answer
+}
+
+// charge counts one more document read, and reports whether limit allows it.
+func (r *externalReads) charge(limit int) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	n := r.replayed[key]
-	if n >= len(r.answers[key]) {
-		return answer{}, false
+	r.documents++
+	return !exceeds(r.documents, limit)
+}
+
+// exhausted reports the document budget limit crossed, once, at the source:
+// which documents fell past it follows the walk's order.
+func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance, limit int) []ir.Diagnostic {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !exceeds(r.documents, limit) {
+		return nil
 	}
-	r.replayed[key] = n + 1
-	return r.answers[key][n], true
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
+		"external references name more documents than the %d-document budget; "+
+			"the $refs into the rest are reported unresolved", limit)}
 }
 
 // recordTree notes a document prepared under key from data. A digest names the
@@ -327,8 +363,9 @@ func (r *externalReads) under(used string) (string, *yaml.Node, bool) {
 //
 // It stores no bytes. With a document's bytes cached the resolver skips its
 // request and caches no object it builds, so two references the first
-// resolution gave one object would each get their own; the replayed request
-// brings them instead. The source's are stored by hold, in both resolutions.
+// resolution gave one object would each get their own; the answer the first
+// resolution's read got brings them instead. The source's are stored by hold,
+// in both resolutions.
 func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 	r.mu.Lock()
 	for key, tree := range r.trees {
@@ -343,15 +380,15 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 }
 
 // resolveExternal resolves doc's references through a preparing reader (see
-// external), and recovers the entries of a document the resolver parsed itself
-// (GitHub #538).
+// external), and recovers what the resolver's own parse of a document loses
+// (docs/parser-library.md#anchored-entry-dropped, GitHub #538).
 //
 // net/url respells a URL many-to-one, so a stored tree can miss the resolver's
 // key. Each resolved reference records the document it read; when one the
-// resolver parsed holds an anchor, doc is rebuilt and resolved again, handed
-// every prepared tree (see handOver) and the first pass's answers (see
-// external.replaying). It resolves as the first did but for those trees, which
-// the walk never descends into, so it reaches no new document; one found
+// resolver parsed holds an anchor, or a $ref the prepared tree respells (see
+// escapes), doc is rebuilt and resolved again, handed every prepared tree (see
+// handOver) and answered from the first pass's reads. That reaches no new
+// document: the walk never descends into those trees; one found
 // unprepared is an internal fault.
 func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
 	self sourceDocument, opts Options, rebuild func() (*soa.OpenAPI, error),
@@ -360,7 +397,8 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	reader := newExternal(doc, opts, read)
 	targets, diags := resolveWith(ctx, at, doc, sibs, self, opts, &reader)
 	used := documentsUsed(ctx, doc, sibs)
-	if !anyAnchored(doc, unprepared(doc, read, used)) {
+	first := unprepared(doc, read, used)
+	if !anyAnchored(doc, first) && !anyRewritable(doc, first) {
 		return doc, sibs, targets, diags, nil
 	}
 
@@ -374,7 +412,6 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	sibs, _, _ = modelSiblings(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(again, opts, read)
-	reader.replaying = true
 	targets, diags = resolveWith(ctx, at, again, sibs, self, opts, &reader)
 	missed := unprepared(again, read, documentsUsed(ctx, again, sibs))
 	return again, sibs, targets, append(diags, stillUnprepared(at, missed)...), nil
@@ -383,10 +420,23 @@ func resolveExternal(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // anyAnchored reports whether any document in missed, as the resolver parsed
 // it, carries an anchor — the one thing the fold's skip reads.
 func anyAnchored(doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(doc, missed, hasAnchor)
+}
+
+// anyRewritable reports whether any document in missed, as the resolver parsed
+// it, holds a $ref the resolver reads a '+' of as a space, which the prepared
+// tree has spelled otherwise (GitHub #911).
+func anyRewritable(doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(doc, missed, rewritable)
+}
+
+// anyParsed reports whether the tree the resolver parsed for any document in
+// missed satisfies holds.
+func anyParsed(doc *soa.OpenAPI, missed []usedDocument, holds func(*yaml.Node) bool) bool {
 	return slices.ContainsFunc(missed, func(m usedDocument) bool {
 		cached, _ := doc.GetCachedExternalDocument(m.key)
 		tree, ok := cached.(*yaml.Node)
-		return ok && hasAnchor(tree)
+		return ok && holds(tree)
 	})
 }
 
@@ -489,14 +539,16 @@ func resolutionTrail(model any) trail {
 }
 
 // chain is every record a reference's resolution holds, first hop first, and
-// the reference it stopped at, if it stopped at one. The last record holds no
-// object when the library gave the reference it stopped at one of its own: a
-// $ref inside a resolved schema gets one holding only the base it resolves
-// against. cut marks a chain followed only as far as maxResolutionHops.
+// the reference it stopped at, if it stopped at one, with the hop that holds
+// it. The last record holds no object when the library gave the reference it
+// stopped at one of its own: a $ref inside a resolved schema gets one holding
+// only the base it resolves against. cut marks a chain followed only as far as
+// maxResolutionHops.
 type chain struct {
-	records []record
-	stopped references.Reference
-	cut     bool
+	records   []record
+	stopped   references.Reference
+	stoppedAt any
+	cut       bool
 }
 
 // record is one hop's record: the document it read, by path, where its
@@ -506,8 +558,8 @@ type chain struct {
 // object of the hop's kind in place of the one it reached, and reports whether
 // obj was of that kind.
 //
-// pointer is read off the reference, decoded once as the resolver decoded it,
-// not cut from the absolute one: a document's path may hold a '#'.
+// pointer is read off the reference, decoded once as fragment.Pointer decodes
+// it, not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
 	path         string
 	target       references.Reference
@@ -589,7 +641,7 @@ func recordsOf[S any, R interface {
 			break
 		}
 		r := record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
-			pointer: jsontext.Pointer(hop.GetReference().GetJSONPointer()), document: &info.ResolvedDocument,
+			pointer: fragment.Pointer(string(hop.GetReference())), document: &info.ResolvedDocument,
 			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)}
 		if info.Object == nil {
 			c.records = append(c.records, r)
@@ -604,7 +656,7 @@ func recordsOf[S any, R interface {
 		hop = info.Object
 	}
 	if hop != nil {
-		c.stopped = hop.GetReference() // empty for the object a resolution ends on
+		c.stopped, c.stoppedAt = hop.GetReference(), hop // empty for the object a resolution ends on
 	}
 	return c
 }

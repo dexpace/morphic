@@ -31,10 +31,9 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 			assert.Nil(t, idx.Root(), "an empty document has no content node")
 			assert.Equal(t, int64(0), idx.Nodes())
 			assert.False(t, idx.Truncated(), "nothing to index is fully indexed")
-			_, found := idx.AnchorCycle()
-			assert.False(t, found)
-			_, found = idx.TaggedMapping()
-			assert.False(t, found)
+			assert.Equal(t, int64(0), idx.Nesting())
+			assert.Empty(t, idx.AnchorCycles())
+			assert.Empty(t, idx.TaggedMappings())
 		})
 	}
 }
@@ -51,8 +50,8 @@ func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 	require.NotNil(t, idx.Root())
 	assert.Equal(t, yaml.Kind(0), idx.Root().Kind, "yaml.v3 leaves the node untouched")
 	assert.Equal(t, int64(1), idx.Nodes())
-	_, found := idx.AnchorCycle()
-	assert.False(t, found)
+	assert.Equal(t, int64(0), idx.Nesting(), "a node of no kind nests nothing")
+	assert.Empty(t, idx.AnchorCycles())
 }
 
 func TestBuild_RootIsTheDocumentsContent(t *testing.T) {
@@ -122,8 +121,7 @@ func TestBuild_StopsAtItsNodeBound(t *testing.T) {
 
 	stopped := Build(root, 4)
 	assert.True(t, stopped.Truncated(), "one node past the bound stops the walk")
-	_, found := stopped.AnchorCycle()
-	assert.False(t, found, "a truncated walk reports no finding it did not reach")
+	assert.Empty(t, stopped.AnchorCycles(), "a truncated walk reports no finding it did not reach")
 }
 
 // TestBuild_TruncationDoesNotMisreportAnAnchorCycle guards the direction that
@@ -135,8 +133,7 @@ func TestBuild_TruncationDoesNotMisreportAnAnchorCycle(t *testing.T) {
 	root.Content = append(root.Content, ynode.Scalar("b"), ynode.Alias(root))
 
 	full := Build(root, MaxIndexedNodes)
-	_, found := full.AnchorCycle()
-	require.True(t, found, "the fixture really does carry a recursive anchor")
+	require.NotEmpty(t, full.AnchorCycles(), "the fixture really does carry a recursive anchor")
 
 	assert.True(t, Build(root, 2).Truncated(),
 		"the same tree under a bound it crosses reports truncation rather than cleanliness")
@@ -149,9 +146,9 @@ func TestAnchorCycle_AliasToAnAncestorIsFound(t *testing.T) {
 	alias := ynode.Alias(root)
 	inner.Content = append(inner.Content, ynode.Scalar("loop"), alias)
 
-	got, found := Build(root, MaxIndexedNodes).AnchorCycle()
-	require.True(t, found, "an alias naming a node it is nested inside expands without bound")
-	assert.Same(t, alias, got, "the reported node is the alias, where the author wrote it")
+	got := Build(root, MaxIndexedNodes).AnchorCycles()
+	require.Len(t, got, 1, "an alias naming a node it is nested inside expands without bound")
+	assert.Same(t, alias, got[0], "the reported node is the alias, where the author wrote it")
 }
 
 // TestAnchorCycle_LegalReuseIsNotACycle is the control. Anchor reuse is ordinary
@@ -161,8 +158,7 @@ func TestAnchorCycle_LegalReuseIsNotACycle(t *testing.T) {
 	t.Parallel()
 	root := decode(t, "a: &x {p: 1}\nb: *x\n")
 
-	_, found := Build(root, MaxIndexedNodes).AnchorCycle()
-	assert.False(t, found, "an alias to a node that is not an ancestor is legal reuse")
+	assert.Empty(t, Build(root, MaxIndexedNodes).AnchorCycles(), "an alias to a node that is not an ancestor is legal reuse")
 }
 
 func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
@@ -170,16 +166,16 @@ func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("k"), &yaml.Node{Kind: yaml.AliasNode})
 
 	idx := Build(root, MaxIndexedNodes)
-	_, found := idx.AnchorCycle()
-	assert.False(t, found, "an alias that names nothing cannot name an ancestor")
+	assert.Empty(t, idx.AnchorCycles(), "an alias that names nothing cannot name an ancestor")
 	assert.Equal(t, int64(3), idx.Nodes(), "it is still one of the document's nodes")
 }
 
-// TestAnchorCycle_FirstInDocumentOrderWins pins which of several recursive
-// anchors is reported. The answer has to be the first a depth-first descent
-// would reach, or the diagnostic a document draws would depend on the walk's
-// shape rather than on what the document says.
-func TestAnchorCycle_FirstInDocumentOrderWins(t *testing.T) {
+// TestAnchorCycles_EveryOneIsListedInDocumentOrder pins that the walk lists
+// every recursive anchor rather than the first it meets: which of several a
+// refusal names is the caller's to choose by something a declaration order
+// cannot move (GitHub #912), and it cannot choose among answers it was not
+// given.
+func TestAnchorCycles_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	t.Parallel()
 	first, second := ynode.Map(), ynode.Map()
 	root := ynode.Map(ynode.Scalar("a"), first, ynode.Scalar("b"), second)
@@ -187,9 +183,10 @@ func TestAnchorCycle_FirstInDocumentOrderWins(t *testing.T) {
 	first.Content = append(first.Content, ynode.Scalar("loop"), firstAlias)
 	second.Content = append(second.Content, ynode.Scalar("loop"), secondAlias)
 
-	got, found := Build(root, MaxIndexedNodes).AnchorCycle()
-	require.True(t, found)
-	assert.Same(t, firstAlias, got, "the earlier alias is the one reported")
+	got := Build(root, MaxIndexedNodes).AnchorCycles()
+	require.Len(t, got, 2)
+	assert.Same(t, firstAlias, got[0])
+	assert.Same(t, secondAlias, got[1])
 }
 
 // TestBuild_TracksAncestorsOnlyToItsDepthBound pins the one thing maxTrackedDepth
@@ -217,8 +214,7 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	// deepest mapping's own key and alias.
 	assert.Equal(t, int64(2*links+3), idx.Nodes(),
 		"every node below the tracked depth is still counted")
-	_, found := idx.AnchorCycle()
-	assert.False(t, found,
+	assert.Empty(t, idx.AnchorCycles(),
 		"an alias deeper than the tracked depth is out of the walk's reach, as it was before")
 }
 
@@ -243,9 +239,9 @@ func TestBuild_TracksAncestorsAtItsDepthBound(t *testing.T) {
 
 	idx := Build(root, MaxIndexedNodes)
 	assert.False(t, idx.Truncated())
-	cycle, found := idx.AnchorCycle()
-	require.True(t, found, "an alias at exactly the tracked depth is still a candidate")
-	assert.Same(t, root, cycle.Alias, "the cycle reported is the one back to the root")
+	cycles := idx.AnchorCycles()
+	require.Len(t, cycles, 1, "an alias at exactly the tracked depth is still a candidate")
+	assert.Same(t, root, cycles[0].Alias, "the cycle reported is the one back to the root")
 }
 
 // TestBuild_IsAFunctionOfTheTreeAlone is the determinism the compiler's output
@@ -260,15 +256,9 @@ func TestBuild_IsAFunctionOfTheTreeAlone(t *testing.T) {
 	assert.Equal(t, first.Nodes(), second.Nodes())
 	assert.Equal(t, first.Truncated(), second.Truncated())
 
-	firstCycle, firstFound := first.AnchorCycle()
-	secondCycle, secondFound := second.AnchorCycle()
-	assert.Equal(t, firstFound, secondFound)
-	assert.Same(t, firstCycle, secondCycle)
-
-	firstTagged, firstTaggedFound := first.TaggedMapping()
-	secondTagged, secondTaggedFound := second.TaggedMapping()
-	assert.Equal(t, firstTaggedFound, secondTaggedFound)
-	assert.Same(t, firstTagged, secondTagged)
+	assert.Equal(t, first.Nesting(), second.Nesting())
+	assert.Equal(t, first.AnchorCycles(), second.AnchorCycles())
+	assert.Equal(t, first.TaggedMappings(), second.TaggedMappings())
 }
 
 // TestTaggedMapping_LocalTagIsFound pins the shape that faults the parser: a
@@ -280,9 +270,9 @@ func TestTaggedMapping_LocalTagIsFound(t *testing.T) {
 	want := root.Content[0].Content[1].Content[1]
 	require.Equal(t, "!content:", want.Tag, "the fixture's tag lands where this test reads it")
 
-	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
-	require.True(t, found)
-	assert.Same(t, want, got)
+	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	require.Len(t, got, 1)
+	assert.Same(t, want, got[0])
 }
 
 // TestTaggedMapping_AnyTagButMapIsOne pins the predicate as the parser's own:
@@ -302,8 +292,7 @@ func TestTaggedMapping_AnyTagButMapIsOne(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, found := Build(root, MaxIndexedNodes).TaggedMapping()
-			assert.True(t, found)
+			assert.NotEmpty(t, Build(root, MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
@@ -326,23 +315,23 @@ func TestTaggedMapping_OnlyAMappingCounts(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, found := Build(decode(t, src), MaxIndexedNodes).TaggedMapping()
-			assert.False(t, found)
+			assert.Empty(t, Build(decode(t, src), MaxIndexedNodes).TaggedMappings())
 		})
 	}
 }
 
-// TestTaggedMapping_FirstInDocumentOrderWins pins which of several is reported,
-// for the same reason AnchorCycle pins it: the diagnostic must depend on the
-// document, not on the walk.
-func TestTaggedMapping_FirstInDocumentOrderWins(t *testing.T) {
+// TestTaggedMappings_EveryOneIsListedInDocumentOrder pins that every tagged
+// mapping is listed, for the reason AnchorCycles lists every cycle: the caller
+// chooses which a refusal names.
+func TestTaggedMappings_EveryOneIsListedInDocumentOrder(t *testing.T) {
 	t.Parallel()
 	root := decode(t, "a: !x {b: 1}\nc: !y {d: 2}\n")
-	first := root.Content[0].Content[1]
+	first, second := root.Content[0].Content[1], root.Content[0].Content[3]
 
-	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
-	require.True(t, found)
-	assert.Same(t, first, got, "the earlier mapping is the one reported")
+	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	require.Len(t, got, 2)
+	assert.Same(t, first, got[0])
+	assert.Same(t, second, got[1])
 }
 
 // TestTaggedMapping_IsFoundThroughAnAnchor pins that an alias to a tagged
@@ -353,7 +342,7 @@ func TestTaggedMapping_IsFoundThroughAnAnchor(t *testing.T) {
 	root := decode(t, "a: &x !t {b: 1}\nc: *x\n")
 	anchored := root.Content[0].Content[1]
 
-	got, found := Build(root, MaxIndexedNodes).TaggedMapping()
-	require.True(t, found)
-	assert.Same(t, anchored, got)
+	got := Build(root, MaxIndexedNodes).TaggedMappings()
+	require.Len(t, got, 1, "the alias is not a second mapping")
+	assert.Same(t, anchored, got[0])
 }

@@ -151,11 +151,17 @@ const (
 	// whose largest surplus is 15,727 nodes: a 16.7x margin.
 	//
 	// It bounds the memory an alias-heavy document can cost, since the parser
-	// builds a fresh subtree for every path through an alias, and, unlike a
-	// relative bound, padding cannot lift it: at 1<<20 a purpose-built 93 KiB
-	// document peaked at 4.4 GiB; at this default the largest one accepted
-	// peaks at 1.65 GiB.
+	// builds a fresh subtree for every path through an alias
+	// (docs/parser-library.md#alias-expansion), and, unlike a relative bound,
+	// padding cannot lift it: at 1<<20 a purpose-built 93 KiB document peaked
+	// at 4.4 GiB; at this default the largest one accepted peaks at 1.65 GiB.
 	DefaultMaxAliasSurplus = 1 << 18
+	// DefaultMaxExternalDocuments is the document budget: 16,384, a 4.7x margin
+	// over the 3,476 files the $refs of DigitalOcean's public API description
+	// reach, counted 2026-10-18, the largest split description found. The three
+	// above are single files, and a description split per resource or per
+	// schema is what reading external documents is for.
+	DefaultMaxExternalDocuments = 1 << 14
 )
 
 // Limits bounds the size and cardinality of one compile, so a legal but
@@ -185,17 +191,25 @@ type Limits struct {
 	// document still lowers.
 	MaxEnumMembers int `json:"maxEnumMembers,omitzero"`
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to a source
-	// document or its overlay: its cost with every alias expanded, less its
-	// cost as written. A source past it is refused before the model is built,
-	// an overlay before it is applied, an external document before the
-	// resolver builds from it.
+	// document or its overlay: its cost with every alias expanded
+	// (docs/parser-library.md#alias-expansion), less its cost as written. A
+	// source past it is refused before the model is built, an overlay before it
+	// is applied, an external document before the resolver builds from it.
 	//
 	// Turning it off leaves alias refusal on: a document expanding past both
 	// 128 times its own size and 32,768 nodes is refused anyway, as
 	// openapi/alias-amplification, not openapi/budget-exceeded, so only
 	// expansion up to the larger of the two goes unchecked. A document without
-	// aliases adds nothing, so this never refuses it.
+	// aliases adds nothing.
 	MaxAliasSurplus int `json:"maxAliasSurplus,omitzero"`
+	// MaxExternalDocuments bounds the documents external references read in one
+	// compile: each file and each URL, read once however many references name
+	// it. A document past it is not read, each reference into it is reported
+	// unresolved, and the compile reports openapi/budget-exceeded once. It
+	// bounds how many documents are read, not their size, which MaxSourceBytes
+	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
+	// neither (docs/parser-library.md#resolution-unbounded).
+	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 }
 
 // withDefaults returns a copy of l with each unset budget filled from its
@@ -212,6 +226,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.MaxAliasSurplus == 0 {
 		l.MaxAliasSurplus = DefaultMaxAliasSurplus
+	}
+	if l.MaxExternalDocuments == 0 {
+		l.MaxExternalDocuments = DefaultMaxExternalDocuments
 	}
 	return l
 }
@@ -273,11 +290,24 @@ const (
 	optOverlayLax        = "overlay-lax"
 )
 
+// limitOptions maps the name of each budget in l to the field it sets, so a
+// caller holding only text sets the budgets a Go caller does.
+func limitOptions(l *Limits) map[string]*int {
+	return map[string]*int{
+		"max-source-bytes":       &l.MaxSourceBytes,
+		"max-source-nodes":       &l.MaxSourceNodes,
+		"max-enum-members":       &l.MaxEnumMembers,
+		"max-alias-surplus":      &l.MaxAliasSurplus,
+		"max-external-documents": &l.MaxExternalDocuments,
+	}
+}
+
 // optionNames lists the vocabulary, sorted, for the error that reports a name
 // outside it. Deriving the list from one place is what keeps the error honest
 // as the vocabulary grows.
 func optionNames() []string {
 	names := []string{optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax}
+	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
 	return names
 }
@@ -329,10 +359,12 @@ func (d *optionDecode) set(key, value string) error {
 	case optOverlayLax:
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
-	default:
-		return fmt.Errorf("openapi: unknown option %q (known: %s)",
-			key, strings.Join(optionNames(), ", "))
 	}
+	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
+		return decodeBudget(budget, key, value)
+	}
+	return fmt.Errorf("openapi: unknown option %q (known: %s)",
+		key, strings.Join(optionNames(), ", "))
 }
 
 // finish assembles the decoded Options, loading the overlay document a setting
@@ -368,6 +400,18 @@ func decodeGrouping(out *GroupingStrategy, value string) error {
 		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
 			optGrouping, GroupByTags, GroupByPathPrefix, value)
 	}
+}
+
+// decodeBudget reads a budget setting: a decimal integer, read as the Limits
+// field it sets reads it, zero taking the default and a negative value none.
+func decodeBudget(out *int, key, value string) error {
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("openapi: option %q: want an integer (0 for the default, negative for none), got %q",
+			key, value)
+	}
+	*out = parsed
+	return nil
 }
 
 // decodeBool reads a boolean setting, spelled as strconv.ParseBool accepts it.

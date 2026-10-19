@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -21,7 +22,8 @@ import (
 
 // MappingTargets holds the schema each discriminator mapping target in the
 // source names, by the pointer it names, resolved at load as a $ref to it is
-// (GitHub #757). The resolver follows no mapping value, so a schema the model
+// (GitHub #757). The resolver follows no mapping value
+// (docs/parser-library.md#mapping-unresolved), so a schema the model
 // holds as raw YAML, such as an extension's value or an enum member, was
 // otherwise found only once a $ref had lowered it. Its zero value holds none.
 //
@@ -352,14 +354,16 @@ func (m *mappings) name(site jsontext.Pointer, value string) {
 	m.order = append(m.order, pointer)
 }
 
-// resolveTarget resolves pointer as a $ref to it is resolved, and records the
-// schema its first hop reaches there, as a $ref to it would lower. A chain that
-// fails further on is recorded all the same. One whose first hop reaches no
-// schema is recorded nowhere, and its findings go unreported, which say only
-// that the position is no schema: the lowering reports every target it cannot
-// resolve. One not provably ending is left out (see chainEnds).
+// resolveTarget resolves pointer as a $ref to it is resolved, since the
+// resolver reads no mapping value (docs/parser-library.md#mapping-unresolved),
+// and records the schema its first hop reaches there, as a $ref to it would
+// lower. A chain that fails further on is recorded all the same. One whose
+// first hop reaches no schema is recorded nowhere, and its findings go
+// unreported, which say only that the position is no schema: the lowering
+// reports every target it cannot resolve. One not provably ending is left out
+// (see chainEnds).
 func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) {
-	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragmentOf(pointer)))
+	ref := oas3.NewJSONSchemaFromReference(references.Reference("#" + fragment.Of(pointer)))
 	if !m.chainEnds(ref.GetRef()) {
 		return
 	}
@@ -376,7 +380,7 @@ func (m *mappings) resolveTarget(ctx context.Context, pointer jsontext.Pointer) 
 	if declared := firstSchema(c); declared != nil {
 		m.out[pointer] = declared
 	}
-	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, c.trail(), vErrs, noSchemaNodes(c)
+	t.resolved, t.ref, t.trail, t.found, t.noSchema = true, ref, m.self.escapes.trailOf(c), vErrs, noSchemaNodes(c)
 	if err == nil {
 		m.enqueue(t.least, c)
 	}
@@ -452,7 +456,7 @@ func (m *mappings) resolveNested(ctx context.Context, found *reachedFindings, si
 		vErrs, err = m.reader.settle(ctx, js, m.opts, vErrs, err)
 	}
 	c := resolutionChain(js)
-	found.noteEntry(site, c.trail(), vErrs, noSchemaNodes(c))
+	found.noteEntry(site, m.self.escapes.trailOf(c), vErrs, noSchemaNodes(c))
 	m.nested = append(m.nested, siteRef{site: site, ref: js})
 	if err == nil {
 		m.enqueue(site, c)
@@ -472,13 +476,12 @@ func readInModel(js *schemaRef, doc *soa.OpenAPI, location string) {
 }
 
 // chainEnds reports whether the chain of ref, a schema $ref resolved in the
-// source, ends within maxResolutionHops reads. The resolver follows a hop it
-// resolved before without tracking where the chain has been, so a chain closing
-// on such hops recurses until the stack runs out (GitHub #558), and the cycle
-// scan misses a cycle in raw YAML or through the source's file name (GitHub
-// #768). A mapping names either wherever the input says, so each hop is read as
-// the resolver reads it (see hopOf, readAt), once, for a step, and remembered.
-// A walk the step bound cuts remembers nothing.
+// source, ends within maxResolutionHops reads. A second resolution into a loop
+// overflows the resolver's stack (docs/parser-library.md#mapping-unresolved),
+// and the cycle scan misses a cycle in raw YAML or through the source's file
+// name (GitHub #768). A mapping names either wherever the input says, so each
+// hop is read as the resolver reads it (see hopOf, readAt), once, for a step,
+// and remembered. A walk the step bound cuts remembers nothing.
 func (m *mappings) chainEnds(ref references.Reference) bool {
 	if m.self.root == nil || m.doc == nil {
 		return false

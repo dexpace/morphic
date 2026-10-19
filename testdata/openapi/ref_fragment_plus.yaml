@@ -1,0 +1,88 @@
+# GitHub #911: '+' in a $ref fragment is a plus (RFC 3986 section 3.5), where
+# the resolver's own decoder reads it as a space. The paths "/a b" and "/a+b"
+# are both here, and each is named by its own spelling: "~1a+b" and "~1a%2Bb"
+# reach "/a+b", "~1a%20b" reaches "/a b". The resolver caches an object by the
+# pointer it decodes, so read as a space, "/a+b" was answered with whichever
+# of the two a reference met first. The sweep's order oracle compiles the
+# reversed document as well, so both orders must agree.
+#
+# "/c" and "/d" reach "/a+b" with a $ref of every kind a path key can carry:
+# a path item, a parameter, a request body, a response, a header and, under a
+# media type that spells a '+' itself, an example. x-defs and x-a reach raw
+# YAML the parsed model holds no object for, through a '+' in a key.
+openapi: 3.1.0
+info: {title: Ref Fragment Plus, version: "1"}
+paths:
+  "/a b":
+    get:
+      operationId: spaced
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {s: {type: string}}
+  /a+b:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            H: {schema: {type: string}}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {i: {type: integer}}
+            application/problem+json:
+              examples:
+                E: {value: {i: 1}}
+    post:
+      requestBody:
+        content: {application/json: {schema: {type: string}}}
+      responses:
+        "204": {description: no content}
+  /c:
+    $ref: '#/paths/~1a+b'
+  /d:
+    post:
+      operationId: relay
+      parameters:
+        - $ref: '#/paths/~1a+b/get/parameters/0'
+      requestBody:
+        $ref: '#/paths/~1a+b/post/requestBody'
+      responses:
+        "200":
+          $ref: '#/paths/~1a+b/get/responses/200'
+        default:
+          description: other
+          headers:
+            H: {$ref: '#/paths/~1a+b/get/responses/200/headers/H'}
+          content:
+            application/problem+json:
+              examples:
+                E: {$ref: '#/paths/~1a+b/get/responses/200/content/application~1problem+json/examples/E'}
+components:
+  schemas:
+    Plus:
+      $ref: '#/paths/~1a+b/get/responses/200/content/application~1json/schema'
+    Escaped:
+      $ref: '#/paths/~1a%2Bb/get/responses/200/content/application~1json/schema'
+    Space:
+      $ref: '#/paths/~1a%20b/get/responses/200/content/application~1json/schema'
+    Raw:
+      $ref: '#/x-defs/A'
+    Chained:
+      $ref: '#/x-a'
+x-defs:
+  A:
+    type: object
+    properties:
+      p: {$ref: '#/x-defs/B+C'}
+  B+C: {type: integer}
+x-a: {$ref: '#/x-b+c'}
+x-b+c: {type: integer}

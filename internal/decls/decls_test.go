@@ -259,18 +259,42 @@ func TestStringConsts_Refusals(t *testing.T) {
 	}
 }
 
+// TestIntConst_ReadsTheDeclaredValue holds the reader to a constant of a named
+// integer type, the shape a bound declared beside the walk it bounds takes.
+func TestIntConst_ReadsTheDeclaredValue(t *testing.T) {
+	t.Parallel()
+	got, err := fixture(t).IntConst("One")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), got)
+}
+
+func TestIntConst_Refusals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, want string }{
+		{"Missing", "declares no constant Missing"},
+		{"Count", "declares no constant Count"},
+		{"Plain", "Plain has kind String, not Int"},
+		{"Huge", "Huge is 18446744073709551616, past what an int64 holds"},
+	} {
+		got, err := fixture(t).IntConst(tc.name)
+		require.Error(t, err, tc.name)
+		assert.Zero(t, got)
+		assert.Contains(t, err.Error(), tc.want)
+	}
+}
+
 // TestObjects_YieldsOneKindInNameOrder holds Objects to its kind and to name
 // order, and to stopping when the loop over it does.
 func TestObjects_YieldsOneKindInNameOrder(t *testing.T) {
 	t.Parallel()
 	p := fixture(t)
 
-	assert.Equal(t, []string{"Blue", "Green", "One", "Plain", "Red"}, names(p.Objects[*types.Const]()))
+	assert.Equal(t, []string{"Blue", "Green", "Huge", "One", "Plain", "Red"}, names(p.Objects[*types.Const]()))
 	assert.Equal(t, []string{"Alias", "Bytes", "Color", "Count", "Shade", "Wrapper"},
 		names(p.Objects[*types.TypeName]()))
 	assert.Equal(t, []string{"Hello"}, names(p.Objects[*types.Func]()))
 	assert.Equal(t, []string{
-		"Alias", "Blue", "Bytes", "Color", "Count", "Green", "Hello", "One", "Plain", "Red", "Shade", "Wrapper",
+		"Alias", "Blue", "Bytes", "Color", "Count", "Green", "Hello", "Huge", "One", "Plain", "Red", "Shade", "Wrapper",
 	}, names(p.Objects[types.Object]()))
 
 	var first []string

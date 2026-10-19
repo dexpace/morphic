@@ -20,8 +20,8 @@ import (
 // library's reads (cost), reads for loops, which charges its own (read), and
 // answers resolve.Scope.Holds (holds).
 //
-// It models speakeasy-api/openapi v1.25.2: TestTreeReads_CountsWhatTheLibraryReadTakes
-// holds where it ends to GetTarget's; re-check it on a bump.
+// TestTreeReads_CountsWhatTheLibraryReadTakes holds where it ends to
+// GetTarget's, so a library change that moves it turns that test red.
 type treeReads struct {
 	keys map[*yaml.Node]*mappingKeys
 	// indexed counts the pairs indexed since drain last answered: this
@@ -30,9 +30,10 @@ type treeReads struct {
 }
 
 // mappingKeys is what a mapping's keys say to the library's read: the pair
-// holding each key first, the key read through an alias as the library reads
-// one, the pairs whose key is written `<<`, in order, and how many times the
-// library's loop over the pairs runs when nothing stops it.
+// holding each key first, the one a raw read takes
+// (docs/parser-library.md#duplicate-key), the key read through an alias as the
+// library reads one, the pairs whose key is written `<<`, in order, and how
+// many times the library's loop over the pairs runs when nothing stops it.
 type mappingKeys struct {
 	first  map[string]int
 	merges []int

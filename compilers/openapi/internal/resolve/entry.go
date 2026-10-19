@@ -8,6 +8,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -93,11 +94,11 @@ func UseDocs[T, S any, R interface {
 
 // maxRefChain bounds how many $ref hops ObjectAt and UseDocs follow, and how
 // many a chain's end (endOf) and a pointer's scope (Scope.reached) are followed
-// through. A $ref cycle among the non-schema components is refused before
-// lowering by speakeasy's resolver, not by internal/scan, and a refused chain
-// resolves to nothing, so the bound only fires on an absurd alias chain. Past
-// it, ObjectAt keeps the use site, and what the chain reaches is read in no
-// document's scope.
+// through. A $ref cycle among the non-schema components is reported by the
+// resolver (docs/parser-library.md#reference-object-cycle), not refused by
+// internal/scan, and a failed chain resolves to nothing, so the bound only
+// fires on an absurd alias chain. Past it, ObjectAt keeps the use site, and
+// what the chain reaches is read in no document's scope.
 //
 // It stays unexported: only the test that holds the walk to the bound needs it,
 // and reaches it through export_test.go.
@@ -208,7 +209,7 @@ func Hops[T, S any, R interface {
 		info := ref.GetReferenceResolutionInfo()
 		next := R(info.Object)
 		scope = scope.reached(End{Document: info.ResolvedDocument, Path: info.AbsoluteDocumentPath,
-			Pointer: jsontext.Pointer(ref.GetReference().GetJSONPointer())})
+			Pointer: fragment.Pointer(string(ref.GetReference()))})
 		ref = next
 		hops = append(hops, Hop[R]{Ref: ref, Foreign: scope.Foreign})
 	}
@@ -280,7 +281,7 @@ func endOf[S any, R interface {
 		return End{}, true
 	}
 	return End{Document: last.ResolvedDocument, Path: last.AbsoluteDocumentPath,
-		Pointer: jsontext.Pointer(written.GetJSONPointer())}, true
+		Pointer: fragment.Pointer(string(written))}, true
 }
 
 // ReferenceEnd is EndOf for a reference of each of the library's kinds, a

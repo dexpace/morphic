@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,41 +33,33 @@ import (
 // not an ir.Document).
 var update = flag.Bool("update", false, "rewrite testdata/reach_fuzz_crashes.golden instead of comparing")
 
-// reachFuzzOracleEnv, when set, makes this test binary act as the crash
-// oracle: TestMain reads the spec it names, runs the load pipeline over it with
-// the reference-chain check off and a bounded stack, and exits. A stack
-// overflow cannot be recovered in-process, so it has to happen in a process the
-// test can afford to lose.
+// reachFuzzOracleEnv hands a child of TestReachFuzz_Oracle (see inChild) the
+// path of the spec it loads.
 const reachFuzzOracleEnv = "MORPHIC_REACH_FUZZ_ORACLE_SPEC"
 
-// TestMain lets this package act as its own crash-oracle subprocess. Every
-// other test in the package is unaffected: the environment variable is unset
-// unless reachFuzzSubprocessCrashed sets it for a child process it spawns. They
-// run through leakcheck.Main, for the tests that start goroutines.
+// TestMain runs the package's tests through leakcheck.Main, for the tests that
+// start goroutines.
 func TestMain(m *testing.M) {
-	if specPath := os.Getenv(reachFuzzOracleEnv); specPath != "" {
-		os.Exit(runReachFuzzOracle(specPath))
-	}
 	leakcheck.Main(m)
 }
 
-// runReachFuzzOracle runs this package's own load pipeline over the spec at
-// specPath with the reference-chain check turned off, and returns the process
-// exit code: 0 if Load returns at all, nonzero for an I/O failure. A genuine
-// stack overflow never returns: the Go runtime ends the process with status 2,
-// which reachFuzzSubprocessCrashed reads.
+// TestReachFuzz_Oracle is the crash oracle, run only as a child: it loads the
+// spec at the path reachFuzzOracleEnv names through this package's own
+// pipeline, with the reference-chain check turned off. A stack overflow never
+// returns, so the child's end is the answer.
 //
 // The pipeline, not the raw library, is the oracle because it is what the
 // compiler hands the resolver, and load holds "#/$defs/..." references out of
 // the resolver's pass (GitHub #557): the library's own lookup never runs.
-func runReachFuzzOracle(specPath string) int {
-	debug.SetMaxStack(64 << 20)
-	data, err := os.ReadFile(specPath)
-	if err != nil {
-		return 3
+func TestReachFuzz_Oracle(t *testing.T) {
+	specPath, ok := asChild(reachFuzzOracleEnv)
+	if !ok {
+		t.Skip("run only as a child of pipelineOverflows")
 	}
-	_, _, _ = Load(context.Background(), 0, compilers.Source{Path: specPath, Data: data}, Options{chainCheck: noChainCheck})
-	return 0
+	data, err := os.ReadFile(specPath)
+	require.NoError(t, err)
+	_, _, err = Load(t.Context(), 0, compilers.Source{Path: specPath, Data: data}, Options{chainCheck: noChainCheck})
+	require.NoError(t, err)
 }
 
 // noChainCheck is chainCheck turned off: the oracle's pipeline runs every
@@ -79,25 +69,40 @@ func noChainCheck(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI, Sibli
 	return ir.Diagnostic{}, false
 }
 
-// reachFuzzSubprocessCrashed re-execs this test binary as the oracle over
-// specPath and reports whether the pipeline overflowed its stack. Exit status 2
-// is also what a panic ends with, so the fatal error's own text is required: a
+// TestLoad_RunsTheChainCheckItsOptionsHold pins the seam the oracle turns the
+// check off through, in this process: the oracle's own runs happen in children,
+// whose coverage need not reach the profile. A check Options holds runs in
+// chainCycle's place, its refusal is Load's, and a check that finds nothing
+// lets the load go on.
+func TestLoad_RunsTheChainCheckItsOptionsHold(t *testing.T) {
+	t.Parallel()
+	refusal := diag.Newf(ir.SeverityError, diag.CyclicRef, ir.Provenance{}, "planted")
+	refuses := func(context.Context, scan.Locator, *yaml.Node, *soa.OpenAPI, Siblings) (ir.Diagnostic, bool) {
+		return refusal, true
+	}
+	src := compilers.Source{Path: "spec.yaml", Data: []byte(minimal31)}
+
+	doc, diags, err := Load(t.Context(), 0, src, Options{chainCheck: refuses})
+	require.NoError(t, err)
+	assert.Nil(t, doc)
+	assert.Equal(t, []ir.Diagnostic{refusal}, diags)
+
+	doc, diags, err = Load(t.Context(), 0, src, Options{chainCheck: noChainCheck})
+	require.NoError(t, err)
+	assert.NotNil(t, doc)
+	assert.False(t, diag.HasError(diags), "%v", diags)
+}
+
+// pipelineOverflows reports whether load's pipeline, with the reference-chain
+// check off, overflows its stack on spec, asked of the oracle in a child. A
 // panic is a different finding and fails the test rather than counting as one.
-func reachFuzzSubprocessCrashed(ctx context.Context, t *testing.T, specPath string) bool {
+func pipelineOverflows(t *testing.T, spec string) bool {
 	t.Helper()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(os.Environ(), reachFuzzOracleEnv+"="+specPath)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		return false
-	}
-	var exitErr *exec.ExitError
-	if !assert.ErrorAs(t, err, &exitErr, "the oracle subprocess must exit rather than fail to start") ||
-		exitErr.ExitCode() != 2 {
-		return false
-	}
-	return assert.Contains(t, string(out), "fatal error: stack overflow",
-		"the oracle exited with status 2 for a reason other than the stack overflow it looks for")
+	path := filepath.Join(t.TempDir(), "spec.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(spec), 0o600))
+	out, end := inChild(t, "TestReachFuzz_Oracle", reachFuzzOracleEnv, path)
+	require.NotEqual(t, childPanicked, end, "the pipeline panicked rather than overflow:\n%.1500s", out)
+	return end == childOverflowed
 }
 
 // reachFuzzRefs, reachFuzzIDs and reachFuzzAnchors are the fixed vocabularies
@@ -293,7 +298,7 @@ const reachFuzzGoldenHeader = `# Generated by:
 # One index per line: which of reachFuzzN documents genReachFuzzDocs
 # generates, in order, from rand.New(rand.NewSource(reachFuzzSeed)), crash this
 # package's own load pipeline with an unrecoverable stack overflow when its
-# reference-chain check is turned off (runReachFuzzOracle). math/rand's v1
+# reference-chain check is turned off (TestReachFuzz_Oracle). math/rand's v1
 # source (used here, not math/rand/v2) is documented to produce the same
 # sequence for a given seed across Go versions, so genReachFuzzDocs reproduces
 # these exact documents on every run without this file needing to store them
@@ -344,13 +349,10 @@ func regenerateReachFuzzGolden(t *testing.T, docs []string, goldenPath string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
-	dir := t.TempDir()
 
 	var crashed []int
 	for i, spec := range docs {
-		specPath := filepath.Join(dir, fmt.Sprintf("f%03d.yaml", i))
-		require.NoError(t, os.WriteFile(specPath, []byte(spec), 0o600))
-		if reachFuzzSubprocessCrashed(ctx, t, specPath) {
+		if pipelineOverflows(t, spec) {
 			crashed = append(crashed, i)
 		}
 		require.NoError(t, ctx.Err(), "regenerating the golden ran out of time after %d/%d documents", i+1, len(docs))

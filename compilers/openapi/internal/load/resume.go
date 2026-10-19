@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/defs"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
@@ -60,10 +61,11 @@ func (e external) resumable(r resolvable, c chain, err error) (bool, error) {
 // node, within maxResolutionHops. A cycle never ends.
 //
 // The library restarts its cycle check at each schema hop it resolved before,
-// so a resumed chain leading back through one recurses until the stack
-// overflows, which nothing recovers from. A hop this walk cannot read as the
-// library does is no answer (see withinDocument): a chain leaving the document
-// is not resumed, and fails as it would without settle.
+// so a resumed chain leading back through one overflows the stack, which
+// nothing recovers from (docs/parser-library.md#schema-cycle-overflow). A hop
+// this walk cannot read as the library does is no answer (see withinDocument):
+// a chain leaving the document is not resumed, and fails as it would without
+// settle.
 func ends(tree *yaml.Node, ref references.Reference) bool {
 	view := nodeview.New()
 	return endsWithin(ref, func(ref references.Reference) (references.Reference, hopKind) {
@@ -154,12 +156,12 @@ func settledRead(err error) hopKind {
 }
 
 // withinDocument returns the pointer ref names in the document holding it,
-// decoded as the library decodes it, or false for a reference the library
+// decoded as fragment.Pointer decodes it, or false for a reference the library
 // reads otherwise: one naming a document, which may be read for the first time
 // or resolved through a $id, an anchor, and a "#/$defs/..." pointer, which it
 // may read relative to the schema spelling it.
 func withinDocument(ref references.Reference) (string, bool) {
-	pointer := string(ref.GetJSONPointer())
+	pointer := string(fragment.Pointer(string(ref)))
 	if ref.GetURI() != "" || !strings.HasPrefix(pointer, "/") || defs.IsPointer(jsontext.Pointer(pointer)) {
 		return "", false
 	}
@@ -229,7 +231,7 @@ func (w *resumeWork) charge(tree *yaml.Node, ref references.Reference, reads int
 	read := map[references.Reference]bool{}
 	for ref.GetURI() == "" && !read[ref] {
 		read[ref] = true
-		steps, target := w.reads.cost(tree, string(ref.GetJSONPointer()), (w.limit-w.spent)/reads)
+		steps, target := w.reads.cost(tree, string(fragment.Pointer(string(ref))), (w.limit-w.spent)/reads)
 		if !w.spend(1 + reads*steps + w.reads.drain()) {
 			return false
 		}

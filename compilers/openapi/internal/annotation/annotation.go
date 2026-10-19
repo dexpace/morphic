@@ -494,9 +494,9 @@ func DeclaredSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oa
 // content maps).
 //
 // The last pair spelling the key wins, as for the parser, which skips every
-// earlier occurrence. An explicit pair and an aliased one are one key to the
-// parser and two nodes here, so the first would describe a mapping by a value
-// nothing else in the compiler uses.
+// earlier occurrence (docs/parser-library.md#duplicate-key). An explicit pair
+// and an aliased one are one key to the parser and two nodes here, so the first
+// would describe a mapping by a value nothing else in the compiler uses.
 func RawChildNode(root *yaml.Node, key string) *yaml.Node {
 	if root == nil {
 		return nil
@@ -863,8 +863,8 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 		keepKeyword("dependentSchemas")
 	}
 	// dependentRequired is read off the raw node because oas3.Schema has no field
-	// for it at v1.24.0 — the only reason it was silently dropped where its
-	// sibling dependentSchemas was kept.
+	// for it (docs/parser-library.md#unmodeled-keywords), which is why it was once
+	// silently dropped where its sibling dependentSchemas was kept.
 	dr, drErr := RawFromNode(RawPropertyNode(s, "dependentRequired"))
 	if dr != nil || drErr != nil {
 		keep("openapi:dependentRequired", dr, drErr, pointer+ids.Ptr("dependentRequired"), "dependentRequired")

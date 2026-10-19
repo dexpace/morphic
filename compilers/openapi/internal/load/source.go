@@ -28,6 +28,9 @@ type sourceDocument struct {
 	found    map[findingKey]bool
 	tree     sourceTree
 	holdless bool
+	// escapes holds the $ref values rewritten in the source's tree and in the
+	// trees of the documents it reads, or is nil for none (GitHub #911).
+	escapes *escapes
 }
 
 // sourceTree places a finding about a node of the source's patched tree as the
@@ -58,8 +61,9 @@ func (t sourceTree) pointer(n *yaml.Node) (jsontext.Pointer, bool) {
 // newSourceDocument returns the source at path, built from data into root,
 // whose own validation found valErrs, and whose findings tree places. Only a
 // finding at a node is kept: one at none is told apart by where it is placed,
-// which a $ref reaching it changes.
-func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []error, tree sourceTree) sourceDocument {
+// which a $ref reaching it changes. esc holds the $refs rewritten in root.
+func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []error, tree sourceTree, esc *escapes,
+) sourceDocument {
 	found := make(map[findingKey]bool, len(valErrs))
 	for _, ve := range valErrs {
 		if verr, ok := asValidationError(ve); ok && verr.Node != nil {
@@ -67,7 +71,7 @@ func newSourceDocument(path string, data []byte, root *yaml.Node, valErrs []erro
 		}
 	}
 	return sourceDocument{path: path, data: data, root: root, found: found, tree: tree,
-		holdless: anyScalar(root, isID) || spellsManyRefs(root)}
+		holdless: anyScalar(root, isID) || spellsManyRefs(root), escapes: esc}
 }
 
 // maxHeldRefs is the most $ref scalars a source held under its file name may

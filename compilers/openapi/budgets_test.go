@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -157,7 +160,7 @@ func TestCompile_NegativeBudgetIsUnbounded(t *testing.T) {
 	t.Parallel()
 	const members = 5
 	doc, diags := compileBounded(t, enumSpec(members),
-		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1, MaxAliasSurplus: -1})
+		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1, MaxAliasSurplus: -1, MaxExternalDocuments: -1})
 
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -240,17 +243,18 @@ func TestLimitsWithDefaults_FillsEveryUnsetBudgetAndKeepsTheRest(t *testing.T) {
 		{
 			"the zero value takes every default",
 			Limits{},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, DefaultMaxEnumMembers, DefaultMaxAliasSurplus},
+			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, DefaultMaxEnumMembers, DefaultMaxAliasSurplus,
+				DefaultMaxExternalDocuments},
 		},
 		{
 			"a set budget is left alone and the others still default",
-			Limits{MaxEnumMembers: 9},
-			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, 9, DefaultMaxAliasSurplus},
+			Limits{MaxEnumMembers: 9, MaxExternalDocuments: 7},
+			Limits{DefaultMaxSourceBytes, DefaultMaxSourceNodes, 9, DefaultMaxAliasSurplus, 7},
 		},
 		{
 			"a negative budget is the caller asking for none",
-			Limits{MaxSourceBytes: -1, MaxSourceNodes: -2, MaxEnumMembers: -3, MaxAliasSurplus: -4},
-			Limits{-1, -2, -3, -4},
+			Limits{MaxSourceBytes: -1, MaxSourceNodes: -2, MaxEnumMembers: -3, MaxAliasSurplus: -4, MaxExternalDocuments: -5},
+			Limits{-1, -2, -3, -4, -5},
 		},
 	}
 	for _, tc := range tests {
@@ -284,8 +288,38 @@ func TestLoadOptions_CarriesTheResolvedSizeBudgets(t *testing.T) {
 	assert.Equal(t, 0, got.MaxSourceNodes, "an unbounded budget reaches the loader as no budget")
 	assert.Equal(t, DefaultMaxAliasSurplus, got.MaxAliasSurplus, "an unset budget reaches the loader as its default")
 
-	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1}}.withDefaults())
+	assert.Equal(t, DefaultMaxExternalDocuments, got.MaxExternalDocuments)
+
+	got = loadOptions(Options{Limits: Limits{MaxAliasSurplus: -1, MaxExternalDocuments: -1}}.withDefaults())
 	assert.Equal(t, 0, got.MaxAliasSurplus, "an unbounded alias budget reaches the loader as no budget")
+	assert.Equal(t, 0, got.MaxExternalDocuments, "an unbounded document budget reaches the loader as no budget")
+
+	got = loadOptions(Options{Limits: Limits{MaxExternalDocuments: 3}}.withDefaults())
+	assert.Equal(t, 3, got.MaxExternalDocuments)
+}
+
+// TestCompile_TheDocumentBudgetIsTheCallersToSet pins the document budget
+// through the public options: a chain of external documents that never ends
+// is read to the budget the caller set, and refused past it as
+// openapi/budget-exceeded, a diagnostic and not a Go error.
+func TestCompile_TheDocumentBudgetIsTheCallersToSet(t *testing.T) {
+	t.Parallel()
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := requests.Add(1)
+		_, err := fmt.Fprintf(w, "x: {$ref: './%d.yaml#/x'}\n", n)
+		assert.NoError(t, err, r.URL.Path)
+	}))
+	t.Cleanup(srv.Close)
+	src := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    A: {$ref: '" + srv.URL + "/0.yaml#/x'}\n"
+
+	_, diags, err := New().Compile(t.Context(), []compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
+		compilers.Options{FormatOptions: Options{AllowExternalRefs: true, Limits: Limits{MaxExternalDocuments: 3}}})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(3), requests.Load())
+	assert.Contains(t, messageOf(t, diags, diag.BudgetExceeded), "more documents than the 3-document budget")
 }
 
 func TestCompile_CanceledContextStopsTheCompile(t *testing.T) {

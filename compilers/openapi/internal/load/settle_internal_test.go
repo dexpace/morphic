@@ -7,13 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/speakeasy-api/openapi/jsonpointer"
@@ -118,9 +115,10 @@ components:
 
 // TestSettle_AChainResolvesInTheSecondPassToo pins GitHub #761 through GitHub
 // #538's second resolution, which a respelled anchored URL forces. That pass
-// prepares each file it reads again, so a document named by its $id, which
-// only its digest identifies, must still be found by it: the chain resolves,
-// with nothing reported, as it does when no second pass runs.
+// reads no file again but is handed the trees the first prepared, so a
+// document named by its $id, which only its digest identifies, must still be
+// found by it: the chain resolves, with nothing reported, as it does when no
+// second pass runs.
 func TestSettle_AChainResolvesInTheSecondPassToo(t *testing.T) {
 	t.Parallel()
 	trigger, _ := countingServer(t, anchoredExternalDoc)
@@ -340,30 +338,24 @@ func TestSettle_AFailureMendingCannotTouchIsNotResumed(t *testing.T) {
 	assert.Equal(t, []error{assert.AnError}, vErrs)
 }
 
-// settleChildEnv names a directory whose root.yaml a re-run of this test
-// binary loads with external references allowed, printing what the load
-// reports, in place of the test it re-ran. A stack overflow ends the process,
-// so a resolution that might recurse without end runs where losing the
-// process fails one test, not the binary (GitHub #569).
+// settleChildEnv hands a child (see inChild) a directory whose root.yaml it
+// loads with external references allowed, printing what the load reports, in
+// place of the test it re-ran: a resolution that might recurse without end
+// runs where losing the process fails one test, not the binary (GitHub #569).
 const settleChildEnv = "MORPHIC_SETTLE_CHILD_DIR"
 
 // settleChildMark opens each line the child prints for a diagnostic.
 const settleChildMark = "settle-child: "
 
-// loadInChild loads root.yaml in dir as loadExternal does, in a re-run of this
-// test binary running test alone, and returns each diagnostic as its pointer,
-// code and message. A child that does not exit cleanly fails the test with the
-// start of what it printed.
+// loadInChild loads root.yaml in dir as loadExternal does, in a child running
+// test, and returns each diagnostic as its pointer, code and message. A child
+// that does not pass fails the test with the start of what it printed.
 func loadInChild(t *testing.T, test, dir string) []string {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	t.Cleanup(cancel)
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+test+"$")
-	cmd.Env = append(os.Environ(), settleChildEnv+"="+dir)
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "the load ends rather than overflow its stack:\n%.1500s", out)
+	out, end := inChild(t, test, settleChildEnv, dir)
+	require.Equal(t, childPassed, end, "the load ends rather than overflow its stack:\n%.1500s", out)
 	var diags []string
-	for line := range strings.Lines(string(out)) {
+	for line := range strings.Lines(out) {
 		if d, ok := strings.CutPrefix(strings.TrimRight(line, "\n"), settleChildMark); ok {
 			diags = append(diags, d)
 		}
@@ -371,11 +363,10 @@ func loadInChild(t *testing.T, test, dir string) []string {
 	return diags
 }
 
-// printLoad is the child's side of loadInChild: it loads root.yaml in dir, on a
-// stack small enough to overflow at once, and prints each diagnostic.
+// printLoad is the child's side of loadInChild: it loads root.yaml in dir and
+// prints each diagnostic.
 func printLoad(t *testing.T, dir string) {
 	t.Helper()
-	debug.SetMaxStack(64 << 20)
 	data, err := os.ReadFile(filepath.Join(dir, "root.yaml"))
 	require.NoError(t, err)
 	_, diags := loadExternal(t, dir, string(data), Options{})
@@ -412,7 +403,7 @@ func assertReports(t *testing.T, got []string, want []report, msgAndArgs ...any)
 // first, the cycle or the bytes a later hop walked, and where only the cycle
 // is met, report it alike in both orders.
 func TestSettle_ACycleIsReportedNotResumed(t *testing.T) {
-	if dir := os.Getenv(settleChildEnv); dir != "" {
+	if dir, ok := asChild(settleChildEnv); ok {
 		printLoad(t, dir)
 		return
 	}
@@ -572,6 +563,8 @@ func TestEnds(t *testing.T) {
     NotString: {$ref: [x]}
     Flag: true
     Listed: [{$ref: '#/components/schemas/Loop'}]
+    Loop+Key: {$ref: '#/components/schemas/Loop+Key'}
+    ToLoop: {$ref: '#/components/schemas/Loop+Key'}
 `))
 	require.True(t, parsed)
 	for _, c := range []struct {
@@ -585,6 +578,8 @@ func TestEnds(t *testing.T) {
 		{"#/components/schemas/NotString", true, "a $ref that is not a string is none"},
 		{"#/components/schemas/Flag", true, "a schema that is a boolean holds none"},
 		{"#/components/schemas/Loop", false, "a cycle"},
+		{"#/components/schemas/Loop+Key", false, "a cycle through a key spelled with a plus"},
+		{"#/components/schemas/ToLoop", false, "a hop to that cycle"},
 		{"#/components/schemas/Back", false, "a hop naming a document"},
 		{"#/components/schemas/Merged", false, "a $ref a merge key supplies is followed"},
 		{"#/components/schemas/ViaAlias", false, "an alias's $ref is followed"},

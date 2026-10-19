@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
@@ -384,9 +385,9 @@ func TestDetect_RepeatedKeysDoNotDecideTheFormat(t *testing.T) {
 
 // TestDetect_ARepeatedVersionKeyAgreesWithTheParser holds detection to the
 // answer the lowering will reach. load reads the version off the parsed document
-// and records it on ir.SourceInfo, and that parser takes a repeated key's last
-// spelling; detection naming the first would give one document two dialects,
-// one routing it and one describing it.
+// and records it on ir.SourceInfo, so each case asks that parser which spelling
+// of a repeated key it keeps; detection naming another would give one document
+// two dialects, one routing it and one describing it.
 //
 // The two orders are the test: a single order passes whichever spelling is
 // taken.
@@ -400,10 +401,15 @@ func TestDetect_ARepeatedVersionKeyAgreesWithTheParser(t *testing.T) {
 		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
 			t.Parallel()
 			src := "openapi: " + tc.first + "\nopenapi: " + tc.second + "\ninfo: {}\n"
+			parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
+			require.NoError(t, err)
+			require.NotNil(t, parsed)
+			assert.Equal(t, tc.want, majorMinor(parsed.OpenAPI), "the spelling the parser keeps")
+
 			got, _, ok := New().Detect(compilers.Source{Path: "api.yaml", Data: []byte(src)}, compilers.Options{})
 			require.True(t, ok)
-			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: tc.want}, got.Format,
-				"the last spelling is the one the parser reads and records")
+			assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: majorMinor(parsed.OpenAPI)}, got.Format,
+				"detection names the version the parser records")
 		})
 	}
 }

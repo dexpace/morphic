@@ -1,14 +1,14 @@
-// Package scan refuses a source document before any of it is lowered.
-//
-// Three shapes would otherwise crash, hang or exhaust memory in the resolver or
-// parser: a reference cycle that never reaches a concrete schema; a reference
-// whose pointer passes through a reference being resolved, which deadlocks on
-// that reference's own lock; and a YAML alias fan-out expanding to more nodes
-// than the document declares. Each is read from the raw text through nodeview,
-// before either library sees it.
-//
-// The caller supplies a sourceindex.Index over the same tree, so its size and
-// alias-to-ancestor answers are not rederived.
+// Package scan refuses a source document before any of it is lowered, for
+// shapes the parser library cannot survive. A schema $ref chain that never
+// reaches a concrete schema overflows its stack
+// (docs/parser-library.md#schema-cycle-overflow); a chain of reference objects
+// is left to the resolver, which reports one
+// (docs/parser-library.md#reference-object-cycle). A YAML alias cycle or
+// fan-out overflows it or exhausts memory (docs/parser-library.md#alias-cycle,
+// docs/parser-library.md#alias-expansion). And nesting so deep that its cost
+// per node, growing with depth, adds up past use
+// (docs/parser-library.md#nesting-cost). Each is read from the raw text,
+// through the sourceindex.Index the caller supplies.
 package scan
 
 import (
@@ -32,10 +32,14 @@ var schemaEntryMapKeys = map[string]bool{
 	"schemas": true, "$defs": true, "definitions": true,
 }
 
-// subSchemaObjectKeys name single sub-schemas within a schema object.
+// subSchemaObjectKeys name single sub-schemas within a schema object. These and
+// the two sets below are the schema fields of the library's model, and only
+// those (TestSubSchemaKeys_AreTheModelsSchemaFields): under any other key of a
+// schema, such as draft-07's additionalItems, the resolver resolves nothing,
+// and its pointer walk is in raw YAML or a field holding no schema.
 var subSchemaObjectKeys = map[string]bool{
 	"items": true, "not": true, "additionalProperties": true,
-	"additionalItems": true, "propertyNames": true, "contains": true,
+	"propertyNames": true, "contains": true,
 	"if": true, "then": true, "else": true,
 	"unevaluatedItems": true, "unevaluatedProperties": true,
 	"contentSchema": true,
@@ -44,7 +48,7 @@ var subSchemaObjectKeys = map[string]bool{
 // subSchemaMapKeys name a mapping of name→schema within a schema object.
 var subSchemaMapKeys = map[string]bool{
 	"properties": true, "patternProperties": true, "dependentSchemas": true,
-	"$defs": true, "definitions": true,
+	"$defs": true,
 }
 
 // subSchemaListKeys name a sequence of schemas within a schema object.
@@ -52,12 +56,13 @@ var subSchemaListKeys = map[string]bool{
 	"allOf": true, "oneOf": true, "anyOf": true, "prefixItems": true,
 }
 
-// schemaDataKeys name value-bearing keys whose subtree is data, not schema — a
-// $ref-shaped mapping under one of them is an opaque value, never resolved.
-var schemaDataKeys = map[string]bool{
-	"example": true, "examples": true, "default": true,
-	"const": true, "enum": true,
-}
+// exampleKeys name the fields holding example data outside a schema: the
+// example of a parameter, a header or a media type, a raw value, and its
+// examples, Example objects that hold no schema either. A $ref-shaped mapping
+// under one is an opaque value, never resolved. No field so named outside a
+// schema holds one (TestExampleKeys_HoldNoSchema). A default there is a
+// response, so it is no such key, whatever a schema's default is.
+var exampleKeys = map[string]bool{"example": true, "examples": true}
 
 // Locator answers where a diagnostic's subject is. Given a node it returns the
 // provenance to report the node at; given nil it returns the source alone, the
@@ -171,26 +176,34 @@ func stepsIn(root *yaml.Node, limit int) (map[*yaml.Node]step, bool) {
 	return out, !cut
 }
 
-// reachChildren hands reach each child of n with the step that leads to it.
+// reachChildren hands reach each child of n a pointer reaches, with the step
+// that leads to it.
 func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
+	eachChild(n, func(c *yaml.Node, token string, held bool) {
+		if held {
+			reach(c, step{holder: n, token: token})
+		}
+	})
+}
+
+// eachChild hands visit each child of a mapping or sequence n, with the token
+// naming it and whether a pointer reaches it there: a pair under a `<<` merge
+// key, or under a key that is no scalar, is n's but has no pointer of its own.
+// A scalar holds nothing, and an alias's target is written elsewhere.
+func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
 			token, own := nodeview.KeyOf(key)
-			if !own {
-				continue
-			}
-			reach(key, step{holder: n, token: token})
-			reach(value, step{holder: n, token: token})
+			visit(key, token, own)
+			visit(value, token, own)
 		}
 	case yaml.SequenceNode:
 		for i, item := range n.Content {
-			reach(item, step{holder: n, token: strconv.Itoa(i)})
+			visit(item, strconv.Itoa(i), true)
 		}
 	default:
-		// A scalar holds nothing, and an alias's target is indexed where it
-		// is written.
 	}
 }
 
@@ -217,11 +230,10 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	return p
 }
 
-// Cycles refuses, before parsing, structures that crash, hang or exhaust memory
-// in the parser or resolver (GitHub #12, #27, speakeasy-api/openapi#231): a
-// recursive anchor, a $ref cycle, a pointer re-entering its own chain, and
-// alias amplification past the ratio or the surplus budget (zero for none). An
-// incomplete scan yields a diag.CycleScanFailed warning.
+// Cycles refuses, before parsing, the structures the package doc names (GitHub
+// #12, #27, speakeasy-api/openapi#231): a recursive anchor, a schema $ref chain
+// that loops, and alias amplification past the ratio or the surplus budget
+// (zero for none). An incomplete scan yields a diag.CycleScanFailed warning.
 //
 // The index must cover the tree that will reach the parser, since an overlay
 // can graft a cycle onto a clean document, and must not be truncated: a partial
@@ -251,11 +263,10 @@ func recoverCycleScan(locate Locator, scan func() []ir.Diagnostic) (diags []ir.D
 
 // Aliases refuses a YAML document whose aliases expand without end or far past
 // its own size, the two refusals Cycles makes that concern YAML rather than
-// OpenAPI. It serves overlays, whose applier follows aliases while cloning an
-// update: an anchor naming its own ancestor would recurse until the stack ran
-// out, which no recover converts, and an alias bomb would expand until memory
-// did (GitHub #489). $ref chains are skipped; nothing resolves them in an
-// overlay.
+// OpenAPI. It serves overlays, whose applier clones an update through its
+// aliases: an anchor naming its own ancestor overflows the stack, and an alias
+// bomb exhausts memory (docs/parser-library.md#overlay-alias-clone, GitHub
+// #489). $ref chains are skipped; nothing resolves them in an overlay.
 //
 // The index must cover the whole document: an alias to an ancestor is visible
 // only from the root. surplus is the alias budget.
@@ -271,23 +282,27 @@ func Aliases(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnost
 	})
 }
 
-// anchorCycle reports the recursive anchor the index found, if any. It is read
-// before anything weighs the document's aliases: a recursive anchor makes the
-// expanded weight infinite, and having refused those is what makes the alias
-// graph a DAG and the weigh walk provably terminating.
+// anchorCycle reports a recursive anchor the index found, if any, at the alias
+// with the least pointer (Least): the parser cannot decode one
+// (docs/parser-library.md#alias-cycle). It is read before anything weighs the
+// document's aliases: a recursive anchor makes the expanded weight infinite,
+// and having refused those is what makes the alias graph a DAG and the weigh
+// walk provably terminating.
 func anchorCycle(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	alias, ok := idx.AnchorCycle()
-	if !ok {
+	cycles := idx.AnchorCycles()
+	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false
 	}
+	alias := Least(idx.Root(), cycles)
 	return cyclicDiag(locate, alias,
 		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
 }
 
-// scanIndex reports the first degenerate cycle the index's tree carries, or nil.
-// The index's root is nil for a source with no document in it; the ref walk and
-// the weigher both treat that as "nothing to scan", so no explicit nil guard is
-// needed here.
+// scanIndex reports the degenerate structure the index's tree carries, or nil:
+// a recursive anchor before anything else, then $ref chains, then alias
+// amplification. The index's root is nil for a source with no document in it;
+// the ref walk and the weigher both treat that as "nothing to scan", so no
+// explicit nil guard is needed here.
 func scanIndex(locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
 	if d, ok := anchorCycle(locate, idx); ok {
 		return []ir.Diagnostic{d}
@@ -319,10 +334,11 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// refCycles reports the first degenerate chain among the collected references:
-// one followed until it revisits a node on it without reaching a node with no
-// top-level $ref, where speakeasy stops resolving. Schema positions are refused
-// on that alone; reference-object positions are judged by outsideCycle.
+// refCycles reports the schema chains that never reach a node without a
+// top-level $ref, which the resolver recurses round until the stack runs out
+// (docs/parser-library.md#schema-cycle-overflow), at one site (see refusal). A
+// chain of reference objects is left to the resolver, which reports it
+// (docs/parser-library.md#reference-object-cycle).
 //
 // If the mapping view hit nodeview.MergeDepthLimit it returns a
 // diag.CycleScanFailed warning rather than a clean nil. Truncation only drops
@@ -331,14 +347,8 @@ func anchorName(alias *yaml.Node) string {
 func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	s := newRefScan()
 	s.collect(root)
-	chains := settleChains(s.view, root, slices.Concat(s.out, s.outside), sourceindex.MaxIndexedNodes)
-	for _, start := range s.out {
-		if chains.outcome(start).verdict == chainCycles {
-			return []ir.Diagnostic{cyclicDiag(locate, start,
-				"cyclic $ref: reference chain never reaches a node without a $ref")}
-		}
-	}
-	if d, found := s.outsideCycle(locate, chains); found {
+	chains := settleChains(s.view, root, s.out, sourceindex.MaxIndexedNodes)
+	if d, found := s.refusal(locate, root, chains); found {
 		return []ir.Diagnostic{d}
 	}
 	if s.view.Exhausted() {
@@ -351,77 +361,18 @@ func refCycles(locate Locator, root *yaml.Node) []ir.Diagnostic {
 	return nil
 }
 
-// outsideCycle reports the first degenerate chain among reference objects
-// outside any schema that speakeasy's resolver cannot report itself.
-//
-// The resolver's cycle guard tracks completed hops: resolveObjectWithTracking
-// extends its chain only after Reference.resolve returns. Whole-node hops under
-// components are caught there, with a better message. A hop naming a node by
-// document position ('#/paths/~1a') is not, so chainCycles is refused here once
-// the chain has left components.
-//
-// A hop passing through a reference deadlocks before the tracker runs (see
-// chainReenters), so that verdict is refused whatever the pointer names.
-func (s *refScan) outsideCycle(locate Locator, chains *chainGraph) (ir.Diagnostic, bool) {
-	for _, start := range s.outside {
-		chain := chains.outcome(start)
-		switch {
-		case chain.verdict == chainReenters:
-			return cyclicDiag(locate, start,
-				"cyclic $ref: reference resolves through itself"), true
-		case chain.verdict == chainCycles && chain.leftComponents:
-			return cyclicDiag(locate, start,
-				"cyclic $ref: reference chain never reaches a node without a $ref"), true
-		}
+// refusal reports the chains refCycles refuses, or nothing when it refuses
+// none. However many there are, one diagnostic names one site: of the nodes of
+// every loop a schema chain runs into, the one with the least pointer (Least).
+// A reference that only leads into a loop is not named, and no declaration
+// order moves the site (GitHub #912).
+func (s *refScan) refusal(locate Locator, root *yaml.Node, chains *chainGraph) (ir.Diagnostic, bool) {
+	sites := chains.loopsReached(s.out)
+	if len(sites) == 0 {
+		return ir.Diagnostic{}, false
 	}
-	return ir.Diagnostic{}, false
-}
-
-// componentsSection is the pointer of the components object itself. It repeats
-// ids.componentsRoot because scan may not import ids.
-const componentsSection jsontext.Pointer = "/components"
-
-// componentsRef reports whether a same-document $ref names a node in the
-// components section, the only shape speakeasy's resolver refuses on its own.
-// The pointer is the normalized one nodeview.InternalPointer returns, so it
-// carries no leading '#'.
-func componentsRef(pointer jsontext.Pointer) bool {
-	return pointer != componentsSection && componentsSection.Contains(pointer)
-}
-
-// chainVerdict is how following a pure-$ref chain ends. The two failing cases
-// are kept apart because the resolver treats them differently, not for
-// description's sake: only one of them is a shape speakeasy can report itself.
-type chainVerdict int
-
-const (
-	// chainTerminates: the chain reached a node with no top-level $ref, or a
-	// pointer that names nothing. The resolver stops either way.
-	chainTerminates chainVerdict = iota
-
-	// chainCycles: every hop resolved to a whole node, and the chain revisited
-	// one already on it. Each hop completes, so speakeasy extends its own
-	// reference chain and its cycle check sees the loop.
-	chainCycles
-
-	// chainReenters: a hop's pointer passes *through* a node already on the
-	// chain. speakeasy cannot see this one. Reference.resolve holds that
-	// reference's write lock across the pointer walk, and the walk read-locks
-	// every reference it passes through, so re-entering one self-deadlocks on a
-	// non-reentrant RWMutex — inside a hop that never completes, which is why
-	// the resolver's own cycle check never runs (v1.24.0, openapi/reference.go
-	// resolve at :537 and GetObject at :293). Refused whatever the pointer's
-	// spelling: unlike chainCycles, a components-only chain deadlocks too.
-	chainReenters
-)
-
-// chainOutcome is how the chain from a node ends: its verdict and, for
-// chainCycles alone, whether a hop on the way named a node outside components,
-// which separates a cycle speakeasy's resolver refuses from one it faults on
-// (see outsideCycle). For any other verdict it is false.
-type chainOutcome struct {
-	verdict        chainVerdict
-	leftComponents bool
+	return cyclicDiag(locate, Least(root, sites),
+		"cyclic $ref: reference chain never reaches a node without a $ref"), true
 }
 
 // walkRole is how the ref-collection walk reads the node it is visiting. The
@@ -439,6 +390,47 @@ const (
 
 	roleCount // number of roles; sizes refScan.seen
 )
+
+// child returns the role of what a node read in role r holds under key, and
+// false where the scan reads no further: under a schema, any key naming no
+// sub-schema, below which the resolver reads no schema; outside one, an
+// extension or an example (exampleKeys). That skip goes by the name alone,
+// though the library's model also asks which object holds the key, so it
+// passes over an object named so, such as a webhook named x-h (GitHub #949).
+// The collection walk and a hop's pointer walk (emptyTokenLanding) share this
+// one reading.
+func (r walkRole) child(key string) (walkRole, bool) {
+	switch r {
+	case roleOutside:
+		switch {
+		case strings.HasPrefix(key, "x-"), exampleKeys[key]:
+			return roleOutside, false
+		case key == "schema":
+			return roleSchema, true
+		case schemaEntryMapKeys[key]:
+			return roleSchemaMap, true
+		default:
+			return roleOutside, true
+		}
+	case roleSchema:
+		switch {
+		case subSchemaObjectKeys[key]:
+			return roleSchema, true
+		case subSchemaMapKeys[key]:
+			return roleSchemaMap, true
+		case subSchemaListKeys[key]:
+			return roleSchemaList, true
+		default:
+			return roleSchema, false
+		}
+	case roleSchemaMap, roleSchemaList:
+		return roleSchema, true
+	default:
+		// Unreachable by construction, as in collect: recoverCycleScan turns
+		// this into the diag.CycleScanFailed warning, never a crash.
+		panic(fmt.Sprintf("cycle scan: unhandled walk role %d", r))
+	}
+}
 
 // refTask is one unit of the ref-collection walk: a node and the role to read it
 // in.
@@ -461,10 +453,6 @@ type refScan struct {
 	stack []refTask
 	seen  [roleCount]map[*yaml.Node]bool
 	out   []*yaml.Node
-	// outside holds the pure-$ref nodes found in reference-object positions
-	// rather than schema ones. They are kept apart from out because the two are
-	// reported under different rules — see outsideCycle.
-	outside []*yaml.Node
 }
 
 // newRefScan returns a scan with every memoization map initialized. Building the
@@ -481,8 +469,8 @@ func newRefScan() *refScan {
 // collect gathers every pure-$ref node reachable through a schema position into
 // s.out, skipping reference objects and data subtrees that speakeasy never
 // resolves as schema references. Nodes are appended in the depth-first
-// pre-order a recursive walk would produce, which keeps the reported cycle
-// stable for a document containing more than one.
+// pre-order a recursive walk would produce, which the chains are read in; what
+// a refusal names is chosen by pointer, so it follows no such order.
 func (s *refScan) collect(root *yaml.Node) {
 	s.push(root, roleOutside)
 	for len(s.stack) > 0 {
@@ -529,30 +517,15 @@ func (s *refScan) pushReversed(nodes []*yaml.Node, role walkRole) {
 	}
 }
 
-// visitOutside reads a document position outside any schema, entering schema
-// context at schema-valued keys and never collecting refs from data or extension
-// subtrees.
+// visitOutside reads a document position outside any schema, collecting
+// nothing there: it enters schema context at schema-valued keys, and never
+// descends into data or extension subtrees (walkRole.child).
 func (s *refScan) visitOutside(n *yaml.Node) {
 	if n.Kind == yaml.SequenceNode {
 		s.pushReversed(n.Content, roleOutside)
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
-		s.outside = append(s.outside, n)
-	}
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case strings.HasPrefix(p.Key, "x-"), schemaDataKeys[p.Key]:
-			// extension or example/default data: not a schema position
-		case p.Key == "schema":
-			s.push(p.Val, roleSchema)
-		case schemaEntryMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		default:
-			s.push(p.Val, roleOutside)
-		}
-	}
+	s.pushChildren(roleOutside, s.view.MappingPairs(n))
 }
 
 // visitSchema reads one schema object: it collects the node when it is a pure
@@ -567,16 +540,7 @@ func (s *refScan) visitSchema(n *yaml.Node) {
 	if _, ok := nodeview.PureRefTargetOf(pairs); ok {
 		s.out = append(s.out, n)
 	}
-	for _, p := range slices.Backward(pairs) {
-		switch {
-		case subSchemaObjectKeys[p.Key]:
-			s.push(p.Val, roleSchema)
-		case subSchemaMapKeys[p.Key]:
-			s.push(p.Val, roleSchemaMap)
-		case subSchemaListKeys[p.Key]:
-			s.push(p.Val, roleSchemaList)
-		}
-	}
+	s.pushChildren(roleSchema, pairs)
 }
 
 // visitSchemaMap reads each value of a name→schema mapping as a schema.
@@ -584,9 +548,17 @@ func (s *refScan) visitSchemaMap(n *yaml.Node) {
 	if n.Kind != yaml.MappingNode {
 		return
 	}
-	pairs := s.view.MappingPairs(n)
-	for _, pair := range slices.Backward(pairs) {
-		s.push(pair.Val, roleSchema)
+	s.pushChildren(roleSchemaMap, s.view.MappingPairs(n))
+}
+
+// pushChildren enqueues each value of pairs, a mapping read in role r, in the
+// role walkRole.child gives it there, skipping those that hold no schema. They
+// are pushed last first, so a LIFO pop meets them in written order.
+func (s *refScan) pushChildren(r walkRole, pairs []nodeview.Pair) {
+	for _, p := range slices.Backward(pairs) {
+		if role, held := r.child(p.Key); held {
+			s.push(p.Val, role)
+		}
 	}
 }
 
@@ -623,18 +595,19 @@ const maxAliasAmplification = 128
 // carry surpluses in the low hundreds, nowhere near this floor.
 const minExpandedNodes = 1 << 15 // 32768
 
-// aliasAmplification reports whether root's alias-substituted form exceeds what
-// the document may expand to, with an error diagnostic at the innermost node
-// that crossed. raw is the document's own node count.
+// aliasAmplification reports whether root's alias-substituted form, what the
+// parser decodes (docs/parser-library.md#alias-expansion), exceeds what the
+// document may expand to, with an error at the innermost node that crossed,
+// least by pointer. raw is the document's own node count.
 //
 // Two bounds apply. The ratio (maxAliasAmplification, floored at
 // minExpandedNodes) catches compounding aliasing, as diag.AliasAmplification
 // whatever the budget. surplus, the nodes aliasing may add beyond raw (zero for
-// no bound), catches one anchor repeated in a flat list, whose ratio stops
-// growing while memory climbs, as diag.BudgetExceeded.
+// none), catches one anchor repeated in a flat list, whose ratio stays put
+// while memory climbs, as diag.BudgetExceeded.
 //
-// Run it only after a recursive anchor is refused, which makes the alias graph
-// a DAG and the walk terminate (see scanIndex).
+// Run it only once recursive anchors are refused, which makes the alias graph
+// a DAG (see scanIndex).
 func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
@@ -647,21 +620,21 @@ func aliasAmplification(locate Locator, root *yaml.Node, raw, surplus int64) (ir
 
 	// One walk against whichever bound binds, so a document refused by neither —
 	// every document a compile goes on to lower — costs a single walk.
-	culprit, exceeded := newAliasWeigher(bound).weigh(root)
-	if !exceeded {
+	culprits := newAliasWeigher(bound).weigh(root)
+	if len(culprits) == 0 {
 		return ir.Diagnostic{}, false
 	}
 	if !budgeted {
-		return aliasAmplificationDiag(locate, culprit, shape, raw), true
+		return aliasAmplificationDiag(locate, Least(root, culprits), shape, raw), true
 	}
 
 	// Past the budget, the document is weighed again against the ratio, so one
 	// past both is named for the shape, which no budget admits. Only a refused
 	// document pays for this walk.
-	if bomb, pastShape := newAliasWeigher(shape).weigh(root); pastShape {
-		return aliasAmplificationDiag(locate, bomb, shape, raw), true
+	if bombs := newAliasWeigher(shape).weigh(root); len(bombs) > 0 {
+		return aliasAmplificationDiag(locate, Least(root, bombs), shape, raw), true
 	}
-	return aliasBudgetDiag(locate, culprit, surplus, raw), true
+	return aliasBudgetDiag(locate, Least(root, culprits), surplus, raw), true
 }
 
 // shapeAllowance returns the expanded weight the ratio rule admits for a
@@ -706,16 +679,18 @@ type weighFrame struct {
 // weighs 0, an alias weighs what its target weighs, and any other node weighs 1
 // plus the weight of its Content.
 //
-// That is what soa.Unmarshal pays: speakeasy v1.24.0 memoizes nothing on the
-// shared *yaml.Node an alias resolves to, so it builds a model subtree per path
-// reaching a node. The count is exact for aliases and an over-count, the safe
-// side, for `<<` merge keys, whose pairs are deduplicated. Re-check it on a
-// dependency bump.
+// That is what soa.Unmarshal pays: it builds a model subtree for every path
+// reaching a node (docs/parser-library.md#alias-expansion). The count is exact
+// for aliases and an over-count, the safe side, for `<<` merge keys, whose
+// pairs are deduplicated.
 type aliasWeigher struct {
 	allowance int64
 	ceiling   int64
 	weight    map[*yaml.Node]int64
 	inFlight  map[*yaml.Node]bool
+	// cut holds each node a cycle reached while it was in flight, whose weight is
+	// the ceiling it was saturated to rather than one weighed.
+	cut map[*yaml.Node]bool
 
 	// computations counts how many times computeWeight actually ran, as
 	// opposed to how many times a node's weight was merely read from the
@@ -735,22 +710,24 @@ func newAliasWeigher(allowance int64) *aliasWeigher {
 		ceiling:   allowance + 1,
 		weight:    map[*yaml.Node]int64{},
 		inFlight:  map[*yaml.Node]bool{},
+		cut:       map[*yaml.Node]bool{},
 	}
 }
 
-// weigh computes expandedWeight for every node reachable from root. It returns
-// the first node, in post-order, whose weight exceeds w.allowance and true, or
-// nil and false if none does. Post-order makes that node the innermost
-// amplifier: a node is weighed before its ancestors, so the walk stops at the
-// smallest structure already too large.
+// weigh computes expandedWeight for every node reachable from root, and returns
+// in post-order every innermost amplifier: a node whose weight exceeds
+// w.allowance though nothing it depends on does, the smallest structure already
+// too large. It returns none for a document within the allowance. It weighs on
+// past the first, since which comes first is the document's declaration order.
 //
 // Each distinct node enters the stack at most once, because pushChildren skips
 // one whose weight is known or that is in flight, so the stack is bounded by
 // the distinct nodes reachable from root.
-func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
+func (w *aliasWeigher) weigh(root *yaml.Node) []*yaml.Node {
 	if root == nil {
-		return nil, false
+		return nil
 	}
+	var innermost []*yaml.Node
 	stack := []*weighFrame{{n: root}}
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
@@ -770,11 +747,21 @@ func (w *aliasWeigher) weigh(root *yaml.Node) (*yaml.Node, bool) {
 		w.computations++
 		w.weight[top.n] = wt
 		stack = stack[:len(stack)-1]
-		if wt > w.allowance {
-			return top.n, true
+		if wt > w.allowance && !w.dependsOnAmplifier(top.n) {
+			innermost = append(innermost, top.n)
 		}
 	}
-	return nil, false
+	return innermost
+}
+
+// dependsOnAmplifier reports whether something n's weight depends on (see
+// childrenOf), every one of which is weighed by the time n is, is itself past
+// the allowance. A node a cycle cut is not weighed and never finishes, so the
+// node depending on it is the innermost there is.
+func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
+	return slices.ContainsFunc(childrenOf(n), func(c *yaml.Node) bool {
+		return !w.cut[c] && w.weight[c] > w.allowance
+	})
 }
 
 // pushChildren enqueues the nodes n's weight depends on (see childrenOf). A
@@ -790,7 +777,7 @@ func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 			continue
 		}
 		if w.inFlight[c] {
-			w.weight[c] = w.ceiling
+			w.weight[c], w.cut[c] = w.ceiling, true
 			continue
 		}
 		if _, done := w.weight[c]; done {
