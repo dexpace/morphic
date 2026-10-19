@@ -8,8 +8,9 @@ compiler refuses input over or works around. Each entry gives the behaviour, the
 that shows it, the compiler code that exists because of it, and the test that pins it.
 
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
-one, such as how the resolver reads a JSON pointer, a test beside the reproduction holds it to the
-library's. #907 lists the tests whose names claim such agreement without asking the library.
+one, such as how the resolver reads a JSON pointer, a test beside the reproduction asks the library
+the same question. The resolver oracle in `internal/harness` pins, in a golden of its own, what the
+resolver does with each reference shape the scan judges.
 
 Code that depends on a behaviour cites its entry, as `docs/parser-library.md#<key>`, instead of
 restating it. It never names a library version: the entry says what holds at the version it was
@@ -37,11 +38,15 @@ read them all:
 
 To bump the library:
 
-1. Run `go test ./compilers/openapi/internal/canary`. Each red subtest names an entry whose
-   behaviour changed, and its message says what the library did instead.
-2. For each, measure the new behaviour, then rewrite the entry and its pin. Decide what the code it
-   names still needs: a guard against a defect the library fixed can go, and code relying on a
-   behaviour the library dropped has to change.
+1. Run `go test ./...`. Each red subtest of `TestLibraryBehaviour` names an entry whose behaviour
+   changed, and its message says what the library did instead. A red test beside a reading the
+   compiler reproduces names a reading that changed, the resolver oracle names a reference shape
+   whose outcome moved, and the resolution pins in `internal/archtest` name a change to what in the
+   library resolves a reference.
+2. For each entry, measure the new behaviour, then rewrite the entry and its pin. Decide what the
+   code it names still needs: a guard against a defect the library fixed can go, and code relying on
+   a behaviour the library dropped has to change. Settle each other red test where it stands: the
+   oracle's golden is regenerated with `-update` once the guard it questions is decided.
 3. Set every entry's **Verified at** to the new version.
 
 ## Resolution
