@@ -31,7 +31,7 @@ reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) walks addi
 info contact/license → Document
 
 - Cases: `docs-summary-desc`
-- Tests: `openapi.TestMeta_FullDocumentMetadata`, `openapi.TestParse_EndToEnd`
+- Tests: `openapi.TestMeta_FullDocumentMetadata`, `openapi.TestCompile_EndToEnd`
 
 ### `self-uri`
 
@@ -41,7 +41,7 @@ construct a later minor added ([`later-version-construct`](#later-version-constr
 
 - Cases: `self-uri`
 - Codes: `openapi/later-version-construct`
-- Tests: `openapi.TestParse_RecordsSelfURI`
+- Tests: `openapi.TestCompile_RecordsSelfURI`
 
 ### `later-version-construct`
 
