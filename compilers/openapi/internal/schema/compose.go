@@ -150,7 +150,7 @@ func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
 		return false
 	}
 	bs := b.GetSchema()
-	if bs == nil || len(bs.GetAllOf()) == 0 {
+	if len(bs.GetAllOf()) == 0 { // a boolean branch too: its schema is nil, and GetAllOf is nil-safe
 		return false
 	}
 	residue := unmergedBranchKeys(bs)
@@ -375,9 +375,10 @@ func unmergedBranchKeys(bs *oas3.Schema) []string {
 
 // mergeConsumes reports whether fillAllOf's in-place merge reads branch keyword
 // key. It is the complete statement of what the merge keeps; everything else the
-// branch wrote is residue. `allOf` is not consumed here: a branch writing only it
-// is flattened by allOfBranches before the merge sees it (flattensInto), and
-// beside anything else it is residue like the rest.
+// branch wrote is residue. `allOf` is not consumed here: a branch whose only
+// unconsumed keyword is a non-empty allOf is flattened by allOfBranches before
+// the merge sees it (flattensInto); beside any other unconsumed keyword, or past
+// maxAllOfFlattenDepth, it is residue like the rest.
 func mergeConsumes(bs *oas3.Schema, key string) bool {
 	switch key {
 	case "properties":
@@ -1099,6 +1100,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, anchors *AnchorInde
 	diags = append(diags, fillModelProperties(c, ts, anchors, depth, m, body.schema, body.pointer)...)
 	diags = append(diags, applyCompositionRequired(c, m, body.schema, body.pointer)...)
 	diags = append(diags, fillAdditional(c, ts, anchors, depth, m, body.schema, body.pointer, body.hint)...)
+	diags = append(diags, applyFalseBranches(c, m, body.schema, body.pointer)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared

@@ -3765,6 +3765,7 @@ func TestDiscriminatorMapping_HoistedTargetKeepsItsDiagnostics(t *testing.T) {
 // before it.
 func nestedOrders(t *testing.T, first, last string) []*ir.Document {
 	t.Helper()
+	require.NotEmpty(t, last, "one block compiles the same document twice")
 	docs := make([]*ir.Document, 0, 2)
 	for _, src := range []string{first + last, last + first} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(src))
@@ -3897,7 +3898,7 @@ func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
             - allOf:
                 - required: [y]
 `
-		for _, doc := range nestedOrders(t, m, "") {
+		for _, doc := range nestedOrders(t, m, nestedAB) {
 			model, ok := typeByName(doc, "M").(*ir.Model)
 			require.True(t, ok, "M should be a model")
 			props := openapitest.PropsByWire(model.Properties)
@@ -3982,7 +3983,7 @@ func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
       allOf:
         - allOf: [false]
 `
-	for _, doc := range nestedOrders(t, m, "") {
+	for _, doc := range nestedOrders(t, m, nestedAB) {
 		model, ok := typeByName(doc, "M").(*ir.Model)
 		require.True(t, ok, "M should be a model")
 		assert.Equal(t, ir.AdditionalClosed, model.Additional)
@@ -4098,7 +4099,7 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
               properties: {c: {type: string}}
               minProperties: 1
 `
-	for _, doc := range nestedOrders(t, m, "") {
+	for _, doc := range nestedOrders(t, m, nestedAB) {
 		model, ok := typeByName(doc, "M").(*ir.Model)
 		require.True(t, ok, "M should be a model")
 		require.Len(t, model.Unmodeled, 3, "got %+v", model.Unmodeled)
@@ -4122,17 +4123,72 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 // TestAllOf_NestedBranchHintAgreesWithThePointerWalk pins that a $ref branch
 // inside a wrapper is named by its innermost index, as subSchemaHint names the
 // same pointer: an outside $ref to that pointer lowers it from the other side,
-// and the two must agree in either declaration order.
+// and the two must agree in either declaration order. The target is the
+// empty-named component because branchHint returns a target's own name before it
+// reads the index, so only a target with an empty hint lets the index reach the IR.
 func TestAllOf_NestedBranchHintAgreesWithThePointerWalk(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
         - allOf:
             - {$ref: '#/components/schemas/A'}
-            - {$ref: '#/components/schemas/B', description: Narrowed}
+            - {$ref: '#/components/schemas/', description: Narrowed}
 `
 	outsider := `    Outsider: {$ref: '#/components/schemas/M/allOf/0/allOf/1'}
 `
-	nestedOrders(t, m+outsider, nestedAB)
-	nestedOrders(t, outsider+m, nestedAB)
+	unnamed := "    \"\": {type: object, properties: {e: {type: string}}}\n"
+	for _, doc := range nestedOrders(t, m, outsider+unnamed+nestedAB) {
+		narrowed, ok := doc.Types["t/anon/components/schemas/M/allOf/0/allOf/1"]
+		require.True(t, ok, "the narrowed branch is hoisted at its pointer")
+		assert.Equal(t, "variant_1", narrowed.Common().Name.Hint)
+	}
+}
+
+// TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf
+// branch, flat or inside a wrapper, closes every variant of a schema that also
+// declares a oneOf, and is kept and reported once for the document.
+func TestAllOf_FalseBranchBesideUnionClosesEveryVariant(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, allOf, key, pointer string
+	}{
+		{"flat", `        - {$ref: '#/components/schemas/A'}
+        - false
+`, "openapi:allOf/1", "/components/schemas/U/allOf/1"},
+		{"nested", `        - allOf:
+            - {$ref: '#/components/schemas/A'}
+            - false
+`, "openapi:allOf/0/allOf/1", "/components/schemas/U/allOf/0/allOf/1"},
+	}
+	const pq = `    P: {type: object, properties: {p: {type: string}}}
+    Q: {type: object, properties: {q: {type: string}}}
+`
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			u := "    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n      allOf:\n" + tc.allOf
+			for _, doc := range nestedOrders(t, u, nestedAB+pq) {
+				for _, id := range []ir.TypeID{
+					"t/composed/components/schemas/U/oneOf/0",
+					"t/composed/components/schemas/U/oneOf/1",
+				} {
+					model, ok := doc.Types[id].(*ir.Model)
+					require.True(t, ok, "%s should be a model", id)
+					assert.Equal(t, ir.AdditionalClosed, model.Additional, id)
+					entry, ok := model.Unmodeled[tc.key]
+					require.True(t, ok, "%s: the false is kept under %s; got %+v", id, tc.key, model.Unmodeled)
+					assert.Equal(t, "false", string(entry.Value))
+					assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer)
+				}
+				n := 0
+				for _, d := range doc.Diagnostics {
+					if d.Code == diag.FalseSchema && d.Severity == ir.SeverityInfo &&
+						d.Provenance.Pointer == jsontext.Pointer(tc.pointer) {
+						n++
+					}
+				}
+				assert.Equal(t, 1, n, "one false-schema diagnostic for the document, not one per variant")
+			}
+		})
+	}
 }

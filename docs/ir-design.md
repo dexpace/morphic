@@ -1198,7 +1198,7 @@ from it is exact and nothing is reported.
   `Model.Additional`, `Model.Constraints` and `Unmodeled` — but attributing them to the composition
   means either giving the branch a node (changing the composition shape) or merging them upward
   with a precedence rule for branches that disagree. So a branch declaring anything the merge does
-  not consume is kept verbatim in `Unmodeled["openapi:allOf/<path>"]` under
+  not consume is kept verbatim in `Unmodeled["openapi:<path>"]` under
   `ReasonDegradedLowering` — the *whole* branch, consumed keywords included, so the source stays
   reconstructable rather than having to be reassembled from two places — keyed by its path from
   the composed schema (`allOf/1`, or `allOf/1/allOf/0` inside a flattened wrapper) so siblings
